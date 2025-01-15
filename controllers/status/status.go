@@ -21,6 +21,10 @@ package status
 import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 )
 
 // These constants represent the overall Phase as used by .Status.Phase.
@@ -63,6 +67,8 @@ const (
 
 	// ConditionReconcileComplete represents extra Condition Type, used by .Condition.Type.
 	ConditionReconcileComplete conditionsv1.ConditionType = "ReconcileComplete"
+
+	ConditionTypeReady string = "Ready"
 )
 
 const (
@@ -81,6 +87,23 @@ const (
 
 const (
 	ReadySuffix = "Ready"
+)
+
+const (
+	ServiceMeshNotConfiguredReason  = "ServiceMeshNotConfigured"
+	ServiceMeshNotConfiguredMessage = "ServiceMesh needs to be set to 'Managed' in DSCI CR"
+
+	ServiceMeshOperatorNotInstalledReason  = "ServiceMeshOperatorNotInstalled"
+	ServiceMeshOperatorNotInstalledMessage = "ServiceMesh operator must be installed for this component's configuration"
+
+	ServerlessOperatorNotInstalledReason  = "ServerlessOperatorNotInstalled"
+	ServerlessOperatorNotInstalledMessage = "Serverless operator must be installed for this component's configuration"
+)
+
+const (
+	DataSciencePipelinesDoesntOwnArgoCRDReason  = "DataSciencePipelinesDoesntOwnArgoCRD"
+	DataSciencePipelinesDoesntOwnArgoCRDMessage = "Failed upgrade: workflows.argoproj.io CRD already exists but not deployed by this operator " +
+		"remove existing Argo workflows or set `spec.components.datasciencepipelines.managementState` to Removed to proceed"
 )
 
 // SetProgressingCondition sets the ProgressingCondition to True and other conditions to false or
@@ -213,4 +236,9 @@ func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component st
 // ModelRegistryStatus struct holds the status for the ModelRegistry component.
 type ModelRegistryStatus struct {
 	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
+}
+
+func SetStatusCondition(obj common.WithStatus, condition metav1.Condition) bool {
+	s := obj.GetStatus()
+	return meta.SetStatusCondition(&s.Conditions, condition)
 }

@@ -24,25 +24,16 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -71,38 +62,38 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				Dashboard: dashboard.Dashboard{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				Workbenches: workbenches.Workbenches{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				Workbenches: componentApi.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				ModelMeshServing: componentApi.DSCModelMeshServing{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				Kserve: kserve.Kserve{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				CodeFlare: codeflare.CodeFlare{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				CodeFlare: componentApi.DSCCodeFlare{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				Ray: ray.Ray{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				Ray: componentApi.DSCRay{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				Kueue: kueue.Kueue{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				Kueue: componentApi.DSCKueue{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				TrainingOperator: trainingoperator.TrainingOperator{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+				TrustyAI: componentApi.DSCTrustyAI{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{ManagementState: operatorv1.Managed},
+				ModelRegistry: componentApi.DSCModelRegistry{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
 				},
-				ModelRegistry: modelregistry.ModelRegistry{
-					Component: components.Component{ManagementState: operatorv1.Removed},
+				TrainingOperator: componentApi.DSCTrainingOperator{
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
 				},
 			},
 		},
@@ -118,11 +109,14 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 // If there exists default-dsci instance already, it will not update DSCISpec on it.
 // Note: DSCI CR modifcations are not supported, as it is the initial prereq setting for the components.
 func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platform, appNamespace, monNamespace string) error {
+	log := logf.FromContext(ctx)
 	defaultDsciSpec := &dsciv1.DSCInitializationSpec{
 		ApplicationsNamespace: appNamespace,
-		Monitoring: dsciv1.Monitoring{
-			ManagementState: operatorv1.Managed,
-			Namespace:       monNamespace,
+		Monitoring: serviceApi.DSCMonitoring{
+			ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+				Namespace: monNamespace,
+			},
 		},
 		ServiceMesh: &infrav1.ServiceMeshSpec{
 			ManagementState: "Managed",
@@ -155,14 +149,14 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 
 	switch {
 	case len(instances.Items) > 1:
-		ctrl.Log.Info("only one instance of DSCInitialization object is allowed. Please delete other instances.")
+		log.Info("only one instance of DSCInitialization object is allowed. Please delete other instances.")
 		return nil
 	case len(instances.Items) == 1:
 		// Do not patch/update if DSCI already exists.
-		ctrl.Log.Info("DSCInitialization resource already exists. It will not be updated with default DSCI.")
+		log.Info("DSCInitialization resource already exists. It will not be updated with default DSCI.")
 		return nil
 	case len(instances.Items) == 0:
-		ctrl.Log.Info("create default DSCI CR.")
+		log.Info("create default DSCI CR.")
 		err := cluster.CreateWithRetry(ctx, cli, defaultDsci, 1) // 1 min timeout
 		if err != nil {
 			return err
@@ -271,7 +265,6 @@ func CleanupExistingResource(ctx context.Context,
 			"jupyterhub-use-s3-bucket-data",
 		})
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &odhDocJPH))
-
 	// only apply on RHOAI since ODH has a different way to create this CR by dashboard
 	if platform == cluster.SelfManagedRhoai || platform == cluster.ManagedRhoai {
 		if err := upgradeODCCR(ctx, cli, "odh-dashboard-config", dscApplicationsNamespace, oldReleaseVersion); err != nil {
@@ -307,13 +300,14 @@ func deleteResources(ctx context.Context, c client.Client, resources *[]Resource
 }
 
 func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) error {
+	log := logf.FromContext(ctx)
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(res.Gvk)
 
 	err := c.List(ctx, list, client.InNamespace(res.Namespace))
 	if err != nil {
 		if errors.Is(err, &meta.NoKindMatchError{}) {
-			ctrl.Log.Info("CRD not found, will not delete " + res.Gvk.String())
+			log.Info("CRD not found, will not delete " + res.Gvk.String())
 			return nil
 		}
 		return fmt.Errorf("failed to list %s: %w", res.Gvk.Kind, err)
@@ -335,7 +329,7 @@ func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) e
 				if err != nil {
 					return fmt.Errorf("failed to delete %s %s/%s: %w", res.Gvk.Kind, res.Namespace, item.GetName(), err)
 				}
-				ctrl.Log.Info("Deleted object " + item.GetName() + " " + res.Gvk.String() + "in namespace" + res.Namespace)
+				log.Info("Deleted object " + item.GetName() + " " + res.Gvk.String() + "in namespace" + res.Namespace)
 			}
 		}
 	}
@@ -344,6 +338,7 @@ func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) e
 }
 
 func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace string, resourceList []string, resourceType client.ObjectList) error {
+	log := logf.FromContext(ctx)
 	var multiErr *multierror.Error
 	listOpts := &client.ListOptions{Namespace: namespace}
 	if err := cli.List(ctx, resourceType, listOpts); err != nil {
@@ -354,16 +349,16 @@ func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace
 		item := items.Index(i).Addr().Interface().(client.Object) //nolint:errcheck,forcetypeassert
 		for _, name := range resourceList {
 			if name == item.GetName() {
-				ctrl.Log.Info("Attempting to delete " + item.GetName() + " in namespace " + namespace)
+				log.Info("Attempting to delete " + item.GetName() + " in namespace " + namespace)
 				err := cli.Delete(ctx, item)
 				if err != nil {
 					if k8serr.IsNotFound(err) {
-						ctrl.Log.Info("Could not find " + item.GetName() + " in namespace " + namespace)
+						log.Info("Could not find " + item.GetName() + " in namespace " + namespace)
 					} else {
 						multiErr = multierror.Append(multiErr, err)
 					}
 				}
-				ctrl.Log.Info("Successfully deleted " + item.GetName())
+				log.Info("Successfully deleted " + item.GetName())
 			}
 		}
 	}
@@ -372,6 +367,7 @@ func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace
 
 // Need to handle ServiceMonitor deletion separately as the generic function does not work for ServiceMonitors because of how the package is built.
 func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, namespace string, resourceList []string) error {
+	log := logf.FromContext(ctx)
 	var multiErr *multierror.Error
 	listOpts := &client.ListOptions{Namespace: namespace}
 	servicemonitors := &monitoringv1.ServiceMonitorList{}
@@ -382,16 +378,16 @@ func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, nam
 	for _, servicemonitor := range servicemonitors.Items {
 		for _, name := range resourceList {
 			if name == servicemonitor.Name {
-				ctrl.Log.Info("Attempting to delete " + servicemonitor.Name + " in namespace " + namespace)
+				log.Info("Attempting to delete " + servicemonitor.Name + " in namespace " + namespace)
 				err := cli.Delete(ctx, servicemonitor)
 				if err != nil {
 					if k8serr.IsNotFound(err) {
-						ctrl.Log.Info("Could not find " + servicemonitor.Name + " in namespace " + namespace)
+						log.Info("Could not find " + servicemonitor.Name + " in namespace " + namespace)
 					} else {
 						multiErr = multierror.Append(multiErr, err)
 					}
 				}
-				ctrl.Log.Info("Successfully deleted " + servicemonitor.Name)
+				log.Info("Successfully deleted " + servicemonitor.Name)
 			}
 		}
 	}
@@ -462,10 +458,11 @@ func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName st
 }
 
 func updateODCBiasMetrics(ctx context.Context, cli client.Client, instanceName string, oldRelease cluster.Release, odhObject *unstructured.Unstructured) error {
+	log := logf.FromContext(ctx)
 	// "from version" as oldRelease, if return "0.0.0" meaning running on 2.10- release/dummy CI build
 	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip disableBiasMetrics to false (even the field did not exist)
 	if oldRelease.Version.Minor < 14 {
-		ctrl.Log.Info("Upgrade force BiasMetrics to false in " + instanceName + " CR due to old release < 2.14.0")
+		log.Info("Upgrade force BiasMetrics to false in " + instanceName + " CR due to old release < 2.14.0")
 		// flip TrustyAI BiasMetrics to false (.spec.dashboardConfig.disableBiasMetrics)
 		disableBiasMetricsValue := []byte(`{"spec": {"dashboardConfig": {"disableBiasMetrics": false}}}`)
 		if err := cli.Patch(ctx, odhObject, client.RawPatch(types.MergePatchType, disableBiasMetricsValue)); err != nil {
@@ -473,28 +470,30 @@ func updateODCBiasMetrics(ctx context.Context, cli client.Client, instanceName s
 		}
 		return nil
 	}
-	ctrl.Log.Info("Upgrade does not force BiasMetrics to false due to from release >= 2.14.0")
+	log.Info("Upgrade does not force BiasMetrics to false due to from release >= 2.14.0")
 	return nil
 }
 
 func updateODCModelRegistry(ctx context.Context, cli client.Client, instanceName string, oldRelease cluster.Release, odhObject *unstructured.Unstructured) error {
+	log := logf.FromContext(ctx)
 	// "from version" as oldRelease, if return "0.0.0" meaning running on 2.10- release/dummy CI build
 	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip disableModelRegistry to false (even the field did not exist)
 	if oldRelease.Version.Minor < 14 {
-		ctrl.Log.Info("Upgrade force ModelRegistry to false in " + instanceName + " CR due to old release < 2.14.0")
+		log.Info("Upgrade force ModelRegistry to false in " + instanceName + " CR due to old release < 2.14.0")
 		disableModelRegistryValue := []byte(`{"spec": {"dashboardConfig": {"disableModelRegistry": false}}}`)
 		if err := cli.Patch(ctx, odhObject, client.RawPatch(types.MergePatchType, disableModelRegistryValue)); err != nil {
 			return fmt.Errorf("error enable ModelRegistry in CR %s : %w", instanceName, err)
 		}
 		return nil
 	}
-	ctrl.Log.Info("Upgrade does not force ModelRegistry to false due to from release >= 2.14.0")
+	log.Info("Upgrade does not force ModelRegistry to false due to from release >= 2.14.0")
 	return nil
 }
 
 // workaround for RHOAIENG-15328
 // TODO: this can be removed from ODH 2.22.
 func removeRBACProxyModelRegistry(ctx context.Context, cli client.Client, componentName string, containerName string, applicationNS string) error {
+	log := logf.FromContext(ctx)
 	deploymentList := &appsv1.DeploymentList{}
 	if err := cli.List(ctx, deploymentList, client.InNamespace(applicationNS), client.HasLabels{labels.ODH.Component(componentName)}); err != nil {
 		return fmt.Errorf("error fetching list of deployments: %w", err)
@@ -510,7 +509,7 @@ func removeRBACProxyModelRegistry(ctx context.Context, cli client.Client, compon
 		return nil
 	}
 
-	ctrl.Log.Info("Upgrade force ModelRegistry to remove container from deployment")
+	log.Info("Upgrade force ModelRegistry to remove container from deployment")
 	for i, container := range mrContainerList {
 		if container.Name == containerName {
 			removeUnusedKubeRbacProxy := []byte(fmt.Sprintf("[{\"op\": \"remove\", \"path\": \"/spec/template/spec/containers/%d\"}]", i))
@@ -539,6 +538,7 @@ func RemoveLabel(ctx context.Context, cli client.Client, objectName string, labe
 }
 
 func deleteDeprecatedNamespace(ctx context.Context, cli client.Client, namespace string) error {
+	log := logf.FromContext(ctx)
 	foundNamespace := &corev1.Namespace{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: namespace}, foundNamespace); err != nil {
 		if k8serr.IsNotFound(err) {
@@ -567,7 +567,7 @@ func deleteDeprecatedNamespace(ctx context.Context, cli client.Client, namespace
 		return fmt.Errorf("error getting pods from namespace %s: %w", namespace, err)
 	}
 	if len(podList.Items) != 0 {
-		ctrl.Log.Info("Skip deletion of namespace " + namespace + " due to running Pods in it")
+		log.Info("Skip deletion of namespace " + namespace + " due to running Pods in it")
 		return nil
 	}
 
@@ -602,6 +602,7 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (cluster.Release
 
 func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease cluster.Release, applicationNS string) error {
 	var errs *multierror.Error
+	log := logf.FromContext(ctx)
 
 	if oldRelease.Version.Minor >= 14 && oldRelease.Version.Minor <= 16 {
 		type objForDel struct {
@@ -652,15 +653,15 @@ func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease cl
 		for _, delObj := range deleteObjs {
 			if gErr := cli.Get(ctx, types.NamespacedName{Name: delObj.name, Namespace: applicationNS}, delObj.obj); gErr != nil {
 				if !k8serr.IsNotFound(gErr) {
-					ctrl.Log.V(1).Error(gErr, fmt.Sprintf("failed to get NIM %s %s", delObj.desc, delObj.name))
+					log.V(1).Error(gErr, fmt.Sprintf("failed to get NIM %s %s", delObj.desc, delObj.name))
 					errs = multierror.Append(errs, gErr)
 				}
 			} else {
 				if dErr := cli.Delete(ctx, delObj.obj); dErr != nil {
-					ctrl.Log.Error(dErr, fmt.Sprintf("failed to remove NIM %s %s", delObj.desc, delObj.name))
+					log.Error(dErr, fmt.Sprintf("failed to remove NIM %s %s", delObj.desc, delObj.name))
 					errs = multierror.Append(errs, dErr)
 				} else {
-					ctrl.Log.Info(fmt.Sprintf("removed NIM %s successfully", delObj.desc))
+					log.Info(fmt.Sprintf("removed NIM %s successfully", delObj.desc))
 				}
 			}
 		}

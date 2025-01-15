@@ -1,0 +1,21 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: admingroup-role
+  namespace: {{.DSCI.Spec.ApplicationsNamespace}}
+rules:
+- apiGroups:
+  - services.platform.opendatahub.io
+  resources:
+  - auths
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+- apiGroups:
+  - services.opendatahub.io
+  resources:
+  - auths/status
+  verbs:
+  - get

@@ -13,8 +13,8 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -29,7 +29,7 @@ func UpdatePodSecurityRolebinding(ctx context.Context, cli client.Client, namesp
 
 	for _, sa := range serviceAccountsList {
 		// Append serviceAccount if not added already
-		if !subjectExistInRoleBinding(foundRoleBinding.Subjects, sa, namespace) {
+		if !SubjectExistInRoleBinding(foundRoleBinding.Subjects, sa, namespace) {
 			foundRoleBinding.Subjects = append(foundRoleBinding.Subjects, rbacv1.Subject{
 				Kind:      rbacv1.ServiceAccountKind,
 				Name:      sa,
@@ -45,14 +45,14 @@ func UpdatePodSecurityRolebinding(ctx context.Context, cli client.Client, namesp
 	return nil
 }
 
-// Internal function used by UpdatePodSecurityRolebinding()
-// Return whether Rolebinding matching service account and namespace exists or not.
-func subjectExistInRoleBinding(subjectList []rbacv1.Subject, serviceAccountName, namespace string) bool {
+// SubjectExistInRoleBinding return whether RoleBinding matching service account and namespace exists or not.
+func SubjectExistInRoleBinding(subjectList []rbacv1.Subject, serviceAccountName, namespace string) bool {
 	for _, subject := range subjectList {
 		if subject.Name == serviceAccountName && subject.Namespace == namespace {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -71,7 +71,7 @@ func CreateSecret(ctx context.Context, cli client.Client, name, namespace string
 	}
 
 	foundSecret := &corev1.Secret{}
-	err := cli.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, foundSecret)
+	err := cli.Get(ctx, client.ObjectKeyFromObject(desiredSecret), foundSecret)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			err = cli.Create(ctx, desiredSecret)
@@ -82,6 +82,7 @@ func CreateSecret(ctx context.Context, cli client.Client, name, namespace string
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -98,11 +99,7 @@ func CreateOrUpdateConfigMap(ctx context.Context, c client.Client, desiredCfgMap
 	}
 
 	existingCfgMap := &corev1.ConfigMap{}
-	err := c.Get(ctx, client.ObjectKey{
-		Name:      desiredCfgMap.Name,
-		Namespace: desiredCfgMap.Namespace,
-	}, existingCfgMap)
-
+	err := c.Get(ctx, client.ObjectKeyFromObject(desiredCfgMap), existingCfgMap)
 	if k8serr.IsNotFound(err) {
 		return c.Create(ctx, desiredCfgMap)
 	} else if err != nil {
@@ -142,7 +139,7 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 	}
 
 	foundNamespace := &corev1.Namespace{}
-	if getErr := cli.Get(ctx, client.ObjectKey{Name: namespace}, foundNamespace); client.IgnoreNotFound(getErr) != nil {
+	if getErr := cli.Get(ctx, client.ObjectKeyFromObject(desiredNamespace), foundNamespace); client.IgnoreNotFound(getErr) != nil {
 		return nil, getErr
 	}
 
@@ -180,6 +177,7 @@ func ExecuteOnAllNamespaces(ctx context.Context, cli client.Client, processFunc 
 
 // WaitForDeploymentAvailable to check if component deployment from 'namespace' is ready within 'timeout' before apply prometheus rules for the component.
 func WaitForDeploymentAvailable(ctx context.Context, c client.Client, componentName string, namespace string, interval int, timeout int) error {
+	log := logf.FromContext(ctx)
 	resourceInterval := time.Duration(interval) * time.Second
 	resourceTimeout := time.Duration(timeout) * time.Minute
 
@@ -190,7 +188,7 @@ func WaitForDeploymentAvailable(ctx context.Context, c client.Client, componentN
 			return false, fmt.Errorf("error fetching list of deployments: %w", err)
 		}
 
-		ctrl.Log.Info("waiting for " + strconv.Itoa(len(componentDeploymentList.Items)) + " deployment to be ready for " + componentName)
+		log.Info("waiting for " + strconv.Itoa(len(componentDeploymentList.Items)) + " deployment to be ready for " + componentName)
 		for _, deployment := range componentDeploymentList.Items {
 			if deployment.Status.ReadyReplicas != deployment.Status.Replicas {
 				return false, nil
@@ -202,6 +200,7 @@ func WaitForDeploymentAvailable(ctx context.Context, c client.Client, componentN
 }
 
 func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object, timeoutMin int) error {
+	log := logf.FromContext(ctx)
 	interval := time.Second * 5 // arbitrary value
 	timeout := time.Duration(timeoutMin) * time.Minute
 
@@ -229,7 +228,7 @@ func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object, 
 
 		// retry if 500, assume webhook is not available
 		if k8serr.IsInternalError(errCreate) {
-			ctrl.Log.Info("Error creating object, retrying...", "reason", errCreate)
+			log.Info("Error creating object, retrying...", "reason", errCreate)
 			return false, nil
 		}
 

@@ -67,8 +67,13 @@ spec:
                   Internal development useful field to test customizations.
                   This is not recommended to be used in production environment.
                 properties:
+                  logLevel:
+                    description: Override Zap log level. Can be "debug", "info", "error"
+                      or a number (more verbose).
+                    type: string
                   logmode:
                     default: production
+                    description: '## DEPRECATED ##: Ignored, use LogLevel instead'
                     enum:
                     - devel
                     - development
@@ -77,7 +82,9 @@ spec:
                     - default
                     type: string
                   manifestsUri:
-                    description: Custom manifests uri for odh-manifests
+                    description: |-
+                      ## DEPRECATED ## : ManifestsUri set on DSCI is not maintained.
+                      Custom manifests uri for odh-manifests
                     type: string
                 type: object
               monitoring:
@@ -86,10 +93,12 @@ spec:
                   managementState:
                     description: |-
                       Set to one of the following values:
+
                       - "Managed" : the operator is actively managing the component and trying to keep it active.
-                                    It will only upgrade the component if it is safe to do so.
+                                    It will only upgrade the component if it is safe to do so
+
                       - "Removed" : the operator is actively managing the component and will not install it,
-                                    or if it is installed, the operator will try to remove it.
+                                    or if it is installed, the operator will try to remove it
                     enum:
                     - Managed
                     - Removed
@@ -97,7 +106,9 @@ spec:
                     type: string
                   namespace:
                     default: redhat-ods-monitoring
-                    description: Namespace for monitoring if it is enabled
+                    description: |-
+                      monitoring spec exposed to DSCI api
+                      Namespace for monitoring if it is enabled
                     maxLength: 63
                     pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                     type: string

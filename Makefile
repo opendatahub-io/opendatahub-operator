@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 2.16.0
+VERSION ?= 2.17.0
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -69,7 +69,7 @@ YQ ?= $(LOCALBIN)/yq
 KUSTOMIZE_VERSION ?= v5.0.2
 CONTROLLER_GEN_VERSION ?= v0.16.1
 OPERATOR_SDK_VERSION ?= v1.31.0
-GOLANGCI_LINT_VERSION ?= v1.61.0
+GOLANGCI_LINT_VERSION ?= v1.63.4
 YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
@@ -89,7 +89,8 @@ SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
 # E2E tests additional flags
-E2E_TEST_FLAGS = "--skip-deletion=false" -timeout 25m # See README.md, default go test timeout 10m
+# See README.md, default go test timeout 10m
+E2E_TEST_FLAGS = -timeout 40m
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
@@ -170,8 +171,13 @@ CLEANFILES += $(GOLANGCI_TMP_FILE)
 vet: ## Run go vet against code.
 	go vet ./...
 
+GOLANGCI_LINT_TIMEOUT ?= 5m0s
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint against code.
+	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT) --sort-results
+
+.PHONY: lint-fix
+lint-fix: golangci-lint ## Run golangci-lint against code.
 	$(GOLANGCI_LINT) run --fix --sort-results
 
 .PHONY: get-manifests
@@ -198,7 +204,10 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: run-nowebhook
 run-nowebhook: GO_RUN_ARGS += -tags nowebhook
-run-nowebhook: run ## Run a controller from your host without webhook enabled
+
+run-nowebhook: manifests generate fmt vet ## Run a controller from your host without webhook enabled
+	$(GO_RUN_MAIN)
+
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.

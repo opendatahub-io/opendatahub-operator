@@ -1408,7 +1408,7 @@ data:
           expr: sum(kube_pod_container_resource_limits{namespace="rhods-notebooks",resource="cpu", container=~"jupyter-nb-.*"} * on(pod) kube_pod_status_phase{phase="Running", namespace="rhods-notebooks"})
           labels:
             instance: jupyter-notebooks
-        
+    
       - name: Availability Metrics
         rules:
         - expr: ((min(probe_success{name=~"rhods-dashboard|notebook-spawner"}) by (name) or on() vector(0)) or label_replace(min(probe_success{name=~"rhods-dashboard|notebook-spawner"}), "name", "combined", "name", ".*"))

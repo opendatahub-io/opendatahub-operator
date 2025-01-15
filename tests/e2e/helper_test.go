@@ -14,28 +14,21 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trainingoperator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 const (
@@ -53,13 +46,16 @@ const (
 	dscCreationTimeout       = 20 * time.Second // time required to wait till DSC is created.
 	generalRetryInterval     = 10 * time.Second
 	generalWaitTimeout       = 2 * time.Minute
+	generalPollInterval      = 1 * time.Second
+	readyStatus              = "Ready"
+	dscKind                  = "DataScienceCluster"
 )
 
 func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) error {
 	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, operatorReadyTimeout, false, func(ctx context.Context) (bool, error) {
 		controllerDeployment, err := tc.kubeClient.AppsV1().Deployments(tc.operatorNamespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
-			if errors.IsNotFound(err) {
+			if k8serr.IsNotFound(err) {
 				return false, nil
 			}
 			log.Printf("Failed to get %s controller deployment", name)
@@ -79,6 +75,26 @@ func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) er
 	return err
 }
 
+func (tc *testContext) getComponentDeployments(componentGVK schema.GroupVersionKind) ([]appsv1.Deployment, error) {
+	deployments := appsv1.DeploymentList{}
+	err := tc.customClient.List(
+		tc.ctx,
+		&deployments,
+		client.InNamespace(
+			tc.applicationsNamespace,
+		),
+		client.MatchingLabels{
+			labels.PlatformPartOf: strings.ToLower(componentGVK.Kind),
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return deployments.Items, nil
+}
+
 func setupDSCICR(name string) *dsciv1.DSCInitialization {
 	dsciTest := &dsciv1.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
@@ -86,12 +102,16 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: "redhat-ods-applications",
-			Monitoring: dsciv1.Monitoring{
-				ManagementState: "Managed",
-				Namespace:       "redhat-ods-monitoring",
+			Monitoring: serviceApi.DSCMonitoring{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+					Namespace: "redhat-ods-monitoring",
+				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
-				ManagementState: "Managed",
+				ManagementState: operatorv1.Managed,
 				CustomCABundle:  "",
 			},
 			ServiceMesh: &infrav1.ServiceMeshSpec{
@@ -100,7 +120,7 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 					Name:              "data-science-smcp",
 					Namespace:         "istio-system",
 				},
-				ManagementState: "Managed",
+				ManagementState: operatorv1.Managed,
 			},
 		},
 	}
@@ -115,61 +135,73 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
 				// keep dashboard as enabled, because other test is rely on this
-				Dashboard: dashboard.Dashboard{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				Workbenches: workbenches.Workbenches{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				Kserve: kserve.Kserve{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-					Serving: infrav1.ServingSpec{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				CodeFlare: codeflare.CodeFlare{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				Ray: ray.Ray{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				Kueue: kueue.Kueue{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-				ModelRegistry: modelregistry.ModelRegistry{
-					Component: components.Component{
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				TrainingOperator: trainingoperator.TrainingOperator{
-					Component: components.Component{
+				Workbenches: componentApi.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				ModelMeshServing: componentApi.DSCModelMeshServing{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						DefaultDeploymentMode: componentApi.Serverless,
+						Serving: infrav1.ServingSpec{
+							ManagementState: operatorv1.Managed,
+							Name:            "knative-serving",
+							IngressGateway: infrav1.GatewaySpec{
+								Certificate: infrav1.CertificateSpec{
+									Type: infrav1.OpenshiftDefaultIngress,
+								},
+							},
+						},
+					},
+				},
+				CodeFlare: componentApi.DSCCodeFlare{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Ray: componentApi.DSCRay{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Kueue: componentApi.DSCKueue{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				TrustyAI: componentApi.DSCTrustyAI{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				ModelRegistry: componentApi.DSCModelRegistry{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
+						RegistriesNamespace: modelregistry.DefaultModelRegistriesNamespace,
+					},
+				},
+				TrainingOperator: componentApi.DSCTrainingOperator{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
@@ -204,7 +236,7 @@ func (tc *testContext) validateCRD(crdName string) error {
 	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, crdReadyTimeout, false, func(ctx context.Context) (bool, error) {
 		err := tc.customClient.Get(ctx, obj, crd)
 		if err != nil {
-			if errors.IsNotFound(err) {
+			if k8serr.IsNotFound(err) {
 				return false, nil
 			}
 			log.Printf("Failed to get CRD %s", crdName)
@@ -250,7 +282,7 @@ func getCSV(ctx context.Context, cli client.Client, name string, namespace strin
 		}
 	}
 
-	return nil, errors.NewNotFound(schema.GroupResource{}, name)
+	return nil, k8serr.NewNotFound(schema.GroupResource{}, name)
 }
 
 // Use existing or create a new one.
@@ -260,8 +292,9 @@ func getSubscription(tc *testContext, name string, ns string) (*ofapi.Subscripti
 		sub := setupSubscription(name, ns)
 
 		if err := tc.customClient.Create(tc.ctx, sub); err != nil {
-			return nil, fmt.Errorf("error creating subscription %s: %w", name, err)
+			return nil, fmt.Errorf("error creating subscription: %w", err)
 		}
+
 		return sub, nil
 	}
 
@@ -272,7 +305,7 @@ func getSubscription(tc *testContext, name string, ns string) (*ofapi.Subscripti
 	}
 
 	err := tc.customClient.Get(tc.ctx, key, sub)
-	if errors.IsNotFound(err) {
+	if k8serr.IsNotFound(err) {
 		return createSubscription(name, ns)
 	}
 	if err != nil {
@@ -286,7 +319,7 @@ func waitCSV(tc *testContext, name string, ns string) error {
 	interval := generalRetryInterval
 	isReady := func(ctx context.Context) (bool, error) {
 		csv, err := getCSV(ctx, tc.customClient, name, ns)
-		if errors.IsNotFound(err) {
+		if k8serr.IsNotFound(err) {
 			return false, nil
 		}
 		if err != nil {
@@ -409,7 +442,7 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 		}(op)
 	}
 
-	for range len(ops) {
+	for range ops {
 		err := <-c
 		errors = multierror.Append(errors, err)
 	}

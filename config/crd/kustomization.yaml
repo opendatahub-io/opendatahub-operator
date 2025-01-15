@@ -5,6 +5,20 @@ resources:
 - bases/dscinitialization.opendatahub.io_dscinitializations.yaml
 - bases/datasciencecluster.opendatahub.io_datascienceclusters.yaml
 - bases/features.opendatahub.io_featuretrackers.yaml
+- bases/components.platform.opendatahub.io_dashboards.yaml
+- bases/components.platform.opendatahub.io_workbenches.yaml
+- bases/components.platform.opendatahub.io_modelcontrollers.yaml
+- bases/components.platform.opendatahub.io_modelmeshservings.yaml
+- bases/components.platform.opendatahub.io_datasciencepipelines.yaml
+- bases/components.platform.opendatahub.io_kserves.yaml
+- bases/components.platform.opendatahub.io_kueues.yaml
+- bases/components.platform.opendatahub.io_codeflares.yaml
+- bases/components.platform.opendatahub.io_rays.yaml
+- bases/components.platform.opendatahub.io_trustyais.yaml
+- bases/components.platform.opendatahub.io_modelregistries.yaml
+- bases/components.platform.opendatahub.io_trainingoperators.yaml
+- bases/services.platform.opendatahub.io_monitorings.yaml
+- bases/services.platform.opendatahub.io_auths.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 # patches:
@@ -13,6 +27,8 @@ resources:
 #- patches/webhook_in_dscinitiatlizations.yaml
 #- patches/webhook_in_dscinitializations.yaml
 #- patches/webhook_in_datascienceclusters.yaml
+#- patches/webhook_in_monitorings.yaml
+#- patches/webhook_in_auths.yaml
 #+kubebuilder:scaffold:crdkustomizewebhookpatch
 
 # [CERTMANAGER] To enable cert-manager, uncomment all the sections with [CERTMANAGER] prefix.
@@ -20,6 +36,8 @@ resources:
 #- patches/cainjection_in_dscinitiatlizations.yaml
 #- patches/cainjection_in_dscinitializations.yaml
 #- patches/cainjection_in_datascienceclusters.yaml
+#- patches/cainjection_in_monitorings.yaml
+#- patches/cainjection_in_auths.yaml
 #+kubebuilder:scaffold:crdkustomizecainjectionpatch
 
 # the following config is for teaching kustomize how to do kustomization for CRDs.

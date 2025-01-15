@@ -59,7 +59,6 @@ var _ = BeforeSuite(func() {
 			Scheme: testScheme,
 			Paths: []string{
 				filepath.Join(projectDir, "config", "crd", "bases"),
-				filepath.Join(projectDir, "config", "crd", "dashboard-crds"),
 				filepath.Join(projectDir, "tests", "integration", "features", "fixtures", "crd"),
 			},
 			ErrorIfPathMissing: true,

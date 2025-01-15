@@ -1,0 +1,24 @@
+# permissions for end users to edit kserves.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kserve-editor-role
+rules:
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - kserves
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - kserves/status
+  verbs:
+  - get

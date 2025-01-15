@@ -1,0 +1,6 @@
+apiVersion: components.platform.opendatahub.io/v1
+kind: TrainingOperator
+metadata:
+  name: trainingoperator-sample
+spec:
+  # TODO(user): Add fields here

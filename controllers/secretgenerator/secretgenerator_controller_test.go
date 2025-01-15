@@ -6,35 +6,19 @@ import (
 
 	"github.com/onsi/gomega/gstruct"
 	oauthv1 "github.com/openshift/api/oauth/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
 )
-
-//nolint:ireturn
-func newFakeClient(objs ...client.Object) client.Client {
-	scheme := runtime.NewScheme()
-	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(appsv1.AddToScheme(scheme))
-	utilruntime.Must(oauthv1.AddToScheme(scheme))
-
-	return fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithObjects(objs...).
-		Build()
-}
 
 func TestGenerateSecret(t *testing.T) {
 	g := NewWithT(t)
@@ -45,6 +29,10 @@ func TestGenerateSecret(t *testing.T) {
 
 	// secret expected to be found
 	existingSecret := corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: corev1.SchemeGroupVersion.String(),
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: secretNs,
@@ -66,13 +54,13 @@ func TestGenerateSecret(t *testing.T) {
 		},
 	}
 
-	cli := newFakeClient(&existingSecret)
-
+	cli, err := fakeclient.New(&existingSecret)
 	r := secretgenerator.SecretGeneratorReconciler{
 		Client: cli,
 	}
+	g.Expect(err).ShouldNot(HaveOccurred())
 
-	_, err := r.Reconcile(ctx, reconcile.Request{
+	_, err = r.Reconcile(ctx, reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      existingSecret.Name,
 			Namespace: existingSecret.Namespace,
@@ -111,6 +99,10 @@ func TestExistingSecret(t *testing.T) {
 
 	// secret expected to be found
 	existingSecret := corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: corev1.SchemeGroupVersion.String(),
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: secretNs,
@@ -126,19 +118,24 @@ func TestExistingSecret(t *testing.T) {
 
 	// secret to be generated
 	generatedSecret := corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: corev1.SchemeGroupVersion.String(),
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName + "-generated",
 			Namespace: secretNs,
 		},
 	}
 
-	cli := newFakeClient(&existingSecret, &generatedSecret)
+	cli, err := fakeclient.New(&existingSecret, &generatedSecret)
+	g.Expect(err).ShouldNot(HaveOccurred())
 
 	r := secretgenerator.SecretGeneratorReconciler{
 		Client: cli,
 	}
 
-	_, err := r.Reconcile(ctx, reconcile.Request{
+	_, err = r.Reconcile(ctx, reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      existingSecret.Name,
 			Namespace: existingSecret.Namespace,
@@ -163,13 +160,14 @@ func TestSecretNotFound(t *testing.T) {
 	secretName := "fooo"
 	secretNs := "foooNs"
 
-	cli := newFakeClient()
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
 
 	r := secretgenerator.SecretGeneratorReconciler{
 		Client: cli,
 	}
 
-	_, err := r.Reconcile(ctx, reconcile.Request{
+	_, err = r.Reconcile(ctx, reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      secretName,
 			Namespace: secretNs,
@@ -188,6 +186,10 @@ func TestDeleteOAuthClientIfSecretNotFound(t *testing.T) {
 
 	// secret expected to be deleted
 	existingSecret := corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: corev1.SchemeGroupVersion.String(),
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
 			Namespace: secretNs,
@@ -216,14 +218,15 @@ func TestDeleteOAuthClientIfSecretNotFound(t *testing.T) {
 		GrantMethod:  oauthv1.GrantHandlerAuto,
 	}
 
-	cli := newFakeClient(&existingSecret, &existingOauthClient)
+	cli, err := fakeclient.New(&existingSecret, &existingOauthClient)
+	g.Expect(err).ShouldNot(HaveOccurred())
 
 	r := secretgenerator.SecretGeneratorReconciler{
 		Client: cli,
 	}
 
 	// delete secret
-	err := cli.Delete(ctx, &existingSecret)
+	err = cli.Delete(ctx, &existingSecret)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// ensure the secret is deleted

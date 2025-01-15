@@ -24,6 +24,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	templatev1 "github.com/openshift/api/template/v1"
 	userv1 "github.com/openshift/api/user/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
@@ -46,7 +47,9 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
+	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -79,6 +82,7 @@ var testScheme = runtime.NewScheme()
 
 var _ = BeforeSuite(func() {
 	// can't use suite's context as the manager should survive the function
+	//nolint:fatcontext
 	gCtx, gCancel = context.WithCancel(context.Background())
 
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
@@ -117,12 +121,18 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(routev1.Install(testScheme))
 	utilruntime.Must(userv1.Install(testScheme))
 	utilruntime.Must(monitoringv1.AddToScheme(testScheme))
+	utilruntime.Must(templatev1.Install(testScheme))
 	utilruntime.Must(configv1.Install(testScheme))
+	utilruntime.Must(serviceApi.AddToScheme(testScheme))
 	// +kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
+
+	odhClient, err := odhClient.NewFromConfig(cfg, k8sClient)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(odhClient).NotTo(BeNil())
 
 	webhookInstallOptions := &testEnv.WebhookInstallOptions
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
@@ -137,9 +147,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&dscictrl.DSCInitializationReconciler{
-		Client:   k8sClient,
+		Client:   odhClient,
 		Scheme:   testScheme,
-		Log:      ctrl.Log.WithName("controllers").WithName("DSCInitialization"),
 		Recorder: mgr.GetEventRecorderFor("dscinitialization-controller"),
 	}).SetupWithManager(gCtx, mgr)
 

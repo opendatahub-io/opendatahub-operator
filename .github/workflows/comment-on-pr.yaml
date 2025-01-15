@@ -1,0 +1,59 @@
+name: Comment on pr
+on:
+  workflow_run:
+    workflows: ["Check config and readme updates"]
+    types:
+      - completed
+jobs:  
+  download-artifact-data:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.artifact-data.outputs.pr_number }}
+    steps:
+      - name: Download artifact
+        id: artifact-download
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               run_id: context.payload.workflow_run.id,
+            });
+            
+            let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
+              return artifact.name == "pr_number"
+            })[0];
+
+            let download = await github.rest.actions.downloadArtifact({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               artifact_id: matchArtifact.id,
+               archive_format: 'zip',
+            });
+            let fs = require('fs');
+            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/pr_number.zip`, Buffer.from(download.data));
+      - name: Unzip artifact
+        run: unzip pr_number.zip
+      - name: Extract data
+        id: artifact-data
+        run: |
+          echo "pr_number=$(head -n 1 pr_number.txt)" >> $GITHUB_OUTPUT
+  comment-on-pr:
+    needs:
+      - download-artifact-data
+    runs-on: ubuntu-latest
+    permissions: 
+      pull-requests: write 
+    steps:
+      - name: Report issue in PR
+        uses: thollander/actions-comment-pull-request@v3.0.1
+        with:
+          message: |
+              ## This PR can't be merged just yet 😢
+
+                Please run `make generate manifests api-docs` and commit the changes.
+
+                For more info: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}
+          pr-number: ${{ needs.download-artifact-data.outputs.pr_number }}

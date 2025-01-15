@@ -1,47 +1,36 @@
 name: Check config and readme updates
 on:
-  pull_request_target:
+  pull_request:
 jobs:
   file-updates:
-    permissions:
-      pull-requests: write
     name: Ensure generated files are included
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
         with:
           ref: ${{github.event.pull_request.head.ref}}
           repository: ${{github.event.pull_request.head.repo.full_name}}
-      - name: Generate files
-        id: generate-files
+      - name: Save the PR number for artifact upload
         run: |
-          CMD="make generate manifests api-docs"
-          $CMD
-          echo "CMD=$CMD" >> $GITHUB_OUTPUT
+          echo ${{ github.event.number }} > pr_number.txt
+      - name: Upload the PR number as artifact
+        id: artifact-upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr_number
+          path: ./pr_number.txt
+          retention-days: 1 # This will delete the generated artifacts every day.
+      - name: Generate files
+        run: make generate manifests api-docs
       - name: Ensure generated files are up-to-date
         id: check_generated_files
         run : |
+          rm ./pr_number.txt # remove the pr_number.txt before checking "git status", to have correct assessment of the changed files.
           if [[ -n $(git status -s) ]]
           then
             echo "Generated files have been missed in the PR"
             git diff
-            echo "missing_generated_files=true" >> $GITHUB_OUTPUT
+           exit 1
           else
             echo "No new files to commit"
-            echo "missing_generated_files=false" >> $GITHUB_OUTPUT
           fi
-      - name: Report issue in PR
-        if: ${{ steps.check_generated_files.outputs.missing_generated_files == 'true' }}
-        uses: thollander/actions-comment-pull-request@v2
-        with:
-          message: |
-              ## This PR can't be merged just yet 😢
-
-                Please run `${{ steps.generate-files.outputs.CMD }}` and commit the changes.
-
-              For more info: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      - name: Print git status and fail pr
-        if: ${{ steps.check_generated_files.outputs.missing_generated_files == 'true' }}
-        run: |
-          git status
-          exit 1

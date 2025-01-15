@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-logr/logr"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -37,9 +36,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
@@ -50,14 +51,13 @@ const (
 
 // SecretGeneratorReconciler holds the controller configuration.
 type SecretGeneratorReconciler struct {
-	Client client.Client
+	*odhClient.Client
 	Scheme *runtime.Scheme
-	Log    logr.Logger
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *SecretGeneratorReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Log.Info("Adding controller for Secret Generation.")
+func (r *SecretGeneratorReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+	logf.FromContext(ctx).Info("Adding controller for Secret Generation.")
 
 	// Watch only new secrets with the corresponding annotation
 	predicates := predicate.Funcs{
@@ -144,8 +144,10 @@ func (r *SecretGeneratorReconciler) Reconcile(ctx context.Context, request ctrl.
 }
 
 func (r *SecretGeneratorReconciler) generateSecret(ctx context.Context, foundSecret *corev1.Secret, generatedSecret *corev1.Secret) error {
+	log := logf.FromContext(ctx).WithName("SecretGenerator")
+
 	// Generate secret random value
-	r.Log.Info("Generating a random value for a secret in a namespace",
+	log.Info("Generating a random value for a secret in a namespace",
 		"secret", generatedSecret.Name, "namespace", generatedSecret.Namespace)
 
 	generatedSecret.Labels = foundSecret.Labels
@@ -156,7 +158,7 @@ func (r *SecretGeneratorReconciler) generateSecret(ctx context.Context, foundSec
 
 	secret, err := NewSecretFrom(foundSecret.GetAnnotations())
 	if err != nil {
-		r.Log.Error(err, "error creating secret %s in %s", generatedSecret.Name, generatedSecret.Namespace)
+		log.Error(err, "error creating secret %s in %s", generatedSecret.Name, generatedSecret.Namespace)
 		return err
 	}
 
@@ -169,7 +171,7 @@ func (r *SecretGeneratorReconciler) generateSecret(ctx context.Context, foundSec
 		return err
 	}
 
-	r.Log.Info("Done generating secret in namespace",
+	log.Info("Done generating secret in namespace",
 		"secret", generatedSecret.Name, "namespace", generatedSecret.Namespace)
 
 	// check if annotation oauth-client-route exists
@@ -180,15 +182,15 @@ func (r *SecretGeneratorReconciler) generateSecret(ctx context.Context, foundSec
 	// Get OauthClient Route
 	oauthClientRoute, err := r.getRoute(ctx, secret.OAuthClientRoute, foundSecret.Namespace)
 	if err != nil {
-		r.Log.Error(err, "Unable to retrieve route from OAuthClient", "route-name", secret.OAuthClientRoute)
+		log.Error(err, "Unable to retrieve route from OAuthClient", "route-name", secret.OAuthClientRoute)
 		return err
 	}
 
 	// Generate OAuthClient for the generated secret
-	r.Log.Info("Generating an OAuthClient CR for route", "route-name", oauthClientRoute.Name)
+	log.Info("Generating an OAuthClient CR for route", "route-name", oauthClientRoute.Name)
 	err = r.createOAuthClient(ctx, foundSecret.Name, secret.Value, oauthClientRoute.Spec.Host)
 	if err != nil {
-		r.Log.Error(err, "error creating oauth client resource. Recreate the Secret", "secret-name",
+		log.Error(err, "error creating oauth client resource. Recreate the Secret", "secret-name",
 			foundSecret.Name)
 
 		return err
@@ -222,6 +224,7 @@ func (r *SecretGeneratorReconciler) getRoute(ctx context.Context, name string, n
 }
 
 func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name string, secretName string, uri string) error {
+	log := logf.FromContext(ctx)
 	// Create OAuthClient resource
 	oauthClient := &oauthv1.OAuthClient{
 		TypeMeta: metav1.TypeMeta{
@@ -239,7 +242,7 @@ func (r *SecretGeneratorReconciler) createOAuthClient(ctx context.Context, name 
 	err := r.Client.Create(ctx, oauthClient)
 	if err != nil {
 		if k8serr.IsAlreadyExists(err) {
-			r.Log.Info("OAuth client resource already exists, patch it", "name", oauthClient.Name)
+			log.Info("OAuth client resource already exists, patch it", "name", oauthClient.Name)
 			data, err := json.Marshal(oauthClient)
 			if err != nil {
 				return fmt.Errorf("failed to get DataScienceCluster custom resource data: %w", err)

@@ -1,0 +1,24 @@
+# permissions for end users to edit modelmeshservings.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: modelmeshserving-editor-role
+rules:
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - modelmeshservings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - modelmeshservings/status
+  verbs:
+  - get
