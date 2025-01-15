@@ -5,18 +5,4 @@ kind: Kustomization
 resources:
 - datasciencecluster_v1_datasciencecluster.yaml
 - dscinitialization_v1_dscinitialization.yaml
-#- components_v1_dashboard.yaml
-#- components_v1_workbenches.yaml
-#- components_v1_modelmeshserving.yaml
-#- components_v1_datasciencepipelines.yaml
-#- components_v1_kserve.yaml
-#- components_v1_kueue.yaml
-#- components_v1_codeflare.yaml
-#- components_v1_ray.yaml
-#- components_v1_trustyai.yaml
-#- components_v1_modelregistry.yaml
-#- components_v1_trainingoperator.yaml
-#- services_v1_dscmonitoring.yaml
-- services_v1_monitoring.yaml
 - services_v1alpha1_auth.yaml
-#+kubebuilder:scaffold:manifestskustomizesamples
