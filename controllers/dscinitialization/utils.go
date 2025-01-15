@@ -99,32 +99,41 @@ func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, n
 		if !k8serr.IsNotFound(err) {
 			return err
 		}
-		return r.createAppNamespace(ctx, nsName, platform)
+		log.Info("Application namespace from DSCI not found, creating it", "name", nsName)
+		return r.createAppNamespace(ctx, nsName, platform, map[string]string{labels.ODH.OwnedNamespace: labels.True}) // this indicate when uninstall, namespace will be deleted
 	}
 
 	l := appNamespace.GetLabels()
 	if l[labels.CustomizedAppNamespace] == "true" {
-		resources.SetLabel(appNamespace, labels.SecurityEnforce, "baseline")
-		if err := r.Update(ctx, appNamespace); err != nil {
-			log.Error(err, "Failed to force security label on namespace", "name", nsName)
-		}
+		// ensure customized namespace has required label
+		return r.createAppNamespace(ctx, nsName, platform, map[string]string{labels.CustomizedAppNamespace: labels.True})
+	}
+	if l[labels.ODH.OwnedNamespace] == "true" {
+		// ensure default namespace has required label
+		return r.createAppNamespace(ctx, nsName, platform, map[string]string{labels.ODH.OwnedNamespace: labels.True})
 	}
 	return errors.New("application namespace missing required label or label value is incorrect. Please recreate DSCI to set the label, or leave it to default value")
 }
 
-func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, nsName string, platform cluster.Platform) error {
+func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, nsName string, platform cluster.Platform, extraLabel ...map[string]string) error {
 	desiredDefaultNS := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: nsName},
 	}
-	labelList := map[string]string{}
+	labelList := map[string]string{
+		labels.SecurityEnforce: "baseline",
+	}
+
+	// label only for managed cluster
 	if platform == cluster.ManagedRhoai {
 		labelList["openshift.io/cluster-monitoring"] = "true"
 	}
 
-	labelList = map[string]string{
-		labels.ODH.OwnedNamespace: labels.True, // this indicate when uninstall, namespace will be deleted
-		labels.SecurityEnforce:    "baseline",
+	for _, l := range extraLabel {
+		for k, v := range l {
+			labelList[k] = v
+		}
 	}
+
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, desiredDefaultNS, func() error {
 		resources.SetLabels(desiredDefaultNS, labelList)
 		return nil

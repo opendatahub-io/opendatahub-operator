@@ -58,7 +58,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 		AfterEach(cleanupResources)
 
-		It("Should have security labels on application namespace", func(ctx context.Context) {
+		It("Should have security labels on existing DSCI specified application namespace", func(ctx context.Context) {
 			// then
 			appNS := &corev1.Namespace{}
 			Eventually(namespaceExists(customizedAppNs, appNS)).
