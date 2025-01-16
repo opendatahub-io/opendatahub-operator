@@ -132,6 +132,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(consolev1.AddToScheme(scheme))
 	utilruntime.Must(securityv1.Install(scheme))
 	utilruntime.Must(templatev1.Install(scheme))
+	utilruntime.Must(batchv1.AddToScheme(scheme))
 }
 
 func initComponents(_ context.Context, p cluster.Platform) error {
