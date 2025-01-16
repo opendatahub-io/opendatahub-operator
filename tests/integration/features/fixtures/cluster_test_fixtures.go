@@ -79,6 +79,15 @@ func GetService(ctx context.Context, client client.Client, namespace, name strin
 	return svc, err
 }
 
+func GetPod(ctx context.Context, client client.Client, namespace, name string) (*corev1.Pod, error) {
+	pod := &corev1.Pod{}
+	err := client.Get(ctx, types.NamespacedName{
+		Name: name, Namespace: namespace,
+	}, pod)
+
+	return pod, err
+}
+
 func CreateService(ctx context.Context, client client.Client, namespace, svcName string) (*corev1.Service, error) {
 	if err := client.Create(ctx, &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -99,6 +108,27 @@ func CreateService(ctx context.Context, client client.Client, namespace, svcName
 		return nil, err
 	}
 	return GetService(ctx, client, namespace, svcName)
+}
+
+func CreatePod(ctx context.Context, client client.Client, namespace, name string) (*corev1.Pod, error) {
+	if err := client.Create(ctx, &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:  "test",
+					Image: "test",
+				},
+			},
+		},
+	}); err != nil {
+		return nil, err
+	}
+
+	return GetPod(ctx, client, namespace, name)
 }
 
 func CreateSecret(name, namespace string) feature.Action {
