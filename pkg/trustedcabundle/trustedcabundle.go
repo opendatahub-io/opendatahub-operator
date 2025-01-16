@@ -75,10 +75,7 @@ func CreateOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 
 	// Create Configmap if doesn't exist
 	foundConfigMap := &corev1.ConfigMap{}
-	if err := cli.Get(ctx, client.ObjectKey{
-		Name:      CAConfigMapName,
-		Namespace: namespace,
-	}, foundConfigMap); err != nil {
+	if err := cli.Get(ctx, client.ObjectKeyFromObject(desiredConfigMap), foundConfigMap); err != nil {
 		if k8serr.IsNotFound(err) {
 			err = cli.Create(ctx, desiredConfigMap)
 			if err != nil && !k8serr.IsAlreadyExists(err) {
@@ -113,8 +110,8 @@ func DeleteOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 // return false when these two are matching => skip update
 // return true when not match => need upate.
 func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) (bool, error) {
-	userNamespace := &corev1.Namespace{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: dscInit.Spec.ApplicationsNamespace}, userNamespace); err != nil {
+	appNamespace := &corev1.Namespace{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: dscInit.Spec.ApplicationsNamespace}, appNamespace); err != nil {
 		if k8serr.IsNotFound(err) {
 			// if namespace is not found, return true. This is to ensure we reconcile, and check for other namespaces.
 			return true, nil
@@ -122,7 +119,7 @@ func IsTrustedCABundleUpdated(ctx context.Context, cli client.Client, dscInit *d
 		return false, err
 	}
 
-	if !ShouldInjectTrustedBundle(userNamespace) {
+	if !ShouldInjectTrustedBundle(appNamespace) {
 		return false, nil
 	}
 

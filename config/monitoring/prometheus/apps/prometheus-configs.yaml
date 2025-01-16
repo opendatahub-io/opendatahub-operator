@@ -334,7 +334,11 @@ data:
     - job_name: 'Kueue Operator'
       honor_labels: true
       metrics_path: /metrics
-      scheme: http
+      scheme: https
+      tls_config:
+        insecure_skip_verify: true
+      authorization:
+        credentials_file: /run/secrets/kubernetes.io/serviceaccount/token
       kubernetes_sd_configs:
         - role: endpoints
           namespaces:
@@ -348,7 +352,7 @@ data:
         - source_labels: [__address__]
           regex: (.+):(\d+)
           target_label: __address__
-          replacement: ${1}:8080
+          replacement: ${1}:8443
 
     - job_name: 'TrustyAI Controller Manager'
       honor_labels: true
@@ -1404,7 +1408,7 @@ data:
           expr: sum(kube_pod_container_resource_limits{namespace="rhods-notebooks",resource="cpu", container=~"jupyter-nb-.*"} * on(pod) kube_pod_status_phase{phase="Running", namespace="rhods-notebooks"})
           labels:
             instance: jupyter-notebooks
-        
+    
       - name: Availability Metrics
         rules:
         - expr: ((min(probe_success{name=~"rhods-dashboard|notebook-spawner"}) by (name) or on() vector(0)) or label_replace(min(probe_success{name=~"rhods-dashboard|notebook-spawner"}), "name", "combined", "name", ".*"))

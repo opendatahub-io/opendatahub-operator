@@ -1,0 +1,9 @@
+apiVersion: maistra.io/v1
+kind: ServiceMeshMember
+metadata:
+  name: default
+  namespace: {{.Component.Spec.RegistriesNamespace}}
+spec:
+  controlPlaneRef:
+    namespace: {{ .DSCI.Spec.ServiceMesh.ControlPlane.Namespace }}
+    name: {{ .DSCI.Spec.ServiceMesh.ControlPlane.Name }}

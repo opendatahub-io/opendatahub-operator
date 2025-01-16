@@ -30,6 +30,9 @@ metadata:
               },
               "kserve": {
                 "managementState": "Managed",
+                "nim": {
+                  "managementState": "Managed"
+                },
                 "serving": {
                   "ingressGateway": {
                     "certificate": {
@@ -103,7 +106,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2024-11-05T15:13:29Z"
+    createdAt: "2025-01-14T18:39:25Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -181,15 +184,38 @@ metadata:
     operatorframework.io/suggested-namespace: redhat-ods-operator
     operators.openshift.io/infrastructure-features: '["disconnected"]'
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
+    operators.operatorframework.io/internal-objects: |-
+      ["featuretrackers.features.opendatahub.io",
+      "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
+      "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
+      "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
+      "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
+      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",  "workbenches.components.platform.opendatahub.io",
+      "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io"]
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
-  name: rhods-operator.v2.16.0
+  name: rhods-operator.v2.17.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: Auth is the Schema for the auths API
+      displayName: Auth
+      kind: Auth
+      name: auths.services.platform.opendatahub.io
+      version: v1alpha1
+    - description: CodeFlare is the Schema for the codeflares API
+      displayName: Code Flare
+      kind: CodeFlare
+      name: codeflares.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: Dashboard is the Schema for the dashboards API
+      displayName: Dashboard
+      kind: Dashboard
+      name: dashboards.components.platform.opendatahub.io
+      version: v1alpha1
     - description: DataScienceCluster is the Schema for the datascienceclusters API.
       displayName: Data Science Cluster
       kind: DataScienceCluster
@@ -199,6 +225,12 @@ spec:
         displayName: Components
         path: components
       version: v1
+    - description: DataSciencePipelines is the Schema for the datasciencepipelines
+        API
+      displayName: Data Science Pipelines
+      kind: DataSciencePipelines
+      name: datasciencepipelines.components.platform.opendatahub.io
+      version: v1alpha1
     - description: DSCInitialization is the Schema for the dscinitializations API.
       displayName: DSC Initialization
       kind: DSCInitialization
@@ -237,6 +269,54 @@ spec:
     - kind: FeatureTracker
       name: featuretrackers.features.opendatahub.io
       version: v1
+    - description: Kserve is the Schema for the kserves API
+      displayName: Kserve
+      kind: Kserve
+      name: kserves.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: Kueue is the Schema for the kueues API
+      displayName: Kueue
+      kind: Kueue
+      name: kueues.components.platform.opendatahub.io
+      version: v1alpha1
+    - kind: ModelController
+      name: modelcontrollers.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: ModelMeshServing is the Schema for the modelmeshservings API
+      displayName: Model Mesh Serving
+      kind: ModelMeshServing
+      name: modelmeshservings.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: ModelRegistry is the Schema for the modelregistries API
+      displayName: Model Registry
+      kind: ModelRegistry
+      name: modelregistries.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: Monitoring is the Schema for the monitorings API
+      displayName: Monitoring
+      kind: Monitoring
+      name: monitorings.services.platform.opendatahub.io
+      version: v1alpha1
+    - description: Ray is the Schema for the rays API
+      displayName: Ray
+      kind: Ray
+      name: rays.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: TrainingOperator is the Schema for the trainingoperators API
+      displayName: Training Operator
+      kind: TrainingOperator
+      name: trainingoperators.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: TrustyAI is the Schema for the trustyais API
+      displayName: Trusty AI
+      kind: TrustyAI
+      name: trustyais.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: Workbenches is the Schema for the workbenches API
+      displayName: Workbenches
+      kind: Workbenches
+      name: workbenches.components.platform.opendatahub.io
+      version: v1alpha1
   description: |-
     Red Hat OpenShift AI is a complete platform for the entire lifecycle of your AI/ML projects.
 
@@ -271,14 +351,6 @@ spec:
         - apiGroups:
           - '*'
           resources:
-          - customresourcedefinitions
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - '*'
-          resources:
           - deployments
           - replicasets
           - services
@@ -296,12 +368,6 @@ spec:
           - patch
           - update
           - watch
-        - apiGroups:
-          - addons.managed.openshift.io
-          resources:
-          - addons
-          verbs:
-          - get
         - apiGroups:
           - admissionregistration.k8s.io
           resources:
@@ -325,6 +391,7 @@ spec:
           - get
           - list
           - patch
+          - update
           - watch
         - apiGroups:
           - apiregistration.k8s.io
@@ -447,6 +514,76 @@ spec:
           - create
           - patch
         - apiGroups:
+          - components.platform.opendatahub.io
+          resources:
+          - codeflares
+          - dashboards
+          - datasciencepipelines
+          - kserves
+          - kueues
+          - modelcontrollers
+          - modelmeshservings
+          - modelregistries
+          - rays
+          - trainingoperators
+          - trustyais
+          - workbenches
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - components.platform.opendatahub.io
+          resources:
+          - codeflares/finalizers
+          - datasciencepipelines/finalizers
+          - kserves/finalizers
+          - kueues/finalizers
+          - modelcontrollers/finalizers
+          - modelmeshservings/finalizers
+          - modelregistries/finalizers
+          - rays/finalizers
+          - trainingoperators/finalizers
+          - trustyais/finalizers
+          - workbenches/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - components.platform.opendatahub.io
+          resources:
+          - codeflares/status
+          - dashboards/status
+          - datasciencepipelines/status
+          - kserves/status
+          - kueues/status
+          - modelcontrollers/status
+          - modelmeshservings/status
+          - modelregistries/status
+          - rays/status
+          - trainingoperators/status
+          - trustyais/status
+          - workbenches/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - components.platform.opendatahub.io
+          resources:
+          - dashboards/finalizers
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - use
+          - watch
+        - apiGroups:
           - config.openshift.io
           resources:
           - authentications
@@ -465,14 +602,6 @@ spec:
           - console.openshift.io
           resources:
           - consolelinks
-          verbs:
-          - create
-          - delete
-          - get
-          - patch
-        - apiGroups:
-          - console.openshift.io
-          resources:
           - odhquickstarts
           verbs:
           - create
@@ -480,6 +609,7 @@ spec:
           - get
           - list
           - patch
+          - watch
         - apiGroups:
           - controller-runtime.sigs.k8s.io
           resources:
@@ -595,6 +725,7 @@ spec:
           - get
           - list
           - patch
+          - watch
         - apiGroups:
           - datasciencecluster.opendatahub.io
           resources:
@@ -602,6 +733,7 @@ spec:
           verbs:
           - create
           - delete
+          - deletecollection
           - get
           - list
           - patch
@@ -650,6 +782,7 @@ spec:
           verbs:
           - create
           - delete
+          - deletecollection
           - get
           - list
           - patch
@@ -753,10 +886,22 @@ spec:
           resources:
           - servicemeshcontrolplanes
           - servicemeshmemberrolls
-          - servicemeshmembers
           - servicemeshmembers/finalizers
           verbs:
           - create
+          - get
+          - list
+          - patch
+          - update
+          - use
+          - watch
+        - apiGroups:
+          - maistra.io
+          resources:
+          - servicemeshmembers
+          verbs:
+          - create
+          - delete
           - get
           - list
           - patch
@@ -801,7 +946,6 @@ spec:
           - prometheuses
           - prometheuses/finalizers
           - prometheuses/status
-          - prometheusrules
           - thanosrulers
           - thanosrulers/finalizers
           - thanosrulers/status
@@ -822,6 +966,18 @@ spec:
           - list
           - patch
           - update
+          - watch
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - prometheusrules
+          verbs:
+          - create
+          - delete
+          - deletecollection
+          - get
+          - list
+          - patch
           - watch
         - apiGroups:
           - monitoring.coreos.com
@@ -1032,6 +1188,35 @@ spec:
           - securitycontextconstraints
           verbs:
           - '*'
+        - apiGroups:
+          - services.platform.opendatahub.io
+          resources:
+          - auths
+          - monitorings
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - services.platform.opendatahub.io
+          resources:
+          - auths/finalizers
+          - monitorings/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - services.platform.opendatahub.io
+          resources:
+          - auths/status
+          - monitorings/status
+          verbs:
+          - get
+          - patch
+          - update
         - apiGroups:
           - serving.knative.dev
           resources:
@@ -1266,7 +1451,7 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.16.0
+  version: 2.17.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1

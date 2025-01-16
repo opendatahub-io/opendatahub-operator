@@ -58,6 +58,14 @@ linters-settings:
       - stdlib
       # also allow generics
       - generic
+      - EventHandler # for ToOwner
+      - discovery.DiscoveryInterface
+      - dynamic.Interface
+      - predicate.Predicate
+      - client.Object
+      - common.PlatformObject
+      - types.AsyncAssertion
+      - kubernetes.Interface
   revive:
     rules:
       - name: dot-imports
@@ -66,6 +74,12 @@ linters-settings:
   perfsprint:
     sprintf1: false
     strconcat: false
+  # Enable gocritic for detecting bugs, performance, and style issues: https://golangci-lint.run/usage/linters/#gocritic
+  gocritic:
+    # https://go-critic.com/overview.html#checkers
+    enabled-checks:
+      - deferInLoop
+      - unnecessaryDefer
 
 linters:
   enable-all: true
@@ -75,7 +89,6 @@ linters:
     - forbidigo
     - gochecknoglobals # Prevents use of global vars.
     - gofumpt
-    - gomnd # Doesnot allow hardcoded numbers
     - gomoddirectives # Doesnot allow replace in go mod file
     - mnd
     - nestif
@@ -85,11 +98,12 @@ linters:
     - varnamelen # doesnot allow shorter names like c,k etc. But golang prefers short named vars.
     - wsl # [too strict and mostly code is not more readable] whitespace linter forces you to use empty lines
     - wrapcheck # check if this is required. Prevents direct return of err.
+    - exportloopref # Since Go1.22 (loopvar) this linter is no longer relevant. Replaced by copyloopvar.
 
     # Need to check
     - nlreturn # [too strict and mostly code is not more readable] checks for a new line before return and branch statements to increase code clarity
     - err113 # [too strict] checks the errors handling expressions
-    
+
     # To be fixed
     - gocognit # https://github.com/opendatahub-io/opendatahub-operator/issues/709
     - cyclop   # https://github.com/opendatahub-io/opendatahub-operator/issues/709
@@ -104,3 +118,6 @@ issues:
       linters:
         - typecheck
         - dupl
+    - path: pkg/utils/test/testf/(.+)\.go
+      linters:
+        - containedctx

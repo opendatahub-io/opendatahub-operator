@@ -40,18 +40,12 @@ import (
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/codeflare"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/dashboard"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/kserve"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelmeshserving"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/ray"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/trustyai"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/workbenches"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	modelregistry2 "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -81,6 +75,7 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	// can't use suite's context as the manager should survive the function
+	//nolint:fatcontext
 	gCtx, gCancel = context.WithCancel(context.Background())
 
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
@@ -215,7 +210,7 @@ var _ = Describe("DSC mutating webhook", func() {
 		dscInstance := newMRDSC1(nameBase+"-dsc-mr1", "", operatorv1.Managed)
 		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
 		Expect(dscInstance.Spec.Components.ModelRegistry.RegistriesNamespace).
-			Should(Equal(modelregistry.DefaultModelRegistriesNamespace))
+			Should(Equal(modelregistry2.DefaultModelRegistriesNamespace))
 		Expect(clearInstance(ctx, dscInstance)).Should(Succeed())
 	})
 
@@ -243,9 +238,11 @@ func newDSCI(appName string) *dsciv1.DSCInitialization {
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: namespace,
-			Monitoring: dsciv1.Monitoring{
-				Namespace:       monitoringNS,
-				ManagementState: operatorv1.Managed,
+			Monitoring: serviceApi.DSCMonitoring{
+				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+					Namespace: monitoringNS,
+				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
@@ -261,48 +258,48 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				Dashboard: dashboard.Dashboard{
-					Component: components.Component{
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				Workbenches: workbenches.Workbenches{
-					Component: components.Component{
+				Workbenches: componentApi.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				ModelMeshServing: modelmeshserving.ModelMeshServing{
-					Component: components.Component{
+				ModelMeshServing: componentApi.DSCModelMeshServing{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				DataSciencePipelines: datasciencepipelines.DataSciencePipelines{
-					Component: components.Component{
+				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				Kserve: kserve.Kserve{
-					Component: components.Component{
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				CodeFlare: codeflare.CodeFlare{
-					Component: components.Component{
+				CodeFlare: componentApi.DSCCodeFlare{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				Ray: ray.Ray{
-					Component: components.Component{
+				Ray: componentApi.DSCRay{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				TrustyAI: trustyai.TrustyAI{
-					Component: components.Component{
+				TrustyAI: componentApi.DSCTrustyAI{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				ModelRegistry: modelregistry.ModelRegistry{
-					Component: components.Component{
+				ModelRegistry: componentApi.DSCModelRegistry{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
@@ -311,7 +308,7 @@ func newDSC(name string, namespace string) *dscv1.DataScienceCluster {
 	}
 }
 
-func newMRDSC1(name string, mrNamespace string, state operatorv1.ManagementState) *dscv1.DataScienceCluster {
+func newMRDSC1(name string, mrNamespace string, _ operatorv1.ManagementState) *dscv1.DataScienceCluster {
 	return &dscv1.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -319,11 +316,13 @@ func newMRDSC1(name string, mrNamespace string, state operatorv1.ManagementState
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				ModelRegistry: modelregistry.ModelRegistry{
-					Component: components.Component{
-						ManagementState: state,
+				ModelRegistry: componentApi.DSCModelRegistry{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
 					},
-					RegistriesNamespace: mrNamespace,
+					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
+						RegistriesNamespace: mrNamespace,
+					},
 				},
 			},
 		},
@@ -338,8 +337,8 @@ func newMRDSC2(name string) *dscv1.DataScienceCluster {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				Workbenches: workbenches.Workbenches{
-					Component: components.Component{
+				Workbenches: componentApi.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},

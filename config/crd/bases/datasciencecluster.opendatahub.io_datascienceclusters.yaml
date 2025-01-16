@@ -48,7 +48,7 @@ spec:
                   codeflare:
                     description: |-
                       CodeFlare component configuration.
-                      If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabled component.
+                      If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component.
                     properties:
                       devFlags:
                         description: Add developer fields
@@ -141,8 +141,8 @@ spec:
                     type: object
                   datasciencepipelines:
                     description: |-
-                      DataServicePipeline component configuration.
-                      Require OpenShift Pipelines Operator to be installed before enable component
+                      DataSciencePipeline component configuration.
+                      Requires OpenShift Pipelines Operator to be installed before enable component
                     properties:
                       devFlags:
                         description: Add developer fields
@@ -190,7 +190,7 @@ spec:
                   kserve:
                     description: |-
                       Kserve component configuration.
-                      Require OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
+                      Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
                       Does not support enabled ModelMeshServing at the same time
                     properties:
                       defaultDeploymentMode:
@@ -245,6 +245,17 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      nim:
+                        description: Configures and enables NVIDIA NIM integration
+                        properties:
+                          managementState:
+                            default: Managed
+                            enum:
+                            - Managed
+                            - Removed
+                            pattern: ^(Managed|Unmanaged|Force|Removed)$
+                            type: string
+                        type: object
                       serving:
                         description: |-
                           Serving configures the KNative-Serving stack used for model serving. A Service
@@ -648,10 +659,211 @@ spec:
               components:
                 description: Expose component's specific status
                 properties:
-                  modelregistry:
-                    description: ModelRegistry component status
+                  codeflare:
+                    description: CodeFlare component status.
                     properties:
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
+                  dashboard:
+                    description: Dashboard component status.
+                    properties:
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                      url:
+                        type: string
+                    type: object
+                  datasciencepipelines:
+                    description: DataSciencePipeline component status.
+                    properties:
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
+                  kserve:
+                    description: Kserve component status.
+                    properties:
+                      defaultDeploymentMode:
+                        description: |-
+                          DefaultDeploymentMode is the value of the defaultDeploymentMode field
+                          as read from the "deploy" JSON in the inferenceservice-config ConfigMap
+                        type: string
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
+                  kueue:
+                    description: Kueue component status.
+                    properties:
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
+                  modelmeshserving:
+                    description: ModelMeshServing component status.
+                    properties:
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
+                  modelregistry:
+                    description: ModelRegistry component status.
+                    properties:
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
                       registriesNamespace:
+                        type: string
+                    type: object
+                  ray:
+                    description: Ray component status.
+                    properties:
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
+                  trainingoperator:
+                    description: Training Operator component status.
+                    properties:
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
+                  trustyai:
+                    description: TrustyAI component status.
+                    properties:
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
+                  workbenches:
+                    description: Workbenches component status.
+                    properties:
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                     type: object
                 type: object
@@ -691,6 +903,10 @@ spec:
                   type: boolean
                 description: List of components with status if installed or not
                 type: object
+              observedGeneration:
+                description: The generation observed by the deployment controller.
+                format: int64
+                type: integer
               phase:
                 description: |-
                   Phase describes the Phase of DataScienceCluster reconciliation state

@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -40,7 +41,7 @@ type DSCInitializationSpec struct {
 	// Enable monitoring on specified namespace
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	// +optional
-	Monitoring Monitoring `json:"monitoring,omitempty"`
+	Monitoring serviceApi.DSCMonitoring `json:"monitoring,omitempty"`
 	// Configures Service Mesh as networking layer for Data Science Clusters components.
 	// The Service Mesh is a mandatory prerequisite for single model serving (KServe) and
 	// you should review this configuration if you are planning to use KServe.
@@ -62,30 +63,20 @@ type DSCInitializationSpec struct {
 	DevFlags *DevFlags `json:"devFlags,omitempty"`
 }
 
-type Monitoring struct {
-	// Set to one of the following values:
-	// - "Managed" : the operator is actively managing the component and trying to keep it active.
-	//               It will only upgrade the component if it is safe to do so.
-	// - "Removed" : the operator is actively managing the component and will not install it,
-	//               or if it is installed, the operator will try to remove it.
-	// +kubebuilder:validation:Enum=Managed;Removed
-	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
-	// Namespace for monitoring if it is enabled
-	// +kubebuilder:default=redhat-ods-monitoring
-	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
-	// +kubebuilder:validation:MaxLength=63
-	Namespace string `json:"namespace,omitempty"`
-}
-
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
 // to be used in production environment.
 type DevFlags struct {
+	// ## DEPRECATED ## : ManifestsUri set on DSCI is not maintained.
 	// Custom manifests uri for odh-manifests
 	// +optional
 	ManifestsUri string `json:"manifestsUri,omitempty"`
+	// ## DEPRECATED ##: Ignored, use LogLevel instead
 	// +kubebuilder:validation:Enum=devel;development;prod;production;default
 	// +kubebuilder:default="production"
 	LogMode string `json:"logmode,omitempty"`
+	// Override Zap log level. Can be "debug", "info", "error" or a number (more verbose).
+	// +optional
+	LogLevel string `json:"logLevel,omitempty"`
 }
 
 type TrustedCABundleSpec struct {

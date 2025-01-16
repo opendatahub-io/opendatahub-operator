@@ -84,6 +84,14 @@ metadata:
       }
     operatorframework.io/suggested-namespace: redhat-ods-operator
     operators.openshift.io/infrastructure-features: '["disconnected"]'
+    operators.operatorframework.io/internal-objects: |-
+      ["featuretrackers.features.opendatahub.io",
+      "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
+      "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
+      "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
+      "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
+      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",  "workbenches.components.platform.opendatahub.io",
+      "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io"]
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
@@ -92,6 +100,21 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: Auth is the Schema for the auths API
+      displayName: Auth
+      kind: Auth
+      name: auths.services.platform.opendatahub.io
+      version: v1alpha1
+    - description: CodeFlare is the Schema for the codeflares API
+      displayName: Code Flare
+      kind: CodeFlare
+      name: codeflares.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: Dashboard is the Schema for the dashboards API
+      displayName: Dashboard
+      kind: Dashboard
+      name: dashboards.components.platform.opendatahub.io
+      version: v1alpha1
     - description: DataScienceCluster is the Schema for the datascienceclusters API.
       displayName: Data Science Cluster
       kind: DataScienceCluster
@@ -101,6 +124,12 @@ spec:
         displayName: Components
         path: components
       version: v1
+    - description: DataSciencePipelines is the Schema for the datasciencepipelines
+        API
+      displayName: Data Science Pipelines
+      kind: DataSciencePipelines
+      name: datasciencepipelines.components.platform.opendatahub.io
+      version: v1alpha1
     - description: DSCInitialization is the Schema for the dscinitializations API.
       displayName: DSC Initialization
       kind: DSCInitialization
@@ -136,6 +165,51 @@ spec:
         displayName: Conditions
         path: conditions
       version: v1
+    - description: Kserve is the Schema for the kserves API
+      displayName: Kserve
+      kind: Kserve
+      name: kserves.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: Kueue is the Schema for the kueues API
+      displayName: Kueue
+      kind: Kueue
+      name: kueues.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: ModelMeshServing is the Schema for the modelmeshservings API
+      displayName: Model Mesh Serving
+      kind: ModelMeshServing
+      name: modelmeshservings.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: ModelRegistry is the Schema for the modelregistries API
+      displayName: Model Registry
+      kind: ModelRegistry
+      name: modelregistries.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: Monitoring is the Schema for the monitorings API
+      displayName: Monitoring
+      kind: Monitoring
+      name: monitorings.services.platform.opendatahub.io
+      version: v1alpha1
+    - description: Ray is the Schema for the rays API
+      displayName: Ray
+      kind: Ray
+      name: rays.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: TrainingOperator is the Schema for the trainingoperators API
+      displayName: Training Operator
+      kind: TrainingOperator
+      name: trainingoperators.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: TrustyAI is the Schema for the trustyais API
+      displayName: Trusty AI
+      kind: TrustyAI
+      name: trustyais.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: Workbenches is the Schema for the workbenches API
+      displayName: Workbenches
+      kind: Workbenches
+      name: workbenches.components.platform.opendatahub.io
+      version: v1alpha1
   description: This will be replaced by Kustomize
   displayName: Red Hat OpenShift AI
   icon:
@@ -190,4 +264,4 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.16.0
+  version: 2.17.0

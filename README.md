@@ -20,6 +20,7 @@ and configure these applications.
     - [Deployment](#deployment)
   - [Test with customized manifests](#test-with-customized-manifests)
   - [Update API docs](#update-api-docs)
+  - [Enabled logging](#enabled-logging)
   - [Example DSCInitialization](#example-dscinitialization)
   - [Example DataScienceCluster](#example-datasciencecluster)
   - [Run functional Tests](#run-functional-tests)
@@ -141,7 +142,7 @@ e.g `make image-build USE_LOCAL=true"`
 - Custom operator image can be built using your local repository
 
   ```commandline
-  make image -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
+  make image IMG=quay.io/<username>/opendatahub-operator:<custom-tag>
   ```
 
   The default image used is `quay.io/opendatahub/opendatahub-operator:dev-0.0.1` when not supply argument for `make image`
@@ -166,7 +167,7 @@ e.g `make image-build USE_LOCAL=true"`
 - Deploy the created image in your cluster using following command:
 
   ```commandline
-  make deploy -e IMG=quay.io/<username>/opendatahub-operator:<custom-tag> -e OPERATOR_NAMESPACE=<namespace-to-install-operator>
+  make deploy IMG=quay.io/<username>/opendatahub-operator:<custom-tag> OPERATOR_NAMESPACE=<namespace-to-install-operator>
   ```
 
 - To remove resources created during installation use:
@@ -178,7 +179,7 @@ e.g `make image-build USE_LOCAL=true"`
 **Deploying operator using OLM**
 
 - To create a new bundle in defined operator namespace, run following command:
-
+  
   ```commandline
   export OPERATOR_NAMESPACE=<namespace-to-install-operator>
   make bundle
@@ -187,13 +188,13 @@ e.g `make image-build USE_LOCAL=true"`
   **Note** : Skip the above step if you want to run the existing operator bundle.
 
 - Build Bundle Image:
-
+  
   ```commandline
   make bundle-build bundle-push BUNDLE_IMG=quay.io/<username>/opendatahub-operator-bundle:<VERSION>
   ```
 
 - Run the Bundle on a cluster:
-
+  
   ```commandline
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE --decompression-image quay.io/project-codeflare/busybox:1.36
   ```
@@ -209,32 +210,24 @@ There are 2 ways to test your changes with modification:
 
 Whenever a new api is added or a new field is added to the CRD, please make sure to run the command:
   ```commandline
-  make api-docs
+  make api-docs 
   ```
 This will ensure that the doc for the apis are updated accordingly.
 
 ### Enabled logging
 
-#### Controller level
+Global logger configuration can be changed with an environemnt variable `ZAP_LOG_LEVEL`
+or a command line switch `--log-mode <mode>` for example from CSV.
+Command line switch has higher priority.
+Valid values for `<mode>`: "" (as default) || prod || production || devel || development.
 
-Logger on all controllers can only be changed from CSV with parameters: --log-mode devel
-valid value: "" (as default) || prod || production || devel || development
+Verbosity level is INFO.
+To fine tune zap backend [standard operator sdk zap switches](https://sdk.operatorframework.io/docs/building-operators/golang/references/logging/)
+can be used.
 
-This mainly impacts logging for operator pod startup, generating common resource, monitoring deployment.
-
-| --log-mode value | mapping Log level   | Comments       |
-| ---------------- | ------------------- | -------------- |
-| devel            | debug  / 0          | lowest level   |
-| ""               | info / 1            | default option |
-| default          | info / 1            | default option |
-| prod             | error / 2           | highest level  |
-
-#### Component level
-
-Logger on components can be changed by DSCI devFlags during runtime.
-By default, if not set .spec.devFlags.logmode, it uses INFO level
-Modification applies to all components, not only these "Managed" ones.
-Update DSCI CR with .spec.devFlags.logmode, see example :
+Log level can be changed by DSCI devFlags during runtime by setting
+.spec.devFlags.logLevel. It accepts the same values as `--zap-log-level`
+command line switch. See example :
 
 ```console
 apiVersion: dscinitialization.opendatahub.io/v1
@@ -243,20 +236,17 @@ metadata:
   name: default-dsci
 spec:
   devFlags:
-    logmode: development
+    logLevel: debug
   ...
 ```
 
-Avaiable value for logmode is "devel", "development", "prod", "production".
-The first two work the same set to DEBUG level; the later two work the same as using ERROR level.
-
-| .spec.devFlags.logmode | stacktrace level | verbosity | Output   | Comments       |
-| ---------------------- | ---------------- | --------- | -------- | -------------- |
-| devel                  | WARN             | INFO      | Console  | lowest level, using epoch time  |
-| development            | WARN             | INFO      | Console  | same as devel  |
-| ""                     | ERROR            | INFO      | JSON     | default option |
-| prod                   | ERROR            | INFO      | JSON     | highest level, using human readable timestamp  |
-| production             | ERROR            | INFO      | JSON     | same as prod   |
+| logmode     | stacktrace level | verbosity | Output  | Comments                                      |
+|-------------|------------------|-----------|---------|-----------------------------------------------|
+| devel       | WARN             | INFO      | Console | lowest level, using epoch time                |
+| development | WARN             | INFO      | Console | same as devel                                 |
+| ""          | ERROR            | INFO      | JSON    | default option                                |
+| prod        | ERROR            | INFO      | JSON    | highest level, using human readable timestamp |
+| production  | ERROR            | INFO      | JSON    | same as prod                                  |
 
 ### Example DSCInitialization
 
@@ -288,7 +278,7 @@ Apply this example with modification for your usage.
 
 ### Example DataScienceCluster
 
-When the operator is installed successfully in the cluster, a user can create a `DataScienceCluster` CR to enable ODH
+When the operator is installed successfully in the cluster, a user can create a `DataScienceCluster` CR to enable ODH 
 components. At a given time, ODH supports only **one** instance of the CR, which can be updated to get custom list of components.
 
 1. Enable all components
@@ -308,6 +298,8 @@ spec:
       managementState: Managed
     kserve:
       managementState: Managed
+      nim:
+        managementState: Managed
       serving:
         ingressGateway:
           certificate:
@@ -386,15 +378,23 @@ make e2e-test
 Additional flags that can be passed to e2e-tests by setting up `E2E_TEST_FLAGS`
 variable. Following table lists all the available flags to run the tests:
 
-| Flag            | Description                                                                                                                                                        | Default value |
-|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
-| --skip-deletion | To skip running  of `dsc-deletion` test that includes deleting `DataScienceCluster` resources. Assign this variable to `true` to skip DataScienceCluster deletion. | false         |
+| Flag                       | Description                                                                                                                                                                   | Default value |
+|----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
+| --skip-deletion            | To skip running  of `dsc-deletion` test that includes deleting `DataScienceCluster` resources. Assign this variable to `true` to skip DataScienceCluster deletion.            | false         |
+| --test-operator-controller | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes       | true          |
+| --test-webhook             | To configure the execution of tests rellated to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | true          |
+| --test-component           | A repeatable flag that control what component should be tested, by default all component specific test are executed                                                           | true          |
 
-Example command to run full test suite skipping the test
-for DataScienceCluster deletion.
+Example command to run full test suite skipping the test for DataScienceCluster deletion.
 
 ```shell
-make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--skip-deletion=true"
+make e2e-test OPERATOR_NAMESPACE=<namespace> E2E_TEST_FLAGS="--skip-deletion=true"
+```
+
+Example commands to run test suite for the dashboard `component` only, with the operator running out of the cluster.
+
+```shell
+make run-nowebhook
 ```
 
 ## Run Prometheus Unit Tests for Alerts

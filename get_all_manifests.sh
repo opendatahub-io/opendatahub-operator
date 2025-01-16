@@ -3,27 +3,27 @@ set -e
 
 GITHUB_URL="https://github.com"
 
-# component: notebook, dsp, kserve, dashbaord, cf/ray/kueue/trainingoperator, trustyai, modelmesh, modelregistry.
-# in the format of "repo-org:repo-name:ref-name:source-folder:target-folder".
+# COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
+# in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
 declare -A COMPONENT_MANIFESTS=(
-    ["codeflare"]="red-hat-data-services:codeflare-operator:rhoai-2.16:config:codeflare"
-    ["ray"]="red-hat-data-services:kuberay:rhoai-2.16:ray-operator/config:ray"
-    ["kueue"]="red-hat-data-services:kueue:rhoai-2.16:config:kueue"
-    ["data-science-pipelines-operator"]="red-hat-data-services:data-science-pipelines-operator:rhoai-2.16:config:data-science-pipelines-operator"
-    ["odh-dashboard"]="red-hat-data-services:odh-dashboard:rhoai-2.16:manifests:dashboard"
-    ["kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.16:components/notebook-controller/config:odh-notebook-controller/kf-notebook-controller"
-    ["odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.16:components/odh-notebook-controller/config:odh-notebook-controller/odh-notebook-controller"
-    ["notebooks"]="red-hat-data-services:notebooks:rhoai-2.16:manifests:notebooks"
-    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-2.16:config:trustyai-service-operator"
-    ["model-mesh"]="red-hat-data-services:modelmesh-serving:rhoai-2.16:config:model-mesh"
-    ["odh-model-controller"]="red-hat-data-services:odh-model-controller:rhoai-2.16:config:odh-model-controller"
-    ["kserve"]="red-hat-data-services:kserve:rhoai-2.16:config:kserve"
-    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-2.16:config:model-registry-operator"
-    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-2.16:manifests:trainingoperator"
+    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-2.17:manifests"
+    ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.17:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.17:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-2.17:manifests"
+    ["modelmeshserving"]="red-hat-data-services:modelmesh-serving:rhoai-2.17:config"
+    ["kserve"]="red-hat-data-services:kserve:rhoai-2.17:config"
+    ["kueue"]="red-hat-data-services:kueue:rhoai-2.17:config"
+    ["codeflare"]="red-hat-data-services:codeflare-operator:rhoai-2.17:config"
+    ["ray"]="red-hat-data-services:kuberay:rhoai-2.17:ray-operator/config"
+    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-2.17:config"
+    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-2.17:config"
+    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-2.17:manifests"
+    ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-2.17:config"
+    ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-2.17:config"
 )
 
 # Allow overwriting repo using flags component=repo
-pattern="^[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_./-]+:[a-zA-Z0-9_./-]+$"
+pattern="^[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_./-]+$"
 if [ "$#" -ge 1 ]; then
     for arg in "$@"; do
         if [[ $arg == --* ]]; then
@@ -31,7 +31,7 @@ if [ "$#" -ge 1 ]; then
             IFS="=" read -r key value <<< "$arg"
             if [[ -n "${COMPONENT_MANIFESTS[$key]}" ]]; then
                 if [[ ! $value =~ $pattern ]]; then
-                    echo "ERROR: The value '$value' does not match the expected format 'repo-org:repo-name:branch-name:source-folder:target-folder'."
+                    echo "ERROR: The value '$value' does not match the expected format 'repo-org:repo-name:ref-name:source-folder'."
                     continue
                 fi
                 COMPONENT_MANIFESTS["$key"]=$value
@@ -77,7 +77,7 @@ for key in "${!COMPONENT_MANIFESTS[@]}"; do
     repo_name="${repo_info[1]}"
     repo_ref="${repo_info[2]}"
     source_path="${repo_info[3]}"
-    target_path="${repo_info[4]}"
+    target_path="${key}"
 
     repo_url="${GITHUB_URL}/${repo_org}/${repo_name}"
     repo_dir=${TMP_DIR}/${key}

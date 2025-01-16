@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -30,22 +31,34 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
-
-var log = ctrl.Log.WithName("rhoai-controller-webhook")
 
 //+kubebuilder:webhook:path=/validate-opendatahub-io-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io;dscinitialization.opendatahub.io,resources=datascienceclusters;dscinitializations,verbs=create;delete,versions=v1,name=operator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
+// TODO: Get rid of platform in name, rename to ValidatingWebhook.
 type OpenDataHubValidatingWebhook struct {
 	Client  client.Client
 	Decoder *admission.Decoder
+	Name    string
+}
+
+// newLogConstructor creates a new logger constructor for a webhook.
+// It is based on the root controller-runtime logger witch is set in main.go
+// The purpose of it is to remove "admission" from the log name.
+func newLogConstructor(name string) func(logr.Logger, *admission.Request) logr.Logger {
+	return func(_ logr.Logger, req *admission.Request) logr.Logger {
+		base := ctrl.Log
+		l := admission.DefaultLogConstructor(base, req)
+		return l.WithValues("webhook", name)
+	}
 }
 
 func Init(mgr ctrl.Manager) {
@@ -60,7 +73,8 @@ func Init(mgr ctrl.Manager) {
 func (w *OpenDataHubValidatingWebhook) SetupWithManager(mgr ctrl.Manager) {
 	hookServer := mgr.GetWebhookServer()
 	odhWebhook := &webhook.Admission{
-		Handler: w,
+		Handler:        w,
+		LogConstructor: newLogConstructor(w.Name),
 	}
 	hookServer.Register("/validate-opendatahub-io-v1", odhWebhook)
 }
@@ -90,6 +104,8 @@ func denyCountGtZero(ctx context.Context, cli client.Client, gvk schema.GroupVer
 }
 
 func (w *OpenDataHubValidatingWebhook) checkDupCreation(ctx context.Context, req admission.Request) admission.Response {
+	log := logf.FromContext(ctx)
+
 	switch req.Kind.Kind {
 	case "DataScienceCluster", "DSCInitialization":
 	default:
@@ -119,6 +135,9 @@ func (w *OpenDataHubValidatingWebhook) checkDeletion(ctx context.Context, req ad
 }
 
 func (w *OpenDataHubValidatingWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
+	log := logf.FromContext(ctx).WithName(w.Name).WithValues("operation", req.Operation)
+	ctx = logf.IntoContext(ctx, log)
+
 	var resp admission.Response
 	resp.Allowed = true // initialize Allowed to be true in case Operation falls into "default" case
 
@@ -130,6 +149,7 @@ func (w *OpenDataHubValidatingWebhook) Handle(ctx context.Context, req admission
 	default: // for other operations by default it is admission.Allowed("")
 		// no-op
 	}
+
 	if !resp.Allowed {
 		return resp
 	}
@@ -140,19 +160,23 @@ func (w *OpenDataHubValidatingWebhook) Handle(ctx context.Context, req admission
 //+kubebuilder:webhook:path=/mutate-opendatahub-io-v1,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=mutate.operator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
-type DSCDefaulter struct{}
+type DSCDefaulter struct {
+	Name string
+}
 
 // just assert that DSCDefaulter implements webhook.CustomDefaulter.
 var _ webhook.CustomDefaulter = &DSCDefaulter{}
 
 func (m *DSCDefaulter) SetupWithManager(mgr ctrl.Manager) {
 	mutateWebhook := admission.WithCustomDefaulter(mgr.GetScheme(), &dscv1.DataScienceCluster{}, m)
+	mutateWebhook.LogConstructor = newLogConstructor(m.Name)
 	mgr.GetWebhookServer().Register("/mutate-opendatahub-io-v1", mutateWebhook)
 }
 
 // Implement admission.CustomDefaulter interface.
 // It currently only sets defaults for modelregiestry in datascienceclusters.
 func (m *DSCDefaulter) Default(_ context.Context, obj runtime.Object) error {
+	// TODO: add debug logging, log := logf.FromContext(ctx).WithName(m.Name)
 	dsc, isDSC := obj.(*dscv1.DataScienceCluster)
 	if !isDSC {
 		return fmt.Errorf("expected DataScienceCluster but got a different type: %T", obj)

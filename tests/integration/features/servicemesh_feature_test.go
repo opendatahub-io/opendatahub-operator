@@ -6,7 +6,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -307,7 +307,7 @@ var _ = Describe("Service Mesh setup", func() {
 							Expect(found).To(BeTrue())
 
 							_, err = fixtures.GetNamespace(ctx, envTestClient, serviceMeshSpec.Auth.Namespace)
-							Expect(errors.IsNotFound(err)).To(BeTrue())
+							Expect(k8serr.IsNotFound(err)).To(BeTrue())
 
 							return extensionProviders
 
