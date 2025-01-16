@@ -17,8 +17,6 @@ RUN if [ "${USE_LOCAL}" != "true" ]; then \
 
 # Copy monitoring config
 COPY config/monitoring/ /opt/manifests/monitoring
-# Copy partners config
-COPY config/partners/ /opt/manifests/partners
 # Copy ods-configs
 COPY config/osd-configs/ /opt/manifests/osd-configs
 ################################################################################
