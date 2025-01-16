@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blang/semver/v4"
+	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -15,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -277,4 +280,14 @@ func (c *ComponentTestCtx) GetDSCI() (*dsciv1.DSCInitialization, error) {
 	}
 
 	return &obj, nil
+}
+
+func (c *ComponentTestCtx) GetClusterVersion() (semver.Version, error) {
+	clusterVersion := &configv1.ClusterVersion{}
+	if err := c.Client().Get(c.Context(), client.ObjectKey{
+		Name: cluster.OpenShiftVersionObj,
+	}, clusterVersion); err != nil {
+		return semver.Version{}, err
+	}
+	return semver.ParseTolerant(clusterVersion.Status.History[0].Version)
 }
