@@ -33,3 +33,11 @@ func manifestsPath() odhtypes.ManifestInfo {
 		SourcePath: "rhoai",
 	}
 }
+
+func extramanifestsPath() odhtypes.ManifestInfo {
+	return odhtypes.ManifestInfo{
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: ComponentName,
+		SourcePath: "rhoai/ocp-4.17-addons",
+	}
+}

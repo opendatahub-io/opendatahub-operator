@@ -19,6 +19,7 @@ package kueue
 import (
 	"context"
 
+	"github.com/blang/semver/v4"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,6 +30,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -41,9 +44,15 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ReconcilerFor(mgr, &componentApi.Kueue{}).
-		// customized Owns() for Component with new predicates
-		Owns(&corev1.ConfigMap{}).
+	b := reconciler.ReconcilerFor(mgr, &componentApi.Kueue{})
+
+	if cluster.GetClusterInfo().Version.GTE(semver.MustParse("4.17.0")) {
+		b = b.OwnsGVK(gvk.ValidatingAdmissionPolicy). // "own" VAP, because we want it has owner so when kueue is removed it gets cleaned.
+								WatchesGVK(gvk.ValidatingAdmissionPolicyBinding). // "watch" VAPB, because we want it to be configable by user and it can be left behind when kueue is remov
+								WithAction(extraInitialize)
+	}
+	// customized Owns() for Component with new predicates
+	b.Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&rbacv1.ClusterRoleBinding{}).
 		Owns(&rbacv1.ClusterRole{}).
@@ -72,15 +81,15 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
+		WithAction(customizeResources).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
 		WithAction(updatestatus.NewAction()).
 		// must be the final action
-		WithAction(gc.NewAction()).
-		Build(ctx)
+		WithAction(gc.NewAction())
 
-	if err != nil {
+	if _, err := b.Build(ctx); err != nil {
 		return err // no need customize error, it is done in the caller main
 	}
 
