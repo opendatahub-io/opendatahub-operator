@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/onsi/gomega"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -163,6 +164,9 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(serviceApi.AddToScheme(Scheme))
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
+
+	gomega.SetDefaultEventuallyTimeout(generalWaitTimeout)
+	gomega.SetDefaultEventuallyPollingInterval(generalPollInterval)
 
 	if testOpts.operatorControllerTest {
 		// individual test suites after the operator is running
