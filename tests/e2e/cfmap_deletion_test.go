@@ -1,10 +1,10 @@
 package e2e_test
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 
+	"github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -28,10 +28,7 @@ func cfgMapDeletionTestSuite(t *testing.T) {
 			require.NoError(t, err, "Configmap should not delete DSC instance")
 		})
 
-		t.Run("owned namespaces should be not deleted", func(t *testing.T) {
-			err = testCtx.testOwnedNamespacesAllExist()
-			require.NoError(t, err, "Configmap should not delete owned namespaces")
-		})
+		t.Run("owned namespaces should be not deleted", testCtx.testOwnedNamespacesAllExist)
 	})
 }
 
@@ -54,19 +51,22 @@ func (tc *testContext) testDSCDeletionUsingConfigMap(enableDeletion string) erro
 
 	return nil
 }
-func (tc *testContext) testOwnedNamespacesAllExist() error {
-	namespaces, err := tc.kubeClient.CoreV1().Namespaces().List(tc.ctx, metav1.ListOptions{
-		LabelSelector: labels.ODH.OwnedNamespace,
-	})
+func (tc *testContext) testOwnedNamespacesAllExist(t *testing.T) {
+	g := gomega.NewWithT(t)
 
-	if err != nil {
-		return fmt.Errorf("failed getting owned namespaces %w", err)
-	}
-	if len(namespaces.Items) < ownedNamespaceNumber {
-		return errors.New("some owned namespaces are missing")
-	}
+	g.Eventually(func() ([]corev1.Namespace, error) {
+		namespaces, err := tc.kubeClient.CoreV1().Namespaces().List(tc.ctx, metav1.ListOptions{
+			LabelSelector: labels.ODH.OwnedNamespace,
+		})
 
-	return nil
+		if err != nil {
+			return nil, fmt.Errorf("failed getting owned namespaces %w", err)
+		}
+
+		return namespaces.Items, nil
+	}).Should(gomega.Satisfy(func(in []corev1.Namespace) bool {
+		return len(in) >= ownedNamespaceNumber
+	}))
 }
 
 func removeDeletionConfigMap(tc *testContext) {
