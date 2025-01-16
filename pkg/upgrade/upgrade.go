@@ -652,6 +652,10 @@ func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease cl
 
 		for _, delObj := range deleteObjs {
 			if gErr := cli.Get(ctx, types.NamespacedName{Name: delObj.name, Namespace: applicationNS}, delObj.obj); gErr != nil {
+				if errors.Is(gErr, &meta.NoKindMatchError{}) {
+					log.V(1).Error(k8serr.NewNotFound(schema.GroupResource{}, delObj.obj.GetName()), fmt.Sprintf("%s %s not found", delObj.desc, delObj.name))
+					errs = multierror.Append(errs, gErr)
+				}
 				if !k8serr.IsNotFound(gErr) {
 					log.V(1).Error(gErr, fmt.Sprintf("failed to get NIM %s %s", delObj.desc, delObj.name))
 					errs = multierror.Append(errs, gErr)
