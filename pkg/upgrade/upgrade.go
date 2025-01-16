@@ -255,6 +255,10 @@ func CleanupExistingResource(ctx context.Context,
 	deprecatedFeatureTrackers := []string{dscApplicationsNamespace + "-kserve-temporary-fixes"}
 	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscApplicationsNamespace, deprecatedFeatureTrackers, &featuresv1.FeatureTrackerList{}))
 
+	// Cleanup of deprecated default RoleBinding resources
+	deprecatedDefaultRoleBinding := []string{dscApplicationsNamespace}
+	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscApplicationsNamespace, deprecatedDefaultRoleBinding, &rbacv1.RoleBindingList{}))
+
 	// Handling for dashboard OdhDocument Jupyterhub CR, see jira #443 comments
 	odhDocJPH := getJPHOdhDocumentResources(
 		dscApplicationsNamespace,
