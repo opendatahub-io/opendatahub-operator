@@ -19,3 +19,105 @@ rules:
   - auths/status
   verbs:
   - get
+- apiGroups:
+  - dashboard.opendatahub.io
+  resources:
+  - acceleratorprofiles
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - delete
+- apiGroups:
+  - route.openshift.io
+  resources:
+  - routes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  verbs:
+  - get
+  - update
+  - watch
+- apiGroups:
+  - image.openshift.io
+  resources:
+  - imagestreams
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - delete
+  - watch
+- apiGroups:
+  - build.openshift.io
+  resources:
+  - builds
+  - buildconfigs
+  verbs:
+  - list
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - patch
+  - update
+- apiGroups:
+  - opendatahub.io
+  resources:
+  - odhdashboardconfigs
+  verbs:
+  - get
+  - watch
+  - create
+  - update
+  - patch
+- apiGroups:
+  - datasciencecluster.opendatahub.io
+  resources:
+  - datascienceclusters
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+- apiGroups:
+  - dashboard.opendatahub.io
+  resources:
+  - odhapplications
+  - odhdocuments
+  verbs:
+  - get
+  - list      
+- apiGroups:
+  - console.openshift.io
+  resources:
+  - odhquickstarts
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - template.openshift.io
+  resources:
+  - templates
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - patch
+  - delete
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - servingruntimes
+  verbs:
+  - create
