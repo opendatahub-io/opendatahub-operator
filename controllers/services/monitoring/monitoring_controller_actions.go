@@ -20,6 +20,21 @@ import (
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
+var componentRules = map[string]string{
+	componentApi.DashboardComponentName:            "rhods-dashboard",
+	componentApi.WorkbenchesComponentName:          "workbenches",
+	componentApi.KueueComponentName:                "kueue",
+	componentApi.CodeFlareComponentName:            "codeflare",
+	componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator",
+	componentApi.ModelMeshServingComponentName:     "model-mesh",
+	componentApi.RayComponentName:                  "ray",
+	componentApi.TrustyAIComponentName:             "trustyai",
+	componentApi.KserveComponentName:               "kserve",
+	componentApi.TrainingOperatorComponentName:     "trainingoperator",
+	componentApi.ModelRegistryComponentName:        "model-registry-operator",
+	componentApi.ModelControllerComponentName:      "odh-model-controller",
+}
+
 // initialize handles all pre-deployment configurations.
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
@@ -36,7 +51,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		}
 
 	default:
-		log.Info("Monitoring enabled, won't apply changes in this mode", "cluster", platform)
+		log.V(3).Info("Monitoring enabled, won't apply changes in this mode", "cluster", platform)
 	}
 
 	return nil
@@ -51,21 +66,11 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	if len(dscList.Items) == 0 {
 		return nil
 	}
-	dsc := &dscList.Items[0]
-	componentRules := map[string]string{
-		componentApi.DashboardComponentName:            "rhods-dashboard",
-		componentApi.WorkbenchesComponentName:          "workbenches",
-		componentApi.KueueComponentName:                "kueue",
-		componentApi.CodeFlareComponentName:            "codeflare",
-		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator",
-		componentApi.ModelMeshServingComponentName:     "model-mesh",
-		componentApi.RayComponentName:                  "ray",
-		componentApi.TrustyAIComponentName:             "trustyai",
-		componentApi.KserveComponentName:               "kserve",
-		componentApi.TrainingOperatorComponentName:     "trainingoperator",
-		componentApi.ModelRegistryComponentName:        "model-registry-operator",
-		componentApi.ModelControllerComponentName:      "odh-model-controller",
+	if len(dscList.Items) > 1 {
+		return errors.New("multiple DataScienceCluster found")
 	}
+
+	dsc := &dscList.Items[0]
 
 	err := cr.ForEach(func(ch cr.ComponentHandler) error {
 		var enabled bool
@@ -73,11 +78,11 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 		// read the component instance to get tha actual status
 		err := rr.Client.Get(ctx, client.ObjectKeyFromObject(ci), ci)
 		switch {
-		case k8serr.IsNotFound(err):
-			enabled = false
 		case err != nil:
 			enabled = false
-			return fmt.Errorf("error getting component state component: %v enabled: %v %w ", ch.GetName(), enabled, err)
+			if !k8serr.IsNotFound(err) {
+				return fmt.Errorf("error getting component state: component=%s, enabled=%t, error=%w", ch.GetName(), enabled, err)
+			}
 		default:
 			enabled = meta.IsStatusConditionTrue(ci.GetStatus().Conditions, status.ConditionTypeReady)
 		}
