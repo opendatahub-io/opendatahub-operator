@@ -36,20 +36,21 @@ var (
 )
 
 // createOperatorResource include steps:
-// - 1. validate customized application namespace || create/update application namespace
-// - 2. patch application namespaces for managed cluster
+// - 1. validate customized application namespace || create/update default application namespace
+//   - patch application namespaces for managed cluster
 //   - Odh specific labels for access
-//   - Pod security labels for baseline permissions//
+//   - Pod security labels for baseline permissions
 //
-// - 3. Patch monitoring namespace
-// - 4. Network Policies 'opendatahub' that allow traffic between the ODH namespaces
-// - 5. ConfigMap  'odh-common-config'
-// - 6. RoleBinding 'opendatahub'.
+// - 2. Patch monitoring namespace
+// - 3. Network Policies 'opendatahub' that allow traffic between the ODH namespaces
+// - 4. ConfigMap 'odh-common-config'
+// - 5. RoleBinding 'opendatahub'.
 func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
 
 	if err := r.appNamespaceHandler(ctx, dscInit, platform); err != nil {
-		return fmt.Errorf("error handle application namespace: %w", err)
+		log.Error(err, "error handle application namespace")
+		return err
 	}
 
 	// Patch monitoring namespace
@@ -115,8 +116,8 @@ func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, d
 		if nsList.Items[0].Name != dsciNsName {
 			return errors.New("DSCI must used the same namespace which has opendatahub.io/application-namespace=true label")
 		}
-		// ensure appliation-namespace:true and security label always on it
-		return r.createAppNamespace(ctx, dsciNsName, platform, map[string]string{labels.CustomizedAppNamespace: labels.True})
+		// ensure security label always on it
+		return r.createAppNamespace(ctx, dsciNsName, platform)
 	default:
 		return errors.New("only support max. one namespace with label: opendatahub.io/application-namespace=true")
 	}

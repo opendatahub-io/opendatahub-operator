@@ -174,7 +174,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Deal with application namespace, configmap, networpolicy etc
 	if err := r.createOperatorResource(ctx, instance, platform); err != nil {
+		message := err.Error()
+		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
+			status.SetProgressingCondition(&saved.Status.Conditions, status.ReconcileFailed, message)
+			saved.Status.Phase = status.PhaseError
+		})
 		// no need to log error as it was already logged in createOperatorResource
+		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
+			"failed to create application namespace", message, instance.Name)
 		return reconcile.Result{}, err
 	}
 
