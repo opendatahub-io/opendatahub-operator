@@ -3,6 +3,8 @@ package dscinitialization
 import (
 	"context"
 	"crypto/rand"
+	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -18,12 +20,14 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 var (
@@ -31,119 +35,151 @@ var (
 	resourceTimeout  = 1 * time.Minute
 )
 
-// createOdhNamespace creates a Namespace with given name and with ODH defaults. The defaults include:
-// - Odh specific labels
-// - Pod security labels for baseline permissions
-// - ConfigMap  'odh-common-config'
-// - Network Policies 'opendatahub' that allow traffic between the ODH namespaces
-// - RoleBinding 'opendatahub'.
-func (r *DSCInitializationReconciler) createOdhNamespace(ctx context.Context, dscInit *dsciv1.DSCInitialization, name string, platform cluster.Platform) error {
+// createOperatorResource include steps:
+// - 1. validate customized application namespace || create/update default application namespace
+//   - patch application namespaces for managed cluster
+//   - Odh specific labels for access
+//   - Pod security labels for baseline permissions
+//
+// - 2. Patch monitoring namespace
+// - 3. Network Policies 'opendatahub' that allow traffic between the ODH namespaces
+// - 4. ConfigMap 'odh-common-config'
+// - 5. RoleBinding 'opendatahub'.
+func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
-	// Expected application namespace for the given name
-	desiredNamespace := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Labels: map[string]string{
-				labels.ODH.OwnedNamespace: "true",
-				labels.SecurityEnforce:    "baseline",
-			},
-		},
-	}
 
-	// Create Application Namespace if it doesn't exist
-	foundNamespace := &corev1.Namespace{}
-	err := r.Get(ctx, client.ObjectKeyFromObject(desiredNamespace), foundNamespace)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			log.Info("Creating namespace", "name", name)
-			// Set Controller reference
-			// err = ctrl.SetControllerReference(dscInit, desiredNamespace, r.Scheme)
-			// if err != nil {
-			//	 log.Error(err, "Unable to add OwnerReference to the Namespace")
-			//	 return err
-			// }
-			err = r.Create(ctx, desiredNamespace)
-			if err != nil && !k8serr.IsAlreadyExists(err) {
-				log.Error(err, "Unable to create namespace", "name", name)
-				return err
-			}
-		} else {
-			log.Error(err, "Unable to fetch namespace", "name", name)
-			return err
-		}
-		// Patch Application Namespace if it exists
-	} else if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
-		log.Info("Patching application namespace for Managed cluster", "name", name)
-		labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true","pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}`
-		err = r.Patch(ctx, foundNamespace, client.RawPatch(types.MergePatchType,
-			[]byte(labelPatch)))
-		if err != nil {
-			return err
-		}
-	}
-	// Create Monitoring Namespace if it is enabled and not exists
-	if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
-		foundMonitoringNamespace := &corev1.Namespace{}
-		monitoringName := dscInit.Spec.Monitoring.Namespace
-		err := r.Get(ctx, client.ObjectKey{Name: monitoringName}, foundMonitoringNamespace)
-		if err != nil {
-			if k8serr.IsNotFound(err) {
-				log.Info("Not found monitoring namespace", "name", monitoringName)
-				desiredMonitoringNamespace := &corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: monitoringName,
-						Labels: map[string]string{
-							labels.ODH.OwnedNamespace: "true",
-							labels.SecurityEnforce:    "baseline",
-							labels.ClusterMonitoring:  "true",
-						},
-					},
-				}
-				err = r.Create(ctx, desiredMonitoringNamespace)
-				if err != nil && !k8serr.IsAlreadyExists(err) {
-					log.Error(err, "Unable to create namespace", "name", monitoringName)
-					return err
-				}
-			} else {
-				log.Error(err, "Unable to fetch monitoring namespace", "name", monitoringName)
-				return err
-			}
-		} else { // force to patch monitoring namespace with label for cluster-monitoring
-			log.Info("Patching monitoring namespace", "name", monitoringName)
-			labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true", "pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}`
-
-			err = r.Patch(ctx, foundMonitoringNamespace, client.RawPatch(types.MergePatchType, []byte(labelPatch)))
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// Create default NetworkPolicy for the namespace
-	err = r.reconcileDefaultNetworkPolicy(ctx, name, dscInit, platform)
-	if err != nil {
-		log.Error(err, "error reconciling network policy ", "name", name)
+	if err := r.appNamespaceHandler(ctx, dscInit, platform); err != nil {
+		log.Error(err, "error handle application namespace")
 		return err
 	}
 
+	// Patch monitoring namespace
+	err := r.patchMonitoringNS(ctx, dscInit)
+	if err != nil {
+		log.Error(err, "error patch monitoring namespace for managed cluster")
+		return err
+	}
+
+	// Create default NetworkPolicy for the namespace
+	err = r.reconcileDefaultNetworkPolicy(ctx, dscInit, platform)
+	if err != nil {
+		log.Error(err, "error reconciling network policy ", "name", dscInit.Spec.ApplicationsNamespace)
+		return fmt.Errorf("error: %w", err)
+	}
+
 	// Create odh-common-config Configmap for the Namespace
-	err = r.createOdhCommonConfigMap(ctx, name, dscInit)
+	err = r.createOdhCommonConfigMap(ctx, dscInit)
 	if err != nil {
 		log.Error(err, "error creating configmap", "name", "odh-common-config")
 		return err
 	}
 
 	// Create default Rolebinding for the namespace
-	err = r.createDefaultRoleBinding(ctx, name, dscInit)
+	err = r.createDefaultRoleBinding(ctx, dscInit)
 	if err != nil {
-		log.Error(err, "error creating rolebinding", "name", name)
+		log.Error(err, "error creating rolebinding", "name", dscInit.Spec.ApplicationsNamespace)
 		return err
 	}
 	return nil
 }
 
-func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
+
+	nsList := &corev1.NamespaceList{}
+	ns := &corev1.Namespace{}
+	dsciNsName := dscInit.Spec.ApplicationsNamespace
+
+	if err := r.List(ctx, nsList, client.MatchingLabels{
+		labels.CustomizedAppNamespace: labels.True,
+	}); err != nil {
+		return err
+	}
+
+	switch len(nsList.Items) {
+	case 0:
+		// create namespace if not exist
+		desiredAppNS := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: dsciNsName,
+			},
+		}
+		if err := r.Get(ctx, client.ObjectKeyFromObject(desiredAppNS), ns); err != nil {
+			if !k8serr.IsNotFound(err) {
+				return err
+			}
+		}
+		log.Info("Application namespace set in DSCI not found, creating it with labels", "name", dsciNsName)
+		// // ensure generatedd-namespace:true and security label always on it
+		return r.createAppNamespace(ctx, dsciNsName, platform, map[string]string{labels.ODH.OwnedNamespace: labels.True}) // this indicate when uninstall, namespace will be deleted
+	case 1:
+		if nsList.Items[0].Name != dsciNsName {
+			return errors.New("DSCI must used the same namespace which has opendatahub.io/application-namespace=true label")
+		}
+		// ensure security label always on it
+		return r.createAppNamespace(ctx, dsciNsName, platform)
+	default:
+		return errors.New("only support max. one namespace with label: opendatahub.io/application-namespace=true")
+	}
+}
+
+func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, nsName string, platform cluster.Platform, extraLabel ...map[string]string) error {
+	desiredDefaultNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: nsName},
+	}
+	labelList := map[string]string{
+		labels.SecurityEnforce: "baseline",
+	}
+
+	// label only for managed cluster
+	if platform == cluster.ManagedRhoai {
+		labelList["openshift.io/cluster-monitoring"] = "true"
+	}
+
+	for _, l := range extraLabel {
+		for k, v := range l {
+			labelList[k] = v
+		}
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, desiredDefaultNS, func() error {
+		resources.SetLabels(desiredDefaultNS, labelList)
+		return nil
+	})
+	return err
+}
+
+func (r *DSCInitializationReconciler) patchMonitoringNS(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
+	log := logf.FromContext(ctx)
+	if dscInit.Spec.Monitoring.ManagementState != operatorv1.Managed {
+		return nil
+	}
+	// Create Monitoring Namespace if it is enabled and not exists
+	monitoringName := dscInit.Spec.Monitoring.Namespace
+
+	desiredMonitoringNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: monitoringName,
+			Labels: map[string]string{
+				labels.ODH.OwnedNamespace: "true",
+				labels.SecurityEnforce:    "baseline",
+				labels.ClusterMonitoring:  "true",
+			},
+		},
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, desiredMonitoringNamespace, func() error {
+		return nil
+	})
+	if err != nil {
+		log.Error(err, "Unable to create or patcth monitoirng namespace")
+	}
+	return err
+}
+
+func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
+	log := logf.FromContext(ctx)
+	name := dscInit.Spec.ApplicationsNamespace
 	// Expected namespace for the given name
 	desiredRoleBinding := &rbacv1.RoleBinding{
 		TypeMeta: metav1.TypeMeta{
@@ -190,8 +226,13 @@ func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Conte
 	return nil
 }
 
-func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
+func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(
+	ctx context.Context,
+	dscInit *dsciv1.DSCInitialization,
+	platform cluster.Platform,
+) error {
 	log := logf.FromContext(ctx)
+	name := dscInit.Spec.ApplicationsNamespace
 	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
 		// Get operator namepsace
 		operatorNs, err := cluster.GetOperatorNamespace()
@@ -219,120 +260,120 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(ctx context.
 			log.Error(err, "error to set networkpolicy in applications namespace", "path", networkpolicyPath)
 			return err
 		}
-	} else { // Expected namespace for the given name in ODH
-		desiredNetworkPolicy := &networkingv1.NetworkPolicy{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "NetworkPolicy",
-				APIVersion: "v1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: name,
-			},
-			Spec: networkingv1.NetworkPolicySpec{
-				// open ingress for all port for now, TODO: add explicit port per component
-				// Ingress: []networkingv1.NetworkPolicyIngressRule{{}},
-				// open ingress for only operator created namespaces
-				Ingress: []networkingv1.NetworkPolicyIngressRule{
-					{
-						From: []networkingv1.NetworkPolicyPeer{
-							{ /* allow ODH namespace <->ODH namespace:
-								- default notebook project: rhods-notebooks
-								- redhat-odh-monitoring
-								- redhat-odh-applications / opendatahub
-								*/
-								NamespaceSelector: &metav1.LabelSelector{ // AND logic
-									MatchLabels: map[string]string{
-										labels.ODH.OwnedNamespace: "true",
-									},
-								},
-							},
-						},
-					},
-					{ // OR logic
-						From: []networkingv1.NetworkPolicyPeer{
-							{ // need this to access external-> dashboard
-								NamespaceSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"network.openshift.io/policy-group": "ingress",
-									},
-								},
-							},
-						},
-					},
-					{ // OR logic for PSI
-						From: []networkingv1.NetworkPolicyPeer{
-							{ // need this to access external->dashboard
-								NamespaceSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"kubernetes.io/metadata.name": "openshift-host-network",
-									},
-								},
-							},
-						},
-					},
-					{
-						From: []networkingv1.NetworkPolicyPeer{
-							{ // need this for cluster-monitoring work: cluster-monitoring->ODH namespaces
-								NamespaceSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"kubernetes.io/metadata.name": "openshift-monitoring",
-									},
+		return nil
+	}
+	// Expected namespace for the given name in ODH
+	desiredNetworkPolicy := &networkingv1.NetworkPolicy{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "NetworkPolicy",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: name,
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			// open ingress for all port for now, TODO: add explicit port per component
+			// Ingress: []networkingv1.NetworkPolicyIngressRule{{}},
+			// open ingress for only operator created namespaces
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{ /* allow ODH namespace <->ODH namespace:
+							- default notebook project: rhods-notebooks
+							- redhat-odh-monitoring
+							- redhat-odh-applications / opendatahub
+							*/
+							NamespaceSelector: &metav1.LabelSelector{ // AND logic
+								MatchLabels: map[string]string{
+									labels.ODH.OwnedNamespace: labels.True,
 								},
 							},
 						},
 					},
 				},
-				PolicyTypes: []networkingv1.PolicyType{
-					networkingv1.PolicyTypeIngress,
+				{ // OR logic
+					From: []networkingv1.NetworkPolicyPeer{
+						{ // need this to access external-> dashboard
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"network.openshift.io/policy-group": "ingress",
+								},
+							},
+						},
+					},
+				},
+				{ // OR logic for PSI
+					From: []networkingv1.NetworkPolicyPeer{
+						{ // need this to access external->dashboard
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"kubernetes.io/metadata.name": "openshift-host-network",
+								},
+							},
+						},
+					},
+				},
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{ // need this for cluster-monitoring work: cluster-monitoring->ODH namespaces
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"kubernetes.io/metadata.name": "openshift-monitoring",
+								},
+							},
+						},
+					},
 				},
 			},
-		}
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+			},
+		},
+	}
 
-		// Create NetworkPolicy if it doesn't exist
-		foundNetworkPolicy := &networkingv1.NetworkPolicy{}
-		justCreated := false
-		err := r.Client.Get(ctx, client.ObjectKeyFromObject(desiredNetworkPolicy), foundNetworkPolicy)
+	// Create NetworkPolicy if it doesn't exist
+	foundNetworkPolicy := &networkingv1.NetworkPolicy{}
+	justCreated := false
+	err := r.Client.Get(ctx, client.ObjectKeyFromObject(desiredNetworkPolicy), foundNetworkPolicy)
+	if err != nil {
+		if !k8serr.IsNotFound(err) {
+			return err
+		}
+		// Set Controller reference
+		err = ctrl.SetControllerReference(dscInit, desiredNetworkPolicy, r.Scheme)
 		if err != nil {
-			if k8serr.IsNotFound(err) {
-				// Set Controller reference
-				err = ctrl.SetControllerReference(dscInit, desiredNetworkPolicy, r.Scheme)
-				if err != nil {
-					log.Error(err, "Unable to add OwnerReference to the Network policy")
-					return err
-				}
-				err = r.Client.Create(ctx, desiredNetworkPolicy)
-				if err != nil && !k8serr.IsAlreadyExists(err) {
-					return err
-				}
-				justCreated = true
-			} else {
-				return err
-			}
+			log.Error(err, "Unable to add OwnerReference to the Network policy")
+			return err
 		}
+		err = r.Client.Create(ctx, desiredNetworkPolicy)
+		if err != nil && !k8serr.IsAlreadyExists(err) {
+			return err
+		}
+		justCreated = true
+	}
 
-		// Reconcile the NetworkPolicy spec if it has been manually modified
-		if !justCreated && !CompareNotebookNetworkPolicies(*desiredNetworkPolicy, *foundNetworkPolicy) {
-			log.Info("Reconciling Network policy", "name", foundNetworkPolicy.Name)
-			// Retry the update operation when the ingress controller eventually
-			// updates the resource version field
-			err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-				// Get the last route revision
-				if err := r.Get(ctx, types.NamespacedName{
-					Name:      desiredNetworkPolicy.Name,
-					Namespace: desiredNetworkPolicy.Namespace,
-				}, foundNetworkPolicy); err != nil {
-					return err
-				}
-				// Reconcile labels and spec field
-				foundNetworkPolicy.Spec = desiredNetworkPolicy.Spec
-				foundNetworkPolicy.ObjectMeta.Labels = desiredNetworkPolicy.ObjectMeta.Labels
-				return r.Update(ctx, foundNetworkPolicy)
-			})
-			if err != nil {
-				log.Error(err, "Unable to reconcile the Network Policy")
+	// Reconcile the NetworkPolicy spec if it has been manually modified
+	if !justCreated && !CompareNotebookNetworkPolicies(*desiredNetworkPolicy, *foundNetworkPolicy) {
+		log.Info("Reconciling Network policy", "name", foundNetworkPolicy.Name)
+		// Retry the update operation when the ingress controller eventually
+		// updates the resource version field
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			// Get the last route revision
+			if err := r.Get(ctx, types.NamespacedName{
+				Name:      desiredNetworkPolicy.Name,
+				Namespace: desiredNetworkPolicy.Namespace,
+			}, foundNetworkPolicy); err != nil {
 				return err
 			}
+			// Reconcile labels and spec field
+			foundNetworkPolicy.Spec = desiredNetworkPolicy.Spec
+			foundNetworkPolicy.ObjectMeta.Labels = desiredNetworkPolicy.ObjectMeta.Labels
+			return r.Update(ctx, foundNetworkPolicy)
+		})
+		if err != nil {
+			log.Error(err, "Unable to reconcile the Network Policy")
+			return err
 		}
 	}
 	return nil
@@ -377,8 +418,9 @@ func GenerateRandomHex(length int) ([]byte, error) {
 	return randomBytes, nil
 }
 
-func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Context, name string, dscInit *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
 	log := logf.FromContext(ctx)
+	name := dscInit.Spec.ApplicationsNamespace
 	// Expected configmap for the given namespace
 	desiredConfigMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{

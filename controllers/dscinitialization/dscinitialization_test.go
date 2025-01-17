@@ -15,6 +15,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -23,6 +24,7 @@ import (
 const (
 	workingNamespace     = "test-operator-ns"
 	applicationName      = "default-dsci"
+	customizedAppNs      = "my-opendatahub"
 	applicationNamespace = "test-application-ns"
 	usergroupName        = "odh-admins"
 	configmapName        = "odh-common-config"
@@ -36,6 +38,8 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 		BeforeEach(func(ctx context.Context) {
 			// when
+			foundApplicationNamespace := &corev1.Namespace{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: workingNamespace}, foundApplicationNamespace)).ShouldNot(Succeed())
 			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv1.DSCInitialization{}
@@ -57,6 +61,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				WithPolling(interval).
 				Should(BeTrue())
 			Expect(foundApplicationNamespace.Name).To(Equal(applicationNamespace))
+			Expect(foundApplicationNamespace.Labels).To(HaveKeyWithValue(labels.SecurityEnforce, "baseline"))
 		})
 
 		It("Should create default monitoring namespace", func(ctx context.Context) {
@@ -309,7 +314,72 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundApplicationNamespace.UID).To(Equal(createdNamespace.UID))
 		})
 	})
+
+	Context("Creation of customized related resources", func() {
+		BeforeEach(func(ctx context.Context) {
+			// when
+			Expect(k8sClient.Create(ctx, &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: customizedAppNs,
+					Labels: map[string]string{
+						labels.CustomizedAppNamespace: labels.True,
+					},
+				},
+			})).Should(Succeed())
+
+		})
+		AfterEach(cleanupCustomizedResources)
+
+		It("Should have security label and no generated-namespace lable on existing DSCI specified application namespace", func(ctx context.Context) {
+			// then
+			desiredDsci := createCustomizedDSCI(customizedAppNs)
+			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
+			appNS := &corev1.Namespace{}
+			Eventually(namespaceExists(customizedAppNs, appNS)).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeTrue())
+			Eventually(func() map[string]string {
+				_ = k8sClient.Get(ctx, client.ObjectKey{Name: customizedAppNs}, appNS)
+				return appNS.Labels
+			}).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(SatisfyAll(
+					HaveKeyWithValue(labels.SecurityEnforce, "baseline"),
+					HaveKeyWithValue(labels.CustomizedAppNamespace, labels.True),
+					Not(HaveKey(labels.ODH.OwnedNamespace)),
+				))
+		})
+	})
 })
+
+func cleanupCustomizedResources(ctx context.Context) {
+	Expect(k8sClient.DeleteAllOf(ctx, &dsciv1.DSCInitialization{})).To(Succeed())
+	Eventually(noInstanceExistsIn(customizedAppNs, &dsciv1.DSCInitializationList{})).
+		WithContext(ctx).
+		WithTimeout(timeout).
+		WithPolling(interval).
+		Should(BeTrue())
+
+	Eventually(func() error {
+		appNs := &corev1.Namespace{}
+		if err := k8sClient.Get(ctx, client.ObjectKey{Name: customizedAppNs}, appNs); err != nil {
+			return err
+		}
+		// Remove special customized label
+		delete(appNs.Labels, labels.CustomizedAppNamespace)
+		return k8sClient.Update(ctx, appNs)
+	}, timeout, interval).Should(Succeed(), "Failed to remove application-namespace label from namespace")
+
+	Expect(k8sClient.Delete(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: customizedAppNs,
+		},
+	})).To(Succeed())
+}
 
 func cleanupResources(ctx context.Context) {
 	defaultNamespace := client.InNamespace(workingNamespace)
@@ -395,9 +465,34 @@ func createDSCI(enableMonitoring operatorv1.ManagementState, enableTrustedCABund
 	}
 }
 
-func dscInitializationIsReady(ns string, name string, dsciObj *dsciv1.DSCInitialization) func(ctx context.Context) bool { //nolint:unparam
+func createCustomizedDSCI(appNS string) *dsciv1.DSCInitialization {
+	return &dsciv1.DSCInitialization{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DSCInitialization",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      applicationName,
+			Namespace: workingNamespace,
+		},
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: appNS,
+			Monitoring: serviceApi.DSCMonitoring{
+				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+					Namespace: monitoringNamespace,
+				},
+			},
+			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
+				ManagementState: operatorv1.Managed,
+			},
+		},
+	}
+}
+
+func dscInitializationIsReady(name string, namespace string, dsciObj *dsciv1.DSCInitialization) func(ctx context.Context) bool { //nolint:unparam
 	return func(ctx context.Context) bool {
-		_ = k8sClient.Get(ctx, client.ObjectKey{Name: ns, Namespace: name}, dsciObj)
+		_ = k8sClient.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, dsciObj)
 
 		return dsciObj.Status.Phase == readyPhase
 	}
