@@ -37,6 +37,8 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 		BeforeEach(func(ctx context.Context) {
 			// when
+			foundApplicationNamespace := &corev1.Namespace{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: customizedAppNs}, foundApplicationNamespace)).ShouldNot(Succeed())
 			Expect(k8sClient.Create(ctx, &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: customizedAppNs,
@@ -58,7 +60,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 		AfterEach(cleanupResources)
 
-		It("Should have security labels on existing DSCI specified application namespace", func(ctx context.Context) {
+		It("Should have security label and no generated-namespace lable on existing DSCI specified application namespace", func(ctx context.Context) {
 			// then
 			appNS := &corev1.Namespace{}
 			Eventually(namespaceExists(customizedAppNs, appNS)).
@@ -67,12 +69,17 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				WithPolling(interval).
 				Should(BeTrue())
 			Expect(appNS.Labels).To(HaveKeyWithValue(labels.SecurityEnforce, "baseline"))
+			Expect(appNS.Labels).To(HaveKeyWithValue(labels.CustomizedAppNamespace, labels.True))
+			Expect(appNS.Labels).NotTo(HaveKey(labels.ODH.OwnedNamespace))
+			Expect(appNS.Name).To(Equal(customizedAppNs))
 		})
 	})
 
 	Context("Creation of related resources", func() {
 		BeforeEach(func(ctx context.Context) {
 			// when
+			foundApplicationNamespace := &corev1.Namespace{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: workingNamespace}, foundApplicationNamespace)).ShouldNot(Succeed())
 			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
 			foundDsci := &dsciv1.DSCInitialization{}
