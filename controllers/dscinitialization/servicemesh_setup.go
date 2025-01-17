@@ -212,30 +212,6 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 						instance.Spec.ApplicationsNamespace+"-auth-provider",
 					),
 				),
-
-			// We do not have the control over deployment resource creation.
-			// It is created by Authorino operator using Authorino CR and labels are not propagated from Authorino CR to spec.template
-			// See https://issues.redhat.com/browse/RHOAIENG-5494
-			//
-			// To make it part of Service Mesh we have to patch it with injection
-			// enabled instead, otherwise it will not have proxy pod injected.
-			feature.Define("enable-proxy-injection-in-authorino-deployment").
-				Manifests(
-					manifest.Location(Templates.Location).
-						Include(path.Join(Templates.AuthorinoDir, "deployment.injection.patch.tmpl.yaml")),
-				).
-				PreConditions(
-					func(ctx context.Context, cli client.Client, f *feature.Feature) error {
-						namespace, err := servicemesh.FeatureData.Authorization.Namespace.Extract(f)
-						if err != nil {
-							return fmt.Errorf("failed trying to resolve authorization provider namespace for feature '%s': %w", f.Name, err)
-						}
-
-						return feature.WaitForPodsToBeReady(namespace)(ctx, cli, f)
-					},
-				).
-				WithData(servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction()).
-				WithData(servicemesh.FeatureData.Authorization.All(&instance.Spec)...),
 		)
 	}
 }
