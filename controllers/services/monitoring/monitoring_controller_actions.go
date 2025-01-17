@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	appsv1 "k8s.io/api/apps/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -110,8 +111,27 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
 	}
+	promDeployment := &appsv1.DeploymentList{}
+	err := rr.Client.List(
+		ctx,
+		promDeployment,
+		client.InNamespace(rr.DSCI.Spec.Monitoring.Namespace),
+	)
+	if err != nil {
+		return fmt.Errorf("error fetching promethus deployments: %w", err)
+	}
 
-	m.Status.Phase = "Ready"
+	ready := 0
+	for _, deployment := range promDeployment.Items {
+		if deployment.Status.ReadyReplicas == deployment.Status.Replicas {
+			ready++
+		}
+	}
+
+	m.Status.Phase = "NotReady"
+	if len(promDeployment.Items) == 1 && ready == 1 {
+		m.Status.Phase = "Ready"
+	}
 	m.Status.ObservedGeneration = m.GetObjectMeta().GetGeneration()
 
 	return nil
