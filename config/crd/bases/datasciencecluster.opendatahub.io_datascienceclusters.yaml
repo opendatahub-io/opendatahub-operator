@@ -1161,6 +1161,7 @@ spec:
                   - type
                   type: object
                 type: array
+                x-kubernetes-list-type: atomic
               errorMessage:
                 type: string
               installedComponents:

@@ -37,6 +37,12 @@ var (
 	notebookContextDir             = path.Join(ComponentName, notebooksPath)
 )
 
+var (
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
+	}
+)
+
 // manifests for nbc in ODH and RHOAI + downstream use it for imageparams.
 func notebookControllerManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{

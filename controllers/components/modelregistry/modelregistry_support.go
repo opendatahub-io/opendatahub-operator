@@ -8,6 +8,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -21,11 +22,17 @@ const (
 	DefaultModelRegistryCert        = "default-modelregistry-cert"
 	BaseManifestsSourcePath         = "overlays/odh"
 	ServiceMeshMemberTemplate       = "resources/servicemesh-member.tmpl.yaml"
-
+	ServiceMeshMemberCRD            = "servicemeshmembers.maistra.io"
+	ServiceMeshMemberAPINotFound    = "ServiceMeshMember API not found"
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "model-registry-operator"
+)
+
+var (
+	ErrServiceMeshNotConfigured     = odherrors.NewStopError(status.ServiceMeshNotConfiguredMessage)
+	ErrServiceMeshMemberAPINotFound = odherrors.NewStopError(ServiceMeshMemberAPINotFound)
 )
 
 var (
@@ -37,6 +44,11 @@ var (
 
 	extraParamsMap = map[string]string{
 		"DEFAULT_CERT": DefaultModelRegistryCert,
+	}
+
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
+		status.ConditionServerlessAvailable,
 	}
 )
 

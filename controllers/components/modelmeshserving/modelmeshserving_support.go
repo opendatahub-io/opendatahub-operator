@@ -27,6 +27,10 @@ var (
 		"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
 		"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
 	}
+
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
+	}
 )
 
 func manifestsPath() odhtypes.ManifestInfo {

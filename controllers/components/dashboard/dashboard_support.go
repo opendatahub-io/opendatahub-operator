@@ -61,6 +61,10 @@ var (
 	imagesMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 	}
+
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
+	}
 )
 
 func defaultManifestInfo(p common.Platform) odhtypes.ManifestInfo {

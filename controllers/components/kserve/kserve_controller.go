@@ -38,8 +38,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/clusterrole"
@@ -149,6 +149,12 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(predicates.DefaultPredicate)).
 
 		// actions
+
+		// Detecting component status should be the first step as the
+		// subsequent action could fail for transient errors, but we
+		// should report the current component status if possible
+		WithAction(deployments.NewAction()).
+		WithAction(setStatusFields).
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(devFlags).
@@ -173,10 +179,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
-		WithAction(setStatusFields).
-		WithAction(updatestatus.NewAction()).
 		// must be the final action
 		WithAction(gc.NewAction()).
+		// declares the list of additional, controller specific conditions that are
+		// contributing to the controller readiness status
+		WithConditions(conditionTypes...).
 		Build(ctx)
 
 	return err

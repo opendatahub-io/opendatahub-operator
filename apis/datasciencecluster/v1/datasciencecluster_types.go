@@ -121,6 +121,7 @@ type DataScienceClusterStatus struct {
 
 	// Conditions describes the state of the DataScienceCluster resource.
 	// +optional
+	// +listType=atomic
 	Conditions []conditionsv1.Condition `json:"conditions,omitempty"`
 
 	// The generation observed by the deployment controller.

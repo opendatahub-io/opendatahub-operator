@@ -7,7 +7,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -16,6 +15,8 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
@@ -32,6 +33,21 @@ const (
 	LegacyComponentName = "kserve"
 
 	ReadyConditionType = conditionsv1.ConditionType(componentApi.KserveKind + status.ReadySuffix)
+)
+
+var (
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
+		status.ConditionServerlessAvailable,
+		status.ConditionServiceMeshAvailable,
+	}
+)
+
+var (
+	ErrServiceMeshNotConfigured        = odherrors.NewStopError(status.ServiceMeshNotConfiguredMessage)
+	ErrServiceMeshMemberAPINotFound    = odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
+	ErrServiceMeshOperatorNotInstalled = odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
+	ErrServerlessOperatorNotInstalled  = odherrors.NewStopError(status.ServerlessOperatorNotInstalledMessage)
 )
 
 type componentHandler struct{}
@@ -97,7 +113,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.Kserve.KserveCommonStatus = c.Status.KserveCommonStatus.DeepCopy()
 
-		if rc := meta.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {
+		if rc := conditions.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {
 			nc.Status = corev1.ConditionStatus(rc.Status)
 			nc.Reason = rc.Reason
 			nc.Message = rc.Message

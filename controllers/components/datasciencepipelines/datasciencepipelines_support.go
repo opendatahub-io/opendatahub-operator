@@ -9,6 +9,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -24,6 +25,10 @@ const (
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName      = "data-science-pipelines-operator"
 	platformVersionParamsKey = "PLATFORMVERSION"
+)
+
+var (
+	ErrArgoWorkflowAPINotOwned = odherrors.NewStopError(status.DataSciencePipelinesDoesntOwnArgoCRDMessage)
 )
 
 var (
@@ -46,6 +51,12 @@ var (
 		cluster.OpenDataHub:      "overlays/odh",
 		cluster.Unknown:          "overlays/odh",
 	}
+
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
+		status.ConditionArgoWorkflowAvailable,
+	}
+
 	paramsPath = path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
 )
 

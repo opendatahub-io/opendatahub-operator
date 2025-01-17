@@ -34,6 +34,10 @@ var (
 		cluster.OpenDataHub:      "/overlays/odh",
 		cluster.Unknown:          "/overlays/odh",
 	}
+
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
+	}
 )
 
 func manifestsPath(p common.Platform) types.ManifestInfo {

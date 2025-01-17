@@ -24,6 +24,10 @@ var (
 	imageParamMap = map[string]string{
 		"odh-kuberay-operator-controller-image": "RELATED_IMAGE_ODH_KUBERAY_OPERATOR_CONTROLLER_IMAGE",
 	}
+
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
+	}
 )
 
 func manifestPath() types.ManifestInfo {

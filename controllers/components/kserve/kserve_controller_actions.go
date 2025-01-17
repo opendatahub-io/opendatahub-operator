@@ -10,17 +10,17 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
@@ -35,60 +35,66 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	}
 
 	if k.Spec.Serving.ManagementState != operatorv1.Managed {
+		rr.Conditions.MarkFalse(
+			status.ConditionServerlessAvailable,
+			conditions.WithSeverity(common.ConditionSeverityInfo),
+			conditions.WithReason(string(k.Spec.Serving.ManagementState)),
+			conditions.WithMessage("Serving management state is set to: %s", k.Spec.Serving.ManagementState))
+		rr.Conditions.MarkFalse(
+			status.ConditionServiceMeshAvailable,
+			conditions.WithSeverity(common.ConditionSeverityInfo),
+			conditions.WithReason(string(k.Spec.Serving.ManagementState)),
+			conditions.WithMessage("Serving management state is set to: %s", k.Spec.Serving.ManagementState))
+
 		return nil
 	}
 
+	rr.Conditions.MarkUnknown(status.ConditionServerlessAvailable)
+	rr.Conditions.MarkUnknown(status.ConditionServiceMeshAvailable)
+
 	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
-		s := k.GetStatus()
-		s.Phase = status.PhaseNotReady
+		rr.Conditions.MarkFalse(
+			status.ConditionServerlessAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
+			conditions.WithMessage(status.ServiceMeshNotConfiguredMessage),
+		)
 
-		meta.SetStatusCondition(&s.Conditions, metav1.Condition{
-			Type:               status.ConditionTypeReady,
-			Status:             metav1.ConditionFalse,
-			Reason:             status.ServiceMeshNotConfiguredReason,
-			Message:            status.ServiceMeshNotConfiguredMessage,
-			ObservedGeneration: s.ObservedGeneration,
-		})
-
-		return odherrors.NewStopError(status.ServiceMeshNotConfiguredMessage)
+		return ErrServiceMeshNotConfigured
 	}
 
 	if found, err := cluster.OperatorExists(ctx, rr.Client, serviceMeshOperator); err != nil || !found {
-		s := k.GetStatus()
-		s.Phase = status.PhaseNotReady
-
-		meta.SetStatusCondition(&s.Conditions, metav1.Condition{
-			Type:               status.ConditionTypeReady,
-			Status:             metav1.ConditionFalse,
-			Reason:             status.ServiceMeshOperatorNotInstalledReason,
-			Message:            status.ServiceMeshOperatorNotInstalledMessage,
-			ObservedGeneration: s.ObservedGeneration,
-		})
-
+		e := ErrServiceMeshOperatorNotInstalled
 		if err != nil {
-			return odherrors.NewStopErrorW(err)
+			e = odherrors.NewStopErrorW(err)
 		}
 
-		return odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
+		rr.Conditions.MarkFalse(
+			status.ConditionServiceMeshAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithError(e),
+		)
+
+		return e
+	} else {
+		rr.Conditions.MarkTrue(status.ConditionServiceMeshAvailable)
 	}
 
 	if found, err := cluster.OperatorExists(ctx, rr.Client, serverlessOperator); err != nil || !found {
-		s := k.GetStatus()
-		s.Phase = status.PhaseNotReady
-
-		meta.SetStatusCondition(&s.Conditions, metav1.Condition{
-			Type:               status.ConditionTypeReady,
-			Status:             metav1.ConditionFalse,
-			Reason:             status.ServerlessOperatorNotInstalledReason,
-			Message:            status.ServerlessOperatorNotInstalledMessage,
-			ObservedGeneration: s.ObservedGeneration,
-		})
-
+		e := ErrServerlessOperatorNotInstalled
 		if err != nil {
-			return odherrors.NewStopErrorW(err)
+			e = odherrors.NewStopErrorW(err)
 		}
 
-		return odherrors.NewStopError(status.ServerlessOperatorNotInstalledMessage)
+		rr.Conditions.MarkFalse(
+			status.ConditionServerlessAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithError(e),
+		)
+
+		return e
+	} else {
+		rr.Conditions.MarkTrue(status.ConditionServerlessAvailable)
 	}
 
 	return nil

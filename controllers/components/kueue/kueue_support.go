@@ -24,6 +24,10 @@ var (
 	imageParamMap = map[string]string{
 		"odh-kueue-controller-image": "RELATED_IMAGE_ODH_KUEUE_CONTROLLER_IMAGE",
 	}
+
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
+	}
 )
 
 func manifestsPath() odhtypes.ManifestInfo {

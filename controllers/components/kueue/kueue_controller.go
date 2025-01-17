@@ -35,8 +35,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -48,10 +48,17 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 	b := reconciler.ReconcilerFor(mgr, &componentApi.Kueue{})
 
 	if cluster.GetClusterInfo().Version.GTE(semver.MustParse("4.17.0")) {
-		b = b.OwnsGVK(gvk.ValidatingAdmissionPolicy). // "own" VAP, because we want it has owner so when kueue is removed it gets cleaned.
-								WatchesGVK(gvk.ValidatingAdmissionPolicyBinding). // "watch" VAPB, because we want it to be configable by user and it can be left behind when kueue is remov
-								WithAction(extraInitialize)
+		// "own" VAP, because we want it has owner so when kueue is removed it gets cleaned.
+		b = b.OwnsGVK(gvk.ValidatingAdmissionPolicy)
+
+		// "watch" VAPB, because we want it to be configurable by user, and it can be left behind
+		// when kueue is removed
+		b = b.WatchesGVK(gvk.ValidatingAdmissionPolicyBinding)
+
+		// add OCP 4.17.0 specific menifests
+		b = b.WithAction(extraInitialize)
 	}
+
 	// customized Owns() for Component with new predicates
 	b.Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
@@ -74,6 +81,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
+		// Detecting component status should be the first step as the
+		// subsequent action could fail for transient errors, but we
+		// should report the current component status if possible
+		WithAction(deployments.NewAction()).
 		// Add Kueue-specific actions
 		WithAction(checkPreConditions). // check if CRD multikueueconfigs/multikueueclusters with v1alpha1 exist in cluster and not in termination
 		WithAction(initialize).
@@ -88,9 +99,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
-		WithAction(updatestatus.NewAction()).
 		// must be the final action
-		WithAction(gc.NewAction())
+		WithAction(gc.NewAction()).
+		// declares the list of additional, controller specific conditions that are
+		// contributing to the controller readiness status
+		WithConditions(conditionTypes...)
 
 	if _, err := b.Build(ctx); err != nil {
 		return err // no need customize error, it is done in the caller main

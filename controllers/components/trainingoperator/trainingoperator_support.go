@@ -24,6 +24,10 @@ var (
 	imageParamMap = map[string]string{
 		"odh-training-operator-controller-image": "RELATED_IMAGE_ODH_TRAINING_OPERATOR_IMAGE",
 	}
+
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
+	}
 )
 
 func manifestPath() types.ManifestInfo {
