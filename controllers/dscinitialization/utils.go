@@ -154,42 +154,27 @@ func (r *DSCInitializationReconciler) patchMonitoringNS(ctx context.Context, dsc
 	if dscInit.Spec.Monitoring.ManagementState != operatorv1.Managed {
 		return nil
 	}
-	foundMonitoringNamespace := &corev1.Namespace{}
 	// Create Monitoring Namespace if it is enabled and not exists
 	monitoringName := dscInit.Spec.Monitoring.Namespace
-	err := r.Get(ctx, client.ObjectKey{Name: monitoringName}, foundMonitoringNamespace)
-	if err != nil {
-		if k8serr.IsNotFound(err) { //  create monitoring namespace
-			log.Info("Not found monitoring namespace", "name", monitoringName)
-			desiredMonitoringNamespace := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: monitoringName,
-					Labels: map[string]string{
-						labels.ODH.OwnedNamespace: labels.True,
-						labels.SecurityEnforce:    "baseline",
-						labels.ClusterMonitoring:  labels.True,
-					},
-				},
-			}
-			err = r.Create(ctx, desiredMonitoringNamespace)
-			if err != nil && !k8serr.IsAlreadyExists(err) {
-				log.Error(err, "Unable to create namespace", "name", monitoringName)
-				return err
-			}
-		} else {
-			log.Error(err, "Unable to fetch monitoring namespace", "name", monitoringName)
-			return err
-		}
-	}
-	// force to patch monitoring namespace with label for cluster-monitoring
-	log.Info("Patching monitoring namespace", "name", monitoringName)
-	labelPatch := `{"metadata":{"labels":{"openshift.io/cluster-monitoring":"true", "pod-security.kubernetes.io/enforce":"baseline","opendatahub.io/generated-namespace": "true"}}}`
 
-	err = r.Patch(ctx, foundMonitoringNamespace, client.RawPatch(types.MergePatchType, []byte(labelPatch)))
-	if err != nil {
-		return err
+	desiredMonitoringNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: monitoringName,
+			Labels: map[string]string{
+				labels.ODH.OwnedNamespace: "true",
+				labels.SecurityEnforce:    "baseline",
+				labels.ClusterMonitoring:  "true",
+			},
+		},
 	}
-	return nil
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, desiredMonitoringNamespace, func() error {
+		return nil
+	})
+	if err != nil {
+		log.Error(err, "Unable to create or patcth monitoirng namespace")
+	}
+	return err
 }
 
 func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
