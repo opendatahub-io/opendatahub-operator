@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"os"
 
@@ -77,6 +78,7 @@ import (
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -139,7 +141,7 @@ func initComponents(_ context.Context, p cluster.Platform) error {
 	})
 }
 
-func main() { //nolint:funlen,maintidx
+func main() { //nolint:funlen,maintidx,gocyclo
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -201,8 +203,20 @@ func main() { //nolint:funlen,maintidx
 		os.Exit(1)
 	}
 
-	secretCache := createSecretCacheConfig(platform)
-	deploymentCache := createDeploymentCacheConfig(platform)
+	// get old release version before we create default DSCI CR
+	oldReleaseVersion, _ := upgrade.GetDeployedRelease(ctx, setupClient)
+
+	secretCache, err := createSecretCacheConfig(ctx, setupClient, platform)
+	if err != nil {
+		setupLog.Error(err, "unable to get application namespace into cache")
+		os.Exit(1)
+	}
+	oDHCache, err := createODHGeneralCacheConfig(ctx, setupClient, platform)
+	if err != nil {
+		setupLog.Error(err, "unable to get application namespace into cache")
+		os.Exit(1)
+	}
+
 	cacheOptions := cache.Options{
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
@@ -231,9 +245,31 @@ func main() { //nolint:funlen,maintidx
 				Field: fields.Set{"metadata.name": cluster.ClusterAuthenticationObj}.AsSelector(),
 			},
 			// for prometheus and black-box deployment and ones we owns
-			&appsv1.Deployment{}: {Namespaces: deploymentCache},
-			// kueue need prometheusrules
-			&promv1.PrometheusRule{}: {Namespaces: deploymentCache},
+			&appsv1.Deployment{}: {
+				Namespaces: oDHCache,
+			},
+			// kueue + monitoring need prometheusrules
+			&promv1.PrometheusRule{}: {
+				Namespaces: oDHCache,
+			},
+			&promv1.ServiceMonitor{}: {
+				Namespaces: oDHCache,
+			},
+			&routev1.Route{}: {
+				Namespaces: oDHCache,
+			},
+			&networkingv1.NetworkPolicy{}: {
+				Namespaces: oDHCache,
+			},
+			&rbacv1.Role{}: {
+				Namespaces: oDHCache,
+			},
+			&rbacv1.RoleBinding{}: {
+				Namespaces: oDHCache,
+			},
+			&rbacv1.ClusterRole{}:                    {},
+			&rbacv1.ClusterRoleBinding{}:             {},
+			&securityv1.SecurityContextConstraints{}: {},
 		},
 	}
 
@@ -353,9 +389,6 @@ func main() { //nolint:funlen,maintidx
 		os.Exit(1)
 	}
 
-	// get old release version before we create default DSCI CR
-	oldReleaseVersion, _ := upgrade.GetDeployedRelease(ctx, setupClient)
-
 	// Check if user opted for disabling DSC configuration
 	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	if existDSCConfig && disableDSCConfig != "false" {
@@ -423,40 +456,74 @@ func main() { //nolint:funlen,maintidx
 	}
 }
 
-func createSecretCacheConfig(platform cluster.Platform) map[string]cache.Config {
-	namespaceConfigs := map[string]cache.Config{
-		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert,as an easy workarond, to watch all in this namespace for now
-		"openshift-ingress": {},
-	}
-	switch platform {
-	case cluster.ManagedRhoai:
+func getCommonCache(ctx context.Context, cli client.Client, platform cluster.Platform) (map[string]cache.Config, error) {
+	namespaceConfigs := map[string]cache.Config{}
+	if platform == cluster.ManagedRhoai {
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+		return namespaceConfigs, nil
+	}
+	cNamespaceList := &corev1.NamespaceList{}
+	labelSelector := client.MatchingLabels{
+		labels.CustomizedAppNamespace: labels.True,
+	}
+	if err := cli.List(ctx, cNamespaceList, labelSelector); err != nil {
+		return map[string]cache.Config{}, err
+	}
+
+	switch len(cNamespaceList.Items) {
+	case 0:
+		if platform == cluster.SelfManagedRhoai {
+			namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+			return namespaceConfigs, nil
+		}
+		namespaceConfigs["opendatahub"] = cache.Config{}
+		return namespaceConfigs, nil
+	case 1:
+		namespaceConfigs[cNamespaceList.Items[0].Name] = cache.Config{}
+	default:
+		return map[string]cache.Config{}, errors.New("only support max. one namespace with label: opendatahub.io/application-namespace: true")
+	}
+	return namespaceConfigs, nil
+}
+
+func createSecretCacheConfig(ctx context.Context, cli client.Client, platform cluster.Platform) (map[string]cache.Config, error) {
+	namespaceConfigs := map[string]cache.Config{
+		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
+		"openshift-ingress": {},
+	}
+
+	if platform == cluster.ManagedRhoai {
 		operatorNs, err := cluster.GetOperatorNamespace()
 		if err != nil {
 			operatorNs = "redhat-ods-operator" // fall back case
 		}
 		namespaceConfigs[operatorNs] = cache.Config{}
-	case cluster.SelfManagedRhoai:
-		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-	default:
-		namespaceConfigs["opendatahub"] = cache.Config{}
 	}
-	return namespaceConfigs
+
+	c, err := getCommonCache(ctx, cli, platform)
+	if err != nil {
+		return nil, err
+	}
+	for n := range c {
+		namespaceConfigs[n] = cache.Config{}
+	}
+	return namespaceConfigs, nil
 }
 
-func createDeploymentCacheConfig(platform cluster.Platform) map[string]cache.Config {
-	namespaceConfigs := map[string]cache.Config{}
-	switch platform {
-	case cluster.ManagedRhoai: // no need workbench NS, only SFS no Deployment
-		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
-		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-	case cluster.SelfManagedRhoai:
-		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-	default:
-		namespaceConfigs["opendatahub"] = cache.Config{}
+func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platform cluster.Platform) (map[string]cache.Config, error) {
+	namespaceConfigs := map[string]cache.Config{
+		"istio-system": {}, // for serivcemonitor: data-science-smcp-pilot-monitor
 	}
-	return namespaceConfigs
+
+	c, err := getCommonCache(ctx, cli, platform)
+	if err != nil {
+		return nil, err
+	}
+	for n := range c {
+		namespaceConfigs[n] = cache.Config{}
+	}
+	return namespaceConfigs, nil
 }
 
 func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error {
