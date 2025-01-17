@@ -25,6 +25,9 @@ func SetStatusCondition(a common.ConditionsAccessor, newCondition common.Conditi
 	})
 
 	if idx == -1 {
+		if newCondition.LastTransitionTime.IsZero() {
+			newCondition.LastTransitionTime = metav1.NewTime(time.Now())
+		}
 		conditions = append(conditions, newCondition)
 		a.SetConditions(conditions)
 		return true
@@ -34,20 +37,17 @@ func SetStatusCondition(a common.ConditionsAccessor, newCondition common.Conditi
 		return false
 	}
 
-	oldCondition := conditions[idx]
+	updateTransitionTime := conditions[idx].Status != newCondition.Status
 
 	conditions[idx] = newCondition
 	conditions[idx].LastHeartbeatTime = nil
 
-	// preserve transition time
-	conditions[idx].LastTransitionTime = oldCondition.LastTransitionTime
-
-	if oldCondition.Status != newCondition.Status {
+	if updateTransitionTime {
 		conditions[idx].LastTransitionTime = newCondition.LastTransitionTime
-	}
 
-	if conditions[idx].LastTransitionTime.IsZero() {
-		conditions[idx].LastTransitionTime = metav1.NewTime(time.Now())
+		if conditions[idx].LastTransitionTime.IsZero() {
+			conditions[idx].LastTransitionTime = metav1.NewTime(time.Now())
+		}
 	}
 
 	a.SetConditions(conditions)
@@ -97,6 +97,12 @@ func IsStatusConditionPresentAndEqual(a common.ConditionsAccessor, conditionType
 	return slices.ContainsFunc(a.GetConditions(), func(condition common.Condition) bool {
 		return condition.Type == conditionType && condition.Status == status
 	})
+}
+
+func applyOpts(c *common.Condition, opts ...Option) {
+	for _, o := range opts {
+		o(c)
+	}
 }
 
 func equals(c1 common.Condition, c2 common.Condition) bool {
