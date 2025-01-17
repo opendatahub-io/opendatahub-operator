@@ -21,7 +21,7 @@ rules:
 - apiGroups:
   - modelregistry.opendatahub.io
   resources:
-  - modelregistires
+  - modelregistries
   verbs:
   - watch
   - update
