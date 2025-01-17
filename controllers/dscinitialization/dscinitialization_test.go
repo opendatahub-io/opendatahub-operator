@@ -33,49 +33,9 @@ const (
 )
 
 var _ = Describe("DataScienceCluster initialization", func() {
-	Context("Creation of customized related resources", func() {
-
-		BeforeEach(func(ctx context.Context) {
-			// when
-			foundApplicationNamespace := &corev1.Namespace{}
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: customizedAppNs}, foundApplicationNamespace)).ShouldNot(Succeed())
-			Expect(k8sClient.Create(ctx, &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: customizedAppNs,
-					Labels: map[string]string{
-						labels.CustomizedAppNamespace: labels.True,
-					},
-				},
-			})).Should(Succeed())
-			desiredDsci := createCustomizedDSCI(customizedAppNs)
-			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
-
-			foundDsci := &dsciv1.DSCInitialization{}
-			Eventually(dscInitializationIsReady(applicationName, customizedAppNs, foundDsci)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-		})
-
-		AfterEach(cleanupResources)
-
-		It("Should have security label and no generated-namespace lable on existing DSCI specified application namespace", func(ctx context.Context) {
-			// then
-			appNS := &corev1.Namespace{}
-			Eventually(namespaceExists(customizedAppNs, appNS)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-			Expect(appNS.Labels).To(HaveKeyWithValue(labels.SecurityEnforce, "baseline"))
-			Expect(appNS.Labels).To(HaveKeyWithValue(labels.CustomizedAppNamespace, labels.True))
-			Expect(appNS.Labels).NotTo(HaveKey(labels.ODH.OwnedNamespace))
-			Expect(appNS.Name).To(Equal(customizedAppNs))
-		})
-	})
-
 	Context("Creation of related resources", func() {
+		// must be default as instance name, or it will break
+
 		BeforeEach(func(ctx context.Context) {
 			// when
 			foundApplicationNamespace := &corev1.Namespace{}
@@ -345,7 +305,72 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundApplicationNamespace.UID).To(Equal(createdNamespace.UID))
 		})
 	})
+
+	Context("Creation of customized related resources", func() {
+		BeforeEach(func(ctx context.Context) {
+			// when
+			Expect(k8sClient.Create(ctx, &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: customizedAppNs,
+					Labels: map[string]string{
+						labels.CustomizedAppNamespace: labels.True,
+					},
+				},
+			})).Should(Succeed())
+
+		})
+		AfterEach(cleanupCustomizedResources)
+
+		It("Should have security label and no generated-namespace lable on existing DSCI specified application namespace", func(ctx context.Context) {
+			// then
+			desiredDsci := createCustomizedDSCI(customizedAppNs)
+			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
+			appNS := &corev1.Namespace{}
+			Eventually(namespaceExists(customizedAppNs, appNS)).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeTrue())
+			Eventually(func() map[string]string {
+				_ = k8sClient.Get(ctx, client.ObjectKey{Name: customizedAppNs}, appNS)
+				return appNS.Labels
+			}).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(SatisfyAll(
+					HaveKeyWithValue(labels.SecurityEnforce, "baseline"),
+					HaveKeyWithValue(labels.CustomizedAppNamespace, labels.True),
+					Not(HaveKey(labels.ODH.OwnedNamespace)),
+				))
+		})
+	})
 })
+
+func cleanupCustomizedResources(ctx context.Context) {
+	Expect(k8sClient.DeleteAllOf(ctx, &dsciv1.DSCInitialization{})).To(Succeed())
+	Eventually(noInstanceExistsIn(customizedAppNs, &dsciv1.DSCInitializationList{})).
+		WithContext(ctx).
+		WithTimeout(timeout).
+		WithPolling(interval).
+		Should(BeTrue())
+
+	Eventually(func() error {
+		appNs := &corev1.Namespace{}
+		if err := k8sClient.Get(ctx, client.ObjectKey{Name: customizedAppNs}, appNs); err != nil {
+			return err
+		}
+		// Remove special customized label
+		delete(appNs.Labels, labels.CustomizedAppNamespace)
+		return k8sClient.Update(ctx, appNs)
+	}, timeout, interval).Should(Succeed(), "Failed to remove application-namespace label from namespace")
+
+	Expect(k8sClient.Delete(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: customizedAppNs,
+		},
+	})).To(Succeed())
+}
 
 func cleanupResources(ctx context.Context) {
 	defaultNamespace := client.InNamespace(workingNamespace)
@@ -444,9 +469,9 @@ func createCustomizedDSCI(appNS string) *dsciv1.DSCInitialization {
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: appNS,
 			Monitoring: serviceApi.DSCMonitoring{
-				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
-					Namespace: "monitoring-ns",
+					Namespace: monitoringNamespace,
 				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{

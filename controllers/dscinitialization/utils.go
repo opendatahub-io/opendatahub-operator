@@ -84,35 +84,42 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 
 func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
-	nsName := dscInit.Spec.ApplicationsNamespace
-	// Check if application namespace has label "opendatahub.io/application-namespace:true"
-	// if no such namespace exist, we create it with generated-namespace and security label
-	// if namespace exist but no label, we exit
-	// if namespace exist and has label, we enforce security label onto it.
-	appNamespace := &corev1.Namespace{}
-	desiredAppNS := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: nsName,
-		},
-	}
-	if err := r.Get(ctx, client.ObjectKeyFromObject(desiredAppNS), appNamespace); err != nil {
-		if !k8serr.IsNotFound(err) {
-			return err
-		}
-		log.Info("Application namespace from DSCI not found, creating it", "name", nsName)
-		return r.createAppNamespace(ctx, nsName, platform, map[string]string{labels.ODH.OwnedNamespace: labels.True}) // this indicate when uninstall, namespace will be deleted
+
+	nsList := &corev1.NamespaceList{}
+	ns := &corev1.Namespace{}
+	dsciNsName := dscInit.Spec.ApplicationsNamespace
+
+	if err := r.List(ctx, nsList, client.MatchingLabels{
+		labels.CustomizedAppNamespace: labels.True,
+	}); err != nil {
+		return err
 	}
 
-	l := appNamespace.GetLabels()
-	if l[labels.CustomizedAppNamespace] == "true" {
-		// ensure customized namespace has required label
-		return r.createAppNamespace(ctx, nsName, platform, map[string]string{labels.CustomizedAppNamespace: labels.True})
+	switch len(nsList.Items) {
+	case 0:
+		// create namespace if not exist
+		desiredAppNS := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: dsciNsName,
+			},
+		}
+		if err := r.Get(ctx, client.ObjectKeyFromObject(desiredAppNS), ns); err != nil {
+			if !k8serr.IsNotFound(err) {
+				return err
+			}
+		}
+		log.Info("Application namespace set in DSCI not found, creating it with labels", "name", dsciNsName)
+		// // ensure generatedd-namespace:true and security label always on it
+		return r.createAppNamespace(ctx, dsciNsName, platform, map[string]string{labels.ODH.OwnedNamespace: labels.True}) // this indicate when uninstall, namespace will be deleted
+	case 1:
+		if nsList.Items[0].Name != dsciNsName {
+			return errors.New("DSCI must used the same namespace which has opendatahub.io/application-namespace=true label")
+		}
+		// ensure appliation-namespace:true and security label always on it
+		return r.createAppNamespace(ctx, dsciNsName, platform, map[string]string{labels.CustomizedAppNamespace: labels.True})
+	default:
+		return errors.New("only support max. one namespace with label: opendatahub.io/application-namespace=true")
 	}
-	if l[labels.ODH.OwnedNamespace] == "true" {
-		// ensure default namespace has required label
-		return r.createAppNamespace(ctx, nsName, platform, map[string]string{labels.ODH.OwnedNamespace: labels.True})
-	}
-	return errors.New("application namespace missing required label or label value is incorrect. Please recreate DSCI to set the label, or leave it to default value")
 }
 
 func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, nsName string, platform cluster.Platform, extraLabel ...map[string]string) error {
