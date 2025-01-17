@@ -20,6 +20,8 @@ declare -A COMPONENT_MANIFESTS=(
     ["trainingoperator"]="opendatahub-io:training-operator:dev:manifests"
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main:config"
     ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating:config"
+    ["feastoperator"]="opendatahub-io:feast:master:infra/feast-operator/config"
+
 )
 
 # Allow overwriting repo using flags component=repo
