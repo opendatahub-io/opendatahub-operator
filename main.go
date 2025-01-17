@@ -39,6 +39,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -131,6 +132,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(consolev1.AddToScheme(scheme))
 	utilruntime.Must(securityv1.Install(scheme))
 	utilruntime.Must(templatev1.Install(scheme))
+	utilruntime.Must(batchv1.AddToScheme(scheme))
 }
 
 func initComponents(_ context.Context, p cluster.Platform) error {
@@ -234,6 +236,13 @@ func main() { //nolint:funlen,maintidx
 			&appsv1.Deployment{}: {Namespaces: deploymentCache},
 			// kueue need prometheusrules
 			&promv1.PrometheusRule{}: {Namespaces: deploymentCache},
+			// nim old job from upgrade step
+			&batchv1.CronJob{}: {
+				Namespaces: deploymentCache,
+			},
+			&templatev1.Template{}: {
+				Namespaces: deploymentCache,
+			},
 		},
 	}
 
