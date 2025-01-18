@@ -9,11 +9,13 @@ import (
 	"gopkg.in/yaml.v2"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 var (
-	prometheusConfigPath = filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
+	ComponentName        = serviceApi.MonitoringServiceName
+	prometheusConfigPath = filepath.Join(odhdeploy.DefaultManifestPath, ComponentName, "prometheus", "apps", "prometheus-configs.yaml")
 )
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules

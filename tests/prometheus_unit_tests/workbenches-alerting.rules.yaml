@@ -1,0 +1,102 @@
+groups:
+  - name: RHODS-PVC-Usage
+    rules:
+    - alert: User notebook pvc usage above 90%
+      annotations:
+        message: 'The user notebook {{ $labels.persistentvolumeclaim }} is using 90% of its Volume. You might want to decrease the amount of data stored on the server or you can reach out to your cluster admin to increase the storage capacity to prevent disruptions and loss of data. Please back up your data before increasing the storage limit.'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/tree/main/RHODS"
+        summary: User notebook pvc usage above 90%
+      expr: kubelet_volume_stats_used_bytes{persistentvolumeclaim=~".*jupyterhub-nb-.*"} / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~"jupyterhub-nb-.*"} > 0.9 and kubelet_volume_stats_used_bytes{persistentvolumeclaim=~".*jupyterhub-nb-.*"} / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~"jupyterhub-nb-.*"} < 0.99
+      for: 2m
+      labels:
+        severity: warning
+        route: user-notifications
+    - alert: User notebook pvc usage at 100%
+      annotations:
+        message: 'The user notebook {{ $labels.persistentvolumeclaim }} is using 100% of its Volume. You might want to decrease the amount of data stored on the server or you can reach out to your cluster admin to increase the storage capacity to prevent disruptions and loss of data. Please back up your data before increasing the storage limit.'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/tree/main/RHODS"
+        summary: User notebook pvc usage at 100%
+      expr: kubelet_volume_stats_used_bytes{persistentvolumeclaim=~".*jupyterhub-nb-.*"}/kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=~"jupyterhub-nb-.*"} > 0.99
+      for: 2m
+      labels:
+        severity: warning
+        route: user-notifications
+
+  - name: RHODS Notebook controllers
+    rules:
+    - alert: Kubeflow notebook controller pod is not running
+      annotations:
+        message: 'Kubeflow Notebook controller is down!'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-kfnbc-notebook-controller-alert.md"
+        summary: Kubeflow notebook controller pod is not running
+      expr: absent(up{job=~'Kubeflow Notebook Controller Service Metrics'})
+      for: 5m
+      labels:
+        severity: warning
+        namespace: redhat-ods-applications
+    - alert: ODH notebook controller pod is not running
+      annotations:
+        message: 'ODH notebook controller is down!'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-odh-notebook-controller-alert.md"
+        summary: ODH notebook controller pod is not running
+      expr: absent(up{job=~'ODH Notebook Controller Service Metrics'})
+      for: 5m
+      labels:
+        severity: warning
+        namespace: redhat-ods-applications
+
+  - name: SLOs-probe_success_workbench
+    rules:
+    - alert: RHODS Jupyter Probe Success 5m and 1h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md"
+        summary: RHODS Jupyter Probe Success 5m and 1h Burn Rate high
+      expr: |
+        sum(probe_success:burnrate5m{instance=~"notebook-spawner"}) by (instance) > (14.40 * (1-0.98000))
+        and
+        sum(probe_success:burnrate1h{instance=~"notebook-spawner"}) by (instance) > (14.40 * (1-0.98000))
+      for: 2m
+      labels:
+        severity: critical
+        instance: notebook-spawner
+    - alert: RHODS Jupyter Probe Success 30m and 6h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md"
+        summary: RHODS Jupyter Probe Success 30m and 6h Burn Rate high
+      expr: |
+        sum(probe_success:burnrate30m{instance=~"notebook-spawner"}) by (instance) > (6.00 * (1-0.98000))
+        and
+        sum(probe_success:burnrate6h{instance=~"notebook-spawner"}) by (instance) > (6.00 * (1-0.98000))
+      for: 15m
+      labels:
+        severity: critical
+        instance: notebook-spawner
+    - alert: RHODS Jupyter Probe Success 2h and 1d Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md"
+        summary: RHODS Jupyter Probe Success 2h and 1d Burn Rate high
+      expr: |
+        sum(probe_success:burnrate2h{instance=~"notebook-spawner"}) by (instance) > (3.00 * (1-0.98000))
+        and
+        sum(probe_success:burnrate1d{instance=~"notebook-spawner"}) by (instance) > (3.00 * (1-0.98000))
+      for: 1h
+      labels:
+        severity: warning
+        instance: notebook-spawner
+    - alert: RHODS Jupyter Probe Success 6h and 3d Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Jupyter/rhods-jupyter-probe-success-burn-rate.md"
+        summary: RHODS Jupyter Probe Success 6h and 3d Burn Rate high
+      expr: |
+        sum(probe_success:burnrate6h{instance=~"notebook-spawner"}) by (instance) > (1.00 * (1-0.98000))
+        and
+        sum(probe_success:burnrate3d{instance=~"notebook-spawner"}) by (instance) > (1.00 * (1-0.98000))
+      for: 3h
+      labels:
+        severity: warning
+        instance: notebook-spawner
+

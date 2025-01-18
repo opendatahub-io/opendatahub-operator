@@ -29,6 +29,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -257,6 +258,9 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
+				if err := r.configureMonitoring(ctx, instance); err != nil {
+					return ctrl.Result{}, err
+				}
 				err := r.configureManagedMonitoring(ctx, instance, "init")
 				if err != nil {
 					return reconcile.Result{}, err
@@ -350,6 +354,8 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(
 			&routev1.Route{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.PersistentVolumeClaim{},
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Watches(
 			&dscv1.DataScienceCluster{},
@@ -466,5 +472,44 @@ func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a c
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "auth", Namespace: r.ApplicationsNamespace}}}
 	}
 
+	return nil
+}
+
+func (r *DSCInitializationReconciler) configureMonitoring(ctx context.Context, dsci *dsciv1.DSCInitialization) error {
+	// Create Monitoring CR singleton
+	defaultMonitoring := client.Object(&serviceApi.Monitoring{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       serviceApi.MonitoringKind,
+			APIVersion: serviceApi.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.MonitoringInstanceName,
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: dsciv1.GroupVersion.String(),
+				Kind:       dsci.Kind,
+				Name:       dsci.Name,
+				UID:        dsci.UID,
+			},
+			},
+		},
+		Spec: serviceApi.MonitoringSpec{
+			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+				Namespace: dsci.Spec.Monitoring.Namespace,
+			},
+		},
+	},
+	)
+
+	if dsci.Spec.Monitoring.ManagementState == operatorv1.Managed {
+		err := r.Create(ctx, defaultMonitoring)
+		if err != nil && !k8serr.IsAlreadyExists(err) {
+			return err
+		}
+	} else {
+		err := r.Delete(ctx, defaultMonitoring)
+		if err != nil && !k8serr.IsNotFound(err) {
+			return err
+		}
+	}
 	return nil
 }
