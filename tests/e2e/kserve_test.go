@@ -4,9 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelcontroller"
@@ -28,7 +26,6 @@ func kserveTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
-	t.Run("Validate environment", componentCtx.validateEnv)
 	t.Run("Validate component enabled", componentCtx.ValidateComponentEnabled)
 	t.Run("Validate component spec", componentCtx.validateSpec)
 	t.Run("Validate model controller", componentCtx.validateModelControllerInstance)
@@ -40,30 +37,6 @@ func kserveTestSuite(t *testing.T) {
 
 type KserveTestCtx struct {
 	*ComponentTestCtx
-}
-
-// validateEnv remove leftovers eventually present in the cluster. For some reason, the
-// KnativeServing may be left on the cluster, which causes the KServe tests to hang till
-// the test suite timeout (25m).
-func (c *KserveTestCtx) validateEnv(t *testing.T) {
-	g := c.NewWithT(t)
-	ns := "knative-serving"
-
-	kss, err := g.List(gvk.KnativeServing, client.InNamespace(ns)).Get()
-	g.Expect(err).NotTo(HaveOccurred())
-
-	if len(kss) != 0 {
-		t.Logf("Detected %d Knative Serving objects in namespace %s", len(kss), ns)
-	}
-
-	for _, ks := range kss {
-		t.Logf("Deleting Knative Serving %s in namespace %s", ks.GetName(), ks.GetNamespace())
-
-		g.Delete(gvk.KnativeServing, client.ObjectKeyFromObject(&ks)).Eventually().Should(Or(
-			MatchError(k8serr.IsNotFound, "IsNotFound"),
-			Not(HaveOccurred()),
-		))
-	}
 }
 
 func (c *KserveTestCtx) validateSpec(t *testing.T) {
