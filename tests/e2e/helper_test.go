@@ -460,7 +460,7 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 	return errors.ErrorOrNil()
 }
 
-// nolint: thelper
+//nolint:thelper
 func (tc *testContext) setUpServerless(t *testing.T) error {
 	ksl := unstructured.UnstructuredList{}
 	ksl.SetGroupVersionKind(gvk.KnativeServing)
