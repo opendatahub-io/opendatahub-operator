@@ -36,6 +36,7 @@ const (
 	servicemeshNamespace     = "openshift-operators"
 	servicemeshOpName        = "servicemeshoperator"
 	serverlessOpName         = "serverless-operator"
+	authorinoOpName          = "authorino-operator"
 	ownedNamespaceNumber     = 1 // set to 4 for RHOAI
 	deleteConfigMap          = "delete-configmap-name"
 	operatorReadyTimeout     = 2 * time.Minute
@@ -445,6 +446,7 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 	ops := []string{
 		serverlessOpName,
 		servicemeshOpName,
+		authorinoOpName,
 	}
 	var errors *multierror.Error
 	c := make(chan error)
