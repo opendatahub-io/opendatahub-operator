@@ -15,4 +15,7 @@ const (
 
 	// Default cluster-scope Authentication CR name.
 	ClusterAuthenticationObj = "cluster"
+
+	// Default OpenShift version CR name.
+	OpenShiftVersionObj = "version"
 )
