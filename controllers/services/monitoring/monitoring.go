@@ -6,16 +6,19 @@ import (
 	"path/filepath"
 	"strings"
 
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"gopkg.in/yaml.v2"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 var (
 	ComponentName        = serviceApi.MonitoringServiceName
 	prometheusConfigPath = filepath.Join(odhdeploy.DefaultManifestPath, ComponentName, "prometheus", "apps", "prometheus-configs.yaml")
+	ReadyConditionType   = conditionsv1.ConditionType(serviceApi.MonitoringKind + status.ReadySuffix)
 )
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules

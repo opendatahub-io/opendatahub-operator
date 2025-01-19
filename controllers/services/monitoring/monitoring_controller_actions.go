@@ -8,6 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -79,13 +80,13 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 		// read the component instance to get tha actual status
 		err := rr.Client.Get(ctx, client.ObjectKeyFromObject(ci), ci)
 		switch {
-		case err != nil:
-			enabled = false
-			if !k8serr.IsNotFound(err) {
-				return fmt.Errorf("error getting component state: component=%s, enabled=%t, error=%w", ch.GetName(), enabled, err)
-			}
-		default:
+		case err == nil:
 			enabled = meta.IsStatusConditionTrue(ci.GetStatus().Conditions, status.ConditionTypeReady)
+		case k8serr.IsNotFound(err):
+			enabled = false
+		default:
+			enabled = false
+			return fmt.Errorf("error getting component state: component=%s, enabled=%t, error=%w", ch.GetName(), enabled, err)
 		}
 
 		// Check for shared components
@@ -111,6 +112,17 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
 	}
+
+	// TODO: deprecate phase
+	m.Status.Phase = "NotReady"
+	// condition
+	nc := metav1.Condition{
+		Type:    string(ReadyConditionType),
+		Status:  metav1.ConditionFalse,
+		Reason:  status.ReconcileInit,
+		Message: status.PhaseNotReady,
+	}
+
 	promDeployment := &appsv1.DeploymentList{}
 	err := rr.Client.List(
 		ctx,
@@ -128,10 +140,15 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		}
 	}
 
-	m.Status.Phase = "NotReady"
 	if len(promDeployment.Items) == 1 && ready == 1 {
+		// TODO: deprecate phase
 		m.Status.Phase = "Ready"
+		// condition
+		nc.Status = metav1.ConditionTrue
+		nc.Reason = status.ReconcileCompleted
+		nc.Message = status.ReconcileCompletedMessage
 	}
+	meta.SetStatusCondition(&m.Status.Conditions, nc)
 	m.Status.ObservedGeneration = m.GetObjectMeta().GetGeneration()
 
 	return nil
