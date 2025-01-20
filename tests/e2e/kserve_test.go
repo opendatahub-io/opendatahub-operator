@@ -44,12 +44,10 @@ func kserveTestSuite(t *testing.T) {
 	t.Run("Validate component enabled", componentCtx.ValidateComponentEnabled)
 	t.Run("Validate component spec", componentCtx.validateSpec)
 	t.Run("Validate component conditions", componentCtx.validateConditions)
-	t.Run("Validate FeatureTrackers", componentCtx.validateFeatureTrackers)
 	t.Run("Validate model controller", componentCtx.validateModelControllerInstance)
 	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
-	t.Run("Validate Kserve owns FeatureTrackers", componentCtx.ValidateKserveOwnsFeatureTrackers)
-	t.Run("Validate FeatureTrackers own children", componentCtx.ValidateFeatureTrackersOwnChildren)
-	t.Run("Validate KnativeServing Structure", componentCtx.ValidateKnativeServingStructure)
+	t.Run("Validate no FeatureTracker OwnerReferences", componentCtx.ValidateNoFeatureTrackerOwnerReferences)
+	t.Run("Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers)
 	t.Run("Validate default certs", componentCtx.validateDefaultCertsAvailable)
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
@@ -137,50 +135,6 @@ func (c *KserveTestCtx) validateConditions(t *testing.T) {
 		)),
 	))
 }
-
-func (c *KserveTestCtx) validateFeatureTrackers(t *testing.T) {
-	g := c.NewWithT(t)
-	ftName := types.NamespacedName{Name: c.ApplicationNamespace + "-serverless-serving-deployment"}
-
-	g.Get(gvk.FeatureTracker, ftName).Eventually().Should(And(
-		jq.Match(`(.metadata.ownerReferences | length) == 1`),
-		jq.Match(`.metadata.ownerReferences[0].apiVersion == "%s"`, gvk.Kserve.GroupVersion().String()),
-		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Kserve.Kind),
-		jq.Match(`.metadata.ownerReferences[0].blockOwnerDeletion == true`),
-		jq.Match(`.metadata.ownerReferences[0].controller == true`),
-	))
-
-	dsc, err := c.GetDSC()
-	g.Expect(err).NotTo(HaveOccurred())
-
-	g.Update(
-		gvk.FeatureTracker,
-		ftName,
-		func(obj *unstructured.Unstructured) error {
-			if err := controllerutil.SetOwnerReference(dsc, obj, c.Client().Scheme()); err != nil {
-				return err
-			}
-
-			// trigger reconciliation as spec changes
-			if err = unstructured.SetNestedField(obj.Object, xid.New().String(), "spec", "source", "name"); err != nil {
-				return err
-			}
-
-			return nil
-		},
-	).Eventually().Should(And(
-		jq.Match(`(.metadata.ownerReferences | length) == 2`),
-	))
-
-	g.Get(gvk.FeatureTracker, ftName).Eventually().Should(And(
-		jq.Match(`(.metadata.ownerReferences | length) == 1`),
-		jq.Match(`.metadata.ownerReferences[0].apiVersion == "%s"`, gvk.Kserve.GroupVersion().String()),
-		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Kserve.Kind),
-		jq.Match(`.metadata.ownerReferences[0].blockOwnerDeletion == true`),
-		jq.Match(`.metadata.ownerReferences[0].controller == true`),
-	))
-}
-
 func (c *KserveTestCtx) validateModelControllerInstance(t *testing.T) {
 	g := c.NewWithT(t)
 
@@ -224,27 +178,7 @@ func (c *KserveTestCtx) validateDefaultCertsAvailable(t *testing.T) {
 	g.Expect(defaultIngressSecret.Data).Should(Equal(ctrlPlaneSecret.Data))
 }
 
-func (c *KserveTestCtx) ValidateKserveOwnsFeatureTrackers(t *testing.T) {
-	g := c.NewWithT(t)
-
-	fts := []string{
-		// c.ApplicationNamespace + "-kserve-external-authz",
-		c.ApplicationNamespace + "-serverless-serving-gateways",
-		c.ApplicationNamespace + "-serverless-serving-deployment",
-		c.ApplicationNamespace + "-serverless-net-istio-secret-filtering",
-	}
-
-	for _, ft := range fts {
-		g.Get(
-			gvk.FeatureTracker, types.NamespacedName{Name: ft},
-		).Eventually(300).Should(
-			jq.Match(`.metadata.ownerReferences | any(.kind == "%s")`, gvk.Kserve.Kind),
-			`Ensuring Kserve ownership of FeatureTracker %s`, ft,
-		)
-	}
-}
-
-func (c *KserveTestCtx) ValidateFeatureTrackersOwnChildren(t *testing.T) {
+func (c *KserveTestCtx) ValidateNoFeatureTrackerOwnerReferences(t *testing.T) {
 	g := c.NewWithT(t)
 
 	children := []struct {
@@ -265,21 +199,28 @@ func (c *KserveTestCtx) ValidateFeatureTrackersOwnChildren(t *testing.T) {
 	}
 
 	for _, child := range children {
-		g.Get(child.gvk, child.nn).Eventually(300).Should(
-			jq.Match(`.metadata.ownerReferences | any(.kind == "%s")`, gvk.FeatureTracker.Kind),
-			`Checking if %s/%s in %s has expected owner refs`, child.gvk, child.nn.Name, child.nn.Namespace,
-		)
+		g.Get(child.gvk, child.nn).Eventually(300).Should(And(
+			jq.Match(`.metadata.ownerReferences | any(.kind == "%s")`, gvk.Kserve.Kind),
+			jq.Match(`.metadata.ownerReferences | all(.kind != "%s")`, gvk.FeatureTracker.Kind),
+		),
+			`Checking if %s/%s in %s has expected owner refs`, child.gvk, child.nn.Name, child.nn.Namespace)
 	}
 }
 
-func (c *KserveTestCtx) ValidateKnativeServingStructure(t *testing.T) {
+func (c *KserveTestCtx) ValidateNoKserveFeatureTrackers(t *testing.T) {
 	g := c.NewWithT(t)
 
-	g.Get(
-		gvk.KnativeServing,
-		types.NamespacedName{Namespace: "knative-serving", Name: "knative-serving"},
-	).Eventually(300).Should(And(
-		jq.Match(`.spec.workloads | length == 3`),
-		jq.Match(`.metadata.annotations."serverless.openshift.io/default-enable-http2" == "true"`),
-	), `Ensuring KnativeServing has content from both templates`)
+	g.List(
+		gvk.FeatureTracker,
+	).Eventually(300).Should(
+		HaveEach(And(
+			jq.Match(`.metadata.name != "%s"`, c.ApplicationNamespace+"-kserve-external-authz"),
+			jq.Match(`.metadata.name != "%s"`, c.ApplicationNamespace+"-serverless-serving-gateways"),
+			jq.Match(`.metadata.name != "%s"`, c.ApplicationNamespace+"-serverless-serving-deployment"),
+			jq.Match(`.metadata.name != "%s"`, c.ApplicationNamespace+"-serverless-net-istio-secret-filtering"),
+
+			// there should be no FeatureTrackers owned by a Kserve
+			jq.Match(`.metadata.ownerReferences | all(.kind != "%s")`, gvk.Kserve.Kind),
+		)),
+		`Ensuring there are no Kserve FeatureTrackers`)
 }
