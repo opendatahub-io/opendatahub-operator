@@ -215,6 +215,12 @@ var (
 		Kind:    "AuthorizationPolicy",
 	}
 
+	AuthorizationPolicyv1beta1 = schema.GroupVersionKind{
+		Group:   "security.istio.io",
+		Version: "v1beta1",
+		Kind:    "AuthorizationPolicy",
+	}
+
 	Gateway = schema.GroupVersionKind{
 		Group:   "networking.istio.io",
 		Version: "v1beta1",

@@ -18,9 +18,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -137,6 +137,21 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
+func renderTemplates(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
+	}
+
+	data := getTemplateData(ctx, rr.Client, k, rr.DSCI)
+
+	actionFn := template.NewAction(
+		template.WithData(data),
+	)
+
+	return actionFn(ctx, rr)
+}
+
 func configureServerless(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	k, ok := rr.Instance.(*componentApi.Kserve)
 	if !ok {
@@ -168,11 +183,48 @@ func configureServerless(ctx context.Context, rr *odhtypes.ReconciliationRequest
 				"as it is required by the KServe serving field", rr.DSCI.Spec.ServiceMesh.ManagementState)
 		}
 
-		serverlessFeatures := feature.ComponentFeaturesHandler(rr.Instance, componentName, rr.DSCI.Spec.ApplicationsNamespace, configureServerlessFeatures(&rr.DSCI.Spec, k))
-
-		if err := serverlessFeatures.Apply(ctx, cli); err != nil {
-			return err
+		err := createServingCertResource(ctx, cli, &rr.DSCI.Spec, k)
+		if err != nil {
+			return fmt.Errorf("unable to create serverless serving certificate secret: %w", err)
 		}
+
+		templates := []odhtypes.TemplateInfo{
+			{
+				FS:   resourcesFS,
+				Path: "resources/serving-install/service-mesh-subscription.tmpl.yaml",
+			},
+			{
+				FS:   resourcesFS,
+				Path: "resources/serving-install/knative-serving.tmpl.yaml",
+			},
+			{
+				FS:   resourcesFS,
+				Path: "resources/serving-net-istio-secret-filtering.patch.tmpl.yaml",
+			},
+
+			{
+				FS:   resourcesFS,
+				Path: "resources/servicemesh/routing/istio-ingress-gateway.tmpl.yaml",
+			},
+			{
+				FS:   resourcesFS,
+				Path: "resources/servicemesh/routing/istio-kserve-local-gateway.tmpl.yaml",
+			},
+			{
+				FS:   resourcesFS,
+				Path: "resources/servicemesh/routing/istio-local-gateway.yaml",
+			},
+			{
+				FS:   resourcesFS,
+				Path: "resources/servicemesh/routing/kserve-local-gateway-svc.tmpl.yaml",
+			},
+			{
+				FS:   resourcesFS,
+				Path: "resources/servicemesh/routing/local-gateway-svc.tmpl.yaml",
+			},
+		}
+
+		rr.Templates = append(rr.Templates, templates...)
 	}
 	return nil
 }
@@ -187,8 +239,32 @@ func configureServiceMesh(ctx context.Context, rr *odhtypes.ReconciliationReques
 
 	if rr.DSCI.Spec.ServiceMesh != nil {
 		if rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-			serviceMeshInitializer := feature.ComponentFeaturesHandler(k, componentName, rr.DSCI.Spec.ApplicationsNamespace, defineServiceMeshFeatures(ctx, cli, &rr.DSCI.Spec))
-			return serviceMeshInitializer.Apply(ctx, cli)
+			templates := []odhtypes.TemplateInfo{
+				{
+					FS:   resourcesFS,
+					Path: "resources/servicemesh/activator-envoyfilter.tmpl.yaml",
+				},
+				{
+					FS:   resourcesFS,
+					Path: "resources/servicemesh/envoy-oauth-temp-fix.tmpl.yaml",
+				},
+				{
+					FS:   resourcesFS,
+					Path: "resources/servicemesh/kserve-predictor-authorizationpolicy.tmpl.yaml",
+				},
+				{
+					FS:   resourcesFS,
+					Path: "resources/servicemesh/kserve-inferencegraph-envoyfilter.tmpl.yaml",
+				},
+				{
+					FS:   resourcesFS,
+					Path: "resources/servicemesh/kserve-inferencegraph-authorizationpolicy.tmpl.yaml",
+				},
+			}
+
+			rr.Templates = append(rr.Templates, templates...)
+
+			return nil
 		}
 		if rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Unmanaged {
 			return nil

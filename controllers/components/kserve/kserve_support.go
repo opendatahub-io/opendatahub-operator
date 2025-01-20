@@ -2,6 +2,7 @@ package kserve
 
 import (
 	"context"
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,15 +13,12 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -30,6 +28,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
+
+//go:embed resources
+var resourcesFS embed.FS
 
 func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
@@ -100,6 +101,23 @@ func configureServerlessFeatures(dsciSpec *dsciv1.DSCInitializationSpec, kserve 
 	}
 }
 
+func createServingCertResource(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, kserve *componentApi.Kserve) error {
+	domain := getKnativeDomain(ctx, cli, kserve)
+	secretName := getKnativeCertSecretName(kserve)
+
+	switch kserve.Spec.Serving.IngressGateway.Certificate.Type {
+	case infrav1.SelfSigned:
+		return cluster.CreateSelfSignedCertificate(ctx, cli, secretName,
+			domain, dscispec.ServiceMesh.ControlPlane.Namespace,
+			cluster.OwnedBy(kserve, cli.Scheme()))
+	case infrav1.Provided:
+		return nil
+	default:
+		return cluster.PropagateDefaultIngressCertificate(ctx, cli,
+			secretName, dscispec.ServiceMesh.ControlPlane.Namespace)
+	}
+}
+
 func defineServiceMeshFeatures(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) feature.FeaturesProvider {
 	return func(registry feature.FeaturesRegistry) error {
 		authorinoInstalled, err := cluster.SubscriptionExists(ctx, cli, "authorino-operator")
@@ -138,6 +156,41 @@ func defineServiceMeshFeatures(ctx context.Context, cli client.Client, dscispec 
 
 		return nil
 	}
+}
+
+func getTemplateData(ctx context.Context, cli client.Client, k *componentApi.Kserve, dsci *dsciv1.DSCInitialization) map[string]any {
+	knativeIngressDomain := getKnativeDomain(ctx, cli, k)
+	knativeCertificateSecret := getKnativeCertSecretName(k)
+
+	return map[string]any{
+		"AuthExtensionName":        dsci.Spec.ApplicationsNamespace + "-auth-provider",
+		"ControlPlane":             dsci.Spec.ServiceMesh.ControlPlane,
+		"KnativeCertificateSecret": knativeCertificateSecret,
+		"KnativeIngressDomain":     knativeIngressDomain,
+		"Serving":                  k.Spec.Serving,
+	}
+}
+
+func getKnativeDomain(ctx context.Context, cli client.Client, k *componentApi.Kserve) string {
+	domain := k.Spec.Serving.IngressGateway.Domain
+	if domain != "" {
+		return domain
+	}
+
+	domain, err := cluster.GetDomain(ctx, cli)
+	if err != nil {
+		return ""
+	}
+	return domain
+}
+
+func getKnativeCertSecretName(k *componentApi.Kserve) string {
+	name := k.Spec.Serving.IngressGateway.Certificate.SecretName
+	if name == "" {
+		name = "knative-serving-cert"
+	}
+
+	return name
 }
 
 func removeServiceMeshConfigurations(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
@@ -240,29 +293,4 @@ func hashConfigMap(cm *corev1.ConfigMap) (string, error) {
 	}
 
 	return base64.RawURLEncoding.EncodeToString(h), nil
-}
-
-func ownedViaFT(cli client.Client) handler.MapFunc {
-	return func(ctx context.Context, a client.Object) []reconcile.Request {
-		for _, or := range a.GetOwnerReferences() {
-			if or.Kind == "FeatureTracker" {
-				ft := featuresv1.FeatureTracker{}
-				if err := cli.Get(ctx, client.ObjectKey{Name: or.Name}, &ft); err != nil {
-					return []reconcile.Request{}
-				}
-
-				for _, ftor := range ft.GetOwnerReferences() {
-					if ftor.Kind == componentApi.KserveKind && ftor.Name != "" {
-						return []reconcile.Request{{
-							NamespacedName: types.NamespacedName{
-								Name: ftor.Name,
-							},
-						}}
-					}
-				}
-			}
-		}
-
-		return []reconcile.Request{}
-	}
 }
