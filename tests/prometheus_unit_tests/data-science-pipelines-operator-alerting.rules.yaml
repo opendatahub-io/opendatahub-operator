@@ -1,0 +1,139 @@
+groups:
+  - name: SLOs-haproxy_backend_http_responses_dsp
+    rules:
+    - alert: Data Science Pipelines Application Route Error 5m and 1h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
+        summary: Data Science Pipelines Application Route Error 5m and 1h Burn Rate high
+      expr: |
+        sum(haproxy_backend_http_responses_total:burnrate5m{component="dsp"}) by (exported_namespace) > (14.40 * (1-0.99950))
+        and
+        sum(haproxy_backend_http_responses_total:burnrate1h{component="dsp"}) by (exported_namespace) > (14.40 * (1-0.99950))
+      for: 2m
+      labels:
+        severity: info
+        namespace: redhat-ods-applications
+    - alert: Data Science Pipelines Application Route Error 30m and 6h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
+        summary: Data Science Pipelines Application Route Error 30m and 6h Burn Rate high
+      expr: |
+        sum(haproxy_backend_http_responses_total:burnrate30m{component="dsp"}) by (exported_namespace) > (6.00 * (1-0.99950))
+        and
+        sum(haproxy_backend_http_responses_total:burnrate6h{component="dsp"}) by (exported_namespace) > (6.00 * (1-0.99950))
+      for: 15m
+      labels:
+        severity: info
+        namespace: redhat-ods-applications
+    - alert: Data Science Pipelines Application Route Error 2h and 1d Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
+        summary: Data Science Pipelines Application Route Error 2h and 1d Burn Rate high
+      expr: |
+        sum(haproxy_backend_http_responses_total:burnrate2h{component="dsp"}) by (exported_namespace) > (3.00 * (1-0.99950))
+        and
+        sum(haproxy_backend_http_responses_total:burnrate1d{component="dsp"}) by (exported_namespace) > (3.00 * (1-0.99950))
+      for: 1h
+      labels:
+        severity: info
+        namespace: redhat-ods-applications
+    - alert: Data Science Pipelines Application Route Error 6h and 3d Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.route }} (current value: {{ $value }}).'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
+        summary: Data Science Pipelines Application Route Error 6h and 3d Burn Rate high
+      expr: |
+        sum(haproxy_backend_http_responses_total:burnrate6h{component="dsp"}) by (exported_namespace) > (1.00 * (1-0.99950))
+        and
+        sum(haproxy_backend_http_responses_total:burnrate3d{component="dsp"}) by (exported_namespace) > (1.00 * (1-0.99950))
+      for: 3h
+      labels:
+        severity: info
+        namespace: redhat-ods-applications
+  - name: SLOs-probe_success_dsp
+    rules:
+    - alert: Data Science Pipelines Operator Probe Success 5m and 1h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md"
+        summary: Data Science Pipelines Operator Probe Success 5m and 1h Burn Rate high
+      expr: |
+        sum(probe_success:burnrate5m{instance=~"data-science-pipelines-operator"}) by (instance) > (14.40 * (1-0.98000))
+        and
+        sum(probe_success:burnrate1h{instance=~"data-science-pipelines-operator"}) by (instance) > (14.40 * (1-0.98000))
+      for: 2m
+      labels:
+        severity: critical
+        namespace: redhat-ods-applications
+    - alert: Data Science Pipelines Operator Probe Success 30m and 6h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md"
+        summary: Data Science Pipelines Operator Probe Success 30m and 6h Burn Rate high
+      expr: |
+        sum(probe_success:burnrate30m{instance=~"data-science-pipelines-operator"}) by (instance) > (6.00 * (1-0.98000))
+        and
+        sum(probe_success:burnrate6h{instance=~"data-science-pipelines-operator"}) by (instance) > (6.00 * (1-0.98000))
+      for: 15m
+      labels:
+        severity: critical
+        namespace: redhat-ods-applications
+    - alert: Data Science Pipelines Operator Probe Success 2h and 1d Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+        triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md"
+        summary: Data Science Pipelines Operator Probe Success 2h and 1d Burn Rate high
+      expr: |
+        sum(probe_success:burnrate2h{instance=~"data-science-pipelines-operator"}) by (instance) > (3.00 * (1-0.98000))
+        and
+        sum(probe_success:burnrate1d{instance=~"data-science-pipelines-operator"}) by (instance) > (3.00 * (1-0.98000))
+      for: 1h
+      labels:
+        severity: warning
+        namespace: redhat-ods-applications
+  - name: RHODS Data Science Pipelines
+    rules:
+    - alert: Data Science Pipeline Application Unavailable
+      annotations:
+        message: 'Data Science Pipelines Application is down!'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-component-readiness-status.md'
+        summary: The Data Science Pipelines Application CustomResource "{{ $labels.dspa_name }}" in namespace "{{ $labels.dspa_namespace }}" has been NotReady for more than 5 minutes
+      expr: min(max_over_time(data_science_pipelines_application_ready[3m])) by (dspa_name, dspa_namespace) == 0
+      for: 2m
+      labels:
+        severity: info
+        namespace: redhat-ods-applications
+    - alert: Data Science Pipeline APIServer Unavailable
+      annotations:
+        message: 'Data Science Pipelines APIServer component is down!'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-component-readiness-status.md'
+        summary: A Data Science Pipelines APIServer pod owned by DSPA "{{ $labels.dspa_name }}" in namespace "{{ $labels.dspa_namespace }}" has been NotReady for more than 5 minutes
+      expr: min(max_over_time(data_science_pipelines_application_apiserver_ready[3m])) by (dspa_name, dspa_namespace) == 0
+      for: 2m
+      labels:
+        severity: info
+        namespace: redhat-ods-applications
+    - alert: Data Science Pipeline PersistenceAgent Unavailable
+      annotations:
+        message: 'Data Science Pipelines PersistenceAgent component is down!'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-component-readiness-status.md'
+        summary: A Data Science Pipelines PersistenceAgent pod owned by DSPA "{{ $labels.dspa_name }}" in namespace "{{ $labels.dspa_namespace }}" has been NotReady for more than 5 minutes
+      expr: min(max_over_time(data_science_pipelines_application_persistenceagent_ready[3m])) by (dspa_name, dspa_namespace) == 0
+      for: 2m
+      labels:
+        severity: info
+        namespace: redhat-ods-applications
+    - alert: Data Science Pipeline ScheduledWorkflows Unavailable
+      annotations:
+        message: 'Data Science Pipelines ScheduledWorkflows component is down!'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-component-readiness-status.md'
+        summary: A Data Science Pipelines ScheduledWorkflow controller pod owned by DSPA "{{ $labels.dspa_name }}" in namespace "{{ $labels.dspa_namespace }}" has been NotReady for more than 5 minutes
+      expr: min(max_over_time(data_science_pipelines_application_scheduledworkflow_ready[3m])) by (dspa_name, dspa_namespace) == 0
+      for: 2m
+      labels:
+        severity: info
+        namespace: redhat-ods-applications
+

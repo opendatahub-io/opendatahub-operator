@@ -19,6 +19,7 @@ RUN if [ "${USE_LOCAL}" != "true" ]; then \
 COPY config/monitoring/ /opt/manifests/monitoring
 # Copy ods-configs
 COPY config/osd-configs/ /opt/manifests/osd-configs
+
 ################################################################################
 FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
 ARG CGO_ENABLED=1

@@ -1,0 +1,13 @@
+groups:
+- name: Distributed Workloads Kuberay
+  interval: 1m
+  rules:
+    - alert: KubeRay Operator is not running
+      expr: absent(up{job=~'KubeRay Operator'}) or up{job=~'KubeRay Operator'} != 1
+      labels:
+        severity: warning
+      annotations:
+        description: This alert fires when the KubeRay Operator is not running.
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/kuberay-operator-availability.md'
+        summary: Alerting for KubeRay Operator
+

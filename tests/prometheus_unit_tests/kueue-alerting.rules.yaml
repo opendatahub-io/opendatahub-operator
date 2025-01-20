@@ -1,0 +1,13 @@
+groups:
+- name: Distributed Workloads Kueue
+  interval: 1m
+  rules:
+    - alert: Kueue Operator is not running
+      expr: absent(up{job=~'Kueue Operator'}) or up{job=~'Kueue Operator'} != 1
+      labels:
+        severity: warning
+      annotations:
+        description: This alert fires when the Kueue Operator is not running.
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/kueue-operator-availability.md'
+        summary: Alerting for Kueue Operator
+

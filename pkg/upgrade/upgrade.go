@@ -113,7 +113,7 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platfor
 	defaultDsciSpec := &dsciv1.DSCInitializationSpec{
 		ApplicationsNamespace: appNamespace,
 		Monitoring: serviceApi.DSCMonitoring{
-			ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+			ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 				Namespace: monNamespace,
 			},
