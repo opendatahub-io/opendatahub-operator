@@ -18,7 +18,7 @@ import (
 var (
 	ComponentName        = serviceApi.MonitoringServiceName
 	prometheusConfigPath = filepath.Join(odhdeploy.DefaultManifestPath, ComponentName, "prometheus", "apps", "prometheus-configs.yaml")
-	ReadyConditionType   = conditionsv1.ConditionType(serviceApi.MonitoringKind + status.ReadySuffix)
+	ReadyConditionType   = conditionsv1.ConditionType(status.ReadySuffix)
 )
 
 // UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules

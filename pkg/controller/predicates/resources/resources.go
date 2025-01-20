@@ -76,12 +76,6 @@ var SecretContentChangedPredicate = predicate.Funcs{
 	},
 }
 
-var DSCDeletionPredicate = predicate.Funcs{
-	DeleteFunc: func(e event.DeleteEvent) bool {
-		return true
-	},
-}
-
 var DSCSpecUpdatePredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		oldDSC, ok := e.ObjectOld.(*dscv1.DataScienceCluster)

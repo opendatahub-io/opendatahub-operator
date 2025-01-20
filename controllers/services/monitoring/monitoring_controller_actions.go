@@ -119,8 +119,8 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	nc := metav1.Condition{
 		Type:    string(ReadyConditionType),
 		Status:  metav1.ConditionFalse,
-		Reason:  status.ReconcileInit,
-		Message: status.PhaseNotReady,
+		Reason:  status.PhaseNotReady,
+		Message: "Prometheus deployment is not ready",
 	}
 
 	promDeployment := &appsv1.DeploymentList{}
@@ -140,7 +140,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		}
 	}
 
-	if len(promDeployment.Items) == 1 && ready == 1 {
+	if len(promDeployment.Items) == ready {
 		// TODO: deprecate phase
 		m.Status.Phase = "Ready"
 		// condition
