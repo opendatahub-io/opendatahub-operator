@@ -474,12 +474,10 @@ func (tc *testContext) setUpServerless(t *testing.T) error {
 	}
 
 	for _, obj := range ksl.Items {
-		data, err := json.Marshal(obj)
+		_, err := json.Marshal(obj)
 		if err != nil {
 			return fmt.Errorf("error marshalling Knative Serving object: %w", err)
 		}
-
-		t.Logf("Deleting Knative Serving %s in namespace %s: %s", obj.GetName(), obj.GetNamespace(), string(data))
 
 		if err := tc.customClient.Delete(tc.ctx, &obj); err != nil && !k8serr.IsNotFound(err) {
 			return fmt.Errorf("error deleting Knative Serving object: %w", err)
