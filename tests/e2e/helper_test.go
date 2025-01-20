@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -17,7 +16,6 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -30,7 +28,6 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -454,43 +451,6 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 	return errors.ErrorOrNil()
 }
 
-//nolint:thelper
-func (tc *testContext) setUpServerless(t *testing.T) error {
-	ksl := unstructured.UnstructuredList{}
-	ksl.SetGroupVersionKind(gvk.KnativeServing)
-
-	if err := tc.customClient.List(tc.ctx, &ksl, client.InNamespace(knativeServingNamespace)); err != nil {
-		return fmt.Errorf("error listing Knative Serving objects: %w", err)
-	}
-
-	if len(ksl.Items) != 0 {
-		t.Logf("Detected %d Knative Serving objects in namespace %s", len(ksl.Items), knativeServingNamespace)
-	}
-
-	for _, obj := range ksl.Items {
-		data, err := json.Marshal(obj)
-		if err != nil {
-			return fmt.Errorf("error marshalling Knative Serving object: %w", err)
-		}
-
-		t.Logf("Deleting Knative Serving %s in namespace %s: %s", obj.GetName(), obj.GetNamespace(), string(data))
-
-		if err := tc.customClient.Delete(tc.ctx, &obj); err != nil && !k8serr.IsNotFound(err) {
-			return fmt.Errorf("error deleting Knative Serving object: %w", err)
-		}
-	}
-
-	return nil
-}
-
 func (tc *testContext) setUp(t *testing.T) error { //nolint: thelper
-	if err := ensureServicemeshOperators(t, tc); err != nil {
-		return err
-	}
-
-	if err := tc.setUpServerless(t); err != nil {
-		return err
-	}
-
-	return nil
+	return ensureServicemeshOperators(t, tc)
 }
