@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -95,4 +96,5 @@ type DSCTrainingOperator struct {
 type DSCTrainingOperatorStatus struct {
 	common.ManagementSpec         `json:",inline"`
 	*TrainingOperatorCommonStatus `json:",inline"`
+	Releases                      []status.ComponentReleaseStatus `json:"releases,omitempty"`
 }

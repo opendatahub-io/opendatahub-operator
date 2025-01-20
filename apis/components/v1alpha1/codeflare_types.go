@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -36,6 +37,7 @@ type CodeFlareCommonStatus struct {
 type CodeFlareStatus struct {
 	common.Status         `json:",inline"`
 	CodeFlareCommonStatus `json:",inline"`
+	Releases              []status.ComponentReleaseStatus `json:"releases,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -96,4 +98,5 @@ type DSCCodeFlare struct {
 type DSCCodeFlareStatus struct {
 	common.ManagementSpec  `json:",inline"`
 	*CodeFlareCommonStatus `json:",inline"`
+	Releases               []status.ComponentReleaseStatus `json:"releases,omitempty"`
 }
