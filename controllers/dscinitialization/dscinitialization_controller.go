@@ -502,7 +502,8 @@ func (r *DSCInitializationReconciler) configureMonitoring(ctx context.Context, d
 
 	if dsci.Spec.Monitoring.ManagementState == operatorv1.Managed {
 		// for generic case if we need to support configable monitoring namespace
-		if err := r.Apply(ctx, defaultMonitoring); err != nil && !k8serr.IsAlreadyExists(err) {
+		// set filed manager to DSCI
+		if err := r.Apply(ctx, defaultMonitoring, client.FieldOwner("dscinitialization.opendatahub.io"), client.ForceOwnership); err != nil && !k8serr.IsAlreadyExists(err) {
 			return err
 		}
 	} else {
