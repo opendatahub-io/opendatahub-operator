@@ -33,6 +33,7 @@ type Action struct {
 	cachingKey      []byte
 	cachedResources resources.UnstructuredList
 	data            map[string]any
+	dataFn          []func(context.Context, *types.ReconciliationRequest) (map[string]any, error)
 }
 
 type ActionOpts func(*Action)
@@ -51,7 +52,13 @@ func WithData(data map[string]any) ActionOpts {
 	}
 }
 
-func (a *Action) run(_ context.Context, rr *types.ReconciliationRequest) error {
+func WithDataFn(fns ...func(context.Context, *types.ReconciliationRequest) (map[string]any, error)) ActionOpts {
+	return func(action *Action) {
+		action.dataFn = append(action.dataFn, fns...)
+	}
+}
+
+func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
 	var err error
 	var cachingKey []byte
 
@@ -72,7 +79,7 @@ func (a *Action) run(_ context.Context, rr *types.ReconciliationRequest) error {
 	if len(cachingKey) != 0 && bytes.Equal(cachingKey, a.cachingKey) && len(a.cachedResources) != 0 {
 		result = a.cachedResources
 	} else {
-		res, err := a.render(rr)
+		res, err := a.render(ctx, rr)
 		if err != nil {
 			return fmt.Errorf("unable to render reconciliation object: %w", err)
 		}
@@ -97,10 +104,20 @@ func (a *Action) run(_ context.Context, rr *types.ReconciliationRequest) error {
 	return nil
 }
 
-func (a *Action) render(rr *types.ReconciliationRequest) ([]unstructured.Unstructured, error) {
+func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) ([]unstructured.Unstructured, error) {
 	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
 
 	data := maps.Clone(a.data)
+
+	for _, fn := range a.dataFn {
+		values, err := fn(ctx, rr)
+		if err != nil {
+			return nil, fmt.Errorf("unable to compute template data: %w", err)
+		}
+
+		maps.Copy(data, values)
+	}
+
 	data[ComponentKey] = rr.Instance
 	data[DSCIKey] = rr.DSCI
 
