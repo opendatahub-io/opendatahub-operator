@@ -501,8 +501,8 @@ func (r *DSCInitializationReconciler) configureMonitoring(ctx context.Context, d
 	)
 
 	if dsci.Spec.Monitoring.ManagementState == operatorv1.Managed {
-		err := r.Create(ctx, defaultMonitoring)
-		if err != nil && !k8serr.IsAlreadyExists(err) {
+		// for generic case if we need to support configable monitoring namespace
+		if err := r.Apply(ctx, defaultMonitoring); err != nil && !k8serr.IsAlreadyExists(err) {
 			return err
 		}
 	} else {
