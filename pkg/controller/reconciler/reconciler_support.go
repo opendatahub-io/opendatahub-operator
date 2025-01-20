@@ -192,7 +192,7 @@ func (b *ReconcilerBuilder[T]) OwnsGVK(gvk schema.GroupVersionKind, opts ...Watc
 	return b.Owns(resources.GvkToUnstructured(gvk), opts...)
 }
 
-func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler[T], error) {
+func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 	if b.errors != nil {
 		return nil, b.errors
 	}
