@@ -186,6 +186,27 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      preloadedPipelines:
+                        properties:
+                          instructLab:
+                            description: |-
+                              Configures whether to automatically import the InstructLab pipeline when new pipeline servers or DSPAs are created.
+                              You must enable the trainingoperator component to run the InstructLab pipeline.
+                            properties:
+                              state:
+                                default: Removed
+                                description: |-
+                                  Set to one of the following values:
+
+                                  - "Managed" : This pipeline is automatically imported when a new pipeline server or DSPA is created.
+                                  - "Removed" : This pipeline is not automatically imported when a new pipeline server or DSPA is created.
+                                enum:
+                                - Managed
+                                - Removed
+                                pattern: ^(Managed|Unmanaged|Force|Removed)$
+                                type: string
+                            type: object
+                        type: object
                     type: object
                   kserve:
                     description: |-

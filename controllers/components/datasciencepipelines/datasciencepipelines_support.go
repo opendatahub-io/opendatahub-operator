@@ -1,6 +1,10 @@
 package datasciencepipelines
 
 import (
+	"encoding/json"
+	"fmt"
+	"path"
+
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
@@ -20,6 +24,8 @@ const (
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "data-science-pipelines-operator"
+
+	preinstalledPipelineParamsKey = "PREINSTALLEDPIPELINES"
 )
 
 var (
@@ -48,15 +54,9 @@ var (
 		cluster.OpenDataHub:      "overlays/odh",
 		cluster.Unknown:          "overlays/odh",
 	}
-)
 
-func paramsPath() types.ManifestInfo {
-	return types.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: ComponentName,
-		SourcePath: "base",
-	}
-}
+	paramsPath = path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
+)
 
 func manifestPath(p cluster.Platform) types.ManifestInfo {
 	return types.ManifestInfo{
@@ -64,4 +64,22 @@ func manifestPath(p cluster.Platform) types.ManifestInfo {
 		ContextDir: ComponentName,
 		SourcePath: overlaysSourcePaths[p],
 	}
+}
+
+func computeParamsMap(dsp *componentApi.DataSciencePipelines) (map[string]string, error) {
+	data, err := json.Marshal(dsp.Spec.PreloadedPipelines)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling preloaded pipelines failed: %w", err)
+	}
+
+	data, err = json.Marshal(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("marshalling preloaded pipelines failed: %w", err)
+	}
+
+	extraParamsMap := map[string]string{
+		preinstalledPipelineParamsKey: string(data),
+	}
+
+	return extraParamsMap, nil
 }
