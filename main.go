@@ -212,6 +212,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Error(err, "unable to get application namespace into cache")
 		os.Exit(1)
 	}
+
 	oDHCache, err := createODHGeneralCacheConfig(ctx, setupClient, platform)
 	if err != nil {
 		setupLog.Error(err, "unable to get application namespace into cache")
@@ -465,6 +466,13 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 func getCommonCache(ctx context.Context, cli client.Client, platform cluster.Platform) (map[string]cache.Config, error) {
 	namespaceConfigs := map[string]cache.Config{}
+	// newtowkrpolicy need operator namespace
+	operatorNs, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		return namespaceConfigs, err
+	}
+	namespaceConfigs[operatorNs] = cache.Config{}
+
 	if platform == cluster.ManagedRhoai {
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
@@ -498,14 +506,6 @@ func createSecretCacheConfig(ctx context.Context, cli client.Client, platform cl
 	namespaceConfigs := map[string]cache.Config{
 		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
 		"openshift-ingress": {},
-	}
-
-	if platform == cluster.ManagedRhoai {
-		operatorNs, err := cluster.GetOperatorNamespace()
-		if err != nil {
-			operatorNs = "redhat-ods-operator" // fall back case
-		}
-		namespaceConfigs[operatorNs] = cache.Config{}
 	}
 
 	c, err := getCommonCache(ctx, cli, platform)
