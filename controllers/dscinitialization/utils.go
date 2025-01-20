@@ -42,8 +42,7 @@ var (
 //
 // - 2. Patch monitoring namespace
 // - 3. Network Policies 'opendatahub' that allow traffic between the ODH namespaces
-// - 4. ConfigMap 'odh-common-config'
-// - 5. RoleBinding 'opendatahub'.
+// - 4. ConfigMap 'odh-common-config'.
 func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
 
