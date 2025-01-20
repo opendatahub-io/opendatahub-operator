@@ -1,10 +1,15 @@
 package e2e_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelcontroller"
@@ -26,6 +31,11 @@ func kserveTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
+	// TODO: removed once we know what's left on the cluster that's causing the tests
+	//       to fail because of "existing KNativeServing resource was found"
+	err = componentCtx.setUpServerless(t)
+	require.NoError(t, err)
+
 	t.Run("Validate component enabled", componentCtx.ValidateComponentEnabled)
 	t.Run("Validate component spec", componentCtx.validateSpec)
 	t.Run("Validate model controller", componentCtx.validateModelControllerInstance)
@@ -37,6 +47,35 @@ func kserveTestSuite(t *testing.T) {
 
 type KserveTestCtx struct {
 	*ComponentTestCtx
+}
+
+//nolint:thelper
+func (c *KserveTestCtx) setUpServerless(t *testing.T) error {
+	ksl := unstructured.UnstructuredList{}
+	ksl.SetGroupVersionKind(gvk.KnativeServing)
+
+	if err := c.Client().List(c.Context(), &ksl, client.InNamespace(knativeServingNamespace)); err != nil {
+		return fmt.Errorf("error listing Knative Serving objects: %w", err)
+	}
+
+	if len(ksl.Items) != 0 {
+		t.Logf("Detected %d Knative Serving objects in namespace %s", len(ksl.Items), knativeServingNamespace)
+	}
+
+	for _, obj := range ksl.Items {
+		data, err := json.Marshal(obj)
+		if err != nil {
+			return fmt.Errorf("error marshalling Knative Serving object: %w", err)
+		}
+
+		t.Logf("Deleting Knative Serving %s in namespace %s: %s", obj.GetName(), obj.GetNamespace(), string(data))
+
+		if err := c.Client().Delete(c.Context(), &obj); err != nil && !k8serr.IsNotFound(err) {
+			return fmt.Errorf("error deleting Knative Serving object: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (c *KserveTestCtx) validateSpec(t *testing.T) {
