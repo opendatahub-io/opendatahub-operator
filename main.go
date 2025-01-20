@@ -469,7 +469,7 @@ func getCommonCache(ctx context.Context, cli client.Client, platform cluster.Pla
 	// newtowkrpolicy need operator namespace
 	operatorNs, err := cluster.GetOperatorNamespace()
 	if err != nil {
-		operatorNs = "redhat-ods-operator" // fall back case
+		return namespaceConfigs, err
 	}
 	namespaceConfigs[operatorNs] = cache.Config{}
 
