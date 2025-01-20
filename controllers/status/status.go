@@ -83,6 +83,12 @@ const (
 	RemovedReason         string = "Removed"
 	CapabilityFailed      string = "CapabilityFailed"
 	ArgoWorkflowExist     string = "ArgoWorkflowExist"
+
+	DegradedReason  = "Degraded"
+	AvailableReason = "Available"
+	UnknownReason   = "Unknown"
+	NotReadyReason  = "NotReady"
+	ReadyReason     = "Ready"
 )
 
 const (
