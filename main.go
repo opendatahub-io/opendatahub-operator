@@ -268,6 +268,9 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			&rbacv1.RoleBinding{}: {
 				Namespaces: oDHCache,
 			},
+			&ofapiv1alpha1.Subscription{}: {
+				Namespaces: oDHCache,
+			},
 			&rbacv1.ClusterRole{}:                    {},
 			&rbacv1.ClusterRoleBinding{}:             {},
 			&securityv1.SecurityContextConstraints{}: {},
@@ -462,7 +465,7 @@ func getCommonCache(ctx context.Context, cli client.Client, platform cluster.Pla
 	// newtowkrpolicy need operator namespace
 	operatorNs, err := cluster.GetOperatorNamespace()
 	if err != nil {
-		operatorNs = "redhat-ods-operator" // fall back case
+		return namespaceConfigs, err
 	}
 	namespaceConfigs[operatorNs] = cache.Config{}
 
@@ -513,7 +516,8 @@ func createSecretCacheConfig(ctx context.Context, cli client.Client, platform cl
 
 func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platform cluster.Platform) (map[string]cache.Config, error) {
 	namespaceConfigs := map[string]cache.Config{
-		"istio-system": {}, // for serivcemonitor: data-science-smcp-pilot-monitor
+		"istio-system":        {}, // for serivcemonitor: data-science-smcp-pilot-monitor
+		"openshift-operators": {}, // for dependent operators installed namespace
 	}
 
 	c, err := getCommonCache(ctx, cli, platform)
