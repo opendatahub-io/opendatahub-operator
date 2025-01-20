@@ -11,6 +11,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -24,9 +25,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -138,7 +137,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-func removeLegacyFeatureTrackerOwnerRef(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func deleteFeatureTrackers(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	ftNames := []string{
 		rr.DSCI.Spec.ApplicationsNamespace + "-serverless-serving-deployment",
 		rr.DSCI.Spec.ApplicationsNamespace + "-serverless-net-istio-secret-filtering",
@@ -146,18 +145,20 @@ func removeLegacyFeatureTrackerOwnerRef(ctx context.Context, rr *odhtypes.Reconc
 		rr.DSCI.Spec.ApplicationsNamespace + "-kserve-external-authz",
 	}
 
-	for _, ftName := range ftNames {
-		obj := &featuresv1.FeatureTracker{}
-		err := rr.Client.Get(ctx, client.ObjectKey{Name: ftName}, obj)
-		switch {
-		case k8serr.IsNotFound(err):
+	for _, n := range ftNames {
+		ft := featuresv1.FeatureTracker{}
+		err := rr.Client.Get(ctx, client.ObjectKey{Name: n}, &ft)
+		if k8serr.IsNotFound(err) {
 			continue
-		case err != nil:
-			return fmt.Errorf("error while retrieving FeatureTracker %s: %w", ftName, err)
+		} else if err != nil {
+			return fmt.Errorf("failed to lookup FeatureTracker %s: %w", ft.GetName(), err)
 		}
 
-		if err := resources.RemoveOwnerReferences(ctx, rr.Client, obj, isLegacyOwnerRef); err != nil {
-			return err
+		err = rr.Client.Delete(ctx, &ft, client.PropagationPolicy(metav1.DeletePropagationForeground))
+		if k8serr.IsNotFound(err) {
+			continue
+		} else if err != nil {
+			return fmt.Errorf("failed to delete FeatureTracker %s: %w", ft.GetName(), err)
 		}
 	}
 
@@ -179,9 +180,6 @@ func configureServerless(ctx context.Context, rr *odhtypes.ReconciliationRequest
 
 	case operatorv1.Removed: // we remove serving CR
 		logger.Info("existing Serverless CR (owned by operator) will be removed")
-		if err := removeServerlessFeatures(ctx, rr.Client, k, &rr.DSCI.Spec); err != nil {
-			return err
-		}
 
 	case operatorv1.Managed: // standard workflow to create CR
 		if rr.DSCI.Spec.ServiceMesh == nil {
@@ -195,34 +193,84 @@ func configureServerless(ctx context.Context, rr *odhtypes.ReconciliationRequest
 				"as it is required by the KServe serving field", rr.DSCI.Spec.ServiceMesh.ManagementState)
 		}
 
-		serverlessFeatures := feature.ComponentFeaturesHandler(rr.Instance, componentName, rr.DSCI.Spec.ApplicationsNamespace, configureServerlessFeatures(&rr.DSCI.Spec, k))
-
-		if err := serverlessFeatures.Apply(ctx, cli); err != nil {
-			return err
+		err := createServingCertResource(ctx, cli, &rr.DSCI.Spec, k)
+		if err != nil {
+			return fmt.Errorf("unable to create serverless serving certificate secret: %w", err)
 		}
+
+		templates := []odhtypes.TemplateInfo{
+			{
+				FS:   resourcesFS,
+				Path: "resources/serving-install/service-mesh-subscription.tmpl.yaml",
+			},
+			{
+				FS:   resourcesFS,
+				Path: "resources/serving-install/knative-serving.tmpl.yaml",
+			},
+			{
+				FS:   resourcesFS,
+				Path: "resources/serving-net-istio-secret-filtering.patch.tmpl.yaml",
+			},
+
+			{
+				FS:   resourcesFS,
+				Path: "resources/servicemesh/routing/istio-ingress-gateway.tmpl.yaml",
+			},
+			{
+				FS:   resourcesFS,
+				Path: "resources/servicemesh/routing/istio-kserve-local-gateway.tmpl.yaml",
+			},
+			{
+				FS:   resourcesFS,
+				Path: "resources/servicemesh/routing/istio-local-gateway.yaml",
+			},
+			{
+				FS:   resourcesFS,
+				Path: "resources/servicemesh/routing/kserve-local-gateway-svc.tmpl.yaml",
+			},
+			{
+				FS:   resourcesFS,
+				Path: "resources/servicemesh/routing/local-gateway-svc.tmpl.yaml",
+			},
+		}
+
+		rr.Templates = append(rr.Templates, templates...)
 	}
 	return nil
 }
 
 func configureServiceMesh(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	k, ok := rr.Instance.(*componentApi.Kserve)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
-	}
-
-	cli := rr.Client
-
 	if rr.DSCI.Spec.ServiceMesh != nil {
 		if rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-			serviceMeshInitializer := feature.ComponentFeaturesHandler(k, componentName, rr.DSCI.Spec.ApplicationsNamespace, defineServiceMeshFeatures(ctx, cli, &rr.DSCI.Spec))
-			return serviceMeshInitializer.Apply(ctx, cli)
+			templates := []odhtypes.TemplateInfo{
+				{
+					FS:   resourcesFS,
+					Path: "resources/servicemesh/activator-envoyfilter.tmpl.yaml",
+				},
+				{
+					FS:   resourcesFS,
+					Path: "resources/servicemesh/kserve-predictor-authorizationpolicy.tmpl.yaml",
+				},
+				{
+					FS:   resourcesFS,
+					Path: "resources/servicemesh/kserve-inferencegraph-envoyfilter.tmpl.yaml",
+				},
+				{
+					FS:   resourcesFS,
+					Path: "resources/servicemesh/kserve-inferencegraph-authorizationpolicy.tmpl.yaml",
+				},
+			}
+
+			rr.Templates = append(rr.Templates, templates...)
+
+			return nil
 		}
 		if rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Unmanaged {
 			return nil
 		}
 	}
 
-	return removeServiceMeshConfigurations(ctx, cli, k, &rr.DSCI.Spec)
+	return nil
 }
 
 func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
