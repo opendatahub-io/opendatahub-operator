@@ -32,6 +32,7 @@ import (
 )
 
 const (
+	knativeServingNamespace  = "knative-serving"
 	servicemeshNamespace     = "openshift-operators"
 	servicemeshOpName        = "servicemeshoperator"
 	serverlessOpName         = "serverless-operator"
