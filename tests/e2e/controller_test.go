@@ -55,6 +55,11 @@ var (
 		componentApi.ModelMeshServingComponentName:     modelMeshServingTestSuite,
 		componentApi.ModelControllerComponentName:      modelControllerTestSuite,
 	}
+
+	servicesTestSuites = map[string]TestFn{
+		serviceApi.MonitoringServiceName: monitoringTestSuite,
+		serviceApi.AuthServiceName:       authControllerTestSuite,
+	}
 )
 
 type arrayFlags []string
@@ -75,7 +80,7 @@ type testContextConfig struct {
 	operatorControllerTest bool
 	webhookTest            bool
 	components             arrayFlags
-	authControllerTest     bool
+	services               arrayFlags
 }
 
 // Holds information specific to individual tests.
@@ -180,9 +185,16 @@ func TestOdhOperator(t *testing.T) {
 		}
 	})
 
-	if testOpts.authControllerTest {
-		t.Run("test auth controller", authControllerTestSuite)
-	}
+	t.Run("services", func(t *testing.T) {
+		for k, v := range servicesTestSuites {
+			if len(testOpts.services) != 0 && !slices.Contains(testOpts.services, k) {
+				t.Logf("Skipping tests for services %s", k)
+				continue
+			}
+
+			t.Run(k, v)
+		}
+	})
 
 	// Run deletion if skipDeletion is not set
 	if !testOpts.skipDeletion {
@@ -206,10 +218,6 @@ func TestMain(m *testing.M) {
 	componentNames := strings.Join(maps.Keys(componentsTestSuites), ", ")
 	flag.Var(&testOpts.components, "test-component", "run tests for the specified component. valid components names are: "+componentNames)
 
-	flag.BoolVar(&testOpts.authControllerTest, "test-auth-controller", true, "run auth controller tests")
-
-	flag.Parse()
-
 	for _, n := range testOpts.components {
 		if _, ok := componentsTestSuites[n]; !ok {
 			fmt.Printf("test-component: unknown component %s, valid values are: %s", n, componentNames)
@@ -217,5 +225,16 @@ func TestMain(m *testing.M) {
 		}
 	}
 
+	serviceNames := strings.Join(maps.Keys(servicesTestSuites), ", ")
+	flag.Var(&testOpts.services, "test-service", "run tests for the specified service. valid service names are: "+serviceNames)
+
+	for _, n := range testOpts.components {
+		if _, ok := componentsTestSuites[n]; !ok {
+			fmt.Printf("test-service: unknown service %s, valid values are: %s", n, serviceNames)
+			os.Exit(1)
+		}
+	}
+
+	flag.Parse()
 	os.Exit(m.Run())
 }

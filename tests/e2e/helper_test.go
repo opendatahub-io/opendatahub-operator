@@ -104,7 +104,7 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 			ApplicationsNamespace: "redhat-ods-applications",
 			Monitoring: serviceApi.DSCMonitoring{
 				ManagementSpec: common.ManagementSpec{
-					ManagementState: operatorv1.Removed,
+					ManagementState: operatorv1.Managed,
 				},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 					Namespace: "redhat-ods-monitoring",
