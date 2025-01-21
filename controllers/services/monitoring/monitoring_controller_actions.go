@@ -7,10 +7,8 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -61,8 +59,8 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-// only when DSC has component as Managed and component CR is in "Ready" state, we add rules to Prom Rules.
 // if DSC has component as Removed, we remove component's Prom Rules.
+// only when DSC has component as Managed and component CR is in "Ready" state, we add rules to Prom Rules.
 // all other cases, we do not change Prom rules for component.
 func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Map component names to their rule prefixes
@@ -79,55 +77,43 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 
 	dsc := &dscList.Items[0]
 
-	err := cr.ForEach(func(ch cr.ComponentHandler) error {
-		var updated *bool
+	return cr.ForEach(func(ch cr.ComponentHandler) error {
 		ci := ch.NewCRObject(dsc)
-
-		// Check for shared components:
-		// if modelcontroller CR exist then either kserve or modelmesh is enabled
-		// if modelcontroller CR is Ready then add prom rule
+		// for modelcontroller
 		if ch.GetName() == componentApi.ModelControllerComponentName {
-			if meta.IsStatusConditionTrue(ci.GetStatus().Conditions, status.ConditionTypeReady) {
-				if err := UpdatePrometheusConfig(ctx, true, componentRules[ch.GetName()]); err != nil {
-					return err
-				}
-				return nil
-			}
+			// remove
 			if !dsc.Status.InstalledComponents["model-mesh"] && !dsc.Status.InstalledComponents["kserve"] {
-				if err := UpdatePrometheusConfig(ctx, false, componentRules[ch.GetName()]); err != nil {
-					return err
-				}
+				return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
+			}
+			ready, err := isComponentReady(ctx, rr.Client, ci)
+			if err != nil {
+				return fmt.Errorf("failed to get component status %w", err)
+			}
+			if !ready { // not ready, skip change on prom rules
 				return nil
 			}
+			// add
+			return updatePrometheusConfig(ctx, true, componentRules[ch.GetName()])
 		}
-		// other components
-		if ch.GetManagementState(dsc) == operatorv1.Managed {
-			// read the component instance to get tha actual status
-			if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(ci), ci); err == nil {
-				if k8serr.IsNotFound(err) {
-					return fmt.Errorf("component instance not found: %w", err)
-				}
-				return fmt.Errorf("failed to get component instance: %w", err)
+		// for other components
+		ms := ch.GetManagementState(dsc)
+		switch ms {
+		case operatorv1.Removed: // remove
+			return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
+		case operatorv1.Managed:
+			ready, err := isComponentReady(ctx, rr.Client, ci)
+			if err != nil {
+				return fmt.Errorf("failed to get component status %w", err)
 			}
-			if meta.IsStatusConditionTrue(ci.GetStatus().Conditions, status.ConditionTypeReady) {
-				updated = ptr.To(true)
+			if !ready { // not ready, skip change on prom rules
+				return nil
 			}
-		} else {
-			updated = ptr.To(false)
+			// add
+			return updatePrometheusConfig(ctx, true, componentRules[ch.GetName()])
+		default:
+			return fmt.Errorf("unsuported management state %s", ms)
 		}
-		if updated == nil {
-			return nil // fast exist without changing prometheus config
-		}
-
-		if err := UpdatePrometheusConfig(ctx, *updated, componentRules[ch.GetName()]); err != nil {
-			return err
-		}
-		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
