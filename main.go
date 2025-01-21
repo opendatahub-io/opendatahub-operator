@@ -493,6 +493,7 @@ func getCommonCache(ctx context.Context, cli client.Client, platform cluster.Pla
 	case 0:
 		if platform == cluster.SelfManagedRhoai {
 			namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+			namespaceConfigs["redhat-ods-monitoring"] = cache.Config{} // since we still create monitoring namespace for self-managed
 			return namespaceConfigs, nil
 		}
 		namespaceConfigs["opendatahub"] = cache.Config{}
