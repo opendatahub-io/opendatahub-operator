@@ -34,7 +34,7 @@ module.exports = ({ github, core }) => {
                             idx = splitArr.indexOf("tree")
                         }
                         const branchName = splitArr.slice(idx + 1).join("/")
-                        if (componentName.trim() === "notebook-controller") {
+                        if (componentName.trim() === "workbenches/notebook-controller") {
                             core.exportVariable("component_spec_odh-notebook-controller".toLowerCase(), branchName);
                             core.exportVariable("component_spec_kf-notebook-controller".toLowerCase(), branchName);
                         } else {
