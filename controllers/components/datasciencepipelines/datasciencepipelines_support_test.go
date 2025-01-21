@@ -5,8 +5,13 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/blang/semver/v4"
+	"github.com/operator-framework/api/pkg/lib/version"
+
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1/datasciencepipelines"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
 )
@@ -22,7 +27,17 @@ func TestComputeParamsMap(t *testing.T) {
 		},
 	}
 
-	result, err := computeParamsMap(&dsp)
+	v := semver.MustParse("1.2.3")
+	rr := types.ReconciliationRequest{
+		Instance: &dsp,
+		Release: cluster.Release{
+			Version: version.OperatorVersion{
+				Version: v,
+			},
+		},
+	}
+
+	result, err := computeParamsMap(&rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(result).ShouldNot(BeEmpty())
 
@@ -33,5 +48,8 @@ func TestComputeParamsMap(t *testing.T) {
 	expectedData, err = json.Marshal(string(expectedData))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	g.Expect(result).Should(HaveKeyWithValue(preinstalledPipelineParamsKey, string(expectedData)))
+	g.Expect(result).Should(And(
+		HaveKeyWithValue(preinstalledPipelineParamsKey, string(expectedData)),
+		HaveKeyWithValue(platformVersionParamsKey, v.String()),
+	))
 }
