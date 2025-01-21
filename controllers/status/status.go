@@ -19,7 +19,13 @@ limitations under the License.
 package status
 
 import (
+	"os"
+	"path/filepath"
+
+	"github.com/blang/semver/v4"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
+	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -241,4 +247,62 @@ type ModelRegistryStatus struct {
 func SetStatusCondition(obj common.WithStatus, condition metav1.Condition) bool {
 	s := obj.GetStatus()
 	return meta.SetStatusCondition(&s.Conditions, condition)
+}
+
+// +k8s:deepcopy-gen=true
+type ReleaseFileMeta struct {
+	Releases []ComponentReleaseStatusMeta `json:"releases,omitempty"`
+}
+
+// +k8s:deepcopy-gen=true
+type ComponentReleaseStatusMeta struct {
+	Name    string `yaml:"name,omitempty"`
+	Version string `yaml:"version,omitempty"`
+	RepoURL string `yaml:"repoURL,omitempty"`
+}
+
+// +k8s:deepcopy-gen=true
+type ComponentReleaseStatus struct {
+	Name    string                  `json:"name,omitempty"`
+	Version version.OperatorVersion `json:"version,omitempty"`
+	RepoURL string                  `json:"repoURL,omitempty"`
+}
+
+// GetReleaseStatus reads odh_metadata.yaml file and parses release information.
+// If version is not set or set to "", return empty slice along with error.
+func GetReleaseStatus(defaultManifestPath string, componentName string) ([]ComponentReleaseStatus, error) {
+	var componentVersion semver.Version
+	var releaseInfo ReleaseFileMeta
+	var releaseStatus ComponentReleaseStatus
+	componentReleaseStatus := make([]ComponentReleaseStatus, 0)
+
+	yamlData, err := os.ReadFile(filepath.Join(defaultManifestPath, componentName, "odh_metadata.yaml"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	err = yaml.Unmarshal(yamlData, &releaseInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, release := range releaseInfo.Releases {
+		componentVersion, err = semver.Parse(release.Version)
+
+		if err != nil {
+			return nil, err
+		}
+
+		releaseStatus = ComponentReleaseStatus{
+			Name:    release.Name,
+			Version: version.OperatorVersion{Version: componentVersion},
+			RepoURL: release.RepoURL,
+		}
+		componentReleaseStatus = append(componentReleaseStatus, releaseStatus)
+	}
+
+	return componentReleaseStatus, nil
 }

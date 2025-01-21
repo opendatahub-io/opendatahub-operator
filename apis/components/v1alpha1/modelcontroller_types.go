@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -80,6 +81,7 @@ func (s *ModelControllerMMSpec) GetDevFlags() *common.DevFlags {
 // ModelControllerStatus defines the observed state of ModelController
 type ModelControllerStatus struct {
 	common.Status `json:",inline"`
+	Releases      []status.ComponentReleaseStatus `json:"releases,omitempty"`
 }
 
 // +kubebuilder:object:root=true

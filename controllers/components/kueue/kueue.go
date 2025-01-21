@@ -73,6 +73,13 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 	dsc.Status.InstalledComponents[LegacyComponentName] = false
 	dsc.Status.Components.Kueue.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.Kueue.KueueCommonStatus = nil
+	dsc.Status.Components.Kueue.Releases = nil
+
+	releases, err := status.GetReleaseStatus(odhdeploy.DefaultManifestPath, ComponentName)
+
+	if err != nil {
+		return err
+	}
 
 	nc := conditionsv1.Condition{
 		Type:    ReadyConditionType,
@@ -85,6 +92,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 	case operatorv1.Managed:
 		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.Kueue.KueueCommonStatus = c.Status.KueueCommonStatus.DeepCopy()
+		dsc.Status.Components.Kueue.Releases = releases
 
 		if rc := meta.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {
 			nc.Status = corev1.ConditionStatus(rc.Status)
