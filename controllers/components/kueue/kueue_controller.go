@@ -69,7 +69,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
-				handlers.ToNamed(componentApi.KueueComponentName)),
+				handlers.ToNamed(componentApi.KueueInstanceName)),
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
