@@ -70,14 +70,9 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 }
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines", rr.Instance)
-	}
-
 	rr.Manifests = []odhtypes.ManifestInfo{manifestPath(rr.Release.Name)}
 
-	extraParamsMap, err := computeParamsMap(dsp)
+	extraParamsMap, err := computeParamsMap(rr)
 	if err != nil {
 		return fmt.Errorf("computing extra params failed: %w", err)
 	}

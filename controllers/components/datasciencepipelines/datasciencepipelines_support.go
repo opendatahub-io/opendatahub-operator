@@ -26,6 +26,7 @@ const (
 	LegacyComponentName = "data-science-pipelines-operator"
 
 	preinstalledPipelineParamsKey = "PREINSTALLEDPIPELINES"
+	platformVersionParamsKey      = "PLATFORMVERSION"
 )
 
 var (
@@ -66,7 +67,12 @@ func manifestPath(p cluster.Platform) types.ManifestInfo {
 	}
 }
 
-func computeParamsMap(dsp *componentApi.DataSciencePipelines) (map[string]string, error) {
+func computeParamsMap(rr *types.ReconciliationRequest) (map[string]string, error) {
+	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
+	if !ok {
+		return nil, fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines", rr.Instance)
+	}
+
 	data, err := json.Marshal(dsp.Spec.PreloadedPipelines)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling preloaded pipelines failed: %w", err)
@@ -79,6 +85,7 @@ func computeParamsMap(dsp *componentApi.DataSciencePipelines) (map[string]string
 
 	extraParamsMap := map[string]string{
 		preinstalledPipelineParamsKey: string(data),
+		platformVersionParamsKey:      rr.Release.Version.String(),
 	}
 
 	return extraParamsMap, nil
