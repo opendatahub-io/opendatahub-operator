@@ -92,7 +92,28 @@ var DSCComponentUpdatePredicate = predicate.Funcs{
 		if !ok {
 			return false
 		}
-		// if .spec.components or .status.components is changed, return true, otherwise false
-		return !reflect.DeepEqual(oldDSC.Spec.Components, newDSC.Spec.Components) || !reflect.DeepEqual(oldDSC.Status.Components, newDSC.Status.Components)
+		// if .spec.components is changed, return true.
+		if !reflect.DeepEqual(oldDSC.Spec.Components, newDSC.Spec.Components) {
+			return true
+		}
+
+		// if new condition from component is added or removed, return true
+		oldConditions := oldDSC.Status.Conditions
+		newConditions := newDSC.Status.Conditions
+		if len(oldConditions) != len(newConditions) {
+			return true
+		}
+
+		// compare type one by one with their status if not equal return true
+		for _, nc := range newConditions {
+			for _, oc := range oldConditions {
+				if nc.Type == oc.Type {
+					if !reflect.DeepEqual(nc.Status, oc.Status) {
+						return true
+					}
+				}
+			}
+		}
+		return false
 	},
 }
