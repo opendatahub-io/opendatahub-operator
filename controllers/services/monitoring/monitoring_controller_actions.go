@@ -79,24 +79,7 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
 		ci := ch.NewCRObject(dsc)
-		// for modelcontroller
-		if ch.GetName() == componentApi.ModelControllerComponentName {
-			// remove
-			if !dsc.Status.InstalledComponents["model-mesh"] && !dsc.Status.InstalledComponents["kserve"] {
-				return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
-			}
-			ready, err := isComponentReady(ctx, rr.Client, ci)
-			if err != nil {
-				return fmt.Errorf("failed to get component status %w", err)
-			}
-			if !ready { // not ready, skip change on prom rules
-				return nil
-			}
-			// add
-			return updatePrometheusConfig(ctx, true, componentRules[ch.GetName()])
-		}
-		// for other components
-		ms := ch.GetManagementState(dsc)
+		ms := ch.GetManagementState(dsc) // check for modelcontroller with dependency is done in its GetManagementState()
 		switch ms {
 		case operatorv1.Removed: // remove
 			return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
