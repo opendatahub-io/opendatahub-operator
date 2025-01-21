@@ -24,7 +24,7 @@ spec:
               kubernetes.io/metadata.name: openshift-console
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: oopenshift-operators
+              kubernetes.io/metadata.name: openshift-operators
         - namespaceSelector:
             matchLabels:
               opendatahub.io/generated-namespace: "true"

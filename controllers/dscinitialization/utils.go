@@ -51,7 +51,7 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 		return err
 	}
 
-	// Patch monitoring namespace
+	// Patch monitoring namespace: no difference for any type of platform
 	err := r.patchMonitoringNS(ctx, dscInit)
 	if err != nil {
 		log.Error(err, "error patch monitoring namespace")
@@ -125,7 +125,7 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 
 	// label only for managed cluster
 	if platform == cluster.ManagedRhoai {
-		labelList["openshift.io/cluster-monitoring"] = "true"
+		labelList[labels.ClusterMonitoring] = labels.True
 	}
 
 	for _, l := range extraLabel {
@@ -153,9 +153,9 @@ func (r *DSCInitializationReconciler) patchMonitoringNS(ctx context.Context, dsc
 		ObjectMeta: metav1.ObjectMeta{
 			Name: monitoringName,
 			Labels: map[string]string{
-				labels.ODH.OwnedNamespace: "true",
+				labels.ODH.OwnedNamespace: labels.True,
 				labels.SecurityEnforce:    "baseline",
-				labels.ClusterMonitoring:  "true",
+				labels.ClusterMonitoring:  labels.True,
 			},
 		},
 	}
