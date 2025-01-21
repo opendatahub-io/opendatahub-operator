@@ -121,3 +121,15 @@ rules:
   - servingruntimes
   verbs:
   - create
+- apiGroups:
+    - nim.opendatahub.io
+  resources:
+    - accounts
+  verbs:
+    - watch
+    - update
+    - get
+    - list
+    - create
+    - patch
+    - delete
