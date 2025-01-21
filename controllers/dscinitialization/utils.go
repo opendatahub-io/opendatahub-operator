@@ -12,7 +12,6 @@ import (
 	userv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -43,8 +42,7 @@ var (
 //
 // - 2. Patch monitoring namespace
 // - 3. Network Policies 'opendatahub' that allow traffic between the ODH namespaces
-// - 4. ConfigMap 'odh-common-config'
-// - 5. RoleBinding 'opendatahub'.
+// - 4. ConfigMap 'odh-common-config'.
 func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
 	log := logf.FromContext(ctx)
 
@@ -74,12 +72,6 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 		return err
 	}
 
-	// Create default Rolebinding for the namespace
-	err = r.createDefaultRoleBinding(ctx, dscInit)
-	if err != nil {
-		log.Error(err, "error creating rolebinding", "name", dscInit.Spec.ApplicationsNamespace)
-		return err
-	}
 	return nil
 }
 
@@ -175,55 +167,6 @@ func (r *DSCInitializationReconciler) patchMonitoringNS(ctx context.Context, dsc
 		log.Error(err, "Unable to create or patcth monitoirng namespace")
 	}
 	return err
-}
-
-func (r *DSCInitializationReconciler) createDefaultRoleBinding(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
-	log := logf.FromContext(ctx)
-	name := dscInit.Spec.ApplicationsNamespace
-	// Expected namespace for the given name
-	desiredRoleBinding := &rbacv1.RoleBinding{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "RoleBinding",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: name,
-		},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      "ServiceAccount",
-				Namespace: name,
-				Name:      "default",
-			},
-		},
-		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "ClusterRole",
-			Name:     "system:openshift:scc:anyuid",
-		},
-	}
-
-	// Create RoleBinding if doesn't exists
-	foundRoleBinding := &rbacv1.RoleBinding{}
-	err := r.Client.Get(ctx, client.ObjectKeyFromObject(desiredRoleBinding), foundRoleBinding)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			// Set Controller reference
-			err = ctrl.SetControllerReference(dscInit, desiredRoleBinding, r.Scheme)
-			if err != nil {
-				log.Error(err, "Unable to add OwnerReference to the rolebinding")
-				return err
-			}
-			err = r.Client.Create(ctx, desiredRoleBinding)
-			if err != nil && !k8serr.IsAlreadyExists(err) {
-				return err
-			}
-		} else {
-			return err
-		}
-	}
-	return nil
 }
 
 func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(
