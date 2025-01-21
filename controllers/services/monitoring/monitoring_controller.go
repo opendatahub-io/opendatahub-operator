@@ -43,7 +43,7 @@ func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		// or services.platform.opendatahub.io/part-of set to the current owner
 		//
 		Watches(&dscv1.DataScienceCluster{}, reconciler.WithEventHandler(handlers.ToNamed(serviceApi.MonitoringInstanceName)),
-			reconciler.WithPredicates(resources.DSCSpecUpdatePredicate)).
+			reconciler.WithPredicates(resources.DSCComponentUpdatePredicate)).
 		// actions
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).

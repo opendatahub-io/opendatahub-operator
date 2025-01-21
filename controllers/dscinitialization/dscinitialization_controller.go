@@ -20,7 +20,6 @@ package dscinitialization
 import (
 	"context"
 	"path/filepath"
-	"reflect"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -50,6 +49,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
@@ -362,47 +362,23 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
 				return r.watchDSCResource(ctx)
 			}),
-			builder.WithPredicates(DSCDeletionPredicate),
+			builder.WithPredicates(resources.DSCDeletionPredicate), // TODO: is it needed?
 		).
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource),
-			builder.WithPredicates(SecretContentChangedPredicate),
+			builder.WithPredicates(resources.SecretContentChangedPredicate),
 		).
 		Watches(
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource),
-			builder.WithPredicates(CMContentChangedPredicate),
+			builder.WithPredicates(resources.CMContentChangedPredicate),
 		).
 		Watches(
 			&serviceApi.Auth{},
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
 		Complete(r)
-}
-
-var SecretContentChangedPredicate = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldSecret, _ := e.ObjectOld.(*corev1.Secret)
-		newSecret, _ := e.ObjectNew.(*corev1.Secret)
-
-		return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
-	},
-}
-
-var CMContentChangedPredicate = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldCM, _ := e.ObjectOld.(*corev1.ConfigMap)
-		newCM, _ := e.ObjectNew.(*corev1.ConfigMap)
-
-		return !reflect.DeepEqual(oldCM.Data, newCM.Data)
-	},
-}
-
-var DSCDeletionPredicate = predicate.Funcs{
-	DeleteFunc: func(e event.DeleteEvent) bool {
-		return true
-	},
 }
 
 var dsciPredicateStateChangeTrustedCA = predicate.Funcs{
@@ -501,8 +477,9 @@ func (r *DSCInitializationReconciler) configureMonitoring(ctx context.Context, d
 	)
 
 	if dsci.Spec.Monitoring.ManagementState == operatorv1.Managed {
-		err := r.Create(ctx, defaultMonitoring)
-		if err != nil && !k8serr.IsAlreadyExists(err) {
+		// for generic case if we need to support configable monitoring namespace
+		// set filed manager to DSCI
+		if err := r.Apply(ctx, defaultMonitoring, client.FieldOwner("dscinitialization.opendatahub.io"), client.ForceOwnership); err != nil && !k8serr.IsAlreadyExists(err) {
 			return err
 		}
 	} else {
