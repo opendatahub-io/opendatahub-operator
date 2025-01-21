@@ -82,7 +82,7 @@ var DSCDeletionPredicate = predicate.Funcs{
 	},
 }
 
-var DSCSpecUpdatePredicate = predicate.Funcs{
+var DSCComponentUpdatePredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		oldDSC, ok := e.ObjectOld.(*dscv1.DataScienceCluster)
 		if !ok {
@@ -92,7 +92,28 @@ var DSCSpecUpdatePredicate = predicate.Funcs{
 		if !ok {
 			return false
 		}
-		// Compare components state
-		return !reflect.DeepEqual(oldDSC.Spec.Components, newDSC.Spec.Components)
+		// if .spec.components is changed, return true.
+		if !reflect.DeepEqual(oldDSC.Spec.Components, newDSC.Spec.Components) {
+			return true
+		}
+
+		// if new condition from component is added or removed, return true
+		oldConditions := oldDSC.Status.Conditions
+		newConditions := newDSC.Status.Conditions
+		if len(oldConditions) != len(newConditions) {
+			return true
+		}
+
+		// compare type one by one with their status if not equal return true
+		for _, nc := range newConditions {
+			for _, oc := range oldConditions {
+				if nc.Type == oc.Type {
+					if !reflect.DeepEqual(nc.Status, oc.Status) {
+						return true
+					}
+				}
+			}
+		}
+		return false
 	},
 }

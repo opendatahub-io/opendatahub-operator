@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -58,6 +59,9 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
+// if DSC has component as Removed, we remove component's Prom Rules.
+// only when DSC has component as Managed and component CR is in "Ready" state, we add rules to Prom Rules.
+// all other cases, we do not change Prom rules for component.
 func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Map component names to their rule prefixes
 	dscList := &dscv1.DataScienceClusterList{}
@@ -73,37 +77,26 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 
 	dsc := &dscList.Items[0]
 
-	err := cr.ForEach(func(ch cr.ComponentHandler) error {
-		var enabled bool
+	return cr.ForEach(func(ch cr.ComponentHandler) error {
 		ci := ch.NewCRObject(dsc)
-		// read the component instance to get tha actual status
-		err := rr.Client.Get(ctx, client.ObjectKeyFromObject(ci), ci)
-		switch {
-		case err != nil:
-			enabled = false
-			if !k8serr.IsNotFound(err) {
-				return fmt.Errorf("error getting component state: component=%s, enabled=%t, error=%w", ch.GetName(), enabled, err)
+		ms := ch.GetManagementState(dsc) // check for modelcontroller with dependency is done in its GetManagementState()
+		switch ms {
+		case operatorv1.Removed: // remove
+			return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
+		case operatorv1.Managed:
+			ready, err := isComponentReady(ctx, rr.Client, ci)
+			if err != nil {
+				return fmt.Errorf("failed to get component status %w", err)
 			}
+			if !ready { // not ready, skip change on prom rules
+				return nil
+			}
+			// add
+			return updatePrometheusConfig(ctx, true, componentRules[ch.GetName()])
 		default:
-			enabled = meta.IsStatusConditionTrue(ci.GetStatus().Conditions, status.ConditionTypeReady)
+			return fmt.Errorf("unsuported management state %s", ms)
 		}
-
-		// Check for shared components
-		if ch.GetName() == componentApi.KserveComponentName || ch.GetName() == componentApi.ModelMeshServingComponentName {
-			if err := UpdatePrometheusConfig(ctx, enabled, componentRules[componentApi.ModelControllerComponentName]); err != nil {
-				return err
-			}
-		}
-
-		if err := UpdatePrometheusConfig(ctx, enabled, componentRules[ch.GetName()]); err != nil {
-			return err
-		}
-		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -111,6 +104,17 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
 	}
+
+	// TODO: deprecate phase
+	m.Status.Phase = "NotReady"
+	// condition
+	nc := metav1.Condition{
+		Type:    string(ReadyConditionType),
+		Status:  metav1.ConditionFalse,
+		Reason:  status.PhaseNotReady,
+		Message: "Prometheus deployment is not ready",
+	}
+
 	promDeployment := &appsv1.DeploymentList{}
 	err := rr.Client.List(
 		ctx,
@@ -128,10 +132,15 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		}
 	}
 
-	m.Status.Phase = "NotReady"
-	if len(promDeployment.Items) == 1 && ready == 1 {
+	if len(promDeployment.Items) == ready {
+		// TODO: deprecate phase
 		m.Status.Phase = "Ready"
+		// condition
+		nc.Status = metav1.ConditionTrue
+		nc.Reason = status.ReconcileCompleted
+		nc.Message = status.ReconcileCompletedMessage
 	}
+	meta.SetStatusCondition(&m.Status.Conditions, nc)
 	m.Status.ObservedGeneration = m.GetObjectMeta().GetGeneration()
 
 	return nil
