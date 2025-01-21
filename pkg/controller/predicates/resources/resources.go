@@ -76,7 +76,13 @@ var SecretContentChangedPredicate = predicate.Funcs{
 	},
 }
 
-var DSCSpecUpdatePredicate = predicate.Funcs{
+var DSCDeletionPredicate = predicate.Funcs{
+	DeleteFunc: func(e event.DeleteEvent) bool {
+		return true
+	},
+}
+
+var DSCComponentUpdatePredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		oldDSC, ok := e.ObjectOld.(*dscv1.DataScienceCluster)
 		if !ok {
@@ -86,7 +92,7 @@ var DSCSpecUpdatePredicate = predicate.Funcs{
 		if !ok {
 			return false
 		}
-		// Compare components state
-		return !reflect.DeepEqual(oldDSC.Spec.Components, newDSC.Spec.Components)
+		// if .spec.components or .status.components is changed, return true, otherwise false
+		return !reflect.DeepEqual(oldDSC.Spec.Components, newDSC.Spec.Components) || !reflect.DeepEqual(oldDSC.Status.Components, newDSC.Status.Components)
 	},
 }
