@@ -30,6 +30,7 @@ func kueueTestSuite(t *testing.T) {
 	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
 	t.Run("Validate Kueue Dynamically create VAP and VAPB", componentCtx.validateKueueVAPReady)
+	t.Run("Validate CRDs reinstated", componentCtx.validateCRDReinstated)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
 }
 
@@ -55,4 +56,18 @@ func (tc *KueueTestCtx) validateKueueVAPReady(t *testing.T) {
 	g.Expect(err).Should(MatchError(&meta.NoKindMatchError{}))
 	_, err = g.Get(gvk.ValidatingAdmissionPolicyBinding, types.NamespacedName{Name: "kueue-validating-admission-policy-binding"}).Get()
 	g.Expect(err).Should(MatchError(&meta.NoKindMatchError{}))
+}
+
+func (tc *KueueTestCtx) validateCRDReinstated(t *testing.T) {
+	crds := []string{
+		"workloads.kueue.x-k8s.io",
+		"multikueueclusters.kueue.x-k8s.io",
+		"multikueueconfigs.kueue.x-k8s.io",
+	}
+
+	for _, crd := range crds {
+		t.Run(crd, func(t *testing.T) {
+			tc.ValidateCRDReinstated(t, crd)
+		})
+	}
 }

@@ -2,24 +2,34 @@ package monitoring
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"gopkg.in/yaml.v2"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	odhcli "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 var (
-	prometheusConfigPath = filepath.Join(deploy.DefaultManifestPath, "monitoring", "prometheus", "apps", "prometheus-configs.yaml")
+	ComponentName        = serviceApi.MonitoringServiceName
+	prometheusConfigPath = filepath.Join(odhdeploy.DefaultManifestPath, ComponentName, "prometheus", "apps", "prometheus-configs.yaml")
+	ReadyConditionType   = conditionsv1.ConditionType(status.ReadySuffix)
 )
 
-// UpdatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
+// updatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
 // parameter enable when set to true to add new rules, when set to false to remove existing rules.
-func UpdatePrometheusConfig(ctx context.Context, _ client.Client, enable bool, component string) error {
+func updatePrometheusConfig(ctx context.Context, enable bool, component string) error {
 	l := logf.FromContext(ctx)
 
 	// create a struct to mock poremtheus.yml
@@ -44,8 +54,6 @@ func UpdatePrometheusConfig(ctx context.Context, _ client.Client, enable bool, c
 			MMARules               string `yaml:"model-mesh-alerting.rules"`
 			OdhModelRRules         string `yaml:"odh-model-controller-recording.rules"`
 			OdhModelARules         string `yaml:"odh-model-controller-alerting.rules"`
-			CFORRules              string `yaml:"codeflare-recording.rules"`
-			CFOARules              string `yaml:"codeflare-alerting.rules"`
 			RayARules              string `yaml:"ray-alerting.rules"`
 			WorkbenchesRRules      string `yaml:"workbenches-recording.rules"`
 			WorkbenchesARules      string `yaml:"workbenches-alerting.rules"`
@@ -123,4 +131,16 @@ func UpdatePrometheusConfig(ctx context.Context, _ client.Client, enable bool, c
 	err = os.WriteFile(prometheusConfigPath, newyamlData, 0)
 
 	return err
+}
+
+func isComponentReady(ctx context.Context, cli *odhcli.Client, obj common.PlatformObject) (bool, error) {
+	err := cli.Client.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+	switch {
+	case k8serr.IsNotFound(err):
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("failed to get component instance: %w", err)
+	default:
+		return meta.IsStatusConditionTrue(obj.GetStatus().Conditions, status.ConditionTypeReady), nil
+	}
 }

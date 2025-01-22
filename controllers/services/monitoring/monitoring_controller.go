@@ -20,46 +20,19 @@ import (
 	"context"
 	"fmt"
 
-	routev1 "github.com/openshift/api/route/v1"
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
-
-const serviceName = "monitoring"
 
 // NewServiceReconciler creates a ServiceReconciler for the Monitoring API.
 func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.Monitoring{}).
-		// operands - owned
-		Owns(&corev1.ConfigMap{}).
-		Owns(&corev1.Secret{}).
-		Owns(&rbacv1.ClusterRoleBinding{}).
-		Owns(&rbacv1.ClusterRole{}).
-		Owns(&rbacv1.Role{}).
-		Owns(&rbacv1.RoleBinding{}).
-		Owns(&corev1.ServiceAccount{}).
-		Owns(&corev1.Service{}).
-		Owns(&corev1.PersistentVolumeClaim{}).
-		Owns(&monitoringv1.ServiceMonitor{}).
-		Owns(&monitoringv1.PrometheusRule{}).
-		// By default, a predicated for changed generation is added by the Owns()
-		// method, however for deployments, we also need to retrieve status info
-		// hence we need a dedicated predicate to react to replicas status change
-		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
-		// operands - openshift
-		Owns(&routev1.Route{}).
 		// operands - watched
 		//
 		// By default the Watches functions adds:
@@ -69,29 +42,13 @@ func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		//   for to objects that have the label components.platform.opendatahub.io/part-of
 		// or services.platform.opendatahub.io/part-of set to the current owner
 		//
-		Watches(&extv1.CustomResourceDefinition{}).
+		Watches(&dscv1.DataScienceCluster{}, reconciler.WithEventHandler(handlers.ToNamed(serviceApi.MonitoringInstanceName)),
+			reconciler.WithPredicates(resources.DSCComponentUpdatePredicate)).
 		// actions
 		WithAction(initialize).
-		WithAction(kustomize.NewAction(
-			kustomize.WithCache(),
-			// Those are the default labels added by the legacy deploy method
-			// and should be preserved as the original plugin were affecting
-			// deployment selectors that are immutable once created, so it won't
-			// be possible to actually amend the labels in a non-disruptive
-			// manner.
-			//
-			// Additional labels/annotations MUST be added by the deploy action
-			// so they would affect only objects metadata without side effects
-			// kustomize.WithLabel(labels.ODH.Component(componentName), "true"),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, serviceName),
-		)).
+		WithAction(updatePrometheusConfigMap).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
-			deploy.WithFieldOwner(serviceApi.MonitoringInstanceName),
-			deploy.WithLabel(labels.PlatformPartOf, serviceApi.MonitoringServiceName),
-		)).
-		WithAction(updatestatus.NewAction(
-			updatestatus.WithSelectorLabel(labels.PlatformPartOf, serviceApi.MonitoringServiceName),
 		)).
 		WithAction(updateStatus).
 		Build(ctx)

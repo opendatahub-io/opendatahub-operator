@@ -20,7 +20,6 @@ package dscinitialization
 import (
 	"context"
 	"path/filepath"
-	"reflect"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -29,6 +28,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -49,6 +49,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
@@ -257,6 +258,9 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
+				if err := r.configureMonitoring(ctx, instance); err != nil {
+					return ctrl.Result{}, err
+				}
 				err := r.configureManagedMonitoring(ctx, instance, "init")
 				if err != nil {
 					return reconcile.Result{}, err
@@ -351,52 +355,30 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 		Owns(
 			&routev1.Route{},
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&corev1.PersistentVolumeClaim{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Watches(
 			&dscv1.DataScienceCluster{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
 				return r.watchDSCResource(ctx)
 			}),
-			builder.WithPredicates(DSCDeletionPredicate),
+			builder.WithPredicates(resources.DSCDeletionPredicate), // TODO: is it needed?
 		).
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource),
-			builder.WithPredicates(SecretContentChangedPredicate),
+			builder.WithPredicates(resources.SecretContentChangedPredicate),
 		).
 		Watches(
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource),
-			builder.WithPredicates(CMContentChangedPredicate),
+			builder.WithPredicates(resources.CMContentChangedPredicate),
 		).
 		Watches(
 			&serviceApi.Auth{},
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
 		Complete(r)
-}
-
-var SecretContentChangedPredicate = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldSecret, _ := e.ObjectOld.(*corev1.Secret)
-		newSecret, _ := e.ObjectNew.(*corev1.Secret)
-
-		return !reflect.DeepEqual(oldSecret.Data, newSecret.Data)
-	},
-}
-
-var CMContentChangedPredicate = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldCM, _ := e.ObjectOld.(*corev1.ConfigMap)
-		newCM, _ := e.ObjectNew.(*corev1.ConfigMap)
-
-		return !reflect.DeepEqual(oldCM.Data, newCM.Data)
-	},
-}
-
-var DSCDeletionPredicate = predicate.Funcs{
-	DeleteFunc: func(e event.DeleteEvent) bool {
-		return true
-	},
 }
 
 var dsciPredicateStateChangeTrustedCA = predicate.Funcs{
@@ -466,5 +448,45 @@ func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a c
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "auth", Namespace: r.ApplicationsNamespace}}}
 	}
 
+	return nil
+}
+
+func (r *DSCInitializationReconciler) configureMonitoring(ctx context.Context, dsci *dsciv1.DSCInitialization) error {
+	// Create Monitoring CR singleton
+	defaultMonitoring := client.Object(&serviceApi.Monitoring{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       serviceApi.MonitoringKind,
+			APIVersion: serviceApi.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.MonitoringInstanceName,
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: dsciv1.GroupVersion.String(),
+				Kind:       dsci.Kind,
+				Name:       dsci.Name,
+				UID:        dsci.UID,
+			},
+			},
+		},
+		Spec: serviceApi.MonitoringSpec{
+			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+				Namespace: dsci.Spec.Monitoring.Namespace,
+			},
+		},
+	},
+	)
+
+	if dsci.Spec.Monitoring.ManagementState == operatorv1.Managed {
+		// for generic case if we need to support configable monitoring namespace
+		// set filed manager to DSCI
+		if err := r.Apply(ctx, defaultMonitoring, client.FieldOwner("dscinitialization.opendatahub.io"), client.ForceOwnership); err != nil && !k8serr.IsAlreadyExists(err) {
+			return err
+		}
+	} else {
+		err := r.Delete(ctx, defaultMonitoring)
+		if err != nil && !k8serr.IsNotFound(err) {
+			return err
+		}
+	}
 	return nil
 }

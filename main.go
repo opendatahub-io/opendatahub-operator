@@ -71,6 +71,7 @@ import (
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/services/auth"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/services/monitoring"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/setupcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -393,6 +394,12 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
+	if platform == cluster.ManagedRhoai {
+		if err := monitoring.NewServiceReconciler(ctx, mgr); err != nil {
+			os.Exit(1)
+		}
+	}
+
 	// Check if user opted for disabling DSC configuration
 	disableDSCConfig, existDSCConfig := os.LookupEnv("DISABLE_DSC_CONFIG")
 	if existDSCConfig && disableDSCConfig != "false" {
@@ -486,6 +493,7 @@ func getCommonCache(ctx context.Context, cli client.Client, platform cluster.Pla
 	case 0:
 		if platform == cluster.SelfManagedRhoai {
 			namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+			namespaceConfigs["redhat-ods-monitoring"] = cache.Config{} // since we still create monitoring namespace for self-managed
 			return namespaceConfigs, nil
 		}
 		namespaceConfigs["opendatahub"] = cache.Config{}

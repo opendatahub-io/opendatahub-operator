@@ -1,0 +1,65 @@
+groups:
+  - name: SLOs-probe_success_codeflare
+    rules:
+    - alert: CodeFlare Operator Probe Success 5m and 1h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-availability.md'
+        summary: CodeFlare Operator Probe Success 5m and 1h Burn Rate high
+      expr: |
+        sum(probe_success:burnrate5m{instance=~"codeflare-operator"}) by (instance) > (14.40 * (1-0.99950))
+        and
+        sum(probe_success:burnrate1h{instance=~"codeflare-operator"}) by (instance) > (14.40 * (1-0.99950))
+      for: 2m
+      labels:
+        severity: info
+        namespace: redhat-ods-applications
+    - alert: CodeFlare Operator Probe Success 30m and 6h Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-probe-success-burn-rate.md'
+        summary: CodeFlare Operator Probe Success 30m and 6h Burn Rate high
+      expr: |
+        sum(probe_success:burnrate30m{instance=~"codeflare-operator"}) by (instance) > (6.00 * (1-0.99950))
+        and
+        sum(probe_success:burnrate6h{instance=~"codeflare-operator"}) by (instance) > (6.00 * (1-0.99950))
+      for: 15m
+      labels:
+        severity: info
+        namespace: redhat-ods-applications
+    - alert: CodeFlare Operator Probe Success 2h and 1d Burn Rate high
+      annotations:
+        message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+        triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-probe-success-burn-rate.md'
+        summary: CodeFlare Operator Probe Success 2h and 1d Burn Rate high
+      expr: |
+        sum(probe_success:burnrate2h{instance=~"codeflare-operator"}) by (instance) > (3.00 * (1-0.99950))
+        and
+        sum(probe_success:burnrate1d{instance=~"codeflare-operator"}) by (instance) > (3.00 * (1-0.99950))
+      for: 1h
+      labels:
+        severity: info
+        namespace: redhat-ods-applications
+
+  - name: Distributed Workloads CodeFlare
+    interval: 1m
+    rules:
+      - alert: CodeFlare Operator is not running
+        expr: absent(up{job=~'CodeFlare Operator'}) or up{job=~'CodeFlare Operator'} != 1
+        labels:
+          severity: info
+          namespace: redhat-ods-applications
+        annotations:
+          description: This alert fires when the CodeFlare Operator is not running.
+          triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-availability.md'
+          summary: Alerting for CodeFlare Operator
+      - alert: CodeFlare Operator taking too long to be up
+        expr: absent_over_time(up{job="CodeFlare Operator"}[2m]) == 1
+        labels:
+          severity: info
+          namespace: redhat-ods-applications
+        annotations:
+          description: This alert fires when the CodeFlare Operator takes over 2 min. to come back online. Either CodeFlare Operator is not running and failing to become ready, is misconfigured, or the metrics endpoint is not responding.
+          triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-absent-over-time.md'
+          summary: Alerting for CodeFlare Operator
+

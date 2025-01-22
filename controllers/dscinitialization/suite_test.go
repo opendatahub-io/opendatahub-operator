@@ -124,6 +124,7 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(templatev1.Install(testScheme))
 	utilruntime.Must(configv1.Install(testScheme))
 	utilruntime.Must(serviceApi.AddToScheme(testScheme))
+	utilruntime.Must(monitoringv1.AddToScheme(testScheme))
 	// +kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
