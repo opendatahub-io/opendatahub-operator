@@ -106,10 +106,13 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	}
 
 	// TODO: deprecate phase
+	// Cannot use status.PhaseNotReady as the value here is not the
+	// same as the constant ("Not Ready")
 	m.Status.Phase = "NotReady"
+
 	// condition
 	nc := metav1.Condition{
-		Type:    string(ReadyConditionType),
+		Type:    status.ConditionTypeReady,
 		Status:  metav1.ConditionFalse,
 		Reason:  status.PhaseNotReady,
 		Message: "Prometheus deployment is not ready",
@@ -134,7 +137,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 
 	if len(promDeployment.Items) == ready {
 		// TODO: deprecate phase
-		m.Status.Phase = "Ready"
+		m.Status.Phase = status.PhaseReady
 		// condition
 		nc.Status = metav1.ConditionTrue
 		nc.Reason = status.ReconcileCompleted
