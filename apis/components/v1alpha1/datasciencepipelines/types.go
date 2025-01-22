@@ -14,8 +14,8 @@ type PreloadedPipelinesSpec struct {
 type PreloadedPipelineOptions struct {
 	// Set to one of the following values:
 	//
-	// - "Managed" : This pipeline is automatically imported when a new pipeline server or DSPA is created.
-	// - "Removed" : This pipeline is not automatically imported when a new pipeline server or DSPA is created.
+	// - "Managed" : This pipeline is automatically imported.
+	// - "Removed" : This pipeline is not automatically imported when a new pipeline server or DSPA is created. If previously set to "Managed", setting to "Removed" does not remove existing preloaded pipelines but does prevent future updates from being imported.
 	//
 	// +kubebuilder:validation:Enum=Managed;Removed
 	// +kubebuilder:default=Removed
