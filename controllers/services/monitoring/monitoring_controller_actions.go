@@ -119,7 +119,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	err := rr.Client.List(
 		ctx,
 		promDeployment,
-		client.InNamespace(rr.DSCI.Spec.Monitoring.Namespace),
+		client.InNamespace(m.Spec.Namespace),
 	)
 	if err != nil {
 		return fmt.Errorf("error fetching promethus deployments: %w", err)
