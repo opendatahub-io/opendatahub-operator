@@ -29,8 +29,6 @@ var (
 	prometheusManifestsPath = filepath.Join(deploy.DefaultManifestPath, ComponentName, "prometheus", "base")
 	prometheusConfigPath    = filepath.Join(deploy.DefaultManifestPath, ComponentName, "prometheus", "apps")
 	networkpolicyPath       = filepath.Join(deploy.DefaultManifestPath, ComponentName, "networkpolicy")
-	NameConsoleLink         = "console"
-	NamespaceConsoleLink    = "openshift-console"
 )
 
 // only when reconcile on DSCI CR, initial set to true
@@ -349,7 +347,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 func configureBlackboxExporter(ctx context.Context, dsciInit *dsciv1.DSCInitialization, r *DSCInitializationReconciler) error {
 	log := logf.FromContext(ctx)
 	consoleRoute := &routev1.Route{}
-	err := r.Client.Get(ctx, client.ObjectKey{Name: "console", Namespace: "openshift-console"}, consoleRoute)
+	err := r.Client.Get(ctx, client.ObjectKey{Name: cluster.NameConsoleLink, Namespace: cluster.NamespaceConsoleLink}, consoleRoute)
 	if err != nil {
 		if !k8serr.IsNotFound(err) {
 			return err

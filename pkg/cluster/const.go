@@ -18,4 +18,8 @@ const (
 
 	// Default OpenShift version CR name.
 	OpenShiftVersionObj = "version"
+
+	// Managed cluster required route.
+	NameConsoleLink      = "console"
+	NamespaceConsoleLink = "openshift-console"
 )
