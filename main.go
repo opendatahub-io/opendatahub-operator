@@ -479,6 +479,7 @@ func getCommonCache(ctx context.Context, cli client.Client, platform cluster.Pla
 	if platform == cluster.ManagedRhoai {
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+		namespaceConfigs[cluster.NamespaceConsoleLink] = cache.Config{}
 		return namespaceConfigs, nil
 	}
 	cNamespaceList := &corev1.NamespaceList{}
