@@ -57,6 +57,7 @@ type TrainingOperatorCommonSpec struct {
 
 // TrainingOperatorCommonStatus defines the shared observed state of TrainingOperator
 type TrainingOperatorCommonStatus struct {
+	Releases []common.ComponentReleaseStatus `json:"releases,omitempty"`
 }
 
 // TrainingOperatorStatus defines the observed state of TrainingOperator
@@ -80,8 +81,13 @@ func init() {
 func (c *TrainingOperator) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
+
 func (c *TrainingOperator) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *TrainingOperator) GetReleaseStatus() *[]common.ComponentReleaseStatus {
+	return &c.Status.Releases
 }
 
 // DSCTrainingOperator contains all the configuration exposed in DSC instance for TrainingOperator component
