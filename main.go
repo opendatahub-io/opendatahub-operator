@@ -269,6 +269,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			&rbacv1.RoleBinding{}: {
 				Namespaces: oDHCache,
 			},
+			&ofapiv1alpha1.Subscription{}:            {}, // TODO: workaround to get all subs work, without specify it seems it does not cache from all namespaces
 			&rbacv1.ClusterRole{}:                    {},
 			&rbacv1.ClusterRoleBinding{}:             {},
 			&securityv1.SecurityContextConstraints{}: {},
