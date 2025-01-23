@@ -501,6 +501,7 @@ func getCommonCache(ctx context.Context, cli client.Client, platform cluster.Pla
 		return namespaceConfigs, nil
 	case 1:
 		namespaceConfigs[cNamespaceList.Items[0].Name] = cache.Config{}
+		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{} // since we still create monitoring namespace for self-managed
 	default:
 		return map[string]cache.Config{}, errors.New("only support max. one namespace with label: opendatahub.io/application-namespace: true")
 	}
