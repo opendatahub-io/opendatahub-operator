@@ -7,8 +7,8 @@ GITHUB_URL="https://github.com"
 # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
 declare -A COMPONENT_MANIFESTS=(
     ["dashboard"]="opendatahub-io:odh-dashboard:main:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:v1.7-branch:components/odh-notebook-controller/config"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main:manifests"
     ["modelmeshserving"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0:config"
     ["kserve"]="opendatahub-io:kserve:release-v0.14:config"
