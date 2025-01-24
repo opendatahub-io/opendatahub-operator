@@ -498,6 +498,14 @@ rules:
 - apiGroups:
   - features.opendatahub.io
   resources:
+  - featuretrackers/finalizers
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - features.opendatahub.io
+  resources:
   - featuretrackers/status
   verbs:
   - delete
@@ -728,6 +736,14 @@ rules:
   - knativeservings
   verbs:
   - '*'
+- apiGroups:
+  - operator.knative.dev
+  resources:
+  - knativeservings/finalizers
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - operator.openshift.io
   resources:
