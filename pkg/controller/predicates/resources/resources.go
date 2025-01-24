@@ -136,7 +136,7 @@ var DSCIReadiness = predicate.Funcs{
 		return false
 	},
 	DeleteFunc: func(e event.DeleteEvent) bool {
-		return true
+		return false
 	},
 	GenericFunc: func(e event.GenericEvent) bool {
 		return false

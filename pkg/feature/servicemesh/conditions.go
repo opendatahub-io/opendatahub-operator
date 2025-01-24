@@ -90,15 +90,15 @@ func WaitForControlPlaneToBeReady(ctx context.Context, cli client.Client, f *fea
 
 	return wait.PollUntilContextTimeout(ctx, interval, duration, false, func(ctx context.Context) (bool, error) {
 		ready, err := CheckControlPlaneComponentReadiness(ctx, cli, smcp, smcpNs)
-		if k8serr.IsNotFound(err) {
-			return false, nil
+		if err != nil {
+			return false, err
 		}
 
 		if ready {
 			f.Log.Info("done waiting for control plane components to be ready", "control-plane", smcp, "namespace", smcpNs)
 		}
 
-		return ready, err
+		return ready, nil
 	})
 }
 
@@ -110,7 +110,10 @@ func CheckControlPlaneComponentReadiness(ctx context.Context, c client.Client, s
 		Name:      smcpName,
 	}, smcpObj)
 
-	if err != nil {
+	switch {
+	case k8serr.IsNotFound(err):
+		return false, nil
+	case err != nil:
 		return false, fmt.Errorf("failed to find Service Mesh Control Plane: %w", err)
 	}
 
