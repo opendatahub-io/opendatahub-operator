@@ -44,6 +44,11 @@ type WorkbenchesSpec struct {
 
 // WorkbenchesCommonStatus defines the shared observed state of Workbenches
 type WorkbenchesCommonStatus struct {
+	// +patchMergeKey=name
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=name
+	Releases []common.ComponentReleaseStatus `json:"releases,omitempty"`
 }
 
 // WorkbenchesStatus defines the observed state of Workbenches
@@ -74,6 +79,12 @@ func (c *Workbenches) GetDevFlags() *common.DevFlags {
 
 func (c *Workbenches) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *Workbenches) GetReleaseStatus() *[]common.ComponentReleaseStatus { return &c.Status.Releases }
+
+func (c *Workbenches) SetReleaseStatus(releases []common.ComponentReleaseStatus) {
+	c.Status.Releases = releases
 }
 
 // +kubebuilder:object:root=true

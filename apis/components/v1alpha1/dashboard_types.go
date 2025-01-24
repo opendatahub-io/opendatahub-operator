@@ -46,6 +46,11 @@ type DashboardSpec struct {
 // DashboardCommonStatus defines the shared observed state of Dashboard
 type DashboardCommonStatus struct {
 	URL string `json:"url,omitempty"`
+	// +patchMergeKey=name
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=name
+	Releases []common.ComponentReleaseStatus `json:"releases,omitempty"`
 }
 
 // DashboardStatus defines the observed state of Dashboard
@@ -77,6 +82,12 @@ func (c *Dashboard) GetDevFlags() *common.DevFlags {
 
 func (c *Dashboard) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *Dashboard) GetReleaseStatus() *[]common.ComponentReleaseStatus { return &c.Status.Releases }
+
+func (c *Dashboard) SetReleaseStatus(releases []common.ComponentReleaseStatus) {
+	c.Status.Releases = releases
 }
 
 // +kubebuilder:object:root=true
