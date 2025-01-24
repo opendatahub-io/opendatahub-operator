@@ -16,7 +16,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
@@ -24,7 +24,7 @@ import (
 type componentHandler struct{}
 
 func init() { //nolint:gochecknoinits
-	componentsregistry.Add(&componentHandler{})
+	cr.Add(&componentHandler{})
 }
 
 func (s *componentHandler) GetName() string {
