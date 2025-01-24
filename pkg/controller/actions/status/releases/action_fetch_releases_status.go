@@ -45,6 +45,12 @@ type Action struct {
 
 type ActionOpts func(*Action)
 
+func WithCache() ActionOpts {
+	return func(a *Action) {
+		a.ResourceCacher.SetKey(types.Hash)
+	}
+}
+
 func (a *Action) run(_ context.Context, rr *types.ReconciliationRequest) error {
 	// Ensure the resource implements the WithReleases interface
 	obj, ok := rr.Instance.(common.WithReleases)
