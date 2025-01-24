@@ -19,6 +19,7 @@ type featureBuilder struct {
 	managed     bool
 	source      featurev1.Source
 	owner       metav1.Object
+	controller  bool
 	targetNs    string
 
 	builders []partialBuilder
@@ -91,6 +92,12 @@ func (fb *featureBuilder) Manifests(creators ...resource.Creator) *featureBuilde
 // in the corresponding feature tracker.
 func (fb *featureBuilder) OwnedBy(object metav1.Object) *featureBuilder {
 	fb.owner = object
+
+	return fb
+}
+
+func (fb *featureBuilder) Controller(controller bool) *featureBuilder {
+	fb.controller = controller
 
 	return fb
 }
@@ -193,12 +200,13 @@ func (fb *featureBuilder) Create() (*Feature, error) {
 	}
 
 	f := &Feature{
-		Name:    fb.featureName,
-		Managed: fb.managed,
-		Enabled: alwaysEnabled,
-		Log:     log.Log.WithName("features").WithValues("feature", fb.featureName),
-		source:  &fb.source,
-		owner:   fb.owner,
+		Name:       fb.featureName,
+		Managed:    fb.managed,
+		Enabled:    alwaysEnabled,
+		Log:        log.Log.WithName("features").WithValues("feature", fb.featureName),
+		source:     &fb.source,
+		owner:      fb.owner,
+		controller: fb.controller,
 	}
 
 	for i := range fb.builders {

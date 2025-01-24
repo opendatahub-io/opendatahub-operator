@@ -30,6 +30,7 @@ var _ featuresHandler = (*FeaturesHandler)(nil)
 type FeaturesHandler struct {
 	source            featurev1.Source
 	owner             metav1.Object
+	controller        bool
 	targetNamespace   string
 	features          []*Feature
 	featuresProviders []FeaturesProvider
@@ -47,6 +48,7 @@ func (fh *FeaturesHandler) Add(builders ...*featureBuilder) error {
 		feature, err := fb.
 			TargetNamespace(fh.targetNamespace).
 			OwnedBy(fh.owner).
+			Controller(fh.controller).
 			Source(fh.source).
 			Create()
 		multiErr = multierror.Append(multiErr, err)
@@ -112,6 +114,7 @@ func ClusterFeaturesHandler(dsci *dsciv1.DSCInitialization, def ...FeaturesProvi
 func ComponentFeaturesHandler(owner metav1.Object, componentName, targetNamespace string, def ...FeaturesProvider) *FeaturesHandler {
 	return &FeaturesHandler{
 		owner:             owner,
+		controller:        true,
 		targetNamespace:   targetNamespace,
 		source:            featurev1.Source{Type: featurev1.ComponentType, Name: componentName},
 		featuresProviders: def,
