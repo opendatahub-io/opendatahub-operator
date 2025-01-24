@@ -108,13 +108,10 @@ OPERATOR_MAKE_ENV_FILE = local.mk
 
 # Buildx function for building multi-arch image
 define func_buildx
-	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
-	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' $1 > Dockerfile.cross
 	- docker buildx create --name project-v3-builder
-	docker buildx use project-v3-builder
-	- docker buildx build --push --platform=$2 --tag $3 -f Dockerfile.cross .
+	- docker buildx use project-v3-builder
+	docker buildx build --no-cache --push --platform=$2 --tag $3 -f $1 .
 	- docker buildx rm project-v3-builder
-	rm Dockerfile.cross
 endef
 
 .PHONY: default
@@ -375,6 +372,26 @@ endif
 .PHONY: catalog-build
 catalog-build: opm ## Build a catalog image.
 	$(OPM) index add --container-tool $(IMAGE_BUILDER) --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+
+ARCHS = amd64 ppc64le s390x
+OPM_BINARY_IMAGE ?= quay.io/operator-framework/opm:v1.28.0
+
+.PHONY: catalog-build-multi-arch
+catalog-build-multi-arch:  ## Build a catalog image for all architectures and push them.
+	@for ARCH in ${ARCHS}; do \
+		DIGEST=$$(skopeo inspect --raw docker://${BUNDLE_IMG} | \
+			jq -r ".manifests[] | select(.platform.architecture == \"$$ARCH\" and .platform.os == \"linux\").digest"); \
+		$(OPM) index add --container-tool docker --mode semver --bundles "$(BUNDLE_IMG)@$$DIGEST" \
+			--tag "$(CATALOG_IMG)-$$ARCH" --binary-image "$(OPM_BINARY_IMAGE)-$$ARCH"; \
+		docker push "$(CATALOG_IMG)-$$ARCH"; \
+	done
+
+.PHONY: catalog-push-multi-arch
+catalog-push-multi-arch: catalog-build-multi-arch	## Create and push a multi-architecture manifest.
+	docker manifest rm $(CATALOG_IMG) || true
+	docker manifest create --amend "$(CATALOG_IMG)" \
+	$(foreach ARCH, ${ARCHS}, $(CATALOG_IMG)-$(ARCH))
+	docker manifest push "$(CATALOG_IMG)"
 
 # Push the catalog image.
 .PHONY: catalog-push
