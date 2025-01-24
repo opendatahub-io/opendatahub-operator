@@ -30,6 +30,7 @@ const (
 
 // CodeFlareCommonStatus defines the shared observed state of CodeFlare
 type CodeFlareCommonStatus struct {
+	Releases []common.ComponentReleaseStatus `json:"releases,omitempty"`
 }
 
 // CodeFlareStatus defines the observed state of CodeFlare
@@ -69,6 +70,8 @@ func (c *CodeFlare) GetDevFlags() *common.DevFlags {
 func (c *CodeFlare) GetStatus() *common.Status {
 	return &c.Status.Status
 }
+
+func (c *CodeFlare) GetReleaseStatus() *[]common.ComponentReleaseStatus { return &c.Status.Releases }
 
 func init() {
 	SchemeBuilder.Register(&CodeFlare{}, &CodeFlareList{})

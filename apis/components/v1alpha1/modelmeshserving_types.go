@@ -57,6 +57,7 @@ type ModelMeshServingCommonSpec struct {
 
 // ModelMeshServingCommonStatus defines the shared observed state of ModelMeshServing
 type ModelMeshServingCommonStatus struct {
+	Releases []common.ComponentReleaseStatus `json:"releases,omitempty"`
 }
 
 // ModelMeshServingStatus defines the observed state of ModelMeshServing
@@ -80,8 +81,13 @@ func init() {
 func (c *ModelMeshServing) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
+
 func (c *ModelMeshServing) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *ModelMeshServing) GetReleaseStatus() *[]common.ComponentReleaseStatus {
+	return &c.Status.Releases
 }
 
 // DSCModelMeshServing contains all the configuration exposed in DSC instance for ModelMeshServing component

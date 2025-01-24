@@ -19,6 +19,7 @@ package dashboard
 import (
 	"context"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 
 	consolev1 "github.com/openshift/api/console/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -89,6 +90,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// actions
 		WithAction(initialize).
 		WithAction(devFlags).
+		WithAction(releases.NewAction()).
 		WithAction(configureDependencies).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
