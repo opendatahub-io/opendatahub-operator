@@ -316,9 +316,9 @@ func setStatusFields(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 	if k.Spec.Serving.ManagementState == operatorv1.Managed || k.Spec.Serving.ManagementState == operatorv1.Unmanaged {
 		serverlessInstalled = true
 	}
-	k.Status.ServerlessAvailable = false
+	k.Status.ServerlessMode = operatorv1.Removed
 	if serverlessInstalled && serviceMeshInstalled {
-		k.Status.ServerlessAvailable = true
+		k.Status.ServerlessMode = operatorv1.Managed
 	}
 	return nil
 }
