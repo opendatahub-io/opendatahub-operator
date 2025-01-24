@@ -6,14 +6,17 @@ import (
 	"os"
 	"strings"
 
+	"path/filepath"
+
 	"github.com/blang/semver/v4"
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cacher"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/resourcecacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/operator-framework/api/pkg/lib/version"
 	"gopkg.in/yaml.v3"
-	"path/filepath"
 )
 
 const (
@@ -35,12 +38,44 @@ type ComponentReleaseMeta struct {
 }
 
 type Action struct {
+	resourcecacher.ResourceCacher
+
 	labels map[string]string
 }
 
 type ActionOpts func(*Action)
 
-// run executes the reconciliation logic for fetching and processing component releases.
+func (a *Action) run(_ context.Context, rr *types.ReconciliationRequest) error {
+	// Ensure the resource implements the WithReleases interface
+	obj, ok := rr.Instance.(common.WithReleases)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a WithReleases", rr.Instance)
+	}
+
+	res, _, err := a.ResourceCacher.Render(a, rr)
+	if err != nil {
+		return err
+	}
+	componentReleasesStatus, ok := res.([]common.ComponentReleaseStatus)
+	if !ok {
+		return fmt.Errorf("unable to convert cached object to []ComponentReleaseStatus")
+	}
+
+	// Update the release status in the resource
+	*obj.GetReleaseStatus() = componentReleasesStatus
+
+	return nil
+}
+
+func (a *Action) Render(_ cacher.Renderer, rr *types.ReconciliationRequest) (any, bool, error) {
+	res, err := a.render(rr)
+	if err != nil {
+		return nil, false, fmt.Errorf("unable to render reconciliation object: %w", err)
+	}
+	return res, true, nil
+}
+
+// render fetches and processes component releases.
 //
 // This function:
 // 1. Reads the metadata file for the specified component.
@@ -48,17 +83,11 @@ type ActionOpts func(*Action)
 // 3. Updates the component's release status in the reconciliation request.
 //
 // Parameters:
-// - ctx: The context for managing deadlines and cancellations.
 // - rr: The reconciliation request containing the component instance.
 //
 // Returns:
 // - An error if the operation fails.
-func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
-	// Ensure the resource implements the WithReleases interface
-	obj, ok := rr.Instance.(common.WithReleases)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a WithReleases", rr.Instance)
-	}
+func (a *Action) render(rr *types.ReconciliationRequest) ([]common.ComponentReleaseStatus, error) {
 
 	// Build the path to the component metadata file
 	controllerName := strings.ToLower(rr.Instance.GetObjectKind().GroupVersionKind().Kind)
@@ -68,15 +97,15 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 	yamlData, err := os.ReadFile(metadataPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("metadata file not found at %s", metadataPath)
+			return nil, fmt.Errorf("metadata file not found at %s", metadataPath)
 		}
-		return fmt.Errorf("error reading metadata file: %w", err)
+		return nil, fmt.Errorf("error reading metadata file: %w", err)
 	}
 
 	// Unmarshal YAML into defined struct
 	var componentMeta ComponentReleasesMeta
 	if err := yaml.Unmarshal(yamlData, &componentMeta); err != nil {
-		return fmt.Errorf("error unmarshaling YAML: %w", err)
+		return nil, fmt.Errorf("error unmarshaling YAML: %w", err)
 	}
 
 	// Parse and populate releases
@@ -85,7 +114,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 		//componentVersion, err := semver.Parse(release.Version)
 		componentVersion, err := semver.Parse(strings.Trim(release.Version, "v"))
 		if err != nil {
-			return fmt.Errorf("invalid version format for release %s: %w", release.Name, err)
+			return nil, fmt.Errorf("invalid version format for release %s: %w", release.Name, err)
 		}
 		componentReleasesStatus = append(componentReleasesStatus, common.ComponentReleaseStatus{
 			Name:    release.Name,
@@ -94,10 +123,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 		})
 	}
 
-	// Update the release status in the resource
-	*obj.GetReleaseStatus() = componentReleasesStatus
-
-	return nil
+	return componentReleasesStatus, nil
 }
 
 func NewAction(opts ...ActionOpts) actions.Fn {
