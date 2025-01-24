@@ -50,7 +50,8 @@ type ModelRegistrySpec struct {
 
 // ModelRegistryCommonStatus defines the shared observed state of ModelRegistry
 type ModelRegistryCommonStatus struct {
-	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
+	RegistriesNamespace string                          `json:"registriesNamespace,omitempty"`
+	Releases            []common.ComponentReleaseStatus `json:"releases,omitempty"`
 }
 
 // ModelRegistryStatus defines the observed state of ModelRegistry
@@ -81,6 +82,14 @@ func (c *ModelRegistry) GetDevFlags() *common.DevFlags {
 
 func (c *ModelRegistry) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *ModelRegistry) GetReleaseStatus() *[]common.ComponentReleaseStatus {
+	return &c.Status.Releases
+}
+
+func (c *ModelRegistry) SetReleaseStatus(releases []common.ComponentReleaseStatus) {
+	c.Status.Releases = releases
 }
 
 // +kubebuilder:object:root=true

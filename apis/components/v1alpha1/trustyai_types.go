@@ -57,6 +57,11 @@ type TrustyAICommonSpec struct {
 
 // TrustyAICommonStatus defines the shared observed state of TrustyAI
 type TrustyAICommonStatus struct {
+	// +patchMergeKey=name
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=name
+	Releases []common.ComponentReleaseStatus `json:"releases,omitempty"`
 }
 
 // TrustyAIStatus defines the observed state of TrustyAI
@@ -80,8 +85,15 @@ func init() {
 func (c *TrustyAI) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
+
 func (c *TrustyAI) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *TrustyAI) GetReleaseStatus() *[]common.ComponentReleaseStatus { return &c.Status.Releases }
+
+func (c *TrustyAI) SetReleaseStatus(releases []common.ComponentReleaseStatus) {
+	c.Status.Releases = releases
 }
 
 // DSCTrustyAI contains all the configuration exposed in DSC instance for TrustyAI component
