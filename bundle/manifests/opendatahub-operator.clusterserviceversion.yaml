@@ -994,6 +994,14 @@ spec:
           verbs:
           - '*'
         - apiGroups:
+          - operator.knative.dev
+          resources:
+          - knativeservings/finalizers
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
           - operator.openshift.io
           resources:
           - consoles
