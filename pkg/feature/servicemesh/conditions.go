@@ -90,6 +90,9 @@ func WaitForControlPlaneToBeReady(ctx context.Context, cli client.Client, f *fea
 
 	return wait.PollUntilContextTimeout(ctx, interval, duration, false, func(ctx context.Context) (bool, error) {
 		ready, err := CheckControlPlaneComponentReadiness(ctx, cli, smcp, smcpNs)
+		if k8serr.IsNotFound(err) {
+			return false, nil
+		}
 
 		if ready {
 			f.Log.Info("done waiting for control plane components to be ready", "control-plane", smcp, "namespace", smcpNs)
@@ -112,8 +115,11 @@ func CheckControlPlaneComponentReadiness(ctx context.Context, c client.Client, s
 	}
 
 	components, found, err := unstructured.NestedMap(smcpObj.Object, "status", "readiness", "components")
-	if err != nil || !found {
+	if err != nil {
 		return false, fmt.Errorf("status conditions not found or error in parsing of Service Mesh Control Plane: %w", err)
+	}
+	if !found {
+		return false, nil
 	}
 
 	readyComponents := len(components["ready"].([]interface{}))     //nolint:forcetypeassert,errcheck
