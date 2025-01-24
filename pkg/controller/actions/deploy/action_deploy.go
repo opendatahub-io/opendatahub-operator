@@ -134,7 +134,7 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		default:
 			// Remove the DSC and DSCI owner reference if set, This is required during the
 			// transition from the old to the new operator.
-			if err := removeOwnerReferences(ctx, rr.Client, current, isLegacyOwnerRef); err != nil {
+			if err := resources.RemoveOwnerReferences(ctx, rr.Client, current, isLegacyOwnerRef); err != nil {
 				return err
 			}
 

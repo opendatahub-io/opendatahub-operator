@@ -13,6 +13,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -24,6 +25,10 @@ import (
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	odhManager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+)
+
+const (
+	finalizerName = "platform.opendatahub.io/finalizer"
 )
 
 // Reconciler provides generic reconciliation functionality for ODH objects.
@@ -112,13 +117,50 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if err := r.delete(ctx, res); err != nil {
 			return ctrl.Result{}, err
 		}
+		if err := r.removeFinalizer(ctx, res); err != nil {
+			return ctrl.Result{}, err
+		}
 	} else {
+		if err := r.addFinalizer(ctx, res); err != nil {
+			return ctrl.Result{}, err
+		}
+
 		if err := r.apply(ctx, res); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *Reconciler) addFinalizer(ctx context.Context, res common.PlatformObject) error {
+	if len(r.Finalizer) == 0 {
+		return nil
+	}
+
+	if !controllerutil.AddFinalizer(res, finalizerName) {
+		return nil
+	}
+
+	err := r.Client.Update(ctx, res)
+	if err != nil {
+		return fmt.Errorf("failure adding finalizer %s: %w", finalizerName, err)
+	}
+
+	return nil
+}
+
+func (r *Reconciler) removeFinalizer(ctx context.Context, res common.PlatformObject) error {
+	if !controllerutil.RemoveFinalizer(res, finalizerName) {
+		return nil
+	}
+
+	err := r.Client.Update(ctx, res)
+	if err != nil {
+		return fmt.Errorf("failure removing finalizer %s: %w", finalizerName, err)
+	}
+
+	return nil
 }
 
 func (r *Reconciler) delete(ctx context.Context, res common.PlatformObject) error {
