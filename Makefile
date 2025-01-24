@@ -106,6 +106,13 @@ IMAGE_BUILD_FLAGS += --build-arg CGO_ENABLED=$(CGO_ENABLED)
 OPERATOR_MAKE_ENV_FILE = local.mk
 -include $(OPERATOR_MAKE_ENV_FILE)
 
+# Buildx function for building multi-arch image
+define func_buildx
+	- docker buildx create --name project-v3-builder
+	- docker buildx use project-v3-builder
+	docker buildx build --no-cache --push --platform=$2 --tag $3 -f $1 .
+	- docker buildx rm project-v3-builder
+endef
 
 .PHONY: default
 default: manifests generate lint unit-test build
@@ -187,6 +194,13 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager main.go
+
+# Build multi-arch image
+
+PLATFORMS ?= linux/amd64,linux/s390x,linux/ppc64le
+.PHONY: docker-buildx
+docker-buildx: ## Build and push docker image for the manager for cross-platform support
+	$(call func_buildx,./Dockerfiles/Dockerfile,$(PLATFORMS),$(IMG))
 
 RUN_ARGS = --log-mode=devel
 GO_RUN_MAIN = OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=$(DEFAULT_MANIFESTS_PATH) go run $(GO_RUN_ARGS) ./main.go $(RUN_ARGS)
@@ -305,6 +319,12 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 bundle-build: bundle
 	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile -t $(BUNDLE_IMG) .
 
+# Bundle-Build multi-arch image
+
+.PHONY: bundle-docker-buildx
+bundle-docker-buildx: ## Build and push docker image for the manager for cross-platform support
+	$(call func_buildx,./Dockerfiles/bundle.Dockerfile,$(PLATFORMS),$(BUNDLE_IMG))
+
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
 	$(MAKE) image-push IMG=$(BUNDLE_IMG)
@@ -352,6 +372,26 @@ endif
 .PHONY: catalog-build
 catalog-build: opm ## Build a catalog image.
 	$(OPM) index add --container-tool $(IMAGE_BUILDER) --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+
+ARCHS = amd64 ppc64le s390x
+OPM_BINARY_IMAGE ?= quay.io/operator-framework/opm:v1.28.0
+
+.PHONY: catalog-build-multi-arch
+catalog-build-multi-arch:  ## Build a catalog image for all architectures and push them.
+	@for ARCH in ${ARCHS}; do \
+		DIGEST=$$(skopeo inspect --raw docker://${BUNDLE_IMG} | \
+			jq -r ".manifests[] | select(.platform.architecture == \"$$ARCH\" and .platform.os == \"linux\").digest"); \
+		$(OPM) index add --container-tool docker --mode semver --bundles "$(BUNDLE_IMG)@$$DIGEST" \
+			--tag "$(CATALOG_IMG)-$$ARCH" --binary-image "$(OPM_BINARY_IMAGE)-$$ARCH"; \
+		docker push "$(CATALOG_IMG)-$$ARCH"; \
+	done
+
+.PHONY: catalog-push-multi-arch
+catalog-push-multi-arch: catalog-build-multi-arch	## Create and push a multi-architecture manifest.
+	docker manifest rm $(CATALOG_IMG) || true
+	docker manifest create --amend "$(CATALOG_IMG)" \
+	$(foreach ARCH, ${ARCHS}, $(CATALOG_IMG)-$(ARCH))
+	docker manifest push "$(CATALOG_IMG)"
 
 # Push the catalog image.
 .PHONY: catalog-push

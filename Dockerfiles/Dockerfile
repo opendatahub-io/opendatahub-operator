@@ -2,7 +2,7 @@
 ARG GOLANG_VERSION=1.22
 
 ################################################################################
-FROM registry.access.redhat.com/ubi8/toolbox as manifests
+FROM --platform=${BUILDPLATFORM} registry.access.redhat.com/ubi8/toolbox as manifests
 ARG USE_LOCAL=false
 ARG OVERWRITE_MANIFESTS=""
 USER root
