@@ -77,6 +77,7 @@ type KserveCommonStatus struct {
 	// DefaultDeploymentMode is the value of the defaultDeploymentMode field
 	// as read from the "deploy" JSON in the inferenceservice-config ConfigMap
 	DefaultDeploymentMode string `json:"defaultDeploymentMode,omitempty"`
+	ServerlessAvailable   bool   `json:"serverlessAvailable"`
 }
 
 // KserveStatus defines the observed state of Kserve

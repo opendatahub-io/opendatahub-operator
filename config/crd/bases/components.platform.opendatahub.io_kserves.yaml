@@ -226,6 +226,10 @@ spec:
                 type: integer
               phase:
                 type: string
+              serverlessAvailable:
+                type: boolean
+            required:
+            - serverlessAvailable
             type: object
         type: object
         x-kubernetes-validations:
