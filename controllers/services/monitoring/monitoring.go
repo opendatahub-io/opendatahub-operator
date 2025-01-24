@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"gopkg.in/yaml.v2"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -24,7 +23,6 @@ import (
 var (
 	ComponentName        = serviceApi.MonitoringServiceName
 	prometheusConfigPath = filepath.Join(odhdeploy.DefaultManifestPath, ComponentName, "prometheus", "apps", "prometheus-configs.yaml")
-	ReadyConditionType   = conditionsv1.ConditionType(status.ReadySuffix)
 )
 
 // updatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
