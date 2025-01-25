@@ -269,12 +269,5 @@ func ownedViaFT(cli client.Client) handler.MapFunc {
 }
 
 func isLegacyOwnerRef(or metav1.OwnerReference) bool {
-	switch {
-	case or.APIVersion == gvk.DataScienceCluster.GroupVersion().String() && or.Kind == gvk.DataScienceCluster.Kind:
-		return true
-	case or.APIVersion == gvk.DSCInitialization.GroupVersion().String() && or.Kind == gvk.DSCInitialization.Kind:
-		return true
-	default:
-		return false
-	}
+	return or.APIVersion == gvk.DataScienceCluster.GroupVersion().String() && or.Kind == gvk.DataScienceCluster.Kind
 }
