@@ -154,6 +154,17 @@ rules:
   - build.openshift.io
   resources:
   - buildconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - build.openshift.io
+  resources:
   - buildconfigs/instantiate
   - builds
   verbs:
