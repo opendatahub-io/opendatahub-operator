@@ -3,20 +3,20 @@ package releases
 import (
 	"context"
 	"fmt"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"os"
 	"path/filepath"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"strings"
 
 	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/lib/version"
 	"gopkg.in/yaml.v3"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 const (
@@ -121,7 +121,7 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) ([
 		if os.IsNotExist(err) {
 			// Log a message indicating the file doesn't exist but do not return an error
 			// Log this as a warning, as it's not necessarily a failure if the file is absent
-			log.Info("Metadata file not found, proceeding with empty releases", "metadataFilePath", metadataPath)
+			log.V(3).Info("Metadata file not found, proceeding with empty releases", "metadataFilePath", metadataPath)
 			// Return an empty slice of releases instead of an error
 			return nil, nil
 		}
