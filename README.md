@@ -6,6 +6,7 @@ and configure these applications.
 - [Usage](#usage)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
+  - [Configuration](#configuration)
 - [Developer Guide](#developer-guide)
     - [Pre-requisites](#pre-requisites)
     - [Download manifests](#download-manifests)
@@ -71,6 +72,26 @@ Additionally installing `Authorino operator` & `Service Mesh operator` enhances 
     You can also use operator to create default DSCI CR by removing env variable DISABLE_DSC_CONFIG from CSV or changing the value to "false", followed by restarting the operator pod.
 
   3. Create [DataScienceCluster](#example-datasciencecluster) CR to enable components
+
+
+### Configuration
+
+- in ODH 2.23.1, we introduced a new feature which allows user to use their own application namespace than default one "opendatahub".
+
+1. for new cluster, as this cluster has not been used for ODH or RHOAI.
+   Here we use namespace A for example as targeted application namespace, please follow below steps before install ODH operator:
+
+   - create namespace A
+   - add label `opendatahub.io/application-namespace: true`  onto namespace A. Only one namespace in the cluster can have this label.
+   - install ODH operator either from UI or by GitOps/CLI
+   - once Operator is up and running, manually create DSCI CR by set `.spec.applicationsNamespace:A`
+   - wait till DSCI status update to "Ready"
+   - continue to create DSC CR
+
+2. for upgrade case, as ODH is running in the cluster.
+
+   Be aware: to switch to a different application namespace can cause more issues and require manual cleanup, therefore we suggest this to be done for new cluster.
+
 
 ## Developer Guide
 
