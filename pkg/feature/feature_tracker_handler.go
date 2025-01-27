@@ -48,7 +48,7 @@ func createFeatureTracker(ctx context.Context, cli client.Client, f *Feature) er
 	if f.owner != nil {
 		var ownerRef cluster.MetaOptions
 		if f.controller {
-			ownerRef = cluster.ControllerBy(f.owner, cli.Scheme())
+			ownerRef = cluster.ControlledBy(f.owner, cli.Scheme())
 		} else {
 			ownerRef = cluster.OwnedBy(f.owner, cli.Scheme())
 		}
