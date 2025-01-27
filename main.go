@@ -301,6 +301,8 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			Cache: &client.CacheOptions{
 				DisableFor: []client.Object{
 					resources.GvkToUnstructured(gvk.OpenshiftIngress),
+					&ofapiv1alpha1.Subscription{},
+					resources.GvkToUnstructured(gvk.ServiceMeshControlPlane),
 					&authorizationv1.SelfSubjectRulesReview{},
 				},
 				// Set it to true so the cache-backed client reads unstructured objects
@@ -476,6 +478,7 @@ func getCommonCache(ctx context.Context, cli client.Client, platform cluster.Pla
 	if platform == cluster.ManagedRhoai {
 		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+		namespaceConfigs[cluster.NamespaceConsoleLink] = cache.Config{}
 		return namespaceConfigs, nil
 	}
 	cNamespaceList := &corev1.NamespaceList{}
@@ -490,12 +493,14 @@ func getCommonCache(ctx context.Context, cli client.Client, platform cluster.Pla
 	case 0:
 		if platform == cluster.SelfManagedRhoai {
 			namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+			namespaceConfigs["redhat-ods-monitoring"] = cache.Config{} // since we still create monitoring namespace for self-managed
 			return namespaceConfigs, nil
 		}
 		namespaceConfigs["opendatahub"] = cache.Config{}
 		return namespaceConfigs, nil
 	case 1:
 		namespaceConfigs[cNamespaceList.Items[0].Name] = cache.Config{}
+		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{} // since we still create monitoring namespace for self-managed
 	default:
 		return map[string]cache.Config{}, errors.New("only support max. one namespace with label: opendatahub.io/application-namespace: true")
 	}

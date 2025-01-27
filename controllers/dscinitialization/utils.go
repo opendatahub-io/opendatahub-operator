@@ -51,10 +51,10 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 		return err
 	}
 
-	// Patch monitoring namespace
+	// Patch monitoring namespace: no difference for any type of platform
 	err := r.patchMonitoringNS(ctx, dscInit)
 	if err != nil {
-		log.Error(err, "error patch monitoring namespace for managed cluster")
+		log.Error(err, "error patch monitoring namespace")
 		return err
 	}
 
@@ -125,7 +125,7 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 
 	// label only for managed cluster
 	if platform == cluster.ManagedRhoai {
-		labelList["openshift.io/cluster-monitoring"] = "true"
+		labelList[labels.ClusterMonitoring] = labels.True
 	}
 
 	for _, l := range extraLabel {
@@ -143,19 +143,19 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 
 func (r *DSCInitializationReconciler) patchMonitoringNS(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
 	log := logf.FromContext(ctx)
-	if dscInit.Spec.Monitoring.ManagementState != operatorv1.Managed {
+	monitoringName := dscInit.Spec.Monitoring.Namespace
+	if dscInit.Spec.Monitoring.ManagementState != operatorv1.Managed || dscInit.Spec.ApplicationsNamespace == monitoringName {
 		return nil
 	}
 	// Create Monitoring Namespace if it is enabled and not exists
-	monitoringName := dscInit.Spec.Monitoring.Namespace
 
 	desiredMonitoringNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: monitoringName,
 			Labels: map[string]string{
-				labels.ODH.OwnedNamespace: "true",
+				labels.ODH.OwnedNamespace: labels.True,
 				labels.SecurityEnforce:    "baseline",
-				labels.ClusterMonitoring:  "true",
+				labels.ClusterMonitoring:  labels.True,
 			},
 		},
 	}
