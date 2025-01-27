@@ -2,7 +2,7 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended"],
     "branchPrefix": "renovate/",
-    "baseBranches": ["main", "rhoai-2.16", "rhoai-2.17"],
+    "baseBranches": ["main", "rhoai-2.16", "rhoai-2.17", "rhoai-2.13", "rhoai-2.18"],
     "ignoreTests": true,
     "automergeType": "pr",
     "automerge": true,
@@ -10,7 +10,7 @@
     "packageRules": [
       {
         "matchManagers": ["dockerfile"],
-        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.17"],
+        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.17", "rhoai-2.13"],
         "matchUpdateTypes": ["digest"],
         "matchFileNames": ["*Dockerfile.konflux*"],
         "enabled": true,
@@ -22,8 +22,13 @@
         "semanticCommits": "enabled"
       },
       {
+        "matchManagers": ["dockerfile"],
+        "matchBaseBranches": ["rhoai-2.18"],
+        "enabled": false
+      },
+      {
         "matchManagers": ["tekton"],
-        "matchBaseBranches": ["rhoai-2.16", "rhoai-2.17"],
+        "matchBaseBranches": ["rhoai-2.16", "rhoai-2.17", "rhoai-2.13"],
         "matchUpdateTypes": ["digest"],
         "enabled": true,
         "groupName": "Tekton Updates",
@@ -37,7 +42,7 @@
       },
       {
         "matchManagers": ["rpm"],
-        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.17"],
+        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.17", "rhoai-2.13"],
         "groupName": "RPM Updates",
         "commitMessageTopic": "RPM updates",
         "enabled": true,
