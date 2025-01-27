@@ -107,7 +107,7 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 			ApplicationsNamespace: "opendatahub",
 			Monitoring: serviceApi.DSCMonitoring{
 				ManagementSpec: common.ManagementSpec{
-					ManagementState: operatorv1.Managed,
+					ManagementState: operatorv1.Removed, // keep rhoai branch to Managed so we can test it
 				},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 					Namespace: "opendatahub",
