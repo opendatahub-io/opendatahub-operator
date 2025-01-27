@@ -76,3 +76,16 @@ IMAGE_BUILD_FLAGS=--build-arg USE_LOCAL=true
 E2E_TEST_FLAGS="--skip-deletion=true" -timeout 15m
 DEFAULT_MANIFESTS_PATH=./opt/manifests
 ```
+
+### When I try to use my own application namespace, I get different errors:
+
+1. Operator pod is keeping crash
+Ensure in your cluster, only one application has label `opendatahub.io/application-namespace=true`.  This is similar to case (3).
+
+2. error "DSCI must used the same namespace which has opendatahub.io/application-namespace=true label"
+In the cluster, one namespace has label `opendatahub.io/application-namespace=true`, but it is not being set in the DSCI's `.spec.applicationsNamespace`, solutions (any of below ones should work):
+- delete existin DSCI, and re-create it with namespace which already has label `opendatahub.io/application-namespace=true`
+- remove label `opendatahub.io/application-namespace=true` from the other namespace to the one specified in the DSCI, and wait for a couple of minutes to allow DSCI continue.
+
+3. error "only support max. one namespace with label: opendatahub.io/application-namespace=true"
+Refer to (1).
