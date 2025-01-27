@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 )
 
 var _ predicate.Predicate = DeploymentPredicate{}
@@ -114,6 +115,30 @@ var DSCComponentUpdatePredicate = predicate.Funcs{
 				}
 			}
 		}
+		return false
+	},
+}
+
+var DSCIReadiness = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldObj, ok := e.ObjectOld.(*dsciv1.DSCInitialization)
+		if !ok {
+			return false
+		}
+		newObj, ok := e.ObjectNew.(*dsciv1.DSCInitialization)
+		if !ok {
+			return false
+		}
+
+		return oldObj.Status.Phase != newObj.Status.Phase
+	},
+	CreateFunc: func(e event.CreateEvent) bool {
+		return false
+	},
+	DeleteFunc: func(e event.DeleteEvent) bool {
+		return false
+	},
+	GenericFunc: func(e event.GenericEvent) bool {
 		return false
 	},
 }
