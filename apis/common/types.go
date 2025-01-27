@@ -2,6 +2,7 @@ package common
 
 import (
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -70,12 +71,27 @@ type Status struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
+// ComponentReleaseStatus represents the detailed status of a component release.
+// +kubebuilder:object:generate=true
+type ComponentReleaseStatus struct {
+	// +required
+	// +kubebuilder:validation:Required
+	Name    string                  `json:"name"`
+	Version version.OperatorVersion `json:"version,omitempty"`
+	RepoURL string                  `json:"repoUrl,omitempty"`
+}
+
 type WithStatus interface {
 	GetStatus() *Status
 }
 
 type WithDevFlags interface {
 	GetDevFlags() *DevFlags
+}
+
+type WithReleases interface {
+	GetReleaseStatus() *[]ComponentReleaseStatus
+	SetReleaseStatus(status []ComponentReleaseStatus)
 }
 
 type PlatformObject interface {

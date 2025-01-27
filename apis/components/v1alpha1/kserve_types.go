@@ -77,6 +77,11 @@ type KserveCommonStatus struct {
 	// DefaultDeploymentMode is the value of the defaultDeploymentMode field
 	// as read from the "deploy" JSON in the inferenceservice-config ConfigMap
 	DefaultDeploymentMode string `json:"defaultDeploymentMode,omitempty"`
+	// +patchMergeKey=name
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=name
+	Releases []common.ComponentReleaseStatus `json:"releases,omitempty"`
 }
 
 // KserveStatus defines the observed state of Kserve
@@ -107,6 +112,14 @@ func (c *Kserve) GetDevFlags() *common.DevFlags {
 
 func (c *Kserve) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *Kserve) GetReleaseStatus() *[]common.ComponentReleaseStatus {
+	return &c.Status.Releases
+}
+
+func (c *Kserve) SetReleaseStatus(releases []common.ComponentReleaseStatus) {
+	c.Status.Releases = releases
 }
 
 // +kubebuilder:object:root=true
