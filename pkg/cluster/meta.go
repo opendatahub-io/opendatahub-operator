@@ -37,7 +37,7 @@ func OwnedBy(owner metav1.Object, scheme *runtime.Scheme) MetaOptions {
 	}
 }
 
-func ControllerBy(owner metav1.Object, scheme *runtime.Scheme) MetaOptions {
+func ControlledBy(owner metav1.Object, scheme *runtime.Scheme) MetaOptions {
 	return func(obj metav1.Object) error {
 		return controllerutil.SetControllerReference(owner, obj, scheme)
 	}
