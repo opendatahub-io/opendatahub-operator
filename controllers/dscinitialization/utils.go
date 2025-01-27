@@ -292,6 +292,17 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(
 						},
 					},
 				},
+				{ // OR logic to minic customized application namespace
+					From: []networkingv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{ // AND logic
+								MatchLabels: map[string]string{
+									labels.CustomizedAppNamespace: labels.True,
+								},
+							},
+						},
+					},
+				},
 				{ // OR logic
 					From: []networkingv1.NetworkPolicyPeer{
 						{ // need this to access external-> dashboard
