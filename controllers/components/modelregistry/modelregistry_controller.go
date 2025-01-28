@@ -19,6 +19,7 @@ package modelregistry
 import (
 	"context"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -82,6 +83,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// actions
 		WithAction(checkPreConditions).
 		WithAction(initialize).
+		WithAction(releases.NewAction()).
 		WithAction(configureDependencies).
 		WithAction(template.NewAction(
 			template.WithCache(),

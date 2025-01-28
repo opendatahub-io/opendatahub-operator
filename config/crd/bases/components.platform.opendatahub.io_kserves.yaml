@@ -226,6 +226,19 @@ spec:
                 type: integer
               phase:
                 type: string
+              releases:
+                items:
+                  description: ComponentReleaseStatus represents the detailed status
+                    of a component release.
+                  properties:
+                    name:
+                      type: string
+                    repoUrl:
+                      type: string
+                    version:
+                      type: string
+                  type: object
+                type: array
             type: object
         type: object
         x-kubernetes-validations:

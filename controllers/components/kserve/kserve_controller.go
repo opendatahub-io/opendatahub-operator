@@ -18,6 +18,7 @@ package kserve
 
 import (
 	"context"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 
 	templatev1 "github.com/openshift/api/template/v1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -162,6 +163,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(devFlags).
+		WithAction(releases.NewAction()).
 		WithAction(configureServerless).
 		WithAction(configureServiceMesh).
 		WithAction(kustomize.NewAction(

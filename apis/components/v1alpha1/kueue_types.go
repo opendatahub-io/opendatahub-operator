@@ -57,6 +57,7 @@ type KueueCommonSpec struct {
 
 // KueueCommonStatus defines the shared observed state of Kueue
 type KueueCommonStatus struct {
+	Releases []common.ComponentReleaseStatus `json:"releases,omitempty"`
 }
 
 // KueueStatus defines the observed state of Kueue
@@ -80,9 +81,12 @@ func init() {
 func (c *Kueue) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
+
 func (c *Kueue) GetStatus() *common.Status {
 	return &c.Status.Status
 }
+
+func (c *Kueue) GetReleaseStatus() *[]common.ComponentReleaseStatus { return &c.Status.Releases }
 
 // DSCKueue contains all the configuration exposed in DSC instance for Kueue component
 type DSCKueue struct {

@@ -1,20 +1,17 @@
 package kustomize
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cacher"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/resourcecacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 const RendererEngine = "kustomize"
@@ -23,12 +20,10 @@ const RendererEngine = "kustomize"
 // further processing. The Action can eventually cache the results in memory to avoid doing
 // a full manifest rendering when not needed.
 type Action struct {
+	resourcecacher.ResourceCacher
+
 	keOpts []kustomize.EngineOptsFn
 	ke     *kustomize.Engine
-
-	cachingKeyFn    render.CachingKeyFn
-	cachingKey      []byte
-	cachedResources resources.UnstructuredList
 }
 
 type ActionOpts func(*Action)
@@ -70,55 +65,26 @@ func WithManifestsOptions(values ...kustomize.EngineOptsFn) ActionOpts {
 }
 
 func WithCache() ActionOpts {
-	return func(action *Action) {
-		action.cachingKeyFn = types.Hash
+	return func(a *Action) {
+		a.ResourceCacher.SetKey(types.Hash)
 	}
 }
 
+func (*Action) Name() string {
+	return RendererEngine
+}
+
 func (a *Action) run(_ context.Context, rr *types.ReconciliationRequest) error {
-	var err error
-	var cachingKey []byte
+	_, _, err := a.ResourceCacher.Render(a, rr)
+	return err
+}
 
-	inst, ok := rr.Instance.(common.WithDevFlags)
-	if ok && inst.GetDevFlags() != nil {
-		// if dev flags are enabled, caching is disabled as dev flags are meant for
-		// development time only where caching is not relevant
-		a.cachingKey = nil
-	} else {
-		cachingKey, err = a.cachingKeyFn(rr)
-		if err != nil {
-			return fmt.Errorf("unable to calculate checksum of reconciliation object: %w", err)
-		}
+func (a *Action) Render(_ cacher.Renderer, rr *types.ReconciliationRequest) (any, bool, error) {
+	res, err := a.render(rr)
+	if err != nil {
+		return nil, false, fmt.Errorf("unable to render reconciliation object: %w", err)
 	}
-
-	var result resources.UnstructuredList
-
-	if len(cachingKey) != 0 && bytes.Equal(cachingKey, a.cachingKey) && len(a.cachedResources) != 0 {
-		result = a.cachedResources
-	} else {
-		res, err := a.render(rr)
-		if err != nil {
-			return fmt.Errorf("unable to render reconciliation object: %w", err)
-		}
-
-		result = res
-
-		if len(cachingKey) != 0 {
-			a.cachingKey = cachingKey
-			a.cachedResources = result
-		}
-
-		controllerName := strings.ToLower(rr.Instance.GetObjectKind().GroupVersionKind().Kind)
-		render.RenderedResourcesTotal.WithLabelValues(controllerName, RendererEngine).Add(float64(len(result)))
-
-		rr.Generated = true
-	}
-
-	// deep copy object so changes done in the pipelines won't
-	// alter them
-	rr.Resources = append(rr.Resources, result.Clone()...)
-
-	return nil
+	return res, true, nil
 }
 
 func (a *Action) render(rr *types.ReconciliationRequest) ([]unstructured.Unstructured, error) {
@@ -141,11 +107,7 @@ func (a *Action) render(rr *types.ReconciliationRequest) ([]unstructured.Unstruc
 }
 
 func NewAction(opts ...ActionOpts) actions.Fn {
-	action := Action{
-		cachingKeyFn: func(rr *types.ReconciliationRequest) ([]byte, error) {
-			return nil, nil
-		},
-	}
+	action := Action{}
 
 	for _, opt := range opts {
 		opt(&action)

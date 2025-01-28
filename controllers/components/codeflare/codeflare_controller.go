@@ -19,6 +19,8 @@ package codeflare
 import (
 	"context"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
+
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -67,6 +69,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// Add CodeFlare-specific actions
 		WithAction(initialize).
 		WithAction(devFlags).
+		WithAction(releases.NewAction(
+			releases.WithCache(),
+		)).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
