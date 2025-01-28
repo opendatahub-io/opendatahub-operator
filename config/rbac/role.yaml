@@ -271,6 +271,16 @@ rules:
   - console.openshift.io
   resources:
   - consolelinks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - console.openshift.io
+  resources:
   - odhquickstarts
   verbs:
   - create
@@ -278,6 +288,7 @@ rules:
   - get
   - list
   - patch
+  - update
   - watch
 - apiGroups:
   - controller-runtime.sigs.k8s.io
@@ -394,6 +405,7 @@ rules:
   - get
   - list
   - patch
+  - update
   - watch
 - apiGroups:
   - datasciencecluster.opendatahub.io
