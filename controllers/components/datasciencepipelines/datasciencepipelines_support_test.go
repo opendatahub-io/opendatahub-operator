@@ -22,7 +22,7 @@ func TestComputeParamsMap(t *testing.T) {
 	dsp := componentApi.DataSciencePipelines{
 		Spec: componentApi.DataSciencePipelinesSpec{
 			DataSciencePipelinesCommonSpec: componentApi.DataSciencePipelinesCommonSpec{
-				PreloadedPipelines: datasciencepipelines.PreloadedPipelinesSpec{},
+				PreloadedPipelines: datasciencepipelines.ManagedPipelinesSpec{},
 			},
 		},
 	}

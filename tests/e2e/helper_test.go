@@ -159,8 +159,8 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 					DataSciencePipelinesCommonSpec: componentApi.DataSciencePipelinesCommonSpec{
-						PreloadedPipelines: datasciencepipelines.PreloadedPipelinesSpec{
-							InstructLab: datasciencepipelines.PreloadedPipelineOptions{
+						PreloadedPipelines: datasciencepipelines.ManagedPipelinesSpec{
+							InstructLab: datasciencepipelines.ManagedPipelineOptions{
 								State: operatorv1.Removed,
 							},
 						},

@@ -5,13 +5,13 @@ package datasciencepipelines
 
 import operatorv1 "github.com/openshift/api/operator/v1"
 
-type PreloadedPipelinesSpec struct {
+type ManagedPipelinesSpec struct {
 	// Configures whether to automatically import the InstructLab pipeline.
 	// You must enable the trainingoperator component to run the InstructLab pipeline.
-	InstructLab PreloadedPipelineOptions `json:"instructLab,omitempty"`
+	InstructLab ManagedPipelineOptions `json:"instructLab,omitempty"`
 }
 
-type PreloadedPipelineOptions struct {
+type ManagedPipelineOptions struct {
 	// Set to one of the following values:
 	//
 	// - "Managed" : This pipeline is automatically imported.

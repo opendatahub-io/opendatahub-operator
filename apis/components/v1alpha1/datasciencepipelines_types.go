@@ -52,7 +52,7 @@ type DataSciencePipelinesSpec struct {
 
 type DataSciencePipelinesCommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
-	PreloadedPipelines  datasciencepipelines.PreloadedPipelinesSpec `json:"preloadedPipelines,omitempty"`
+	PreloadedPipelines  datasciencepipelines.ManagedPipelinesSpec `json:"managedPipelines,omitempty"`
 }
 
 // DataSciencePipelinesCommonStatus defines the shared observed state of DataSciencePipelines

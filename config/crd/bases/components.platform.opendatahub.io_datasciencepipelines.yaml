@@ -75,7 +75,7 @@ spec:
                       type: object
                     type: array
                 type: object
-              preloadedPipelines:
+              managedPipelines:
                 properties:
                   instructLab:
                     description: |-
