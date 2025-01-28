@@ -7,6 +7,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
@@ -43,9 +44,10 @@ type Feature struct {
 
 	Log logr.Logger
 
-	tracker *featurev1.FeatureTracker
-	source  *featurev1.Source
-	owner   metav1.Object
+	tracker    *featurev1.FeatureTracker
+	source     *featurev1.Source
+	owner      metav1.Object
+	controller bool
 
 	data map[string]any
 
@@ -168,8 +170,22 @@ func OwnedBy(f *Feature) cluster.MetaOptions {
 	return cluster.WithOwnerReference(f.AsOwnerReference())
 }
 
+func ControlledBy(f *Feature) cluster.MetaOptions {
+	or := f.AsOwnerReference()
+	or.Controller = ptr.To[bool](true)
+	or.BlockOwnerDeletion = ptr.To[bool](true)
+	return cluster.WithOwnerReference(or)
+}
+
 func DefaultMetaOptions(f *Feature) []cluster.MetaOptions {
-	resourceMeta := []cluster.MetaOptions{OwnedBy(f)}
+	resourceMeta := make([]cluster.MetaOptions, 0, 1)
+
+	if f.controller {
+		resourceMeta = append(resourceMeta, ControlledBy(f))
+	} else {
+		resourceMeta = append(resourceMeta, OwnedBy(f))
+	}
+
 	if f.Managed {
 		resourceMeta = append(resourceMeta, func(obj metav1.Object) error {
 			objAnnotations := obj.GetAnnotations()

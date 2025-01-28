@@ -786,6 +786,14 @@ spec:
         - apiGroups:
           - features.opendatahub.io
           resources:
+          - featuretrackers/finalizers
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - features.opendatahub.io
+          resources:
           - featuretrackers/status
           verbs:
           - delete
@@ -1016,6 +1024,14 @@ spec:
           - knativeservings
           verbs:
           - '*'
+        - apiGroups:
+          - operator.knative.dev
+          resources:
+          - knativeservings/finalizers
+          verbs:
+          - get
+          - patch
+          - update
         - apiGroups:
           - operator.openshift.io
           resources:

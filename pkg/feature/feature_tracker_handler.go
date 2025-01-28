@@ -38,19 +38,33 @@ func createFeatureTracker(ctx context.Context, cli client.Client, f *Feature) er
 
 	if k8serr.IsNotFound(errGet) {
 		tracker = featurev1.NewFeatureTracker(f.Name, f.TargetNamespace)
-		tracker.Spec = featurev1.FeatureTrackerSpec{
-			Source:       *f.source,
-			AppNamespace: f.TargetNamespace,
-		}
-		if f.owner != nil {
-			ownerRef := cluster.OwnedBy(f.owner, cli.Scheme())
-			if errMetaOpts := cluster.ApplyMetaOptions(tracker, ownerRef); errMetaOpts != nil {
-				return fmt.Errorf("failed adding owner to FeatureTracker %s: %w", tracker.Name, errMetaOpts)
-			}
+	}
+
+	tracker.Spec = featurev1.FeatureTrackerSpec{
+		Source:       *f.source,
+		AppNamespace: f.TargetNamespace,
+	}
+
+	if f.owner != nil {
+		var ownerRef cluster.MetaOptions
+		if f.controller {
+			ownerRef = cluster.ControlledBy(f.owner, cli.Scheme())
+		} else {
+			ownerRef = cluster.OwnedBy(f.owner, cli.Scheme())
 		}
 
+		if errMetaOpts := cluster.ApplyMetaOptions(tracker, ownerRef); errMetaOpts != nil {
+			return fmt.Errorf("failed adding owner to FeatureTracker %s: %w", tracker.Name, errMetaOpts)
+		}
+	}
+
+	if k8serr.IsNotFound(errGet) {
 		if errCreate := cli.Create(ctx, tracker); errCreate != nil {
 			return fmt.Errorf("failed creating FeatureTracker %s: %w", tracker.Name, errCreate)
+		}
+	} else {
+		if errUpdate := cli.Update(ctx, tracker); errUpdate != nil {
+			return fmt.Errorf("failed updating FeatureTracker %s: %w", tracker.Name, errUpdate)
 		}
 	}
 
