@@ -306,18 +306,18 @@ func setStatusFields(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 
 	k.Status.DefaultDeploymentMode = ddm
 
-	serviceMeshInstalled := false
+	serviceMeshEnabled := false
 	if rr.DSCI.Spec.ServiceMesh != nil {
-		if rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-			serviceMeshInstalled = true
+		if rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Managed || rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Unmanaged {
+			serviceMeshEnabled = true
 		}
 	}
-	serverlessInstalled := false
+	serverlessEnabled := false
 	if k.Spec.Serving.ManagementState == operatorv1.Managed || k.Spec.Serving.ManagementState == operatorv1.Unmanaged {
-		serverlessInstalled = true
+		serverlessEnabled = true
 	}
 	k.Status.ServerlessMode = operatorv1.Removed
-	if serverlessInstalled && serviceMeshInstalled {
+	if serverlessEnabled && serviceMeshEnabled {
 		k.Status.ServerlessMode = operatorv1.Managed
 	}
 	return nil
