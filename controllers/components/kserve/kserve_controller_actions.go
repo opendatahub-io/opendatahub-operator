@@ -9,11 +9,14 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
+	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -22,6 +25,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -132,6 +136,32 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 
 	rr.Manifests = []odhtypes.ManifestInfo{
 		kserveManifestInfo(kSourcePath),
+	}
+
+	return nil
+}
+
+func removeLegacyFeatureTrackerOwnerRef(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	ftNames := []string{
+		rr.DSCI.Spec.ApplicationsNamespace + "-serverless-serving-deployment",
+		rr.DSCI.Spec.ApplicationsNamespace + "-serverless-net-istio-secret-filtering",
+		rr.DSCI.Spec.ApplicationsNamespace + "-serverless-serving-gateways",
+		rr.DSCI.Spec.ApplicationsNamespace + "-kserve-external-authz",
+	}
+
+	for _, ftName := range ftNames {
+		obj := &featuresv1.FeatureTracker{}
+		err := rr.Client.Get(ctx, client.ObjectKey{Name: ftName}, obj)
+		switch {
+		case k8serr.IsNotFound(err):
+			continue
+		case err != nil:
+			return fmt.Errorf("error while retrieving FeatureTracker %s: %w", ftName, err)
+		}
+
+		if err := resources.RemoveOwnerReferences(ctx, rr.Client, obj, isLegacyOwnerRef); err != nil {
+			return err
+		}
 	}
 
 	return nil

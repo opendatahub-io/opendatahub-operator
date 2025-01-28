@@ -29,7 +29,6 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
@@ -69,17 +68,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// changes. The compareHashPredicate ensures that we don't needlessly enqueue
 		// requests if there are no changes that we don't care about.
 		Owns(&templatev1.Template{}, reconciler.WithPredicates(hash.Updated())).
-		// The FeatureTrackers are created slightly differently, and have
-		// ownerRefs set by controllerutil.SetOwnerReference() rather than
-		// controllerutil.SetControllerReference(), which means that the default
-		// eventHandler for Owns won't work, so a slightly modified variant is
-		// added here
-		Owns(&featuresv1.FeatureTracker{}, reconciler.WithEventHandler(
-			handler.EnqueueRequestForOwner(
-				mgr.GetScheme(),
-				mgr.GetRESTMapper(),
-				&componentApi.Kserve{},
-			))).
+		Owns(&featuresv1.FeatureTracker{}).
 		Owns(&networkingv1.NetworkPolicy{}).
 		Owns(&monitoringv1.ServiceMonitor{}).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
@@ -162,6 +151,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(devFlags).
+		WithAction(removeLegacyFeatureTrackerOwnerRef).
 		WithAction(configureServerless).
 		WithAction(configureServiceMesh).
 		WithAction(kustomize.NewAction(
