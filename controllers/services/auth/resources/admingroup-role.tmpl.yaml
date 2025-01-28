@@ -24,6 +24,7 @@ rules:
   - dashboard.opendatahub.io
   resources:
   - acceleratorprofiles
+  - hardwareprofiles
   verbs:
   - create
   - get

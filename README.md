@@ -430,7 +430,7 @@ Please refer to [api documentation](docs/api-overview.md)
 
 ### Component Integration
 
-Please refer to [components docs](components/README.md)
+Please refer to [components docs](docs/COMPONENT_INTEGRATION.md)
 
 ### Troubleshooting
 
