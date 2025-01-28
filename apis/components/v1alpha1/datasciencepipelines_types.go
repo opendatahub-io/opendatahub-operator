@@ -55,6 +55,11 @@ type DataSciencePipelinesCommonSpec struct {
 
 // DataSciencePipelinesCommonStatus defines the shared observed state of DataSciencePipelines
 type DataSciencePipelinesCommonStatus struct {
+	// +patchMergeKey=name
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=name
+	Releases []common.ComponentReleaseStatus `json:"releases,omitempty"`
 }
 
 // DataSciencePipelinesStatus defines the observed state of DataSciencePipelines
@@ -69,6 +74,14 @@ func (c *DataSciencePipelines) GetDevFlags() *common.DevFlags {
 
 func (c *DataSciencePipelines) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *DataSciencePipelines) GetReleaseStatus() *[]common.ComponentReleaseStatus {
+	return &c.Status.Releases
+}
+
+func (c *DataSciencePipelines) SetReleaseStatus(releases []common.ComponentReleaseStatus) {
+	c.Status.Releases = releases
 }
 
 // +kubebuilder:object:root=true
