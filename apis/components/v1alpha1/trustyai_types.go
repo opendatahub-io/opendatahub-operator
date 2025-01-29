@@ -57,6 +57,7 @@ type TrustyAICommonSpec struct {
 
 // TrustyAICommonStatus defines the shared observed state of TrustyAI
 type TrustyAICommonStatus struct {
+	common.ComponentReleaseStatus `json:",inline"`
 }
 
 // TrustyAIStatus defines the observed state of TrustyAI
@@ -80,8 +81,15 @@ func init() {
 func (c *TrustyAI) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
+
 func (c *TrustyAI) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *TrustyAI) GetReleaseStatus() *[]common.ComponentRelease { return &c.Status.Releases }
+
+func (c *TrustyAI) SetReleaseStatus(releases []common.ComponentRelease) {
+	c.Status.Releases = releases
 }
 
 // DSCTrustyAI contains all the configuration exposed in DSC instance for TrustyAI component
