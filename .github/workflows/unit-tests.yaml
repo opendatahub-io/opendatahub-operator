@@ -4,7 +4,7 @@ on:
     branches:
       - incubation
       - main
-      - master
+      - rhoai
   pull_request:
 jobs:
   unit-test:
