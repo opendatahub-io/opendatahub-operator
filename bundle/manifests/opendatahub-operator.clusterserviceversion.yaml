@@ -106,7 +106,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.23.1
-    createdAt: "2025-01-29T10:02:32Z"
+    createdAt: "2025-01-29T14:04:42Z"
     olm.skipRange: '>=1.0.0 <2.23.1'
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
@@ -536,16 +536,6 @@ spec:
           - console.openshift.io
           resources:
           - consolelinks
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - watch
-        - apiGroups:
-          - console.openshift.io
-          resources:
           - odhquickstarts
           verbs:
           - create
@@ -1262,6 +1252,7 @@ spec:
           - get
           - list
           - patch
+          - update
           - watch
         - apiGroups:
           - user.openshift.io
@@ -1272,6 +1263,7 @@ spec:
           - get
           - list
           - patch
+          - update
           - watch
         serviceAccountName: opendatahub-operator-controller-manager
       deployments:
