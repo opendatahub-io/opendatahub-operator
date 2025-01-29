@@ -11,6 +11,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
@@ -78,7 +79,7 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		Release:  cluster.Release{Name: cluster.OpenDataHub},
+		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
 	err = action(ctx, &rr)
@@ -148,7 +149,7 @@ func TestUpdateStatusActionReady(t *testing.T) {
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		Release:  cluster.Release{Name: cluster.OpenDataHub},
+		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
 	err = action(ctx, &rr)
@@ -217,7 +218,7 @@ func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		Release:  cluster.Release{Name: cluster.OpenDataHub},
+		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
 	err = action(ctx, &rr)
@@ -286,7 +287,7 @@ func TestUpdateStatusActionNotReadyNotFound(t *testing.T) {
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		Release:  cluster.Release{Name: cluster.OpenDataHub},
+		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
 	err = action(ctx, &rr)

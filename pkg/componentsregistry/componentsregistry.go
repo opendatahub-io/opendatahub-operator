@@ -12,13 +12,12 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 // ComponentHandler is an interface to manage a component
 // Every method should accept ctx since it contains the logger.
 type ComponentHandler interface {
-	Init(platform cluster.Platform) error
+	Init(platform common.Platform) error
 	// GetName and GetManagementState sound like pretty much the same across
 	// all components, but I could not find a way to avoid it
 	GetName() string
