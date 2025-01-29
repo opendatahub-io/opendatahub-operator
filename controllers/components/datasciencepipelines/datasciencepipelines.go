@@ -38,7 +38,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 	return operatorv1.Removed
 }
 
-func (s *componentHandler) Init(_ cluster.Platform) error {
+func (s *componentHandler) Init(_ common.Platform) error {
 	release := cluster.GetRelease()
 	extraParams := map[string]string{
 		platformVersionParamsKey: release.Version.String(),

@@ -24,6 +24,7 @@ import (
 	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -200,7 +201,7 @@ func TestGcAction(t *testing.T) {
 						UID:        apytypes.UID(id),
 					},
 				},
-				Release: cluster.Release{
+				Release: common.Release{
 					Name: cluster.OpenDataHub,
 					Version: version.OperatorVersion{
 						Version: tt.version,

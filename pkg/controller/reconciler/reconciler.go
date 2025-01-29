@@ -35,7 +35,7 @@ type Reconciler struct {
 	Log        logr.Logger
 	Controller controller.Controller
 	Recorder   record.EventRecorder
-	Release    cluster.Release
+	Release    common.Release
 
 	name            string
 	m               *odhManager.Manager
@@ -71,7 +71,7 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 	return &cc, nil
 }
 
-func (r *Reconciler) GetRelease() cluster.Release {
+func (r *Reconciler) GetRelease() common.Release {
 	return r.Release
 }
 

@@ -20,17 +20,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
-
-type Platform string
-
-// Release includes information on operator version and platform
-// +kubebuilder:object:generate=true
-type Release struct {
-	Name    Platform                `json:"name,omitempty"`
-	Version version.OperatorVersion `json:"version,omitempty"`
-}
 
 type ClusterInfo struct {
 	Type    string                  `json:"type,omitempty"` // openshift , TODO: can be other value if we later support other type
@@ -39,7 +31,7 @@ type ClusterInfo struct {
 
 var clusterConfig struct {
 	Namespace   string
-	Release     Release
+	Release     common.Release
 	ClusterInfo ClusterInfo
 }
 
@@ -84,7 +76,7 @@ func GetOperatorNamespace() (string, error) {
 	return clusterConfig.Namespace, nil
 }
 
-func GetRelease() Release {
+func GetRelease() common.Release {
 	return clusterConfig.Release
 }
 
@@ -169,8 +161,8 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 }
 
 // detectSelfManaged detects if it is Self Managed Rhoai or OpenDataHub.
-func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error) {
-	variants := map[string]Platform{
+func detectSelfManaged(ctx context.Context, cli client.Client) (common.Platform, error) {
+	variants := map[string]common.Platform{
 		"opendatahub-operator": OpenDataHub,
 		"rhods-operator":       SelfManagedRhoai,
 	}
@@ -189,7 +181,7 @@ func detectSelfManaged(ctx context.Context, cli client.Client) (Platform, error)
 }
 
 // detectManagedRhoai checks if catsrc CR add-on exists ManagedRhoai.
-func detectManagedRhoai(ctx context.Context, cli client.Client) (Platform, error) {
+func detectManagedRhoai(ctx context.Context, cli client.Client) (common.Platform, error) {
 	catalogSource := &ofapiv1alpha1.CatalogSource{}
 	operatorNs, err := GetOperatorNamespace()
 	if err != nil {
@@ -202,7 +194,7 @@ func detectManagedRhoai(ctx context.Context, cli client.Client) (Platform, error
 	return ManagedRhoai, nil
 }
 
-func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
+func getPlatform(ctx context.Context, cli client.Client) (common.Platform, error) {
 	switch os.Getenv("ODH_PLATFORM_TYPE") {
 	case "OpenDataHub":
 		return OpenDataHub, nil
@@ -223,8 +215,8 @@ func getPlatform(ctx context.Context, cli client.Client) (Platform, error) {
 	}
 }
 
-func getRelease(ctx context.Context, cli client.Client) (Release, error) {
-	initRelease := Release{
+func getRelease(ctx context.Context, cli client.Client) (common.Release, error) {
+	initRelease := common.Release{
 		// dummy version set to name "", version 0.0.0
 		Version: version.OperatorVersion{
 			Version: semver.Version{},
