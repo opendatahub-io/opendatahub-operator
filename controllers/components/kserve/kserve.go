@@ -15,7 +15,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
@@ -42,7 +41,7 @@ func init() { //nolint:gochecknoinits
 }
 
 // Init for set images.
-func (s *componentHandler) Init(platform cluster.Platform) error {
+func (s *componentHandler) Init(platform common.Platform) error {
 	return nil
 }
 

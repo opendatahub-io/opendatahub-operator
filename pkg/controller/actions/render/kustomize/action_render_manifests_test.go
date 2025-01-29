@@ -9,6 +9,7 @@ import (
 	"github.com/rs/xid"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -129,7 +130,7 @@ func TestRenderResourcesAction(t *testing.T) {
 		Client:    cl,
 		Instance:  &componentApi.Dashboard{},
 		DSCI:      &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		Release:   cluster.Release{Name: cluster.OpenDataHub},
+		Release:   common.Release{Name: cluster.OpenDataHub},
 		Manifests: []types.ManifestInfo{{Path: id}},
 	}
 
@@ -215,7 +216,7 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 			Client:    cl,
 			Instance:  &d,
 			DSCI:      &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-			Release:   cluster.Release{Name: cluster.OpenDataHub},
+			Release:   common.Release{Name: cluster.OpenDataHub},
 			Manifests: []types.ManifestInfo{{Path: id}},
 		}
 

@@ -3,6 +3,7 @@ package trustyai
 import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -27,7 +28,7 @@ var (
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
 	}
 
-	overlaysSourcePaths = map[cluster.Platform]string{
+	overlaysSourcePaths = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "/overlays/rhoai",
 		cluster.ManagedRhoai:     "/overlays/rhoai",
 		cluster.OpenDataHub:      "/overlays/odh",
@@ -35,7 +36,7 @@ var (
 	}
 )
 
-func manifestsPath(p cluster.Platform) types.ManifestInfo {
+func manifestsPath(p common.Platform) types.ManifestInfo {
 	return types.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
 		ContextDir: ComponentName,
