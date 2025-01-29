@@ -75,7 +75,7 @@ releases:
     repoUrl: https://github.com/kubeflow/kfp-tekton
 `,
 			expectedReleases: 0,
-			expectedError:    true,
+			expectedError:    false,
 		},
 		{
 			name:             "should handle empty metadata file path gracefully",
