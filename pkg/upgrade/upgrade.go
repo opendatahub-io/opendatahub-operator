@@ -258,6 +258,8 @@ func CleanupExistingResource(ctx context.Context,
 
 	// cleanup nvidia nim integration
 	multiErr = multierror.Append(multiErr, cleanupNimIntegration(ctx, cli, oldReleaseVersion, d.Spec.ApplicationsNamespace))
+	// cleanup model controller legacy deployment
+	multiErr = multierror.Append(multiErr, cleanupModelControllerLegacyDeployment(ctx, cli, d.Spec.ApplicationsNamespace))
 
 	return multiErr.ErrorOrNil()
 }
@@ -556,4 +558,38 @@ func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease cl
 	}
 
 	return errs.ErrorOrNil()
+}
+
+func cleanupModelControllerLegacyDeployment(ctx context.Context, cli client.Client, applicationNS string) error {
+	l := logf.FromContext(ctx)
+
+	d := appsv1.Deployment{}
+	d.Name = "odh-model-controller"
+	d.Namespace = applicationNS
+
+	err := cli.Get(ctx, client.ObjectKeyFromObject(&d), &d)
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("failure getting %s deployment in namespace %s: %w", d.Name, d.Namespace, err)
+	}
+
+	if d.Labels[labels.PlatformPartOf] == componentApi.ModelControllerComponentName {
+		return nil
+	}
+
+	l.Info("deleting legacy deployment", "name", d.Name, "namespace", d.Namespace)
+
+	err = cli.Delete(ctx, &d, client.PropagationPolicy(metav1.DeletePropagationForeground))
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("failure deleting %s deployment in namespace %s: %w", d.Name, d.Namespace, err)
+	}
+
+	l.Info("legacy deployment deleted", "name", d.Name, "namespace", d.Namespace)
+
+	return nil
 }
