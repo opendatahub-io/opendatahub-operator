@@ -37,7 +37,7 @@ type DSCInitializationSpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
-	ApplicationsNamespace string `json:"applicationsNamespace"`
+	ApplicationsNamespace string `json:"applicationsNamespace,omitempty"`
 	// Enable monitoring on specified namespace
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	// +optional
