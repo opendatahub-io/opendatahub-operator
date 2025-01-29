@@ -1,21 +1,25 @@
 map:
   notebooks:
+    git.url: https://github.com/red-hat-data-services/notebooks
+    git.commit: github.ref_name
     src: manifests
-    dest: notebooks
+    dest: workbenches/notebooks
     ref_type: branch
   kserve:
+    git.url: https://github.com/red-hat-data-services/kserve
+    git.commit: github.ref_name
     src: config
     dest: kserve
     ref_type: branch
   odh-kf-notebook-controller:
     src: components/notebook-controller/config
-    dest: odh-notebook-controller/kf-notebook-controller
+    dest: workbenches/kf-notebook-controller
   odh-notebook-controller:
     src: components/odh-notebook-controller/config
-    dest: odh-notebook-controller/odh-notebook-controller
+    dest: workbenches/odh-notebook-controller
   odh-data-science-pipelines-operator-controller:
     src: config
-    dest: data-science-pipelines-operator
+    dest: datasciencepipelines
   odh-codeflare-operator:
     src: config
     dest: codeflare
@@ -27,16 +31,16 @@ map:
     dest: kueue
   odh-trustyai-service-operator:
     src: config
-    dest: trustyai-service-operator
+    dest: trustyai
   odh-model-controller:
     src: config
-    dest: odh-model-controller
+    dest: modelcontroller
   odh-model-registry-operator:
     src: config
-    dest: model-registry-operator
+    dest: modelregistry
   odh-modelmesh-serving-controller:
     src: config
-    dest: model-mesh
+    dest: modelmeshserving
   odh-dashboard:
     src: manifests
     dest: dashboard
