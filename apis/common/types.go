@@ -76,9 +76,9 @@ type Status struct {
 type ComponentRelease struct {
 	// +required
 	// +kubebuilder:validation:Required
-	Name    string `json:"name"`
-	Version string `json:"version,omitempty"`
-	RepoURL string `json:"repoUrl,omitempty"`
+	Name    string `yaml:"name" json:"name"`
+	Version string `yaml:"version,omitempty" json:"version,omitempty"`
+	RepoURL string `yaml:"repoUrl,omitempty" json:"repoUrl,omitempty"`
 }
 
 // ComponentReleaseStatus tracks the list of component releases, including their name, version, and repository URL.
@@ -88,7 +88,7 @@ type ComponentReleaseStatus struct {
 	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=name
-	Releases []ComponentRelease `json:"releases,omitempty"`
+	Releases []ComponentRelease `yaml:"releases,omitempty" json:"releases,omitempty"`
 }
 
 type WithStatus interface {
