@@ -2,12 +2,12 @@ package releases
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"gopkg.in/yaml.v3"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
@@ -122,7 +122,7 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) ([
 
 	// Unmarshal YAML into defined struct
 	var componentMeta common.ComponentReleaseStatus
-	if err := json.Unmarshal(yamlData, &componentMeta); err != nil {
+	if err := yaml.Unmarshal(yamlData, &componentMeta); err != nil {
 		return nil, fmt.Errorf("error unmarshaling YAML: %w", err)
 	}
 
@@ -130,11 +130,15 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) ([
 	componentReleasesStatus := make([]common.ComponentRelease, 0, len(componentMeta.Releases))
 	for _, release := range componentMeta.Releases {
 		componentVersion := strings.TrimSpace(release.Version)
-		componentReleasesStatus = append(componentReleasesStatus, common.ComponentRelease{
-			Name:    release.Name,
-			Version: componentVersion,
-			RepoURL: release.RepoURL,
-		})
+
+		// Appending the component version only if it's not empty
+		if componentVersion != "" {
+			componentReleasesStatus = append(componentReleasesStatus, common.ComponentRelease{
+				Name:    release.Name,
+				Version: componentVersion,
+				RepoURL: release.RepoURL,
+			})
+		}
 	}
 
 	return componentReleasesStatus, nil
