@@ -573,8 +573,8 @@ func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease cl
 // causes issues during upgrades, as existing deployments cannot be
 // modified accordingly.
 //
-// This function as to stay as long as there is any long term suport
-// release based on the old logic
+// This function as to stay as long as there is any long term support
+// release based on the old logic.
 func cleanupModelControllerLegacyDeployment(ctx context.Context, cli client.Client, applicationNS string) error {
 	l := logf.FromContext(ctx)
 
