@@ -660,17 +660,6 @@ rules:
   - monitoring.coreos.com
   resources:
   - prometheusrules
-  verbs:
-  - create
-  - delete
-  - deletecollection
-  - get
-  - list
-  - patch
-  - watch
-- apiGroups:
-  - monitoring.coreos.com
-  resources:
   - servicemonitors
   verbs:
   - create
