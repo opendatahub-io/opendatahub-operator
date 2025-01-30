@@ -2,6 +2,7 @@ name: Unit Tests
 on: 
   push:
     branches:
+      - rhoai
       - incubation
       - main
       - master
