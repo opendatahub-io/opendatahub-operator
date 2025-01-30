@@ -65,6 +65,7 @@ OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
 YQ ?= $(LOCALBIN)/yq
+COMPONENT_CODEGEN ?= $(LOCALBIN)/component-codegen
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.0.2
 CONTROLLER_GEN_VERSION ?= v0.16.1
@@ -192,6 +193,12 @@ CLEANFILES += opt/manifests/*
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
+
+.PHONY: component-codegen
+component-codegen:
+	 @echo "Building component-codegen cli..."
+	 cd ./cmd/component-codegen && go mod tidy && go build -o $(COMPONENT_CODEGEN) .
+	 
 
 ##@ Build
 
