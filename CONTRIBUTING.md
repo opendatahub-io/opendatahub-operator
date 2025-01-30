@@ -67,7 +67,7 @@ We follow the conventional commits format for writing commit messages. A good co
 ## Sync Changes in Downstream
 
 After a PR is merged into the upstream `opendatahub-io/opendatahub-operator` repository, the changes need to be synced with the downstream repository:
-detail see (./docs/sync_code.md#basci-workflow-for-operator)
+detail see (./docs/sync_code.md#basic-workflow-for-operator)
 
 ## Communication
 
