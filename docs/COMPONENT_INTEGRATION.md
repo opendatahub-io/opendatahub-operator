@@ -7,6 +7,12 @@ To understand the current operator architecture and its inner workings, please r
 
 The list of the currently integrated ODH components is provided [at the end of this document](#integrated-components).
 
+## Use scaffolding to create boilerplate code
+
+Integrating a new component into the Open Data Hub (ODH) operator is  easier with the component-codegen CLI. The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
+
+While the CLI handles most of the heavy lifting, it’s still important to understand the purpose of each generated file. Please refer to the following sections for a detailed breakdown of the key files and their roles in the integration process.
+
 ## Integrating a new component
 
 To ensure a new component is integrated seamlessly in the operator, please follow the steps listed below.
