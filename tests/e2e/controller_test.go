@@ -188,7 +188,10 @@ func TestOdhOperator(t *testing.T) {
 				continue
 			}
 
-			t.Run(k, v)
+			t.Run(k, func(t *testing.T) {
+				t.Parallel()
+				v(t)
+			})
 		}
 	})
 
