@@ -29,6 +29,6 @@ These labels are optional but help streamline the review and release processes:
 - rhoai-X.Y: Specifies the target for a future downstream release. The PR may not need to merge immediately or might have lower review priority.
 - rhoai: For [sync] PRs that bring changes from "main" branch to downstream.
 - testing: Used for PRs focused solely on unit or e2e tests without any code changes (including code refactoring or improvements).
-- documentation: changes on README.md, CONTRIBUTING.MD or files in`docs` folder 
+- documentation: changes on README.md, CONTRIBUTING.MD or files in `docs` folder 
 - component/X: For integration work related to a specific component X. Component owners can be requested as reviewers if needed.
 - multi-arch: Indicates changes specific to non-x64 architectures.
