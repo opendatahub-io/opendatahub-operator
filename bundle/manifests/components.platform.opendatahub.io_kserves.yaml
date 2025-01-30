@@ -226,6 +226,9 @@ spec:
                 type: integer
               phase:
                 type: string
+              serverlessMode:
+                pattern: ^(Managed|Unmanaged|Force|Removed)$
+                type: string
             type: object
         type: object
         x-kubernetes-validations:
