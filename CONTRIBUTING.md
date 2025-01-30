@@ -12,13 +12,14 @@ Issues are tracked using [Jira](https://issues.redhat.com/secure/RapidBoard.jspa
    - **For Feature Requests:**  Set the issue type to be `Initative`
    - **For Bugs:** Set the issue type to `Bug`
    - **For all other code changes:** Use the issue type `Story`
+   - Add "Platform" in "Components" field
 
 ## Pull Requests
 
 ### Workflow
 
 1. **Fork the Repository:** Create your own fork of the repository to work on your changes.
-2. **Create a Branch:** Create your own branch to include changes for the feature or a bug fix off of `incubation` branch.
+2. **Create a Branch:** Create your own branch to include changes for the feature or a bug fix off of `main` branch.
 3. **Work on Your Changes:** Commit often, and ensure your code adheres to these [Code Style Guidelines](#code-style-guidelines) and passes all the [quality gates](#quality-gates) for the operator.
 4. **Testing:** Make sure your code passes all the tests, including any new tests you've added. And that your changes do not decrease the test coverage as shown on report. Every new feature should come with unit tests that cover that new part of the code.
 
@@ -34,10 +35,10 @@ Issues are tracked using [Jira](https://issues.redhat.com/secure/RapidBoard.jspa
 
 To ensure the contributed code adheres to the project goals, we have set up some automated quality gates:
 
-1. [linters](https://github.com/opendatahub-io/opendatahub-operator/blob/incubation/.github/workflows/linter.yaml): Ensure the check for linters is successful. If it fails, run `make lint` to resolve errors
-2. [api-docs](https://github.com/opendatahub-io/opendatahub-operator/blob/incubation/.github/workflows/check-file-updates.yaml): Ensure the api-docs are updated when making changes to operator apis. If it fails, run `make generate manifests api-docs` to resolve errors
-3. [unit-tests](https://github.com/opendatahub-io/opendatahub-operator/blob/incubation/.github/workflows/unit-tests.yaml): Ensure unit tests pass. Run `make unit-tests` 
-4. [e2e-tests](https://prow.ci.openshift.org/job-history/gs/test-platform-results/pr-logs/directory/pull-ci-opendatahub-io-opendatahub-operator-incubation-opendatahub-operator-e2e): Ensure CI job for [e2e tests](https://github.com/opendatahub-io/opendatahub-operator/tree/incubation/tests/e2e) pass. Refer run e2e locally to debug. CI test logs can also be found under `Artifacts` directory under Job details.
+1. [linters](https://github.com/opendatahub-io/opendatahub-operator/blob/main/.github/workflows/linter.yaml): Ensure the check for linters is successful. If it fails, run `make lint` to resolve errors
+2. [api-docs](https://github.com/opendatahub-io/opendatahub-operator/blob/main/.github/workflows/check-file-updates.yaml): Ensure the api-docs are updated when making changes to operator apis. If it fails, run `make generate manifests api-docs` to resolve errors
+3. [unit-tests](https://github.com/opendatahub-io/opendatahub-operator/blob/main/.github/workflows/unit-tests.yaml): Ensure unit tests pass. Run `make unit-tests`
+4. [e2e-tests](https://prow.ci.openshift.org/job-history/gs/test-platform-results/pr-logs/directory/pull-ci-opendatahub-io-opendatahub-operator-main-opendatahub-operator-e2e): Ensure CI job for [e2e tests](https://github.com/opendatahub-io/opendatahub-operator/tree/main/tests/e2e) pass. Refer run e2e locally to debug. CI test logs can also be found under `Artifacts` directory under Job details.
 
 ### Code Style Guidelines
 
@@ -47,7 +48,7 @@ To ensure the contributed code adheres to the project goals, we have set up some
 4. Ensure your code passes `make lint` (we have a .golangci.yml file configured in the repo).
 5. Ensure you write clear and concise comments, especially for exported functions.
 6. Always check and handle errors appropriately. Avoid ignoring errors by using _.
-7. Make sure to run `go mod tidy before` submitting a PR to ensure the `go.mod` and `go.sum` files are up-to-date.
+7. Make sure to run `go mod tidy` before submitting a PR to ensure the `go.mod` and `go.sum` files are up-to-date.
 
 ### Commit Messages
 
@@ -66,12 +67,7 @@ We follow the conventional commits format for writing commit messages. A good co
 ## Sync Changes in Downstream
 
 After a PR is merged into the upstream `opendatahub-io/opendatahub-operator` repository, the changes need to be synced with the downstream repository:
-
-1. **Cherry-Pick:** Use `git cherry-pick` to apply the changes to the downstream repo ([rhods-operator](https://github.com/red-hat-data-services/rhods-operator)).
-2. **Version Labels:** Ensure the downstream PR is labeled with the target release version (e.g., `rhoai-2.14`).
-3. **Operator Bundle or Dockerfile Updates:** If changes affect the operator bundle or Dockerfile, sync the changes in the `rhods-cpaas-midstream` repo in addition to downstream PR.
-
-Follow the same [PR Guide](#pull-requests) for creating and reviewing downstream PRs.
+detail see (./docs/sync_code.md#basic-workflow-for-operator)
 
 ## Communication
 
