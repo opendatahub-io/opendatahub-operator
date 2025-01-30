@@ -48,11 +48,10 @@ func GetSingleton[T client.Object](ctx context.Context, cli client.Client, obj T
 		return errors.New("obj must be a pointer")
 	}
 
-	if err := resources.EnsureGroupVersionKind(cli.Scheme(), obj); err != nil {
+	objGVK, err := resources.GetGroupVersionKindForObject(cli.Scheme(), obj)
+	if err != nil {
 		return err
 	}
-
-	objGVK := obj.GetObjectKind().GroupVersionKind()
 
 	instances := unstructured.UnstructuredList{}
 	instances.SetAPIVersion(objGVK.GroupVersion().String())
