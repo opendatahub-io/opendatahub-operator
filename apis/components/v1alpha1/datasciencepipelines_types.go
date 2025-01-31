@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1/datasciencepipelines"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -51,6 +52,7 @@ type DataSciencePipelinesSpec struct {
 
 type DataSciencePipelinesCommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
+	PreloadedPipelines  datasciencepipelines.ManagedPipelinesSpec `json:"managedPipelines,omitempty"`
 }
 
 // DataSciencePipelinesCommonStatus defines the shared observed state of DataSciencePipelines
