@@ -128,23 +128,12 @@ func (r *DataScienceClusterReconciler) validate(ctx context.Context, _ *dscv1.Da
 	// of more than one instance of the DataScienceCluster, however one can create a
 	// DataScienceCluster instance while the operator is stopped, hence this extra check
 
-	dscInstances := &dscv1.DataScienceClusterList{}
-	if err := r.Client.List(ctx, dscInstances); err != nil {
-		return fmt.Errorf("failed to retrieve DataScienceCluster resource: %w", err)
+	if _, err := cluster.GetDSCI(ctx, r.Client); err != nil {
+		return fmt.Errorf("failed to get a valid DataScienceCluster instance, %w", err)
 	}
 
-	if len(dscInstances.Items) != 1 {
-		return fmt.Errorf("failed to get a valid DataScienceCluster instance, expected to find 1 instance, found %d", len(dscInstances.Items))
-	}
-
-	dsciInstances := &dsciv1.DSCInitializationList{}
-	err := r.Client.List(ctx, dsciInstances)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve DSCInitialization resource: %w", err)
-	}
-
-	if len(dsciInstances.Items) != 1 {
-		return fmt.Errorf("failed to get a valid DSCInitialization instance, expected to find 1 instance, found %d", len(dscInstances.Items))
+	if _, err := cluster.GetDSC(ctx, r.Client); err != nil {
+		return fmt.Errorf("failed to get a valid DSCInitialization instance, %w", err)
 	}
 
 	return nil

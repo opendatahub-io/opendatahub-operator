@@ -470,22 +470,27 @@ func removeRBACProxyModelRegistry(ctx context.Context, cli client.Client, compon
 }
 
 func GetDeployedRelease(ctx context.Context, cli client.Client) (common.Release, error) {
-	dsciInstance := &dsciv1.DSCInitializationList{}
-	if err := cli.List(ctx, dsciInstance); err != nil {
+	dsciInstance, err := cluster.GetDSCI(ctx, cli)
+	switch {
+	case k8serr.IsNotFound(err):
+		break
+	case err != nil:
 		return common.Release{}, err
+	default:
+		return dsciInstance.Status.Release, nil
 	}
-	if len(dsciInstance.Items) == 1 { // found one DSCI CR found
-		// can return a valid Release or 0.0.0
-		return dsciInstance.Items[0].Status.Release, nil
-	}
+
 	// no DSCI CR found, try with DSC CR
-	dscInstances := &dscv1.DataScienceClusterList{}
-	if err := cli.List(ctx, dscInstances); err != nil {
+	dscInstances, err := cluster.GetDSC(ctx, cli)
+	switch {
+	case k8serr.IsNotFound(err):
+		break
+	case err != nil:
 		return common.Release{}, err
+	default:
+		return dscInstances.Status.Release, nil
 	}
-	if len(dscInstances.Items) == 1 { // one DSC CR found
-		return dscInstances.Items[0].Status.Release, nil
-	}
+
 	// could be a clean installation or both CRs are deleted already
 	return common.Release{}, nil
 }
