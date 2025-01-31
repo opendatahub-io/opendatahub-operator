@@ -48,6 +48,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -80,20 +81,19 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// Set platform
 	platform := currentOperatorRelease.Name
 
-	instances := &dsciv1.DSCInitializationList{}
-	if err := r.Client.List(ctx, instances); err != nil {
+	instance, err := cluster.GetDSCI(ctx, r.Client)
+	switch {
+	case k8serr.IsNotFound(err):
+		return ctrl.Result{}, nil
+	case err != nil:
 		log.Error(err, "Failed to retrieve DSCInitialization resource.", "DSCInitialization Request.Name", req.Name)
-		r.Recorder.Eventf(instances, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
+
+		ref := &corev1.ObjectReference{Name: req.Name, Namespace: req.Namespace}
+		ref.SetGroupVersionKind(gvk.DSCInitialization)
+
+		r.Recorder.Eventf(ref, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
 
 		return ctrl.Result{}, err
-	}
-
-	var instance *dsciv1.DSCInitialization
-	switch { // only handle number as 0 or 1, others won't be existed since webhook block creation
-	case len(instances.Items) == 0:
-		return ctrl.Result{}, nil
-	case len(instances.Items) == 1:
-		instance = &instances.Items[0]
 	}
 
 	if instance.Spec.DevFlags != nil {

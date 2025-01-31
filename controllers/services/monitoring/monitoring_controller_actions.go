@@ -12,9 +12,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -53,18 +53,10 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 // all other cases, we do not change Prom rules for component.
 func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Map component names to their rule prefixes
-	dscList := &dscv1.DataScienceClusterList{}
-	if err := rr.Client.List(ctx, dscList); err != nil {
-		return fmt.Errorf("failed to list DSC: %w", err)
+	dsc, err := cluster.GetDSC(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to get DataScienceCluster instance: %w", err)
 	}
-	if len(dscList.Items) == 0 {
-		return nil
-	}
-	if len(dscList.Items) > 1 {
-		return errors.New("multiple DataScienceCluster found")
-	}
-
-	dsc := &dscList.Items[0]
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
 		ci := ch.NewCRObject(dsc)

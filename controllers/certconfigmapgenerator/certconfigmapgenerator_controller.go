@@ -8,6 +8,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -20,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
@@ -53,19 +55,13 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 		return ctrl.Result{}, errors.WithMessage(err, "error getting namespace to inject trustedCA bundle")
 	}
 
-	// Get DSCI instance
-	dsciInstances := &dsciv1.DSCInitializationList{}
-	if err := r.Client.List(ctx, dsciInstances); err != nil {
+	dsciInstance, err := cluster.GetDSCI(ctx, r.Client)
+	switch {
+	case k8serr.IsNotFound(err):
+		return ctrl.Result{}, nil
+	case err != nil:
 		log.Error(err, "Failed to retrieve DSCInitialization resource for CertConfigMapGenerator ", "Request.Name", req.Name)
 		return ctrl.Result{}, err
-	}
-
-	var dsciInstance *dsciv1.DSCInitialization
-	switch len(dsciInstances.Items) {
-	case 0:
-		return ctrl.Result{}, nil
-	case 1:
-		dsciInstance = &dsciInstances.Items[0]
 	}
 
 	if skipApplyTrustCAConfig(dsciInstance.Spec.TrustedCABundle) {
