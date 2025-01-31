@@ -11,6 +11,7 @@ import (
 	k8sFake "k8s.io/client-go/kubernetes/fake"
 	ctrlClient "sigs.k8s.io/controller-runtime/pkg/client"
 	clientFake "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
@@ -20,6 +21,10 @@ import (
 )
 
 func New(objs ...ctrlClient.Object) (*client.Client, error) {
+	return NewWithInterceptors(nil, objs...)
+}
+
+func NewWithInterceptors(interceptorFunc *interceptor.Funcs, objs ...ctrlClient.Object) (*client.Client, error) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(appsv1.AddToScheme(scheme))
@@ -49,12 +54,17 @@ func New(objs ...ctrlClient.Object) (*client.Client, error) {
 		ro[i] = u
 	}
 
+	cb := clientFake.NewClientBuilder().
+		WithScheme(scheme).
+		WithRESTMapper(fakeMapper).
+		WithObjects(objs...)
+
+	if interceptorFunc != nil {
+		cb = cb.WithInterceptorFuncs(*interceptorFunc)
+	}
+
 	c := client.New(
-		clientFake.NewClientBuilder().
-			WithScheme(scheme).
-			WithRESTMapper(fakeMapper).
-			WithObjects(objs...).
-			Build(),
+		cb.Build(),
 		k8sFake.NewSimpleClientset(ro...),
 		dynamicFake.NewSimpleDynamicClient(scheme, ro...),
 	)
