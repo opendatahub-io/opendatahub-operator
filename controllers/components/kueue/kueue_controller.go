@@ -17,6 +17,7 @@ limitations under the License.
 package kueue
 
 import (
+	"cmp"
 	"context"
 
 	"github.com/blang/semver/v4"
@@ -27,6 +28,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
@@ -51,6 +53,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 								WatchesGVK(gvk.ValidatingAdmissionPolicyBinding). // "watch" VAPB, because we want it to be configable by user and it can be left behind when kueue is remov
 								WithAction(extraInitialize)
 	}
+
 	// customized Owns() for Component with new predicates
 	b.Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
@@ -84,6 +87,15 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(customizeResources).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
+			// This ensures that CRDs are installed first, and deployment are
+			// applied as the latest step, to ensure every resource required
+			// would be up to date
+			deploy.WithSortFunction(func(a unstructured.Unstructured, b unstructured.Unstructured) int {
+				return cmp.Compare(
+					deployPriority[a.GroupVersionKind()],
+					deployPriority[b.GroupVersionKind()],
+				)
+			}),
 		)).
 		WithAction(updatestatus.NewAction()).
 		// must be the final action

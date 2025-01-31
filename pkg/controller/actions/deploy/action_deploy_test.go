@@ -1,6 +1,7 @@
 package deploy_test
 
 import (
+	"cmp"
 	"context"
 	"path/filepath"
 	"strconv"
@@ -18,9 +19,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	apimachinery "k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
@@ -634,4 +637,66 @@ func TestDeployOwnerRef(t *testing.T) {
 
 	g.Expect(err).ToNot(HaveOccurred())
 	g.Expect(updatedCRD.GetOwnerReferences()).Should(BeEmpty())
+}
+
+func TestDeployActionWithSort(t *testing.T) {
+	g := NewWithT(t)
+
+	patchOrder := make([]string, 0)
+
+	ctx := context.Background()
+	ns := xid.New().String()
+	cl, err := fakeclient.NewWithInterceptors(
+		&interceptor.Funcs{
+			Patch: func(ctx context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				patchOrder = append(patchOrder, obj.GetObjectKind().GroupVersionKind().Kind)
+				return nil
+			},
+		})
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	priority := map[schema.GroupVersionKind]int{
+		gvk.CustomResourceDefinition: -1, // Highest priority (comes first)
+		gvk.Deployment:               1,  // Lowest priority (comes last)
+	}
+
+	action := deploy.NewAction(
+		deploy.WithSortFunction(func(a unstructured.Unstructured, b unstructured.Unstructured) int {
+			return cmp.Compare(
+				priority[a.GroupVersionKind()],
+				priority[b.GroupVersionKind()],
+			)
+		}),
+	)
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		DSCI:   &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}}},
+		Resources: []unstructured.Unstructured{
+			*resources.GvkToUnstructured(gvk.Dashboard),
+			*resources.GvkToUnstructured(gvk.Deployment),
+			*resources.GvkToUnstructured(gvk.CustomResourceDefinition),
+			*resources.GvkToUnstructured(gvk.RoleBinding),
+		},
+	}
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(patchOrder).To(HaveExactElements(
+		gvk.CustomResourceDefinition.Kind,
+		gvk.Dashboard.Kind,
+		gvk.RoleBinding.Kind,
+		gvk.Deployment.Kind,
+	))
 }
