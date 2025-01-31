@@ -71,12 +71,37 @@ type Status struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
+// ComponentRelease represents the detailed status of a component release.
+// +kubebuilder:object:generate=true
+type ComponentRelease struct {
+	// +required
+	// +kubebuilder:validation:Required
+	Name    string `yaml:"name" json:"name"`
+	Version string `yaml:"version,omitempty" json:"version,omitempty"`
+	RepoURL string `yaml:"repoUrl,omitempty" json:"repoUrl,omitempty"`
+}
+
+// ComponentReleaseStatus tracks the list of component releases, including their name, version, and repository URL.
+// +kubebuilder:object:generate=true
+type ComponentReleaseStatus struct {
+	// +patchMergeKey=name
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=name
+	Releases []ComponentRelease `yaml:"releases,omitempty" json:"releases,omitempty"`
+}
+
 type WithStatus interface {
 	GetStatus() *Status
 }
 
 type WithDevFlags interface {
 	GetDevFlags() *DevFlags
+}
+
+type WithReleases interface {
+	GetReleaseStatus() *[]ComponentRelease
+	SetReleaseStatus(status []ComponentRelease)
 }
 
 type PlatformObject interface {
