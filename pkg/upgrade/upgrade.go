@@ -255,6 +255,10 @@ func CleanupExistingResource(ctx context.Context,
 	deprecatedFeatureTrackers := []string{dscApplicationsNamespace + "-kserve-temporary-fixes"}
 	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscApplicationsNamespace, deprecatedFeatureTrackers, &featuresv1.FeatureTrackerList{}))
 
+	// Cleanup of deprecated default RoleBinding resources
+	deprecatedDefaultRoleBinding := []string{dscApplicationsNamespace}
+	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscApplicationsNamespace, deprecatedDefaultRoleBinding, &rbacv1.RoleBindingList{}))
+
 	// Handling for dashboard OdhDocument Jupyterhub CR, see jira #443 comments
 	odhDocJPH := getJPHOdhDocumentResources(
 		dscApplicationsNamespace,
@@ -284,6 +288,8 @@ func CleanupExistingResource(ctx context.Context,
 
 	// cleanup nvidia nim integration
 	multiErr = multierror.Append(multiErr, cleanupNimIntegration(ctx, cli, oldReleaseVersion, dscApplicationsNamespace))
+	// cleanup model controller legacy deployment
+	multiErr = multierror.Append(multiErr, cleanupModelControllerLegacyDeployment(ctx, cli, dscApplicationsNamespace))
 
 	return multiErr.ErrorOrNil()
 }
@@ -668,4 +674,53 @@ func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease cl
 	}
 
 	return errs.ErrorOrNil()
+}
+
+// When upgrading from version 2.16 to 2.17, the odh-model-controller
+// fails to be provisioned due to the immutability of the deployment's
+// label selectors. In RHOAI ≤ 2.16, the model controller was deployed
+// independently by both kserve and modelmesh, leading to variations
+// in label assignments depending on the deployment order. During a
+// redeployment or upgrade, this error was ignored, and the model
+// controller would eventually be reconciled by the appropriate component.
+//
+// However, in version 2.17, the model controller is now a defined
+// dependency with its own fixed labels and selectors. This change
+// causes issues during upgrades, as existing deployments cannot be
+// modified accordingly.
+//
+// This function as to stay as long as there is any long term support
+// release based on the old logic.
+func cleanupModelControllerLegacyDeployment(ctx context.Context, cli client.Client, applicationNS string) error {
+	l := logf.FromContext(ctx)
+
+	d := appsv1.Deployment{}
+	d.Name = "odh-model-controller"
+	d.Namespace = applicationNS
+
+	err := cli.Get(ctx, client.ObjectKeyFromObject(&d), &d)
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("failure getting %s deployment in namespace %s: %w", d.Name, d.Namespace, err)
+	}
+
+	if d.Labels[labels.PlatformPartOf] == componentApi.ModelControllerComponentName {
+		return nil
+	}
+
+	l.Info("deleting legacy deployment", "name", d.Name, "namespace", d.Namespace)
+
+	err = cli.Delete(ctx, &d, client.PropagationPolicy(metav1.DeletePropagationForeground))
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("failure deleting %s deployment in namespace %s: %w", d.Name, d.Namespace, err)
+	}
+
+	l.Info("legacy deployment deleted", "name", d.Name, "namespace", d.Namespace)
+
+	return nil
 }
