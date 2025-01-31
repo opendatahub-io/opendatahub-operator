@@ -15,7 +15,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -56,7 +55,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 	}
 }
 
-func (s *componentHandler) Init(platform cluster.Platform) error {
+func (s *componentHandler) Init(_ common.Platform) error {
 	if err := odhdeploy.ApplyParams(manifestPath().String(), imageParamMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", manifestPath(), err)
 	}
@@ -70,7 +69,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		return errors.New("failed to convert to FeastOperator")
 	}
 
-	dsc.Status.InstalledComponents[LegacyComponentName] = false
+	dsc.Status.InstalledComponents[ComponentName] = false
 	dsc.Status.Components.FeastOperator.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = nil
 
@@ -83,7 +82,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
-		dsc.Status.InstalledComponents[LegacyComponentName] = true
+		dsc.Status.InstalledComponents[ComponentName] = true
 		dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = c.Status.FeastOperatorCommonStatus.DeepCopy()
 
 		if rc := meta.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {

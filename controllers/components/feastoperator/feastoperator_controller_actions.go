@@ -34,6 +34,5 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
 		}
 	}
-	// TODO: Implement devflags logmode logic
 	return nil
 }

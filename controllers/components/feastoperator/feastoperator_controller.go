@@ -27,22 +27,25 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&corev1.ConfigMap{}).
 		Owns(&rbacv1.RoleBinding{}).
 		Owns(&rbacv1.Role{}).
+		Owns(&rbacv1.ClusterRoleBinding{}).
+		Owns(&rbacv1.ClusterRole{}).
 		Owns(&corev1.ServiceAccount{}).
+		Owns(&corev1.Service{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.FeastOperatorInstanceName)),
 			reconciler.WithPredicates(
-				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
+				component.ForLabel(labels.ODH.Component(ComponentName), labels.True)),
 		).
 		// Add FeastOperator-specific actions
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
-			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
+			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),

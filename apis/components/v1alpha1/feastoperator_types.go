@@ -23,6 +23,7 @@ import (
 
 const (
 	// FeastOperatorName is the name of the new component
+	//"feastoperator" is named to distinguish it from "feast," as it specifically refers to the operator responsible for deploying, managing, Feast feature store services and to avoid confusion with the core Feast components.
 	FeastOperatorComponentName = "feastoperator"
 
 	// FeastOperatorInstanceName is the singleton name for the FeastOperator instance
