@@ -8,9 +8,9 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/lib/version"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1/datasciencepipelines"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
@@ -30,7 +30,7 @@ func TestComputeParamsMap(t *testing.T) {
 	v := semver.MustParse("1.2.3")
 	rr := types.ReconciliationRequest{
 		Instance: &dsp,
-		Release: cluster.Release{
+		Release: common.Release{
 			Version: version.OperatorVersion{
 				Version: v,
 			},
