@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -40,6 +41,7 @@ type Action struct {
 	labels      map[string]string
 	annotations map[string]string
 	cache       *Cache
+	sortFunc    func(unstructured.Unstructured, unstructured.Unstructured) int
 }
 
 type ActionOpts func(*Action)
@@ -106,6 +108,12 @@ func WithCache(opts ...CacheOpt) ActionOpts {
 	}
 }
 
+func WithSortFunction(fn func(unstructured.Unstructured, unstructured.Unstructured) int) ActionOpts {
+	return func(action *Action) {
+		action.sortFunc = fn
+	}
+}
+
 func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
 	// cleanup old entries if needed
 	if a.cache != nil {
@@ -119,8 +127,14 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 
 	controllerName := strings.ToLower(kind)
 
-	for i := range rr.Resources {
-		res := rr.Resources[i]
+	items := rr.Resources
+	if a.sortFunc != nil {
+		items = slices.Clone(rr.Resources)
+		slices.SortFunc(items, a.sortFunc)
+	}
+
+	for i := range items {
+		res := items[i]
 		current := resources.GvkToUnstructured(res.GroupVersionKind())
 
 		lookupErr := rr.Client.Get(ctx, client.ObjectKeyFromObject(&res), current)
@@ -148,7 +162,7 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		var ok bool
 		var err error
 
-		switch rr.Resources[i].GroupVersionKind() {
+		switch items[i].GroupVersionKind() {
 		case gvk.CustomResourceDefinition:
 			ok, err = a.deployCRD(ctx, rr, res, current)
 		default:
