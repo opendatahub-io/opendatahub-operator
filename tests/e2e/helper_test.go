@@ -36,13 +36,14 @@ const (
 	servicemeshNamespace     = "openshift-operators"
 	servicemeshOpName        = "servicemeshoperator"
 	serverlessOpName         = "serverless-operator"
+	authorinoOpName          = "authorino-operator"
 	ownedNamespaceNumber     = 1 // set to 4 for RHOAI
 	deleteConfigMap          = "delete-configmap-name"
 	operatorReadyTimeout     = 2 * time.Minute
 	componentReadyTimeout    = 7 * time.Minute // in component code is to set 2-3 mins, keep it 7 mins just the same value we used after introduce "Ready" check
 	componentDeletionTimeout = 1 * time.Minute
 	crdReadyTimeout          = 1 * time.Minute
-	csvWaitTimeout           = 1 * time.Minute
+	csvWaitTimeout           = 90 * time.Second // time required when check dependent operators are installed.
 	dsciCreationTimeout      = 20 * time.Second // time required to get a DSCI is created.
 	dscCreationTimeout       = 20 * time.Second // time required to wait till DSC is created.
 	generalRetryInterval     = 10 * time.Second
@@ -438,10 +439,11 @@ func ensureOperator(tc *testContext, name string, ns string) error {
 	return waitCSV(tc, name, ns)
 }
 
-func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint: thelper
+func ensureDependencyOperators(t *testing.T, tc *testContext) error { //nolint: thelper
 	ops := []string{
 		serverlessOpName,
 		servicemeshOpName,
+		authorinoOpName,
 	}
 	var errors *multierror.Error
 	c := make(chan error)
@@ -463,5 +465,5 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 }
 
 func (tc *testContext) setUp(t *testing.T) error { //nolint: thelper
-	return ensureServicemeshOperators(t, tc)
+	return ensureDependencyOperators(t, tc)
 }
