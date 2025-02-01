@@ -5,9 +5,6 @@ import (
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -16,6 +13,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
@@ -73,10 +71,10 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 	dsc.Status.Components.FeastOperator.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = nil
 
-	nc := conditionsv1.Condition{
-		Type:    ReadyConditionType,
-		Status:  corev1.ConditionFalse,
-		Reason:  "Unknown",
+	nc := common.Condition{
+		Type:    status.ConditionTypeReady,
+		Status:  metav1.ConditionFalse,
+		Reason:  status.UnknownReason,
 		Message: "Not Available",
 	}
 
@@ -85,14 +83,14 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		dsc.Status.InstalledComponents[ComponentName] = true
 		dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = c.Status.FeastOperatorCommonStatus.DeepCopy()
 
-		if rc := meta.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {
-			nc.Status = corev1.ConditionStatus(rc.Status)
+		if rc := conditions.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {
+			nc.Status = rc.Status
 			nc.Reason = rc.Reason
 			nc.Message = rc.Message
 		}
 
 	case operatorv1.Removed:
-		nc.Status = corev1.ConditionFalse
+		nc.Status = metav1.ConditionFalse
 		nc.Reason = string(operatorv1.Removed)
 		nc.Message = "Component ManagementState is set to " + string(operatorv1.Removed)
 
@@ -100,7 +98,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		return fmt.Errorf("unknown state %s ", s.GetManagementState(dsc))
 	}
 
-	conditionsv1.SetStatusCondition(&dsc.Status.Conditions, nc)
+	conditions.SetStatusCondition(&dsc.Status.Conditions, nc)
 
 	return nil
 }

@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -32,7 +30,7 @@ const (
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "kserve"
 
-	ReadyConditionType = conditionsv1.ConditionType(componentApi.KserveKind + status.ReadySuffix)
+	ReadyConditionType = componentApi.KserveKind + status.ReadySuffix
 )
 
 var (
@@ -101,9 +99,9 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 	dsc.Status.Components.Kserve.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.Kserve.KserveCommonStatus = nil
 
-	nc := conditionsv1.Condition{
+	nc := common.Condition{
 		Type:    ReadyConditionType,
-		Status:  corev1.ConditionFalse,
+		Status:  metav1.ConditionFalse,
 		Reason:  "Unknown",
 		Message: "Not Available",
 	}
@@ -114,13 +112,13 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		dsc.Status.Components.Kserve.KserveCommonStatus = c.Status.KserveCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {
-			nc.Status = corev1.ConditionStatus(rc.Status)
+			nc.Status = rc.Status
 			nc.Reason = rc.Reason
 			nc.Message = rc.Message
 		}
 
 	case operatorv1.Removed:
-		nc.Status = corev1.ConditionFalse
+		nc.Status = metav1.ConditionFalse
 		nc.Reason = string(operatorv1.Removed)
 		nc.Message = "Component ManagementState is set to " + string(operatorv1.Removed)
 
@@ -128,7 +126,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		return fmt.Errorf("unknown state %s ", s.GetManagementState(dsc))
 	}
 
-	conditionsv1.SetStatusCondition(&dsc.Status.Conditions, nc)
+	conditions.SetStatusCondition(&dsc.Status.Conditions, nc)
 
 	return nil
 }

@@ -134,13 +134,12 @@ type Condition struct {
 
 // +kubebuilder:object:generate=true
 type Status struct {
-	Phase              string `json:"phase,omitempty"`
-	ObservedGeneration int64  `json:"observedGeneration,omitempty"`
+	Phase string `json:"phase,omitempty"`
 
-	// +patchMergeKey=type
-	// +patchStrategy=merge
-	// +listType=map
-	// +listMapKey=type
+	// The generation observed by the resource controller.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// +listType=atomic
 	Conditions []Condition `json:"conditions,omitempty"`
 }
 

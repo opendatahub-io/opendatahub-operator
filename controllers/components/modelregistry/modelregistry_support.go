@@ -4,8 +4,6 @@ import (
 	"embed"
 	"path"
 
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
@@ -16,7 +14,7 @@ import (
 const (
 	ComponentName = componentApi.ModelRegistryComponentName
 
-	ReadyConditionType = conditionsv1.ConditionType(componentApi.ModelRegistryKind + status.ReadySuffix)
+	ReadyConditionType = componentApi.ModelRegistryKind + status.ReadySuffix
 
 	DefaultModelRegistriesNamespace = "odh-model-registries"
 	DefaultModelRegistryCert        = "default-modelregistry-cert"

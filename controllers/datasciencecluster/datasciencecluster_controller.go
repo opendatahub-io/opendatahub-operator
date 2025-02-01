@@ -41,6 +41,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
@@ -89,7 +90,11 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{}, nil
 	}
 
-	InitializeStatusCondition(instance)
+	cm := conditions.NewManager(
+		instance,
+		status.ConditionTypeReady,
+		status.ConditionTypeProvisioningSucceeded,
+		status.ConditionTypeComponentsReady)
 
 	if instance.Status.InstalledComponents == nil {
 		instance.Status.InstalledComponents = make(map[string]bool)
@@ -97,8 +102,8 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// validate pre-requisites
 	if err := r.validate(ctx, instance); err != nil {
-		MarkStatusConditionError(instance, status.ConditionTypeProvisioningSucceeded, err)
-		MarkStatusConditionError(instance, status.ConditionTypeComponentsReady, err)
+		cm.MarkFalse(status.ConditionTypeProvisioningSucceeded, conditions.WithError(err))
+		cm.MarkFalse(status.ConditionTypeComponentsReady, conditions.WithError(err))
 	} else {
 		var rerr error
 
@@ -111,19 +116,19 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 
 		if rerr != nil {
-			MarkStatusConditionError(instance, status.ConditionTypeProvisioningSucceeded, err)
+			cm.MarkFalse(status.ConditionTypeProvisioningSucceeded, conditions.WithError(err))
 		} else {
-			MarkStatusConditionTrue(instance, status.ConditionTypeProvisioningSucceeded)
+			cm.MarkTrue(status.ConditionTypeProvisioningSucceeded)
 		}
 	}
 
 	// Update happiness to cover the case where conditions were
 	// not set using the provided helper functions
-	RecomputeStatusConditionHappiness(instance)
+	cm.RecomputeHappiness("")
 
 	// keep conditions sorted, keeping general conditions on the
 	// top, and operands specific conditions after
-	SortStatusConditions(instance)
+	cm.Sort()
 
 	instance.Status.Release = cluster.GetRelease()
 	instance.Status.ObservedGeneration = instance.Generation

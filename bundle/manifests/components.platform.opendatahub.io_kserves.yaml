@@ -212,15 +212,14 @@ spec:
                   - type
                   type: object
                 type: array
-                x-kubernetes-list-map-keys:
-                - type
-                x-kubernetes-list-type: map
+                x-kubernetes-list-type: atomic
               defaultDeploymentMode:
                 description: |-
                   DefaultDeploymentMode is the value of the defaultDeploymentMode field
                   as read from the "deploy" JSON in the inferenceservice-config ConfigMap
                 type: string
               observedGeneration:
+                description: The generation observed by the resource controller.
                 format: int64
                 type: integer
               phase:

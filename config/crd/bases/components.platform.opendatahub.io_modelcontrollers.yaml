@@ -194,10 +194,9 @@ spec:
                   - type
                   type: object
                 type: array
-                x-kubernetes-list-map-keys:
-                - type
-                x-kubernetes-list-type: map
+                x-kubernetes-list-type: atomic
               observedGeneration:
+                description: The generation observed by the resource controller.
                 format: int64
                 type: integer
               phase:

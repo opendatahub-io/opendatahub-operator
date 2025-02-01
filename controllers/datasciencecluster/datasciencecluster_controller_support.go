@@ -6,13 +6,12 @@ import (
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
@@ -147,25 +146,24 @@ func reconcileComponentsStatus(
 
 	switch {
 	case len(notReadyComponents) > 0:
-		conditionsv1.SetStatusCondition(&instance.Status.Conditions, conditionsv1.Condition{
+		conditions.SetStatusCondition(&instance.Status.Conditions, common.Condition{
 			Type:    status.ConditionTypeComponentsReady,
-			Status:  corev1.ConditionFalse,
+			Status:  metav1.ConditionFalse,
 			Reason:  status.NotReadyReason,
 			Message: fmt.Sprintf("Some components are not ready: %s", strings.Join(notReadyComponents, ",")),
 		})
 	case managedComponent == 0:
-		conditionsv1.SetStatusCondition(&instance.Status.Conditions, conditionsv1.Condition{
-			Type:    status.ConditionTypeComponentsReady,
-			Status:  corev1.ConditionTrue,
-			Reason:  status.NoManagedComponentsReason,
-			Message: status.NoManagedComponentsReason,
+		conditions.SetStatusCondition(&instance.Status.Conditions, common.Condition{
+			Type:     status.ConditionTypeComponentsReady,
+			Status:   metav1.ConditionTrue,
+			Severity: common.ConditionSeverityInfo,
+			Reason:   status.NoManagedComponentsReason,
+			Message:  status.NoManagedComponentsReason,
 		})
 	default:
-		conditionsv1.SetStatusCondition(&instance.Status.Conditions, conditionsv1.Condition{
-			Type:    status.ConditionTypeComponentsReady,
-			Status:  corev1.ConditionTrue,
-			Reason:  status.ReadyReason,
-			Message: status.ReadyReason,
+		conditions.SetStatusCondition(&instance.Status.Conditions, common.Condition{
+			Type:   status.ConditionTypeComponentsReady,
+			Status: metav1.ConditionTrue,
 		})
 	}
 

@@ -3,8 +3,6 @@ package datasciencepipelines
 import (
 	"path"
 
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
@@ -18,7 +16,7 @@ const (
 	ArgoWorkflowCRD = "workflows.argoproj.io"
 	ComponentName   = componentApi.DataSciencePipelinesComponentName
 
-	ReadyConditionType = conditionsv1.ConditionType(componentApi.DataSciencePipelinesKind + status.ReadySuffix)
+	ReadyConditionType = componentApi.DataSciencePipelinesKind + status.ReadySuffix
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
