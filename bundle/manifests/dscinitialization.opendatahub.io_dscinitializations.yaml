@@ -210,8 +210,6 @@ spec:
                 - customCABundle
                 - managementState
                 type: object
-            required:
-            - applicationsNamespace
             type: object
           status:
             description: DSCInitializationStatus defines the observed state of DSCInitialization.
