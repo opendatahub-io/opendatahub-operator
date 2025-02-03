@@ -7,6 +7,8 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/record"
@@ -62,6 +64,11 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		return nil, err
 	}
 
+	gvk, err := resources.GetGroupVersionKindForObject(mgr.GetScheme(), object)
+	if err != nil {
+		return nil, err
+	}
+
 	cc := Reconciler{
 		Client:   oc,
 		Scheme:   mgr.GetScheme(),
@@ -69,7 +76,7 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		Recorder: mgr.GetEventRecorderFor(name),
 		Release:  cluster.GetRelease(),
 		name:     name,
-		m:        odhManager.New(mgr),
+		m:        odhManager.New(mgr, &gvk),
 		instanceFactory: func() (common.PlatformObject, error) {
 			t := reflect.TypeOf(object).Elem()
 			res, ok := reflect.New(t).Interface().(T)
@@ -262,10 +269,25 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 		client.ForceOwnership,
 	)
 
-	if err != nil {
-		return client.IgnoreNotFound(err)
+	if err != nil && !k8serr.IsNotFound(err) {
+		r.Recorder.Event(
+			res,
+			corev1.EventTypeNormal,
+			"ReconcileError",
+			err.Error(),
+		)
+
+		return fmt.Errorf("reconile failed: %w", err)
 	}
+
 	if provisionErr != nil {
+		r.Recorder.Event(
+			res,
+			corev1.EventTypeWarning,
+			"ProvisioningError",
+			provisionErr.Error(),
+		)
+
 		return fmt.Errorf("provisioning failed: %w", provisionErr)
 	}
 

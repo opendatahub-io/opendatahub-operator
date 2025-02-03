@@ -604,7 +604,7 @@ func TestDeployOwnerRef(t *testing.T) {
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
 			}}},
-		Manager: manager.New(nil),
+		Manager: manager.New(nil, nil),
 	}
 
 	rr.Manager.AddGVK(gvk.ConfigMap, true)

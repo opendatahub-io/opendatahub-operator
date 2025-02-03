@@ -132,9 +132,9 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		case lookupErr != nil:
 			return fmt.Errorf("failed to lookup object %s/%s: %w", res.GetNamespace(), res.GetName(), lookupErr)
 		default:
-			// Remove the DSC and DSCI owner reference if set, This is required during the
+			// Remove the previous owner reference if set, This is required during the
 			// transition from the old to the new operator.
-			if err := resources.RemoveOwnerReferences(ctx, rr.Client, current, isLegacyOwnerRef); err != nil {
+			if err := resources.RemoveOwnerReferences(ctx, rr.Client, current, ownedTypeIsNot(rr.Manager.GetOwnerType())); err != nil {
 				return err
 			}
 

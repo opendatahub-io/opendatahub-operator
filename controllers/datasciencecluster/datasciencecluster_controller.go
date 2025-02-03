@@ -19,192 +19,65 @@ package datasciencecluster
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/hashicorp/go-multierror"
-	corev1 "k8s.io/api/core/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
-	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-// DataScienceClusterReconciler reconciles a DataScienceCluster object.
-type DataScienceClusterReconciler struct {
-	*odhClient.Client
-	Scheme *runtime.Scheme
-	// Recorder to generate events
-	Recorder record.EventRecorder
-}
+func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
-const (
-	finalizerName = "datasciencecluster.opendatahub.io/finalizer"
-	fieldOwner    = "datasciencecluster.opendatahub.io"
-)
+	_, err := reconciler.ReconcilerFor(mgr, &dscv1.DataScienceCluster{}).
+		Owns(&componentApi.Dashboard{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.Workbenches{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.Ray{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.ModelRegistry{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.TrustyAI{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.Kueue{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.CodeFlare{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.TrainingOperator{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.DataSciencePipelines{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.Kserve{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.ModelMeshServing{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.ModelController{}, reconciler.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.FeastOperator{}, reconciler.WithPredicates(componentsPredicate)).
+		Watches(
+			&dsciv1.DSCInitialization{},
+			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
+				return watchDataScienceClusters(ctx, mgr.GetClient())
+			})).
+		WithAction(initialize).
+		WithAction(checkPreConditions).
+		WithAction(updateStatus).
+		WithAction(provisionComponents).
+		WithAction(deploy.NewAction(
+			deploy.WithCache()),
+		).
+		WithAction(gc.NewAction(
+			gc.WithTypePredicate(
+				func(rr *types.ReconciliationRequest, objGVK schema.GroupVersionKind) (bool, error) {
+					return rr.Manager.Owns(objGVK), nil
+				},
+			),
+		)).
+		WithConditions(status.ConditionTypeProvisioningSucceeded, status.ConditionTypeComponentsReady).
+		Build(ctx)
 
-// TODO: all the logic about the deletion configmap should be moved to another controller
-//       https://issues.redhat.com/browse/RHOAIENG-16674
-
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := logf.FromContext(ctx).WithName("DataScienceCluster")
-	log.Info("Reconciling DataScienceCluster resources", "Request.Name", req.Name)
-
-	instance := &dscv1.DataScienceCluster{}
-	err := r.Client.Get(ctx, req.NamespacedName, instance)
-
-	switch {
-	case k8serr.IsNotFound(err):
-		return ctrl.Result{}, nil
-	case err != nil:
-		return ctrl.Result{}, err
-	}
-
-	if controllerutil.RemoveFinalizer(instance, finalizerName) {
-		if err := r.Client.Update(ctx, instance); err != nil {
-			return ctrl.Result{}, err
-		}
-	}
-
-	if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
-		log.Info("Finalization DataScienceCluster start deleting instance", "name", instance.Name)
-		return ctrl.Result{}, nil
-	}
-
-	cm := conditions.NewManager(
-		instance,
-		status.ConditionTypeReady,
-		status.ConditionTypeProvisioningSucceeded,
-		status.ConditionTypeComponentsReady)
-
-	if instance.Status.InstalledComponents == nil {
-		instance.Status.InstalledComponents = make(map[string]bool)
-	}
-
-	// validate pre-requisites
-	if err := r.validate(ctx, instance); err != nil {
-		cm.MarkFalse(status.ConditionTypeProvisioningSucceeded, conditions.WithError(err))
-		cm.MarkFalse(status.ConditionTypeComponentsReady, conditions.WithError(err))
-	} else {
-		var rerr error
-
-		if err := reconcileComponents(ctx, r.Client, instance, cr.DefaultRegistry()); err != nil {
-			rerr = multierror.Append(rerr, err)
-		}
-
-		if err := reconcileComponentsStatus(ctx, r.Client, instance, cr.DefaultRegistry()); err != nil {
-			rerr = multierror.Append(rerr, err)
-		}
-
-		if rerr != nil {
-			cm.MarkFalse(status.ConditionTypeProvisioningSucceeded, conditions.WithError(err))
-		} else {
-			cm.MarkTrue(status.ConditionTypeProvisioningSucceeded)
-		}
-	}
-
-	// Update happiness to cover the case where conditions were
-	// not set using the provided helper functions
-	cm.RecomputeHappiness("")
-
-	// keep conditions sorted, keeping general conditions on the
-	// top, and operands specific conditions after
-	cm.Sort()
-
-	instance.Status.Release = cluster.GetRelease()
-	instance.Status.ObservedGeneration = instance.Generation
-
-	err = r.Client.ApplyStatus(ctx, instance, client.FieldOwner(fieldOwner), client.ForceOwnership)
-	switch {
-	case err == nil:
-		return ctrl.Result{}, nil
-	case k8serr.IsNotFound(err):
-		return ctrl.Result{}, nil
-	default:
-		r.reportError(ctx, err, instance, "failed to update DataScienceCluster status")
-		return ctrl.Result{}, err
-	}
-}
-
-func (r *DataScienceClusterReconciler) validate(ctx context.Context, _ *dscv1.DataScienceCluster) error {
-	// This case should not happen, since there is a webhook that blocks the creation
-	// of more than one instance of the DataScienceCluster, however one can create a
-	// DataScienceCluster instance while the operator is stopped, hence this extra check
-
-	if _, err := cluster.GetDSCI(ctx, r.Client); err != nil {
-		return fmt.Errorf("failed to get a valid DataScienceCluster instance, %w", err)
-	}
-
-	if _, err := cluster.GetDSC(ctx, r.Client); err != nil {
-		return fmt.Errorf("failed to get a valid DSCInitialization instance, %w", err)
+	if err != nil {
+		return err
 	}
 
 	return nil
-}
-
-func (r *DataScienceClusterReconciler) reportError(ctx context.Context, err error, instance *dscv1.DataScienceCluster, message string) {
-	logf.FromContext(ctx).Error(err, message, "instance.Name", instance.Name)
-	r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DataScienceClusterReconcileError",
-		"%s for instance %s", message, instance.Name)
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *DataScienceClusterReconciler) SetupWithManager(_ context.Context, mgr ctrl.Manager) error {
-	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
-
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&dscv1.DataScienceCluster{}, builder.WithPredicates(predicates.DefaultPredicate)).
-		// components
-		Owns(&componentApi.Dashboard{}, builder.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.Workbenches{}, builder.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.Ray{}, builder.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.ModelRegistry{}, builder.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.TrustyAI{}, builder.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.Kueue{}, builder.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.CodeFlare{}, builder.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.TrainingOperator{}, builder.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.DataSciencePipelines{}, builder.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.Kserve{}, builder.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.ModelMeshServing{}, builder.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.ModelController{}, builder.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.FeastOperator{}, builder.WithPredicates(componentsPredicate)).
-		// others
-		Watches(
-			&dsciv1.DSCInitialization{},
-			handlers.Fn(r.watchDataScienceClusters)).
-		Complete(r)
-}
-
-func (r *DataScienceClusterReconciler) watchDataScienceClusters(ctx context.Context, _ client.Object) []reconcile.Request {
-	instanceList := &dscv1.DataScienceClusterList{}
-	err := r.Client.List(ctx, instanceList)
-	if err != nil {
-		return nil
-	}
-
-	requests := make([]reconcile.Request, len(instanceList.Items))
-	for i := range instanceList.Items {
-		requests[i] = reconcile.Request{NamespacedName: types.NamespacedName{Name: instanceList.Items[i].Name}}
-	}
-
-	return requests
 }

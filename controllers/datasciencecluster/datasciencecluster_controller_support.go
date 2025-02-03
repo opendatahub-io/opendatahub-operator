@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
@@ -19,86 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 )
 
-// reconcileComponent reconciles a specific component within a DataScienceCluster.
-//
-// It determines the management state of the component and applies or deletes
-// the component accordingly using the provided client.
-//
-// Parameters:
-// - ctx: The context for the request.
-// - cli: The client used to interact with the Kubernetes API.
-// - instance: The DataScienceCluster instance being reconciled.
-// - component: The component handler that provides component-specific behavior.
-//
-// Returns:
-// - An error if any operation fails, otherwise nil.
-func reconcileComponent(
-	ctx context.Context,
-	cli *odhClient.Client,
-	instance *dscv1.DataScienceCluster,
-	component cr.ComponentHandler,
-) error {
-	ms := component.GetManagementState(instance)
-	ci := component.NewCRObject(instance)
-
-	switch ms {
-	case operatorv1.Managed:
-		err := ctrl.SetControllerReference(instance, ci, cli.Scheme())
-		if err != nil {
-			return err
-		}
-		err = cli.Apply(ctx, ci, client.FieldOwner(fieldOwner), client.ForceOwnership)
-		if err != nil {
-			return client.IgnoreNotFound(err)
-		}
-	case operatorv1.Removed:
-		err := cli.Delete(ctx, ci, client.PropagationPolicy(metav1.DeletePropagationForeground))
-		if err != nil {
-			return client.IgnoreNotFound(err)
-		}
-	default:
-		return fmt.Errorf("unsupported management state: %s", ms)
-	}
-
-	return nil
-}
-
-// reconcileComponents reconciles all registered components within a DataScienceCluster.
-//
-// It iterates over each component in the registry and calls reconcileComponent to
-// ensure the component is applied or deleted based on its management state.
-//
-// Parameters:
-// - ctx: The context for the request.
-// - cli: The client used to interact with the Kubernetes API.
-// - instance: The DataScienceCluster instance being reconciled.
-// - reg: The registry containing all component handlers.
-//
-// Returns:
-// - An error if any operation fails, otherwise nil.
-func reconcileComponents(
-	ctx context.Context,
-	cli *odhClient.Client,
-	instance *dscv1.DataScienceCluster,
-	reg *cr.Registry,
-) error {
-	err := reg.ForEach(func(component cr.ComponentHandler) error {
-		err := reconcileComponent(ctx, cli, instance, component)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// reconcileComponentsStatus checks the status of all registered components in a DataScienceCluster instance
+// computeComponentsStatus checks the status of all registered components in a DataScienceCluster instance
 // and updates the status condition accordingly.
 //
 // Parameters:
@@ -109,7 +28,7 @@ func reconcileComponents(
 //
 // Returns:
 // - error: An error if any component status retrieval or update fails.
-func reconcileComponentsStatus(
+func computeComponentsStatus(
 	ctx context.Context,
 	cli *odhClient.Client,
 	instance *dscv1.DataScienceCluster,
