@@ -50,6 +50,5 @@ func TestComputeParamsMap(t *testing.T) {
 
 	g.Expect(result).Should(And(
 		HaveKeyWithValue(managedPipelineParamsKey, string(expectedData)),
-		HaveKeyWithValue(platformVersionParamsKey, v.String()),
 	))
 }

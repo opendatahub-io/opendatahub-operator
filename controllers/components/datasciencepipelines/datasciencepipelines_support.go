@@ -79,7 +79,6 @@ func computeParamsMap(rr *types.ReconciliationRequest) (map[string]string, error
 
 	extraParamsMap := map[string]string{
 		managedPipelineParamsKey: string(data),
-		platformVersionParamsKey: rr.Release.Version.String(),
 	}
 
 	return extraParamsMap, nil
