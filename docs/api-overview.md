@@ -808,6 +808,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `defaultDeploymentMode` _string_ | DefaultDeploymentMode is the value of the defaultDeploymentMode field<br />as read from the "deploy" JSON in the inferenceservice-config ConfigMap |  |  |
+| `serverlessMode` _[ManagementState](#managementstate)_ |  |  |  |
 
 
 #### KserveList
@@ -866,6 +867,7 @@ _Appears in:_
 | `observedGeneration` _integer_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `defaultDeploymentMode` _string_ | DefaultDeploymentMode is the value of the defaultDeploymentMode field<br />as read from the "deploy" JSON in the inferenceservice-config ConfigMap |  |  |
+| `serverlessMode` _[ManagementState](#managementstate)_ |  |  |  |
 
 
 #### Kueue
