@@ -27,7 +27,7 @@ import (
 )
 
 // Reconciler provides generic reconciliation functionality for ODH objects.
-type Reconciler[T common.PlatformObject] struct {
+type Reconciler struct {
 	Client     *odhClient.Client
 	Scheme     *runtime.Scheme
 	Actions    []actions.Fn
@@ -39,17 +39,17 @@ type Reconciler[T common.PlatformObject] struct {
 
 	name            string
 	m               *odhManager.Manager
-	instanceFactory func() (T, error)
+	instanceFactory func() (common.PlatformObject, error)
 }
 
 // NewReconciler creates a new reconciler for the given type.
-func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, object T) (*Reconciler[T], error) {
+func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, object T) (*Reconciler, error) {
 	oc, err := odhClient.NewFromManager(mgr)
 	if err != nil {
 		return nil, err
 	}
 
-	cc := Reconciler[T]{
+	cc := Reconciler{
 		Client:   oc,
 		Scheme:   mgr.GetScheme(),
 		Log:      ctrl.Log.WithName("controllers").WithName(name),
@@ -57,7 +57,7 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		Release:  cluster.GetRelease(),
 		name:     name,
 		m:        odhManager.New(mgr),
-		instanceFactory: func() (T, error) {
+		instanceFactory: func() (common.PlatformObject, error) {
 			t := reflect.TypeOf(object).Elem()
 			res, ok := reflect.New(t).Interface().(T)
 			if !ok {
@@ -71,31 +71,31 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 	return &cc, nil
 }
 
-func (r *Reconciler[T]) GetRelease() cluster.Release {
+func (r *Reconciler) GetRelease() cluster.Release {
 	return r.Release
 }
 
-func (r *Reconciler[T]) GetLogger() logr.Logger {
+func (r *Reconciler) GetLogger() logr.Logger {
 	return r.Log
 }
 
-func (r *Reconciler[T]) AddOwnedType(gvk schema.GroupVersionKind) {
+func (r *Reconciler) AddOwnedType(gvk schema.GroupVersionKind) {
 	r.m.AddGVK(gvk, true)
 }
 
-func (r *Reconciler[T]) Owns(obj client.Object) bool {
+func (r *Reconciler) Owns(obj client.Object) bool {
 	return r.m.Owns(obj.GetObjectKind().GroupVersionKind())
 }
 
-func (r *Reconciler[T]) AddAction(action actions.Fn) {
+func (r *Reconciler) AddAction(action actions.Fn) {
 	r.Actions = append(r.Actions, action)
 }
 
-func (r *Reconciler[T]) AddFinalizer(action actions.Fn) {
+func (r *Reconciler) AddFinalizer(action actions.Fn) {
 	r.Finalizer = append(r.Finalizer, action)
 }
 
-func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
 	l.Info("reconcile")
 
@@ -121,7 +121,7 @@ func (r *Reconciler[T]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	return ctrl.Result{}, nil
 }
 
-func (r *Reconciler[T]) delete(ctx context.Context, res client.Object) error {
+func (r *Reconciler) delete(ctx context.Context, res common.PlatformObject) error {
 	l := log.FromContext(ctx)
 	l.Info("delete")
 
@@ -162,7 +162,7 @@ func (r *Reconciler[T]) delete(ctx context.Context, res client.Object) error {
 	return nil
 }
 
-func (r *Reconciler[T]) apply(ctx context.Context, res client.Object) error {
+func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error {
 	l := log.FromContext(ctx)
 	l.Info("apply")
 

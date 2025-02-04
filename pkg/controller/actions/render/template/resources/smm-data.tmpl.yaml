@@ -6,6 +6,8 @@ metadata:
   annotations:
     instance-name: {{.Component.Name}}
     instance-id: {{.ID}}
+    instance-uid: {{.UID}}
+    instance-foo: {{.Foo}}
 spec:
   controlPlaneRef:
     namespace: {{ .DSCI.Spec.ServiceMesh.ControlPlane.Namespace }}
