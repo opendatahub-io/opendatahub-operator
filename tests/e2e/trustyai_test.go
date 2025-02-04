@@ -66,9 +66,9 @@ func (c *TrustyAITestCtx) disableKserve(t *testing.T) {
 	g.Update(
 		gvk.DataScienceCluster,
 		c.DSCName,
-		testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, operatorv1.Managed),
+		testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, operatorv1.Removed),
 	).Eventually().Should(
-		jq.Match(`.spec.components.%s.managementState == "%s"`, componentApi.KserveComponentName, operatorv1.Managed),
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentApi.KserveComponentName, operatorv1.Removed),
 	)
 
 	g.List(gvk.Kserve).Eventually().Should(
