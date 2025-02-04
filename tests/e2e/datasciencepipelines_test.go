@@ -14,7 +14,7 @@ func dataSciencePipelinesTestSuite(t *testing.T) {
 	ct, err := NewComponentTestCtx(&componentApi.DataSciencePipelines{})
 	require.NoError(t, err)
 
-	componentCtx := KueueTestCtx{
+	componentCtx := DataSciencePipelinesTestCtx{
 		ComponentTestCtx: ct,
 	}
 
