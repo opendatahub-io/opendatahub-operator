@@ -10,13 +10,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -38,22 +36,13 @@ var componentRules = map[string]string{
 }
 
 // initialize handles all pre-deployment configurations.
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	log := logf.FromContext(ctx)
-	// Only handle manifests setup and initial configurations
-	platform := rr.Release.Name
-	switch platform {
-	case cluster.ManagedRhoai:
-		// Only set prometheus configmap path
-		rr.Manifests = []odhtypes.ManifestInfo{
-			{
-				Path:       odhdeploy.DefaultManifestPath,
-				ContextDir: "monitoring/prometheus/apps",
-			},
-		}
-
-	default:
-		log.V(3).Info("Monitoring enabled, won't apply changes in this mode", "cluster", platform)
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// Only set prometheus configmap path
+	rr.Manifests = []odhtypes.ManifestInfo{
+		{
+			Path:       odhdeploy.DefaultManifestPath,
+			ContextDir: "monitoring/prometheus/apps",
+		},
 	}
 
 	return nil
@@ -106,10 +95,13 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	}
 
 	// TODO: deprecate phase
+	// Cannot use status.PhaseNotReady as the value here is not the
+	// same as the constant ("Not Ready")
 	m.Status.Phase = "NotReady"
+
 	// condition
 	nc := metav1.Condition{
-		Type:    string(ReadyConditionType),
+		Type:    status.ConditionTypeReady,
 		Status:  metav1.ConditionFalse,
 		Reason:  status.PhaseNotReady,
 		Message: "Prometheus deployment is not ready",
@@ -119,7 +111,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	err := rr.Client.List(
 		ctx,
 		promDeployment,
-		client.InNamespace(rr.DSCI.Spec.Monitoring.Namespace),
+		client.InNamespace(m.Spec.Namespace),
 	)
 	if err != nil {
 		return fmt.Errorf("error fetching promethus deployments: %w", err)
@@ -134,7 +126,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 
 	if len(promDeployment.Items) == ready {
 		// TODO: deprecate phase
-		m.Status.Phase = "Ready"
+		m.Status.Phase = status.PhaseReady
 		// condition
 		nc.Status = metav1.ConditionTrue
 		nc.Reason = status.ReconcileCompleted
