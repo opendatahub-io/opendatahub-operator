@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	gomegaTypes "github.com/onsi/gomega/types"
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/rs/xid"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -30,6 +29,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -82,10 +82,13 @@ func createReconciler(cli *odhClient.Client) *Reconciler {
 
 			return i, nil
 		},
+		conditionsManagerFactory: func(accessor common.ConditionsAccessor) *conditions.Manager {
+			return conditions.NewManager(accessor, status.ConditionTypeReady)
+		},
 	}
 }
 
-func TestAvailableCondition(t *testing.T) {
+func TestConditions(t *testing.T) {
 	ctx := context.Background()
 
 	g := NewWithT(t)
@@ -133,30 +136,27 @@ func TestAvailableCondition(t *testing.T) {
 		matcher gomegaTypes.GomegaMatcher
 	}{
 		{
-			name: "available",
+			name: "ready",
 			err:  nil,
 			matcher: And(
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, conditionsv1.ConditionAvailable, metav1.ConditionTrue),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, conditionsv1.ConditionAvailable, conditionsv1.ConditionAvailable),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "%s"`, conditionsv1.ConditionAvailable, conditionsv1.ConditionAvailable),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
 			),
 		},
 		{
 			name: "stop",
 			err:  odherrors.NewStopError("stop"),
 			matcher: And(
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, conditionsv1.ConditionAvailable, metav1.ConditionFalse),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, conditionsv1.ConditionAvailable, "Degraded"),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "%s"`, conditionsv1.ConditionAvailable, "stop"),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
 			),
 		},
 		{
 			name: "failure",
 			err:  errors.New("failure"),
 			matcher: And(
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, conditionsv1.ConditionAvailable, metav1.ConditionFalse),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, conditionsv1.ConditionAvailable, status.ReconcileFailed),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "%s"`, conditionsv1.ConditionAvailable, "failure"),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
 			),
 		},
 	}

@@ -64,11 +64,6 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		return nil, err
 	}
 
-	gvk, err := resources.GetGroupVersionKindForObject(mgr.GetScheme(), object)
-	if err != nil {
-		return nil, err
-	}
-
 	cc := Reconciler{
 		Client:   oc,
 		Scheme:   mgr.GetScheme(),
@@ -76,7 +71,7 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		Recorder: mgr.GetEventRecorderFor(name),
 		Release:  cluster.GetRelease(),
 		name:     name,
-		m:        odhManager.New(mgr, &gvk),
+		m:        odhManager.New(mgr),
 		instanceFactory: func() (common.PlatformObject, error) {
 			t := reflect.TypeOf(object).Elem()
 			res, ok := reflect.New(t).Interface().(T)
@@ -281,12 +276,14 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 	}
 
 	if provisionErr != nil {
-		r.Recorder.Event(
-			res,
-			corev1.EventTypeWarning,
-			"ProvisioningError",
-			provisionErr.Error(),
-		)
+		if r.Recorder != nil {
+			r.Recorder.Event(
+				res,
+				corev1.EventTypeWarning,
+				"ProvisioningError",
+				provisionErr.Error(),
+			)
+		}
 
 		return fmt.Errorf("provisioning failed: %w", provisionErr)
 	}

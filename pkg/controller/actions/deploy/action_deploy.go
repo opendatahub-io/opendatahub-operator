@@ -118,6 +118,7 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 	}
 
 	controllerName := strings.ToLower(kind)
+	igvk := rr.Instance.GetObjectKind().GroupVersionKind()
 
 	for i := range rr.Resources {
 		res := rr.Resources[i]
@@ -134,7 +135,7 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		default:
 			// Remove the previous owner reference if set, This is required during the
 			// transition from the old to the new operator.
-			if err := resources.RemoveOwnerReferences(ctx, rr.Client, current, ownedTypeIsNot(rr.Manager.GetOwnerType())); err != nil {
+			if err := resources.RemoveOwnerReferences(ctx, rr.Client, current, ownedTypeIsNot(&igvk)); err != nil {
 				return err
 			}
 

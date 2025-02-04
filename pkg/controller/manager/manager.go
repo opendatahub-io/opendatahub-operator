@@ -9,23 +9,17 @@ type gvkInfo struct {
 	owned bool
 }
 
-func New(manager ctrl.Manager, ownerType *schema.GroupVersionKind) *Manager {
+func New(manager ctrl.Manager) *Manager {
 	return &Manager{
-		m:         manager,
-		ownerType: ownerType,
-		gvks:      map[schema.GroupVersionKind]gvkInfo{},
+		m:    manager,
+		gvks: map[schema.GroupVersionKind]gvkInfo{},
 	}
 }
 
 type Manager struct {
 	m ctrl.Manager
 
-	ownerType *schema.GroupVersionKind
-	gvks      map[schema.GroupVersionKind]gvkInfo
-}
-
-func (m *Manager) GetOwnerType() *schema.GroupVersionKind {
-	return m.ownerType
+	gvks map[schema.GroupVersionKind]gvkInfo
 }
 
 func (m *Manager) AddGVK(gvk schema.GroupVersionKind, owned bool) {
