@@ -39,15 +39,21 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 }
 
 func (s *componentHandler) Init(_ cluster.Platform) error {
-	if err := deploy.ApplyParams(paramsPath().String(), imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", paramsPath(), err)
+	release := cluster.GetRelease()
+
+	extraParams := map[string]string{
+		platformVersionParamsKey: release.Version.String(),
+	}
+
+	if err := deploy.ApplyParams(paramsPath, imageParamMap, extraParams); err != nil {
+		return fmt.Errorf("failed to apply params on path %s: %w", paramsPath, err)
 	}
 
 	return nil
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
-	return &componentApi.DataSciencePipelines{
+	obj := componentApi.DataSciencePipelines{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.DataSciencePipelinesKind,
 			APIVersion: componentApi.GroupVersion.String(),
@@ -62,6 +68,14 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 			DataSciencePipelinesCommonSpec: dsc.Spec.Components.DataSciencePipelines.DataSciencePipelinesCommonSpec,
 		},
 	}
+
+	// since the nested structures are not pointers, we must make sure
+	// any field respect the validation rules.
+	if obj.Spec.PreloadedPipelines.InstructLab.State == "" {
+		obj.Spec.PreloadedPipelines.InstructLab.State = operatorv1.Removed
+	}
+
+	return &obj
 }
 
 func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj client.Object) error {
