@@ -244,6 +244,9 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
+              serverlessMode:
+                pattern: ^(Managed|Unmanaged|Force|Removed)$
+                type: string
             type: object
         type: object
         x-kubernetes-validations:
