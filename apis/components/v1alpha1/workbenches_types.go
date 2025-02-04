@@ -44,6 +44,7 @@ type WorkbenchesSpec struct {
 
 // WorkbenchesCommonStatus defines the shared observed state of Workbenches
 type WorkbenchesCommonStatus struct {
+	common.ComponentReleaseStatus `json:",inline"`
 }
 
 // WorkbenchesStatus defines the observed state of Workbenches
@@ -74,6 +75,12 @@ func (c *Workbenches) GetDevFlags() *common.DevFlags {
 
 func (c *Workbenches) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *Workbenches) GetReleaseStatus() *[]common.ComponentRelease { return &c.Status.Releases }
+
+func (c *Workbenches) SetReleaseStatus(releases []common.ComponentRelease) {
+	c.Status.Releases = releases
 }
 
 // +kubebuilder:object:root=true
