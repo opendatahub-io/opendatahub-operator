@@ -22,6 +22,7 @@ func codeflareTestSuite(t *testing.T) {
 	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
+	t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
 }
 
 type CodeFlareTestCtx struct {

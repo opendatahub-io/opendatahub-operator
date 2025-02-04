@@ -32,6 +32,7 @@ func kueueTestSuite(t *testing.T) {
 	t.Run("Validate Kueue Dynamically create VAP and VAPB", componentCtx.validateKueueVAPReady)
 	t.Run("Validate CRDs reinstated", componentCtx.validateCRDReinstated)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
+	t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
 }
 
 type KueueTestCtx struct {

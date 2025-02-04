@@ -90,6 +90,9 @@ _Appears in:_
 - [CodeFlareStatus](#codeflarestatus)
 - [DSCCodeFlareStatus](#dsccodeflarestatus)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### CodeFlareList
@@ -144,6 +147,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### DSCCodeFlare
@@ -675,6 +679,9 @@ _Appears in:_
 - [DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)
 - [DataSciencePipelinesStatus](#datasciencepipelinesstatus)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### DataSciencePipelinesList
@@ -729,6 +736,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### DefaultDeploymentMode
@@ -808,6 +816,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `defaultDeploymentMode` _string_ | DefaultDeploymentMode is the value of the defaultDeploymentMode field<br />as read from the "deploy" JSON in the inferenceservice-config ConfigMap |  |  |
+| `serverlessMode` _[ManagementState](#managementstate)_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### KserveList
@@ -866,6 +876,8 @@ _Appears in:_
 | `observedGeneration` _integer_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `defaultDeploymentMode` _string_ | DefaultDeploymentMode is the value of the defaultDeploymentMode field<br />as read from the "deploy" JSON in the inferenceservice-config ConfigMap |  |  |
+| `serverlessMode` _[ManagementState](#managementstate)_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### Kueue
@@ -919,6 +931,9 @@ _Appears in:_
 - [DSCKueueStatus](#dsckueuestatus)
 - [KueueStatus](#kueuestatus)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### KueueList
@@ -973,6 +988,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### ModelController
@@ -1138,6 +1154,9 @@ _Appears in:_
 - [DSCModelMeshServingStatus](#dscmodelmeshservingstatus)
 - [ModelMeshServingStatus](#modelmeshservingstatus)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### ModelMeshServingList
@@ -1192,6 +1211,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### ModelRegistry
@@ -1249,6 +1269,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `registriesNamespace` _string_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### ModelRegistryList
@@ -1305,6 +1326,7 @@ _Appears in:_
 | `observedGeneration` _integer_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `registriesNamespace` _string_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### NimSpec
@@ -1377,6 +1399,9 @@ _Appears in:_
 - [DSCRayStatus](#dscraystatus)
 - [RayStatus](#raystatus)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### RayList
@@ -1431,6 +1456,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### TrainingOperator
@@ -1484,6 +1510,9 @@ _Appears in:_
 - [DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)
 - [TrainingOperatorStatus](#trainingoperatorstatus)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### TrainingOperatorList
@@ -1538,6 +1567,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### TrustyAI
@@ -1591,6 +1621,9 @@ _Appears in:_
 - [DSCTrustyAIStatus](#dsctrustyaistatus)
 - [TrustyAIStatus](#trustyaistatus)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### TrustyAIList
@@ -1645,6 +1678,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### Workbenches
@@ -1698,6 +1732,9 @@ _Appears in:_
 - [DSCWorkbenchesStatus](#dscworkbenchesstatus)
 - [WorkbenchesStatus](#workbenchesstatus)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### WorkbenchesList
@@ -1752,6 +1789,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 
