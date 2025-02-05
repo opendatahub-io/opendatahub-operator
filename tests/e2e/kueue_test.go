@@ -60,15 +60,17 @@ func (tc *KueueTestCtx) validateKueueVAPReady(t *testing.T) {
 }
 
 func (tc *KueueTestCtx) validateCRDReinstated(t *testing.T) {
-	crds := []string{
-		"workloads.kueue.x-k8s.io",
-		"multikueueclusters.kueue.x-k8s.io",
-		"multikueueconfigs.kueue.x-k8s.io",
+	// validate multikuueclusters, multikueueconfigs has v1beta1 version
+
+	crds := map[string]string{
+		"workloads.kueue.x-k8s.io":          "v1beta1",
+		"multikueueclusters.kueue.x-k8s.io": "v1beta1",
+		"multikueueconfigs.kueue.x-k8s.io":  "v1beta1",
 	}
 
-	for _, crd := range crds {
+	for crd, version := range crds {
 		t.Run(crd, func(t *testing.T) {
-			tc.ValidateCRDReinstated(t, crd)
+			tc.ValidateCRDReinstated(t, crd, version)
 		})
 	}
 }
