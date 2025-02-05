@@ -105,7 +105,7 @@ const (
 // For Kueue MultiKueue CRD.
 const (
 	MultiKueueCRDReason  = "MultiKueueCRDV1Alpha1Exist"
-	MultiKueueCRDMessage = "MultiKueue CRDs MultiKueueConfig v1alpha1 and MultiKueueCluster v1Alpha1 exist, please remove them before proceed"
+	MultiKueueCRDMessage = "MultiKueue CRDs MultiKueueConfig v1alpha1 and MultiKueueCluster v1Alpha1 exist, please remove them to proceed"
 )
 
 // SetProgressingCondition sets the ProgressingCondition to True and other conditions to false or
