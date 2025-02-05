@@ -19,6 +19,16 @@ rules:
   verbs:
   - get
 - apiGroups:
+  - datasciencecluster.opendatahub.io
+  resources:
+  - datascienceclusters
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - patch
+- apiGroups:
   - modelregistry.opendatahub.io
   resources:
   - modelregistries

@@ -89,15 +89,6 @@ rules:
   - update
   - patch
 - apiGroups:
-  - datasciencecluster.opendatahub.io
-  resources:
-  - datascienceclusters
-  verbs:
-  - get
-  - list
-  - watch
-  - update
-- apiGroups:
   - dashboard.opendatahub.io
   resources:
   - odhapplications
