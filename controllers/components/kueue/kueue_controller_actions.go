@@ -24,12 +24,12 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return fmt.Errorf("resource instance %v is not a componentApi.Kueue)", rr.Instance)
 	}
 
-	rConfig, eConfig := cluster.CRDVersioNotExists(ctx, rr.Client, gvk.MultiKueueConfigV1Alpha1.GroupKind(), gvk.MultiKueueConfigV1Alpha1.Version)
-	rCluster, eCluster := cluster.CRDVersioNotExists(ctx, rr.Client, gvk.MultikueueClusterV1Alpha1.GroupKind(), gvk.MultikueueClusterV1Alpha1.Version)
+	rConfig, eConfig := cluster.HasCRDWithVersion(ctx, rr.Client, gvk.MultiKueueConfigV1Alpha1.GroupKind(), gvk.MultiKueueConfigV1Alpha1.Version)
+	rCluster, eCluster := cluster.HasCRDWithVersion(ctx, rr.Client, gvk.MultikueueClusterV1Alpha1.GroupKind(), gvk.MultikueueClusterV1Alpha1.Version)
 	if eConfig != nil || eCluster != nil {
 		return odherrors.NewStopError("failed to check CRDs version: %v, %v", eConfig, eCluster)
 	}
-	if !rConfig || !rCluster {
+	if rConfig || rCluster {
 		s := k.GetStatus()
 		s.Phase = status.PhaseNotReady
 		meta.SetStatusCondition(&s.Conditions, metav1.Condition{
