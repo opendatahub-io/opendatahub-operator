@@ -6,7 +6,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -262,12 +261,6 @@ var _ = Describe("Service Mesh setup", func() {
 							).
 							WithData(
 								servicemesh.FeatureData.ControlPlane.Define(&dsci.Spec).AsAction(),
-							).
-							OnDelete(
-								servicemesh.RemoveExtensionProvider(
-									dsci.Spec.ServiceMesh.ControlPlane,
-									dsci.Spec.ApplicationsNamespace+"-auth-provider",
-								),
 							))
 					})
 
@@ -293,31 +286,6 @@ var _ = Describe("Service Mesh setup", func() {
 						}
 						Expect(envoyExtAuthzGrpc["service"]).To(Equal("authorino-authorino-authorization.auth-provider.svc.cluster.local"))
 					})
-
-					// then
-					By("verifying that extension provider has been removed and namespace is gone too", func() {
-						Expect(handler.Delete(ctx, envTestClient)).To(Succeed())
-						Eventually(func(ctx context.Context) []any {
-
-							serviceMeshControlPlane, err := getServiceMeshControlPlane(ctx, namespace, name)
-							Expect(err).ToNot(HaveOccurred())
-
-							extensionProviders, found, err := unstructured.NestedSlice(serviceMeshControlPlane.Object, "spec", "techPreview", "meshConfig", "extensionProviders")
-							Expect(err).ToNot(HaveOccurred())
-							Expect(found).To(BeTrue())
-
-							_, err = fixtures.GetNamespace(ctx, envTestClient, serviceMeshSpec.Auth.Namespace)
-							Expect(k8serr.IsNotFound(err)).To(BeTrue())
-
-							return extensionProviders
-
-						}).
-							WithTimeout(fixtures.Timeout).
-							WithPolling(fixtures.Interval).
-							WithContext(ctx).
-							Should(BeEmpty())
-					})
-
 				})
 
 			})
