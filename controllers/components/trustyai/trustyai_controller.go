@@ -24,6 +24,8 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -56,7 +58,22 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.TrustyAIInstanceName)),
+			reconciler.WithPredicates(predicate.Or(
+				component.ForLabel(labels.ODH.Component("kserve"), labels.True),
+				component.ForLabel(labels.ODH.Component("model-mesh"), labels.True)),
+				predicate.Funcs{
+					CreateFunc: func(e event.CreateEvent) bool {
+						return e.Object.GetName() == "inferenceservices.serving.kserve.io"
+					},
+				},
+			),
+		).
 		// Add TrustyAI-specific actions
+		WithAction(checkPreConditions). // check if CRD isvc is there
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(releases.NewAction()).

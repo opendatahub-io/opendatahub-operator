@@ -31,6 +31,7 @@ func trustyAITestSuite(t *testing.T) {
 	t.Run("Validate component enabled", componentCtx.ValidateComponentEnabled)
 	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
+	t.Run("Validate CRDs reinstated", componentCtx.validateCRDReinstated)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
 	t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
 
@@ -74,4 +75,18 @@ func (c *TrustyAITestCtx) disableKserve(t *testing.T) {
 	g.List(gvk.Kserve).Eventually().Should(
 		BeEmpty(),
 	)
+}
+
+func (c *TrustyAITestCtx) validateCRDReinstated(t *testing.T) {
+	// validate multikuueclusters, multikueueconfigs has v1beta1 version
+
+	crds := []string{
+		"inferenceservices.serving.kserve.io", // SR is not needed any more in 2.18.0
+	}
+
+	for _, crd := range crds {
+		t.Run(crd, func(t *testing.T) {
+			c.ValidateCRDReinstated(t, crd)
+		})
+	}
 }

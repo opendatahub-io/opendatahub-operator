@@ -262,4 +262,10 @@ var (
 		Version: "v1alpha1",
 		Kind:    "MultiKueueCluster",
 	}
+
+	InferenceServices = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1beta1",
+		Kind:    "InferenceService",
+	}
 )

@@ -108,6 +108,12 @@ const (
 	MultiKueueCRDMessage = "MultiKueue CRDs MultiKueueConfig v1alpha1 and MultiKueueCluster v1Alpha1 exist, please remove them to proceed"
 )
 
+// For TrustyAI require ISVC CRD.
+const (
+	ISVCMissingCRDReason  = "InferenceServiceCRDMissing"
+	ISVCMissingCRDMessage = "InferenceServices CRD does not exist, please enable serving component first"
+)
+
 // SetProgressingCondition sets the ProgressingCondition to True and other conditions to false or
 // Unknown. Used when we are just starting to reconcile, and there are no existing conditions.
 func SetProgressingCondition(conditions *[]conditionsv1.Condition, reason string, message string) {
