@@ -264,4 +264,4 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.17.0
+  version: 2.18.0
