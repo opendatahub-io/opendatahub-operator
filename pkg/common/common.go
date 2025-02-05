@@ -70,34 +70,6 @@ func MatchLineInFile(fileName string, replacements map[string]string) error {
 	return nil
 }
 
-func TrimToRFC1123Name(input string) string {
-	if len(input) == 0 {
-		return input
-	}
-	if len(input) > 63 {
-		input = input[:63]
-	}
-
-	regex := regexp.MustCompile(`[^A-Za-z0-9\-]+`)
-	replaced := regex.ReplaceAllString(input, "-")
-
-	if !isAlphanumeric(replaced[0]) {
-		replaced = "a" + replaced[1:]
-	}
-
-	if !isAlphanumeric(replaced[len(replaced)-1]) {
-		replaced = replaced[:len(replaced)-1] + "z"
-	}
-
-	return strings.ToLower(replaced)
-}
-
-func isAlphanumeric(char byte) bool {
-	regex := regexp.MustCompile(`^[A-Za-z0-9]$`)
-
-	return regex.Match([]byte{char})
-}
-
 // encode configmap data and return in base64.
 func GetMonitoringData(data string) (string, error) {
 	// Create a new SHA-256 hash object

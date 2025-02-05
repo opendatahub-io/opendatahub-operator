@@ -3,11 +3,13 @@ package template_test
 import (
 	"context"
 	"embed"
+	"errors"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apytypes "k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -89,6 +91,13 @@ func TestRenderTemplateWithData(t *testing.T) {
 			"SMM": map[string]any{
 				"Name": name,
 			},
+			"Foo": "bar",
+		}),
+		template.WithDataFn(func(_ context.Context, rr *types.ReconciliationRequest) (map[string]any, error) {
+			return map[string]any{
+				"Foo": "bar",
+				"UID": rr.Instance.GetUID(),
+			}, nil
 		}),
 	)
 
@@ -97,6 +106,7 @@ func TestRenderTemplateWithData(t *testing.T) {
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: ns,
+				UID:  apytypes.UID(xid.New().String()),
 			},
 		},
 		DSCI: &dsciv1.DSCInitialization{
@@ -126,8 +136,42 @@ func TestRenderTemplateWithData(t *testing.T) {
 			jq.Match(`.spec.controlPlaneRef.name == "%s"`, rr.DSCI.Spec.ServiceMesh.ControlPlane.Name),
 			jq.Match(`.metadata.annotations."instance-name" == "%s"`, rr.Instance.GetName()),
 			jq.Match(`.metadata.annotations."instance-id" == "%s"`, id),
+			jq.Match(`.metadata.annotations."instance-uid" == "%s"`, rr.Instance.GetUID()),
+			jq.Match(`.metadata.annotations."instance-foo" == "%s"`, "bar"),
 		)),
 	))
+}
+
+func TestRenderTemplateWithDataErr(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := context.Background()
+	ns := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := template.NewAction(
+		template.WithDataFn(func(_ context.Context, rr *types.ReconciliationRequest) (map[string]any, error) {
+			return map[string]any{}, errors.New("compute-data-error")
+		}),
+	)
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+			},
+		},
+		DSCI:      &dsciv1.DSCInitialization{},
+		Release:   cluster.Release{Name: cluster.OpenDataHub},
+		Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm-data.tmpl.yaml"}},
+	}
+
+	err = action(ctx, &rr)
+
+	g.Expect(err).Should(HaveOccurred())
 }
 
 func TestRenderTemplateWithCache(t *testing.T) {

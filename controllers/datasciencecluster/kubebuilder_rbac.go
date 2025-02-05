@@ -239,6 +239,7 @@ package datasciencecluster
 /* Serverless prerequisite */
 // +kubebuilder:rbac:groups="networking.istio.io",resources=gateways,verbs=*
 // +kubebuilder:rbac:groups="operator.knative.dev",resources=knativeservings,verbs=*
+// +kubebuilder:rbac:groups="operator.knative.dev",resources=knativeservings/finalizers,verbs=update;patch;get
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
 
 // WB

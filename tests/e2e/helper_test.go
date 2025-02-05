@@ -27,11 +27,12 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
+	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 const (
+	knativeServingNamespace  = "knative-serving"
 	servicemeshNamespace     = "openshift-operators"
 	servicemeshOpName        = "servicemeshoperator"
 	serverlessOpName         = "serverless-operator"
@@ -197,7 +198,7 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
-						RegistriesNamespace: modelregistry.DefaultModelRegistriesNamespace,
+						RegistriesNamespace: modelregistryctrl.DefaultModelRegistriesNamespace,
 					},
 				},
 				TrainingOperator: componentApi.DSCTrainingOperator{

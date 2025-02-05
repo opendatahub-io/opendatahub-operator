@@ -48,10 +48,7 @@ func creationTestSuite(t *testing.T) {
 			require.NoError(t, err, "error validating DSCInitialization instance")
 		})
 
-		t.Run("Check owned namespaces exist", func(t *testing.T) {
-			err = testCtx.testOwnedNamespacesAllExist()
-			require.NoError(t, err, "error owned namespace is missing")
-		})
+		t.Run("Check owned namespaces exist", testCtx.testOwnedNamespacesAllExist)
 
 		// DSC
 		t.Run("Creation of DataScienceCluster instance", func(t *testing.T) {

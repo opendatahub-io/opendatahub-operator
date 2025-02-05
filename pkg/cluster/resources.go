@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -15,8 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 // UpdatePodSecurityRolebinding update default rolebinding which is created in applications namespace by manifests
@@ -54,36 +50,6 @@ func SubjectExistInRoleBinding(subjectList []rbacv1.Subject, serviceAccountName,
 	}
 
 	return false
-}
-
-// CreateSecret creates secrets required by dashboard component in downstream.
-func CreateSecret(ctx context.Context, cli client.Client, name, namespace string, metaOptions ...MetaOptions) error {
-	desiredSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Type: corev1.SecretTypeOpaque,
-	}
-
-	if err := ApplyMetaOptions(desiredSecret, metaOptions...); err != nil {
-		return err
-	}
-
-	foundSecret := &corev1.Secret{}
-	err := cli.Get(ctx, client.ObjectKeyFromObject(desiredSecret), foundSecret)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			err = cli.Create(ctx, desiredSecret)
-			if err != nil && !k8serr.IsAlreadyExists(err) {
-				return err
-			}
-		} else {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // CreateOrUpdateConfigMap creates a new configmap or updates an existing one.
@@ -173,30 +139,6 @@ func ExecuteOnAllNamespaces(ctx context.Context, cli client.Client, processFunc 
 		}
 	}
 	return nil
-}
-
-// WaitForDeploymentAvailable to check if component deployment from 'namespace' is ready within 'timeout' before apply prometheus rules for the component.
-func WaitForDeploymentAvailable(ctx context.Context, c client.Client, componentName string, namespace string, interval int, timeout int) error {
-	log := logf.FromContext(ctx)
-	resourceInterval := time.Duration(interval) * time.Second
-	resourceTimeout := time.Duration(timeout) * time.Minute
-
-	return wait.PollUntilContextTimeout(ctx, resourceInterval, resourceTimeout, true, func(ctx context.Context) (bool, error) {
-		componentDeploymentList := &appsv1.DeploymentList{}
-		err := c.List(ctx, componentDeploymentList, client.InNamespace(namespace), client.HasLabels{labels.ODH.Component(componentName)})
-		if err != nil {
-			return false, fmt.Errorf("error fetching list of deployments: %w", err)
-		}
-
-		log.Info("waiting for " + strconv.Itoa(len(componentDeploymentList.Items)) + " deployment to be ready for " + componentName)
-		for _, deployment := range componentDeploymentList.Items {
-			if deployment.Status.ReadyReplicas != deployment.Status.Replicas {
-				return false, nil
-			}
-		}
-
-		return true, nil
-	})
 }
 
 func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object, timeoutMin int) error {

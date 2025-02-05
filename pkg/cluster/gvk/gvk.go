@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
+	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 )
 
@@ -27,6 +28,11 @@ var (
 		Group:   "dscinitialization.opendatahub.io",
 		Version: "v1",
 		Kind:    "DSCInitialization",
+	}
+	FeatureTracker = schema.GroupVersionKind{
+		Group:   featuresv1.GroupVersion.Group,
+		Version: featuresv1.GroupVersion.Version,
+		Kind:    "FeatureTracker",
 	}
 
 	Deployment = schema.GroupVersionKind{

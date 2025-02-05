@@ -21,10 +21,6 @@ package status
 import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 )
 
 // These constants represent the overall Phase as used by .Status.Phase.
@@ -220,25 +216,4 @@ func SetCondition(conditions *[]conditionsv1.Condition, conditionType string, re
 		Reason:  reason,
 		Message: message,
 	})
-}
-
-// SetComponentCondition appends Condition Type with const ReadySuffix for given component
-// when component finished reconcile.
-func SetComponentCondition(conditions *[]conditionsv1.Condition, component string, reason string, message string, status corev1.ConditionStatus) {
-	SetCondition(conditions, component+ReadySuffix, reason, message, status)
-}
-
-// RemoveComponentCondition remove Condition of giving component.
-func RemoveComponentCondition(conditions *[]conditionsv1.Condition, component string) {
-	conditionsv1.RemoveStatusCondition(conditions, conditionsv1.ConditionType(component+ReadySuffix))
-}
-
-// ModelRegistryStatus struct holds the status for the ModelRegistry component.
-type ModelRegistryStatus struct {
-	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
-}
-
-func SetStatusCondition(obj common.WithStatus, condition metav1.Condition) bool {
-	s := obj.GetStatus()
-	return meta.SetStatusCondition(&s.Conditions, condition)
 }
