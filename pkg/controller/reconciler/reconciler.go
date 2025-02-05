@@ -152,7 +152,7 @@ func (r *Reconciler) delete(ctx context.Context, res common.PlatformObject) erro
 				l.Error(err, "Failed to execute finalizer", "action", action)
 				return err
 			}
-
+			l.Error(err, err.Error())
 			l.V(3).Info("detected stop marker", "action", action)
 			break
 		}
