@@ -76,8 +76,8 @@ type KserveSpec struct {
 type KserveCommonStatus struct {
 	// DefaultDeploymentMode is the value of the defaultDeploymentMode field
 	// as read from the "deploy" JSON in the inferenceservice-config ConfigMap
-	DefaultDeploymentMode string                     `json:"defaultDeploymentMode,omitempty"`
-	ServerlessMode        operatorv1.ManagementState `json:"serverlessMode,omitempty"`
+	DefaultDeploymentMode         string                     `json:"defaultDeploymentMode,omitempty"`
+	ServerlessMode                operatorv1.ManagementState `json:"serverlessMode,omitempty"`
 	common.ComponentReleaseStatus `json:",inline"`
 }
 
