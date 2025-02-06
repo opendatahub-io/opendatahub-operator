@@ -1,11 +1,14 @@
 package e2e_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -98,7 +101,8 @@ func (c *TrustyAITestCtx) validateCRDReinstated(t *testing.T) {
 func (c *TrustyAITestCtx) validateTrustyAIPreCheck(t *testing.T) {
 	// validate precheck on CRD version:
 	// pre-req: skip trusty to removed (done by ValidateComponentDisabled)
-	// step: delete isvc left from enableKserve, trustyai to managed, result to error, enable mm, result to success
+	// step: delete isvc left from enableKserve wait till it is gone
+	// set trustyai to managed, result to error, enable mm, result to success
 
 	g := c.NewWithT(t)
 	g.Delete(gvk.CustomResourceDefinition,
@@ -107,6 +111,12 @@ func (c *TrustyAITestCtx) validateTrustyAIPreCheck(t *testing.T) {
 	).Eventually().Should(
 		Succeed(),
 	)
+	g.Eventually(func() bool {
+		var crd apiextensionsv1.CustomResourceDefinition
+		err := c.Client().Get(context.Background(), types.NamespacedName{Name: "inferenceservices.serving.kserve.io"}, &crd)
+		return k8serr.IsNotFound(err)
+	}).Should(BeTrue())
+
 	g.Update(
 		gvk.DataScienceCluster,
 		c.DSCName,
