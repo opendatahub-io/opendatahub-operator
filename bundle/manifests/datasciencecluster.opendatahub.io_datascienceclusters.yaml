@@ -752,6 +752,10 @@ spec:
                               type: string
                             repoUrl:
                               type: string
+                            supportedArchitectures:
+                              items:
+                                type: string
+                              type: array
                             version:
                               type: string
                           required:
@@ -779,6 +783,28 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          description: ComponentRelease represents the detailed status
+                            of a component release.
+                          properties:
+                            name:
+                              type: string
+                            repoUrl:
+                              type: string
+                            supportedArchitectures:
+                              items:
+                                type: string
+                              type: array
+                            version:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                       url:
                         type: string
                     type: object
@@ -808,6 +834,10 @@ spec:
                               type: string
                             repoUrl:
                               type: string
+                            supportedArchitectures:
+                              items:
+                                type: string
+                              type: array
                             version:
                               type: string
                           required:
@@ -835,6 +865,28 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          description: ComponentRelease represents the detailed status
+                            of a component release.
+                          properties:
+                            name:
+                              type: string
+                            repoUrl:
+                              type: string
+                            supportedArchitectures:
+                              items:
+                                type: string
+                              type: array
+                            version:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                     type: object
                   kserve:
                     description: Kserve component status.
@@ -867,6 +919,10 @@ spec:
                               type: string
                             repoUrl:
                               type: string
+                            supportedArchitectures:
+                              items:
+                                type: string
+                              type: array
                             version:
                               type: string
                           required:
@@ -906,6 +962,10 @@ spec:
                               type: string
                             repoUrl:
                               type: string
+                            supportedArchitectures:
+                              items:
+                                type: string
+                              type: array
                             version:
                               type: string
                           required:
@@ -942,6 +1002,10 @@ spec:
                               type: string
                             repoUrl:
                               type: string
+                            supportedArchitectures:
+                              items:
+                                type: string
+                              type: array
                             version:
                               type: string
                           required:
@@ -980,6 +1044,10 @@ spec:
                               type: string
                             repoUrl:
                               type: string
+                            supportedArchitectures:
+                              items:
+                                type: string
+                              type: array
                             version:
                               type: string
                           required:
@@ -1016,6 +1084,10 @@ spec:
                               type: string
                             repoUrl:
                               type: string
+                            supportedArchitectures:
+                              items:
+                                type: string
+                              type: array
                             version:
                               type: string
                           required:
@@ -1052,6 +1124,10 @@ spec:
                               type: string
                             repoUrl:
                               type: string
+                            supportedArchitectures:
+                              items:
+                                type: string
+                              type: array
                             version:
                               type: string
                           required:
@@ -1088,6 +1164,10 @@ spec:
                               type: string
                             repoUrl:
                               type: string
+                            supportedArchitectures:
+                              items:
+                                type: string
+                              type: array
                             version:
                               type: string
                           required:
@@ -1124,6 +1204,10 @@ spec:
                               type: string
                             repoUrl:
                               type: string
+                            supportedArchitectures:
+                              items:
+                                type: string
+                              type: array
                             version:
                               type: string
                           required:

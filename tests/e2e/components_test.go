@@ -296,14 +296,15 @@ func (c *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
 		),
 	))
 
-	// Validate each release's fields (name, version, repoUrl) using HaveEach
+	// Validate each release's fields (name, version, repoUrl, supportedArchitectures) using HaveEach
 	g.List(gvk.DataScienceCluster).Eventually().Should(And(
 		HaveLen(1),
 		HaveEach(And(
-			// Check that each release has the required fields (name, version, repoUrl)
+			// Check that each release has the required fields (name, version, repoUrl, supportedArchitectures)
 			jq.Match(`.status.components.%s.releases[].name != ""`, componentName),
 			jq.Match(`.status.components.%s.releases[].version != ""`, componentName),
-			jq.Match(`.status.components.%s.releases[].repoUrl != ""`, componentName)),
+			jq.Match(`.status.components.%s.releases[].repoUrl != ""`, componentName),
+			jq.Match(`.status.components.%s.releases[].supportedArchitectures != nil`, componentName)),
 		),
 	))
 }
