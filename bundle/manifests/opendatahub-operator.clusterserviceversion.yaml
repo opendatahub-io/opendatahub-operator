@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.23.1
-    createdAt: "2025-02-04T09:17:15Z"
+    createdAt: "2025-02-05T09:18:14Z"
     olm.skipRange: '>=1.0.0 <2.23.1'
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
