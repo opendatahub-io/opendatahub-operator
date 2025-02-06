@@ -172,10 +172,6 @@ func (r *Manager) ClearCondition(t string) error {
 		return nil
 	}
 
-	slices.SortFunc(conditions, func(a, b common.Condition) int {
-		return strings.Compare(a.Type, b.Type)
-	})
-
 	r.accessor.SetConditions(conditions)
 	r.RecomputeHappiness(t)
 
