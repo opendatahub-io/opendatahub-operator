@@ -211,7 +211,7 @@ func (c *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 	))
 }
 
-func (c *ComponentTestCtx) ValidateCRDReinstated(t *testing.T, name string) {
+func (c *ComponentTestCtx) ValidateCRDReinstated(t *testing.T, name string, version ...string) {
 	t.Helper()
 
 	g := c.NewWithT(t)
@@ -258,6 +258,14 @@ func (c *ComponentTestCtx) ValidateCRDReinstated(t *testing.T, name string) {
 	g.List(gvk.CustomResourceDefinition, crdSel).Eventually().Should(
 		HaveLen(1),
 	)
+	if len(version) != 0 {
+		g.Get(
+			gvk.CustomResourceDefinition,
+			types.NamespacedName{Name: name},
+		).Eventually(5*time.Second, 500*time.Millisecond).Should(
+			jq.Match(`.status.storedVersions[0] == "%s"`, version[0]),
+		)
+	}
 }
 
 func (c *ComponentTestCtx) GetDSC() (*dscv1.DataScienceCluster, error) {

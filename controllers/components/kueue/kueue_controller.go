@@ -74,6 +74,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
 		// Add Kueue-specific actions
+		WithAction(checkPreConditions). // check if CRD multikueueconfigs/multikueueclusters with v1alpha1 exist in cluster and not in termination
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(kustomize.NewAction(
