@@ -23,8 +23,7 @@ func feastOperatorTestSuite(t *testing.T) { //nolint:unused
 	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
-	// TODO: Uncomment the following tests after yaml is in ODH repo
-	// t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
+	t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
 }
 
 type FeastOperatorTestCtx struct {

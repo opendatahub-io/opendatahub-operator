@@ -156,12 +156,13 @@ func (s *Status) SetConditions(conditions []Condition) {
 type ComponentRelease struct {
 	// +required
 	// +kubebuilder:validation:Required
-	Name    string `yaml:"name" json:"name"`
-	Version string `yaml:"version,omitempty" json:"version,omitempty"`
-	RepoURL string `yaml:"repoUrl,omitempty" json:"repoUrl,omitempty"`
+	Name                   string   `yaml:"name" json:"name"`
+	Version                string   `yaml:"version,omitempty" json:"version,omitempty"`
+	RepoURL                string   `yaml:"repoUrl,omitempty" json:"repoUrl,omitempty"`
+	SupportedArchitectures []string `yaml:"supportedArchitectures,omitempty" json:"supportedArchitectures,omitempty"`
 }
 
-// ComponentReleaseStatus tracks the list of component releases, including their name, version, and repository URL.
+// ComponentReleaseStatus tracks the list of component releases, including their name, version, repository URL, and supported architectures.
 // +kubebuilder:object:generate=true
 type ComponentReleaseStatus struct {
 	// +patchMergeKey=name

@@ -53,7 +53,7 @@ func kserveTestSuite(t *testing.T) {
 	t.Run("Validate default certs", componentCtx.validateDefaultCertsAvailable)
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
-	// t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
+	t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
 }
 
 type KserveTestCtx struct {
