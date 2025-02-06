@@ -63,14 +63,20 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.TrustyAIInstanceName)),
 			reconciler.WithPredicates(predicate.Or(
-				component.ForLabel(labels.ODH.Component("kserve"), labels.True),
-				component.ForLabel(labels.ODH.Component("model-mesh"), labels.True)),
+				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 				predicate.Funcs{
 					CreateFunc: func(e event.CreateEvent) bool {
-						return e.Object.GetName() == "inferenceservices.serving.kserve.io"
+						return e.Object.GetName() == "inferenceservices.serving.kserve.io" &&
+							(e.Object.GetLabels()[labels.ODH.Component(componentApi.KserveComponentName)] == labels.True)
 					},
 				},
-			),
+				predicate.Funcs{
+					CreateFunc: func(e event.CreateEvent) bool {
+						return e.Object.GetName() == "inferenceservices.serving.kserve.io" &&
+							(e.Object.GetLabels()[labels.ODH.Component(componentApi.ModelMeshServingComponentName)] == labels.True)
+					},
+				},
+			)),
 		).
 		// Add TrustyAI-specific actions
 		WithAction(checkPreConditions). // check if CRD isvc is there
