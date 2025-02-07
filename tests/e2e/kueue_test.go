@@ -9,6 +9,8 @@ import (
 	"github.com/blang/semver/v4"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -83,22 +85,38 @@ func (tc *KueueTestCtx) validateCRDReinstated(t *testing.T) {
 
 func (tc *KueueTestCtx) validateKueuePreCheck(t *testing.T) {
 	// validate precheck on CRD version:
-	// pre-req: skip kueue to removed (done by ValidateComponentDisabled)
-	// step: delete crd, install old crd, kueue to managed, result to error, delete crd, result to success
+	// pre-req: skip set kueue to removed (done by ValidateComponentDisabled)
+	// step:
+	// delete crd, check it is gone, then install old crd,
+	// set kueue to managed, result to error, delete crd, result to success.
+
+	var mkConfig = "multikueueconfigs.kueue.x-k8s.io"
+	var mkCluster = "multikueueclusters.kueue.x-k8s.io"
 
 	g := tc.NewWithT(t)
 	g.Delete(gvk.CustomResourceDefinition,
-		types.NamespacedName{Name: "multikueueclusters.kueue.x-k8s.io"},
+		types.NamespacedName{Name: mkCluster},
 		client.PropagationPolicy(metav1.DeletePropagationForeground),
 	).Eventually().Should(
 		Succeed(),
 	)
+	g.Eventually(func() bool {
+		var crd extv1.CustomResourceDefinition
+		err := tc.Client().Get(context.Background(), types.NamespacedName{Name: mkCluster}, &crd)
+		return k8serr.IsNotFound(err)
+	}).Should(BeTrue())
+
 	g.Delete(gvk.CustomResourceDefinition,
-		types.NamespacedName{Name: "multikueueconfigs.kueue.x-k8s.io"},
+		types.NamespacedName{Name: mkConfig},
 		client.PropagationPolicy(metav1.DeletePropagationForeground),
 	).Eventually().Should(
 		Succeed(),
 	)
+	g.Eventually(func() bool {
+		var crd extv1.CustomResourceDefinition
+		err := tc.Client().Get(context.Background(), types.NamespacedName{Name: mkConfig}, &crd)
+		return k8serr.IsNotFound(err)
+	}).Should(BeTrue())
 
 	c1 := mockCRDcreation("kueue.x-k8s.io", "v1alpha1", "multikueuecluster", "kueue")
 	e1 := tc.Client().Create(context.Background(), c1)
@@ -125,13 +143,13 @@ func (tc *KueueTestCtx) validateKueuePreCheck(t *testing.T) {
 	))
 
 	g.Delete(gvk.CustomResourceDefinition,
-		types.NamespacedName{Name: "multikueueclusters.kueue.x-k8s.io"},
+		types.NamespacedName{Name: mkCluster},
 		client.PropagationPolicy(metav1.DeletePropagationForeground),
 	).Eventually().Should(
 		Succeed(),
 	)
 	g.Delete(gvk.CustomResourceDefinition,
-		types.NamespacedName{Name: "multikueueconfigs.kueue.x-k8s.io"},
+		types.NamespacedName{Name: mkConfig},
 		client.PropagationPolicy(metav1.DeletePropagationForeground),
 	).Eventually().Should(
 		Succeed(),
