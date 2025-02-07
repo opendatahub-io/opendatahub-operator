@@ -36,6 +36,7 @@ func dashboardTestSuite(t *testing.T) {
 	t.Run("Validate dynamically watches operands", componentCtx.validateOperandsDynamicallyWatchedResources)
 	t.Run("Validate CRDs reinstated", componentCtx.validateCRDReinstated)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
+	// t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
 }
 
 type DashboardTestCtx struct {

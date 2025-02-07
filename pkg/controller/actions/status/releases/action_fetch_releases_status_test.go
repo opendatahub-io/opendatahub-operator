@@ -51,9 +51,14 @@ releases:
   - name: Kubeflow Pipelines
     version: 2.2.0
     repoUrl: https://github.com/kubeflow/kfp-tekton
+    supportedArchitectures:
+      - amd64
+      - ppc64le
   - name: Another Component
     version: 1.3.1
     repoUrl: https://example.com/repo
+    supportedArchitectures:
+      - amd64
 `,
 			expectedReleases: 2,
 			expectedError:    false,
@@ -73,6 +78,9 @@ releases:
   - name: Kubeflow Pipelines
     versionNumber: 2.2.0
     repoUrl: https://github.com/kubeflow/kfp-tekton
+    supportedArchitectures:
+      - amd64
+      - ppc64le
 `,
 			expectedReleases: 0,
 			expectedError:    false,
@@ -92,6 +100,9 @@ releases:
   - name: Kubeflow Pipelines
     version: 2.2.0
     repoUrl: https://github.com/kubeflow/kfp-tekton
+    supportedArchitectures:
+      - amd64
+      - ppc64le
 `,
 			expectedReleases: 1,
 			expectedError:    false,
@@ -100,6 +111,10 @@ releases:
 					Name:    "Kubeflow Pipelines",
 					Version: "0.0.0",
 					RepoURL: "https://github.com/kubeflow/kfp-tekton",
+					SupportedArchitectures: []string{
+						"amd64",
+						"ppc64le",
+					},
 				},
 			},
 		},
@@ -111,6 +126,9 @@ releases:
   - name: Kubeflow Pipelines
     version: 2.2.0
     repoUrl: https://github.com/kubeflow/kfp-tekton
+    supportedArchitectures:
+      - amd64
+      - ppc64le
 `,
 			expectedReleases: 1,
 			expectedError:    false,
@@ -120,6 +138,10 @@ releases:
 					Name:    "Kubeflow Pipelines",
 					Version: "0.0.0",
 					RepoURL: "https://github.com/kubeflow/kfp-tekton",
+					SupportedArchitectures: []string{
+						"amd64",
+						"ppc64le",
+					},
 				},
 			},
 		},
