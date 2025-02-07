@@ -151,7 +151,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&dscMonitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster"+
+	flag.StringVar(&dscMonitoringNamespace, "dsc-monitoring-namespace", "redhat-ods-monitoring", "The namespace where data science cluster"+
 		"monitoring stack will be deployed")
 	flag.StringVar(&logmode, "log-mode", "", "Log mode ('', prod, devel), default to ''")
 
