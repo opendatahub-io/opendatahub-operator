@@ -121,7 +121,7 @@ func (r *Manager) IsHappy() bool {
 		return false
 	}
 
-	return IsStatusConditionTrue(r.accessor.GetConditions(), r.happy)
+	return IsStatusConditionTrue(r.accessor, r.happy)
 }
 
 func (r *Manager) GetTopLevelCondition() *common.Condition {
@@ -129,7 +129,7 @@ func (r *Manager) GetTopLevelCondition() *common.Condition {
 }
 
 func (r *Manager) GetCondition(t string) *common.Condition {
-	return FindStatusCondition(r.accessor.GetConditions(), t)
+	return FindStatusCondition(r.accessor, t)
 }
 
 // SetCondition sets the given condition on the manager. It updates the list of conditions and
@@ -143,13 +143,10 @@ func (r *Manager) SetCondition(cond common.Condition) {
 		return
 	}
 
-	conditions := r.accessor.GetConditions()
-
-	if !SetStatusCondition(&conditions, cond) {
+	if !SetStatusCondition(r.accessor, cond) {
 		return
 	}
 
-	r.accessor.SetConditions(conditions)
 	r.RecomputeHappiness(cond.Type)
 }
 
@@ -166,13 +163,10 @@ func (r *Manager) ClearCondition(t string) error {
 		return nil
 	}
 
-	conditions := r.accessor.GetConditions()
-
-	if !RemoveStatusCondition(&conditions, t) {
+	if !RemoveStatusCondition(r.accessor, t) {
 		return nil
 	}
 
-	r.accessor.SetConditions(conditions)
 	r.RecomputeHappiness(t)
 
 	return nil

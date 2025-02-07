@@ -93,7 +93,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = c.Status.WorkbenchesCommonStatus.DeepCopy()
 
-		if rc := conditions.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {
+		if rc := conditions.FindStatusCondition(c, status.ConditionTypeReady); rc != nil {
 			nc.Status = rc.Status
 			nc.Reason = rc.Reason
 			nc.Message = rc.Message
@@ -108,7 +108,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		return fmt.Errorf("unknown state %s ", s.GetManagementState(dsc))
 	}
 
-	conditions.SetStatusCondition(&dsc.Status.Conditions, nc)
+	conditions.SetStatusCondition(dsc, nc)
 
 	return nil
 }

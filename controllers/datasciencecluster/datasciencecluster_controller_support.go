@@ -2,6 +2,7 @@ package datasciencecluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -15,6 +16,7 @@ import (
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
 // computeComponentsStatus checks the status of all registered components in a DataScienceCluster instance
@@ -31,9 +33,14 @@ import (
 func computeComponentsStatus(
 	ctx context.Context,
 	cli *odhClient.Client,
-	instance *dscv1.DataScienceCluster,
+	rr *types.ReconciliationRequest,
 	reg *cr.Registry,
 ) error {
+	instance, ok := rr.Instance.(*dscv1.DataScienceCluster)
+	if !ok {
+		return errors.New("failed to convert to DataScienceCluster")
+	}
+
 	notReadyComponents := make([]string, 0)
 	managedComponent := 0
 
@@ -56,7 +63,7 @@ func computeComponentsStatus(
 
 		managedComponent++
 
-		if !conditions.IsStatusConditionTrue(ci.GetStatus().Conditions, status.ConditionTypeReady) {
+		if !conditions.IsStatusConditionTrue(ci, status.ConditionTypeReady) {
 			notReadyComponents = append(notReadyComponents, component.GetName())
 		}
 
@@ -65,14 +72,14 @@ func computeComponentsStatus(
 
 	switch {
 	case len(notReadyComponents) > 0:
-		conditions.SetStatusCondition(&instance.Status.Conditions, common.Condition{
+		rr.Conditions.SetCondition(common.Condition{
 			Type:    status.ConditionTypeComponentsReady,
 			Status:  metav1.ConditionFalse,
 			Reason:  status.NotReadyReason,
 			Message: fmt.Sprintf("Some components are not ready: %s", strings.Join(notReadyComponents, ",")),
 		})
 	case managedComponent == 0:
-		conditions.SetStatusCondition(&instance.Status.Conditions, common.Condition{
+		rr.Conditions.SetCondition(common.Condition{
 			Type:     status.ConditionTypeComponentsReady,
 			Status:   metav1.ConditionTrue,
 			Severity: common.ConditionSeverityInfo,
@@ -80,10 +87,7 @@ func computeComponentsStatus(
 			Message:  status.NoManagedComponentsReason,
 		})
 	default:
-		conditions.SetStatusCondition(&instance.Status.Conditions, common.Condition{
-			Type:   status.ConditionTypeComponentsReady,
-			Status: metav1.ConditionTrue,
-		})
+		rr.Conditions.MarkTrue(status.ConditionTypeComponentsReady)
 	}
 
 	if err != nil {

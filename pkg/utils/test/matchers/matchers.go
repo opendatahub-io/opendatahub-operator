@@ -8,7 +8,7 @@ import (
 
 func ExtractStatusCondition(conditionType string) func(in types.ResourceObject) common.Condition {
 	return func(in types.ResourceObject) common.Condition {
-		c := conditions.FindStatusCondition(in.GetStatus().Conditions, conditionType)
+		c := conditions.FindStatusCondition(in.GetStatus(), conditionType)
 		if c == nil {
 			return common.Condition{}
 		}

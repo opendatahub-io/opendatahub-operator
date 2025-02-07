@@ -97,7 +97,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
-		if rc := conditions.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {
+		if rc := conditions.FindStatusCondition(c, status.ConditionTypeReady); rc != nil {
 			nc.Status = rc.Status
 			nc.Reason = rc.Reason
 			nc.Message = rc.Message
@@ -112,7 +112,7 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		return fmt.Errorf("unknown state %s ", s.GetManagementState(dsc))
 	}
 
-	conditions.SetStatusCondition(&dsc.Status.Conditions, nc)
+	conditions.SetStatusCondition(&dsc.Status, nc)
 
 	return nil
 }

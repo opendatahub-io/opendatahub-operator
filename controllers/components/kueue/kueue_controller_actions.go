@@ -19,7 +19,6 @@ const (
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-
 	rConfig, err := cluster.HasCRD(ctx, rr.Client, gvk.MultiKueueConfigV1Alpha1)
 	if err != nil {
 		return odherrors.NewStopError("failed to check %s CRDs version: %w", gvk.MultiKueueConfigV1Alpha1, err)
