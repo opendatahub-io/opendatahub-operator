@@ -61,10 +61,24 @@ func TestGet(t *testing.T) {
 		g.Expect(v).ShouldNot(BeNil())
 	})
 
+	t.Run("Eventually Succeed", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		v := wt.Get(gvk.ConfigMap, key).Eventually().Should(Succeed())
+		g.Expect(v).ShouldNot(BeNil())
+	})
+
 	t.Run("Consistently", func(t *testing.T) {
 		wt := tc.NewWithT(t)
 
 		v := wt.Get(gvk.ConfigMap, key).Consistently().WithTimeout(1 * time.Second).Should(matchMetadata)
+		g.Expect(v).ShouldNot(BeNil())
+	})
+
+	t.Run("Consistently Succeed", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		v := wt.Get(gvk.ConfigMap, key).Consistently().WithTimeout(1 * time.Second).Should(Succeed())
 		g.Expect(v).ShouldNot(BeNil())
 	})
 }
@@ -114,10 +128,24 @@ func TestList(t *testing.T) {
 		g.Expect(v).ShouldNot(BeNil())
 	})
 
+	t.Run("Eventually Succeed", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		v := wt.List(gvk.ConfigMap).Eventually().Should(Succeed())
+		g.Expect(v).ShouldNot(BeNil())
+	})
+
 	t.Run("Consistently", func(t *testing.T) {
 		wt := tc.NewWithT(t)
 
 		v := wt.List(gvk.ConfigMap).Consistently().WithTimeout(1 * time.Second).Should(matchMetadata)
+		g.Expect(v).ShouldNot(BeNil())
+	})
+
+	t.Run("Consistently Succeed", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		v := wt.List(gvk.ConfigMap).Consistently().WithTimeout(1 * time.Second).Should(Succeed())
 		g.Expect(v).ShouldNot(BeNil())
 	})
 }
@@ -168,10 +196,24 @@ func TestUpdate(t *testing.T) {
 		g.Expect(v).Should(matchMetadataAndData)
 	})
 
+	t.Run("Eventually Succeed", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		v := wt.Update(gvk.ConfigMap, key, transformer).Eventually().Should(Succeed())
+		g.Expect(v).Should(matchMetadataAndData)
+	})
+
 	t.Run("Consistently", func(t *testing.T) {
 		wt := tc.NewWithT(t)
 
 		v := wt.Update(gvk.ConfigMap, key, transformer).Consistently().WithTimeout(1 * time.Second).Should(matchMetadataAndData)
+		g.Expect(v).Should(matchMetadataAndData)
+	})
+
+	t.Run("Consistently Succeed", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		v := wt.Update(gvk.ConfigMap, key, transformer).Consistently().WithTimeout(1 * time.Second).Should(Succeed())
 		g.Expect(v).Should(matchMetadataAndData)
 	})
 }

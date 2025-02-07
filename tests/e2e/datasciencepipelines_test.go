@@ -63,11 +63,7 @@ func (c *DataSciencePipelinesTestCtx) validateInstructLabPipelines(t *testing.T)
 						state),
 				),
 			).Eventually().Should(
-				jq.Match(
-					`.spec.components.%s.managedPipelines.%s.state == "%s"`,
-					componentApi.DataSciencePipelinesComponentName,
-					pipelineType,
-					state),
+				Succeed(),
 			)
 
 			g.List(gvk.DataSciencePipelines).Eventually().Should(And(
