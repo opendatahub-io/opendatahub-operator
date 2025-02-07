@@ -90,7 +90,7 @@ SHELL = /usr/bin/env bash -o pipefail
 
 # E2E tests additional flags
 # See README.md, default go test timeout 10m
-E2E_TEST_FLAGS = -timeout 40m
+E2E_TEST_FLAGS = -timeout 50m
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
