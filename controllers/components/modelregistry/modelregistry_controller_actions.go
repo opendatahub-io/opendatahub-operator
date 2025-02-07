@@ -37,7 +37,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return ErrServiceMeshNotConfigured
 	}
 
-	_, err := resources.GetCRD(ctx, rr.Client, ServiceMeshMemberCRD)
+	_, err := cluster.GetCRD(ctx, rr.Client, ServiceMeshMemberCRD)
 	switch {
 	case k8serr.IsNotFound(err):
 		rr.Conditions.MarkFalse(

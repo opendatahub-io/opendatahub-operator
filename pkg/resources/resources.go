@@ -14,7 +14,6 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -390,14 +389,4 @@ func RemoveOwnerReferences(
 	}
 
 	return nil
-}
-
-func GetCRD(ctx context.Context, cli client.Client, name string) (apiextensionsv1.CustomResourceDefinition, error) {
-	obj := apiextensionsv1.CustomResourceDefinition{}
-	err := cli.Get(ctx, client.ObjectKey{Name: name}, &obj)
-	if err != nil {
-		return obj, err
-	}
-
-	return obj, nil
 }
