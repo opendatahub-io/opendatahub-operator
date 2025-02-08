@@ -143,3 +143,91 @@ func TestMergeDeploymentsRemove(t *testing.T) {
 		jq.Match(`.spec.template.spec.containers[0] | has("resources") | not`),
 	))
 }
+
+func TestConvertRollingUpdateFromChangeType(t *testing.T) {
+	g := NewWithT(t)
+
+	source, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{}, // defalt as rollingupdate
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+	src := unstructured.Unstructured{Object: source}.Object
+
+	target, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{
+			Strategy: appsv1.DeploymentStrategy{
+				Type:          appsv1.RecreateDeploymentStrategyType,
+				RollingUpdate: nil,
+			},
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	trg := unstructured.Unstructured{Object: target}.Object
+
+	err = deploy.ConvertRollingUpdate(src, trg)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(trg).Should(And(
+		jq.Match(`.spec.strategy.type == "Recreate"`),
+		jq.Match(`.spec.strategy | has("rollingUpdate") | not`),
+	))
+}
+
+func TestConvertRollingUpdateFromSameType(t *testing.T) {
+	g := NewWithT(t)
+
+	source, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RecreateDeploymentStrategyType,
+			},
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+	src := unstructured.Unstructured{Object: source}.Object
+
+	target, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{
+			Strategy: appsv1.DeploymentStrategy{
+				Type:          appsv1.RecreateDeploymentStrategyType,
+				RollingUpdate: nil,
+			},
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	trg := unstructured.Unstructured{Object: target}.Object
+
+	err = deploy.ConvertRollingUpdate(src, trg)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(trg).Should(And(
+		jq.Match(`.spec.strategy.type == "Recreate"`),
+		jq.Match(`.spec.strategy | has("rollingUpdate") | not`),
+	))
+}
+
+func TestConvertRollingUpdateFromNewCreation(t *testing.T) {
+	g := NewWithT(t)
+
+	target, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{
+			Strategy: appsv1.DeploymentStrategy{
+				Type:          appsv1.RecreateDeploymentStrategyType,
+				RollingUpdate: nil,
+			},
+		},
+	})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	trg := unstructured.Unstructured{Object: target}.Object
+
+	err = deploy.ConvertRollingUpdate(nil, trg)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(trg).Should(And(
+		jq.Match(`.spec.strategy.type == "Recreate"`),
+		jq.Match(`.spec.strategy | has("rollingUpdate") | not`),
+	))
+}

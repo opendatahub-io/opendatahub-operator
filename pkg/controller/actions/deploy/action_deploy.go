@@ -422,6 +422,11 @@ func (a *Action) apply(
 			break
 		}
 
+		// For deployments use Recreate but still have rollingupdate in manifests.
+		if err := ConvertRollingUpdate(old.Object, obj.Object); err != nil {
+			return nil, fmt.Errorf("failed to convert Deployment Strategy for %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
+		}
+
 		// To preserve backward compatibility with the current model, fields are being
 		// merged from an existing Deployment (if it exists) to the rendered manifest,
 		// hence the current value is preserved [1].

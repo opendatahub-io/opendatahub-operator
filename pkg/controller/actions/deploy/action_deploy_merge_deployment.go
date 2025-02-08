@@ -3,6 +3,7 @@ package deploy
 import (
 	"errors"
 
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -102,6 +103,32 @@ func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Un
 		if err := unstructured.SetNestedField(target.Object, sourceReplica, replicasPath...); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// for the case: in manifests, Recreate is used as the target and rollingupdate is set, we remove it totally.
+func ConvertRollingUpdate(source, target map[string]interface{}) error {
+	strategyPath := []string{"spec", "strategy"}
+
+	targetStrategy, exists, err := unstructured.NestedMap(target, strategyPath...)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		targetStrategy = nil
+	}
+
+	if targetStrategy != nil && targetStrategy["type"] == appsv1.RecreateDeploymentStrategyType {
+		// New creation or source has no strategy, remove rollingUpdate
+		delete(targetStrategy, "rollingUpdate")
+	}
+
+	// set target from memory
+	err = unstructured.SetNestedMap(target, targetStrategy, strategyPath...)
+	if err != nil {
+		return err
 	}
 
 	return nil
