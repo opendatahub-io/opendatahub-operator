@@ -109,27 +109,21 @@ func MergeDeployments(source *unstructured.Unstructured, target *unstructured.Un
 }
 
 // for the case: in manifests, Recreate is used as the target and rollingupdate is set, we remove it totally.
-func ConvertRollingUpdate(source, target map[string]interface{}) error {
+func ConvertRollingUpdate(target *unstructured.Unstructured) error {
 	strategyPath := []string{"spec", "strategy"}
 
-	targetStrategy, exists, err := unstructured.NestedMap(target, strategyPath...)
+	targetStrategy, exists, err := unstructured.NestedMap(target.Object, strategyPath...)
 	if err != nil {
 		return err
 	}
-	if !exists {
-		targetStrategy = nil
+	if !exists || len(targetStrategy) == 0 {
+		return nil
 	}
 
-	if targetStrategy != nil && targetStrategy["type"] == appsv1.RecreateDeploymentStrategyType {
-		// New creation or source has no strategy, remove rollingUpdate
+	if targetStrategy["type"] == appsv1.RecreateDeploymentStrategyType {
 		delete(targetStrategy, "rollingUpdate")
 	}
 
 	// set target from memory
-	err = unstructured.SetNestedMap(target, targetStrategy, strategyPath...)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return unstructured.SetNestedMap(target.Object, targetStrategy, strategyPath...)
 }

@@ -423,7 +423,7 @@ func (a *Action) apply(
 		}
 
 		// For deployments use Recreate but still have rollingupdate in manifests.
-		if err := ConvertRollingUpdate(old.Object, obj.Object); err != nil {
+		if err := ConvertRollingUpdate(obj); err != nil {
 			return nil, fmt.Errorf("failed to convert Deployment Strategy for %s/%s: %w", obj.GetNamespace(), obj.GetName(), err)
 		}
 
