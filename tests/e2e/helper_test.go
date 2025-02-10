@@ -23,6 +23,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1/datasciencepipelines"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
@@ -154,6 +155,13 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
+					},
+					DataSciencePipelinesCommonSpec: componentApi.DataSciencePipelinesCommonSpec{
+						PreloadedPipelines: datasciencepipelines.ManagedPipelinesSpec{
+							InstructLab: datasciencepipelines.ManagedPipelineOptions{
+								State: operatorv1.Removed,
+							},
+						},
 					},
 				},
 				Kserve: componentApi.DSCKserve{
