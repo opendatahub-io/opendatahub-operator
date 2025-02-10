@@ -1,75 +1,52 @@
 package e2e_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
+type DeletionTestCtx struct {
+	*TestContext
+}
+
+// deletionTestSuite runs the deletion test suite.
 func deletionTestSuite(t *testing.T) {
-	testCtx, err := NewTestContext()
-	require.NoError(t, err)
+	t.Helper()
 
-	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
-		t.Run("Deletion DSC instance", func(t *testing.T) {
-			err = testCtx.testDeletionExistDSC()
-			require.NoError(t, err, "Error to delete DSC instance")
-		})
+	// Initialize the test context.
+	tc, err := NewTestContext(t)
+	require.NoError(t, err, "Failed to initialize test context")
 
-		t.Run("Deletion DSCI instance", func(t *testing.T) {
-			err = testCtx.testDeletionExistDSCI()
-			require.NoError(t, err, "Error to delete DSCI instance")
-		})
-	})
-}
-
-func (tc *testContext) testDeletionExistDSC() error {
-	// Delete test DataScienceCluster resource if found
-
-	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
-	expectedDSC := &dscv1.DataScienceCluster{}
-
-	err := tc.customClient.Get(tc.ctx, dscLookupKey, expectedDSC)
-	if err == nil {
-		dscerr := tc.customClient.Delete(tc.ctx, expectedDSC, &client.DeleteOptions{})
-		if dscerr != nil {
-			return fmt.Errorf("error deleting DSC instance %s: %w", expectedDSC.Name, dscerr)
-		}
-	} else if !k8serr.IsNotFound(err) {
-		if err != nil {
-			return fmt.Errorf("could not find DSC instance to delete: %w", err)
-		}
+	// Create an instance of test context.
+	deletionTestCtx := DeletionTestCtx{
+		TestContext: tc,
 	}
 
-	return nil
-}
-
-// To test if  DSCI CR is in the cluster and no problem to delete it
-// if fail on any of these two conditios, fail test.
-func (tc *testContext) testDeletionExistDSCI() error {
-	// Delete test DSCI resource if found
-
-	dsciLookupKey := types.NamespacedName{Name: tc.testDSCI.Name}
-	expectedDSCI := &dsciv1.DSCInitialization{}
-
-	err := tc.customClient.Get(tc.ctx, dsciLookupKey, expectedDSCI)
-	if err == nil {
-		dscierr := tc.customClient.Delete(tc.ctx, expectedDSCI, &client.DeleteOptions{})
-		if dscierr != nil {
-			return fmt.Errorf("error deleting DSCI instance %s: %w", expectedDSCI.Name, dscierr)
-		}
-	} else if !k8serr.IsNotFound(err) {
-		if err != nil {
-			return fmt.Errorf("could not find DSCI instance to delete :%w", err)
-		}
+	// Define the test cases
+	testCases := []TestCase{
+		{"Deletion DataScienceCluster instance", deletionTestCtx.DeletionDSC},
+		{"Deletion DSCInitialization instance", deletionTestCtx.DeletionDSCI},
 	}
 
-	return nil
+	// Run the test suite.
+	deletionTestCtx.RunTestCases(t, testCases)
+}
+
+// DeletionDSC deletes the DataScienceCluster instance if it exists.
+func (tc *DeletionTestCtx) DeletionDSC(t *testing.T) {
+	t.Helper()
+
+	// Delete the DataScienceCluster instance
+	tc.DeleteResource(WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
+}
+
+// DeletionDSCI deletes the DSCInitialization instance if it exists.
+func (tc *DeletionTestCtx) DeletionDSCI(t *testing.T) {
+	t.Helper()
+
+	// Delete the DSCInitialization instance
+	tc.DeleteResource(WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName))
 }

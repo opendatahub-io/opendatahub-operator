@@ -242,3 +242,74 @@ func TestRemoveOwnerRef(t *testing.T) {
 		})),
 	))
 }
+
+func TestObjectToUnstructured(t *testing.T) {
+	g := NewWithT(t)
+
+	scheme := runtime.NewScheme()
+	g.Expect(corev1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(appsv1.AddToScheme(scheme)).To(Succeed())
+
+	t.Run("ForObject", func(t *testing.T) {
+		obj := &unstructured.Unstructured{}
+		obj.SetAPIVersion(gvk.Deployment.GroupVersion().String())
+		obj.SetKind(gvk.Deployment.Kind)
+
+		u, err := resources.ObjectToUnstructured(scheme, obj)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(u.GetObjectKind().GroupVersionKind()).To(Equal(gvk.Deployment))
+	})
+
+	t.Run("ErrorOnNilObject", func(t *testing.T) {
+		_, err := resources.ObjectToUnstructured(scheme, nil)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("nil object"))
+	})
+
+	t.Run("ErrorOnInvalidObject", func(t *testing.T) {
+		obj := &unstructured.Unstructured{}
+		obj.SetKind("UnknownKind")
+
+		_, err := resources.ObjectToUnstructured(scheme, obj)
+		g.Expect(err).To(HaveOccurred())
+
+		g.Expect(err.Error()).To(ContainSubstring("failed to get GVK"))
+	})
+}
+
+func TestObjectFromUnstructured(t *testing.T) {
+	g := NewWithT(t)
+
+	scheme := runtime.NewScheme()
+	g.Expect(corev1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(appsv1.AddToScheme(scheme)).To(Succeed())
+
+	t.Run("ForObject", func(t *testing.T) {
+		obj := &unstructured.Unstructured{}
+		obj.SetAPIVersion(gvk.Deployment.GroupVersion().String())
+		obj.SetKind(gvk.Deployment.Kind)
+		d := &appsv1.Deployment{}
+
+		err := resources.ObjectFromUnstructured(scheme, obj, d)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(d.GetObjectKind().GroupVersionKind()).To(Equal(gvk.Deployment))
+	})
+
+	t.Run("ErrorOnNilObject", func(t *testing.T) {
+		d := &appsv1.Deployment{}
+		err := resources.ObjectFromUnstructured(scheme, nil, d)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("nil object"))
+	})
+
+	t.Run("ErrorOnInvalidObject", func(t *testing.T) {
+		obj := &unstructured.Unstructured{}
+		obj.SetAPIVersion(gvk.Deployment.GroupVersion().String())
+		obj.SetKind("UnknownKind")
+		d := &appsv1.Deployment{}
+
+		err := resources.ObjectFromUnstructured(scheme, obj, d)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("unable to create object for GVK"))
+	})
+}
