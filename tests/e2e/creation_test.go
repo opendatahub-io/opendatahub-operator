@@ -37,7 +37,7 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testDSCICreation()
 			require.NoError(t, err, "error creating DSCI CR")
 		})
-		if testCtx.testOpts.webhookTest {
+		if testOpts.webhookTest {
 			t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
 				testCtx.testDSCIDuplication(t)
 			})
@@ -55,7 +55,7 @@ func creationTestSuite(t *testing.T) {
 			err = testCtx.testDSCCreation(t)
 			require.NoError(t, err, "error creating DataScienceCluster instance")
 		})
-		if testCtx.testOpts.webhookTest {
+		if testOpts.webhookTest {
 			t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
 				testCtx.testDSCDuplication(t)
 			})
@@ -68,7 +68,7 @@ func creationTestSuite(t *testing.T) {
 		})
 
 		// ModelReg
-		if testCtx.testOpts.webhookTest {
+		if testOpts.webhookTest {
 			t.Run("Validate model registry config", func(t *testing.T) {
 				err = testCtx.validateModelRegistryConfig()
 				require.NoError(t, err, "error validating ModelRegistry config")
