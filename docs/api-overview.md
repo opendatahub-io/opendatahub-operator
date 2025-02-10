@@ -227,6 +227,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `managedPipelines` _[ManagedPipelinesSpec](#managedpipelinesspec)_ |  |  |  |
 
 
 #### DSCDataSciencePipelinesStatus
@@ -661,6 +662,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `managedPipelines` _[ManagedPipelinesSpec](#managedpipelinesspec)_ |  |  |  |
 
 
 #### DataSciencePipelinesCommonStatus
@@ -711,6 +713,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `managedPipelines` _[ManagedPipelinesSpec](#managedpipelinesspec)_ |  |  |  |
 
 
 #### DataSciencePipelinesStatus
@@ -808,6 +811,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `defaultDeploymentMode` _string_ | DefaultDeploymentMode is the value of the defaultDeploymentMode field<br />as read from the "deploy" JSON in the inferenceservice-config ConfigMap |  |  |
+| `serverlessMode` _[ManagementState](#managementstate)_ |  |  |  |
 
 
 #### KserveList
@@ -866,6 +870,7 @@ _Appears in:_
 | `observedGeneration` _integer_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
 | `defaultDeploymentMode` _string_ | DefaultDeploymentMode is the value of the defaultDeploymentMode field<br />as read from the "deploy" JSON in the inferenceservice-config ConfigMap |  |  |
+| `serverlessMode` _[ManagementState](#managementstate)_ |  |  |  |
 
 
 #### Kueue
