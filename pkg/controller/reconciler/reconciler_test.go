@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	gomegaTypes "github.com/onsi/gomega/types"
 	"github.com/rs/xid"
@@ -16,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -67,11 +69,12 @@ func createEnvTest(s *runtime.Scheme) (*envtest.Environment, error) {
 
 func createReconciler(cli *odhClient.Client) *Reconciler {
 	return &Reconciler{
-		Client:  cli,
-		Scheme:  cli.Scheme(),
-		Log:     ctrl.Log.WithName("controllers").WithName("test"),
-		Release: cluster.GetRelease(),
-		name:    "test",
+		Client:   cli,
+		Scheme:   cli.Scheme(),
+		Log:      ctrl.Log.WithName("controllers").WithName("test"),
+		Release:  cluster.GetRelease(),
+		Recorder: record.NewFakeRecorder(100),
+		name:     "test",
 		instanceFactory: func() (common.PlatformObject, error) {
 			i := &componentApi.Dashboard{
 				TypeMeta: ctrl.TypeMeta{
@@ -117,19 +120,6 @@ func TestConditions(t *testing.T) {
 	err = cli.Create(ctx, dsci)
 	g.Expect(err).NotTo(HaveOccurred())
 
-	dash := resources.GvkToUnstructured(gvk.Dashboard)
-	dash.SetName(componentApi.DashboardInstanceName)
-	dash.SetGeneration(1)
-
-	err = cli.Create(ctx, dash)
-	g.Expect(err).NotTo(HaveOccurred())
-
-	req := ctrl.Request{
-		NamespacedName: types.NamespacedName{
-			Name: componentApi.DashboardInstanceName,
-		},
-	}
-
 	tests := []struct {
 		name    string
 		err     error
@@ -163,6 +153,19 @@ func TestConditions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			dash := resources.GvkToUnstructured(gvk.Dashboard)
+			dash.SetName(componentApi.DashboardInstanceName)
+			dash.SetGeneration(1)
+
+			err = cli.Create(ctx, dash)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			req := ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Name: componentApi.DashboardInstanceName,
+				},
+			}
+
 			cc := createReconciler(cli)
 			cc.AddAction(func(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 				return tt.err
@@ -181,6 +184,18 @@ func TestConditions(t *testing.T) {
 			err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
 			g.Expect(err).ShouldNot(HaveOccurred())
 			g.Expect(di).Should(tt.matcher)
+
+			err = cli.Delete(ctx, di, client.PropagationPolicy(metav1.DeletePropagationBackground))
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Eventually(func() ([]componentApi.Dashboard, error) {
+				l := componentApi.DashboardList{}
+				if err := cli.List(ctx, &l, client.InNamespace("")); err != nil {
+					return nil, err
+				}
+
+				return l.Items, nil
+			}).WithTimeout(10 * time.Second).Should(BeEmpty())
 		})
 	}
 }

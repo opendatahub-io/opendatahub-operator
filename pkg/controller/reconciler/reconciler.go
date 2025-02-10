@@ -276,14 +276,12 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 	}
 
 	if provisionErr != nil {
-		if r.Recorder != nil {
-			r.Recorder.Event(
-				res,
-				corev1.EventTypeWarning,
-				"ProvisioningError",
-				provisionErr.Error(),
-			)
-		}
+		r.Recorder.Event(
+			res,
+			corev1.EventTypeWarning,
+			"ProvisioningError",
+			provisionErr.Error(),
+		)
 
 		return fmt.Errorf("provisioning failed: %w", provisionErr)
 	}
