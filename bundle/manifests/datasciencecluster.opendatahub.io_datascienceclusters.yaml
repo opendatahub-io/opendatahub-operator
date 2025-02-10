@@ -758,6 +758,9 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      serverlessMode:
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
                     type: object
                   kueue:
                     description: Kueue component status.
