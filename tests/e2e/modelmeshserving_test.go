@@ -5,52 +5,63 @@ import (
 
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelcontroller"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
 )
 
+type ModelMeshServingTestCtx struct {
+	*ComponentTestCtx
+}
+
 func modelMeshServingTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(&componentApi.ModelMeshServing{})
+	ct, err := NewComponentTestCtx(t, &componentApi.ModelMeshServing{})
 	require.NoError(t, err)
 
 	componentCtx := ModelMeshServingTestCtx{
 		ComponentTestCtx: ct,
 	}
 
-	t.Run("Validate component enabled", componentCtx.ValidateComponentEnabled)
-	t.Run("Validate model controller", componentCtx.validateModelControllerInstance)
-	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
-	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
-	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
-	// t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
+	// Define test cases.
+	testCases := []TestCase{
+		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate model controller", componentCtx.ValidateModelControllerInstance},
+		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
+		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
+		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+	}
+
+	// Run the test suite.
+	componentCtx.RunTestCases(t, testCases)
 }
 
-type ModelMeshServingTestCtx struct {
-	*ComponentTestCtx
-}
+// ValidateModelControllerInstance validates the existence and correct status of the ModelController and DataScienceCluster.
+func (tc *ModelMeshServingTestCtx) ValidateModelControllerInstance(t *testing.T) {
+	t.Helper()
 
-func (tc *ModelMeshServingTestCtx) validateModelControllerInstance(t *testing.T) {
-	g := tc.NewWithT(t)
-
-	g.List(gvk.ModelController).Eventually().Should(And(
-		HaveLen(1),
-		HaveEach(And(
+	// Ensure ModelController resource exists with the expected owner references and status phase.
+	tc.EnsureResourceExistsAndMatchesCondition(
+		gvk.ModelController,
+		types.NamespacedName{Name: componentApi.ModelControllerInstanceName},
+		And(
 			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
-			jq.Match(`.status.phase == "%s"`, readyStatus),
-		)),
-	))
+			jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady),
+		),
+	)
 
-	g.List(gvk.DataScienceCluster).Eventually().Should(And(
-		HaveLen(1),
-		HaveEach(And(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, modelcontroller.ReadyConditionType, metav1.ConditionTrue),
-		)),
-	))
+	// Ensure DataScienceCluster resource exists with the expected condition status.
+	tc.EnsureResourceExistsAndMatchesCondition(
+		gvk.DataScienceCluster,
+		tc.DataScienceClusterNamespacedName,
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, modelcontroller.ReadyConditionType, metav1.ConditionTrue),
+	)
 }

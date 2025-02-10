@@ -5,7 +5,7 @@ import (
 	"context"
 	"testing"
 
-	gomegaTypes "github.com/onsi/gomega/types"
+	gTypes "github.com/onsi/gomega/types"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,9 +27,9 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 		name       string
 		object     common.PlatformObject
 		preds      []DynamicPredicate
-		errMatcher gomegaTypes.GomegaMatcher
-		cntMatcher gomegaTypes.GomegaMatcher
-		keyMatcher gomegaTypes.GomegaMatcher
+		errMatcher gTypes.GomegaMatcher
+		cntMatcher gTypes.GomegaMatcher
+		keyMatcher gTypes.GomegaMatcher
 	}{
 		{
 			name:       "should register a watcher if no predicates",
