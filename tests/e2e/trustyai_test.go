@@ -101,7 +101,7 @@ func (c *TrustyAITestCtx) validateCRDReinstated(t *testing.T) {
 func (c *TrustyAITestCtx) validateTrustyAIPreCheck(t *testing.T) {
 	// validate precheck on CRD version:
 	// pre-req: skip trusty to removed (done by ValidateComponentDisabled)
-	// step: delete isvc left from enableKserve wait till it is gone
+	// step: delete isvc left from enabled Kserve, wait till it is gone
 	// set trustyai to managed, result to error, enable mm, result to success
 
 	g := c.NewWithT(t)
