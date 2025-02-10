@@ -73,7 +73,7 @@ IMAGE_TAG_BASE=quay.io/my-dev-env/opendatahub-operator
 IMG_TAG=my-dev-tag
 OPERATOR_NAMESPACE=my-dev-odh-operator-system
 IMAGE_BUILD_FLAGS=--build-arg USE_LOCAL=true
-E2E_TEST_FLAGS="--skip-deletion=true" -timeout 15m
+E2E_TEST_FLAGS="--deletion-policy=never" -timeout 15m
 DEFAULT_MANIFESTS_PATH=./opt/manifests
 PLATFORM=linux/amd64,linux/ppc64le,linux/s390x
 ```
