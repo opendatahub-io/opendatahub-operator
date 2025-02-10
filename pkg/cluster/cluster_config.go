@@ -287,3 +287,26 @@ func IsDefaultAuthMethod(ctx context.Context, cli client.Client) (bool, error) {
 	// we only create userGroups for "IntegratedOAuth" or "" and leave other or new supported type value in the future
 	return authenticationobj.Spec.Type == configv1.AuthenticationTypeIntegratedOAuth || authenticationobj.Spec.Type == "", nil
 }
+
+func HasPowerArchNode(ctx context.Context, client client.Client) (bool, error) {
+	nodeList := &corev1.NodeList{}
+	if err := client.List(ctx, nodeList); err != nil {
+		return false, fmt.Errorf("failed to list nodes: %w", err)
+	}
+
+	for _, node := range nodeList.Items {
+		// Check for ppc64le architecture label
+		if arch, exists := node.Labels["kubernetes.io/arch"]; exists && arch == "ppc64le" {
+			if node.Status.Conditions != nil {
+				// Check if node is Ready
+				for _, condition := range node.Status.Conditions {
+					if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
+						return true, nil
+					}
+				}
+			}
+		}
+	}
+
+	return false, nil
+}

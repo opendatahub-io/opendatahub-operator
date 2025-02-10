@@ -229,7 +229,15 @@ func (r *DataScienceClusterReconciler) reconcileComponent(
 
 	switch ms {
 	case operatorv1.Managed:
-		err := ctrl.SetControllerReference(instance, componentCR, r.Scheme)
+		isPowerArch, err := cluster.HasPowerArchNode(ctx, r.Client)
+		if err != nil {
+			return nil, fmt.Errorf("unable to determine architecture %v", err)
+		}
+		// TODO: This block can be refactored when we have support for mixed-arch
+		if isPowerArch && componentCR.GetName() != componentApi.DashboardComponentName && componentCR.GetName() != componentApi.KserveComponentName {
+			break
+		}
+		err = ctrl.SetControllerReference(instance, componentCR, r.Scheme)
 		if err != nil {
 			return nil, err
 		}
@@ -250,7 +258,7 @@ func (r *DataScienceClusterReconciler) reconcileComponent(
 		instance.Status.InstalledComponents = make(map[string]bool)
 	}
 
-	err := component.UpdateDSCStatus(instance, componentCR)
+	err := component.UpdateDSCStatus(ctx, r.Client, instance, componentCR)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update status of DataScienceCluster component %s: %w", component.GetName(), err)
 	}

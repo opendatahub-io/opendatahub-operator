@@ -8,6 +8,7 @@ rules:
   - '*'
   resources:
   - deployments
+  - nodes
   - replicasets
   - services
   verbs:
