@@ -1,24 +1,22 @@
 package e2e_test
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/blang/semver/v4"
-	configv1 "github.com/openshift/api/config/v1"
+	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -28,318 +26,322 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// ComponentTestCtx holds the context for component tests.
 type ComponentTestCtx struct {
-	*testf.TestContext
-
-	GVK                  schema.GroupVersionKind
-	DSCName              types.NamespacedName
-	DSCIName             types.NamespacedName
-	ApplicationNamespace string
+	*TestContext
+	// Any additional fields specific to component tests
+	GVK            schema.GroupVersionKind
+	NamespacedName types.NamespacedName
 }
 
-func NewComponentTestCtx(object common.PlatformObject) (*ComponentTestCtx, error) {
-	tcf, err := testf.NewTestContext(
-		testf.WithTOptions(
-			testf.WithEventuallyTimeout(generalWaitTimeout),
-			testf.WithEventuallyPollingInterval(generalPollInterval),
-		),
-	)
+// CRD represents a custom resource definition with a name and version.
+type CRD struct {
+	Name    string
+	Version string
+}
 
+// NewComponentTestCtx initializes a new component test context.
+func NewComponentTestCtx(t *testing.T, object common.PlatformObject) (*ComponentTestCtx, error) { //nolint:thelper
+	baseCtx, err := NewTestContext(t)
 	if err != nil {
 		return nil, err
 	}
 
-	ogvk, err := resources.GetGroupVersionKindForObject(tcf.Scheme(), object)
+	ogvk, err := resources.GetGroupVersionKindForObject(baseCtx.Scheme(), object)
 	if err != nil {
 		return nil, err
-	}
-
-	dsciList := dsciv1.DSCInitializationList{}
-	if err := tcf.Client().List(tcf.Context(), &dsciList); err != nil {
-		return nil, err
-	}
-
-	if len(dsciList.Items) != 1 {
-		return nil, fmt.Errorf("failure looking up DSCInitialization, expected=1, found=%d", len(dsciList.Items))
-	}
-
-	dscList := dscv1.DataScienceClusterList{}
-	if err := tcf.Client().List(tcf.Context(), &dscList); err != nil {
-		return nil, err
-	}
-
-	if len(dscList.Items) != 1 {
-		return nil, fmt.Errorf("failure looking up DataScienceCluster, expected=1, found=%d", len(dscList.Items))
 	}
 
 	componentCtx := ComponentTestCtx{
-		TestContext:          tcf,
-		GVK:                  ogvk,
-		DSCName:              client.ObjectKeyFromObject(&dscList.Items[0]),
-		DSCIName:             client.ObjectKeyFromObject(&dsciList.Items[0]),
-		ApplicationNamespace: dsciList.Items[0].Spec.ApplicationsNamespace,
+		TestContext:    baseCtx,
+		GVK:            ogvk,
+		NamespacedName: resources.NamespacedNameFromObject(object),
 	}
 
 	return &componentCtx, nil
 }
 
-func (c *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
-	g := c.NewWithT(t)
+// ValidateComponentEnabled ensures that the component is enabled and its status is "Ready".
+func (tc *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
+	t.Helper()
 
-	g.Update(
-		gvk.DataScienceCluster,
-		c.DSCName,
-		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
-	).Eventually().Should(
-		Succeed(),
+	// Ensure that DataScienceCluster exists and its component state is "Removed", with the "Ready" condition true.
+	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
+
+	// Ensure that any Deployment resources for the component are present
+	tc.EnsureResourcesExist(
+		gvk.Deployment,
+		types.NamespacedName{Namespace: tc.AppsNamespace},
+		&client.ListOptions{
+			LabelSelector: k8slabels.Set{
+				labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+			}.AsSelector(),
+		},
 	)
 
-	g.List(gvk.DataScienceCluster).Eventually().Should(And(
-		HaveLen(1),
-		HaveEach(And(
-			jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
-			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, c.GVK.Kind, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeComponentsReady, metav1.ConditionTrue),
-		)),
-	))
-
-	g.List(c.GVK).Eventually().Should(And(
-		HaveLen(1),
-		HaveEach(And(
-			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
-		)),
-	))
-}
-
-func (c *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
-	g := c.NewWithT(t)
-
-	g.List(
-		gvk.Deployment,
-		client.InNamespace(c.ApplicationNamespace),
-		client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(c.GVK.Kind)},
-	).Eventually().Should(And(
-		Not(BeEmpty()),
-		HaveEach(
-			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, c.GVK.Kind),
+	// Ensure the component resource exists and is marked "Ready".
+	tc.EnsureResourcesExistAndMatchCondition(
+		tc.GVK,
+		tc.NamespacedName,
+		nil,
+		And(
+			HaveLen(1),
+			HaveEach(And(
+				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+			)),
 		),
-	))
+	)
 }
 
-func (c *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
-	g := c.NewWithT(t)
+// ValidateComponentDisabled ensures that the component is disabled and its resources are deleted.
+func (tc *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
+	t.Helper()
 
-	deployments := g.List(
+	// Ensure that the resources associated with the component exist
+	tc.EnsureResourcesExist(tc.GVK, tc.NamespacedName, nil)
+
+	// Ensure that DataScienceCluster exists and its component state is "Removed", with the "Ready" condition false.
+	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
+
+	// Ensure that any Deployment resources for the component are not present
+	tc.EnsureResourcesGone(
 		gvk.Deployment,
-		client.InNamespace(c.ApplicationNamespace),
-		client.MatchingLabels{
-			labels.PlatformPartOf: strings.ToLower(c.GVK.Kind),
+		types.NamespacedName{Namespace: tc.AppsNamespace},
+		&client.ListOptions{
+			LabelSelector: k8slabels.Set{
+				labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+			}.AsSelector(),
 		},
-	).Eventually().ShouldNot(
-		BeEmpty(),
+	)
+
+	// Ensure that the resources associated with the component do not exist
+	tc.EnsureResourcesGone(tc.GVK, tc.NamespacedName, nil)
+}
+
+// ValidateOperandsOwnerReferences ensures that all deployment resources have the correct owner references.
+func (tc *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
+	t.Helper()
+
+	// Ensure that the Deployment resources exist with the proper owner references
+	tc.EnsureResourcesExistAndMatchCondition(
+		gvk.Deployment,
+		types.NamespacedName{Namespace: tc.AppsNamespace},
+		&client.ListOptions{
+			Namespace: tc.AppsNamespace,
+			LabelSelector: k8slabels.Set{
+				labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+			}.AsSelector(),
+		},
+		HaveEach(
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
+		),
+		"Deployment resources with correct owner references should exist",
+	)
+}
+
+// ValidateUpdateDeploymentsResources verifies the update of deployment replicas for the component.
+func (tc *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
+	t.Helper()
+
+	// Ensure that deployments exist for the component
+	deployments := tc.EnsureResourcesExist(
+		gvk.Deployment,
+		types.NamespacedName{Namespace: tc.AppsNamespace},
+		&client.ListOptions{
+			Namespace: tc.AppsNamespace,
+			LabelSelector: k8slabels.Set{
+				labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+			}.AsSelector(),
+		},
 	)
 
 	for _, d := range deployments {
 		t.Run("deployment_"+d.GetName(), func(t *testing.T) {
-			replicas, err := jq.ExtractValue[int](d, `.spec.replicas`)
-			g.Expect(err).ShouldNot(HaveOccurred())
+			t.Helper()
+
+			// Extract the current replica count
+			replicas := ExtractAndExpectValue[int](tc.g, d, `.spec.replicas`, Not(BeNil()))
 
 			expectedReplica := replicas + 1
 			if replicas > 1 {
 				expectedReplica = 1
 			}
 
-			g.Update(
-				gvk.Deployment,
-				client.ObjectKeyFromObject(&d),
+			// Update the deployment's replica count
+			tc.EnsureResourceCreatedOrUpdatedWithCondition(
+				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&d)),
 				testf.Transform(`.spec.replicas = %d`, expectedReplica),
-			).Eventually().WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(
 				jq.Match(`.spec.replicas == %d`, expectedReplica),
 			)
 
-			g.Get(
+			tc.EnsureResourceExistsAndMatchesConditionConsistently(
 				gvk.Deployment,
-				client.ObjectKeyFromObject(&d),
-			).Eventually().Should(
+				resources.NamespacedNameFromObject(&d),
 				jq.Match(`.spec.replicas == %d`, expectedReplica),
-			)
-
-			g.Get(
-				gvk.Deployment,
-				client.ObjectKeyFromObject(&d),
-			).Consistently().WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(
-				jq.Match(`.spec.replicas == %d`, expectedReplica),
+				30*time.Second,
+				1*time.Second,
 			)
 		})
 	}
 }
 
-func (c *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
-	g := c.NewWithT(t)
-
-	g.List(c.GVK).Eventually().ShouldNot(
-		BeEmpty(),
-	)
-
-	g.Update(
-		gvk.DataScienceCluster,
-		c.DSCName,
-		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Removed),
-	).Eventually().Should(
-		Succeed(),
-	)
-
-	g.List(c.GVK).Eventually().Should(
-		BeEmpty(),
-	)
-
-	g.List(
-		gvk.Deployment,
-		client.InNamespace(c.ApplicationNamespace),
-		client.MatchingLabels{
-			labels.PlatformPartOf: strings.ToLower(c.GVK.Kind),
-		},
-	).Eventually().Should(
-		BeEmpty(),
-	)
-
-	g.List(gvk.DataScienceCluster).Eventually().Should(And(
-		HaveLen(1),
-		HaveEach(And(
-			jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Removed),
-			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, c.GVK.Kind, metav1.ConditionFalse),
-		)),
-	))
-}
-
-func (c *ComponentTestCtx) ValidateCRDReinstated(t *testing.T, name string, version ...string) {
+// ValidateCRDsReinstated ensures that the CRDs are properly removed and reinstated when a component is disabled and re-enabled.
+func (tc *ComponentTestCtx) ValidateCRDsReinstated(t *testing.T, crds []CRD) {
 	t.Helper()
 
-	g := c.NewWithT(t)
-	crdSel := client.MatchingFields{"metadata.name": name}
+	// Disable the component first and validate that all CRDs are removed
+	tc.ValidateComponentDisabled(t)
 
-	g.Update(
+	// Check that all CRDs are removed
+	for _, crd := range crds {
+		t.Run(crd.Name, func(t *testing.T) {
+			tc.ValidateCRDRemoval(crd.Name)
+		})
+	}
+
+	// Enable the component now and validate that all CRDs are reinstated
+	tc.ValidateComponentEnabled(t)
+
+	// Check that all CRDs are reinstated
+	for _, crd := range crds {
+		t.Run(crd.Name, func(t *testing.T) {
+			tc.ValidateCRDReinstatement(crd.Name, crd.Version)
+		})
+	}
+}
+
+// ValidateComponentReleases ensures that the component releases exist and have valid fields.
+func (tc *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
+	t.Helper()
+
+	componentName := strings.ToLower(tc.GVK.Kind)
+
+	// Ensure the DataScienceCluster exists and the component's conditions are met
+	tc.EnsureResourceExistsAndMatchesCondition(
 		gvk.DataScienceCluster,
-		c.DSCName,
-		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Removed),
-	).Eventually().Should(
-		Succeed(),
-	)
+		tc.DataScienceClusterNamespacedName,
+		And(
+			// Ensure the component's management state is "Managed"
+			jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Managed),
 
-	g.List(c.GVK).Eventually().Should(
-		BeEmpty(),
-	)
-	g.List(gvk.CustomResourceDefinition, crdSel).Eventually().Should(
-		HaveLen(1),
-	)
+			// Validate that the releases field contains at least one release for the component
+			jq.Match(`.status.components.%s.releases | length > 0`, componentName),
 
-	g.Delete(
+			// Validate the fields (name, version, repoUrl) for each release
+			// No need to check for length here, the previous check validates if any release exists
+			And(
+				jq.Match(`.status.components.%s.releases[].name != ""`, componentName),
+				jq.Match(`.status.components.%s.releases[].version != ""`, componentName),
+				jq.Match(`.status.components.%s.releases[].repoUrl != ""`, componentName),
+			),
+		),
+	)
+}
+
+// ValidateComponentCondition ensures that the specified component instance has the expected condition set to "True".
+func (tc *ComponentTestCtx) ValidateComponentCondition(gvk schema.GroupVersionKind, componentName, statusType string) {
+	tc.EnsureResourceExistsAndMatchesCondition(
+		gvk,
+		types.NamespacedName{Name: componentName},
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, statusType, metav1.ConditionTrue),
+	)
+}
+
+// UpdateComponentStateInDataScienceCluster updates the management state of a specified component in the DataScienceCluster.
+func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceCluster(state operatorv1.ManagementState, kind ...string) {
+	componentKind := tc.GVK.Kind
+	if len(kind) > 0 {
+		componentKind = kind[0]
+	}
+
+	componentName := strings.ToLower(componentKind)
+	readyCondition := metav1.ConditionFalse
+	if state == operatorv1.Managed {
+		readyCondition = metav1.ConditionTrue
+	}
+
+	// Define common conditions to match.
+	conditions := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, state),
+
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentKind, readyCondition),
+	}
+
+	// If the state is "Managed", add additional checks for provisioning and components readiness.
+	if state == operatorv1.Managed {
+		conditions = append(conditions,
+			// Validate the "ProvisioningSucceeded" condition
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, readyCondition),
+
+			// Validate the "ComponentsReady" condition
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeComponentsReady, readyCondition),
+		)
+	}
+
+	// Update the management state of the component in the DataScienceCluster.
+	tc.EnsureResourceCreatedOrUpdatedWithCondition(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state),
+		And(conditions...),
+	)
+}
+
+// ValidateCRDRemoval ensures that the CRD is properly removed when the component is disabled.
+func (tc *ComponentTestCtx) ValidateCRDRemoval(name string) {
+	nn := types.NamespacedName{Name: name}
+
+	// Ensure the CustomResourceDefinition (CRD) exists before deletion
+	tc.EnsureResourceExists(gvk.CustomResourceDefinition, nn)
+
+	// Delete the CRD
+	tc.DeleteResource(
 		gvk.CustomResourceDefinition,
 		types.NamespacedName{Name: name},
-		client.PropagationPolicy(metav1.DeletePropagationForeground),
-	).Eventually().Should(
-		Succeed(),
-	)
+		client.PropagationPolicy(metav1.DeletePropagationForeground))
 
-	g.List(gvk.CustomResourceDefinition, crdSel).Eventually().Should(
-		BeEmpty(),
-	)
+	// Ensure the CRD is removed
+	tc.EnsureResourceGone(gvk.CustomResourceDefinition, nn)
+}
 
-	g.Update(
-		gvk.DataScienceCluster,
-		c.DSCName,
-		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
-	).Eventually().Should(
-		Succeed(),
-	)
+// ValidateCRDReinstatement ensures that the CRD is properly reinstated when the component is enabled.
+func (tc *ComponentTestCtx) ValidateCRDReinstatement(name string, version string) {
+	nn := types.NamespacedName{Name: name}
 
-	g.List(c.GVK).Eventually().Should(
-		HaveLen(1),
-	)
-	g.List(gvk.CustomResourceDefinition, crdSel).Eventually().Should(
-		HaveLen(1),
-	)
+	// Ensure the CRD is recreated
+	tc.EnsureResourceExists(gvk.CustomResourceDefinition, nn)
+
+	// Ensure the CRD has the specified version
 	if len(version) != 0 {
-		g.Get(
+		tc.EnsureResourceExistsAndMatchesCondition(
 			gvk.CustomResourceDefinition,
 			types.NamespacedName{Name: name},
-		).Eventually(5*time.Second, 500*time.Millisecond).Should(
-			jq.Match(`.status.storedVersions[0] == "%s"`, version[0]),
+			jq.Match(`.status.storedVersions[0] == "%s"`, version),
 		)
 	}
 }
 
-// Validate releases for any component in the DataScienceCluster.
-func (c *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
+// ValidateModelControllerInstance validates the existence and correct status of the ModelController and DataScienceCluster.
+func (tc *ComponentTestCtx) ValidateModelControllerInstance(t *testing.T) {
 	t.Helper()
 
-	g := c.NewWithT(t)
-
-	componentName := strings.ToLower(c.GVK.Kind)
-
-	// Transform the DataScienceCluster to set the management state of the component
-	g.Update(
-		gvk.DataScienceCluster,
-		c.DSCName,
-		testf.Transform(
-			`.spec.components.%s.managementState = "%s"`, componentName, operatorv1.Managed,
+	// Ensure ModelController resource exists with the expected owner references and status phase.
+	tc.EnsureResourceExistsAndMatchesCondition(
+		gvk.ModelController,
+		types.NamespacedName{Name: componentApi.ModelControllerInstanceName},
+		And(
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
+			jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady),
 		),
-	).Eventually().Should(
-		Succeed(),
 	)
 
-	// Check if the releases field contains multiple releases for the component
-	g.List(gvk.DataScienceCluster).Eventually().Should(And(
-		HaveLen(1),
-		HaveEach(
-			// Check releases for the component itself
-			jq.Match(`.status.components.%s.releases | length > 0`, componentName),
-		),
-	))
-
-	// Validate each release's fields (name, version, repoUrl) using HaveEach
-	g.List(gvk.DataScienceCluster).Eventually().Should(And(
-		HaveLen(1),
-		HaveEach(And(
-			// Check that each release has the required fields (name, version, repoUrl)
-			jq.Match(`.status.components.%s.releases[].name != ""`, componentName),
-			jq.Match(`.status.components.%s.releases[].version != ""`, componentName),
-			jq.Match(`.status.components.%s.releases[].repoUrl != ""`, componentName)),
-		),
-	))
-}
-
-func (c *ComponentTestCtx) GetDSC() (*dscv1.DataScienceCluster, error) {
-	obj := dscv1.DataScienceCluster{}
-
-	err := c.Client().Get(c.Context(), c.DSCName, &obj)
-	if err != nil {
-		return nil, err
-	}
-
-	return &obj, nil
-}
-
-func (c *ComponentTestCtx) GetDSCI() (*dsciv1.DSCInitialization, error) {
-	obj := dsciv1.DSCInitialization{}
-
-	err := c.Client().Get(c.Context(), c.DSCIName, &obj)
-	if err != nil {
-		return nil, err
-	}
-
-	return &obj, nil
-}
-
-func (c *ComponentTestCtx) GetClusterVersion() (semver.Version, error) {
-	clusterVersion := &configv1.ClusterVersion{}
-	if err := c.Client().Get(c.Context(), client.ObjectKey{
-		Name: cluster.OpenShiftVersionObj,
-	}, clusterVersion); err != nil {
-		return semver.Version{}, err
-	}
-	return semver.ParseTolerant(clusterVersion.Status.History[0].Version)
+	// Ensure ModelController condition matches the expected status in the DataScienceCluster.
+	tc.ValidateComponentCondition(
+		gvk.DataScienceCluster,
+		tc.DataScienceClusterNamespacedName.Name,
+		modelcontroller.ReadyConditionType,
+	)
 }
