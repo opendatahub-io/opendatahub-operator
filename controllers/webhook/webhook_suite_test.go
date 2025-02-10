@@ -45,7 +45,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
-	modelregistry2 "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
+	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/webhook"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -210,7 +210,7 @@ var _ = Describe("DSC mutating webhook", func() {
 		dscInstance := newMRDSC1(nameBase+"-dsc-mr1", "", operatorv1.Managed)
 		Expect(k8sClient.Create(ctx, dscInstance)).Should(Succeed())
 		Expect(dscInstance.Spec.Components.ModelRegistry.RegistriesNamespace).
-			Should(Equal(modelregistry2.DefaultModelRegistriesNamespace))
+			Should(Equal(modelregistryctrl.DefaultModelRegistriesNamespace))
 		Expect(clearInstance(ctx, dscInstance)).Should(Succeed())
 	})
 
