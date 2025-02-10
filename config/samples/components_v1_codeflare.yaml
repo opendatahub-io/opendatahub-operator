@@ -1,6 +1,0 @@
-apiVersion: components.platform.opendatahub.io/v1
-kind: CodeFlare
-metadata:
-  name: codeflare-sample
-spec:
-  # TODO(user): Add fields here

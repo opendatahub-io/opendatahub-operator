@@ -10,9 +10,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	routev1 "github.com/openshift/api/route/v1"
 	templatev1 "github.com/openshift/api/template/v1"
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -108,10 +106,9 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 // CreateDefaultDSCI creates a default instance of DSCI
 // If there exists default-dsci instance already, it will not update DSCISpec on it.
 // Note: DSCI CR modifcations are not supported, as it is the initial prereq setting for the components.
-func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platform, appNamespace, monNamespace string) error {
+func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platform, monNamespace string) error {
 	log := logf.FromContext(ctx)
 	defaultDsciSpec := &dsciv1.DSCInitializationSpec{
-		ApplicationsNamespace: appNamespace,
 		Monitoring: serviceApi.DSCMonitoring{
 			ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
@@ -208,60 +205,33 @@ func getDashboardWatsonResources(ns string) []ResourceSpec {
 func CleanupExistingResource(ctx context.Context,
 	cli client.Client,
 	platform cluster.Platform,
-	dscApplicationsNamespace, dscMonitoringNamespace string,
+	dscMonitoringNamespace string,
 	oldReleaseVersion cluster.Release,
 ) error {
 	var multiErr *multierror.Error
-	// Special Handling of cleanup of deprecated model monitoring stack
-	if platform == cluster.ManagedRhoai {
-		deprecatedDeployments := []string{"rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedDeployments, &appsv1.DeploymentList{}))
-
-		deprecatedStatefulsets := []string{"prometheus-rhods-model-monitoring"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedStatefulsets, &appsv1.StatefulSetList{}))
-
-		deprecatedServices := []string{"rhods-model-monitoring"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedServices, &corev1.ServiceList{}))
-
-		deprecatedRoutes := []string{"rhods-model-monitoring"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedRoutes, &routev1.RouteList{}))
-
-		deprecatedSecrets := []string{"rhods-monitoring-oauth-config"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedSecrets, &corev1.SecretList{}))
-
-		deprecatedClusterroles := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedClusterroles, &rbacv1.ClusterRoleList{}))
-
-		deprecatedClusterrolebindings := []string{"rhods-namespace-read", "rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedClusterrolebindings, &rbacv1.ClusterRoleBindingList{}))
-
-		deprecatedServiceAccounts := []string{"rhods-prometheus-operator"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscMonitoringNamespace, deprecatedServiceAccounts, &corev1.ServiceAccountList{}))
-
-		deprecatedServicemonitors := []string{"modelmesh-federated-metrics"}
-		multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedServicemonitors))
+	// get DSCI CR to get application namespace
+	dsciList := &dsciv1.DSCInitializationList{}
+	if err := cli.List(ctx, dsciList); err != nil {
+		return err
 	}
-	// common logic for both self-managed and managed
-	deprecatedOperatorSM := []string{"rhods-monitor-federation2"}
-	multiErr = multierror.Append(multiErr, deleteDeprecatedServiceMonitors(ctx, cli, dscMonitoringNamespace, deprecatedOperatorSM))
-
-	// Remove deprecated opendatahub namespace(previously owned by kuberay and Kueue)
-	multiErr = multierror.Append(multiErr, deleteDeprecatedNamespace(ctx, cli, "opendatahub"))
-
+	if len(dsciList.Items) == 0 {
+		return nil
+	}
+	d := &dsciList.Items[0]
 	// Handling for dashboard OdhApplication Jupyterhub CR, see jira #443
-	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, gvk.OdhApplication, "jupyterhub", dscApplicationsNamespace))
+	multiErr = multierror.Append(multiErr, removOdhApplicationsCR(ctx, cli, gvk.OdhApplication, "jupyterhub", d.Spec.ApplicationsNamespace))
 
 	// cleanup for github.com/opendatahub-io/pull/888
-	deprecatedFeatureTrackers := []string{dscApplicationsNamespace + "-kserve-temporary-fixes"}
-	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscApplicationsNamespace, deprecatedFeatureTrackers, &featuresv1.FeatureTrackerList{}))
+	deprecatedFeatureTrackers := []string{d.Spec.ApplicationsNamespace + "-kserve-temporary-fixes"}
+	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, d.Spec.ApplicationsNamespace, deprecatedFeatureTrackers, &featuresv1.FeatureTrackerList{}))
 
 	// Cleanup of deprecated default RoleBinding resources
-	deprecatedDefaultRoleBinding := []string{dscApplicationsNamespace}
-	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, dscApplicationsNamespace, deprecatedDefaultRoleBinding, &rbacv1.RoleBindingList{}))
+	deprecatedDefaultRoleBinding := []string{d.Spec.ApplicationsNamespace}
+	multiErr = multierror.Append(multiErr, deleteDeprecatedResources(ctx, cli, d.Spec.ApplicationsNamespace, deprecatedDefaultRoleBinding, &rbacv1.RoleBindingList{}))
 
 	// Handling for dashboard OdhDocument Jupyterhub CR, see jira #443 comments
 	odhDocJPH := getJPHOdhDocumentResources(
-		dscApplicationsNamespace,
+		d.Spec.ApplicationsNamespace,
 		[]string{
 			"jupyterhub-install-python-packages",
 			"jupyterhub-update-server-settings",
@@ -271,25 +241,25 @@ func CleanupExistingResource(ctx context.Context,
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &odhDocJPH))
 	// only apply on RHOAI since ODH has a different way to create this CR by dashboard
 	if platform == cluster.SelfManagedRhoai || platform == cluster.ManagedRhoai {
-		if err := upgradeODCCR(ctx, cli, "odh-dashboard-config", dscApplicationsNamespace, oldReleaseVersion); err != nil {
+		if err := upgradeODCCR(ctx, cli, "odh-dashboard-config", d.Spec.ApplicationsNamespace, oldReleaseVersion); err != nil {
 			return err
 		}
 	}
 	// remove modelreg proxy container from deployment in ODH
 	if platform == cluster.OpenDataHub {
-		if err := removeRBACProxyModelRegistry(ctx, cli, "model-registry-operator", "kube-rbac-proxy", dscApplicationsNamespace); err != nil {
+		if err := removeRBACProxyModelRegistry(ctx, cli, "model-registry-operator", "kube-rbac-proxy", d.Spec.ApplicationsNamespace); err != nil {
 			return err
 		}
 	}
 
 	// to take a reference
-	toDelete := getDashboardWatsonResources(dscApplicationsNamespace)
+	toDelete := getDashboardWatsonResources(d.Spec.ApplicationsNamespace)
 	multiErr = multierror.Append(multiErr, deleteResources(ctx, cli, &toDelete))
 
 	// cleanup nvidia nim integration
-	multiErr = multierror.Append(multiErr, cleanupNimIntegration(ctx, cli, oldReleaseVersion, dscApplicationsNamespace))
+	multiErr = multierror.Append(multiErr, cleanupNimIntegration(ctx, cli, oldReleaseVersion, d.Spec.ApplicationsNamespace))
 	// cleanup model controller legacy deployment
-	multiErr = multierror.Append(multiErr, cleanupModelControllerLegacyDeployment(ctx, cli, dscApplicationsNamespace))
+	multiErr = multierror.Append(multiErr, cleanupModelControllerLegacyDeployment(ctx, cli, d.Spec.ApplicationsNamespace))
 
 	return multiErr.ErrorOrNil()
 }
@@ -365,35 +335,6 @@ func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace
 					}
 				}
 				log.Info("Successfully deleted " + item.GetName())
-			}
-		}
-	}
-	return multiErr.ErrorOrNil()
-}
-
-// Need to handle ServiceMonitor deletion separately as the generic function does not work for ServiceMonitors because of how the package is built.
-func deleteDeprecatedServiceMonitors(ctx context.Context, cli client.Client, namespace string, resourceList []string) error {
-	log := logf.FromContext(ctx)
-	var multiErr *multierror.Error
-	listOpts := &client.ListOptions{Namespace: namespace}
-	servicemonitors := &monitoringv1.ServiceMonitorList{}
-	if err := cli.List(ctx, servicemonitors, listOpts); err != nil {
-		multiErr = multierror.Append(multiErr, err)
-	}
-
-	for _, servicemonitor := range servicemonitors.Items {
-		for _, name := range resourceList {
-			if name == servicemonitor.Name {
-				log.Info("Attempting to delete " + servicemonitor.Name + " in namespace " + namespace)
-				err := cli.Delete(ctx, servicemonitor)
-				if err != nil {
-					if k8serr.IsNotFound(err) {
-						log.Info("Could not find " + servicemonitor.Name + " in namespace " + namespace)
-					} else {
-						multiErr = multierror.Append(multiErr, err)
-					}
-				}
-				log.Info("Successfully deleted " + servicemonitor.Name)
 			}
 		}
 	}
@@ -525,63 +466,6 @@ func removeRBACProxyModelRegistry(ctx context.Context, cli client.Client, compon
 			break
 		}
 	}
-	return nil
-}
-
-func RemoveLabel(ctx context.Context, cli client.Client, objectName string, labelKey string) error {
-	foundNamespace := &corev1.Namespace{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: objectName}, foundNamespace); err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil
-		}
-		return fmt.Errorf("could not get %s namespace: %w", objectName, err)
-	}
-	delete(foundNamespace.Labels, labelKey)
-	if err := cli.Update(ctx, foundNamespace); err != nil {
-		return fmt.Errorf("error removing %s from %s : %w", labelKey, objectName, err)
-	}
-	return nil
-}
-
-func deleteDeprecatedNamespace(ctx context.Context, cli client.Client, namespace string) error {
-	log := logf.FromContext(ctx)
-	foundNamespace := &corev1.Namespace{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: namespace}, foundNamespace); err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil
-		}
-		return fmt.Errorf("could not get %s namespace: %w", namespace, err)
-	}
-
-	// Check if namespace is owned by DSC
-	isOwnedByDSC := false
-	for _, owner := range foundNamespace.OwnerReferences {
-		if owner.Kind == "DataScienceCluster" {
-			isOwnedByDSC = true
-		}
-	}
-	if !isOwnedByDSC {
-		return nil
-	}
-
-	// Check if namespace has pods running
-	podList := &corev1.PodList{}
-	listOpts := []client.ListOption{
-		client.InNamespace(namespace),
-	}
-	if err := cli.List(ctx, podList, listOpts...); err != nil {
-		return fmt.Errorf("error getting pods from namespace %s: %w", namespace, err)
-	}
-	if len(podList.Items) != 0 {
-		log.Info("Skip deletion of namespace " + namespace + " due to running Pods in it")
-		return nil
-	}
-
-	// Delete namespace if no pods found
-	if err := cli.Delete(ctx, foundNamespace); err != nil {
-		return fmt.Errorf("could not delete %s namespace: %w", namespace, err)
-	}
-
 	return nil
 }
 

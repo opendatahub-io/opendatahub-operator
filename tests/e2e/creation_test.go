@@ -21,7 +21,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
+	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 )
 
 func creationTestSuite(t *testing.T) {
@@ -358,14 +358,14 @@ func (tc *testContext) validateModelRegistryConfig() error {
 			return err
 		}
 		// allowed to set registriesNamespace back to default value
-		err = patchRegistriesNamespace(tc, modelregistry.DefaultModelRegistriesNamespace,
-			modelregistry.DefaultModelRegistriesNamespace, false)
+		err = patchRegistriesNamespace(tc, modelregistryctrl.DefaultModelRegistriesNamespace,
+			modelregistryctrl.DefaultModelRegistriesNamespace, false)
 		if err != nil {
 			return err
 		}
 	} else {
 		// not allowed to change registriesNamespace
-		err := patchRegistriesNamespace(tc, testNs, modelregistry.DefaultModelRegistriesNamespace, true)
+		err := patchRegistriesNamespace(tc, testNs, modelregistryctrl.DefaultModelRegistriesNamespace, true)
 		if err != nil {
 			return err
 		}
