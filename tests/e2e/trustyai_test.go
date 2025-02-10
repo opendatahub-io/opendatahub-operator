@@ -10,17 +10,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
 
+type TrustyAITestCtx struct {
+	*ComponentTestCtx
+}
+
 func trustyAITestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(&componentApi.TrustyAI{})
+	ct, err := NewComponentTestCtx(t, &componentApi.TrustyAI{})
 	require.NoError(t, err)
 
 	componentCtx := TrustyAITestCtx{
@@ -28,105 +32,108 @@ func trustyAITestSuite(t *testing.T) {
 	}
 
 	// TrustyAI requires some CRDs that are shipped by Kserve
-	t.Run("Enable Kserve", componentCtx.enableKserve)
+	t.Run("Enable Kserve", componentCtx.EnableKserve)
 
-	t.Run("Validate component enabled", componentCtx.ValidateComponentEnabled)
-	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
-	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
-	t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
-	t.Run("Validate pre check", componentCtx.validateTrustyAIPreCheck)
-	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
+	// Define test cases.
+	testCases := []TestCase{
+		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
+		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
+		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate pre check", componentCtx.ValidateTrustyAIPreCheck},
+		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+	}
 
-	t.Run("Disable Kserve", componentCtx.disableKserve)
+	// Run the test suite.
+	componentCtx.RunTestCases(t, testCases)
 }
 
-type TrustyAITestCtx struct {
-	*ComponentTestCtx
+// ValidateTrustyAIPreCheck defines the test cases for TrustyAI pre-check validation.
+func (tc *TrustyAITestCtx) ValidateTrustyAIPreCheck(t *testing.T) {
+	t.Helper()
+
+	// Define test cases.
+	testCases := []TestCase{
+		{"Disable Kserve", tc.DisableKserve},
+		{"Delete InferenceServices", tc.DeleteInferenceServices},
+		{"Validate Error", func(t *testing.T) {
+			t.Helper()
+			tc.ValidateTrustyAICondition(metav1.ConditionFalse)
+		}},
+		{"Enable Kserve", tc.EnableKserve},
+		{"Validate Recovery", func(t *testing.T) {
+			t.Helper()
+			tc.ValidateTrustyAICondition(metav1.ConditionTrue)
+		}},
+		{"Disable Kserve", tc.DisableKserve},
+	}
+
+	// Run the test suite.
+	tc.RunTestCases(t, testCases)
 }
 
-func (c *TrustyAITestCtx) enableKserve(t *testing.T) {
-	g := c.NewWithT(t)
-
-	g.Update(
-		gvk.DataScienceCluster,
-		c.DSCName,
-		testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, operatorv1.Managed),
-	).Eventually().Should(
-		Succeed(),
-	)
-
-	g.List(gvk.Kserve).Eventually().Should(And(
-		HaveLen(1),
-		HaveEach(And(
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
-		)),
-	))
+// EnableKserve enables the Kserve component for the TrustyAI test context.
+func (tc *TrustyAITestCtx) EnableKserve(t *testing.T) {
+	t.Helper()
+	tc.SetKserveState(operatorv1.Managed, true)
 }
 
-func (c *TrustyAITestCtx) disableKserve(t *testing.T) {
-	g := c.NewWithT(t)
-
-	g.Update(
-		gvk.DataScienceCluster,
-		c.DSCName,
-		testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, operatorv1.Removed),
-	).Eventually().Should(
-		Succeed(),
-	)
-
-	g.List(gvk.Kserve).Eventually().Should(
-		BeEmpty(),
-	)
+// DisableKserve disables the Kserve component for the TrustyAI test context.
+func (tc *TrustyAITestCtx) DisableKserve(t *testing.T) {
+	t.Helper()
+	tc.SetKserveState(operatorv1.Removed, false)
 }
 
-func (c *TrustyAITestCtx) validateTrustyAIPreCheck(t *testing.T) {
-	t.Run("Disable Kserve", c.disableKserve)
-	t.Run("Delete InferenceServices", func(t *testing.T) {
-		g := c.NewWithT(t)
-		n := types.NamespacedName{Name: "inferenceservices.serving.kserve.io"}
+// SetKserveState updates the Kserve component state and verifies its existence.
+func (tc *TrustyAITestCtx) SetKserveState(state operatorv1.ManagementState, shouldExist bool) {
+	// Temporarily change timeout for this test since it takes lots of time because of FeatureGates
+	// TODO: remove it once we understood why it's taking lots of time for kserve to become Ready/NotReady
+	reset := tc.OverrideEventuallyTimeout(eventuallyTimeoutLong, defaultEventuallyPollInterval)
+	defer reset() // Ensure reset happens after test completes
 
-		g.Delete(gvk.CustomResourceDefinition, n, client.PropagationPolicy(metav1.DeletePropagationForeground)).Eventually().Should(
-			Succeed(),
+	nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
+
+	// Update the Kserve component state in DataScienceCluster.
+	tc.UpdateComponentStateInDataScienceCluster(state, gvk.Kserve.Kind)
+
+	// Verify if Kserve should exist or be removed.
+	if shouldExist {
+		tc.ValidateComponentCondition(
+			gvk.Kserve,
+			componentApi.KserveInstanceName,
+			status.ConditionTypeReady,
 		)
-	})
+	} else {
+		tc.EnsureResourceGone(gvk.Kserve, nn)
+	}
+}
 
-	t.Run("Validate Error", func(t *testing.T) {
-		g := c.NewWithT(t)
+// DeleteInferenceServices deletes the InferenceServices CustomResourceDefinition.
+func (tc *TrustyAITestCtx) DeleteInferenceServices(t *testing.T) {
+	t.Helper()
+	tc.DeleteResource(
+		gvk.CustomResourceDefinition,
+		types.NamespacedName{Name: "inferenceservices.serving.kserve.io"},
+		client.PropagationPolicy(metav1.DeletePropagationForeground),
+	)
+}
 
-		g.List(gvk.TrustyAI).Eventually().Should(And(
-			HaveLen(1),
-			HaveEach(And(
-				jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionFalse),
-				jq.Match(`.status.conditions[] | select(.type == "ProvisioningSucceeded") | .status == "%s"`, metav1.ConditionFalse),
-			)),
-		))
+// ValidateTrustyAICondition validates the readiness condition of TrustyAI and DataScienceCluster.
+func (tc *TrustyAITestCtx) ValidateTrustyAICondition(expectedStatus metav1.ConditionStatus) {
+	// Validate TrustyAI readiness.
+	tc.EnsureResourceExistsAndMatchesCondition(
+		gvk.TrustyAI,
+		types.NamespacedName{Name: componentApi.TrustyAIInstanceName},
+		And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, expectedStatus),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, expectedStatus),
+		),
+	)
 
-		g.List(gvk.DataScienceCluster).Eventually().Should(And(
-			HaveLen(1),
-			HaveEach(
-				jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, c.GVK.Kind, metav1.ConditionFalse),
-			),
-		))
-	})
-
-	t.Run("Enable Kserve", c.enableKserve)
-
-	t.Run("Validate Recovery", func(t *testing.T) {
-		g := c.NewWithT(t)
-
-		g.List(gvk.TrustyAI).Eventually().Should(And(
-			HaveLen(1),
-			HaveEach(And(
-				jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
-				jq.Match(`.status.conditions[] | select(.type == "ProvisioningSucceeded") | .status == "%s"`, metav1.ConditionTrue),
-			)),
-		))
-
-		g.List(gvk.DataScienceCluster).Eventually().Should(And(
-			HaveLen(1),
-			HaveEach(
-				jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, c.GVK.Kind, metav1.ConditionTrue),
-			),
-		))
-	})
+	// Validate DataScienceCluster readiness.
+	tc.EnsureResourceExistsAndMatchesCondition(
+		gvk.DataScienceCluster,
+		tc.DataScienceClusterNamespacedName,
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, expectedStatus),
+	)
 }
