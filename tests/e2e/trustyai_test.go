@@ -85,8 +85,6 @@ func (c *TrustyAITestCtx) disableKserve(t *testing.T) {
 }
 
 func (c *TrustyAITestCtx) validateCRDReinstated(t *testing.T) {
-	// validate multikuueclusters, multikueueconfigs has v1beta1 version
-
 	crds := []string{
 		"inferenceservices.serving.kserve.io", // SR is not needed any more in 2.18.0
 	}

@@ -55,12 +55,13 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.TrustyAIInstanceName)),
-			reconciler.WithPredicates(predicate.Or(
-				component.ForLabel(labels.ODH.Component(componentApi.KserveComponentName), labels.True),
-				component.ForLabel(labels.ODH.Component("model-mesh"), labels.True)),
+			reconciler.WithPredicates(
+				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
+			reconciler.WithPredicates(
 				predicate.Funcs{
 					CreateFunc: func(e event.CreateEvent) bool {
-						return e.Object.GetName() == "inferenceservices.serving.kserve.io"
+						return e.Object.GetName() == "inferenceservices.serving.kserve.io" &&
+							(e.Object.GetLabels()[labels.ODH.Component(componentApi.KserveComponentName)] == labels.True) || (e.Object.GetLabels()[labels.ODH.Component("model-mesh")] == labels.True)
 					},
 				},
 			),
