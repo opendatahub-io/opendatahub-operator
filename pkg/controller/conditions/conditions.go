@@ -212,6 +212,18 @@ func (r *Manager) MarkUnknown(t string, opts ...Option) {
 	r.Mark(t, metav1.ConditionUnknown, opts...)
 }
 
+func (r *Manager) MarkFrom(t string, in common.Condition) {
+	c := common.Condition{
+		Type:     t,
+		Status:   in.Status,
+		Reason:   in.Reason,
+		Message:  in.Message,
+		Severity: in.Severity,
+	}
+
+	r.SetCondition(c)
+}
+
 // RecomputeHappiness re-evaluates the happiness state of the manager based on the current set
 // of conditions.
 //

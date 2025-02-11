@@ -1,10 +1,12 @@
 package trustyai
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
@@ -63,44 +66,50 @@ func (s *componentHandler) Init(platform common.Platform) error {
 	return nil
 }
 
-func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj client.Object) error {
-	c, ok := obj.(*componentApi.TrustyAI)
+func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
+	cs := metav1.ConditionUnknown
+
+	c := componentApi.TrustyAI{}
+	c.Name = componentApi.TrustyAIInstanceName
+
+	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&c), &c); err != nil && !k8serr.IsNotFound(err) {
+		return cs, nil
+	}
+
+	dsc, ok := rr.Instance.(*dscv1.DataScienceCluster)
 	if !ok {
-		return errors.New("failed to convert to TrustyAI")
+		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
 	dsc.Status.InstalledComponents[LegacyComponentName] = false
 	dsc.Status.Components.TrustyAI.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.TrustyAI.TrustyAICommonStatus = nil
 
-	nc := common.Condition{
-		Type:    ReadyConditionType,
-		Status:  metav1.ConditionFalse,
-		Reason:  status.UnknownReason,
-		Message: "Not Available",
-	}
+	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
 		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.TrustyAI.TrustyAICommonStatus = c.Status.TrustyAICommonStatus.DeepCopy()
 
-		if rc := conditions.FindStatusCondition(c, status.ConditionTypeReady); rc != nil {
-			nc.Status = rc.Status
-			nc.Reason = rc.Reason
-			nc.Message = rc.Message
+		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
+			rr.Conditions.MarkFrom(ReadyConditionType, *rc)
+			cs = rc.Status
+		} else {
+			cs = metav1.ConditionFalse
 		}
 
 	case operatorv1.Removed:
-		nc.Status = metav1.ConditionFalse
-		nc.Reason = string(operatorv1.Removed)
-		nc.Message = "Component ManagementState is set to " + string(operatorv1.Removed)
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(string(operatorv1.Removed)),
+			conditions.WithMessage("Component ManagementState is set to %s", operatorv1.Removed),
+			conditions.WithSeverity(common.ConditionSeverityInfo),
+		)
 
 	default:
-		return fmt.Errorf("unknown state %s ", s.GetManagementState(dsc))
+		return cs, fmt.Errorf("unknown state %s ", s.GetManagementState(dsc))
 	}
 
-	conditions.SetStatusCondition(dsc, nc)
-
-	return nil
+	return cs, nil
 }
