@@ -102,6 +102,12 @@ const (
 		"remove existing Argo workflows or set `spec.components.datasciencepipelines.managementState` to Removed to proceed"
 )
 
+// For Kueue MultiKueue CRD.
+const (
+	MultiKueueCRDReason  = "MultiKueueCRDV1Alpha1Exist"
+	MultiKueueCRDMessage = "MultiKueue CRDs MultiKueueConfig v1alpha1 and MultiKueueCluster v1Alpha1 exist, please remove them to proceed"
+)
+
 // SetProgressingCondition sets the ProgressingCondition to True and other conditions to false or
 // Unknown. Used when we are just starting to reconcile, and there are no existing conditions.
 func SetProgressingCondition(conditions *[]conditionsv1.Condition, reason string, message string) {

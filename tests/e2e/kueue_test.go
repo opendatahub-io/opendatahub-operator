@@ -1,17 +1,25 @@
 package e2e_test
 
 import (
+	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/blang/semver/v4"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -32,6 +40,7 @@ func kueueTestSuite(t *testing.T) {
 	t.Run("Validate Kueue Dynamically create VAP and VAPB", componentCtx.validateKueueVAPReady)
 	t.Run("Validate CRDs reinstated", componentCtx.validateCRDReinstated)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
+	t.Run("Validate pre check", componentCtx.validateKueuePreCheck)
 }
 
 type KueueTestCtx struct {
@@ -59,15 +68,97 @@ func (tc *KueueTestCtx) validateKueueVAPReady(t *testing.T) {
 }
 
 func (tc *KueueTestCtx) validateCRDReinstated(t *testing.T) {
-	crds := []string{
-		"workloads.kueue.x-k8s.io",
-		"multikueueclusters.kueue.x-k8s.io",
-		"multikueueconfigs.kueue.x-k8s.io",
+	// validate multikuueclusters, multikueueconfigs has v1beta1 version
+
+	crds := map[string]string{
+		"workloads.kueue.x-k8s.io":          "v1beta1",
+		"multikueueclusters.kueue.x-k8s.io": "v1beta1",
+		"multikueueconfigs.kueue.x-k8s.io":  "v1beta1",
 	}
 
-	for _, crd := range crds {
+	for crd, version := range crds {
 		t.Run(crd, func(t *testing.T) {
-			tc.ValidateCRDReinstated(t, crd)
+			tc.ValidateCRDReinstated(t, crd, version)
 		})
 	}
+}
+
+func (tc *KueueTestCtx) validateKueuePreCheck(t *testing.T) {
+	// validate precheck on CRD version:
+	// pre-req: skip set kueue to removed (done by ValidateComponentDisabled)
+	// step:
+	// delete crd, check it is gone, then install old crd,
+	// set kueue to managed, result to error, delete crd, result to success.
+
+	var mkConfig = "multikueueconfigs.kueue.x-k8s.io"
+	var mkCluster = "multikueueclusters.kueue.x-k8s.io"
+
+	g := tc.NewWithT(t)
+	g.Delete(gvk.CustomResourceDefinition,
+		types.NamespacedName{Name: mkCluster},
+		client.PropagationPolicy(metav1.DeletePropagationForeground),
+	).Eventually().Should(
+		Succeed(),
+	)
+	g.Eventually(func() bool {
+		var crd extv1.CustomResourceDefinition
+		err := tc.Client().Get(context.Background(), types.NamespacedName{Name: mkCluster}, &crd)
+		return k8serr.IsNotFound(err)
+	}).Should(BeTrue())
+
+	g.Delete(gvk.CustomResourceDefinition,
+		types.NamespacedName{Name: mkConfig},
+		client.PropagationPolicy(metav1.DeletePropagationForeground),
+	).Eventually().Should(
+		Succeed(),
+	)
+	g.Eventually(func() bool {
+		var crd extv1.CustomResourceDefinition
+		err := tc.Client().Get(context.Background(), types.NamespacedName{Name: mkConfig}, &crd)
+		return k8serr.IsNotFound(err)
+	}).Should(BeTrue())
+
+	c1 := mockCRDcreation("kueue.x-k8s.io", "v1alpha1", "multikueuecluster", "kueue")
+	e1 := tc.Client().Create(context.Background(), c1)
+	g.Expect(e1).ToNot(HaveOccurred())
+
+	c2 := mockCRDcreation("kueue.x-k8s.io", "v1alpha1", "multikueueconfig", "kueue")
+	e2 := tc.Client().Create(context.Background(), c2)
+	g.Expect(e2).ToNot(HaveOccurred())
+
+	g.Update(
+		gvk.DataScienceCluster,
+		tc.DSCName,
+		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
+	).Eventually().Should(
+		jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
+	)
+
+	g.List(gvk.DataScienceCluster).Eventually().Should(And(
+		HaveLen(1),
+		HaveEach(And(
+			jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
+		)),
+	))
+
+	g.Delete(gvk.CustomResourceDefinition,
+		types.NamespacedName{Name: mkCluster},
+		client.PropagationPolicy(metav1.DeletePropagationForeground),
+	).Eventually().Should(
+		Succeed(),
+	)
+	g.Delete(gvk.CustomResourceDefinition,
+		types.NamespacedName{Name: mkConfig},
+		client.PropagationPolicy(metav1.DeletePropagationForeground),
+	).Eventually().Should(
+		Succeed(),
+	)
+
+	g.List(gvk.DataScienceCluster).Eventually().Should(And(
+		HaveLen(1),
+		HaveEach(
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+		),
+	))
 }

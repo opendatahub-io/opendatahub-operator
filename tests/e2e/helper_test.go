@@ -462,3 +462,34 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 func (tc *testContext) setUp(t *testing.T) error { //nolint: thelper
 	return ensureServicemeshOperators(t, tc)
 }
+
+func mockCRDcreation(group, version, kind, componentName string) *apiextv1.CustomResourceDefinition {
+	return &apiextv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: strings.ToLower(fmt.Sprintf("%ss.%s", kind, group)),
+			Labels: map[string]string{
+				labels.ODH.Component(componentName): labels.True,
+			},
+		},
+		Spec: apiextv1.CustomResourceDefinitionSpec{
+			Group: group,
+			Names: apiextv1.CustomResourceDefinitionNames{
+				Kind:   kind,
+				Plural: strings.ToLower(kind) + "s",
+			},
+			Scope: apiextv1.ClusterScoped,
+			Versions: []apiextv1.CustomResourceDefinitionVersion{
+				{
+					Name:    version,
+					Served:  true,
+					Storage: true,
+					Schema: &apiextv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextv1.JSONSchemaProps{
+							Type: "object",
+						},
+					},
+				},
+			},
+		},
+	}
+}
