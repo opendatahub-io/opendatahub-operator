@@ -22,6 +22,7 @@ COPY config/osd-configs/ /opt/manifests/osd-configs
 ################################################################################
 FROM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
 ARG CGO_ENABLED=1
+ARG TARGETARCH
 USER root
 WORKDIR /workspace
 # Copy the Go Modules manifests
