@@ -24,15 +24,6 @@ import (
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = []odhtypes.ManifestInfo{defaultManifestInfo(rr.Release.Name)}
 
-	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name, &rr.DSCI.Spec)
-	if err != nil {
-		return errors.New("failed to set variable for extraParamsMap")
-	}
-
-	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), nil, extraParamsMap); err != nil {
-		return fmt.Errorf("failed to update params.env  from %s : %w", rr.Manifests[0].String(), err)
-	}
-
 	return nil
 }
 
@@ -71,6 +62,18 @@ func customizeResources(_ context.Context, rr *odhtypes.ReconciliationRequest) e
 		}
 	}
 
+	return nil
+}
+
+func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name, &rr.DSCI.Spec)
+	if err != nil {
+		return errors.New("failed to set variable for url, section-title etc")
+	}
+
+	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), nil, extraParamsMap); err != nil {
+		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[0].String(), err)
+	}
 	return nil
 }
 
