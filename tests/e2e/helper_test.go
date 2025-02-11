@@ -172,6 +172,9 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 					},
 					KserveCommonSpec: componentApi.KserveCommonSpec{
 						DefaultDeploymentMode: componentApi.Serverless,
+						NIM: componentApi.NimSpec{
+							ManagementState: operatorv1.Managed,
+						},
 						Serving: infrav1.ServingSpec{
 							ManagementState: operatorv1.Managed,
 							Name:            "knative-serving",

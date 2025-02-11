@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -168,6 +169,10 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(serviceApi.AddToScheme(Scheme))
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
+
+	// config gomega output
+	format.MaxLength = 0         // diabled max length
+	format.TruncatedDiff = false // do not truncate
 
 	gomega.SetDefaultEventuallyTimeout(generalWaitTimeout)
 	gomega.SetDefaultEventuallyPollingInterval(generalPollInterval)
