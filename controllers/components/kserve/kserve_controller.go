@@ -149,13 +149,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(predicates.DefaultPredicate)).
 
 		// actions
-
-		// Detecting component status should be the first step as the
-		// subsequent action could fail for transient errors, but we
-		// should report the current component status if possible
+		WithAction(checkPreConditions).
 		WithAction(deployments.NewAction()).
 		WithAction(setStatusFields).
-		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(releases.NewAction()).

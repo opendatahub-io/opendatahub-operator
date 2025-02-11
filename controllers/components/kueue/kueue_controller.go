@@ -81,12 +81,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
-		// Detecting component status should be the first step as the
-		// subsequent action could fail for transient errors, but we
-		// should report the current component status if possible
+		WithAction(checkPreConditions).
 		WithAction(deployments.NewAction()).
-		// Add Kueue-specific actions
-		WithAction(checkPreConditions). // check if CRD multikueueconfigs/multikueueclusters with v1alpha1 exist in cluster and not in termination
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(releases.NewAction()).

@@ -66,12 +66,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
-		// Detecting component status should be the first step as the
-		// subsequent action could fail for transient errors, but we
-		// should report the current component status if possible
 		WithAction(deployments.NewAction()).
 		WithAction(initialize).
-		WithAction(devFlags). // devFlags triggerd by changes in DSC kserve and ModelMeshServing, also update .status.devflagurl
+		WithAction(devFlags).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),

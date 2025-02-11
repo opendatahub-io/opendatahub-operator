@@ -65,11 +65,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				},
 			)),
 		).
-		// Add TrustyAI-specific actions
-		WithAction(checkPreConditions). // check if CRD isvc is there
-		// Detecting component status should be the first step as the
-		// subsequent action could fail for transient errors, but we
-		// should report the current component status if possible
+		WithAction(checkPreConditions).
 		WithAction(deployments.NewAction()).
 		WithAction(initialize).
 		WithAction(devFlags).

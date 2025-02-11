@@ -29,7 +29,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return odherrors.NewStopError("failed to check %s CRDs version: %w", gvk.MultiKueueConfigV1Alpha1, err)
 	}
 
-	if rConfig || rCluster {
+	if !rConfig || !rCluster {
 		return odherrors.NewStopError(MultiKueueCRDMessage)
 	}
 

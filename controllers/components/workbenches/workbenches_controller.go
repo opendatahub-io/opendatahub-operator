@@ -61,9 +61,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
-		// Detecting component status should be the first step as the
-		// subsequent action could fail for transient errors, but we
-		// should report the current component status if possible
 		WithAction(deployments.NewAction()).
 		WithAction(initialize).
 		WithAction(devFlags).

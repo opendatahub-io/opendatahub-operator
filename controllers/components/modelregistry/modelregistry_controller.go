@@ -80,13 +80,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// namespaces that may not be known when the controller is started, hence
 		// it should be watched dynamically
 		WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic()).
-		// Detecting component status should be the first step as the
-		// subsequent action could fail for transient errors, but we
-		// should report the current component status if possible
+		WithAction(checkPreConditions).
 		WithAction(deployments.NewAction()).
 		WithAction(updateStatus).
-		// past initial status computation
-		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(releases.NewAction()).
 		WithAction(configureDependencies).
