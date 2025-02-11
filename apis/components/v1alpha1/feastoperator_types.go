@@ -58,6 +58,7 @@ type FeastOperatorCommonSpec struct {
 
 // FeastOperatorCommonStatus defines the shared observed state of FeastOperator
 type FeastOperatorCommonStatus struct {
+	common.ComponentReleaseStatus `json:",inline"`
 }
 
 // FeastOperatorSpec defines the desired state of FeastOperator
@@ -77,8 +78,8 @@ func (c *FeastOperator) GetDevFlags() *common.DevFlags {
 }
 
 // GetStatus retrieves the status of the FeastOperator component
-func (c *FeastOperator) GetStatus() *common.Status {
-	return &c.Status.Status
+func (f *FeastOperator) GetStatus() *common.Status {
+	return &f.Status.Status
 }
 
 // +kubebuilder:object:root=true
@@ -108,4 +109,12 @@ type DSCFeastOperatorStatus struct {
 func init() {
 	// Register the schema with the scheme builder
 	SchemeBuilder.Register(&FeastOperator{}, &FeastOperatorList{})
+}
+
+func (f *FeastOperator) GetReleaseStatus() *[]common.ComponentRelease {
+	return &f.Status.Releases
+}
+
+func (f *FeastOperator) SetReleaseStatus(releases []common.ComponentRelease) {
+	f.Status.Releases = releases
 }

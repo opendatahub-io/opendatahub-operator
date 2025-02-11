@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/onsi/gomega"
+	"github.com/onsi/gomega/format"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -169,6 +170,10 @@ func TestOdhOperator(t *testing.T) {
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 
+	// config gomega output
+	format.MaxLength = 0         // diabled max length
+	format.TruncatedDiff = false // do not truncate
+
 	gomega.SetDefaultEventuallyTimeout(generalWaitTimeout)
 	gomega.SetDefaultEventuallyPollingInterval(generalPollInterval)
 
@@ -226,6 +231,11 @@ func TestMain(m *testing.M) {
 	componentNames := strings.Join(maps.Keys(componentsTestSuites), ", ")
 	flag.Var(&testOpts.components, "test-component", "run tests for the specified component. valid components names are: "+componentNames)
 
+	serviceNames := strings.Join(maps.Keys(servicesTestSuites), ", ")
+	flag.Var(&testOpts.services, "test-service", "run tests for the specified service. valid service names are: "+serviceNames)
+
+	flag.Parse()
+
 	for _, n := range testOpts.components {
 		if _, ok := componentsTestSuites[n]; !ok {
 			fmt.Printf("test-component: unknown component %s, valid values are: %s", n, componentNames)
@@ -233,16 +243,12 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	serviceNames := strings.Join(maps.Keys(servicesTestSuites), ", ")
-	flag.Var(&testOpts.services, "test-service", "run tests for the specified service. valid service names are: "+serviceNames)
-
-	for _, n := range testOpts.components {
-		if _, ok := componentsTestSuites[n]; !ok {
+	for _, n := range testOpts.services {
+		if _, ok := servicesTestSuites[n]; !ok {
 			fmt.Printf("test-service: unknown service %s, valid values are: %s", n, serviceNames)
 			os.Exit(1)
 		}
 	}
 
-	flag.Parse()
 	os.Exit(m.Run())
 }
