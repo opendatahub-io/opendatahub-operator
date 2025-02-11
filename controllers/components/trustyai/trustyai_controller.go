@@ -55,17 +55,16 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.TrustyAIInstanceName)),
-			reconciler.WithPredicates(
-				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
-			reconciler.WithPredicates(
-				predicate.Funcs{
+			reconciler.WithPredicates(predicate.Or( // if TrustyAI CR is changed
+				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
+				predicate.Funcs{ // OR if ISVC from kserve or model-mesh is craeted
 					CreateFunc: func(e event.CreateEvent) bool {
 						return e.Object.GetName() == "inferenceservices.serving.kserve.io" &&
 							(e.Object.GetLabels()[labels.ODH.Component(componentApi.KserveComponentName)] == labels.True) || (e.Object.GetLabels()[labels.ODH.Component("model-mesh")] == labels.True)
 					},
 				},
 			),
-		).
+			)).
 		// Add TrustyAI-specific actions
 		WithAction(checkPreConditions). // check if CRD isvc is there
 		WithAction(initialize).

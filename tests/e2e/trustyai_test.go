@@ -86,7 +86,7 @@ func (c *TrustyAITestCtx) disableKserve(t *testing.T) {
 
 func (c *TrustyAITestCtx) validateCRDReinstated(t *testing.T) {
 	crds := []string{
-		"inferenceservices.serving.kserve.io", // SR is not needed any more in 2.18.0
+		"inferenceservices.serving.kserve.io", // SR is not needed any more in 2.18.0 by TrustyAI
 	}
 
 	for _, crd := range crds {
