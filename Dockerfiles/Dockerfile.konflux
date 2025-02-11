@@ -30,7 +30,7 @@ COPY config/monitoring/ /opt/manifests/monitoring/
 COPY config/osd-configs/ /opt/manifests/osd-configs/
 
 # Build
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} go build -a -tags strictfipsruntime -o manager main.go
 
 ################################################################################
 FROM registry.access.redhat.com/ubi8/ubi-minimal@sha256:aa0750f98cbac46a1987d0208c1ec66224c0e5248b0ae79eec468efceb720886
