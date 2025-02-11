@@ -226,6 +226,11 @@ func TestMain(m *testing.M) {
 	componentNames := strings.Join(maps.Keys(componentsTestSuites), ", ")
 	flag.Var(&testOpts.components, "test-component", "run tests for the specified component. valid components names are: "+componentNames)
 
+	serviceNames := strings.Join(maps.Keys(servicesTestSuites), ", ")
+	flag.Var(&testOpts.services, "test-service", "run tests for the specified service. valid service names are: "+serviceNames)
+
+	flag.Parse()
+
 	for _, n := range testOpts.components {
 		if _, ok := componentsTestSuites[n]; !ok {
 			fmt.Printf("test-component: unknown component %s, valid values are: %s", n, componentNames)
@@ -233,16 +238,12 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	serviceNames := strings.Join(maps.Keys(servicesTestSuites), ", ")
-	flag.Var(&testOpts.services, "test-service", "run tests for the specified service. valid service names are: "+serviceNames)
-
-	for _, n := range testOpts.components {
-		if _, ok := componentsTestSuites[n]; !ok {
+	for _, n := range testOpts.services {
+		if _, ok := servicesTestSuites[n]; !ok {
 			fmt.Printf("test-service: unknown service %s, valid values are: %s", n, serviceNames)
 			os.Exit(1)
 		}
 	}
 
-	flag.Parse()
 	os.Exit(m.Run())
 }
