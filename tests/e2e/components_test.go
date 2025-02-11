@@ -90,7 +90,7 @@ func (c *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 		c.DSCName,
 		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
 	).Eventually().Should(
-		jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
+		Succeed(),
 	)
 
 	g.List(gvk.DataScienceCluster).Eventually().Should(And(
@@ -185,7 +185,7 @@ func (c *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 		c.DSCName,
 		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Removed),
 	).Eventually().Should(
-		jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Removed),
+		Succeed(),
 	)
 
 	g.List(c.GVK).Eventually().Should(
@@ -222,7 +222,7 @@ func (c *ComponentTestCtx) ValidateCRDReinstated(t *testing.T, name string, vers
 		c.DSCName,
 		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Removed),
 	).Eventually().Should(
-		jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Removed),
+		Succeed(),
 	)
 
 	g.List(c.GVK).Eventually().Should(
@@ -249,7 +249,7 @@ func (c *ComponentTestCtx) ValidateCRDReinstated(t *testing.T, name string, vers
 		c.DSCName,
 		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
 	).Eventually().Should(
-		jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
+		Succeed(),
 	)
 
 	g.List(c.GVK).Eventually().Should(

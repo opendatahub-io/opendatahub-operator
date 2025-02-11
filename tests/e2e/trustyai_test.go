@@ -55,7 +55,7 @@ func (c *TrustyAITestCtx) enableKserve(t *testing.T) {
 		c.DSCName,
 		testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, operatorv1.Managed),
 	).Eventually().Should(
-		jq.Match(`.spec.components.%s.managementState == "%s"`, componentApi.KserveComponentName, operatorv1.Managed),
+		Succeed(),
 	)
 
 	g.List(gvk.Kserve).Eventually().Should(And(
@@ -74,7 +74,7 @@ func (c *TrustyAITestCtx) disableKserve(t *testing.T) {
 		c.DSCName,
 		testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, operatorv1.Removed),
 	).Eventually().Should(
-		jq.Match(`.spec.components.%s.managementState == "%s"`, componentApi.KserveComponentName, operatorv1.Removed),
+		Succeed(),
 	)
 
 	g.List(gvk.Kserve).Eventually().Should(

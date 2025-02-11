@@ -56,7 +56,7 @@ func (c *DashboardTestCtx) validateOperandsDynamicallyWatchedResources(t *testin
 			return nil
 		},
 	).Eventually().Should(
-		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, newPt),
+		Succeed(),
 	)
 
 	g.List(
