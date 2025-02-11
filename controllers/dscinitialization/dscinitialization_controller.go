@@ -289,7 +289,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return reconcile.Result{}, errServiceMesh
 		}
 
-		err = r.createAuth(ctx)
+		err = r.createAuth(ctx, instance)
 		if err != nil {
 			log.Info("failed to create Auth")
 			return ctrl.Result{}, err
