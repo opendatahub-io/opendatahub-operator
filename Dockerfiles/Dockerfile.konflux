@@ -1,7 +1,12 @@
 # Build the manager binary
 ################################################################################
 
-FROM registry.access.redhat.com/ubi8/go-toolset:1.22@sha256:bfe21597d4bcdd5dee75b84b8358260e21818bb13946302a8a4c16d33aea4570 as builder
+FROM registry.redhat.io/ubi8/go-toolset:1.22@sha256:bfe21597d4bcdd5dee75b84b8358260e21818bb13946302a8a4c16d33aea4570 as builder
+
+# These built-in args are defined in the global scope, and are not automatically accessible within build stages or RUN commands.
+# To expose these arguments inside the build stage, we need to redefine it without a value.
+ARG TARGETOS TARGETARCH
+RUN echo "GOOS=${TARGETOS} GOARCH=${TARGETARCH}"
 
 USER root
 WORKDIR /opt
@@ -29,11 +34,12 @@ COPY config/monitoring/ /opt/manifests/monitoring/
 # Copy ods-configs
 COPY config/osd-configs/ /opt/manifests/osd-configs/
 
+
 # Build
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} go build -a -tags strictfipsruntime -o manager main.go
+RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -o manager main.go
 
 ################################################################################
-FROM registry.access.redhat.com/ubi8/ubi-minimal@sha256:aa0750f98cbac46a1987d0208c1ec66224c0e5248b0ae79eec468efceb720886
+FROM registry.redhat.io/ubi8/ubi-minimal@sha256:d16d4445b1567f29449fba3b6d2bc37db467dc3067d33e940477e55aecdf6e8e
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --chown=1001:0 --from=builder /opt/manifests /opt/manifests
