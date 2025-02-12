@@ -70,16 +70,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 }
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	rr.Manifests = []odhtypes.ManifestInfo{manifestPath(rr.Release.Name)}
-
-	extraParamsMap, err := computeParamsMap(rr)
-	if err != nil {
-		return fmt.Errorf("computing extra params failed: %w", err)
-	}
-
-	if err := odhdeploy.ApplyParams(paramsPath, nil, extraParamsMap); err != nil {
-		return fmt.Errorf("failed to update params.env from %s : %w", paramsPath, err)
-	}
+	rr.Manifests = append(rr.Manifests, manifestPath(rr.Release.Name))
 
 	return nil
 }
