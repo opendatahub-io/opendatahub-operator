@@ -125,21 +125,20 @@ func (gc *GC) listResources(
 	opts metav1.ListOptions,
 ) ([]unstructured.Unstructured, error) {
 	items, err := gc.client.Dynamic().Resource(res.GroupVersionResource()).Namespace("").List(ctx, opts)
-	if err != nil {
-		if k8serr.IsForbidden(err) || k8serr.IsMethodNotSupported(err) {
-			gc.log(ctx).V(3).Info(
-				"cannot list resource",
-				"reason", err.Error(),
-				"gvk", res.GroupVersionKind(),
-			)
+	switch {
+	case k8serr.IsForbidden(err) || k8serr.IsMethodNotSupported(err):
+		gc.log(ctx).V(3).Info(
+			"cannot list resource",
+			"reason", err.Error(),
+			"gvk", res.GroupVersionKind(),
+		)
 
-			return nil, nil
-		}
-
+		return nil, nil
+	case err != nil:
 		return nil, err
+	default:
+		return items.Items, nil
 	}
-
-	return items.Items, nil
 }
 
 func (gc *GC) Run(
