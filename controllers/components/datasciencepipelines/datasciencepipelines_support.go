@@ -1,10 +1,6 @@
 package datasciencepipelines
 
 import (
-	"encoding/json"
-	"fmt"
-	"path"
-
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
@@ -24,9 +20,6 @@ const (
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "data-science-pipelines-operator"
-
-	managedPipelineParamsKey = "MANAGEDPIPELINES"
-	platformVersionParamsKey = "PLATFORMVERSION"
 )
 
 var (
@@ -40,7 +33,6 @@ var (
 		"IMAGES_DRIVER":                  "RELATED_IMAGE_ODH_ML_PIPELINES_DRIVER_IMAGE",
 		"IMAGES_LAUNCHER":                "RELATED_IMAGE_ODH_ML_PIPELINES_LAUNCHER_IMAGE",
 		"IMAGES_MLMDGRPC":                "RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE",
-		"IMAGES_PIPELINESRUNTIMEGENERIC": "RELATED_IMAGE_ODH_ML_PIPELINES_RUNTIME_GENERIC_IMAGE",
 	}
 
 	overlaysSourcePaths = map[cluster.Platform]string{
@@ -49,9 +41,15 @@ var (
 		cluster.OpenDataHub:      "overlays/odh",
 		cluster.Unknown:          "overlays/odh",
 	}
-
-	paramsPath = path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
 )
+
+func paramsPath() types.ManifestInfo {
+	return types.ManifestInfo{
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: ComponentName,
+		SourcePath: "base",
+	}
+}
 
 func manifestPath(p cluster.Platform) types.ManifestInfo {
 	return types.ManifestInfo{
@@ -59,27 +57,4 @@ func manifestPath(p cluster.Platform) types.ManifestInfo {
 		ContextDir: ComponentName,
 		SourcePath: overlaysSourcePaths[p],
 	}
-}
-
-func computeParamsMap(rr *types.ReconciliationRequest) (map[string]string, error) {
-	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
-	if !ok {
-		return nil, fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines", rr.Instance)
-	}
-
-	data, err := json.Marshal(dsp.Spec.PreloadedPipelines)
-	if err != nil {
-		return nil, fmt.Errorf("marshalling preloaded pipelines failed: %w", err)
-	}
-
-	data, err = json.Marshal(string(data))
-	if err != nil {
-		return nil, fmt.Errorf("marshalling preloaded pipelines failed: %w", err)
-	}
-
-	extraParamsMap := map[string]string{
-		managedPipelineParamsKey: string(data),
-	}
-
-	return extraParamsMap, nil
 }
