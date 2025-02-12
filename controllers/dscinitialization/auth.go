@@ -74,6 +74,7 @@ func (r *DSCInitializationReconciler) createAuth(ctx context.Context, dscInit *d
 		if err != nil && !k8serr.IsAlreadyExists(err) {
 			return err
 		}
+		return nil
 	}
 
 	// found a dashboardConfig CRD and instance but no groupsConfig or something else strange so just use default
