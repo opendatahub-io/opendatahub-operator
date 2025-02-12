@@ -257,7 +257,7 @@ func (tg *TestGroup) Validate() error {
 
 	for _, n := range tg.flags {
 		n = strings.TrimLeft(n, "!")
-		if _, ok := tg.scenarios[n]; !ok {
+		if !slices.Contains(tg.Names(), n) {
 			validValues := strings.Join(testOpts.components.Names(), ", ")
 			return fmt.Errorf("unsupported value %s, valid values are: %s", n, validValues)
 		}
