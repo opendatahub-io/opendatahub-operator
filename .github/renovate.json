@@ -97,7 +97,7 @@
         },
         {
           "matchUpdateTypes": ["digest"],
-          "enabled": true,
+          "enabled": false,
           "groupName": "Konflux references",
           "branchPrefix": "konflux/references/",
           "semanticCommits": "enabled",
