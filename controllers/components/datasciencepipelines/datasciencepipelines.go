@@ -39,8 +39,12 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 }
 
 func (s *componentHandler) Init(_ cluster.Platform) error {
-	if err := deploy.ApplyParams(paramsPath().String(), imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", paramsPath(), err)
+	release := cluster.GetRelease()
+	extraParams := map[string]string{
+		platformVersionParamsKey: release.Version.String(),
+	}
+	if err := deploy.ApplyParams(paramsPath, imageParamMap, extraParams); err != nil {
+		return fmt.Errorf("failed to apply params on path %s: %w", paramsPath, err)
 	}
 
 	return nil
