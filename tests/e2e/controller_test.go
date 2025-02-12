@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -40,28 +41,36 @@ import (
 type TestFn func(t *testing.T)
 
 var (
-	testOpts testContextConfig
-	Scheme   = runtime.NewScheme()
+	Scheme = runtime.NewScheme()
 
-	componentsTestSuites = map[string]TestFn{
-		// do not add modelcontroller here, due to dependency, test it separately below
-		componentApi.DashboardComponentName:            dashboardTestSuite,
-		componentApi.RayComponentName:                  rayTestSuite,
-		componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
-		componentApi.TrustyAIComponentName:             trustyAITestSuite,
-		componentApi.KueueComponentName:                kueueTestSuite,
-		componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
-		componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
-		componentApi.CodeFlareComponentName:            codeflareTestSuite,
-		componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
-		componentApi.KserveComponentName:               kserveTestSuite,
-		componentApi.ModelMeshServingComponentName:     modelMeshServingTestSuite,
-		componentApi.ModelControllerComponentName:      modelControllerTestSuite,
-	}
-
-	servicesTestSuites = map[string]TestFn{
-		serviceApi.MonitoringServiceName: monitoringTestSuite,
-		serviceApi.AuthServiceName:       authControllerTestSuite,
+	testOpts = testContextConfig{
+		components: TestGroup{
+			name:    "components",
+			enabled: true,
+			scenarios: map[string]TestFn{
+				// do not add modelcontroller here, due to dependency, test it separately below
+				componentApi.DashboardComponentName:            dashboardTestSuite,
+				componentApi.RayComponentName:                  rayTestSuite,
+				componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
+				componentApi.TrustyAIComponentName:             trustyAITestSuite,
+				componentApi.KueueComponentName:                kueueTestSuite,
+				componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
+				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
+				componentApi.CodeFlareComponentName:            codeflareTestSuite,
+				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
+				componentApi.KserveComponentName:               kserveTestSuite,
+				componentApi.ModelMeshServingComponentName:     modelMeshServingTestSuite,
+				componentApi.ModelControllerComponentName:      modelControllerTestSuite,
+			},
+		},
+		services: TestGroup{
+			name:    "services",
+			enabled: true,
+			scenarios: map[string]TestFn{
+				serviceApi.MonitoringServiceName: monitoringTestSuite,
+				serviceApi.AuthServiceName:       authControllerTestSuite,
+			},
+		},
 	}
 )
 
@@ -82,8 +91,8 @@ type testContextConfig struct {
 
 	operatorControllerTest bool
 	webhookTest            bool
-	components             arrayFlags
-	services               arrayFlags
+	components             TestGroup
+	services               TestGroup
 }
 
 // Holds information specific to individual tests.
@@ -94,8 +103,6 @@ type testContext struct {
 	kubeClient *k8sclient.Clientset
 	// custom client for managing custom resources
 	customClient client.Client
-	// namespace of the operator
-	operatorNamespace string
 	// namespace of the deployed applications
 	applicationsNamespace string
 	// test DataScienceCluster instance
@@ -107,8 +114,6 @@ type testContext struct {
 	// context for accessing resources
 	//nolint:containedctx //reason: legacy v1 test setup
 	ctx context.Context
-	// test configuration
-	testOpts testContextConfig
 }
 
 func NewTestContext() (*testContext, error) {
@@ -130,7 +135,7 @@ func NewTestContext() (*testContext, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize custom client: %w", err)
 	}
-
+	release := cluster.GetRelease()
 	// setup DSCI CR since we do not create automatically by operator
 	testDSCI := setupDSCICR("e2e-test-dsci")
 	// Setup DataScienceCluster CR
@@ -140,13 +145,11 @@ func NewTestContext() (*testContext, error) {
 		cfg:                   config,
 		kubeClient:            kc,
 		customClient:          custClient,
-		operatorNamespace:     testOpts.operatorNamespace,
 		applicationsNamespace: testDSCI.Spec.ApplicationsNamespace,
 		ctx:                   context.TODO(),
 		testDsc:               testDSC,
 		testDSCI:              testDSCI,
-		platform:              cluster.SelfManagedRhoai,
-		testOpts:              testOpts,
+		platform:              release.Name,
 	}, nil
 }
 
@@ -181,27 +184,8 @@ func TestOdhOperator(t *testing.T) {
 	// Run create and delete tests for all the components
 	t.Run("create DSCI and DSC CRs", creationTestSuite)
 
-	t.Run("components", func(t *testing.T) {
-		for k, v := range componentsTestSuites {
-			if len(testOpts.components) != 0 && !slices.Contains(testOpts.components, k) {
-				t.Logf("Skipping tests for component %s", k)
-				continue
-			}
-
-			t.Run(k, v)
-		}
-	})
-
-	t.Run("services", func(t *testing.T) {
-		for k, v := range servicesTestSuites {
-			if len(testOpts.services) != 0 && !slices.Contains(testOpts.services, k) {
-				t.Logf("Skipping tests for services %s", k)
-				continue
-			}
-
-			t.Run(k, v)
-		}
-	})
+	t.Run(testOpts.components.String(), testOpts.components.Run)
+	t.Run(testOpts.services.String(), testOpts.services.Run)
 
 	// Run deletion if skipDeletion is not set
 	if !testOpts.skipDeletion {
@@ -222,26 +206,92 @@ func TestMain(m *testing.M) {
 	flag.BoolVar(&testOpts.operatorControllerTest, "test-operator-controller", true, "run operator controller tests")
 	flag.BoolVar(&testOpts.webhookTest, "test-webhook", true, "run webhook tests")
 
-	componentNames := strings.Join(maps.Keys(componentsTestSuites), ", ")
-	flag.Var(&testOpts.components, "test-component", "run tests for the specified component. valid components names are: "+componentNames)
+	componentNames := strings.Join(testOpts.components.Names(), ", ")
+	flag.BoolVar(&testOpts.components.enabled, "test-components", testOpts.components.enabled, "enable tests for components")
+	flag.Var(&testOpts.components.flags, "test-component", "run tests for the specified component. valid components names are: "+componentNames)
 
-	for _, n := range testOpts.components {
-		if _, ok := componentsTestSuites[n]; !ok {
-			fmt.Printf("test-component: unknown component %s, valid values are: %s", n, componentNames)
-			os.Exit(1)
-		}
+	serviceNames := strings.Join(testOpts.services.Names(), ", ")
+	flag.BoolVar(&testOpts.services.enabled, "test-services", testOpts.services.enabled, "enable tests for services")
+	flag.Var(&testOpts.services.flags, "test-service", "run tests for the specified service. valid service names are: "+serviceNames)
+
+	flag.Parse()
+
+	if err := testOpts.components.Validate(); err != nil {
+		fmt.Printf("test-component: %s", err.Error())
+		os.Exit(1)
 	}
 
-	serviceNames := strings.Join(maps.Keys(servicesTestSuites), ", ")
-	flag.Var(&testOpts.services, "test-service", "run tests for the specified service. valid service names are: "+serviceNames)
-
-	for _, n := range testOpts.components {
-		if _, ok := componentsTestSuites[n]; !ok {
-			fmt.Printf("test-service: unknown service %s, valid values are: %s", n, serviceNames)
-			os.Exit(1)
-		}
+	if err := testOpts.services.Validate(); err != nil {
+		fmt.Printf("test-service: %s", err.Error())
+		os.Exit(1)
 	}
 
 	flag.Parse()
 	os.Exit(m.Run())
+}
+
+type TestGroup struct {
+	name      string
+	enabled   bool
+	scenarios map[string]TestFn
+	flags     arrayFlags
+}
+
+func (tg *TestGroup) String() string {
+	return tg.name
+}
+
+func (tg *TestGroup) Names() []string {
+	return maps.Keys(tg.scenarios)
+}
+
+func (tg *TestGroup) Validate() error {
+	if tg.enabled == false && len(tg.flags) != 0 {
+		return errors.New("enabling individual scenarios is not supported when the entire group is disabled")
+	}
+
+	for _, n := range tg.flags {
+		n = strings.TrimLeft(n, "!")
+		if !slices.Contains(tg.Names(), n) {
+			validValues := strings.Join(testOpts.components.Names(), ", ")
+			return fmt.Errorf("unsupported value %s, valid values are: %s", n, validValues)
+		}
+	}
+
+	return nil
+}
+
+func (tg *TestGroup) Run(t *testing.T) {
+	if !tg.enabled {
+		t.Skipf("Test group %s is disabled", tg.name)
+		return
+	}
+
+	disabled := make([]string, 0)
+	enabled := make([]string, 0)
+
+	for _, n := range tg.flags {
+		if strings.HasPrefix(n, "!") {
+			disabled = append(disabled, strings.TrimLeft(n, "!"))
+		} else {
+			enabled = append(enabled, n)
+		}
+	}
+
+	if len(enabled) == 0 {
+		enabled = maps.Keys(tg.scenarios)
+	}
+
+	enabled = slices.DeleteFunc(enabled, func(n string) bool {
+		return slices.Contains(disabled, n)
+	})
+
+	for k, v := range tg.scenarios {
+		if !slices.Contains(enabled, k) {
+			t.Logf("Skipping tests for %s/%s", tg.name, k)
+			continue
+		}
+
+		t.Run(k, v)
+	}
 }
