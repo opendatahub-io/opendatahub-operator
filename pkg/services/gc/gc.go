@@ -108,12 +108,12 @@ type runOptions struct {
 
 type RunOptionsFn func(*runOptions)
 
-func WitObjectFilter(fn func(context.Context, unstructured.Unstructured) (bool, error)) RunOptionsFn {
+func WithObjectFilter(fn func(context.Context, unstructured.Unstructured) (bool, error)) RunOptionsFn {
 	return func(o *runOptions) {
 		o.objectPredicate = fn
 	}
 }
-func WitTypeFilter(fn func(context.Context, schema.GroupVersionKind) (bool, error)) RunOptionsFn {
+func WithTypeFilter(fn func(context.Context, schema.GroupVersionKind) (bool, error)) RunOptionsFn {
 	return func(o *runOptions) {
 		o.typePredicate = fn
 	}

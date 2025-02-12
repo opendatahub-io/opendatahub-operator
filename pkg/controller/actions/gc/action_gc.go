@@ -113,14 +113,14 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 	deleted, err := a.gc.Run(
 		ctx,
 		selector,
-		gc.WitTypeFilter(func(ctx context.Context, kind schema.GroupVersionKind) (bool, error) {
+		gc.WithTypeFilter(func(ctx context.Context, kind schema.GroupVersionKind) (bool, error) {
 			if slices.Contains(a.unremovables, kind) {
 				return false, nil
 			}
 
 			return a.typePredicateFn(rr, kind)
 		}),
-		gc.WitObjectFilter(func(ctx context.Context, obj unstructured.Unstructured) (bool, error) {
+		gc.WithObjectFilter(func(ctx context.Context, obj unstructured.Unstructured) (bool, error) {
 			if slices.Contains(a.unremovables, obj.GroupVersionKind()) {
 				return false, nil
 			}
