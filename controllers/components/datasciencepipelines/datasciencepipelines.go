@@ -15,6 +15,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -38,8 +39,12 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 }
 
 func (s *componentHandler) Init(_ common.Platform) error {
-	if err := deploy.ApplyParams(paramsPath().String(), imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", paramsPath(), err)
+	release := cluster.GetRelease()
+	extraParams := map[string]string{
+		platformVersionParamsKey: release.Version.String(),
+	}
+	if err := deploy.ApplyParams(paramsPath, imageParamMap, extraParams); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", paramsPath, err)
 	}
 
 	return nil

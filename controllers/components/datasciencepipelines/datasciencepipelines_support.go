@@ -1,6 +1,8 @@
 package datasciencepipelines
 
 import (
+	"path"
+
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
@@ -20,7 +22,8 @@ const (
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
-	LegacyComponentName = "data-science-pipelines-operator"
+	LegacyComponentName      = "data-science-pipelines-operator"
+	platformVersionParamsKey = "PLATFORMVERSION"
 )
 
 var (
@@ -43,15 +46,8 @@ var (
 		cluster.OpenDataHub:      "overlays/odh",
 		cluster.Unknown:          "overlays/odh",
 	}
+	paramsPath = path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
 )
-
-func paramsPath() types.ManifestInfo {
-	return types.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: ComponentName,
-		SourcePath: "base",
-	}
-}
 
 func manifestPath(p common.Platform) types.ManifestInfo {
 	return types.ManifestInfo{
