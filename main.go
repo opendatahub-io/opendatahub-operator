@@ -315,6 +315,18 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
+	ons, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		setupLog.Error(err, "unable to determine Operator Namespace")
+		os.Exit(1)
+	}
+
+	gc.Instance = gc.New(
+		oc,
+		ons,
+		gc.WithUnremovables(gvk.CustomResourceDefinition, gvk.Lease),
+	)
+
 	if err = (&dscictrl.DSCInitializationReconciler{
 		Client:   oc,
 		Scheme:   mgr.GetScheme(),
@@ -324,11 +336,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	if err = (&dscctrl.DataScienceClusterReconciler{
-		Client:   oc,
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("datasciencecluster-controller"),
-	}).SetupWithManager(ctx, mgr); err != nil {
+	if err = dscctrl.NewDataScienceClusterReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
 		os.Exit(1)
 	}
@@ -355,18 +363,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
 		os.Exit(1)
 	}
-
-	ons, err := cluster.GetOperatorNamespace()
-	if err != nil {
-		setupLog.Error(err, "unable to determine Operator Namespace")
-		os.Exit(1)
-	}
-
-	gc.Instance = gc.New(
-		oc,
-		ons,
-		gc.WithUnremovables(gvk.CustomResourceDefinition, gvk.Lease),
-	)
 
 	err = mgr.Add(gc.Instance)
 	if err != nil {
