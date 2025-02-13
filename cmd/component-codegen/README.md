@@ -3,27 +3,11 @@
 ## Overview
 `component-codegen` is a CLI tool built using the Cobra library to scaffold boilerplate code for new components. It simplifies the onboarding process by generating necessary files and updating relevant configurations.
 
-## Installation
-
-To build the CLI tool, run the following commands:
-```sh
-go mod tidy
-go build -o component-codegen <path to cli project>
-```
-
-Alternatively, use the Makefile available in the root project to streamline the build process:
-
-```sh
-make component-codegen
-```
-This will generate the binary in the `<project-root>/bin` folder.
-
 ## Usage
-Once built, the CLI tool can be used to create new components like below:
+A new component can be scaffolded by using a simple make command
 
 ```sh
-cd opendatahub-operator
-./bin/component-codegen generate <component-name>
+make new-component COMPONENT=<component_name>
 ```
 
 ## Generated Files
