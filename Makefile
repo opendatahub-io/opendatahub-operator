@@ -65,7 +65,6 @@ OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
 YQ ?= $(LOCALBIN)/yq
-COMPONENT_CODEGEN ?= $(LOCALBIN)/component-codegen
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.0.2
 CONTROLLER_GEN_VERSION ?= v0.16.1
@@ -194,12 +193,6 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
 
-.PHONY: component-codegen
-component-codegen:
-	 @echo "Building component-codegen cli..."
-	 cd ./cmd/component-codegen && go mod tidy && go build -o $(COMPONENT_CODEGEN) .
-	 
-
 ##@ Build
 
 .PHONY: build
@@ -308,6 +301,13 @@ $(CRD_REF_DOCS): $(LOCALBIN)
 	test -s $(CRD_REF_DOCS) || ( \
 		curl -sSL https://github.com/elastic/crd-ref-docs/releases/download/v$(CRD_REF_DOCS_VERSION)/crd-ref-docs_$(CRD_REF_DOCS_VERSION)_$(OS)_$(ARCH).tar.gz | tar -xzf - -C $(LOCALBIN) crd-ref-docs \
 	)
+
+.PHONY: new-component
+new-component: $(LOCALBIN)/component-codegen
+	$< generate $(COMPONENT)
+
+$(LOCALBIN)/component-codegen: | $(LOCALBIN)
+	cd ./cmd/component-codegen && go mod tidy && go build -o $@
 
 BUNDLE_DIR ?= "bundle"
 WARNINGMSG = "provided API should have an example annotation"
