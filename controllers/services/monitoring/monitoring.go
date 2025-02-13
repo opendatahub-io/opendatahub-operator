@@ -9,7 +9,6 @@ import (
 
 	"gopkg.in/yaml.v2"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -17,6 +16,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	odhcli "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
@@ -139,6 +139,6 @@ func isComponentReady(ctx context.Context, cli *odhcli.Client, obj common.Platfo
 	case err != nil:
 		return false, fmt.Errorf("failed to get component instance: %w", err)
 	default:
-		return meta.IsStatusConditionTrue(obj.GetStatus().Conditions, status.ConditionTypeReady), nil
+		return conditions.IsStatusConditionTrue(obj, status.ConditionTypeReady), nil
 	}
 }

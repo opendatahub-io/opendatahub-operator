@@ -22,13 +22,14 @@ import (
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -55,7 +56,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		s := dsp.GetStatus()
 		s.Phase = "NotReady"
 
-		meta.SetStatusCondition(&s.Conditions, metav1.Condition{
+		conditions.SetStatusCondition(dsp, common.Condition{
 			Type:               status.ConditionTypeReady,
 			Status:             metav1.ConditionFalse,
 			Reason:             status.DataSciencePipelinesDoesntOwnArgoCRDReason,
