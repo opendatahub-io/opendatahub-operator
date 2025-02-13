@@ -11,7 +11,7 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "codegen-cli",
+	Use:   "component-codegen",
 	Short: "A cli app to generate boilerplate code",
 	Long: `A cli which can be used by component teams to generate boiler plate code 
 	while onboarding new components to the opendatahub operator.`,
