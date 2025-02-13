@@ -87,9 +87,9 @@ func (r *DSCInitializationReconciler) createAuth(ctx context.Context, dscInit *d
 }
 
 func buildAuth(adminGroup []string, allowedGroup []string) client.Object {
-	return client.Object(&serviceApi.Auth{
+	return &serviceApi.Auth{
 		TypeMeta:   metav1.TypeMeta{Kind: serviceApi.AuthKind, APIVersion: serviceApi.GroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.AuthInstanceName},
 		Spec:       serviceApi.AuthSpec{AdminGroups: adminGroup, AllowedGroups: allowedGroup},
-	})
+	}
 }
