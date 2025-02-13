@@ -1,8 +1,10 @@
 package dashboard
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	odhCli "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
@@ -65,7 +67,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 	}
 }
 
-func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj client.Object) error {
+func (s *componentHandler) UpdateDSCStatus(_ context.Context, _ *odhCli.Client, dsc *dscv1.DataScienceCluster, obj client.Object) error {
 	c, ok := obj.(*componentApi.Dashboard)
 	if !ok {
 		return errors.New("failed to convert to Dashboard")

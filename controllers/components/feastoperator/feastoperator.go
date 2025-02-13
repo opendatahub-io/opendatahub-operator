@@ -1,8 +1,11 @@
 package feastoperator
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odhCli "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
@@ -63,7 +66,7 @@ func (s *componentHandler) Init(_ common.Platform) error {
 	return nil
 }
 
-func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj client.Object) error {
+func (s *componentHandler) UpdateDSCStatus(ctx context.Context, cli *odhCli.Client, dsc *dscv1.DataScienceCluster, obj client.Object) error {
 	c, ok := obj.(*componentApi.FeastOperator)
 	if !ok {
 		return errors.New("failed to convert to FeastOperator")
@@ -85,6 +88,18 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 		dsc.Status.InstalledComponents[ComponentName] = true
 		dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = c.Status.FeastOperatorCommonStatus.DeepCopy()
 
+		// TODO: This block can be refactored when we have support for mixed-arch
+		isPowerArch, err := cluster.HasPowerArchNode(ctx, cli)
+		if err != nil {
+			return fmt.Errorf("unable to determine architecture %v", err)
+		}
+		if isPowerArch {
+			nc.Status = status.ReconcileCompleted
+			nc.Reason = status.UnsupportedArchitectureReason
+			nc.Message = status.UnsupportedArchitectureMessage
+		}
+
+		conditionsv1.SetStatusCondition(&dsc.Status.Conditions, nc)
 		if rc := meta.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {
 			nc.Status = corev1.ConditionStatus(rc.Status)
 			nc.Reason = rc.Reason

@@ -1,8 +1,11 @@
 package modelcontroller
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odhCli "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
@@ -84,7 +87,7 @@ func (s *componentHandler) Init(_ common.Platform) error {
 	return nil
 }
 
-func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj client.Object) error {
+func (s *componentHandler) UpdateDSCStatus(ctx context.Context, cli *odhCli.Client, dsc *dscv1.DataScienceCluster, obj client.Object) error {
 	c, ok := obj.(*componentApi.ModelController)
 	if !ok {
 		return errors.New("failed to convert to ModelController")
@@ -99,7 +102,16 @@ func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj cl
 
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
-		if rc := meta.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {
+		// TODO: This block can be refactored when we have support for mixed-arch
+		isPowerArch, err := cluster.HasPowerArchNode(ctx, cli)
+		if err != nil {
+			return fmt.Errorf("unable to determine architecture %v", err)
+		}
+		if isPowerArch && dsc.Status.Components.Kserve.ManagementState != operatorv1.Managed {
+			nc.Status = status.ReconcileCompleted
+			nc.Reason = status.UnsupportedArchitectureReason
+			nc.Message = status.UnsupportedArchitectureMessage
+		} else if rc := meta.FindStatusCondition(c.Status.Conditions, status.ConditionTypeReady); rc != nil {
 			nc.Status = corev1.ConditionStatus(rc.Status)
 			nc.Reason = rc.Reason
 			nc.Message = rc.Message
