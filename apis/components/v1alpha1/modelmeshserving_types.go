@@ -28,6 +28,9 @@ const (
 	ModelMeshServingKind         = "ModelMeshServing"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*ModelMeshServing)(nil)
+
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // +kubebuilder:object:root=true
@@ -84,6 +87,14 @@ func (c *ModelMeshServing) GetDevFlags() *common.DevFlags {
 
 func (c *ModelMeshServing) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *ModelMeshServing) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *ModelMeshServing) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 func (c *ModelMeshServing) GetReleaseStatus() *[]common.ComponentRelease {
