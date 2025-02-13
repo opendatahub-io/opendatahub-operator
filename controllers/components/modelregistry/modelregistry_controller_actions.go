@@ -7,14 +7,15 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -36,7 +37,7 @@ func checkPreConditions(_ context.Context, rr *odhtypes.ReconciliationRequest) e
 	s := mr.GetStatus()
 	s.Phase = "NotReady"
 
-	meta.SetStatusCondition(&s.Conditions, metav1.Condition{
+	conditions.SetStatusCondition(mr, common.Condition{
 		Type:               status.ConditionTypeReady,
 		Status:             metav1.ConditionFalse,
 		Reason:             status.ServiceMeshNotConfiguredReason,

@@ -27,6 +27,9 @@ const (
 	AuthKind         = "Auth"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*Auth)(nil)
+
 // AuthSpec defines the desired state of Auth
 type AuthSpec struct {
 	AdminGroups   []string `json:"adminGroups"`
@@ -65,6 +68,14 @@ type AuthList struct {
 
 func (m *Auth) GetStatus() *common.Status {
 	return &m.Status.Status
+}
+
+func (c *Auth) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *Auth) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 func init() {

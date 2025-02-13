@@ -28,6 +28,9 @@ const (
 	CodeFlareKind         = "CodeFlare"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*CodeFlare)(nil)
+
 // CodeFlareCommonStatus defines the shared observed state of CodeFlare
 type CodeFlareCommonStatus struct {
 	common.ComponentReleaseStatus `json:",inline"`
@@ -69,6 +72,14 @@ func (c *CodeFlare) GetDevFlags() *common.DevFlags {
 
 func (c *CodeFlare) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *CodeFlare) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *CodeFlare) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 func (c *CodeFlare) GetReleaseStatus() *[]common.ComponentRelease { return &c.Status.Releases }

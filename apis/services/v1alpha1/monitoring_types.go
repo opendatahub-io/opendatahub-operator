@@ -29,6 +29,9 @@ const (
 	MonitoringKind         = "Monitoring"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*Monitoring)(nil)
+
 // MonitoringSpec defines the desired state of Monitoring
 type MonitoringSpec struct {
 	// monitoring spec exposed to DSCI api
@@ -85,6 +88,14 @@ func (m *Monitoring) GetDevFlags() *common.DevFlags {
 
 func (m *Monitoring) GetStatus() *common.Status {
 	return &m.Status.Status
+}
+
+func (c *Monitoring) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *Monitoring) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 func init() {
