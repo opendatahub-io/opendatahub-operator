@@ -317,9 +317,6 @@ spec:
       managementState: Managed
     datasciencepipelines:
       managementState: Managed
-      managedPipelines:
-        instructLab:
-          state: Managed
     kserve:
       managementState: Managed
       nim:
