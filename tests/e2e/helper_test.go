@@ -33,8 +33,6 @@ import (
 
 const (
 	knativeServingNamespace  = "knative-serving"
-	servicemeshNamespace     = "openshift-operators"
-	servicemeshOpName        = "servicemeshoperator"
 	serverlessOpName         = "serverless-operator"
 	ownedNamespaceNumber     = 1 // set to 4 for RHOAI
 	deleteConfigMap          = "delete-configmap-name"
@@ -442,26 +440,26 @@ func ensureOperator(tc *testContext, name string, ns string) error {
 }
 
 func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint: thelper
-	ops := []string{
-		serverlessOpName,
-		servicemeshOpName,
+	depOperators := map[string]string{
+		"serverless-operator": "openshift-serverless",
+		"servicemeshoperator": "openshift-operators",
+		// "authorino-operator" : "openshift-operators",
 	}
+
 	var errors *multierror.Error
 	c := make(chan error)
 
-	for _, op := range ops {
-		t.Logf("Ensuring %s is installed", op)
-		go func(op string) {
-			err := ensureOperator(tc, op, servicemeshNamespace)
+	for name, ns := range depOperators {
+		t.Logf("Ensuring %s is installed", name)
+		go func(name, ns string) {
+			err := ensureOperator(tc, name, ns)
 			c <- err
-		}(op)
+		}(name, ns)
 	}
-
-	for range ops {
+	for range depOperators {
 		err := <-c
 		errors = multierror.Append(errors, err)
 	}
-
 	return errors.ErrorOrNil()
 }
 
