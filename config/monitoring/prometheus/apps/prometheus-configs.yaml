@@ -411,9 +411,10 @@ data:
           target_label: kubernetes_name
           action: keep
         - source_labels: [__address__]
-          regex: (.*)
+          regex: (.*):(\d+)
           target_label: __address__
           replacement: ${1}:8080
+          action: replace
 
     alerting:
       alertmanagers:
