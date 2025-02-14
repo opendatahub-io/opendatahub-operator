@@ -46,7 +46,7 @@ runs:
         branch: ${{ inputs.branch-name }}
         delete-branch: true
         title: ${{ inputs.title }}
-        reviewers: "VaishnaviHire,zdtsw"
+        reviewers: "zdtsw"
         base: ${{ inputs.base-branch }}
     - name: Set pr number in output
       shell: bash
