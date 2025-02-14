@@ -34,12 +34,15 @@ func SetStatusCondition(a common.ConditionsAccessor, newCondition common.Conditi
 		return false
 	}
 
-	updateTransitionTime := conditions[idx].Status != newCondition.Status
+	oldCondition := conditions[idx]
 
 	conditions[idx] = newCondition
 	conditions[idx].LastHeartbeatTime = nil
 
-	if updateTransitionTime {
+	// preserve transition time
+	conditions[idx].LastTransitionTime = oldCondition.LastTransitionTime
+
+	if oldCondition.Status != newCondition.Status {
 		conditions[idx].LastTransitionTime = newCondition.LastTransitionTime
 	}
 
