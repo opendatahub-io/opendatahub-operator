@@ -1,0 +1,2 @@
+# Ignore temporary alert yaml files created by the Makefile
+*.rules.yaml
