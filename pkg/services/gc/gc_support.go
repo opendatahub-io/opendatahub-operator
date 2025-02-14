@@ -2,7 +2,6 @@ package gc
 
 import (
 	"slices"
-	"sync"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -37,20 +36,13 @@ func (r Resource) IsNamespaced() bool {
 // We may want to introduce iterators (https://pkg.go.dev/iter) once moved to go 1.23
 
 type Resources struct {
-	lock  sync.RWMutex
 	items []Resource
 }
 
 func (r *Resources) Set(resources []Resource) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
 	r.items = resources
 }
 func (r *Resources) Get() []Resource {
-	r.lock.RLock()
-	defer r.lock.RUnlock()
-
 	return slices.Clone(r.items)
 }
 

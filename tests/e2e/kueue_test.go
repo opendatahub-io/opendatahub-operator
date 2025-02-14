@@ -131,7 +131,7 @@ func (tc *KueueTestCtx) validateKueuePreCheck(t *testing.T) {
 		tc.DSCName,
 		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
 	).Eventually().Should(
-		jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
+		Succeed(),
 	)
 
 	g.List(gvk.DataScienceCluster).Eventually().Should(And(

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/onsi/gomega"
+	"github.com/onsi/gomega/matchers"
 	"github.com/onsi/gomega/types"
 )
 
@@ -83,7 +84,7 @@ func (a *Assertion[T]) WithContext(ctx context.Context) *Assertion[T] {
 	return a
 }
 
-func (a *Assertion[T]) build(f func(ctx context.Context) (T, error)) gomega.AsyncAssertion {
+func (a *Assertion[T]) build(f interface{}) gomega.AsyncAssertion {
 	var aa gomega.AsyncAssertion
 
 	switch a.m {
@@ -107,14 +108,33 @@ func (a *Assertion[T]) build(f func(ctx context.Context) (T, error)) gomega.Asyn
 	return aa
 }
 
+//nolint:dupl
 func (a *Assertion[T]) Should(matcher types.GomegaMatcher, optionalDescription ...interface{}) T {
 	var res atomic.Value
+	var wrapper interface{}
 
-	wrapper := func(ctx context.Context) (T, error) {
-		v, err := a.f(ctx)
-		res.Store(v)
+	switch matcher.(type) {
+	case *matchers.SucceedMatcher:
+		wrapper = func(ctx context.Context) error {
+			v, err := a.f(ctx)
+			res.Store(v)
 
-		return v, err
+			return err
+		}
+	case *matchers.MatchErrorMatcher:
+		wrapper = func(ctx context.Context) error {
+			v, err := a.f(ctx)
+			res.Store(v)
+
+			return err
+		}
+	default:
+		wrapper = func(ctx context.Context) (T, error) {
+			v, err := a.f(ctx)
+			res.Store(v)
+
+			return v, err
+		}
 	}
 
 	a.build(wrapper).Should(matcher, optionalDescription...)
@@ -123,14 +143,33 @@ func (a *Assertion[T]) Should(matcher types.GomegaMatcher, optionalDescription .
 	return res.Load().(T)
 }
 
+//nolint:dupl
 func (a *Assertion[T]) ShouldNot(matcher types.GomegaMatcher, optionalDescription ...interface{}) T {
 	var res atomic.Value
+	var wrapper interface{}
 
-	wrapper := func(ctx context.Context) (T, error) {
-		v, err := a.f(ctx)
-		res.Store(v)
+	switch matcher.(type) {
+	case *matchers.SucceedMatcher:
+		wrapper = func(ctx context.Context) error {
+			v, err := a.f(ctx)
+			res.Store(v)
 
-		return v, err
+			return err
+		}
+	case *matchers.MatchErrorMatcher:
+		wrapper = func(ctx context.Context) error {
+			v, err := a.f(ctx)
+			res.Store(v)
+
+			return err
+		}
+	default:
+		wrapper = func(ctx context.Context) (T, error) {
+			v, err := a.f(ctx)
+			res.Store(v)
+
+			return v, err
+		}
 	}
 
 	a.build(wrapper).ShouldNot(matcher, optionalDescription...)

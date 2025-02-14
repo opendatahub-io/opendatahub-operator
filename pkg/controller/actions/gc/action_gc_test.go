@@ -13,6 +13,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,6 +24,7 @@ import (
 	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -128,7 +130,7 @@ func TestGcAction(t *testing.T) {
 			generated:      true,
 			matcher:        Not(HaveOccurred()),
 			metricsMatcher: BeNumerically("==", 1),
-			options: []gc.ActionOpts{gc.WithPredicate(
+			options: []gc.ActionOpts{gc.WithObjectPredicate(
 				func(request *types.ReconciliationRequest, unstructured unstructured.Unstructured) (bool, error) {
 					return unstructured.GroupVersionKind() != gvk.ConfigMap, nil
 				},
@@ -199,7 +201,7 @@ func TestGcAction(t *testing.T) {
 						UID:        apytypes.UID(id),
 					},
 				},
-				Release: cluster.Release{
+				Release: common.Release{
 					Name: cluster.OpenDataHub,
 					Version: version.OperatorVersion{
 						Version: tt.version,
@@ -252,4 +254,149 @@ func TestGcAction(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGcActionCluster(t *testing.T) {
+	g := NewWithT(t)
+
+	s := runtime.NewScheme()
+	ctx := context.Background()
+	id := xid.New().String()
+	nsn := xid.New().String()
+
+	utilruntime.Must(corev1.AddToScheme(s))
+	utilruntime.Must(appsv1.AddToScheme(s))
+	utilruntime.Must(apiextensionsv1.AddToScheme(s))
+	utilruntime.Must(authorizationv1.AddToScheme(s))
+	utilruntime.Must(rbacv1.AddToScheme(s))
+
+	envTest := &envtest.Environment{
+		CRDInstallOptions: envtest.CRDInstallOptions{
+			Scheme:          s,
+			CleanUpAfterUse: true,
+		},
+	}
+
+	t.Cleanup(func() {
+		_ = envTest.Stop()
+	})
+
+	cfg, err := envTest.Start()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	envTestClient, err := ctrlCli.New(cfg, ctrlCli.Options{Scheme: s})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	cli, err := client.NewFromConfig(cfg, envTestClient)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cli).NotTo(BeNil())
+
+	gci := gcSvc.New(
+		cli,
+		nsn,
+		// This is required as there are no kubernetes controller running
+		// with the envtest, hence we can't use the foreground deletion
+		// policy (default)
+		gcSvc.WithPropagationPolicy(metav1.DeletePropagationBackground),
+	)
+
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nsn,
+		},
+	}
+
+	g.Expect(cli.Create(ctx, &ns)).
+		NotTo(HaveOccurred())
+	g.Expect(gci.Start(ctx)).
+		NotTo(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client: cli,
+		DSCI: &dsciv1.DSCInitialization{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Instance: &componentApi.Dashboard{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: componentApi.GroupVersion.String(),
+				Kind:       componentApi.DashboardKind,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+				UID:        apytypes.UID(id),
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{
+				Version: semver.Version{Major: 0, Minor: 2, Patch: 0},
+			},
+		},
+		Generated: true,
+	}
+
+	om := metav1.ObjectMeta{
+		Namespace: nsn,
+		Annotations: map[string]string{
+			annotations.InstanceGeneration: "1",
+			annotations.InstanceUID:        id,
+			annotations.PlatformType:       string(cluster.OpenDataHub),
+		},
+		Labels: map[string]string{
+			labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+		},
+	}
+
+	cm1 := corev1.ConfigMap{ObjectMeta: *om.DeepCopy()}
+	cm1.Name = xid.New().String()
+	cm1.Annotations[annotations.PlatformVersion] = "0.1.0"
+
+	cm2 := corev1.ConfigMap{ObjectMeta: *om.DeepCopy()}
+	cm2.Name = xid.New().String()
+	cm2.Annotations[annotations.PlatformVersion] = rr.Release.Version.String()
+
+	cr1 := rbacv1.ClusterRole{ObjectMeta: *om.DeepCopy()}
+	cr1.Name = xid.New().String()
+	cr1.Annotations[annotations.PlatformVersion] = "0.1.0"
+
+	cr2 := rbacv1.ClusterRole{ObjectMeta: *om.DeepCopy()}
+	cr2.Name = xid.New().String()
+	cr2.Annotations[annotations.PlatformVersion] = rr.Release.Version.String()
+
+	g.Expect(cli.Create(ctx, &cm1)).
+		NotTo(HaveOccurred())
+
+	g.Expect(cli.Create(ctx, &cm2)).
+		NotTo(HaveOccurred())
+
+	g.Expect(cli.Create(ctx, &cr1)).
+		NotTo(HaveOccurred())
+
+	g.Expect(cli.Create(ctx, &cr2)).
+		NotTo(HaveOccurred())
+
+	a := gc.NewAction(gc.WithGC(gci))
+
+	gc.DeletedTotal.Reset()
+	gc.DeletedTotal.WithLabelValues("dashboard").Add(0)
+
+	err = a(ctx, &rr)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cm1), &corev1.ConfigMap{})
+	g.Expect(err).To(MatchError(k8serr.IsNotFound, "IsNotFound"))
+
+	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cm2), &corev1.ConfigMap{})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cr1), &rbacv1.ClusterRole{})
+	g.Expect(err).To(MatchError(k8serr.IsNotFound, "IsNotFound"))
+
+	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cr2), &rbacv1.ClusterRole{})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	ct := testutil.ToFloat64(gc.DeletedTotal)
+	g.Expect(ct).Should(BeNumerically("==", 2))
 }

@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -26,7 +27,7 @@ const (
 
 // OperatorUninstall deletes all the externally generated resources.
 // This includes DSCI, namespace created by operator (but not workbench or MR's), subscription and CSV.
-func OperatorUninstall(ctx context.Context, cli client.Client, platform cluster.Platform) error {
+func OperatorUninstall(ctx context.Context, cli client.Client, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
 	if err := removeDSC(ctx, cli); err != nil {

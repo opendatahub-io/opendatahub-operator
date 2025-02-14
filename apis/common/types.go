@@ -2,6 +2,7 @@ package common
 
 import (
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/operator-framework/api/pkg/lib/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -81,4 +82,13 @@ type WithDevFlags interface {
 type PlatformObject interface {
 	client.Object
 	WithStatus
+}
+
+type Platform string
+
+// Release includes information on operator version and platform
+// +kubebuilder:object:generate=true
+type Release struct {
+	Name    Platform                `json:"name,omitempty"`
+	Version version.OperatorVersion `json:"version,omitempty"`
 }

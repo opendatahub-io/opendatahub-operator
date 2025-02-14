@@ -75,10 +75,9 @@ func (c *ModelControllerTestCtx) validateComponentDeployed(
 			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelMeshServingComponentName, modelMeshState),
 			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, kserveState),
 		),
-	).Eventually().WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(And(
-		jq.Match(`.spec.components.%s.managementState == "%s"`, componentApi.ModelMeshServingComponentName, modelMeshState),
-		jq.Match(`.spec.components.%s.managementState == "%s"`, componentApi.KserveComponentName, kserveState),
-	))
+	).Eventually().WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(
+		Succeed(),
+	)
 
 	if status == metav1.ConditionTrue {
 		g.List(gvk.ModelController).Eventually().Should(And(
