@@ -106,7 +106,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 // CreateDefaultDSCI creates a default instance of DSCI
 // If there exists default-dsci instance already, it will not update DSCISpec on it.
 // Note: DSCI CR modifcations are not supported, as it is the initial prereq setting for the components.
-func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ cluster.Platform, monNamespace string) error {
+func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform, monNamespace string) error {
 	log := logf.FromContext(ctx)
 	defaultDsciSpec := &dsciv1.DSCInitializationSpec{
 		Monitoring: serviceApi.DSCMonitoring{
@@ -204,9 +204,9 @@ func getDashboardWatsonResources(ns string) []ResourceSpec {
 // TODO: remove function once we have a generic solution across all components.
 func CleanupExistingResource(ctx context.Context,
 	cli client.Client,
-	platform cluster.Platform,
+	platform common.Platform,
 	dscMonitoringNamespace string,
-	oldReleaseVersion cluster.Release,
+	oldReleaseVersion common.Release,
 ) error {
 	var multiErr *multierror.Error
 	// get DSCI CR to get application namespace
@@ -368,7 +368,7 @@ func removOdhApplicationsCR(ctx context.Context, cli client.Client, gvk schema.G
 // 1. unset ownerreference for CR odh-dashboard-config
 // 2. flip TrustyAI BiasMetrics to false (.spec.dashboardConfig.disableBiasMetrics) if it is lower release version than input 'release'.
 // 3. flip ModelRegistry to false (.spec.dashboardConfig.disableModelRegistry) if it is lower release version than input 'release'.
-func upgradeODCCR(ctx context.Context, cli client.Client, instanceName string, applicationNS string, release cluster.Release) error {
+func upgradeODCCR(ctx context.Context, cli client.Client, instanceName string, applicationNS string, release common.Release) error {
 	crd := &apiextv1.CustomResourceDefinition{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: "odhdashboardconfigs.opendatahub.io"}, crd); err != nil {
 		return client.IgnoreNotFound(err)
@@ -404,7 +404,7 @@ func unsetOwnerReference(ctx context.Context, cli client.Client, instanceName st
 	return nil
 }
 
-func updateODCBiasMetrics(ctx context.Context, cli client.Client, instanceName string, oldRelease cluster.Release, odhObject *unstructured.Unstructured) error {
+func updateODCBiasMetrics(ctx context.Context, cli client.Client, instanceName string, oldRelease common.Release, odhObject *unstructured.Unstructured) error {
 	log := logf.FromContext(ctx)
 	// "from version" as oldRelease, if return "0.0.0" meaning running on 2.10- release/dummy CI build
 	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip disableBiasMetrics to false (even the field did not exist)
@@ -421,7 +421,7 @@ func updateODCBiasMetrics(ctx context.Context, cli client.Client, instanceName s
 	return nil
 }
 
-func updateODCModelRegistry(ctx context.Context, cli client.Client, instanceName string, oldRelease cluster.Release, odhObject *unstructured.Unstructured) error {
+func updateODCModelRegistry(ctx context.Context, cli client.Client, instanceName string, oldRelease common.Release, odhObject *unstructured.Unstructured) error {
 	log := logf.FromContext(ctx)
 	// "from version" as oldRelease, if return "0.0.0" meaning running on 2.10- release/dummy CI build
 	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip disableModelRegistry to false (even the field did not exist)
@@ -469,10 +469,10 @@ func removeRBACProxyModelRegistry(ctx context.Context, cli client.Client, compon
 	return nil
 }
 
-func GetDeployedRelease(ctx context.Context, cli client.Client) (cluster.Release, error) {
+func GetDeployedRelease(ctx context.Context, cli client.Client) (common.Release, error) {
 	dsciInstance := &dsciv1.DSCInitializationList{}
 	if err := cli.List(ctx, dsciInstance); err != nil {
-		return cluster.Release{}, err
+		return common.Release{}, err
 	}
 	if len(dsciInstance.Items) == 1 { // found one DSCI CR found
 		// can return a valid Release or 0.0.0
@@ -481,16 +481,16 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (cluster.Release
 	// no DSCI CR found, try with DSC CR
 	dscInstances := &dscv1.DataScienceClusterList{}
 	if err := cli.List(ctx, dscInstances); err != nil {
-		return cluster.Release{}, err
+		return common.Release{}, err
 	}
 	if len(dscInstances.Items) == 1 { // one DSC CR found
 		return dscInstances.Items[0].Status.Release, nil
 	}
 	// could be a clean installation or both CRs are deleted already
-	return cluster.Release{}, nil
+	return common.Release{}, nil
 }
 
-func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease cluster.Release, applicationNS string) error {
+func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease common.Release, applicationNS string) error {
 	var errs *multierror.Error
 	log := logf.FromContext(ctx)
 

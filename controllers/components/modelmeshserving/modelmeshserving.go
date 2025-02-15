@@ -15,7 +15,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -38,7 +37,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 	return operatorv1.Removed
 }
 
-func (s *componentHandler) Init(_ cluster.Platform) error {
+func (s *componentHandler) Init(_ common.Platform) error {
 	// Update image parameters
 	if err := odhdeploy.ApplyParams(manifestsPath().String(), imageParamMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", manifestsPath(), err)

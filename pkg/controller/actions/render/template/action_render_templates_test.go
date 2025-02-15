@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apytypes "k8s.io/apimachinery/pkg/types"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
@@ -56,7 +57,7 @@ func TestRenderTemplate(t *testing.T) {
 				},
 			},
 		},
-		Release:   cluster.Release{Name: cluster.OpenDataHub},
+		Release:   common.Release{Name: cluster.OpenDataHub},
 		Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm.tmpl.yaml"}},
 	}
 
@@ -120,7 +121,7 @@ func TestRenderTemplateWithData(t *testing.T) {
 				},
 			},
 		},
-		Release:   cluster.Release{Name: cluster.OpenDataHub},
+		Release:   common.Release{Name: cluster.OpenDataHub},
 		Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm-data.tmpl.yaml"}},
 	}
 
@@ -165,7 +166,7 @@ func TestRenderTemplateWithDataErr(t *testing.T) {
 			},
 		},
 		DSCI:      &dsciv1.DSCInitialization{},
-		Release:   cluster.Release{Name: cluster.OpenDataHub},
+		Release:   common.Release{Name: cluster.OpenDataHub},
 		Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm-data.tmpl.yaml"}},
 	}
 
@@ -216,7 +217,7 @@ func TestRenderTemplateWithCache(t *testing.T) {
 			Client:    cl,
 			Instance:  &d,
 			DSCI:      &dsci,
-			Release:   cluster.Release{Name: cluster.OpenDataHub},
+			Release:   common.Release{Name: cluster.OpenDataHub},
 			Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm.tmpl.yaml"}},
 		}
 

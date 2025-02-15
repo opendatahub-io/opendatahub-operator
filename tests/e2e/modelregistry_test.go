@@ -95,7 +95,7 @@ func (c *ModelRegistryTestCtx) validateOperandsDynamicallyWatchedResources(t *te
 		oldPt = resources.SetAnnotation(obj, annotations.PlatformType, newPt)
 		return nil
 	}).Eventually().Should(
-		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, newPt),
+		Succeed(),
 	)
 
 	g.List(

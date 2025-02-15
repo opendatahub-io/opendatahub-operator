@@ -22,13 +22,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 )
 
-// Instance a global instance of the GC service.
-//
 // TODO: since the GC service is quite heavy, as it has to discover
-//
-//	resources that can be subject to GC, we share single global
-//	instance, however as long term, we should find a better way
-//	to let consumer of the service to access it.
+//	     resources that can be subject to GC, we share single global
+//	     instance, however as long term, we should find a better way
+//	     to let consumer of the service to access it.
+
+// Instance a global instance of the GC service.
 var Instance *GC
 
 const (
@@ -39,14 +38,16 @@ const (
 
 type options struct {
 	propagationPolicy ctrlCli.PropagationPolicy
-	unremovables      []schema.GroupVersionKind
+	unremovables      map[schema.GroupVersionKind]struct{}
 }
 
 type OptsFn func(*options)
 
 func WithUnremovables(items ...schema.GroupVersionKind) OptsFn {
 	return func(o *options) {
-		o.unremovables = append(o.unremovables, items...)
+		for _, i := range items {
+			o.unremovables[i] = struct{}{}
+		}
 	}
 }
 
@@ -62,7 +63,7 @@ func New(cli *client.Client, ns string, opts ...OptsFn) *GC {
 		ns:     ns,
 		options: options{
 			propagationPolicy: ctrlCli.PropagationPolicy(metav1.DeletePropagationForeground),
-			unremovables:      make([]schema.GroupVersionKind, 0),
+			unremovables:      make(map[schema.GroupVersionKind]struct{}),
 		},
 
 		resources: Resources{
@@ -100,48 +101,97 @@ func (gc *GC) Start(ctx context.Context) error {
 	return nil
 }
 
+type runOptions struct {
+	typePredicate   func(context.Context, schema.GroupVersionKind) (bool, error)
+	objectPredicate func(context.Context, unstructured.Unstructured) (bool, error)
+}
+
+type RunOptionsFn func(*runOptions)
+
+func WithObjectFilter(fn func(context.Context, unstructured.Unstructured) (bool, error)) RunOptionsFn {
+	return func(o *runOptions) {
+		o.objectPredicate = fn
+	}
+}
+func WithTypeFilter(fn func(context.Context, schema.GroupVersionKind) (bool, error)) RunOptionsFn {
+	return func(o *runOptions) {
+		o.typePredicate = fn
+	}
+}
+
+func (gc *GC) listResources(
+	ctx context.Context,
+	res Resource,
+	opts metav1.ListOptions,
+) ([]unstructured.Unstructured, error) {
+	items, err := gc.client.Dynamic().Resource(res.GroupVersionResource()).Namespace("").List(ctx, opts)
+	switch {
+	case k8serr.IsForbidden(err) || k8serr.IsMethodNotSupported(err):
+		gc.log(ctx).V(3).Info(
+			"cannot list resource",
+			"reason", err.Error(),
+			"gvk", res.GroupVersionKind(),
+		)
+
+		return nil, nil
+	case err != nil:
+		return nil, err
+	default:
+		return items.Items, nil
+	}
+}
+
 func (gc *GC) Run(
 	ctx context.Context,
 	selector labels.Selector,
-	predicate func(context.Context, unstructured.Unstructured) (bool, error),
+	opts ...RunOptionsFn,
 ) (int, error) {
-	l := gc.log(ctx)
+	ro := runOptions{
+		typePredicate: func(_ context.Context, _ schema.GroupVersionKind) (bool, error) {
+			return true, nil
+		},
+		objectPredicate: func(_ context.Context, _ unstructured.Unstructured) (bool, error) {
+			return true, nil
+		},
+	}
+
+	for _, opt := range opts {
+		opt(&ro)
+	}
 
 	deleted := 0
 	resources := gc.resources.Get()
-
-	dc := gc.client.Dynamic()
 	lo := metav1.ListOptions{LabelSelector: selector.String()}
 
-	for r := range resources {
-		items, err := dc.Resource(resources[r].GroupVersionResource()).Namespace("").List(ctx, lo)
+	for _, res := range resources {
+		canBeDeleted, err := ro.typePredicate(ctx, res.GroupVersionKind())
 		if err != nil {
-			if k8serr.IsForbidden(err) {
-				l.V(3).Info(
-					"cannot list resource",
-					"reason", err.Error(),
-					"gvk", resources[r].GroupVersionKind(),
-				)
-
-				continue
-			}
-
-			if k8serr.IsNotFound(err) {
-				continue
-			}
-
-			return 0, fmt.Errorf("cannot list child resources %s: %w", resources[r].String(), err)
+			return 0, fmt.Errorf("cannot determine if resource %s can be deleted: %w", res.String(), err)
 		}
 
-		for i := range items.Items {
-			ok, err := gc.delete(ctx, items.Items[i], predicate)
+		if !canBeDeleted {
+			continue
+		}
+
+		items, err := gc.listResources(ctx, res, lo)
+		if err != nil {
+			return 0, fmt.Errorf("cannot list child resources %s: %w", res.String(), err)
+		}
+
+		for i := range items {
+			canBeDeleted, err = ro.objectPredicate(ctx, items[i])
 			if err != nil {
 				return 0, err
 			}
-
-			if ok {
-				deleted++
+			if !canBeDeleted {
+				continue
 			}
+
+			if err := gc.delete(ctx, items[i]); err != nil {
+				return 0, err
+			}
+
+			deleted++
 		}
 	}
 
@@ -151,21 +201,7 @@ func (gc *GC) Run(
 func (gc *GC) delete(
 	ctx context.Context,
 	resource unstructured.Unstructured,
-	predicate func(context.Context, unstructured.Unstructured) (bool, error),
-) (bool, error) {
-	if slices.Contains(gc.options.unremovables, resource.GroupVersionKind()) {
-		return false, nil
-	}
-
-	canBeDeleted, err := predicate(ctx, resource)
-	if err != nil {
-		return false, err
-	}
-
-	if !canBeDeleted {
-		return false, err
-	}
-
+) error {
 	gc.log(ctx).Info(
 		"delete",
 		"gvk", resource.GroupVersionKind(),
@@ -173,14 +209,9 @@ func (gc *GC) delete(
 		"name", resource.GetName(),
 	)
 
-	err = gc.client.Delete(ctx, &resource, gc.options.propagationPolicy)
-	if err != nil {
-		// The resource may have already been deleted
-		if k8serr.IsNotFound(err) {
-			return true, nil
-		}
-
-		return false, fmt.Errorf(
+	err := gc.client.Delete(ctx, &resource, gc.options.propagationPolicy)
+	if err != nil && !k8serr.IsNotFound(err) {
+		return fmt.Errorf(
 			"cannot delete resources gvk:%s, namespace: %s, name: %s, reason: %w",
 			resource.GroupVersionKind().String(),
 			resource.GetNamespace(),
@@ -189,22 +220,31 @@ func (gc *GC) delete(
 		)
 	}
 
-	return true, nil
+	return nil
+}
+
+func (gc *GC) discoverResources() ([]*metav1.APIResourceList, error) {
+	// We rely on the discovery API to retrieve all the resources GVK, that
+	// results in an unbounded set that can impact garbage collection latency
+	// when scaling up.
+	items, err := gc.client.Discovery().ServerPreferredResources()
+
+	// Swallow group discovery errors, e.g., Knative serving exposes an
+	// aggregated API for custom.metrics.k8s.io that requires special
+	// authentication scheme while discovering preferred resources.
+	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
+		return nil, fmt.Errorf("failure retrieving supported resources: %w", err)
+	}
+
+	return items, nil
 }
 
 func (gc *GC) computeDeletableTypes(
 	ctx context.Context,
 ) ([]Resource, error) {
-	// We rely on the discovery API to retrieve all the resources GVK,
-	// that results in an unbounded set that can impact garbage collection
-	// latency when scaling up.
-	items, err := gc.client.Discovery().ServerPreferredNamespacedResources()
-
-	// Swallow group discovery errors, e.g., Knative serving exposes
-	// an aggregated API for custom.metrics.k8s.io that requires special
-	// authentication scheme while discovering preferred resources.
-	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
-		return nil, fmt.Errorf("failure retrieving supported namespaced resources: %w", err)
+	items, err := gc.discoverResources()
+	if err != nil {
+		return nil, fmt.Errorf("failure discovering resources: %w", err)
 	}
 
 	// We only take types that support the "delete" verb,
@@ -220,13 +260,13 @@ func (gc *GC) computeDeletableTypes(
 	// Get the permissions of the service account in the specified namespace.
 	rules, err := gc.retrieveResourceRules(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failure retiring resource rules: %w", err)
+		return nil, fmt.Errorf("failure retrieving resource rules: %w", err)
 	}
 
 	// Collect deletable resources.
 	resources, err := gc.collectDeletableResources(apiResourceLists, rules)
 	if err != nil {
-		return nil, fmt.Errorf("failure retiring deletable resources: %w", err)
+		return nil, fmt.Errorf("failure retrieving deletable resources: %w", err)
 	}
 
 	return resources, nil
@@ -320,7 +360,7 @@ func (gc *GC) collectDeletableResources(
 				gvr.Scope = meta.RESTScopeRoot
 			}
 
-			if slices.Contains(gc.options.unremovables, gvr.GroupVersionKind()) {
+			if _, ok := gc.options.unremovables[gvr.GroupVersionKind()]; ok {
 				continue
 			}
 

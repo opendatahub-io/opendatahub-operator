@@ -17,15 +17,17 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
 )
 
-type PredicateFn func(*odhTypes.ReconciliationRequest, unstructured.Unstructured) (bool, error)
+type ObjectPredicateFn func(*odhTypes.ReconciliationRequest, unstructured.Unstructured) (bool, error)
+type TypePredicateFn func(*odhTypes.ReconciliationRequest, schema.GroupVersionKind) (bool, error)
 type ActionOpts func(*Action)
 
 type Action struct {
-	labels       map[string]string
-	selector     labels.Selector
-	unremovables []schema.GroupVersionKind
-	gc           *gc.GC
-	predicateFn  PredicateFn
+	labels            map[string]string
+	selector          labels.Selector
+	unremovables      []schema.GroupVersionKind
+	gc                *gc.GC
+	objectPredicateFn ObjectPredicateFn
+	typePredicateFn   TypePredicateFn
 }
 
 func WithLabel(name string, value string) ActionOpts {
@@ -56,13 +58,22 @@ func WithUnremovables(items ...schema.GroupVersionKind) ActionOpts {
 	}
 }
 
-func WithPredicate(value PredicateFn) ActionOpts {
+func WithObjectPredicate(value ObjectPredicateFn) ActionOpts {
 	return func(action *Action) {
 		if value == nil {
 			return
 		}
 
-		action.predicateFn = value
+		action.objectPredicateFn = value
+	}
+}
+func WithTypePredicate(value TypePredicateFn) ActionOpts {
+	return func(action *Action) {
+		if value == nil {
+			return
+		}
+
+		action.typePredicateFn = value
 	}
 }
 
@@ -102,13 +113,20 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 	deleted, err := a.gc.Run(
 		ctx,
 		selector,
-		func(ctx context.Context, obj unstructured.Unstructured) (bool, error) {
+		gc.WithTypeFilter(func(ctx context.Context, kind schema.GroupVersionKind) (bool, error) {
+			if slices.Contains(a.unremovables, kind) {
+				return false, nil
+			}
+
+			return a.typePredicateFn(rr, kind)
+		}),
+		gc.WithObjectFilter(func(ctx context.Context, obj unstructured.Unstructured) (bool, error) {
 			if slices.Contains(a.unremovables, obj.GroupVersionKind()) {
 				return false, nil
 			}
 
-			return a.predicateFn(rr, obj)
-		},
+			return a.objectPredicateFn(rr, obj)
+		}),
 	)
 
 	if err != nil {
@@ -124,7 +142,8 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 
 func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{}
-	action.predicateFn = DefaultPredicate
+	action.objectPredicateFn = DefaultObjectPredicate
+	action.typePredicateFn = DefaultTypePredicate
 	action.unremovables = make([]schema.GroupVersionKind, 0)
 
 	for _, opt := range opts {

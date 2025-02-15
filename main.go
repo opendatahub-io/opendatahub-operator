@@ -60,6 +60,7 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -133,7 +134,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(templatev1.Install(scheme))
 }
 
-func initComponents(_ context.Context, p cluster.Platform) error {
+func initComponents(_ context.Context, p common.Platform) error {
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
 		return ch.Init(p)
 	})
@@ -454,7 +455,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 }
 
-func getCommonCache(ctx context.Context, cli client.Client, platform cluster.Platform) (map[string]cache.Config, error) {
+func getCommonCache(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
 	namespaceConfigs := map[string]cache.Config{}
 	// newtowkrpolicy need operator namespace
 	operatorNs, err := cluster.GetOperatorNamespace()
@@ -495,7 +496,7 @@ func getCommonCache(ctx context.Context, cli client.Client, platform cluster.Pla
 	return namespaceConfigs, nil
 }
 
-func createSecretCacheConfig(ctx context.Context, cli client.Client, platform cluster.Platform) (map[string]cache.Config, error) {
+func createSecretCacheConfig(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
 	namespaceConfigs := map[string]cache.Config{
 		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
 		"openshift-ingress": {},
@@ -511,7 +512,7 @@ func createSecretCacheConfig(ctx context.Context, cli client.Client, platform cl
 	return namespaceConfigs, nil
 }
 
-func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platform cluster.Platform) (map[string]cache.Config, error) {
+func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
 	namespaceConfigs := map[string]cache.Config{
 		"istio-system":        {}, // for serivcemonitor: data-science-smcp-pilot-monitor
 		"openshift-operators": {}, // for dependent operators installed namespace
