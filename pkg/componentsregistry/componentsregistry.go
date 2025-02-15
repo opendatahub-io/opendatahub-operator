@@ -4,6 +4,7 @@ package componentsregistry
 
 import (
 	"context"
+	odhCli "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -28,7 +29,7 @@ type ComponentHandler interface {
 	NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject
 	NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error
 	// UpdateDSCStatus updates the component specific status part of the DSC
-	UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj client.Object) error
+	UpdateDSCStatus(ctx context.Context, cli *odhCli.Client, dsc *dscv1.DataScienceCluster, obj client.Object) error
 }
 
 // Registry is a struct that maintains a list of registered ComponentHandlers.
