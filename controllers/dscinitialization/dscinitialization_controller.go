@@ -452,28 +452,25 @@ func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a c
 
 func (r *DSCInitializationReconciler) configureMonitoring(ctx context.Context, dsci *dsciv1.DSCInitialization) error {
 	// Create Monitoring CR singleton
-	defaultMonitoring := client.Object(&serviceApi.Monitoring{
+	defaultMonitoring := &serviceApi.Monitoring{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       serviceApi.MonitoringKind,
 			APIVersion: serviceApi.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: serviceApi.MonitoringInstanceName,
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: dsciv1.GroupVersion.String(),
-				Kind:       dsci.Kind,
-				Name:       dsci.Name,
-				UID:        dsci.UID,
-			},
-			},
 		},
 		Spec: serviceApi.MonitoringSpec{
 			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 				Namespace: dsci.Spec.Monitoring.Namespace,
 			},
 		},
-	},
-	)
+	}
+
+	err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme())
+	if err != nil {
+		return err
+	}
 
 	if dsci.Spec.Monitoring.ManagementState == operatorv1.Managed {
 		// for generic case if we need to support configable monitoring namespace
