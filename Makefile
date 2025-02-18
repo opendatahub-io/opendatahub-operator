@@ -305,6 +305,8 @@ $(CRD_REF_DOCS): $(LOCALBIN)
 .PHONY: new-component
 new-component: $(LOCALBIN)/component-codegen
 	$< generate $(COMPONENT)
+	make generate manifests api-docs bundle
+	$(MAKE) fmt
 
 $(LOCALBIN)/component-codegen: | $(LOCALBIN)
 	cd ./cmd/component-codegen && go mod tidy && go build -o $@

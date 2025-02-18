@@ -16,7 +16,6 @@ func addKubeBuilderRBAC(logger *logrus.Logger, componentName string) error {
 		fmt.Sprintf("+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=%ss,verbs=get;list;watch;create;update;patch;delete", lc),
 		fmt.Sprintf("+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=%ss/status,verbs=get;update;patch", lc),
 		fmt.Sprintf("+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=%ss/finalizers,verbs=update", lc),
-		"Please delete this line after adding more RBAC markers ...",
 	}
 
 	fp := filepath.Join("controllers/datasciencecluster/kubebuilder_rbac.go")

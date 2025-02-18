@@ -22,9 +22,6 @@ var generateCmd = &cobra.Command{
 		if err := generator.GenerateComponent(logger, componentName); err != nil {
 			logger.Errorf("Failed to generate component: %v", err)
 		}
-		if err := generator.RunMakeCommand(logger); err != nil {
-			logger.Errorf("Failed to run make command: %v", err)
-		}
 	},
 }
 
