@@ -10,7 +10,7 @@
     "packageRules": [
       {
         "matchManagers": ["dockerfile"],
-        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.17", "rhoai-2.13"],
+        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.17", "rhoai-2.13", "rhoai-2.18"],
         "matchUpdateTypes": ["digest"],
         "matchFileNames": ["*Dockerfile.konflux*"],
         "enabled": true,
@@ -22,13 +22,8 @@
         "semanticCommits": "enabled"
       },
       {
-        "matchManagers": ["dockerfile"],
-        "matchBaseBranches": ["rhoai-2.18"],
-        "enabled": false
-      },
-      {
         "matchManagers": ["tekton"],
-        "matchBaseBranches": ["rhoai-2.16", "rhoai-2.17", "rhoai-2.13"],
+        "matchBaseBranches": ["rhoai-2.16", "rhoai-2.17", "rhoai-2.13", "rhoai-2.18"],
         "matchUpdateTypes": ["digest"],
         "enabled": true,
         "groupName": "Tekton Updates",
@@ -42,7 +37,7 @@
       },
       {
         "matchManagers": ["rpm"],
-        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.17", "rhoai-2.13"],
+        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.17", "rhoai-2.13", "rhoai-2.18"],
         "groupName": "RPM Updates",
         "commitMessageTopic": "RPM updates",
         "enabled": true,
