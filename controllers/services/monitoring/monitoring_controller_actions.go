@@ -103,7 +103,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	nc := metav1.Condition{
 		Type:    status.ConditionTypeReady,
 		Status:  metav1.ConditionFalse,
-		Reason:  status.PhaseNotReady,
+		Reason:  "NotReady",
 		Message: "Prometheus deployment is not ready",
 	}
 
