@@ -421,7 +421,32 @@ func approveInstallPlan(tc *testContext, plan *ofapi.InstallPlan) error {
 	return nil
 }
 
+func ensureOperatorNamespace(tc *testContext, ns string) error {
+	operatorNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ns,
+		},
+	}
+	foundNamespace := &corev1.Namespace{}
+	err := tc.customClient.Get(tc.ctx, client.ObjectKeyFromObject(operatorNS), foundNamespace)
+	if k8serr.IsNotFound(err) {
+		if err := tc.customClient.Create(tc.ctx, operatorNS); err != nil {
+			return fmt.Errorf("error create dependent operator namespace: %w", err)
+		}
+	}
+	return err
+}
+
+// 1. Ensure namespace exists.
+// 2. Ensure Subscription exists.
+// 3. Ensure InstallPlan exists.
+// 4. InstallPlan to Automatic.
+// 5. Wait for CSV.
 func ensureOperator(tc *testContext, name string, ns string) error {
+	// check namespace first if not exsit then create it
+	if err := ensureOperatorNamespace(tc, ns); err != nil {
+		return err
+	}
 	// it creates subscription under the hood if needed
 	plan, err := getInstallPlan(tc, name, ns)
 	if err != nil {
