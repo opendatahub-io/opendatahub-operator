@@ -41,6 +41,9 @@ const (
 	RawDeployment DefaultDeploymentMode = "RawDeployment"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*Kserve)(nil)
+
 // KserveCommonSpec spec defines the shared desired state of Kserve
 type KserveCommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
@@ -109,6 +112,14 @@ func (c *Kserve) GetDevFlags() *common.DevFlags {
 
 func (c *Kserve) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *Kserve) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *Kserve) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 func (c *Kserve) GetReleaseStatus() *[]common.ComponentRelease {

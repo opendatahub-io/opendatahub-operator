@@ -34,6 +34,9 @@ const (
 	FeastOperatorKind = "FeastOperator"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*FeastOperator)(nil)
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
@@ -80,6 +83,14 @@ func (c *FeastOperator) GetDevFlags() *common.DevFlags {
 // GetStatus retrieves the status of the FeastOperator component
 func (f *FeastOperator) GetStatus() *common.Status {
 	return &f.Status.Status
+}
+
+func (c *FeastOperator) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *FeastOperator) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 // +kubebuilder:object:root=true

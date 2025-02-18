@@ -29,6 +29,9 @@ const (
 	WorkbenchesKind         = "Workbenches"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*Workbenches)(nil)
+
 type WorkbenchesCommonSpec struct {
 	// workbenches spec exposed to DSC api
 	common.DevFlagsSpec `json:",inline"`
@@ -75,6 +78,14 @@ func (c *Workbenches) GetDevFlags() *common.DevFlags {
 
 func (c *Workbenches) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *Workbenches) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *Workbenches) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 func (c *Workbenches) GetReleaseStatus() *[]common.ComponentRelease { return &c.Status.Releases }
