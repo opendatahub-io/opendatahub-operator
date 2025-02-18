@@ -13,7 +13,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "component-codegen",
 	Short: "A cli app to generate boilerplate code",
-	Long: `A cli which can be used by component teams to generate boiler plate code 
+	Long: `A cli which can be used by component teams to generate boilerplate code 
 	while onboarding new components to the opendatahub operator.`,
 }
 
@@ -35,5 +35,5 @@ func init() { //nolint:gochecknoinits
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

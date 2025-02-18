@@ -17,7 +17,7 @@ import (
 )
 
 func addFieldsToStruct(_ *logrus.Logger, componentName string) error {
-	dscFP := filepath.Join(DscApiDir)
+	dscFP := filepath.Join(DscTypesPath)
 	file, err := os.Open(dscFP)
 	if err != nil {
 		return fmt.Errorf("error opening file: %w", err)

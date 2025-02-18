@@ -20,7 +20,6 @@ func generateFilesFromTemplate(logger *logrus.Logger, componentName string, p Pa
 	templatePath := p.TemplatePath
 	componentFileName := strings.ToLower(componentName) + suffix
 	op := filepath.Join(outputPath, componentFileName)
-	fmt.Print(outputPath)
 	if fileExists(op) {
 		logger.Warnf("File already exists: %s", op)
 		return nil
