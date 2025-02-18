@@ -1,6 +1,8 @@
 package resources
 
-import "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import (
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
 
 type UnstructuredList []unstructured.Unstructured
 
