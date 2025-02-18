@@ -6,12 +6,13 @@ import (
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -86,7 +87,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 	s.ObservedGeneration = obj.GetGeneration()
 	s.Phase = "Ready"
 
-	conditionReady := metav1.Condition{
+	conditionReady := common.Condition{
 		Type:               status.ConditionTypeReady,
 		Status:             metav1.ConditionTrue,
 		Reason:             ReadyReason,
@@ -101,7 +102,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 		s.Phase = "NotReady"
 	}
 
-	meta.SetStatusCondition(&s.Conditions, conditionReady)
+	conditions.SetStatusCondition(s, conditionReady)
 
 	return nil
 }

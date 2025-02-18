@@ -7,15 +7,16 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -93,7 +94,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	m.Status.Phase = "NotReady"
 
 	// condition
-	nc := metav1.Condition{
+	nc := common.Condition{
 		Type:    status.ConditionTypeReady,
 		Status:  metav1.ConditionFalse,
 		Reason:  "NotReady",
@@ -125,7 +126,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		nc.Reason = status.ReconcileCompleted
 		nc.Message = status.ReconcileCompletedMessage
 	}
-	meta.SetStatusCondition(&m.Status.Conditions, nc)
+	conditions.SetStatusCondition(&m.Status, nc)
 	m.Status.ObservedGeneration = m.GetObjectMeta().GetGeneration()
 
 	return nil
