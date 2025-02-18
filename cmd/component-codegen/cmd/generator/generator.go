@@ -12,6 +12,7 @@ const (
 	Controllers  = "controllers/components"
 	DscTypesPath = "apis/datasciencecluster/v1/datasciencecluster_types.go"
 	templatesDir = cmdDir + "/templates"
+	mainFilePath = "main.go"
 )
 
 type PathConfig struct {
@@ -35,8 +36,11 @@ func GenerateComponent(logger *logrus.Logger, componentName string) error {
 		}
 	}
 
-	if err := addFieldsToStruct(logger, componentName); err != nil {
-		return err
+	var dirs = []string{DscTypesPath, mainFilePath}
+	for _, dir := range dirs {
+		if err := addFieldsToStruct(logger, componentName, dir); err != nil {
+			return err
+		}
 	}
 	return addKubeBuilderRBAC(logger, componentName)
 }
