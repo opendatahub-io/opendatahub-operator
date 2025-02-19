@@ -9,6 +9,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -65,7 +66,7 @@ func TestDeleteResourcesAction(t *testing.T) {
 		Client:   cl,
 		Instance: nil,
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		Release:  cluster.Release{Name: cluster.OpenDataHub},
+		Release:  common.Release{Name: cluster.OpenDataHub},
 	})
 
 	g.Expect(err).ShouldNot(HaveOccurred())

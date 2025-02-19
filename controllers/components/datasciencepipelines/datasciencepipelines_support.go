@@ -1,8 +1,11 @@
 package datasciencepipelines
 
 import (
+	"path"
+
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -19,7 +22,8 @@ const (
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
-	LegacyComponentName = "data-science-pipelines-operator"
+	LegacyComponentName      = "data-science-pipelines-operator"
+	platformVersionParamsKey = "PLATFORMVERSION"
 )
 
 var (
@@ -33,25 +37,19 @@ var (
 		"IMAGES_DRIVER":                  "RELATED_IMAGE_ODH_ML_PIPELINES_DRIVER_IMAGE",
 		"IMAGES_LAUNCHER":                "RELATED_IMAGE_ODH_ML_PIPELINES_LAUNCHER_IMAGE",
 		"IMAGES_MLMDGRPC":                "RELATED_IMAGE_ODH_MLMD_GRPC_SERVER_IMAGE",
+		"IMAGES_PIPELINESRUNTIMEGENERIC": "RELATED_IMAGE_ODH_ML_PIPELINES_RUNTIME_GENERIC_IMAGE",
 	}
 
-	overlaysSourcePaths = map[cluster.Platform]string{
+	overlaysSourcePaths = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "overlays/rhoai",
 		cluster.ManagedRhoai:     "overlays/rhoai",
 		cluster.OpenDataHub:      "overlays/odh",
 		cluster.Unknown:          "overlays/odh",
 	}
+	paramsPath = path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
 )
 
-func paramsPath() types.ManifestInfo {
-	return types.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: ComponentName,
-		SourcePath: "base",
-	}
-}
-
-func manifestPath(p cluster.Platform) types.ManifestInfo {
+func manifestPath(p common.Platform) types.ManifestInfo {
 	return types.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
 		ContextDir: ComponentName,

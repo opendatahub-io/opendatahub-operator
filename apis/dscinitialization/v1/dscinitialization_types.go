@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
@@ -24,7 +25,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 // +operator-sdk:csv:customresourcedefinitions:order=1
@@ -37,7 +37,7 @@ type DSCInitializationSpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
-	ApplicationsNamespace string `json:"applicationsNamespace"`
+	ApplicationsNamespace string `json:"applicationsNamespace,omitempty"`
 	// Enable monitoring on specified namespace
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	// +optional
@@ -109,7 +109,7 @@ type DSCInitializationStatus struct {
 	ErrorMessage   string                   `json:"errorMessage,omitempty"`
 
 	// Version and release type
-	Release cluster.Release `json:"release,omitempty"`
+	Release common.Release `json:"release,omitempty"`
 }
 
 //+kubebuilder:object:root=true

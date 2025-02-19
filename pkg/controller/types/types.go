@@ -13,7 +13,6 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -59,7 +58,7 @@ type ReconciliationRequest struct {
 	Manager   *manager.Manager
 	Instance  common.PlatformObject
 	DSCI      *dsciv1.DSCInitialization
-	Release   cluster.Release
+	Release   common.Release
 	Manifests []ManifestInfo
 
 	//

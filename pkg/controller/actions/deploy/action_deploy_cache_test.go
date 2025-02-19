@@ -20,6 +20,7 @@ import (
 	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -152,7 +153,7 @@ func testResourceNotReDeployed(t *testing.T, cli *client.Client, obj ctrlCli.Obj
 				Generation: 1,
 			},
 		},
-		Release: cluster.Release{
+		Release: common.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -225,7 +226,7 @@ func testCacheTTL(t *testing.T, cli *client.Client, obj ctrlCli.Object) {
 				Generation: 1,
 			},
 		},
-		Release: cluster.Release{
+		Release: common.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,

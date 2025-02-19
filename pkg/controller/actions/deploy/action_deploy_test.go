@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
@@ -79,7 +80,7 @@ func TestDeployAction(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: cluster.Release{
+		Release: common.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -165,7 +166,7 @@ func TestDeployNotOwnedSkip(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: cluster.Release{
+		Release: common.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -231,7 +232,7 @@ func TestDeployNotOwnedCreate(t *testing.T) {
 				Generation: 1,
 			},
 		},
-		Release: cluster.Release{
+		Release: common.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -358,7 +359,7 @@ func deployClusterRoles(t *testing.T, ctx context.Context, cli *odhCli.Client, r
 				UID:        apimachinery.UID(xid.New().String()),
 			},
 		},
-		Release: cluster.Release{
+		Release: common.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -425,7 +426,7 @@ func TestDeployCRD(t *testing.T) {
 				UID:        apimachinery.UID(id),
 			},
 		},
-		Release: cluster.Release{
+		Release: common.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
@@ -598,7 +599,7 @@ func TestDeployOwnerRef(t *testing.T) {
 			ApplicationsNamespace: id,
 		}},
 		Instance: instance,
-		Release: cluster.Release{
+		Release: common.Release{
 			Name: cluster.OpenDataHub,
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,

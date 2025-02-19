@@ -7,6 +7,7 @@ import (
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
@@ -29,28 +30,28 @@ const (
 )
 
 var (
-	adminGroups = map[cluster.Platform]string{
+	adminGroups = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "rhods-admins",
 		cluster.ManagedRhoai:     "dedicated-admins",
 		cluster.OpenDataHub:      "odh-admins",
 		cluster.Unknown:          "odh-admins",
 	}
 
-	sectionTitle = map[cluster.Platform]string{
+	sectionTitle = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "OpenShift Self Managed Services",
 		cluster.ManagedRhoai:     "OpenShift Managed Services",
 		cluster.OpenDataHub:      "OpenShift Open Data Hub",
 		cluster.Unknown:          "OpenShift Open Data Hub",
 	}
 
-	baseConsoleURL = map[cluster.Platform]string{
+	baseConsoleURL = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "https://rhods-dashboard-",
 		cluster.ManagedRhoai:     "https://rhods-dashboard-",
 		cluster.OpenDataHub:      "https://odh-dashboard-",
 		cluster.Unknown:          "https://odh-dashboard-",
 	}
 
-	overlaysSourcePaths = map[cluster.Platform]string{
+	overlaysSourcePaths = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "/rhoai/onprem",
 		cluster.ManagedRhoai:     "/rhoai/addon",
 		cluster.OpenDataHub:      "/odh",
@@ -62,7 +63,7 @@ var (
 	}
 )
 
-func defaultManifestInfo(p cluster.Platform) odhtypes.ManifestInfo {
+func defaultManifestInfo(p common.Platform) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
 		ContextDir: ComponentName,
@@ -70,7 +71,7 @@ func defaultManifestInfo(p cluster.Platform) odhtypes.ManifestInfo {
 	}
 }
 
-func computeKustomizeVariable(ctx context.Context, cli client.Client, platform cluster.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
+func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
 	consoleLinkDomain, err := cluster.GetDomain(ctx, cli)
 	if err != nil {
 		return nil, fmt.Errorf("error getting console route URL %s : %w", consoleLinkDomain, err)

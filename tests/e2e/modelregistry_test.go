@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
+	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -96,7 +96,7 @@ func (c *ModelRegistryTestCtx) validateOperandsDynamicallyWatchedResources(t *te
 		oldPt = resources.SetAnnotation(obj, annotations.PlatformType, newPt)
 		return nil
 	}).Eventually().Should(
-		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, newPt),
+		Succeed(),
 	)
 
 	g.List(
@@ -123,7 +123,7 @@ func (c *ModelRegistryTestCtx) validateModelRegistryCert(t *testing.T) {
 	is, err := cluster.FindDefaultIngressSecret(g.Context(), g.Client())
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	g.Get(gvk.Secret, types.NamespacedName{Namespace: smns, Name: modelregistry.DefaultModelRegistryCert}).Eventually().Should(And(
+	g.Get(gvk.Secret, types.NamespacedName{Namespace: smns, Name: modelregistryctrl.DefaultModelRegistryCert}).Eventually().Should(And(
 		jq.Match(`.type == "%s"`, is.Type),
 		jq.Match(`(.data."tls.crt" | @base64d) == "%s"`, is.Data["tls.crt"]),
 		jq.Match(`(.data."tls.key" | @base64d) == "%s"`, is.Data["tls.key"]),

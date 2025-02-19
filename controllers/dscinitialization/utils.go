@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -43,7 +44,7 @@ var (
 // - 2. Patch monitoring namespace
 // - 3. Network Policies 'opendatahub' that allow traffic between the ODH namespaces
 // - 4. ConfigMap 'odh-common-config'.
-func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
+func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
 	if err := r.appNamespaceHandler(ctx, dscInit, platform); err != nil {
@@ -75,7 +76,7 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 	return nil
 }
 
-func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform cluster.Platform) error {
+func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
 	nsList := &corev1.NamespaceList{}
@@ -115,7 +116,7 @@ func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, d
 	}
 }
 
-func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, nsName string, platform cluster.Platform, extraLabel ...map[string]string) error {
+func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, nsName string, platform common.Platform, extraLabel ...map[string]string) error {
 	desiredDefaultNS := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: nsName},
 	}
@@ -172,7 +173,7 @@ func (r *DSCInitializationReconciler) patchMonitoringNS(ctx context.Context, dsc
 func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(
 	ctx context.Context,
 	dscInit *dsciv1.DSCInitialization,
-	platform cluster.Platform,
+	platform common.Platform,
 ) error {
 	log := logf.FromContext(ctx)
 	name := dscInit.Spec.ApplicationsNamespace

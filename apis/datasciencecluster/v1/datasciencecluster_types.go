@@ -17,12 +17,12 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 // DataScienceClusterSpec defines the desired state of the cluster.
@@ -134,7 +134,7 @@ type DataScienceClusterStatus struct {
 	Components ComponentsStatus `json:"components"`
 
 	// Version and release type
-	Release cluster.Release `json:"release,omitempty"`
+	Release common.Release `json:"release,omitempty"`
 }
 
 // +kubebuilder:object:root=true

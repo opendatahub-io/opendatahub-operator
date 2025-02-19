@@ -5,13 +5,14 @@ import (
 	"strconv"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhAnnotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-func DefaultPredicate(rr *odhTypes.ReconciliationRequest, obj unstructured.Unstructured) (bool, error) {
+func DefaultObjectPredicate(rr *odhTypes.ReconciliationRequest, obj unstructured.Unstructured) (bool, error) {
 	if obj.GetAnnotations() == nil {
 		return false, nil
 	}
@@ -43,4 +44,8 @@ func DefaultPredicate(rr *odhTypes.ReconciliationRequest, obj unstructured.Unstr
 	}
 
 	return rr.Instance.GetGeneration() != int64(g), nil
+}
+
+func DefaultTypePredicate(_ *odhTypes.ReconciliationRequest, _ schema.GroupVersionKind) (bool, error) {
+	return true, nil
 }
