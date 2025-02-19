@@ -268,4 +268,10 @@ var (
 		Version: "v1beta1",
 		Kind:    "InferenceService",
 	}
+
+	Node = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "Node",
+	}
 )
