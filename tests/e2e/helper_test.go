@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	ofapiv1 "github.com/operator-framework/api/pkg/operators/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -33,8 +34,6 @@ import (
 
 const (
 	knativeServingNamespace  = "knative-serving"
-	servicemeshNamespace     = "openshift-operators"
-	servicemeshOpName        = "servicemeshoperator"
 	serverlessOpName         = "serverless-operator"
 	ownedNamespaceNumber     = 1 // set to 4 for RHOAI
 	deleteConfigMap          = "delete-configmap-name"
@@ -389,7 +388,6 @@ func getInstallPlan(tc *testContext, name string, ns string) (*ofapi.InstallPlan
 	if err != nil {
 		return nil, err
 	}
-
 	return obj, nil
 }
 
@@ -423,7 +421,43 @@ func approveInstallPlan(tc *testContext, plan *ofapi.InstallPlan) error {
 	return nil
 }
 
+func ensureOperatorNamespace(tc *testContext, name, ns string) error {
+	operatorNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ns,
+		},
+	}
+	foundNamespace := &corev1.Namespace{}
+	err := tc.customClient.Get(tc.ctx, client.ObjectKeyFromObject(operatorNS), foundNamespace)
+	if k8serr.IsNotFound(err) {
+		if err := tc.customClient.Create(tc.ctx, operatorNS); err != nil {
+			return fmt.Errorf("error create dependent operator namespace: %w", err)
+		}
+		// Just create it since namespace was not even there, and do not set spec with targetnamespaces!
+		operatorGroup := &ofapiv1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: ns,
+			},
+		}
+		if err := tc.customClient.Create(tc.ctx, operatorGroup); err != nil {
+			return fmt.Errorf("error create operatorgroup %s: %w", name, err)
+		}
+		return nil
+	}
+	return err
+}
+
+// 1. Ensure namespace exists.
+// 2. Ensure Subscription exists.
+// 3. Ensure InstallPlan exists.
+// 4. InstallPlan to Automatic.
+// 5. Wait for CSV.
 func ensureOperator(tc *testContext, name string, ns string) error {
+	// check namespace first if not exsit then create it along with OG
+	if err := ensureOperatorNamespace(tc, name, ns); err != nil {
+		return err
+	}
 	// it creates subscription under the hood if needed
 	plan, err := getInstallPlan(tc, name, ns)
 	if err != nil {
@@ -442,26 +476,26 @@ func ensureOperator(tc *testContext, name string, ns string) error {
 }
 
 func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint: thelper
-	ops := []string{
-		serverlessOpName,
-		servicemeshOpName,
+	depOperators := map[string]string{
+		"serverless-operator": "openshift-serverless",
+		"servicemeshoperator": "openshift-operators",
+		// "authorino-operator":  "openshift-operators",
 	}
+
 	var errors *multierror.Error
 	c := make(chan error)
 
-	for _, op := range ops {
-		t.Logf("Ensuring %s is installed", op)
-		go func(op string) {
-			err := ensureOperator(tc, op, servicemeshNamespace)
+	for name, ns := range depOperators {
+		t.Logf("Ensuring %s is installed", name)
+		go func(name, ns string) {
+			err := ensureOperator(tc, name, ns)
 			c <- err
-		}(op)
+		}(name, ns)
 	}
-
-	for range ops {
+	for range depOperators {
 		err := <-c
 		errors = multierror.Append(errors, err)
 	}
-
 	return errors.ErrorOrNil()
 }
 
