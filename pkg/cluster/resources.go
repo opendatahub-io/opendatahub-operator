@@ -298,7 +298,7 @@ func HasCRD(ctx context.Context, cli *client2.Client, gvk schema.GroupVersionKin
 //   - version: The specific version to check for within the CRD.
 //
 // Returns:
-//   - (bool, nil) if the CRD with the specified version exists and is not terminating.
+//   - (true, nil) if the CRD with the specified version exists and is not terminating.
 //   - (false, nil) if the CRD does not exist, does not store the requested version, or is terminating.
 //   - (false, error) if there was an error fetching the CRD.
 func HasCRDWithVersion(ctx context.Context, cli *client2.Client, gk schema.GroupKind, version string) (bool, error) {
