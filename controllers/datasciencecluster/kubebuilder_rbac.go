@@ -105,6 +105,8 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="*",resources=deployments,verbs=*
 // +kubebuilder:rbac:groups="extensions",resources=deployments,verbs=*
 
+// +kubebuilder:rbac:groups="*",resources=nodes,verbs=get;list;watch
+
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;delete;patch
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=create;delete;list;update;watch;patch;get
 

@@ -35,6 +35,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/architecture"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -150,9 +151,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 
 		// actions
 		WithAction(checkPreConditions).
+		WithAction(releases.NewAction()).
+		WithAction(architecture.VerifySupportedArchitectures).
 		WithAction(initialize).
 		WithAction(devFlags).
-		WithAction(releases.NewAction()).
 		WithAction(removeLegacyFeatureTrackerOwnerRef).
 		WithAction(configureServerless).
 		WithAction(configureServiceMesh).
