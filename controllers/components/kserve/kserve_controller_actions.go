@@ -209,11 +209,6 @@ func configureServerless(ctx context.Context, rr *odhtypes.ReconciliationRequest
 			},
 			{
 				FS:   resourcesFS,
-				Path: "resources/serving-net-istio-secret-filtering.patch.tmpl.yaml",
-			},
-
-			{
-				FS:   resourcesFS,
 				Path: "resources/servicemesh/routing/istio-ingress-gateway.tmpl.yaml",
 			},
 			{
