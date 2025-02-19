@@ -13,6 +13,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -24,6 +25,8 @@ import (
 	odhManager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
+
+const platformFinalizer = "platform.opendatahub.io/finalizer"
 
 // Reconciler provides generic reconciliation functionality for ODH objects.
 type Reconciler struct {
@@ -108,16 +111,64 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if !res.GetDeletionTimestamp().IsZero() {
+		// resource is being deleted, attempt to perform clean-up logic and remove finalizer
+		if !controllerutil.ContainsFinalizer(res, platformFinalizer) {
+			return ctrl.Result{}, nil
+		}
+
 		if err := r.delete(ctx, res); err != nil {
 			return ctrl.Result{}, err
 		}
+
+		if err := r.removeFinalizer(ctx, res); err != nil {
+			return ctrl.Result{}, err
+		}
 	} else {
+		// resource is not being deleted, attempt to add finalizer
+		if err := r.addFinalizer(ctx, res); err != nil {
+			return ctrl.Result{}, err
+		}
+
 		if err := r.apply(ctx, res); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *Reconciler) addFinalizer(ctx context.Context, res common.PlatformObject) error {
+	// no finalizer action present => no finalizer to be added/checked for
+	if len(r.Finalizer) == 0 {
+		return nil
+	}
+
+	if !controllerutil.AddFinalizer(res, platformFinalizer) {
+		// finalizer already present
+		return nil
+	}
+
+	l := log.FromContext(ctx)
+	l.Info("adding finalizer")
+	if err := r.Client.Update(ctx, res); err != nil {
+		return fmt.Errorf("failed to add finalizer %s to %s: %w", platformFinalizer, res.GetName(), err)
+	}
+
+	return nil
+}
+
+func (r *Reconciler) removeFinalizer(ctx context.Context, res common.PlatformObject) error {
+	if !controllerutil.RemoveFinalizer(res, platformFinalizer) {
+		return nil
+	}
+
+	l := log.FromContext(ctx)
+	l.Info("removing finalizer")
+	if err := r.Client.Update(ctx, res); err != nil {
+		return fmt.Errorf("failed to remove finalizer %s from %s: %w", platformFinalizer, res.GetName(), err)
+	}
+
+	return nil
 }
 
 func (r *Reconciler) delete(ctx context.Context, res common.PlatformObject) error {
