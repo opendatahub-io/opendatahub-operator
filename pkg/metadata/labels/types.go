@@ -4,6 +4,7 @@ const (
 	ODHAppPrefix           = "app.opendatahub.io"
 	InjectTrustCA          = "config.openshift.io/inject-trusted-cabundle"
 	SecurityEnforce        = "pod-security.kubernetes.io/enforce"
+	NodeArch               = "kubernetes.io/arch"
 	ClusterMonitoring      = "openshift.io/cluster-monitoring"
 	PlatformPartOf         = "platform.opendatahub.io/part-of"
 	Platform               = "platform"

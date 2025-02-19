@@ -22,6 +22,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type ClusterInfo struct {
@@ -286,4 +287,33 @@ func IsDefaultAuthMethod(ctx context.Context, cli client.Client) (bool, error) {
 	// other offering support "" "None" "IntegratedOAuth"(default)
 	// we only create userGroups for "IntegratedOAuth" or "" and leave other or new supported type value in the future
 	return authenticationobj.Spec.Type == configv1.AuthenticationTypeIntegratedOAuth || authenticationobj.Spec.Type == "", nil
+}
+
+func GetNodeArchitectures(ctx context.Context, client client.Client) (map[string]struct{}, error) {
+	nodeList := &corev1.NodeList{}
+	if err := client.List(ctx, nodeList); err != nil {
+		return nil, fmt.Errorf("failed to list nodes: %w", err)
+	}
+
+	// Create a map to track unique architectures
+	nodeArchitectures := make(map[string]struct{})
+
+	for _, node := range nodeList.Items {
+		if arch, exists := node.Labels[labels.NodeArch]; exists {
+			if node.Status.Conditions != nil {
+				// Only count nodes that are Ready
+				for _, condition := range node.Status.Conditions {
+					if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
+						nodeArchitectures[arch] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
+	if len(nodeArchitectures) < 1 {
+		return nil, errors.New("no valid architectures found")
+	}
+
+	return nodeArchitectures, nil
 }

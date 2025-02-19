@@ -32,6 +32,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/architecture"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -76,9 +77,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		// Add Kueue-specific actions
 		WithAction(checkPreConditions). // check if CRD multikueueconfigs/multikueueclusters with v1alpha1 exist in cluster and not in termination
+		WithAction(releases.NewAction()).
+		WithAction(architecture.VerifySupportedArchitectures).
 		WithAction(initialize).
 		WithAction(devFlags).
-		WithAction(releases.NewAction()).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
