@@ -15,6 +15,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
@@ -31,7 +32,22 @@ const (
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "kserve"
 
-	ReadyConditionType = conditionsv1.ConditionType(componentApi.KserveKind + status.ReadySuffix)
+	ReadyConditionType = componentApi.KserveKind + status.ReadySuffix
+)
+
+var (
+	conditionTypes = []string{
+		status.ConditionServiceMeshAvailable,
+		status.ConditionServerlessAvailable,
+		status.ConditionDeploymentsAvailable,
+	}
+)
+
+var (
+	ErrServiceMeshNotConfigured        = odherrors.NewStopError(status.ServiceMeshNotConfiguredMessage)
+	ErrServiceMeshMemberAPINotFound    = odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
+	ErrServiceMeshOperatorNotInstalled = odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
+	ErrServerlessOperatorNotInstalled  = odherrors.NewStopError(status.ServerlessOperatorNotInstalledMessage)
 )
 
 type componentHandler struct{}

@@ -1,4 +1,4 @@
-package updatestatus
+package deployments
 
 import (
 	"context"
@@ -6,10 +6,8 @@ import (
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -18,13 +16,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-const (
-	DeploymentsNotReadyReason = "DeploymentsNotReady"
-	ReadyReason               = "Ready"
-)
-
 type Action struct {
-	labels map[string]string
+	labels      map[string]string
+	namespaceFn actions.StringGetter
 }
 
 type ActionOpts func(*Action)
@@ -40,6 +34,23 @@ func WithSelectorLabels(values map[string]string) ActionOpts {
 		for k, v := range values {
 			action.labels[k] = v
 		}
+	}
+}
+
+func InNamespace(ns string) ActionOpts {
+	return func(action *Action) {
+		action.namespaceFn = func(_ context.Context, _ *types.ReconciliationRequest) (string, error) {
+			return ns, nil
+		}
+	}
+}
+
+func InNamespaceFn(fn actions.StringGetter) ActionOpts {
+	return func(action *Action) {
+		if fn == nil {
+			return
+		}
+		action.namespaceFn = fn
 	}
 }
 
@@ -65,10 +76,15 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 
 	deployments := &appsv1.DeploymentList{}
 
-	err := rr.Client.List(
+	ns, err := a.namespaceFn(ctx, rr)
+	if err != nil {
+		return fmt.Errorf("unable to compute namespace: %w", err)
+	}
+
+	err = rr.Client.List(
 		ctx,
 		deployments,
-		client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace),
+		client.InNamespace(ns),
 		client.MatchingLabels(l),
 	)
 
@@ -84,25 +100,17 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 	}
 
 	s := obj.GetStatus()
-	s.ObservedGeneration = obj.GetGeneration()
-	s.Phase = "Ready"
 
-	conditionReady := common.Condition{
-		Type:               status.ConditionTypeReady,
-		Status:             metav1.ConditionTrue,
-		Reason:             ReadyReason,
-		Message:            fmt.Sprintf("%d/%d deployments ready", ready, len(deployments.Items)),
-		ObservedGeneration: s.ObservedGeneration,
-	}
+	rr.Conditions.MarkTrue(status.ConditionDeploymentsAvailable, conditions.WithObservedGeneration(s.ObservedGeneration))
 
 	if len(deployments.Items) == 0 || (len(deployments.Items) > 0 && ready != len(deployments.Items)) {
-		conditionReady.Status = metav1.ConditionFalse
-		conditionReady.Reason = DeploymentsNotReadyReason
-
-		s.Phase = "NotReady"
+		rr.Conditions.MarkFalse(
+			status.ConditionDeploymentsAvailable,
+			conditions.WithObservedGeneration(s.ObservedGeneration),
+			conditions.WithReason(status.ConditionDeploymentsNotAvailableReason),
+			conditions.WithMessage("%d/%d deployments ready", ready, len(deployments.Items)),
+		)
 	}
-
-	conditions.SetStatusCondition(s, conditionReady)
 
 	return nil
 }
@@ -110,6 +118,9 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{
 		labels: map[string]string{},
+		namespaceFn: func(ctx context.Context, rr *types.ReconciliationRequest) (string, error) {
+			return rr.DSCI.Spec.ApplicationsNamespace, nil
+		},
 	}
 
 	for _, opt := range opts {

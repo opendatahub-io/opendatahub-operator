@@ -19,6 +19,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelcontroller"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
@@ -42,6 +43,7 @@ func kserveTestSuite(t *testing.T) {
 
 	t.Run("Validate component enabled", componentCtx.ValidateComponentEnabled)
 	t.Run("Validate component spec", componentCtx.validateSpec)
+	t.Run("Validate component conditions", componentCtx.validateConditions)
 	t.Run("Validate FeatureTrackers", componentCtx.validateFeatureTrackers)
 	t.Run("Validate model controller", componentCtx.validateModelControllerInstance)
 	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
@@ -121,6 +123,18 @@ func (c *KserveTestCtx) validateSpec(t *testing.T) {
 			jq.Match(`.spec.serving.managementState == "%s"`, dsc.Spec.Components.Kserve.Serving.ManagementState),
 			jq.Match(`.spec.serving.name == "%s"`, dsc.Spec.Components.Kserve.Serving.Name),
 			jq.Match(`.spec.serving.ingressGateway.certificate.type == "%s"`, dsc.Spec.Components.Kserve.Serving.IngressGateway.Certificate.Type),
+		)),
+	))
+}
+
+func (c *KserveTestCtx) validateConditions(t *testing.T) {
+	g := c.NewWithT(t)
+
+	g.List(gvk.Kserve).Eventually().Should(And(
+		HaveLen(1),
+		HaveEach(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionServerlessAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionServiceMeshAvailable, metav1.ConditionTrue),
 		)),
 	))
 }

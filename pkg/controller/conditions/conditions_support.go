@@ -99,6 +99,12 @@ func IsStatusConditionPresentAndEqual(a common.ConditionsAccessor, conditionType
 	})
 }
 
+func applyOpts(c *common.Condition, opts ...Option) {
+	for _, o := range opts {
+		o(c)
+	}
+}
+
 func equals(c1 common.Condition, c2 common.Condition) bool {
 	return c1.Status == c2.Status &&
 		c1.Reason == c2.Reason &&

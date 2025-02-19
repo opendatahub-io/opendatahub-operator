@@ -106,6 +106,7 @@ func (c *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 		HaveEach(And(
 			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
 			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "ProvisioningSucceeded") | .status == "%s"`, metav1.ConditionTrue),
 		)),
 	))
 }

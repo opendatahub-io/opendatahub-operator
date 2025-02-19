@@ -6,12 +6,14 @@ import (
 
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -38,6 +40,7 @@ func modelRegistryTestSuite(t *testing.T) {
 
 	t.Run("Validate component enabled", componentCtx.ValidateComponentEnabled)
 	t.Run("Validate component spec", componentCtx.validateSpec)
+	t.Run("Validate component conditions", componentCtx.validateConditions)
 	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
 
@@ -61,6 +64,17 @@ func (c *ModelRegistryTestCtx) validateSpec(t *testing.T) {
 		HaveLen(1),
 		HaveEach(And(
 			jq.Match(`.spec.registriesNamespace == "%s"`, dsc.Spec.Components.ModelRegistry.RegistriesNamespace),
+		)),
+	))
+}
+
+func (c *ModelRegistryTestCtx) validateConditions(t *testing.T) {
+	g := c.NewWithT(t)
+
+	g.List(gvk.ModelRegistry).Eventually().Should(And(
+		HaveLen(1),
+		HaveEach(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionServerlessAvailable, metav1.ConditionTrue),
 		)),
 	))
 }
