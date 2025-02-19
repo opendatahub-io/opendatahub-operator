@@ -22,7 +22,6 @@ import (
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
