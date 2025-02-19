@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	ofapiv1 "github.com/operator-framework/api/pkg/operators/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -387,7 +388,6 @@ func getInstallPlan(tc *testContext, name string, ns string) (*ofapi.InstallPlan
 	if err != nil {
 		return nil, err
 	}
-
 	return obj, nil
 }
 
@@ -421,7 +421,7 @@ func approveInstallPlan(tc *testContext, plan *ofapi.InstallPlan) error {
 	return nil
 }
 
-func ensureOperatorNamespace(tc *testContext, ns string) error {
+func ensureOperatorNamespace(tc *testContext, name, ns string) error {
 	operatorNS := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: ns,
@@ -433,6 +433,17 @@ func ensureOperatorNamespace(tc *testContext, ns string) error {
 		if err := tc.customClient.Create(tc.ctx, operatorNS); err != nil {
 			return fmt.Errorf("error create dependent operator namespace: %w", err)
 		}
+		// Just create it since namespace was not even there, and do not set spec with targetnamespaces!
+		operatorGroup := &ofapiv1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: ns,
+			},
+		}
+		if err := tc.customClient.Create(tc.ctx, operatorGroup); err != nil {
+			return fmt.Errorf("error create operatorgroup %s: %w", name, err)
+		}
+		return nil
 	}
 	return err
 }
@@ -443,8 +454,8 @@ func ensureOperatorNamespace(tc *testContext, ns string) error {
 // 4. InstallPlan to Automatic.
 // 5. Wait for CSV.
 func ensureOperator(tc *testContext, name string, ns string) error {
-	// check namespace first if not exsit then create it
-	if err := ensureOperatorNamespace(tc, ns); err != nil {
+	// check namespace first if not exsit then create it along with OG
+	if err := ensureOperatorNamespace(tc, name, ns); err != nil {
 		return err
 	}
 	// it creates subscription under the hood if needed
@@ -468,7 +479,7 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 	depOperators := map[string]string{
 		"serverless-operator": "openshift-serverless",
 		"servicemeshoperator": "openshift-operators",
-		// "authorino-operator" : "openshift-operators",
+		// "authorino-operator":  "openshift-operators",
 	}
 
 	var errors *multierror.Error
