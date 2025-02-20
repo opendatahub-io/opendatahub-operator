@@ -99,8 +99,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if instance.Spec.DevFlags != nil {
 		level := instance.Spec.DevFlags.LogLevel
 		log.V(1).Info("Setting log level", "level", level)
-		err := logger.SetLevel(level)
-		if err != nil {
+		if err := logger.SetLevel(level); err != nil {
 			log.Error(err, "Failed to set log level", "level", level)
 		}
 	}
@@ -195,8 +194,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	case "prometheus": // prometheus configmap
 		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
 			log.Info("Monitoring enabled to restart deployment", "cluster", "Managed Service Mode")
-			err := r.configureManagedMonitoring(ctx, instance, "updates")
-			if err != nil {
+			if err := r.configureManagedMonitoring(ctx, instance, "updates"); err != nil {
 				return reconcile.Result{}, err
 			}
 		}
@@ -205,8 +203,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	case "addon-managed-odh-parameters":
 		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
 			log.Info("Monitoring enabled when notification updated", "cluster", "Managed Service Mode")
-			err := r.configureManagedMonitoring(ctx, instance, "updates")
-			if err != nil {
+			if err := r.configureManagedMonitoring(ctx, instance, "updates"); err != nil {
 				return reconcile.Result{}, err
 			}
 		}
@@ -215,8 +212,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	case "backup": // revert back to the original prometheus.yml
 		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
 			log.Info("Monitoring enabled to restore back", "cluster", "Managed Service Mode")
-			err := r.configureManagedMonitoring(ctx, instance, "revertbackup")
-			if err != nil {
+			if err := r.configureManagedMonitoring(ctx, instance, "revertbackup"); err != nil {
 				return reconcile.Result{}, err
 			}
 		}
@@ -234,48 +230,38 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			if !createUsergroup {
 				log.Info("DSCI disabled usergroup creation")
 			} else {
-				err := r.createUserGroup(ctx, instance, "rhods-admins")
-				if err != nil {
+				if err := r.createUserGroup(ctx, instance, "rhods-admins"); err != nil {
 					return reconcile.Result{}, err
 				}
 			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
-				err = r.configureCommonMonitoring(ctx, instance)
-				if err != nil {
-					return reconcile.Result{}, err
-				}
 			}
 		case cluster.ManagedRhoai:
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
-			err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, instance.Spec.ApplicationsNamespace, "osd", true)
-			if err != nil {
+			if err = deploy.DeployManifestsFromPath(ctx, r.Client, instance, osdConfigsPath, instance.Spec.ApplicationsNamespace, "osd", true); err != nil {
 				log.Error(err, "Failed to apply osd specific configs from manifests", "Manifests path", osdConfigsPath)
 				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to apply "+osdConfigsPath)
 
 				return reconcile.Result{}, err
 			}
-			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
-				if err := r.configureMonitoring(ctx, instance); err != nil {
-					return ctrl.Result{}, err
-				}
-				err := r.configureManagedMonitoring(ctx, instance, "init")
-				if err != nil {
-					return reconcile.Result{}, err
-				}
-				err = r.configureCommonMonitoring(ctx, instance)
-				if err != nil {
-					return reconcile.Result{}, err
-				}
+			// TODO: till we allow user to disable Monitoring in Managed clsuter
+			log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
+			if err := r.newMonitoringCR(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+			if err := r.configureManagedMonitoring(ctx, instance, "init"); err != nil {
+				return reconcile.Result{}, err
+			}
+			if err = r.configureCommonMonitoring(ctx, instance); err != nil {
+				return reconcile.Result{}, err
 			}
 		default:
 			// Check if user opted for disabling creating user groups
 			if !createUsergroup {
 				log.Info("DSCI disabled usergroup creation")
 			} else {
-				err := r.createUserGroup(ctx, instance, "odh-admins")
-				if err != nil {
+				if err := r.createUserGroup(ctx, instance, "odh-admins"); err != nil {
 					return reconcile.Result{}, err
 				}
 			}
@@ -289,8 +275,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return reconcile.Result{}, errServiceMesh
 		}
 
-		err = r.createAuth(ctx, instance)
-		if err != nil {
+		if err = r.createAuth(ctx, instance); err != nil {
 			log.Info("failed to create Auth")
 			return ctrl.Result{}, err
 		}
@@ -450,7 +435,7 @@ func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a c
 	return nil
 }
 
-func (r *DSCInitializationReconciler) configureMonitoring(ctx context.Context, dsci *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci *dsciv1.DSCInitialization) error {
 	// Create Monitoring CR singleton
 	defaultMonitoring := &serviceApi.Monitoring{
 		TypeMeta: metav1.TypeMeta{
@@ -467,22 +452,15 @@ func (r *DSCInitializationReconciler) configureMonitoring(ctx context.Context, d
 		},
 	}
 
-	err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme())
-	if err != nil {
+	if err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme()); err != nil {
 		return err
 	}
 
-	if dsci.Spec.Monitoring.ManagementState == operatorv1.Managed {
-		// for generic case if we need to support configable monitoring namespace
-		// set filed manager to DSCI
-		if err := r.Apply(ctx, defaultMonitoring, client.FieldOwner("dscinitialization.opendatahub.io"), client.ForceOwnership); err != nil && !k8serr.IsAlreadyExists(err) {
-			return err
-		}
-	} else {
-		err := r.Delete(ctx, defaultMonitoring)
-		if err != nil && !k8serr.IsNotFound(err) {
-			return err
-		}
+	// for generic case if we need to support configable monitoring namespace
+	// set filed manager to DSCI
+	if err := r.Apply(ctx, defaultMonitoring, client.FieldOwner("dscinitialization.opendatahub.io"), client.ForceOwnership); err != nil && !k8serr.IsAlreadyExists(err) {
+		return err
 	}
+
 	return nil
 }
