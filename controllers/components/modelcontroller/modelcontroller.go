@@ -49,6 +49,11 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 		mState = operatorv1.Managed
 	}
 
+	mrState := operatorv1.Removed
+	if dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
+		mrState = operatorv1.Managed
+	}
+
 	return &componentApi.ModelController{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.ModelControllerKind,
@@ -69,6 +74,9 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 				ManagementState: kState,
 				DevFlagsSpec:    dsc.Spec.Components.Kserve.DevFlagsSpec,
 				NIM:             dsc.Spec.Components.Kserve.NIM,
+			},
+			ModelRegistry: &componentApi.ModelControllerMRSpec{
+				ManagementState: mrState,
 			},
 		},
 	}
