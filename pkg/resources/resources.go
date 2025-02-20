@@ -323,6 +323,16 @@ func HasDevFlags(in common.WithDevFlags) bool {
 	return df != nil && len(df.Manifests) != 0
 }
 
+// InstanceHasDevFlags checks if the given PlatformObject implements the WithDevFlags interface
+// and if it has any DevFlags set. If the object does not implement WithDevFlags, it returns false.
+// This function helps ensure that only objects with the WithDevFlags interface are processed for DevFlags.
+func InstanceHasDevFlags(in common.PlatformObject) bool {
+	if obj, ok := in.(common.WithDevFlags); ok {
+		return HasDevFlags(obj)
+	}
+	return false
+}
+
 func NamespacedNameFromObject(obj client.Object) types.NamespacedName {
 	return types.NamespacedName{
 		Namespace: obj.GetNamespace(),

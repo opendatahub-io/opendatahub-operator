@@ -676,6 +676,24 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          description: ComponentRelease represents the detailed status
+                            of a component release.
+                          properties:
+                            name:
+                              type: string
+                            repoUrl:
+                              type: string
+                            version:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                     type: object
                   dashboard:
                     description: Dashboard component status.
@@ -714,6 +732,24 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          description: ComponentRelease represents the detailed status
+                            of a component release.
+                          properties:
+                            name:
+                              type: string
+                            repoUrl:
+                              type: string
+                            version:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                     type: object
                   kserve:
                     description: Kserve component status.
@@ -737,6 +773,24 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          description: ComponentRelease represents the detailed status
+                            of a component release.
+                          properties:
+                            name:
+                              type: string
+                            repoUrl:
+                              type: string
+                            version:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                       serverlessMode:
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
@@ -758,6 +812,24 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          description: ComponentRelease represents the detailed status
+                            of a component release.
+                          properties:
+                            name:
+                              type: string
+                            repoUrl:
+                              type: string
+                            version:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                     type: object
                   modelmeshserving:
                     description: ModelMeshServing component status.
@@ -776,6 +848,24 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          description: ComponentRelease represents the detailed status
+                            of a component release.
+                          properties:
+                            name:
+                              type: string
+                            repoUrl:
+                              type: string
+                            version:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                     type: object
                   modelregistry:
                     description: ModelRegistry component status.
@@ -796,6 +886,24 @@ spec:
                         type: string
                       registriesNamespace:
                         type: string
+                      releases:
+                        items:
+                          description: ComponentRelease represents the detailed status
+                            of a component release.
+                          properties:
+                            name:
+                              type: string
+                            repoUrl:
+                              type: string
+                            version:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                     type: object
                   ray:
                     description: Ray component status.
@@ -814,6 +922,24 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          description: ComponentRelease represents the detailed status
+                            of a component release.
+                          properties:
+                            name:
+                              type: string
+                            repoUrl:
+                              type: string
+                            version:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                     type: object
                   trainingoperator:
                     description: Training Operator component status.
@@ -832,6 +958,24 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          description: ComponentRelease represents the detailed status
+                            of a component release.
+                          properties:
+                            name:
+                              type: string
+                            repoUrl:
+                              type: string
+                            version:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                     type: object
                   trustyai:
                     description: TrustyAI component status.
@@ -850,6 +994,24 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          description: ComponentRelease represents the detailed status
+                            of a component release.
+                          properties:
+                            name:
+                              type: string
+                            repoUrl:
+                              type: string
+                            version:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                     type: object
                   workbenches:
                     description: Workbenches component status.
@@ -868,6 +1030,24 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      releases:
+                        items:
+                          description: ComponentRelease represents the detailed status
+                            of a component release.
+                          properties:
+                            name:
+                              type: string
+                            repoUrl:
+                              type: string
+                            version:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
                     type: object
                 type: object
               conditions:

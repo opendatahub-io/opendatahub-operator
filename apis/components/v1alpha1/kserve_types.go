@@ -76,8 +76,9 @@ type KserveSpec struct {
 type KserveCommonStatus struct {
 	// DefaultDeploymentMode is the value of the defaultDeploymentMode field
 	// as read from the "deploy" JSON in the inferenceservice-config ConfigMap
-	DefaultDeploymentMode string                     `json:"defaultDeploymentMode,omitempty"`
-	ServerlessMode        operatorv1.ManagementState `json:"serverlessMode,omitempty"`
+	DefaultDeploymentMode         string                     `json:"defaultDeploymentMode,omitempty"`
+	ServerlessMode                operatorv1.ManagementState `json:"serverlessMode,omitempty"`
+	common.ComponentReleaseStatus `json:",inline"`
 }
 
 // KserveStatus defines the observed state of Kserve
@@ -108,6 +109,14 @@ func (c *Kserve) GetDevFlags() *common.DevFlags {
 
 func (c *Kserve) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *Kserve) GetReleaseStatus() *[]common.ComponentRelease {
+	return &c.Status.Releases
+}
+
+func (c *Kserve) SetReleaseStatus(releases []common.ComponentRelease) {
+	c.Status.Releases = releases
 }
 
 // +kubebuilder:object:root=true
