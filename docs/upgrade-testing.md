@@ -144,7 +144,7 @@ spec:
     kueue:
       managementState: Managed
     trainingoperator:
-      managementState: Removed
+      managementState: Managed
     workbenches:
       managementState: Managed
     trustyai:
