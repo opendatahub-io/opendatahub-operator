@@ -5,11 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apihelpers"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -19,6 +23,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	client2 "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -267,4 +272,54 @@ func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object, 
 		// some other error
 		return false, errCreate
 	})
+}
+
+func GetCRD(ctx context.Context, cli client.Client, name string) (apiextensionsv1.CustomResourceDefinition, error) {
+	obj := apiextensionsv1.CustomResourceDefinition{}
+	err := cli.Get(ctx, client.ObjectKey{Name: name}, &obj)
+	if err != nil {
+		return obj, err
+	}
+
+	return obj, nil
+}
+
+func HasCRD(ctx context.Context, cli *client2.Client, gvk schema.GroupVersionKind) (bool, error) {
+	return HasCRDWithVersion(ctx, cli, gvk.GroupKind(), gvk.Version)
+}
+
+// HasCRDWithVersion checks if a CustomResourceDefinition (CRD) exists with the specified version.
+// It verifies the CRD's existence, ensures that the version is stored, and checks if the CRD is under deletion.
+//
+// Parameters:
+//   - ctx: The context for the request.
+//   - cli: A controller-runtime client to interact with the Kubernetes API.
+//   - gk: The GroupKind of the CRD to look up.
+//   - version: The specific version to check for within the CRD.
+//
+// Returns:
+//   - (true, nil) if the CRD with the specified version exists and is not terminating.
+//   - (false, nil) if the CRD does not exist, does not store the requested version, or is terminating.
+//   - (false, error) if there was an error fetching the CRD.
+func HasCRDWithVersion(ctx context.Context, cli *client2.Client, gk schema.GroupKind, version string) (bool, error) {
+	m, err := cli.RESTMapper().RESTMapping(gk, version)
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	crd, err := GetCRD(ctx, cli, m.Resource.GroupResource().String())
+	switch {
+	case err != nil:
+		return false, client.IgnoreNotFound(err)
+	case apihelpers.IsCRDConditionTrue(&crd, apiextensionsv1.Terminating):
+		return false, nil
+	case !slices.Contains(crd.Status.StoredVersions, version):
+		return false, nil
+	default:
+		return true, nil
+	}
 }

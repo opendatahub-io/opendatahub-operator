@@ -5,6 +5,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -16,6 +17,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -29,6 +31,7 @@ func New(objs ...ctrlClient.Object) (*client.Client, error) {
 	utilruntime.Must(componentApi.AddToScheme(scheme))
 	utilruntime.Must(dsciv1.AddToScheme(scheme))
 	utilruntime.Must(dscv1.AddToScheme(scheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 
 	for _, o := range objs {
 		if err := resources.EnsureGroupVersionKind(scheme, o); err != nil {
@@ -37,8 +40,15 @@ func New(objs ...ctrlClient.Object) (*client.Client, error) {
 	}
 
 	fakeMapper := meta.NewDefaultRESTMapper(scheme.PreferredVersionAllGroups())
-	for gvk := range scheme.AllKnownTypes() {
-		fakeMapper.Add(gvk, meta.RESTScopeNamespace)
+	for kt := range scheme.AllKnownTypes() {
+		switch {
+		case kt == gvk.CustomResourceDefinition:
+			fakeMapper.Add(kt, meta.RESTScopeRoot)
+		case kt == gvk.ClusterRole:
+			fakeMapper.Add(kt, meta.RESTScopeRoot)
+		default:
+			fakeMapper.Add(kt, meta.RESTScopeNamespace)
+		}
 	}
 
 	ro := make([]runtime.Object, len(objs))
