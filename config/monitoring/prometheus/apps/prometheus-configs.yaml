@@ -410,14 +410,15 @@ data:
             names:
               - redhat-ods-operator
       relabel_configs:
-        - source_labels: [__meta_kubernetes_pod_labelpresent_control_plane]
-          regex: ^(true)$ 
+        - source_labels: [__meta_kubernetes_pod_label_name]
+          regex: ^(rhods-operator)$ 
           target_label: kubernetes_name
           action: keep
         - source_labels: [__address__]
-          regex: (.*)
+          regex: (.*):(\d+)
           target_label: __address__
           replacement: ${1}:8080
+          action: replace
 
     alerting:
       alertmanagers:

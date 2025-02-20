@@ -21,15 +21,10 @@ import (
 	"errors"
 
 	rbacv1 "k8s.io/api/rbac/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	common "github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -52,62 +47,13 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-// We only really expect this to copy once, the fields in the dashboardConfig will be immutable
-// but there may be edge cases where the dashboardConfig is created or edited later.
-// This function can be removed entirely when the dashboard team deprecates
-// the fields in question.
-func copyGroups(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	ai, ok := rr.Instance.(*serviceApi.Auth)
-	if !ok {
-		return errors.New("instance is not of type *services.Auth")
-	}
-
-	// check for the dashboardConfig kind
-	crd := &apiextv1.CustomResourceDefinition{}
-	if err := rr.Client.Get(ctx, client.ObjectKey{Name: "odhdashboardconfigs.opendatahub.io"}, crd); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-
-	// Get groups from the dashboardConfig
-	odhObject := &unstructured.Unstructured{}
-	odhObject.SetGroupVersionKind(gvk.OdhDashboardConfig)
-
-	err := rr.Client.Get(ctx, client.ObjectKey{
-		Name:      "odh-dashboard-config",
-		Namespace: rr.DSCI.Spec.ApplicationsNamespace,
-	}, odhObject)
-	// if the kind exists but there is no odh-dashboard-config then return
-	if err != nil {
-		return client.IgnoreNotFound(err)
-	}
-	foundGroups, found, _ := unstructured.NestedStringMap(odhObject.Object, "spec", "groupsConfig")
-	if !found {
-		return errors.New("no groupsConfig found in dashboardConfig")
-	}
-
-	added := common.AddMissing(&ai.Spec.AdminGroups, foundGroups["adminGroups"])
-	added += common.AddMissing(&ai.Spec.AllowedGroups, foundGroups["allowedGroups"])
-
-	if added == 0 {
-		return nil
-	}
-
-	// only update if we found a new group in the list
-	err = rr.Client.Update(ctx, ai)
-	if err != nil {
-		return errors.New("error adding groups to Auth CR")
-	}
-
-	return nil
-}
-
 func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []string, roleBindingName string, roleName string) error {
 	groupsToBind := []rbacv1.Subject{}
 	for _, e := range groups {
 		// we want to disallow adding system:authenticated to the adminGroups
-		if roleName == "admingroup-role" && e == "system:authenticated" {
+		if roleName == "admingroup-role" && e == "system:authenticated" || e == "" {
 			log := logf.FromContext(ctx)
-			log.Info("system:authenticated cannot be added to adminGroups")
+			log.Info("skipping adding invalid group to RoleBinding")
 			continue
 		}
 		rs := rbacv1.Subject{
@@ -138,9 +84,15 @@ func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []
 	return nil
 }
 
-func bindClusterRole(rr *odhtypes.ReconciliationRequest, groups []string, roleBindingName string, roleName string) error {
+func bindClusterRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []string, roleBindingName string, roleName string) error {
 	groupsToBind := []rbacv1.Subject{}
 	for _, e := range groups {
+		// we want to disallow adding system:authenticated to the adminGroups
+		if roleName == "admingroupcluster-role" && e == "system:authenticated" || e == "" {
+			log := logf.FromContext(ctx)
+			log.Info("skipping adding invalid group to ClusterRoleBinding")
+			continue
+		}
 		rs := rbacv1.Subject{
 			Kind:     "Group",
 			APIGroup: "rbac.authorization.k8s.io",
@@ -179,7 +131,7 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 		return err
 	}
 
-	err = bindClusterRole(rr, ai.Spec.AdminGroups, "admingroupcluster-rolebinding", "admingroupcluster-role")
+	err = bindClusterRole(ctx, rr, ai.Spec.AdminGroups, "admingroupcluster-rolebinding", "admingroupcluster-role")
 	if err != nil {
 		return err
 	}
