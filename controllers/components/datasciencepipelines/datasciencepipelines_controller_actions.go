@@ -20,15 +20,12 @@ import (
 	"context"
 	"fmt"
 
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odherr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -36,35 +33,36 @@ import (
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines", rr.Instance)
-	}
+	rr.Conditions.MarkTrue(status.ConditionArgoWorkflowAvailable)
 
-	workflowCRD := &apiextensionsv1.CustomResourceDefinition{}
-	if err := rr.Client.Get(ctx, client.ObjectKey{Name: ArgoWorkflowCRD}, workflowCRD); err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil
-		}
-		return odherrors.NewStopError("failed to get existing Workflow CRD : %v", err)
+	crd, err := cluster.GetCRD(ctx, rr.Client, ArgoWorkflowCRD)
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		err = odherr.NewStopError("failed to check for existing %s CRD: %w", ArgoWorkflowCRD, err)
+
+		rr.Conditions.MarkFalse(
+			status.ConditionArgoWorkflowAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithError(err),
+		)
+
+		return err
 	}
 
 	// Verify if existing workflow is deployed by ODH with label
 	// if not then set Argo capability status condition to false
-	odhLabelValue, odhLabelExists := workflowCRD.Labels[labels.ODH.Component(LegacyComponentName)]
+	odhLabelValue, odhLabelExists := crd.Labels[labels.ODH.Component(LegacyComponentName)]
 	if !odhLabelExists || odhLabelValue != "true" {
-		s := dsp.GetStatus()
-		s.Phase = "NotReady"
+		rr.Conditions.MarkFalse(
+			status.ConditionArgoWorkflowAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithReason(status.DataSciencePipelinesDoesntOwnArgoCRDReason),
+			conditions.WithMessage(status.DataSciencePipelinesDoesntOwnArgoCRDMessage),
+		)
 
-		conditions.SetStatusCondition(dsp, common.Condition{
-			Type:               status.ConditionTypeReady,
-			Status:             metav1.ConditionFalse,
-			Reason:             status.DataSciencePipelinesDoesntOwnArgoCRDReason,
-			Message:            status.DataSciencePipelinesDoesntOwnArgoCRDMessage,
-			ObservedGeneration: s.ObservedGeneration,
-		})
-
-		return odherrors.NewStopError(status.DataSciencePipelinesDoesntOwnArgoCRDMessage)
+		return ErrArgoWorkflowAPINotOwned
 	}
 
 	return nil
