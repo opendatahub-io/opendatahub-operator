@@ -233,6 +233,10 @@ spec:
                       type: string
                     repoUrl:
                       type: string
+                    supportedArchitectures:
+                      items:
+                        type: string
+                      type: array
                     version:
                       type: string
                   required:

@@ -85,7 +85,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 //
 // This function performs the following:
 // 1. Reads the component metadata YAML file (either from a custom or default path).
-// 2. Parses the YAML file and extracts the release metadata (name, version, repo URL).
+// 2. Parses the YAML file and extracts the release metadata (name, version, repo URL, supported architectures).
 // 3. Returns a slice of `ComponentRelease` containing the processed release information.
 //
 // Parameters:
@@ -134,9 +134,10 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) ([
 		// Appending the component version only if it's not empty
 		if componentVersion != "" {
 			componentReleasesStatus = append(componentReleasesStatus, common.ComponentRelease{
-				Name:    release.Name,
-				Version: componentVersion,
-				RepoURL: release.RepoURL,
+				Name:                   release.Name,
+				Version:                componentVersion,
+				RepoURL:                release.RepoURL,
+				SupportedArchitectures: release.SupportedArchitectures,
 			})
 		}
 	}
