@@ -135,6 +135,12 @@ spec:
                     pattern: ^(Managed|Unmanaged|Force|Removed)$
                     type: string
                 type: object
+              modelRegistry:
+                properties:
+                  managementState:
+                    pattern: ^(Managed|Unmanaged|Force|Removed)$
+                    type: string
+                type: object
             type: object
           status:
             description: ModelControllerStatus defines the observed state of ModelController

@@ -1214,6 +1214,22 @@ _Appears in:_
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
+#### ModelControllerMRSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [ModelControllerSpec](#modelcontrollerspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ |  |  |  |
+
+
 #### ModelControllerSpec
 
 
@@ -1229,6 +1245,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `kserve` _[ModelControllerKerveSpec](#modelcontrollerkervespec)_ | ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"` |  |  |
 | `modelMeshServing` _[ModelControllerMMSpec](#modelcontrollermmspec)_ |  |  |  |
+| `modelRegistry` _[ModelControllerMRSpec](#modelcontrollermrspec)_ |  |  |  |
 
 
 #### ModelControllerStatus
