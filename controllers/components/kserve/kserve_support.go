@@ -271,3 +271,14 @@ func ownedViaFT(cli client.Client) handler.MapFunc {
 func isLegacyOwnerRef(or metav1.OwnerReference) bool {
 	return or.APIVersion == gvk.DataScienceCluster.GroupVersion().String() && or.Kind == gvk.DataScienceCluster.Kind
 }
+
+func ifGVKInstalled(kvg schema.GroupVersionKind) func(context.Context, *odhtypes.ReconciliationRequest) bool {
+	return func(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
+		hasCRD, err := cluster.HasCRD(ctx, rr.Client, kvg)
+		if err != nil {
+			ctrl.Log.Error(err, "error checking if CRD installed", "GVK", kvg)
+			return false
+		}
+		return hasCRD
+	}
+}
