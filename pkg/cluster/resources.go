@@ -4,16 +4,111 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+	"slices"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apihelpers"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	client2 "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
+
+// GetSingleton retrieves a singleton instance of a Kubernetes resource of type T.
+//
+// It ensures that only one instance exists and updates the provided object pointer
+// with the retrieved data and:
+//   - If no instances are found, it returns a "NotFound" error.
+//   - If multiple instances are found, it returns an error indicating an unexpected
+//     number of instances.
+//   - A generic error in case of other failures
+//
+// Generic Parameters:
+//   - T: A Kubernetes API resource that implements client.Object.
+//     T **must be a pointer to a struct**, allowing the function to update its contents.
+//
+// Parameters:
+//   - ctx: The context for the API request, allowing for cancellation and timeouts.
+//   - cli: The Kubernetes client used to interact with the cluster.
+//   - obj: A **pointer to a struct** that implements client.Object, which will be populated with the retrieved resource.
+//
+// Returns:
+//   - nil if exactly one instance of the resource is found and successfully assigned to obj.
+//   - An error if no instances or multiple instances are found, or if any failure occurs.
+func GetSingleton[T client.Object](ctx context.Context, cli client.Client, obj T) error {
+	if reflect.ValueOf(obj).IsNil() {
+		return errors.New("obj must be a pointer")
+	}
+
+	objGVK, err := resources.GetGroupVersionKindForObject(cli.Scheme(), obj)
+	if err != nil {
+		return err
+	}
+
+	instances := unstructured.UnstructuredList{}
+	instances.SetAPIVersion(objGVK.GroupVersion().String())
+	instances.SetKind(objGVK.Kind)
+
+	if err := cli.List(ctx, &instances); err != nil {
+		return fmt.Errorf("failed to list resources of type %s: %w", objGVK, err)
+	}
+
+	switch len(instances.Items) {
+	case 1:
+		if err := cli.Scheme().Convert(&instances.Items[0], obj, ctx); err != nil {
+			return fmt.Errorf("failed to convert resource to %T: %w", obj, err)
+		}
+		return nil
+	case 0:
+		mapping, err := cli.RESTMapper().RESTMapping(objGVK.GroupKind(), objGVK.Version)
+		if err != nil {
+			return fmt.Errorf("failed to get REST mapping for %s: %w", objGVK, err)
+		}
+
+		return k8serr.NewNotFound(
+			schema.GroupResource{
+				Group:    objGVK.Group,
+				Resource: mapping.Resource.Resource,
+			},
+			"",
+		)
+	default:
+		return fmt.Errorf("failed to get a valid %s instance, expected to find 1 instance, found %d", objGVK, len(instances.Items))
+	}
+}
+
+// GetDSC retrieves the DataScienceCluster (DSC) instance from the Kubernetes cluster.
+func GetDSC(ctx context.Context, cli client.Client) (*dscv1.DataScienceCluster, error) {
+	obj := dscv1.DataScienceCluster{}
+	if err := GetSingleton(ctx, cli, &obj); err != nil {
+		return nil, err
+	}
+
+	return &obj, nil
+}
+
+// GetDSCI retrieves the DSCInitialization (DSCI) instance from the Kubernetes cluster.
+func GetDSCI(ctx context.Context, cli client.Client) (*dsciv1.DSCInitialization, error) {
+	obj := dsciv1.DSCInitialization{}
+	if err := GetSingleton(ctx, cli, &obj); err != nil {
+		return nil, err
+	}
+
+	return &obj, nil
+}
 
 // UpdatePodSecurityRolebinding update default rolebinding which is created in applications namespace by manifests
 // being used by different components and SRE monitoring.
@@ -177,4 +272,54 @@ func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object, 
 		// some other error
 		return false, errCreate
 	})
+}
+
+func GetCRD(ctx context.Context, cli client.Client, name string) (apiextensionsv1.CustomResourceDefinition, error) {
+	obj := apiextensionsv1.CustomResourceDefinition{}
+	err := cli.Get(ctx, client.ObjectKey{Name: name}, &obj)
+	if err != nil {
+		return obj, err
+	}
+
+	return obj, nil
+}
+
+func HasCRD(ctx context.Context, cli *client2.Client, gvk schema.GroupVersionKind) (bool, error) {
+	return HasCRDWithVersion(ctx, cli, gvk.GroupKind(), gvk.Version)
+}
+
+// HasCRDWithVersion checks if a CustomResourceDefinition (CRD) exists with the specified version.
+// It verifies the CRD's existence, ensures that the version is stored, and checks if the CRD is under deletion.
+//
+// Parameters:
+//   - ctx: The context for the request.
+//   - cli: A controller-runtime client to interact with the Kubernetes API.
+//   - gk: The GroupKind of the CRD to look up.
+//   - version: The specific version to check for within the CRD.
+//
+// Returns:
+//   - (true, nil) if the CRD with the specified version exists and is not terminating.
+//   - (false, nil) if the CRD does not exist, does not store the requested version, or is terminating.
+//   - (false, error) if there was an error fetching the CRD.
+func HasCRDWithVersion(ctx context.Context, cli *client2.Client, gk schema.GroupKind, version string) (bool, error) {
+	m, err := cli.RESTMapper().RESTMapping(gk, version)
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	crd, err := GetCRD(ctx, cli, m.Resource.GroupResource().String())
+	switch {
+	case err != nil:
+		return false, client.IgnoreNotFound(err)
+	case apihelpers.IsCRDConditionTrue(&crd, apiextensionsv1.Terminating):
+		return false, nil
+	case !slices.Contains(crd.Status.StoredVersions, version):
+		return false, nil
+	default:
+		return true, nil
+	}
 }

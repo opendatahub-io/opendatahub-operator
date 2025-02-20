@@ -124,27 +124,27 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// implicit predicate, so the simpler "DefaultPredicate" is also added.
 		WatchesGVK(
 			gvk.KnativeServing,
-			reconciler.Dynamic(),
+			reconciler.Dynamic(ifGVKInstalled(gvk.KnativeServing)),
 			reconciler.WithEventMapper(ownedViaFTMapFunc),
 			reconciler.WithPredicates(predicates.DefaultPredicate)).
 		WatchesGVK(
 			gvk.ServiceMeshMember,
-			reconciler.Dynamic(),
+			reconciler.Dynamic(ifGVKInstalled(gvk.ServiceMeshMember)),
 			reconciler.WithEventMapper(ownedViaFTMapFunc),
 			reconciler.WithPredicates(predicates.DefaultPredicate)).
 		WatchesGVK(
 			gvk.EnvoyFilter,
-			reconciler.Dynamic(),
+			reconciler.Dynamic(ifGVKInstalled(gvk.EnvoyFilter)),
 			reconciler.WithEventMapper(ownedViaFTMapFunc),
 			reconciler.WithPredicates(predicates.DefaultPredicate)).
 		WatchesGVK(
 			gvk.AuthorizationPolicy,
-			reconciler.Dynamic(),
+			reconciler.Dynamic(ifGVKInstalled(gvk.AuthorizationPolicy)),
 			reconciler.WithEventMapper(ownedViaFTMapFunc),
 			reconciler.WithPredicates(predicates.DefaultPredicate)).
 		WatchesGVK(
 			gvk.Gateway,
-			reconciler.Dynamic(),
+			reconciler.Dynamic(ifGVKInstalled(gvk.Gateway)),
 			reconciler.WithEventMapper(ownedViaFTMapFunc),
 			reconciler.WithPredicates(predicates.DefaultPredicate)).
 

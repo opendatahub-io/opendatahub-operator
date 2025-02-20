@@ -17,7 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
@@ -166,20 +165,16 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 	l := log.FromContext(ctx)
 	l.Info("apply")
 
-	dscil := dsciv1.DSCInitializationList{}
-	if err := r.Client.List(ctx, &dscil); err != nil {
-		return err
-	}
-
-	if len(dscil.Items) != 1 {
-		return errors.New("unable to find DSCInitialization")
+	dsci, err := cluster.GetDSCI(ctx, r.Client)
+	if err != nil {
+		return errors.New("unable to find a DSCInitialization instance")
 	}
 
 	rr := types.ReconciliationRequest{
 		Client:    r.Client,
 		Manager:   r.m,
 		Instance:  res,
-		DSCI:      &dscil.Items[0],
+		DSCI:      dsci,
 		Release:   r.Release,
 		Manifests: make([]types.ManifestInfo, 0),
 	}
@@ -205,7 +200,7 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 		}
 	}
 
-	err := r.Client.ApplyStatus(
+	err = r.Client.ApplyStatus(
 		ctx,
 		rr.Instance,
 		client.FieldOwner(r.name),
