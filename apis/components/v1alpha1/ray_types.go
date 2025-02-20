@@ -57,6 +57,7 @@ type RayCommonSpec struct {
 
 // RayCommonStatus defines the shared observed state of Ray
 type RayCommonStatus struct {
+	common.ComponentReleaseStatus `json:",inline"`
 }
 
 // RayStatus defines the observed state of Ray
@@ -80,8 +81,15 @@ func init() {
 func (c *Ray) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
+
 func (c *Ray) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *Ray) GetReleaseStatus() *[]common.ComponentRelease { return &c.Status.Releases }
+
+func (c *Ray) SetReleaseStatus(releases []common.ComponentRelease) {
+	c.Status.Releases = releases
 }
 
 // DSCRay contains all the configuration exposed in DSC instance for Ray component

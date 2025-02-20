@@ -48,6 +48,7 @@ func modelRegistryTestSuite(t *testing.T) {
 	t.Run("Validate ServiceMeshMember", componentCtx.validateModelRegistryServiceMeshMember)
 
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
+	t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
 }
 
 func (c *ModelRegistryTestCtx) validateSpec(t *testing.T) {
