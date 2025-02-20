@@ -47,6 +47,7 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 		"nim-state":              strings.ToLower(string(nimState)),
 		"kserve-state":           strings.ToLower(string(mc.Spec.Kserve.ManagementState)),
 		"modelmeshserving-state": strings.ToLower(string(mc.Spec.ModelMeshServing.ManagementState)),
+		"modelregistry-state":    strings.ToLower(string(mc.Spec.ModelRegistry.ManagementState)),
 	}
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", rr.Manifests[0].String(), err)
