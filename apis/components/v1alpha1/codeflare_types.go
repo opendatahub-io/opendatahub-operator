@@ -30,6 +30,7 @@ const (
 
 // CodeFlareCommonStatus defines the shared observed state of CodeFlare
 type CodeFlareCommonStatus struct {
+	common.ComponentReleaseStatus `json:",inline"`
 }
 
 // CodeFlareStatus defines the observed state of CodeFlare
@@ -68,6 +69,12 @@ func (c *CodeFlare) GetDevFlags() *common.DevFlags {
 
 func (c *CodeFlare) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *CodeFlare) GetReleaseStatus() *[]common.ComponentRelease { return &c.Status.Releases }
+
+func (c *CodeFlare) SetReleaseStatus(releases []common.ComponentRelease) {
+	c.Status.Releases = releases
 }
 
 func init() {

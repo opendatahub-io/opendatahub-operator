@@ -268,6 +268,46 @@ func (c *ComponentTestCtx) ValidateCRDReinstated(t *testing.T, name string, vers
 	}
 }
 
+// Validate releases for any component in the DataScienceCluster.
+func (c *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
+	t.Helper()
+
+	g := c.NewWithT(t)
+
+	componentName := strings.ToLower(c.GVK.Kind)
+
+	// Transform the DataScienceCluster to set the management state of the component
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(
+			`.spec.components.%s.managementState = "%s"`, componentName, operatorv1.Managed,
+		),
+	).Eventually().Should(
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Managed),
+	)
+
+	// Check if the releases field contains multiple releases for the component
+	g.List(gvk.DataScienceCluster).Eventually().Should(And(
+		HaveLen(1),
+		HaveEach(
+			// Check releases for the component itself
+			jq.Match(`.status.components.%s.releases | length > 0`, componentName),
+		),
+	))
+
+	// Validate each release's fields (name, version, repoUrl) using HaveEach
+	g.List(gvk.DataScienceCluster).Eventually().Should(And(
+		HaveLen(1),
+		HaveEach(And(
+			// Check that each release has the required fields (name, version, repoUrl)
+			jq.Match(`.status.components.%s.releases[].name != ""`, componentName),
+			jq.Match(`.status.components.%s.releases[].version != ""`, componentName),
+			jq.Match(`.status.components.%s.releases[].repoUrl != ""`, componentName)),
+		),
+	))
+}
+
 func (c *ComponentTestCtx) GetDSC() (*dscv1.DataScienceCluster, error) {
 	obj := dscv1.DataScienceCluster{}
 
