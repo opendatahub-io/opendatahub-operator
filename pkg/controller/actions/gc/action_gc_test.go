@@ -78,6 +78,7 @@ func TestGcAction(t *testing.T) {
 		matcher        gTypes.GomegaMatcher
 		metricsMatcher gTypes.GomegaMatcher
 		labels         map[string]string
+		annotations    map[string]string
 		options        []gc.ActionOpts
 		uidFn          func(request *types.ReconciliationRequest) string
 	}{
@@ -93,6 +94,15 @@ func TestGcAction(t *testing.T) {
 			name:           "should not delete resources because same annotations",
 			version:        semver.Version{Major: 0, Minor: 1, Patch: 0},
 			generated:      true,
+			matcher:        Not(HaveOccurred()),
+			metricsMatcher: BeNumerically("==", 1),
+			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
+		},
+		{
+			name:           "should not delete resources because unmanaged",
+			version:        semver.Version{Major: 0, Minor: 1, Patch: 0},
+			generated:      true,
+			annotations:    map[string]string{annotations.ManagedByODHOperator: "false"},
 			matcher:        Not(HaveOccurred()),
 			metricsMatcher: BeNumerically("==", 1),
 			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
@@ -210,13 +220,6 @@ func TestGcAction(t *testing.T) {
 				Generated: tt.generated,
 			}
 
-			l := make(map[string]string)
-			for k, v := range tt.labels {
-				l[k] = v
-			}
-
-			l[labels.PlatformPartOf] = strings.ToLower(componentApi.DashboardKind)
-
 			cm := corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "gc-cm",
@@ -227,8 +230,17 @@ func TestGcAction(t *testing.T) {
 						annotations.PlatformVersion:    "0.1.0",
 						annotations.PlatformType:       string(cluster.OpenDataHub),
 					},
-					Labels: l,
+					Labels: map[string]string{
+						labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+					},
 				},
+			}
+
+			for k, v := range tt.labels {
+				cm.Labels[k] = v
+			}
+			for k, v := range tt.annotations {
+				cm.Annotations[k] = v
 			}
 
 			g.Expect(cli.Create(ctx, &cm)).
