@@ -70,6 +70,7 @@ type MonitoringCommonSpec struct {
 	// +kubebuilder:default=opendatahub
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="MonitoringNamespace is immutable"
 	Namespace string `json:"namespace,omitempty"`
 }
 
@@ -102,7 +103,7 @@ func init() {
 	SchemeBuilder.Register(&Monitoring{}, &MonitoringList{})
 }
 
-type DSCMonitoring struct {
+type DSCIMonitoring struct {
 	// configuration fields common across services
 	common.ManagementSpec `json:",inline"`
 	// monitoring specific fields
