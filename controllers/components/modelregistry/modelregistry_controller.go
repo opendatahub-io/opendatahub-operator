@@ -72,10 +72,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
-		// Some ClusterRoles are part of the component deployment, but not owned by
-		// the operator (overlays/odh/extras), so in order to properly keep them
-		// in sync with the manifests, we should also create an additional watcher
-		Watches(&rbacv1.ClusterRole{}).
 		// This component adds a ServiceMeshMember resource to the registries
 		// namespaces that may not be known when the controller is started, hence
 		// it should be watched dynamically
@@ -93,7 +89,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
-		WithAction(customizeResources).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
