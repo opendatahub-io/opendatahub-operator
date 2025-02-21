@@ -102,6 +102,7 @@ require (
 )
 
 replace (
+	github.com/opendatahub-io/opendatahub-operator/v2/cmd/tools => ./cmd/tools
 	k8s.io/api => k8s.io/api v0.28.4
 	k8s.io/client-go => k8s.io/client-go v0.28.4
 )
