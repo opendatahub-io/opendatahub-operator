@@ -70,7 +70,7 @@ To deploy ODH components seamlessly, ODH operator will watch two CRDs:
           kueue:
             managementState: Managed
           trainingoperator:
-            managementState: Removed
+            managementState: Managed
           trustyai:
             managementState: Managed
           workbenches:

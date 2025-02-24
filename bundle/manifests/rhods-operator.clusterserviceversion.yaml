@@ -57,7 +57,7 @@ metadata:
                 "managementState": "Managed"
               },
               "trainingoperator": {
-                "managementState": "Removed"
+                "managementState": "Managed"
               },
               "trustyai": {
                 "managementState": "Managed"
@@ -173,7 +173,7 @@ metadata:
               "managementState": "Managed"
             },
             "trainingoperator": {
-              "managementState": "Removed"
+              "managementState": "Managed"
             },
             "trustyai": {
               "managementState": "Managed"
