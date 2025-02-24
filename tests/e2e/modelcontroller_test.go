@@ -51,7 +51,7 @@ func (c *ModelControllerTestCtx) validateComponentEnabled(t *testing.T) {
 		c.validateComponentDeployed(t, operatorv1.Managed, operatorv1.Managed, operatorv1.Removed, metav1.ConditionTrue)
 	})
 	t.Run("ModelRegistry enabled", func(t *testing.T) {
-		c.validateComponentDeployed(t, operatorv1.Removed, operatorv1.Removed, operatorv1.Managed, metav1.ConditionTrue)
+		c.validateComponentDeployed(t, operatorv1.Managed, operatorv1.Managed, operatorv1.Managed, metav1.ConditionTrue)
 	})
 }
 
