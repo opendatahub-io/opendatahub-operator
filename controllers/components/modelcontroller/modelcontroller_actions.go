@@ -46,7 +46,7 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 
 	mrState := operatorv1.Removed
 	if mc.Spec.ModelRegistry != nil && mc.Spec.ModelRegistry.ManagementState == operatorv1.Managed {
-		mrState = mc.Spec.ModelRegistry.ManagementState
+		mrState = operatorv1.Managed
 	}
 
 	extraParamsMap := map[string]string{
