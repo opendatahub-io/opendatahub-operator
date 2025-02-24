@@ -2,47 +2,24 @@ package testf
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/onsi/gomega"
-	operatorv1 "github.com/openshift/api/operator/v1"
-	routev1 "github.com/openshift/api/route/v1"
-	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrlcli "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlcfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	odhcli "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 )
 
 const (
 	DefaultPollInterval = 1 * time.Second
 	DefaultTimeout      = 2 * time.Minute
-)
-
-var (
-	DefaultAddToSchemes = []func(*runtime.Scheme) error{
-		clientgoscheme.AddToScheme,
-		routev1.AddToScheme,
-		apiextv1.AddToScheme,
-		dsciv1.AddToScheme,
-		dscv1.AddToScheme,
-		featurev1.AddToScheme,
-		monitoringv1.AddToScheme,
-		ofapi.AddToScheme,
-		operatorv1.AddToScheme,
-		componentApi.AddToScheme,
-	}
 )
 
 type testContextOpts struct {
@@ -104,12 +81,12 @@ func NewTestContext(opts ...TestContextOpt) (*TestContext, error) {
 	}
 
 	if tc.scheme == nil {
-		tc.scheme = runtime.NewScheme()
-		for _, at := range DefaultAddToSchemes {
-			if err := at(tc.scheme); err != nil {
-				return nil, err
-			}
+		s, err := scheme.New()
+		if err != nil {
+			return nil, errors.New("unable to create default scheme")
 		}
+
+		tc.scheme = s
 	}
 
 	if tc.client == nil {
