@@ -75,6 +75,8 @@ spec:
                       type: object
                     type: array
                 type: object
+              modelRegistryNamespace:
+                type: string
             type: object
           status:
             description: DataSciencePipelinesStatus defines the observed state of

@@ -63,7 +63,10 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 			},
 		},
 		Spec: componentApi.DataSciencePipelinesSpec{
-			DataSciencePipelinesCommonSpec: dsc.Spec.Components.DataSciencePipelines.DataSciencePipelinesCommonSpec,
+			DataSciencePipelinesCommonSpec: componentApi.DataSciencePipelinesCommonSpec{
+				ModelRegistryNamespace: dsc.Spec.Components.ModelRegistry.RegistriesNamespace,
+				DevFlagsSpec:           dsc.Spec.Components.DataSciencePipelines.DevFlagsSpec,
+			},
 		},
 	}
 }
