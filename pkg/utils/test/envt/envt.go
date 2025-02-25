@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,18 +23,9 @@ func WithScheme(value *runtime.Scheme) OptionFn {
 	}
 }
 
-func WithProjectRoot(value string, elem ...string) OptionFn {
+func WithProjectRoot(elem ...string) OptionFn {
 	return func(in *EnvT) {
-		r := value
-		if l := len(elem); l != 0 {
-			i := make([]string, 0, l+1)
-			i = append(i, value)
-			i = append(i, elem...)
-
-			r = path.Join(i...)
-		}
-
-		in.root = r
+		in.root = filepath.Join(elem...)
 	}
 }
 
@@ -118,17 +108,8 @@ func (et *EnvT) ProjectRoot() string {
 	return et.root
 }
 
-func (et *EnvT) ReadFile(value string, elem ...string) ([]byte, error) {
-	r := value
-	if l := len(elem); l != 0 {
-		i := make([]string, 0, l+1)
-		i = append(i, value)
-		i = append(i, elem...)
-
-		r = path.Join(i...)
-	}
-
-	fp := filepath.Join(et.root, r)
+func (et *EnvT) ReadFile(elem ...string) ([]byte, error) {
+	fp := filepath.Join(et.root, filepath.Join(elem...))
 
 	content, err := os.ReadFile(fp)
 	if err != nil {
