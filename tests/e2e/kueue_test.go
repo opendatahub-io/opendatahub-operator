@@ -39,9 +39,9 @@ func kueueTestSuite(t *testing.T) {
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
 	t.Run("Validate Kueue Dynamically create VAP and VAPB", componentCtx.validateKueueVAPReady)
 	t.Run("Validate CRDs reinstated", componentCtx.validateCRDReinstated)
+	t.Run("Validate pre check", componentCtx.validateKueuePreCheck)
 	t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
-	t.Run("Validate pre check", componentCtx.validateKueuePreCheck)
 }
 
 type KueueTestCtx struct {
@@ -85,16 +85,27 @@ func (tc *KueueTestCtx) validateCRDReinstated(t *testing.T) {
 }
 
 func (tc *KueueTestCtx) validateKueuePreCheck(t *testing.T) {
-	// validate precheck on CRD version:
-	// pre-req: skip set kueue to removed (done by ValidateComponentDisabled)
+	// validate precheck on CRD version
 	// step:
 	// delete crd, check it is gone, then install old crd,
 	// set kueue to managed, result to error, delete crd, result to success.
 
+	g := tc.NewWithT(t)
+
+	g.Update(
+		gvk.DataScienceCluster,
+		tc.DSCName,
+		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Removed),
+	).Eventually().Should(
+		Succeed(),
+	)
+
+	g.List(tc.GVK).Eventually().Should(
+		BeEmpty())
+
 	var mkConfig = "multikueueconfigs.kueue.x-k8s.io"
 	var mkCluster = "multikueueclusters.kueue.x-k8s.io"
 
-	g := tc.NewWithT(t)
 	g.Delete(gvk.CustomResourceDefinition,
 		types.NamespacedName{Name: mkCluster},
 		client.PropagationPolicy(metav1.DeletePropagationForeground),
