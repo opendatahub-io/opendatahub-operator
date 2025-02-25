@@ -14,6 +14,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -55,11 +56,12 @@ type TemplateInfo struct {
 type ReconciliationRequest struct {
 	*odhClient.Client
 
-	Manager   *manager.Manager
-	Instance  common.PlatformObject
-	DSCI      *dsciv1.DSCInitialization
-	Release   common.Release
-	Manifests []ManifestInfo
+	Manager    *manager.Manager
+	Conditions *conditions.Manager
+	Instance   common.PlatformObject
+	DSCI       *dsciv1.DSCInitialization
+	Release    common.Release
+	Manifests  []ManifestInfo
 
 	//
 	// TODO: unify templates and resources.

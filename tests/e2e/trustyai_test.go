@@ -1,14 +1,10 @@
 package e2e_test
 
 import (
-	"context"
-	"strings"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -37,9 +33,8 @@ func trustyAITestSuite(t *testing.T) {
 	t.Run("Validate component enabled", componentCtx.ValidateComponentEnabled)
 	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
-	t.Run("Validate CRDs reinstated", componentCtx.validateCRDReinstated)
-	t.Run("Validate pre check", componentCtx.validateTrustyAIPreCheck)
 	t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
+	t.Run("Validate pre check", componentCtx.validateTrustyAIPreCheck)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
 
 	t.Run("Disable Kserve", componentCtx.disableKserve)
@@ -84,75 +79,54 @@ func (c *TrustyAITestCtx) disableKserve(t *testing.T) {
 	)
 }
 
-func (c *TrustyAITestCtx) validateCRDReinstated(t *testing.T) {
-	crds := []string{
-		"inferenceservices.serving.kserve.io", // SR is not needed any more in 2.18.0 by TrustyAI
-	}
-
-	for _, crd := range crds {
-		t.Run(crd, func(t *testing.T) {
-			c.ValidateCRDReinstated(t, crd)
-		})
-	}
-}
-
 func (c *TrustyAITestCtx) validateTrustyAIPreCheck(t *testing.T) {
-	// validate precheck on CRD version:
-	// step: delete isvc left from enabled Kserve, wait till it is gone
-	// set trustyai to managed, result to error, enable mm, result to success
+	t.Run("Disable Kserve", c.disableKserve)
+	t.Run("Delete InferenceServices", func(t *testing.T) {
+		g := c.NewWithT(t)
+		n := types.NamespacedName{Name: "inferenceservices.serving.kserve.io"}
 
-	g := c.NewWithT(t)
+		g.Delete(gvk.CustomResourceDefinition, n, client.PropagationPolicy(metav1.DeletePropagationForeground)).Eventually().Should(
+			Succeed(),
+		)
+	})
 
-	g.Update(
-		gvk.DataScienceCluster,
-		c.DSCName,
-		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Removed),
-	).Eventually().Should(
-		Succeed(),
-	)
+	t.Run("Validate Error", func(t *testing.T) {
+		g := c.NewWithT(t)
 
-	g.List(c.GVK).Eventually().Should(
-		BeEmpty())
+		g.List(gvk.TrustyAI).Eventually().Should(And(
+			HaveLen(1),
+			HaveEach(And(
+				jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionFalse),
+				jq.Match(`.status.conditions[] | select(.type == "ProvisioningSucceeded") | .status == "%s"`, metav1.ConditionFalse),
+			)),
+		))
 
-	g.Delete(gvk.CustomResourceDefinition,
-		types.NamespacedName{Name: "inferenceservices.serving.kserve.io"},
-		client.PropagationPolicy(metav1.DeletePropagationForeground),
-	).Eventually().Should(
-		Succeed(),
-	)
-	g.Eventually(func() bool {
-		var crd apiextensionsv1.CustomResourceDefinition
-		err := c.Client().Get(context.Background(), types.NamespacedName{Name: "inferenceservices.serving.kserve.io"}, &crd)
-		return k8serr.IsNotFound(err)
-	}).Should(BeTrue())
+		g.List(gvk.DataScienceCluster).Eventually().Should(And(
+			HaveLen(1),
+			HaveEach(
+				jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, c.GVK.Kind, metav1.ConditionFalse),
+			),
+		))
+	})
 
-	g.Update(
-		gvk.DataScienceCluster,
-		c.DSCName,
-		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
-	).Eventually().Should(
-		jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
-	)
+	t.Run("Enable Kserve", c.enableKserve)
 
-	g.List(gvk.DataScienceCluster).Eventually().Should(And(
-		HaveLen(1),
-		HaveEach(
-			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, c.GVK.Kind, metav1.ConditionFalse),
-		),
-	))
+	t.Run("Validate Recovery", func(t *testing.T) {
+		g := c.NewWithT(t)
 
-	g.Update(
-		gvk.DataScienceCluster,
-		c.DSCName,
-		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(componentApi.ModelMeshServingComponentName), operatorv1.Managed),
-	).Eventually().Should(
-		jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(componentApi.ModelMeshServingComponentName), operatorv1.Managed),
-	)
+		g.List(gvk.TrustyAI).Eventually().Should(And(
+			HaveLen(1),
+			HaveEach(And(
+				jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
+				jq.Match(`.status.conditions[] | select(.type == "ProvisioningSucceeded") | .status == "%s"`, metav1.ConditionTrue),
+			)),
+		))
 
-	g.List(gvk.DataScienceCluster).Eventually().Should(And(
-		HaveLen(1),
-		HaveEach(
-			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, c.GVK.Kind, metav1.ConditionTrue),
-		),
-	))
+		g.List(gvk.DataScienceCluster).Eventually().Should(And(
+			HaveLen(1),
+			HaveEach(
+				jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, c.GVK.Kind, metav1.ConditionTrue),
+			),
+		))
+	})
 }
