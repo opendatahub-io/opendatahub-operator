@@ -63,10 +63,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
 		WithAction(checkPreConditions).
-		WithAction(releases.NewAction()).
-		WithAction(architecture.VerifySupportedArchitectures).
 		WithAction(initialize).
 		WithAction(devFlags).
+		WithAction(releases.NewAction()).
+		WithAction(architecture.VerifySupportedArchitectures).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),

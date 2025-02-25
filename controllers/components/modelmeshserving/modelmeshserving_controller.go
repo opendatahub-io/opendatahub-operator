@@ -84,11 +84,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				},
 			)),
 		).
-		// Add ModelMeshServing specific actions
-		WithAction(releases.NewAction()).
-		WithAction(architecture.VerifySupportedArchitectures).
 		WithAction(initialize).
 		WithAction(devFlags).
+		WithAction(releases.NewAction()).
+		WithAction(architecture.VerifySupportedArchitectures).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),

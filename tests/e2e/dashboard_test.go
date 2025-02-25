@@ -35,9 +35,9 @@ func dashboardTestSuite(t *testing.T) {
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
 	t.Run("Validate dynamically watches operands", componentCtx.validateOperandsDynamicallyWatchedResources)
 	t.Run("Validate CRDs reinstated", componentCtx.validateCRDReinstated)
-	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
 	// TODO: Uncomment the following test after dashboard's component_metadata.yaml is in ODH repo
 	// t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
+	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
 }
 
 type DashboardTestCtx struct {

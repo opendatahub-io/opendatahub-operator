@@ -14,6 +14,10 @@ import (
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
+const (
+	DefaultArchitecture = "amd64"
+)
+
 // VerifySupportedArchitectures determines whether a component can be enabled based on the architecture of each node.
 //
 // This is accomplished by doing the following:
@@ -27,25 +31,29 @@ func VerifySupportedArchitectures(ctx context.Context, rr *odhtypes.Reconciliati
 	}
 
 	// Fetch the architecture(s) that the component supports
-	supportedArchitectures := make(map[string]struct{})
+	var supportedArchitectures []string
 	componentReleases := obj.GetReleaseStatus()
 	if componentReleases == nil || len(*componentReleases) < 1 {
 		return fmt.Errorf("instance %v has no releases", rr.Instance)
 	}
 	for _, release := range *componentReleases {
-		for _, arch := range release.SupportedArchitectures {
-			supportedArchitectures[arch] = struct{}{}
-		}
+		supportedArchitectures = append(supportedArchitectures, release.SupportedArchitectures...)
 	}
 
 	// TODO: Refactor after all components explicitly list supportedArchitectures in their component_metadata.yaml file
 	// If supportedArchitectures is empty, assume the component only works on amd64
 	if len(supportedArchitectures) == 0 {
-		supportedArchitectures["amd64"] = struct{}{}
+		supportedArchitectures = append(supportedArchitectures, DefaultArchitecture)
+	}
+
+	// Fetch the ready worker nodes
+	readyWorkerNodes, err := cluster.GetReadyWorkerNodes(ctx, rr.Client)
+	if err != nil {
+		return err
 	}
 
 	// Fetch the architecture(s) that the nodes are running on
-	nodeArchitectures, err := cluster.GetNodeArchitectures(ctx, rr.Client)
+	nodeArchitectures, err := cluster.GetNodeArchitectures(readyWorkerNodes)
 	if err != nil {
 		return err
 	}
@@ -71,10 +79,12 @@ func VerifySupportedArchitectures(ctx context.Context, rr *odhtypes.Reconciliati
 
 // HasCompatibleArchitecture Returns true if there's at least one architecture that's in both supportedArches and nodeArches.
 // Otherwise, it returns false.
-func HasCompatibleArchitecture(supportedArches map[string]struct{}, nodeArches map[string]struct{}) bool {
-	for arch := range nodeArches {
-		if _, exists := supportedArches[arch]; exists {
-			return true
+func HasCompatibleArchitecture(supportedArches []string, nodeArches []string) bool {
+	for _, nodeArch := range nodeArches {
+		for _, supportedArch := range supportedArches {
+			if nodeArch == supportedArch {
+				return true
+			}
 		}
 	}
 

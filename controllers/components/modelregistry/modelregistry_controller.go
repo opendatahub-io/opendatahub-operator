@@ -78,9 +78,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// it should be watched dynamically
 		WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic()).
 		WithAction(checkPreConditions).
+		WithAction(initialize).
 		WithAction(releases.NewAction()).
 		WithAction(architecture.VerifySupportedArchitectures).
-		WithAction(initialize).
 		WithAction(configureDependencies).
 		WithAction(template.NewAction(
 			template.WithCache(),

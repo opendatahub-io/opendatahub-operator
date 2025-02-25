@@ -151,10 +151,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 
 		// actions
 		WithAction(checkPreConditions).
-		WithAction(releases.NewAction()).
-		WithAction(architecture.VerifySupportedArchitectures).
 		WithAction(initialize).
 		WithAction(devFlags).
+		WithAction(releases.NewAction()).
+		WithAction(architecture.VerifySupportedArchitectures).
 		WithAction(removeLegacyFeatureTrackerOwnerRef).
 		WithAction(configureServerless).
 		WithAction(configureServiceMesh).

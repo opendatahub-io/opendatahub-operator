@@ -29,12 +29,54 @@ func TestVerifySupportedArchitectures(t *testing.T) {
 	dsci := &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}}
 	release := common.Release{Name: cluster.OpenDataHub}
 
-	cl, err := fakeclient.New(
+	nodeTypeMeta := metav1.TypeMeta{
+		APIVersion: gvk.Node.GroupVersion().String(),
+		Kind:       gvk.Node.GroupKind().String(),
+	}
+
+	healthyClient, err := fakeclient.New(
 		&corev1.Node{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: gvk.Node.GroupVersion().String(),
-				Kind:       gvk.Node.GroupVersion().String(),
+			TypeMeta: nodeTypeMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "amd64-node",
+				Labels: map[string]string{
+					labels.NodeArch:   "amd64",
+					labels.WorkerNode: "",
+				},
 			},
+			Status: corev1.NodeStatus{
+				Conditions: []corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionTrue,
+					},
+				},
+			},
+		},
+		&corev1.Node{
+			TypeMeta: nodeTypeMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "ppc64le-node",
+				Labels: map[string]string{
+					labels.NodeArch:   "ppc64le",
+					labels.WorkerNode: "",
+				},
+			},
+			Status: corev1.NodeStatus{
+				Conditions: []corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionTrue,
+					},
+				},
+			},
+		},
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	noWorkerNodeClient, err := fakeclient.New(
+		&corev1.Node{
+			TypeMeta: nodeTypeMeta,
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "amd64-node",
 				Labels: map[string]string{
@@ -50,31 +92,26 @@ func TestVerifySupportedArchitectures(t *testing.T) {
 				},
 			},
 		},
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	noReadyNodeClient, err := fakeclient.New(
 		&corev1.Node{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: gvk.Node.GroupVersion().String(),
-				Kind:       gvk.Node.GroupVersion().String(),
-			},
+			TypeMeta: nodeTypeMeta,
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "ppc64le-node",
+				Name: "amd64-node",
 				Labels: map[string]string{
-					labels.NodeArch: "ppc64le",
-				},
-			},
-			Status: corev1.NodeStatus{
-				Conditions: []corev1.NodeCondition{
-					{
-						Type:   corev1.NodeReady,
-						Status: corev1.ConditionTrue,
-					},
+					labels.NodeArch:   "amd64",
+					labels.WorkerNode: "",
 				},
 			},
 		},
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
+	// Should not have an error when the component doesn't have any supported architectures (since defaulting to amd64)
 	err = architecture.VerifySupportedArchitectures(ctx, &types.ReconciliationRequest{
-		Client: cl,
+		Client: healthyClient,
 		Instance: &componentApi.CodeFlare{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "codeflare-no-arch",
@@ -98,8 +135,9 @@ func TestVerifySupportedArchitectures(t *testing.T) {
 	})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
+	// Should not have an error when the component and node share the same architecture
 	err = architecture.VerifySupportedArchitectures(ctx, &types.ReconciliationRequest{
-		Client: cl,
+		Client: healthyClient,
 		Instance: &componentApi.CodeFlare{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "codeflare-ppc64le",
@@ -126,8 +164,9 @@ func TestVerifySupportedArchitectures(t *testing.T) {
 	})
 	g.Expect(err).ShouldNot(HaveOccurred())
 
+	// Should have an error when the component and node don't share any common architecture
 	err = architecture.VerifySupportedArchitectures(ctx, &types.ReconciliationRequest{
-		Client: cl,
+		Client: healthyClient,
 		Instance: &componentApi.CodeFlare{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "codeflare-ppc64le",
@@ -153,12 +192,70 @@ func TestVerifySupportedArchitectures(t *testing.T) {
 		Release: release,
 	})
 	g.Expect(err).Should(HaveOccurred())
+
+	// Should have an error when none of the nodes are worker nodes
+	err = architecture.VerifySupportedArchitectures(ctx, &types.ReconciliationRequest{
+		Client: noWorkerNodeClient,
+		Instance: &componentApi.CodeFlare{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "codeflare-ppc64le",
+			},
+			Status: componentApi.CodeFlareStatus{
+				CodeFlareCommonStatus: componentApi.CodeFlareCommonStatus{
+					ComponentReleaseStatus: common.ComponentReleaseStatus{
+						Releases: []common.ComponentRelease{
+							{
+								Name:    "CodeFlare operator",
+								Version: "1.15.0",
+								RepoURL: "https://github.com/project-codeflare/codeflare-operator",
+								SupportedArchitectures: []string{
+									"ppc64le",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		DSCI:    dsci,
+		Release: release,
+	})
+	g.Expect(err).Should(HaveOccurred())
+
+	// Should have an error when node of the nodes are ready
+	err = architecture.VerifySupportedArchitectures(ctx, &types.ReconciliationRequest{
+		Client: noReadyNodeClient,
+		Instance: &componentApi.CodeFlare{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "codeflare-ppc64le",
+			},
+			Status: componentApi.CodeFlareStatus{
+				CodeFlareCommonStatus: componentApi.CodeFlareCommonStatus{
+					ComponentReleaseStatus: common.ComponentReleaseStatus{
+						Releases: []common.ComponentRelease{
+							{
+								Name:    "CodeFlare operator",
+								Version: "1.15.0",
+								RepoURL: "https://github.com/project-codeflare/codeflare-operator",
+								SupportedArchitectures: []string{
+									"ppc64le",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		DSCI:    dsci,
+		Release: release,
+	})
+	g.Expect(err).Should(HaveOccurred())
 }
 
 func Test_hasCompatibleArchitecture(t *testing.T) {
 	type args struct {
-		supportedArches map[string]struct{}
-		nodeArches      map[string]struct{}
+		supportedArches []string
+		nodeArches      []string
 	}
 	tests := []struct {
 		name string
@@ -168,12 +265,12 @@ func Test_hasCompatibleArchitecture(t *testing.T) {
 		{
 			name: "Common architecture exists",
 			args: args{
-				supportedArches: map[string]struct{}{
-					"amd64":   {},
-					"ppc64le": {},
+				supportedArches: []string{
+					"amd64",
+					"ppc64le",
 				},
-				nodeArches: map[string]struct{}{
-					"amd64": {},
+				nodeArches: []string{
+					"amd64",
 				},
 			},
 			want: true,
@@ -181,12 +278,12 @@ func Test_hasCompatibleArchitecture(t *testing.T) {
 		{
 			name: "No common architecture exists",
 			args: args{
-				supportedArches: map[string]struct{}{
-					"amd64":   {},
-					"ppc64le": {},
+				supportedArches: []string{
+					"amd64",
+					"ppc64le",
 				},
-				nodeArches: map[string]struct{}{
-					"s390x": {},
+				nodeArches: []string{
+					"s390x",
 				},
 			},
 			want: false,
