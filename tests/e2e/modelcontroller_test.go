@@ -42,19 +42,22 @@ type ModelControllerTestCtx struct {
 
 func (c *ModelControllerTestCtx) validateComponentEnabled(t *testing.T) {
 	t.Run("ModelMeshServing enabled", func(t *testing.T) {
-		c.validateComponentDeployed(t, operatorv1.Managed, operatorv1.Removed, metav1.ConditionTrue)
+		c.validateComponentDeployed(t, operatorv1.Managed, operatorv1.Removed, operatorv1.Removed, metav1.ConditionTrue)
 	})
 	t.Run("Kserve enabled", func(t *testing.T) {
-		c.validateComponentDeployed(t, operatorv1.Removed, operatorv1.Managed, metav1.ConditionTrue)
+		c.validateComponentDeployed(t, operatorv1.Removed, operatorv1.Managed, operatorv1.Removed, metav1.ConditionTrue)
 	})
 	t.Run("Kserve and ModelMeshServing enabled", func(t *testing.T) {
-		c.validateComponentDeployed(t, operatorv1.Managed, operatorv1.Managed, metav1.ConditionTrue)
+		c.validateComponentDeployed(t, operatorv1.Managed, operatorv1.Managed, operatorv1.Removed, metav1.ConditionTrue)
+	})
+	t.Run("ModelRegistry enabled", func(t *testing.T) {
+		c.validateComponentDeployed(t, operatorv1.Managed, operatorv1.Managed, operatorv1.Managed, metav1.ConditionTrue)
 	})
 }
 
 func (c *ModelControllerTestCtx) validateComponentDisabled(t *testing.T) {
 	t.Run("Kserve and ModelMeshServing disabled", func(t *testing.T) {
-		c.validateComponentDeployed(t, operatorv1.Removed, operatorv1.Removed, metav1.ConditionFalse)
+		c.validateComponentDeployed(t, operatorv1.Removed, operatorv1.Removed, operatorv1.Removed, metav1.ConditionFalse)
 	})
 }
 
@@ -62,6 +65,7 @@ func (c *ModelControllerTestCtx) validateComponentDeployed(
 	t *testing.T,
 	modelMeshState operatorv1.ManagementState,
 	kserveState operatorv1.ManagementState,
+	modelRegistryState operatorv1.ManagementState,
 	status metav1.ConditionStatus,
 ) {
 	t.Helper()
@@ -74,6 +78,7 @@ func (c *ModelControllerTestCtx) validateComponentDeployed(
 		testf.TransformPipeline(
 			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelMeshServingComponentName, modelMeshState),
 			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, kserveState),
+			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelRegistryComponentName, modelRegistryState),
 		),
 	).Eventually().WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(
 		Succeed(),
