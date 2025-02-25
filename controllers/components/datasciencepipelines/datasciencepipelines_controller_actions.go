@@ -71,8 +71,17 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 }
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines)", rr.Instance)
+	}
+
 	rr.Manifests = append(rr.Manifests, manifestPath(rr.Release.Name))
 
+	// pass down ModelRegistry Namespace
+	if err := odhdeploy.ApplyParams(paramsPath, nil, map[string]string{modelregistryParamsKey: dsp.Spec.ModelRegistryNamespace}); err != nil {
+		return fmt.Errorf("failed to set ModelRegistry namespace %s : %w", paramsPath, err)
+	}
 	return nil
 }
 

@@ -24,6 +24,7 @@ const (
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName      = "data-science-pipelines-operator"
 	platformVersionParamsKey = "PLATFORMVERSION"
+	modelregistryParamsKey   = "MODELREGISTRY_NAMESPACE"
 )
 
 var (

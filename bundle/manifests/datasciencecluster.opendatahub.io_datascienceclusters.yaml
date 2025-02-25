@@ -186,6 +186,8 @@ spec:
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
+                      modelRegistryNamespace:
+                        type: string
                     type: object
                   feastoperator:
                     description: Feast Operator component configuration.

@@ -53,7 +53,8 @@ type DataSciencePipelinesSpec struct {
 }
 
 type DataSciencePipelinesCommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
+	common.DevFlagsSpec    `json:",inline"`
+	ModelRegistryNamespace string `json:"modelRegistryNamespace,omitempty"`
 }
 
 // DataSciencePipelinesCommonStatus defines the shared observed state of DataSciencePipelines
