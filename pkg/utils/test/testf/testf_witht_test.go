@@ -81,6 +81,25 @@ func TestGet(t *testing.T) {
 		v := wt.Get(gvk.ConfigMap, key).Consistently().WithTimeout(1 * time.Second).Should(Succeed())
 		g.Expect(v).ShouldNot(BeNil())
 	})
+
+	t.Run("Get Not Found", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		key := client.ObjectKey{Namespace: "ns", Name: "name"}
+
+		v, err := wt.Get(gvk.ConfigMap, key).Get()
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(v).Should(BeNil())
+	})
+
+	t.Run("Eventually Not Found", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		key := client.ObjectKey{Namespace: "ns", Name: "name"}
+
+		v := wt.Get(gvk.ConfigMap, key).Eventually().WithTimeout(1 * time.Second).ShouldNot(matchMetadata)
+		g.Expect(v).Should(BeNil())
+	})
 }
 
 func TestList(t *testing.T) {
