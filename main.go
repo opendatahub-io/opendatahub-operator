@@ -153,7 +153,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&monitoringNamespace, "monitoring-namespace", "opendatahub", "The namespace where data science cluster "+
+	flag.StringVar(&monitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster "+
 		"monitoring stack will be deployed")
 	flag.StringVar(&logmode, "log-mode", "", "Log mode ('', prod, devel), default to ''")
 
@@ -425,7 +425,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 	// Cleanup resources from previous v2 releases
 	var cleanExistingResourceFunc manager.RunnableFunc = func(ctx context.Context) error {
-		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, monitoringNamespace, oldReleaseVersion); err != nil {
+		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, oldReleaseVersion); err != nil {
 			setupLog.Error(err, "unable to perform cleanup")
 		}
 		return err

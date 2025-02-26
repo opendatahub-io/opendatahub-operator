@@ -208,7 +208,6 @@ func getDashboardWatsonResources(ns string) []ResourceSpec {
 func CleanupExistingResource(ctx context.Context,
 	cli client.Client,
 	platform common.Platform,
-	monitoringNamespace string,
 	oldReleaseVersion common.Release,
 ) error {
 	var multiErr *multierror.Error
