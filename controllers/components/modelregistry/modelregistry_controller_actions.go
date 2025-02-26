@@ -25,7 +25,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 
 	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
 		rr.Conditions.MarkFalse(
-			status.ConditionServerlessAvailable,
+			status.ConditionServiceMeshAvailable,
 			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
 			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
 			conditions.WithMessage(status.ServiceMeshNotConfiguredMessage),
