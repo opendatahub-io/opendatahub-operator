@@ -38,7 +38,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	switch {
 	case k8serr.IsNotFound(err):
 		rr.Conditions.MarkFalse(
-			status.ConditionServerlessAvailable,
+			status.ConditionServiceMeshAvailable,
 			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
 			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
 			conditions.WithMessage(ServiceMeshMemberAPINotFound),
