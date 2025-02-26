@@ -74,7 +74,7 @@ func (c *ModelRegistryTestCtx) validateConditions(t *testing.T) {
 	g.List(gvk.ModelRegistry).Eventually().Should(And(
 		HaveLen(1),
 		HaveEach(And(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionServerlessAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionServiceMeshAvailable, metav1.ConditionTrue),
 		)),
 	))
 }

@@ -21,7 +21,7 @@ import (
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	rr.Conditions.MarkTrue(status.ConditionServerlessAvailable)
+	rr.Conditions.MarkTrue(status.ConditionServiceMeshAvailable)
 
 	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
 		rr.Conditions.MarkFalse(
