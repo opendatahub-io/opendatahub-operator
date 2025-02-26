@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 
 	. "github.com/onsi/gomega"
 )
@@ -100,8 +100,18 @@ func (tc *AuthControllerTestCtx) validateAuthCRDefaultContent() error {
 		return errors.New("AdminGroups is empty ")
 	}
 
-	if tc.testAuthInstance.Spec.AdminGroups[0] != dashboard.GetAdminGroup() {
-		return fmt.Errorf("expected %s, found %v", dashboard.GetAdminGroup(), tc.testAuthInstance.Spec.AdminGroups[0])
+	if tc.platform == cluster.SelfManagedRhoai {
+		if tc.testAuthInstance.Spec.AdminGroups[0] == "rhods-admins" {
+			return nil
+		}
+		return fmt.Errorf("expected rhods-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
+	} else if tc.platform == cluster.ManagedRhoai {
+		if tc.testAuthInstance.Spec.AdminGroups[0] == "dedicated-admins" {
+			return nil
+		}
+		return fmt.Errorf("expected dedicated-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
+	} else if tc.testAuthInstance.Spec.AdminGroups[0] != "odh-admins" {
+		return fmt.Errorf("expected odh-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
 	}
 
 	if tc.testAuthInstance.Spec.AllowedGroups[0] != "system:authenticated" {
@@ -199,7 +209,10 @@ func (tc *AuthControllerTestCtx) validateAddingGroups() error {
 }
 
 func (tc *AuthControllerTestCtx) validateRemovingGroups() error {
-	expectedGroup := dashboard.GetAdminGroup()
+	expectedGroup := "odh-admins"
+	if tc.platform == cluster.ManagedRhoai || tc.platform == cluster.SelfManagedRhoai {
+		expectedGroup = "rhods-admins"
+	}
 	if _, err := controllerutil.CreateOrUpdate(tc.ctx, tc.customClient, &tc.testAuthInstance, func() error {
 		tc.testAuthInstance.Spec.AdminGroups = []string{expectedGroup}
 		return nil
@@ -215,7 +228,7 @@ func (tc *AuthControllerTestCtx) validateRemovingGroups() error {
 			return fmt.Errorf("Expected 1 subject in adminRoleBinding found %v", len(adminRolebinding.Subjects))
 		}
 		if adminRolebinding.Subjects[0].Name != expectedGroup {
-			return fmt.Errorf("Expected adminRolebinding to only contain %s found %s", expectedGroup, adminRolebinding.Subjects[1].Name)
+			return fmt.Errorf("Expected adminRolebinding to only contain %s found %s", expectedGroup, adminRolebinding.Subjects[0].Name)
 		}
 	}
 
@@ -225,7 +238,7 @@ func (tc *AuthControllerTestCtx) validateRemovingGroups() error {
 			return fmt.Errorf("Expected 1 subject in adminClusterRoleBinding found %v", len(adminClusterRolebinding.Subjects))
 		}
 		if adminClusterRolebinding.Subjects[0].Name != expectedGroup {
-			return fmt.Errorf("Expected adminClusterRolebinding to only contain %s found %s", expectedGroup, adminClusterRolebinding.Subjects[1].Name)
+			return fmt.Errorf("Expected adminClusterRolebinding to only contain %s found %s", expectedGroup, adminClusterRolebinding.Subjects[0].Name)
 		}
 	}
 
