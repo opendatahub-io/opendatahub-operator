@@ -500,6 +500,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "rhods-notebooks" | rhods-notebooks | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### DSCWorkbenchesStatus
@@ -1758,6 +1759,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "rhods-notebooks" | rhods-notebooks | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### WorkbenchesCommonStatus
@@ -1775,6 +1777,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+| `workbenchNamespace` _string_ |  |  |  |
 
 
 #### WorkbenchesList
@@ -1811,6 +1814,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "rhods-notebooks" | rhods-notebooks | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### WorkbenchesStatus
@@ -1830,6 +1834,7 @@ _Appears in:_
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+| `workbenchNamespace` _string_ |  |  |  |
 
 
 
