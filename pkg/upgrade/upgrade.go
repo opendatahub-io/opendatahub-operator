@@ -94,7 +94,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				FeastOperator: componentApi.DSCFeastOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 			},
 		},
