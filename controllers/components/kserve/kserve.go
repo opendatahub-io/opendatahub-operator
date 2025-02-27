@@ -37,8 +37,7 @@ const (
 
 var (
 	conditionTypes = []string{
-		status.ConditionServiceMeshAvailable,
-		status.ConditionServerlessAvailable,
+		status.ConditionServingAvailable,
 		status.ConditionDeploymentsAvailable,
 	}
 )

@@ -34,14 +34,11 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
 	}
 
+	rr.Conditions.MarkTrue(status.ConditionServingAvailable)
+
 	if k.Spec.Serving.ManagementState != operatorv1.Managed {
 		rr.Conditions.MarkFalse(
-			status.ConditionServerlessAvailable,
-			conditions.WithSeverity(common.ConditionSeverityInfo),
-			conditions.WithReason(string(k.Spec.Serving.ManagementState)),
-			conditions.WithMessage("Serving management state is set to: %s", k.Spec.Serving.ManagementState))
-		rr.Conditions.MarkFalse(
-			status.ConditionServiceMeshAvailable,
+			status.ConditionServingAvailable,
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 			conditions.WithReason(string(k.Spec.Serving.ManagementState)),
 			conditions.WithMessage("Serving management state is set to: %s", k.Spec.Serving.ManagementState))
@@ -49,12 +46,9 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return nil
 	}
 
-	rr.Conditions.MarkUnknown(status.ConditionServerlessAvailable)
-	rr.Conditions.MarkUnknown(status.ConditionServiceMeshAvailable)
-
 	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
 		rr.Conditions.MarkFalse(
-			status.ConditionServiceMeshAvailable,
+			status.ConditionServingAvailable,
 			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
 			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
 			conditions.WithMessage(status.ServiceMeshNotConfiguredMessage),
@@ -70,14 +64,12 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		}
 
 		rr.Conditions.MarkFalse(
-			status.ConditionServiceMeshAvailable,
+			status.ConditionServingAvailable,
 			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
 			conditions.WithError(e),
 		)
 
 		return e
-	} else {
-		rr.Conditions.MarkTrue(status.ConditionServiceMeshAvailable)
 	}
 
 	if found, err := cluster.OperatorExists(ctx, rr.Client, serverlessOperator); err != nil || !found {
@@ -87,20 +79,18 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		}
 
 		rr.Conditions.MarkFalse(
-			status.ConditionServerlessAvailable,
+			status.ConditionServingAvailable,
 			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
 			conditions.WithError(e),
 		)
 
 		return e
-	} else {
-		rr.Conditions.MarkTrue(status.ConditionServerlessAvailable)
 	}
 
 	return nil
 }
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = []odhtypes.ManifestInfo{
 		kserveManifestInfo(kserveManifestSourcePath),
 	}
