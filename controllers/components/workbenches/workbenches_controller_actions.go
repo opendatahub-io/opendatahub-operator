@@ -87,24 +87,29 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	_, ok := rr.Instance.(*componentApi.Workbenches)
+	workbench, ok := rr.Instance.(*componentApi.Workbenches)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.Workbenches)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentApi.Workbenches", rr.Instance)
+	}
+
+	wbNS := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cluster.DefaultNotebooksNamespace,
+			Labels: map[string]string{
+				labels.ODH.OwnedNamespace: "true",
+			},
+		}}
+
+	if workbench.Spec.WorkbenchNamespace != "" || len(workbench.Spec.WorkbenchNamespace) > 0 {
+		wbNS.Name = workbench.Spec.WorkbenchNamespace
 	}
 
 	platform := rr.Release.Name
 	if platform == cluster.SelfManagedRhoai || platform == cluster.ManagedRhoai {
 		// Intentionally leaving the ownership unset for this namespace.
 		// Specifying this label triggers its deletion when the operator is uninstalled.
-		if err := rr.AddResources(&corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: cluster.DefaultNotebooksNamespace,
-				Labels: map[string]string{
-					labels.ODH.OwnedNamespace: "true",
-				},
-			},
-		}); err != nil {
-			return fmt.Errorf("failed to add namespace %s to manifests", cluster.DefaultNotebooksNamespace)
+		if err := rr.AddResources(wbNS); err != nil {
+			return fmt.Errorf("failed to add namespace %s to manifests", wbNS.Name)
 		}
 	}
 
