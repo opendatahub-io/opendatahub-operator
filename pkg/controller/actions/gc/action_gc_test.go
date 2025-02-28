@@ -2,6 +2,7 @@ package gc_test
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -10,19 +11,13 @@ import (
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
-	appsv1 "k8s.io/api/apps/v1"
-	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	apytypes "k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
@@ -30,11 +25,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	gcSvc "github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 
 	. "github.com/onsi/gomega"
 )
@@ -42,34 +37,15 @@ import (
 func TestGcAction(t *testing.T) {
 	g := NewWithT(t)
 
-	s := runtime.NewScheme()
-	ctx := context.Background()
-
-	utilruntime.Must(corev1.AddToScheme(s))
-	utilruntime.Must(appsv1.AddToScheme(s))
-	utilruntime.Must(apiextensionsv1.AddToScheme(s))
-	utilruntime.Must(authorizationv1.AddToScheme(s))
-
-	envTest := &envtest.Environment{
-		CRDInstallOptions: envtest.CRDInstallOptions{
-			Scheme:          s,
-			CleanUpAfterUse: true,
-		},
-	}
+	envTest, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
 
 	t.Cleanup(func() {
 		_ = envTest.Stop()
 	})
 
-	cfg, err := envTest.Start()
-	g.Expect(err).NotTo(HaveOccurred())
-
-	envTestClient, err := ctrlCli.New(cfg, ctrlCli.Options{Scheme: s})
-	g.Expect(err).NotTo(HaveOccurred())
-
-	cli, err := client.NewFromConfig(cfg, envTestClient)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(cli).NotTo(BeNil())
+	ctx := context.Background()
+	cli := envTest.Client()
 
 	tests := []struct {
 		name           string
@@ -172,7 +148,6 @@ func TestGcAction(t *testing.T) {
 
 			g := NewWithT(t)
 			nsn := xid.New().String()
-			id := xid.New().String()
 
 			gci := gcSvc.New(
 				cli,
@@ -207,8 +182,7 @@ func TestGcAction(t *testing.T) {
 						Kind:       componentApi.DashboardKind,
 					},
 					ObjectMeta: metav1.ObjectMeta{
-						Generation: 1,
-						UID:        apytypes.UID(id),
+						Name: componentApi.DashboardInstanceName,
 					},
 				},
 				Release: common.Release{
@@ -220,12 +194,22 @@ func TestGcAction(t *testing.T) {
 				Generated: tt.generated,
 			}
 
+			g.Expect(cli.Create(ctx, rr.Instance)).
+				NotTo(HaveOccurred())
+
+			defer func() {
+				g.Expect(cli.Delete(ctx, rr.Instance)).Should(Or(
+					Not(HaveOccurred()),
+					MatchError(k8serr.IsNotFound, "IsNotFound"),
+				))
+			}()
+
 			cm := corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "gc-cm",
 					Namespace: nsn,
 					Annotations: map[string]string{
-						annotations.InstanceGeneration: "1",
+						annotations.InstanceGeneration: strconv.FormatInt(rr.Instance.GetGeneration(), 10),
 						annotations.InstanceUID:        tt.uidFn(&rr),
 						annotations.PlatformVersion:    "0.1.0",
 						annotations.PlatformType:       string(cluster.OpenDataHub),
@@ -242,6 +226,16 @@ func TestGcAction(t *testing.T) {
 			for k, v := range tt.annotations {
 				cm.Annotations[k] = v
 			}
+
+			defer func() {
+				g.Expect(cli.Delete(ctx, &cm)).Should(Or(
+					Not(HaveOccurred()),
+					MatchError(k8serr.IsNotFound, "IsNotFound"),
+				))
+			}()
+
+			g.Expect(controllerutil.SetOwnerReference(rr.Instance, &cm, cli.Scheme())).
+				NotTo(HaveOccurred())
 
 			g.Expect(cli.Create(ctx, &cm)).
 				NotTo(HaveOccurred())
@@ -268,40 +262,167 @@ func TestGcAction(t *testing.T) {
 	}
 }
 
-func TestGcActionCluster(t *testing.T) {
+func TestGcActionOwn(t *testing.T) {
 	g := NewWithT(t)
 
-	s := runtime.NewScheme()
-	ctx := context.Background()
-	id := xid.New().String()
-	nsn := xid.New().String()
-
-	utilruntime.Must(corev1.AddToScheme(s))
-	utilruntime.Must(appsv1.AddToScheme(s))
-	utilruntime.Must(apiextensionsv1.AddToScheme(s))
-	utilruntime.Must(authorizationv1.AddToScheme(s))
-	utilruntime.Must(rbacv1.AddToScheme(s))
-
-	envTest := &envtest.Environment{
-		CRDInstallOptions: envtest.CRDInstallOptions{
-			Scheme:          s,
-			CleanUpAfterUse: true,
-		},
-	}
+	envTest, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
 
 	t.Cleanup(func() {
 		_ = envTest.Stop()
 	})
 
-	cfg, err := envTest.Start()
+	ctx := context.Background()
+	cli := envTest.Client()
+
+	tests := []struct {
+		name    string
+		matcher gTypes.GomegaMatcher
+		options []gc.ActionOpts
+		owned   bool
+	}{
+		{
+			name:    "should delete owned resources",
+			matcher: Satisfy(k8serr.IsNotFound),
+			owned:   true,
+		},
+		{
+			name:    "should not delete non owned resources",
+			matcher: Not(HaveOccurred()),
+			owned:   false,
+		},
+		{
+			name:    "should delete non owned resources",
+			matcher: Satisfy(k8serr.IsNotFound),
+			owned:   true,
+			options: []gc.ActionOpts{gc.WithCollectOwned(false)},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gc.CyclesTotal.Reset()
+			gc.CyclesTotal.WithLabelValues("dashboard").Add(0)
+
+			g := NewWithT(t)
+			nsn := xid.New().String()
+
+			gci := gcSvc.New(
+				cli,
+				nsn,
+				// This is required as there are no kubernetes controller running
+				// with the envtest, hence we can't use the foreground deletion
+				// policy (default)
+				gcSvc.WithPropagationPolicy(metav1.DeletePropagationBackground),
+			)
+
+			ns := corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: nsn,
+				},
+			}
+
+			g.Expect(cli.Create(ctx, &ns)).
+				NotTo(HaveOccurred())
+			g.Expect(gci.Start(ctx)).
+				NotTo(HaveOccurred())
+
+			rr := types.ReconciliationRequest{
+				Client: cli,
+				DSCI: &dsciv1.DSCInitialization{
+					ObjectMeta: metav1.ObjectMeta{
+						Generation: 1,
+					},
+				},
+				Instance: &componentApi.Dashboard{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: componentApi.GroupVersion.String(),
+						Kind:       componentApi.DashboardKind,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: componentApi.DashboardInstanceName,
+					},
+				},
+				Release: common.Release{
+					Name: cluster.OpenDataHub,
+					Version: version.OperatorVersion{
+						Version: semver.Version{Major: 0, Minor: 0, Patch: 1},
+					},
+				},
+				Generated: true,
+			}
+
+			g.Expect(cli.Create(ctx, rr.Instance)).
+				NotTo(HaveOccurred())
+
+			defer func() {
+				g.Expect(cli.Delete(ctx, rr.Instance)).Should(Or(
+					Not(HaveOccurred()),
+					MatchError(k8serr.IsNotFound, "IsNotFound"),
+				))
+			}()
+
+			cm := corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "gc-cm",
+					Namespace: nsn,
+					Annotations: map[string]string{
+						annotations.InstanceGeneration: strconv.FormatInt(rr.Instance.GetGeneration(), 10),
+						annotations.InstanceUID:        xid.New().String(),
+						annotations.PlatformVersion:    rr.Release.Version.String(),
+						annotations.PlatformType:       string(rr.Release.Name),
+					},
+					Labels: map[string]string{
+						labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+					},
+				},
+			}
+
+			defer func() {
+				g.Expect(cli.Delete(ctx, &cm)).Should(Or(
+					Not(HaveOccurred()),
+					MatchError(k8serr.IsNotFound, "IsNotFound"),
+				))
+			}()
+
+			if tt.owned {
+				g.Expect(controllerutil.SetOwnerReference(rr.Instance, &cm, cli.Scheme())).
+					NotTo(HaveOccurred())
+			}
+
+			g.Expect(cli.Create(ctx, &cm)).
+				NotTo(HaveOccurred())
+
+			opts := make([]gc.ActionOpts, 0, len(tt.options)+1)
+			opts = append(opts, gc.WithGC(gci))
+			opts = append(opts, tt.options...)
+
+			a := gc.NewAction(opts...)
+
+			err = a(ctx, &rr)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			if tt.matcher != nil {
+				err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cm), &corev1.ConfigMap{})
+				g.Expect(err).To(tt.matcher)
+			}
+		})
+	}
+}
+
+func TestGcActionCluster(t *testing.T) {
+	g := NewWithT(t)
+
+	envTest, err := envt.New()
 	g.Expect(err).NotTo(HaveOccurred())
 
-	envTestClient, err := ctrlCli.New(cfg, ctrlCli.Options{Scheme: s})
-	g.Expect(err).NotTo(HaveOccurred())
+	t.Cleanup(func() {
+		_ = envTest.Stop()
+	})
 
-	cli, err := client.NewFromConfig(cfg, envTestClient)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(cli).NotTo(BeNil())
+	ctx := context.Background()
+	cli := envTest.Client()
+	nsn := xid.New().String()
 
 	gci := gcSvc.New(
 		cli,
@@ -336,8 +457,7 @@ func TestGcActionCluster(t *testing.T) {
 				Kind:       componentApi.DashboardKind,
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Generation: 1,
-				UID:        apytypes.UID(id),
+				Name: componentApi.DashboardInstanceName,
 			},
 		},
 		Release: common.Release{
@@ -349,11 +469,21 @@ func TestGcActionCluster(t *testing.T) {
 		Generated: true,
 	}
 
+	g.Expect(cli.Create(ctx, rr.Instance)).
+		NotTo(HaveOccurred())
+
+	defer func() {
+		g.Expect(cli.Delete(ctx, rr.Instance)).Should(Or(
+			Not(HaveOccurred()),
+			MatchError(k8serr.IsNotFound, "IsNotFound"),
+		))
+	}()
+
 	om := metav1.ObjectMeta{
 		Namespace: nsn,
 		Annotations: map[string]string{
-			annotations.InstanceGeneration: "1",
-			annotations.InstanceUID:        id,
+			annotations.InstanceGeneration: strconv.FormatInt(rr.Instance.GetGeneration(), 10),
+			annotations.InstanceUID:        string(rr.Instance.GetUID()),
 			annotations.PlatformType:       string(cluster.OpenDataHub),
 		},
 		Labels: map[string]string{
@@ -377,13 +507,25 @@ func TestGcActionCluster(t *testing.T) {
 	cr2.Name = xid.New().String()
 	cr2.Annotations[annotations.PlatformVersion] = rr.Release.Version.String()
 
+	g.Expect(controllerutil.SetOwnerReference(rr.Instance, &cm1, cli.Scheme())).
+		NotTo(HaveOccurred())
+
 	g.Expect(cli.Create(ctx, &cm1)).
+		NotTo(HaveOccurred())
+
+	g.Expect(controllerutil.SetOwnerReference(rr.Instance, &cm2, cli.Scheme())).
 		NotTo(HaveOccurred())
 
 	g.Expect(cli.Create(ctx, &cm2)).
 		NotTo(HaveOccurred())
 
+	g.Expect(controllerutil.SetOwnerReference(rr.Instance, &cr1, cli.Scheme())).
+		NotTo(HaveOccurred())
+
 	g.Expect(cli.Create(ctx, &cr1)).
+		NotTo(HaveOccurred())
+
+	g.Expect(controllerutil.SetOwnerReference(rr.Instance, &cr2, cli.Scheme())).
 		NotTo(HaveOccurred())
 
 	g.Expect(cli.Create(ctx, &cr2)).
