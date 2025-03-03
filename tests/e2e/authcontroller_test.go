@@ -100,17 +100,21 @@ func (tc *AuthControllerTestCtx) validateAuthCRDefaultContent() error {
 		return errors.New("AdminGroups is empty ")
 	}
 
-	if tc.platform == cluster.SelfManagedRhoai {
+	switch tc.platform {
+	case cluster.SelfManagedRhoai:
 		if tc.testAuthInstance.Spec.AdminGroups[0] == "rhods-admins" {
 			return nil
 		}
 		return fmt.Errorf("expected rhods-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
-	} else if tc.platform == cluster.ManagedRhoai {
+	case cluster.ManagedRhoai:
 		if tc.testAuthInstance.Spec.AdminGroups[0] == "dedicated-admins" {
 			return nil
 		}
 		return fmt.Errorf("expected dedicated-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
-	} else if tc.testAuthInstance.Spec.AdminGroups[0] != "odh-admins" {
+	case cluster.OpenDataHub, cluster.Unknown:
+		if tc.testAuthInstance.Spec.AdminGroups[0] == "odh-admins" {
+			return nil
+		}
 		return fmt.Errorf("expected odh-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
 	}
 
