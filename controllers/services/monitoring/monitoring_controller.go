@@ -58,7 +58,6 @@ func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 				return m.Spec.Namespace, nil
 			}),
 		)).
-		WithAction(deployments.NewAction()).
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).
 		WithAction(deploy.NewAction(
