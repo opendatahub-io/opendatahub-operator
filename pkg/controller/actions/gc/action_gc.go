@@ -28,6 +28,7 @@ type Action struct {
 	gc                *gc.GC
 	objectPredicateFn ObjectPredicateFn
 	typePredicateFn   TypePredicateFn
+	onlyOwned         bool
 }
 
 func WithLabel(name string, value string) ActionOpts {
@@ -69,6 +70,7 @@ func WithObjectPredicate(value ObjectPredicateFn) ActionOpts {
 		action.objectPredicateFn = value
 	}
 }
+
 func WithTypePredicate(value TypePredicateFn) ActionOpts {
 	return func(action *Action) {
 		if value == nil {
@@ -76,6 +78,12 @@ func WithTypePredicate(value TypePredicateFn) ActionOpts {
 		}
 
 		action.typePredicateFn = value
+	}
+}
+
+func WithOnlyCollectOwned(value bool) ActionOpts {
+	return func(action *Action) {
+		action.onlyOwned = value
 	}
 }
 
@@ -96,19 +104,19 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		return nil
 	}
 
-	kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
+	igvk, err := resources.GetGroupVersionKindForObject(rr.Client.Scheme(), rr.Instance)
 	if err != nil {
 		return err
 	}
 
-	controllerName := strings.ToLower(kind)
+	controllerName := strings.ToLower(igvk.Kind)
 
 	CyclesTotal.WithLabelValues(controllerName).Inc()
 
 	selector := a.selector
 	if selector == nil {
 		selector = labels.SelectorFromSet(map[string]string{
-			odhLabels.PlatformPartOf: strings.ToLower(kind),
+			odhLabels.PlatformPartOf: controllerName,
 		})
 	}
 
@@ -130,6 +138,16 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 				return false, nil
 			}
 
+			if a.onlyOwned {
+				o, err := resources.IsOwnedByType(&obj, igvk)
+				if err != nil {
+					return false, err
+				}
+				if !o {
+					return false, nil
+				}
+			}
+
 			return a.objectPredicateFn(rr, obj)
 		}),
 	)
@@ -149,6 +167,7 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{}
 	action.objectPredicateFn = DefaultObjectPredicate
 	action.typePredicateFn = DefaultTypePredicate
+	action.onlyOwned = true
 	action.unremovables = make(map[schema.GroupVersionKind]struct{})
 
 	for _, opt := range opts {
