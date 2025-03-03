@@ -55,6 +55,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(deployments.NewAction()).
 		// must be the final action
 		WithAction(gc.NewAction()).
+		// declares the list of additional, controller specific conditions that are
+		// contributing to the controller readiness status
+		WithConditions(conditionTypes...).
 		Build(ctx)
 
 	if err != nil {

@@ -20,6 +20,10 @@ var (
 		"RELATED_IMAGE_FEAST_OPERATOR": "RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE",
 		"RELATED_IMAGE_FEATURE_SERVER": "RELATED_IMAGE_ODH_FEAST_FEATURE_SERVER_IMAGE",
 	}
+
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
+	}
 )
 
 func manifestPath() types.ManifestInfo {
