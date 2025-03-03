@@ -81,7 +81,7 @@ func WithTypePredicate(value TypePredicateFn) ActionOpts {
 	}
 }
 
-func WithCollectOwned(value bool) ActionOpts {
+func WithOnlyCollectOwned(value bool) ActionOpts {
 	return func(action *Action) {
 		action.onlyOwned = value
 	}

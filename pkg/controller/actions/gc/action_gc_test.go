@@ -295,7 +295,7 @@ func TestGcActionOwn(t *testing.T) {
 			name:    "should delete non owned resources",
 			matcher: Satisfy(k8serr.IsNotFound),
 			owned:   true,
-			options: []gc.ActionOpts{gc.WithCollectOwned(false)},
+			options: []gc.ActionOpts{gc.WithOnlyCollectOwned(false)},
 		},
 	}
 
