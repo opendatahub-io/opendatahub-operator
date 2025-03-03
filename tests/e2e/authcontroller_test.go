@@ -129,12 +129,11 @@ func (tc *AuthControllerTestCtx) validateAuthCRRoleCreation() error {
 	adminRole := &rbacv1.Role{}
 	allowedRole := &rbacv1.Role{}
 
-	fmt.Print("this is the ns " + tc.testContext.applicationsNamespace)
-	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.testContext.applicationsNamespace, Name: "admingroup-role"}, adminRole); err != nil {
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.applicationsNamespace, Name: "admingroup-role"}, adminRole); err != nil {
 		return err
 	}
 
-	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.testContext.applicationsNamespace, Name: "allowedgroup-role"}, allowedRole); err != nil {
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.applicationsNamespace, Name: "allowedgroup-role"}, allowedRole); err != nil {
 		return err
 	}
 
@@ -144,7 +143,7 @@ func (tc *AuthControllerTestCtx) validateAuthCRRoleCreation() error {
 func (tc *AuthControllerTestCtx) validateAuthCRClusterRoleCreation() error {
 	adminClusterRole := &rbacv1.ClusterRole{}
 
-	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Name: "admingroupcluster-role"}, adminClusterRole); err != nil {
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.applicationsNamespace, Name: "admingroupcluster-role"}, adminClusterRole); err != nil {
 		return err
 	}
 
@@ -155,8 +154,7 @@ func (tc *AuthControllerTestCtx) validateAuthCRRoleBindingCreation() error {
 	adminRolebinding := &rbacv1.RoleBinding{}
 	allowedRolebinding := &rbacv1.RoleBinding{}
 
-	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.testContext.applicationsNamespace,
-		Name: "admingroup-rolebinding"}, adminRolebinding); err != nil {
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.applicationsNamespace, Name: "admingroup-rolebinding"}, adminRolebinding); err != nil {
 		return err
 	}
 
