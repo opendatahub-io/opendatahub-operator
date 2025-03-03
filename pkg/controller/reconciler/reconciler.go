@@ -323,7 +323,7 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 			err.Error(),
 		)
 
-		return fmt.Errorf("reconile failed: %w", err)
+		return fmt.Errorf("reconcile failed: %w", err)
 	}
 
 	if provisionErr != nil {
