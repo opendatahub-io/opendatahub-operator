@@ -54,6 +54,7 @@ type ModelControllerSpec struct {
 	// ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"`
 	Kserve           *ModelControllerKerveSpec `json:"kserve,omitempty"`
 	ModelMeshServing *ModelControllerMMSpec    `json:"modelMeshServing,omitempty"`
+	ModelRegistry    *ModelControllerMRSpec    `json:"modelRegistry,omitempty"`
 }
 
 // a mini version of the DSCKserve only keep devflags and management spec
@@ -75,6 +76,10 @@ type ModelControllerMMSpec struct {
 
 func (s *ModelControllerMMSpec) GetDevFlags() *common.DevFlags {
 	return s.DevFlags
+}
+
+type ModelControllerMRSpec struct {
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
 // ModelControllerStatus defines the observed state of ModelController

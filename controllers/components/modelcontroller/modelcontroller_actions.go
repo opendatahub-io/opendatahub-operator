@@ -43,10 +43,17 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if mc.Spec.Kserve.ManagementState == operatorv1.Managed {
 		nimState = mc.Spec.Kserve.NIM.ManagementState
 	}
+
+	mrState := operatorv1.Removed
+	if mc.Spec.ModelRegistry != nil && mc.Spec.ModelRegistry.ManagementState == operatorv1.Managed {
+		mrState = operatorv1.Managed
+	}
+
 	extraParamsMap := map[string]string{
 		"nim-state":              strings.ToLower(string(nimState)),
 		"kserve-state":           strings.ToLower(string(mc.Spec.Kserve.ManagementState)),
 		"modelmeshserving-state": strings.ToLower(string(mc.Spec.ModelMeshServing.ManagementState)),
+		"modelregistry-state":    strings.ToLower(string(mrState)),
 	}
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", rr.Manifests[0].String(), err)
