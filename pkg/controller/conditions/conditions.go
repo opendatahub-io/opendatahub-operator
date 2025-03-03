@@ -84,7 +84,7 @@ func NewManager(accessor common.ConditionsAccessor, happy string, dependents ...
 // each dependent condition.
 //
 // The method performs the following:
-//  1. Retrieves the "happy" condition using. If it does not exist, it creates a new one with
+//  1. Retrieves the "happy" condition. If it does not exist, it creates a new one with
 //     `ConditionUnknown` status and sets it.
 //  2. Sets the status of each dependent condition based on the "happy" condition's status. If the
 //     "happy" condition's status is `True`, all dependent conditions are set to `True`, otherwise
