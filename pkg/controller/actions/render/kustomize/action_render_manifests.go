@@ -2,6 +2,7 @@ package kustomize
 
 import (
 	"context"
+	"fmt"
 
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
@@ -20,8 +21,9 @@ const rendererEngine = "kustomize"
 type Action struct {
 	resourcecacher.ResourceCacher
 
-	keOpts []kustomize.EngineOptsFn
-	ke     *kustomize.Engine
+	keOpts     []kustomize.EngineOptsFn
+	ke         *kustomize.Engine
+	nsSelector func(context.Context, *types.ReconciliationRequest) (string, error)
 }
 
 type ActionOpts func(*Action)
@@ -68,6 +70,12 @@ func WithCache() ActionOpts {
 	}
 }
 
+func WithNamespaceSelector(value func(context.Context, *types.ReconciliationRequest) (string, error)) ActionOpts {
+	return func(action *Action) {
+		action.nsSelector = value
+	}
+}
+
 func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
 	return a.ResourceCacher.Render(ctx, rr, a.render)
 }
@@ -75,10 +83,15 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (resources.UnstructuredList, error) {
 	result := make(resources.UnstructuredList, 0)
 
+	ns, err := a.nsSelector(ctx, rr)
+	if err != nil {
+		return nil, fmt.Errorf("unable to compute rendering namespace: %w", err)
+	}
+
 	for i := range rr.Manifests {
 		renderedResources, err := a.ke.Render(
 			rr.Manifests[i].String(),
-			kustomize.WithNamespace(rr.DSCI.Spec.ApplicationsNamespace),
+			kustomize.WithNamespace(ns),
 		)
 
 		if err != nil {
@@ -94,6 +107,9 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (r
 func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{
 		ResourceCacher: resourcecacher.NewResourceCacher(rendererEngine),
+		nsSelector: func(_ context.Context, rr *types.ReconciliationRequest) (string, error) {
+			return rr.DSCI.Spec.ApplicationsNamespace, nil
+		},
 	}
 
 	for _, opt := range opts {
