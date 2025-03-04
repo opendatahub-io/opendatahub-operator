@@ -62,9 +62,7 @@ var (
 				componentApi.KserveComponentName:               kserveTestSuite,
 				componentApi.ModelMeshServingComponentName:     modelMeshServingTestSuite,
 				componentApi.ModelControllerComponentName:      modelControllerTestSuite,
-				// Temporary disable Feast until images are moved from docker.io
-				// TODO: enable when ready
-				// componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
+				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
 			},
 		},
 		services: TestGroup{
