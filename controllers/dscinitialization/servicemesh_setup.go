@@ -209,7 +209,7 @@ func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSC
 
 			// We do not have the control over deployment resource creation.
 			// It is created by Authorino operator using Authorino CR and labels are not propagated from Authorino CR to spec.template
-			// See https://issues.redhat.com/browse/RHOAIENG-5494
+			// See https://issues.redhat.com/browse/RHOAIENG-5494 and https://github.com/Kuadrant/authorino-operator/pull/243
 			//
 			// To make it part of Service Mesh we have to patch it with injection
 			// enabled instead, otherwise it will not have proxy pod injected.
