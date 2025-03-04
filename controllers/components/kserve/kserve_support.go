@@ -8,6 +8,7 @@ import (
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -152,7 +153,11 @@ func removeServerlessFeatures(ctx context.Context, cli client.Client, k *compone
 
 func getDefaultDeploymentMode(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) (string, error) {
 	kserveConfigMap := corev1.ConfigMap{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: kserveConfigMapName, Namespace: dscispec.ApplicationsNamespace}, &kserveConfigMap); err != nil {
+	err := cli.Get(ctx, client.ObjectKey{Name: kserveConfigMapName, Namespace: dscispec.ApplicationsNamespace}, &kserveConfigMap)
+	if errors.IsNotFound(err) {
+		return "", nil
+	}
+	if err != nil {
 		return "", err
 	}
 

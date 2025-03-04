@@ -1,8 +1,6 @@
 package trustyai
 
 import (
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
@@ -14,7 +12,7 @@ import (
 const (
 	ComponentName = componentApi.TrustyAIComponentName
 
-	ReadyConditionType = conditionsv1.ConditionType(componentApi.TrustyAIKind + status.ReadySuffix)
+	ReadyConditionType = componentApi.TrustyAIKind + status.ReadySuffix
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
@@ -33,6 +31,10 @@ var (
 		cluster.ManagedRhoai:     "/overlays/rhoai",
 		cluster.OpenDataHub:      "/overlays/odh",
 		cluster.Unknown:          "/overlays/odh",
+	}
+
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
 	}
 )
 
