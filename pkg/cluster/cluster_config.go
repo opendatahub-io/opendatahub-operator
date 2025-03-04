@@ -22,6 +22,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type ClusterInfo struct {
@@ -286,4 +287,58 @@ func IsDefaultAuthMethod(ctx context.Context, cli client.Client) (bool, error) {
 	// other offering support "" "None" "IntegratedOAuth"(default)
 	// we only create userGroups for "IntegratedOAuth" or "" and leave other or new supported type value in the future
 	return authenticationobj.Spec.Type == configv1.AuthenticationTypeIntegratedOAuth || authenticationobj.Spec.Type == "", nil
+}
+
+func GetReadyWorkerNodes(ctx context.Context, k8sclient client.Client) ([]corev1.Node, error) {
+	nodeList := &corev1.NodeList{}
+
+	labelSelector := client.MatchingLabels{
+		labels.WorkerNode: "",
+	}
+
+	if err := k8sclient.List(ctx, nodeList, labelSelector); err != nil {
+		return nil, fmt.Errorf("failed to list worker nodes: %w", err)
+	}
+
+	var readyWorkerNodes []corev1.Node
+	for _, node := range nodeList.Items {
+		if node.Status.Conditions == nil {
+			continue
+		}
+		// Only count nodes that are Ready
+		for _, condition := range node.Status.Conditions {
+			if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
+				readyWorkerNodes = append(readyWorkerNodes, node)
+			}
+		}
+	}
+
+	if len(readyWorkerNodes) < 1 {
+		return nil, errors.New("no ready worker nodes found")
+	}
+
+	return readyWorkerNodes, nil
+}
+
+func GetNodeArchitectures(nodes []corev1.Node) ([]string, error) {
+	// Create a map to track unique architectures
+	nodeArchitecturesMap := make(map[string]struct{})
+
+	for _, node := range nodes {
+		if arch, exists := node.Labels[labels.NodeArch]; exists {
+			nodeArchitecturesMap[arch] = struct{}{}
+		}
+	}
+
+	// Convert map to a slice now that any duplicate architectures have been removed
+	nodeArchitectures := make([]string, 0)
+	for arch := range nodeArchitecturesMap {
+		nodeArchitectures = append(nodeArchitectures, arch)
+	}
+
+	if len(nodeArchitectures) < 1 {
+		return nil, errors.New("no valid architectures found")
+	}
+
+	return nodeArchitectures, nil
 }
