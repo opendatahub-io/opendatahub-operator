@@ -46,7 +46,6 @@ func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
-		WithAction(setStatus).
 		Build(ctx)
 
 	if err != nil {

@@ -139,6 +139,6 @@ func isComponentReady(ctx context.Context, cli *odhcli.Client, obj common.Platfo
 	case err != nil:
 		return false, fmt.Errorf("failed to get component instance: %w", err)
 	default:
-		return conditions.IsStatusConditionTrue(obj, status.ConditionTypeReady), nil
+		return conditions.IsStatusConditionTrue(obj.GetStatus(), status.ConditionTypeReady), nil
 	}
 }
