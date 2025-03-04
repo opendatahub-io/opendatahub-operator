@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -60,6 +61,10 @@ func authControllerTestSuite(t *testing.T) {
 			err = authServiceCtx.validateAuthCRClusterRoleBindingCreation()
 			require.NoError(t, err, "error getting created rolebindings")
 		})
+		t.Run("Test bindings are removed when a group is removed", func(t *testing.T) {
+			err = authServiceCtx.validateRemovingGroups()
+			require.NoError(t, err, "error validating group removal")
+		})
 	})
 }
 
@@ -95,16 +100,22 @@ func (tc *AuthControllerTestCtx) validateAuthCRDefaultContent() error {
 		return errors.New("AdminGroups is empty ")
 	}
 
-	fmt.Print("************")
-	fmt.Print(tc.platform)
-	if tc.testContext.platform == cluster.SelfManagedRhoai || tc.testContext.platform == cluster.ManagedRhoai {
-		if tc.testAuthInstance.Spec.AdminGroups[0] != "rhods-admins" {
-			return fmt.Errorf("expected rhods-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
+	switch tc.platform {
+	case cluster.SelfManagedRhoai:
+		if tc.testAuthInstance.Spec.AdminGroups[0] == "rhods-admins" {
+			return nil
 		}
-	} else {
-		if tc.testAuthInstance.Spec.AdminGroups[0] != "odh-admins" {
-			return fmt.Errorf("expected odh-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
+		return fmt.Errorf("expected rhods-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
+	case cluster.ManagedRhoai:
+		if tc.testAuthInstance.Spec.AdminGroups[0] == "dedicated-admins" {
+			return nil
 		}
+		return fmt.Errorf("expected dedicated-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
+	case cluster.OpenDataHub, cluster.Unknown:
+		if tc.testAuthInstance.Spec.AdminGroups[0] == "odh-admins" {
+			return nil
+		}
+		return fmt.Errorf("expected odh-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
 	}
 
 	if tc.testAuthInstance.Spec.AllowedGroups[0] != "system:authenticated" {
@@ -172,7 +183,7 @@ func (tc *AuthControllerTestCtx) validateAddingGroups() error {
 	tc.testAuthInstance.Spec.AllowedGroups = append(tc.testAuthInstance.Spec.AllowedGroups, "aTestAllowedGroup")
 	err := tc.customClient.Update(tc.ctx, &tc.testAuthInstance)
 	if err != nil {
-		fmt.Println("ERR: ", err)
+		fmt.Println("Error updating groups in Auth CR: ", err)
 	}
 
 	adminRolebinding := &rbacv1.RoleBinding{}
@@ -195,6 +206,43 @@ func (tc *AuthControllerTestCtx) validateAddingGroups() error {
 	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.applicationsNamespace, Name: "allowedgroup-rolebinding"}, allowedRolebinding); err != nil {
 		if allowedRolebinding.Subjects[1].Name != "aTestAllowedGroup" {
 			return fmt.Errorf("Expected aTestAllowedGroup found %s ", allowedRolebinding.Subjects[1].Name)
+		}
+	}
+
+	return nil
+}
+
+func (tc *AuthControllerTestCtx) validateRemovingGroups() error {
+	expectedGroup := "odh-admins"
+	if tc.platform == cluster.ManagedRhoai || tc.platform == cluster.SelfManagedRhoai {
+		expectedGroup = "rhods-admins"
+	}
+	if _, err := controllerutil.CreateOrUpdate(tc.ctx, tc.customClient, &tc.testAuthInstance, func() error {
+		tc.testAuthInstance.Spec.AdminGroups = []string{expectedGroup}
+		return nil
+	}); err != nil {
+		return errors.New("error removing groups from auth CR")
+	}
+
+	adminRolebinding := &rbacv1.RoleBinding{}
+	adminClusterRolebinding := &rbacv1.ClusterRoleBinding{}
+
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.applicationsNamespace, Name: "admingroup-rolebinding"}, adminRolebinding); err != nil {
+		if len(adminRolebinding.Subjects) > 1 {
+			return fmt.Errorf("Expected 1 subject in adminRoleBinding found %v", len(adminRolebinding.Subjects))
+		}
+		if adminRolebinding.Subjects[0].Name != expectedGroup {
+			return fmt.Errorf("Expected adminRolebinding to only contain %s found %s", expectedGroup, adminRolebinding.Subjects[0].Name)
+		}
+	}
+
+	if err := tc.testContext.customClient.Get(tc.ctx, types.NamespacedName{Namespace: tc.applicationsNamespace,
+		Name: "admingroupcluster-rolebinding"}, adminClusterRolebinding); err != nil {
+		if len(adminClusterRolebinding.Subjects) > 1 {
+			return fmt.Errorf("Expected 1 subject in adminClusterRoleBinding found %v", len(adminClusterRolebinding.Subjects))
+		}
+		if adminClusterRolebinding.Subjects[0].Name != expectedGroup {
+			return fmt.Errorf("Expected adminClusterRolebinding to only contain %s found %s", expectedGroup, adminClusterRolebinding.Subjects[0].Name)
 		}
 	}
 
