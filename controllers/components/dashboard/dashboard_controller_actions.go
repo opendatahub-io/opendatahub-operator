@@ -6,11 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	routev1 "github.com/openshift/api/route/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -19,6 +14,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	routev1 "github.com/openshift/api/route/v1"
+	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -98,6 +100,46 @@ func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest
 		return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 	}
 
+	return nil
+}
+
+// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
+func patchOdhDashboardConfig(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+	dashboardConfig := &unstructured.Unstructured{}
+	dashboardConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
+	err := rr.Client.Get(ctx, client.ObjectKey{
+		Name:      "odh-dashboard-config",
+		Namespace: rr.DSCI.Spec.ApplicationsNamespace,
+	}, dashboardConfig)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			log.Info("ODH Dashboard Config not found, skipping patch", "namespace", rr.DSCI.Spec.ApplicationsNamespace)
+			return nil
+		}
+		return fmt.Errorf("failed to get ODH Dashboard Config instance: %w", err)
+	}
+	patch := dashboardConfig.DeepCopy()
+	updates := map[string][]any{
+		"notebookSizes":    getNotebookSizesData(),
+		"modelServerSizes": getModelServerSizeData(),
+	}
+
+	updated, err := updateSpecFields(patch, updates)
+	if err != nil {
+		return err
+	}
+
+	if !updated {
+		log.Info("No changes needed, skipping patch")
+		return nil
+	}
+
+	if err := rr.Client.Patch(ctx, patch, client.MergeFrom(dashboardConfig)); err != nil {
+		return fmt.Errorf("failed to patch dashboard config: %w", err)
+	}
+
+	log.Info("Patched odhdashboardconfig successfully")
 	return nil
 }
 
