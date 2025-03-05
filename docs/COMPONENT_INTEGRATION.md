@@ -330,5 +330,6 @@ Currently integrated components are:
 - [Training Operator](https://github.com/opendatahub-io/training-operator)
 - [TrustyAI](https://github.com/opendatahub-io/trustyai-service-operator)
 - [Workbenches](https://github.com/opendatahub-io/notebooks)
+- [Feast Operator](https://github.com/opendatahub-io/feast)
 
 The particular controller implementations for the listed components are located in the `controllers/components` directory and the corresponding internal component APIs are located in `apis/components/v1alpha1`.
