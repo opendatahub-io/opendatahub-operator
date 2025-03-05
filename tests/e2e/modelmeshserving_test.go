@@ -28,8 +28,8 @@ func modelMeshServingTestSuite(t *testing.T) {
 	t.Run("Validate model controller", componentCtx.validateModelControllerInstance)
 	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
+	t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
-	// t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
 }
 
 type ModelMeshServingTestCtx struct {
