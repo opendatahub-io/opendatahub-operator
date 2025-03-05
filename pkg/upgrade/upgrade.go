@@ -615,3 +615,179 @@ func cleanupModelControllerLegacyDeployment(ctx context.Context, cli client.Clie
 
 	return nil
 }
+
+// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
+func PatchOdhDashboardConfig(ctx context.Context, cli client.Client) error {
+	log := logf.FromContext(ctx)
+
+	var dashboardConfigs unstructured.UnstructuredList
+	dashboardConfigs.SetGroupVersionKind(gvk.OdhDashboardConfig)
+
+	if err := cli.List(ctx, &dashboardConfigs); err != nil {
+		log.Error(err, "Failed to list odhdashboardconfig CRs")
+		return fmt.Errorf("error listing odhdashboardconfig CRs: %w", err)
+	}
+
+	for _, cr := range dashboardConfigs.Items {
+		if !cluster.IsNotReservedNamespace(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: cr.GetNamespace()}}) {
+			continue
+		}
+
+		log.Info("Found CR, applying patch", "namespace", cr.GetNamespace(), "name", cr.GetName())
+
+		patch := cr.DeepCopy()
+		updates := map[string][]any{
+			"notebookSizes":    getNotebookSizesData(),
+			"modelServerSizes": getModelServerSizeData(),
+		}
+
+		updated, err := updateSpecFields(patch, updates)
+		if err != nil {
+			return fmt.Errorf("failed to update odhdashboardconfig spec fields: %w", err)
+		}
+
+		if !updated {
+			log.Info("No changes needed, skipping patch", "namespace", cr.GetNamespace(), "name", cr.GetName())
+			continue
+		}
+
+		if err := cli.Patch(ctx, patch, client.MergeFrom(&cr)); err != nil {
+			return fmt.Errorf("failed to patch CR %s in namespace %s: %w", cr.GetName(), cr.GetNamespace(), err)
+		}
+
+		log.Info("Patched odhdashboardconfig successfully", "namespace", cr.GetNamespace(), "name", cr.GetName())
+	}
+
+	return nil
+}
+
+// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
+func updateSpecFields(obj *unstructured.Unstructured, updates map[string][]any) (bool, error) {
+	updated := false
+
+	for field, newData := range updates {
+		existingField, exists, err := unstructured.NestedSlice(obj.Object, "spec", field)
+		if err != nil {
+			return false, fmt.Errorf("failed to get field '%s': %w", field, err)
+		}
+
+		if !exists || len(existingField) == 0 {
+			if err := unstructured.SetNestedSlice(obj.Object, newData, "spec", field); err != nil {
+				return false, fmt.Errorf("failed to set field '%s': %w", field, err)
+			}
+			updated = true
+		}
+	}
+
+	return updated, nil
+}
+
+// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
+func getNotebookSizesData() []any {
+	return []any{
+		map[string]any{
+			"name": "Small",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "1",
+					"memory": "8Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "2",
+					"memory": "8Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Medium",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "3",
+					"memory": "24Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "6",
+					"memory": "24Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Large",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "7",
+					"memory": "56Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "14",
+					"memory": "56Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "X Large",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "15",
+					"memory": "120Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "30",
+					"memory": "120Gi",
+				},
+			},
+		},
+	}
+}
+
+// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
+func getModelServerSizeData() []any {
+	return []any{
+		map[string]any{
+			"name": "Small",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "1",
+					"memory": "4Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "2",
+					"memory": "8Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Medium",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "4",
+					"memory": "8Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "8",
+					"memory": "10Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Large",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "6",
+					"memory": "16Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "10",
+					"memory": "20Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Custom",
+			"resources": map[string]any{
+				"requests": map[string]any{},
+				"limits":   map[string]any{},
+			},
+		},
+	}
+}
