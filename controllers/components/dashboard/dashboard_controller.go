@@ -108,8 +108,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			deploy.WithCache(),
 		)).
 		WithAction(deployments.NewAction()).
-		// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
-		WithAction(patchOdhDashboardConfig).
 		WithAction(updateStatus).
 		// must be the final action
 		WithAction(gc.NewAction(
