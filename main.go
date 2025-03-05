@@ -22,7 +22,6 @@ import (
 	"flag"
 	"os"
 
-	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
 	configv1 "github.com/openshift/api/config/v1"
@@ -112,7 +111,6 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(dscv1.AddToScheme(scheme))
 	utilruntime.Must(featurev1.AddToScheme(scheme))
 	utilruntime.Must(networkingv1.AddToScheme(scheme))
-	utilruntime.Must(addonv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(rbacv1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(routev1.Install(scheme))
