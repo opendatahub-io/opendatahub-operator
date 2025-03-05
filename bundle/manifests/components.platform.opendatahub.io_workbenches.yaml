@@ -74,6 +74,13 @@ spec:
                       type: object
                     type: array
                 type: object
+              workbenchNamespace:
+                default: rhods-notebooks
+                description: Namespace for workbenches to be installed, configurable
+                  only once when workbenches are enabled, defaults to "rhods-notebooks"
+                maxLength: 63
+                pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
+                type: string
             type: object
           status:
             description: WorkbenchesStatus defines the observed state of Workbenches
@@ -158,6 +165,8 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
+              workbenchNamespace:
+                type: string
             type: object
         type: object
         x-kubernetes-validations:
