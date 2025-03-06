@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/discovery"
@@ -86,7 +85,7 @@ func (c *Client) Apply(ctx context.Context, in ctrlCli.Object, opts ...ctrlCli.P
 	// Write back the modified object so callers can access the patched object.
 	err = c.Scheme().Convert(u, in, ctx)
 	if err != nil {
-		return errors.Wrapf(err, "failed to write modified object")
+		return fmt.Errorf("failed to write modified object: %w", err)
 	}
 
 	return nil
@@ -116,7 +115,7 @@ func (c *Client) ApplyStatus(ctx context.Context, in ctrlCli.Object, opts ...ctr
 	// Write back the modified object so callers can access the patched object.
 	err = c.Scheme().Convert(u, in, ctx)
 	if err != nil {
-		return errors.Wrapf(err, "failed to write modified object")
+		return fmt.Errorf("failed to write modified object: %w", err)
 	}
 
 	return nil
