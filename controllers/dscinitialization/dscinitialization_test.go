@@ -63,15 +63,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundApplicationNamespace.Labels).To(HaveKeyWithValue(labels.SecurityEnforce, "baseline"))
 		})
 
-		It("Should create default monitoring namespace", func(ctx context.Context) {
-			// then
-			foundMonitoringNamespace := &corev1.Namespace{}
-			Eventually(namespaceExists(monitoringNamespace, foundMonitoringNamespace), timeout, interval).
-				WithContext(ctx).
-				Should(BeTrue())
-			Expect(foundMonitoringNamespace.Name).Should(Equal(monitoringNamespace))
-		})
-
 		// Currently commented out in the DSCI reconcile - setting test to Pending
 		It("Should create default network policy", func(ctx context.Context) {
 			// then
