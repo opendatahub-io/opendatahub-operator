@@ -48,7 +48,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -127,7 +126,6 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(imagev1.Install(scheme))
 	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	utilruntime.Must(admissionregistrationv1.AddToScheme(scheme))
-	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(promv1.AddToScheme(scheme))
 	utilruntime.Must(operatorv1.Install(scheme))
 	utilruntime.Must(consolev1.AddToScheme(scheme))
