@@ -1,6 +1,7 @@
 package scheme
 
 import (
+	oauthv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -27,6 +28,7 @@ var (
 		operatorv1.AddToScheme,
 		componentApi.AddToScheme,
 		apiextensionsv1.AddToScheme,
+		oauthv1.AddToScheme,
 	}
 )
 
