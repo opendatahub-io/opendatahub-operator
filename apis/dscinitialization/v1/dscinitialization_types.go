@@ -41,7 +41,7 @@ type DSCInitializationSpec struct {
 	// Enable monitoring on specified namespace
 	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	// +optional
-	Monitoring serviceApi.DSCMonitoring `json:"monitoring,omitempty"`
+	Monitoring serviceApi.DSCIMonitoring `json:"monitoring,omitempty"`
 	// Configures Service Mesh as networking layer for Data Science Clusters components.
 	// The Service Mesh is a mandatory prerequisite for single model serving (KServe) and
 	// you should review this configuration if you are planning to use KServe.
