@@ -88,6 +88,9 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		WithAction(initialize).
 		WithAction(devFlags).
+		// TODO: Uncomment the two actions below once dashboard has a component_metadata.yaml file
+		// WithAction(releases.NewAction()).
+		// WithAction(architecture.VerifySupportedArchitectures).
 		WithAction(setKustomizedParams).
 		WithAction(configureDependencies).
 		WithAction(kustomize.NewAction(

@@ -133,6 +133,12 @@ const (
 	ISVCMissingCRDMessage = "InferenceServices CRD does not exist, please enable serving component first"
 )
 
+// For verifying supported architectures.
+const (
+	UnsupportedArchitectureReason  = "UnsupportedArchitecture"
+	UnsupportedArchitectureMessage = "Failed to deploy component - there are no nodes running on an architecture that this component supports"
+)
+
 // SetProgressingCondition sets the ProgressingCondition to True and other conditions to false or
 // Unknown. Used when we are just starting to reconcile, and there are no existing conditions.
 func SetProgressingCondition(conditions *[]conditionsv1.Condition, reason string, message string) {
