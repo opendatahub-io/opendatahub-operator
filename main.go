@@ -44,6 +44,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -264,6 +265,14 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			&rbacv1.ClusterRoleBinding{}:             {},
 			&securityv1.SecurityContextConstraints{}: {},
 		},
+		DefaultTransform: func(in any) (any, error) {
+			// Nilcheck managed fields to avoid hitting https://github.com/kubernetes/kubernetes/issues/124337
+			if obj, err := meta.Accessor(in); err == nil && obj.GetManagedFields() != nil {
+				obj.SetManagedFields(nil)
+			}
+
+			return in, nil
+		},
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
@@ -295,6 +304,8 @@ func main() { //nolint:funlen,maintidx,gocyclo
 					&ofapiv1alpha1.Subscription{},
 					resources.GvkToUnstructured(gvk.ServiceMeshControlPlane),
 					&authorizationv1.SelfSubjectRulesReview{},
+					&corev1.Pod{},
+					&userv1.Group{},
 				},
 				// Set it to true so the cache-backed client reads unstructured objects
 				// or lists from the cache instead of a live lookup.
