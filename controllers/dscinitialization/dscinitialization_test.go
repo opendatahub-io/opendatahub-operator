@@ -63,15 +63,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundApplicationNamespace.Labels).To(HaveKeyWithValue(labels.SecurityEnforce, "baseline"))
 		})
 
-		It("Should create default monitoring namespace", func(ctx context.Context) {
-			// then
-			foundMonitoringNamespace := &corev1.Namespace{}
-			Eventually(namespaceExists(monitoringNamespace, foundMonitoringNamespace), timeout, interval).
-				WithContext(ctx).
-				Should(BeTrue())
-			Expect(foundMonitoringNamespace.Name).Should(Equal(monitoringNamespace))
-		})
-
 		// Currently commented out in the DSCI reconcile - setting test to Pending
 		It("Should create default network policy", func(ctx context.Context) {
 			// then
@@ -114,6 +105,24 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		AfterEach(cleanupResources)
 		const monitoringNamespace2 = "test-monitoring-ns2"
 		const applicationName = "default-dsci"
+		It("Should not create default monitoring namespace even monitoring enabled on non-Managed cluster", func(ctx context.Context) {
+			// when
+			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace2)
+			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
+			foundDsci := &dsciv1.DSCInitialization{}
+			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeTrue())
+			// then
+			foundMonitoringNamespace := &corev1.Namespace{}
+			Eventually(namespaceExists(monitoringNamespace2, foundMonitoringNamespace)).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeFalse())
+		})
 		It("Should not create monitoring namespace if monitoring is disabled", func(ctx context.Context) {
 			// when
 			desiredDsci := createDSCI(operatorv1.Removed, operatorv1.Managed, monitoringNamespace2)
@@ -132,25 +141,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				WithPolling(interval).
 				Should(BeFalse())
 		})
-		It("Should create default monitoring namespace if monitoring enabled", func(ctx context.Context) {
-			// when
-			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace2)
-			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
-			foundDsci := &dsciv1.DSCInitialization{}
-			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-			// then
-			foundMonitoringNamespace := &corev1.Namespace{}
-			Eventually(namespaceExists(monitoringNamespace2, foundMonitoringNamespace)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-			Expect(foundMonitoringNamespace.Name).Should(Equal(monitoringNamespace2))
-		})
+
 	})
 
 	Context("Handling existing resources", func() {
@@ -365,7 +356,7 @@ func createDSCI(enableMonitoring operatorv1.ManagementState, enableTrustedCABund
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: applicationNamespace,
-			Monitoring: serviceApi.DSCMonitoring{
+			Monitoring: serviceApi.DSCIMonitoring{
 				ManagementSpec: common.ManagementSpec{ManagementState: enableMonitoring},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 					Namespace: monitoringNS,
@@ -390,7 +381,7 @@ func createCustomizedDSCI(appNS string) *dsciv1.DSCInitialization {
 		},
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: appNS,
-			Monitoring: serviceApi.DSCMonitoring{
+			Monitoring: serviceApi.DSCIMonitoring{
 				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 					Namespace: monitoringNamespace,

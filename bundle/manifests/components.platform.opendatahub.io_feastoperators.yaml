@@ -4,14 +4,14 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
   creationTimestamp: null
-  name: monitorings.services.platform.opendatahub.io
+  name: feastoperators.components.platform.opendatahub.io
 spec:
-  group: services.platform.opendatahub.io
+  group: components.platform.opendatahub.io
   names:
-    kind: Monitoring
-    listKind: MonitoringList
-    plural: monitorings
-    singular: monitoring
+    kind: FeastOperator
+    listKind: FeastOperatorList
+    plural: feastoperators
+    singular: feastoperator
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -23,14 +23,10 @@ spec:
       jsonPath: .status.conditions[?(@.type=="Ready")].reason
       name: Reason
       type: string
-    - description: URL
-      jsonPath: .status.url
-      name: URL
-      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Monitoring is the Schema for the monitorings API
+        description: FeastOperator is the Schema for the FeastOperator API
         properties:
           apiVersion:
             description: |-
@@ -50,22 +46,37 @@ spec:
           metadata:
             type: object
           spec:
-            description: MonitoringSpec defines the desired state of Monitoring
+            description: FeastOperatorSpec defines the desired state of FeastOperator
             properties:
-              namespace:
-                default: redhat-ods-monitoring
-                description: |-
-                  monitoring spec exposed to DSCI api
-                  Namespace for monitoring if it is enabled
-                maxLength: 63
-                pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
-                type: string
-                x-kubernetes-validations:
-                - message: MonitoringNamespace is immutable
-                  rule: self == oldSelf
+              devFlags:
+                description: Add developer fields
+                properties:
+                  manifests:
+                    description: List of custom manifests for the given component
+                    items:
+                      properties:
+                        contextDir:
+                          default: manifests
+                          description: contextDir is the relative path to the folder
+                            containing manifests in a repository, default value "manifests"
+                          type: string
+                        sourcePath:
+                          default: ""
+                          description: 'sourcePath is the subpath within contextDir
+                            where kustomize builds start. Examples include any sub-folder
+                            or path: `base`, `overlays/dev`, `default`, `odh` etc.'
+                          type: string
+                        uri:
+                          default: ""
+                          description: uri is the URI point to a git repo with tag/branch.
+                            e.g.  https://github.com/org/repo/tarball/<tag/branch>
+                          type: string
+                      type: object
+                    type: array
+                type: object
             type: object
           status:
-            description: MonitoringStatus defines the observed state of Monitoring
+            description: FeastOperatorStatus defines the observed state of FeastOperator
             properties:
               conditions:
                 items:
@@ -131,13 +142,11 @@ spec:
                 type: integer
               phase:
                 type: string
-              url:
-                type: string
             type: object
         type: object
         x-kubernetes-validations:
-        - message: Monitoring name must be default-monitoring
-          rule: self.metadata.name == 'default-monitoring'
+        - message: FeastOperator name must be 'default-feastoperator'
+          rule: self.metadata.name == 'default-feastoperator'
     served: true
     storage: true
     subresources:

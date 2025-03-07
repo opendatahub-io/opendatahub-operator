@@ -280,6 +280,7 @@ func (r *DataScienceClusterReconciler) SetupWithManager(_ context.Context, mgr c
 		Owns(&componentApi.Kserve{}, builder.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.ModelMeshServing{}, builder.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.ModelController{}, builder.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.FeastOperator{}, builder.WithPredicates(componentsPredicate)).
 		// others
 		Watches(
 			&dsciv1.DSCInitialization{},
