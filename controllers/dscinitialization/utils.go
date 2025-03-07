@@ -420,16 +420,10 @@ func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscIn
 		// Otherwise is errors with "error": "Group.user.openshift.io \"odh-admins\" is invalid: users: Invalid value: \"null\": users in body must be of type array: \"null\""}
 		Users: []string{},
 	}
-	err := r.Client.Get(ctx, client.ObjectKeyFromObject(userGroup), userGroup)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			err = r.Client.Create(ctx, userGroup)
-			if err != nil && !k8serr.IsAlreadyExists(err) {
-				return err
-			}
-		} else {
-			return err
-		}
+
+	err := r.Client.Create(ctx, userGroup)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return err
 	}
 
 	return nil
