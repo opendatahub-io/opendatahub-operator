@@ -21,9 +21,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	client2 "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -321,5 +324,31 @@ func HasCRDWithVersion(ctx context.Context, cli *client2.Client, gk schema.Group
 		return false, nil
 	default:
 		return true, nil
+	}
+}
+
+// IsReady checks if a given PlatformObject is ready by retrieving its status
+// from the Kubernetes cluster and evaluating the "Ready" condition.
+//
+// Parameters:
+//   - ctx: A context.Context that carries deadlines, cancellation signals,
+//     and other request-scoped values across API boundaries.
+//   - cli: A pointer to a client2.Client used to interact with the Kubernetes API.
+//   - obj: A common.PlatformObject representing the Kubernetes resource whose
+//     readiness status is to be checked.
+//
+// Returns:
+//   - A boolean indicating whether the object is ready (true) or not (false).
+//   - An error if the object could not be retrieved or if another error occurred
+//     during the operation, or nil if the operation succeeded without errors
+func IsReady(ctx context.Context, cli *client2.Client, obj common.PlatformObject) (bool, error) {
+	err := cli.Client.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+	switch {
+	case k8serr.IsNotFound(err):
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("failed to get component instance: %w", err)
+	default:
+		return conditions.IsStatusConditionTrue(obj.GetStatus(), status.ConditionTypeReady), nil
 	}
 }
