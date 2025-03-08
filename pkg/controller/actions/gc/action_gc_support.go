@@ -23,7 +23,7 @@ func DefaultObjectPredicate(rr *odhTypes.ReconciliationRequest, obj unstructured
 	iu := resources.GetAnnotation(&obj, odhAnnotations.InstanceUID)
 
 	if pv == "" || pt == "" || ig == "" || iu == "" {
-		return false, nil
+		return true, nil
 	}
 
 	if pv != rr.Release.Version.String() {

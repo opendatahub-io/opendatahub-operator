@@ -3,12 +3,11 @@ package datasciencepipelines
 import (
 	"path"
 
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -17,13 +16,17 @@ const (
 	ArgoWorkflowCRD = "workflows.argoproj.io"
 	ComponentName   = componentApi.DataSciencePipelinesComponentName
 
-	ReadyConditionType = conditionsv1.ConditionType(componentApi.DataSciencePipelinesKind + status.ReadySuffix)
+	ReadyConditionType = componentApi.DataSciencePipelinesKind + status.ReadySuffix
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName      = "data-science-pipelines-operator"
 	platformVersionParamsKey = "PLATFORMVERSION"
+)
+
+var (
+	ErrArgoWorkflowAPINotOwned = odherrors.NewStopError(status.DataSciencePipelinesDoesntOwnArgoCRDMessage)
 )
 
 var (
@@ -46,6 +49,12 @@ var (
 		cluster.OpenDataHub:      "overlays/odh",
 		cluster.Unknown:          "overlays/odh",
 	}
+
+	conditionTypes = []string{
+		status.ConditionArgoWorkflowAvailable,
+		status.ConditionDeploymentsAvailable,
+	}
+
 	paramsPath = path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
 )
 

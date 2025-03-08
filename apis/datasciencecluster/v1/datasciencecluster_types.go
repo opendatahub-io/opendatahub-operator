@@ -18,7 +18,6 @@ package v1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -115,16 +114,7 @@ type ComponentsStatus struct {
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.
 type DataScienceClusterStatus struct {
-	// Phase describes the Phase of DataScienceCluster reconciliation state
-	// This is used by OLM UI to provide status information to the user
-	Phase string `json:"phase,omitempty"`
-
-	// Conditions describes the state of the DataScienceCluster resource.
-	// +optional
-	Conditions []conditionsv1.Condition `json:"conditions,omitempty"`
-
-	// The generation observed by the deployment controller.
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	common.Status `json:",inline"`
 
 	// RelatedObjects is a list of objects created and maintained by this operator.
 	// Object references will be added to this list after they have been created AND found in the cluster.
@@ -143,10 +133,20 @@ type DataScienceClusterStatus struct {
 	Release common.Release `json:"release,omitempty"`
 }
 
+func (s *DataScienceClusterStatus) GetConditions() []common.Condition {
+	return s.Conditions
+}
+
+func (s *DataScienceClusterStatus) SetConditions(conditions []common.Condition) {
+	s.Conditions = append(conditions[:0:0], conditions...)
+}
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster,shortName=dsc
 // +kubebuilder:storageversion
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
 // DataScienceCluster is the Schema for the datascienceclusters API.
 type DataScienceCluster struct {
@@ -164,6 +164,18 @@ type DataScienceClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []DataScienceCluster `json:"items"`
+}
+
+func (c *DataScienceCluster) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *DataScienceCluster) GetStatus() *common.Status {
+	return &c.Status.Status
+}
+
+func (c *DataScienceCluster) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 func init() {

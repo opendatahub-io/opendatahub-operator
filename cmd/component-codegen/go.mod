@@ -1,6 +1,6 @@
 module github.com/opendatahub-io/opendatahub-operator/v2/cmd/component-codegen
 
-go 1.23.0
+go 1.22
 
 require (
 	github.com/sirupsen/logrus v1.9.3
