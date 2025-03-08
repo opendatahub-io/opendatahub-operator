@@ -9,7 +9,7 @@ import (
 )
 
 // TODO: remove unused when test enabled back.
-func feastOperatorTestSuite(t *testing.T) { //nolint:unused
+func feastOperatorTestSuite(t *testing.T) {
 	t.Helper()
 
 	ct, err := NewComponentTestCtx(&componentApi.FeastOperator{})

@@ -50,4 +50,4 @@ spec:
       managementState: "Managed"
       registriesNamespace: "odh-model-registries"
     feastoperator:
-      managementState: "Removed"
+      managementState: "Managed"
