@@ -726,24 +726,20 @@ func cleanupModelControllerLegacyDeployment(ctx context.Context, cli client.Clie
 func PatchOdhDashboardConfig(ctx context.Context, cli client.Client) error {
 	log := logf.FromContext(ctx)
 
-	var dashboardConfigs unstructured.UnstructuredList
-	dashboardConfigs.SetGroupVersionKind(gvk.OdhDashboardConfig)
+	var dashboardConfig unstructured.Unstructured
+	dashboardConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
 
-	if err := cli.List(ctx, &dashboardConfigs); err != nil {
-		log.Error(err, "Failed to list odhdashboardconfig CRs")
-		return fmt.Errorf("error listing odhdashboardconfig CRs: %w", err)
+	if err := cluster.GetSingleton(ctx, cli, &dashboardConfig); err != nil {
+		if k8serr.IsNotFound(err) {
+			log.Info("no odhdashboard instance available, hence skipping patch", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
+			return nil
+		}
+		return fmt.Errorf("failed to retrieve odhdashboardconfg instance: %w", err)
 	}
 
-	if len(dashboardConfigs.Items) == 0 {
-		log.Info("No odhdashboardconfig CR found, skipping patch")
-		return nil
-	}
+	log.Info("Found CR, applying patch", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
 
-	cr := &dashboardConfigs.Items[0] // singleton
-
-	log.Info("Found CR, applying patch", "namespace", cr.GetNamespace(), "name", cr.GetName())
-
-	patch := cr.DeepCopy()
+	patch := dashboardConfig.DeepCopy()
 	updates := map[string][]any{
 		"notebookSizes":    notebookSizesData,
 		"modelServerSizes": modelServerSizeData,
@@ -755,15 +751,15 @@ func PatchOdhDashboardConfig(ctx context.Context, cli client.Client) error {
 	}
 
 	if !updated {
-		log.Info("No changes needed, skipping patch", "namespace", cr.GetNamespace(), "name", cr.GetName())
+		log.Info("No changes needed, skipping patch", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
 		return nil
 	}
 
-	if err := cli.Patch(ctx, patch, client.MergeFrom(cr)); err != nil {
-		return fmt.Errorf("failed to patch CR %s in namespace %s: %w", cr.GetName(), cr.GetNamespace(), err)
+	if err := cli.Patch(ctx, patch, client.MergeFrom(&dashboardConfig)); err != nil {
+		return fmt.Errorf("failed to patch CR %s in namespace %s: %w", dashboardConfig.GetName(), dashboardConfig.GetNamespace(), err)
 	}
 
-	log.Info("Patched odhdashboardconfig successfully", "namespace", cr.GetNamespace(), "name", cr.GetName())
+	log.Info("Patched odhdashboardconfig successfully", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
 
 	return nil
 }
