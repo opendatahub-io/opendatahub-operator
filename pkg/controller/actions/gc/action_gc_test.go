@@ -554,3 +554,103 @@ func TestGcActionCluster(t *testing.T) {
 	ct := testutil.ToFloat64(gc.DeletedTotal)
 	g.Expect(ct).Should(BeNumerically("==", 2))
 }
+
+func TestGcActionOnce(t *testing.T) {
+	g := NewWithT(t)
+
+	envTest, err := envt.New()
+	g.Expect(err).NotTo(HaveOccurred())
+
+	t.Cleanup(func() {
+		_ = envTest.Stop()
+	})
+
+	ctx := context.Background()
+	cli := envTest.Client()
+	nsn := xid.New().String()
+
+	gci := gcSvc.New(
+		cli,
+		nsn,
+		// Since test env does not support foreground deletion, we can
+		// use it to simulate a resource deleted, but not removed.
+		gcSvc.WithPropagationPolicy(metav1.DeletePropagationForeground),
+	)
+
+	ns := corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nsn,
+		},
+	}
+
+	g.Expect(cli.Create(ctx, &ns)).
+		NotTo(HaveOccurred())
+	g.Expect(gci.Start(ctx)).
+		NotTo(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client: cli,
+		DSCI: &dsciv1.DSCInitialization{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Instance: &componentApi.Dashboard{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: componentApi.GroupVersion.String(),
+				Kind:       componentApi.DashboardKind,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: componentApi.DashboardInstanceName,
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{
+				Version: semver.Version{Major: 0, Minor: 2, Patch: 0},
+			},
+		},
+		Generated: true,
+	}
+
+	g.Expect(cli.Create(ctx, rr.Instance)).
+		NotTo(HaveOccurred())
+
+	defer func() {
+		g.Expect(cli.Delete(ctx, rr.Instance)).Should(Or(
+			Not(HaveOccurred()),
+			MatchError(k8serr.IsNotFound, "IsNotFound"),
+		))
+	}()
+
+	cm := corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+		Namespace: nsn,
+		Name:      xid.New().String(),
+		Annotations: map[string]string{
+			annotations.InstanceGeneration: strconv.FormatInt(rr.Instance.GetGeneration(), 10),
+			annotations.InstanceUID:        xid.New().String(),
+			annotations.PlatformType:       string(cluster.OpenDataHub),
+			annotations.PlatformVersion:    rr.Release.Version.String(),
+		},
+		Labels: map[string]string{
+			labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+		},
+	}}
+
+	g.Expect(controllerutil.SetOwnerReference(rr.Instance, &cm, cli.Scheme())).
+		NotTo(HaveOccurred())
+
+	g.Expect(cli.Create(ctx, &cm)).
+		NotTo(HaveOccurred())
+
+	a := gc.NewAction(gc.WithGC(gci))
+
+	gc.DeletedTotal.Reset()
+	gc.DeletedTotal.WithLabelValues("dashboard").Add(0)
+
+	g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
+	g.Expect(testutil.ToFloat64(gc.DeletedTotal)).Should(BeNumerically("==", 1))
+
+	g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
+	g.Expect(testutil.ToFloat64(gc.DeletedTotal)).Should(BeNumerically("==", 1))
+}
