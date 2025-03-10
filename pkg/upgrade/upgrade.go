@@ -37,6 +37,112 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
+// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
+var (
+	notebookSizesData = []any{
+		map[string]any{
+			"name": "Small",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "1",
+					"memory": "8Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "2",
+					"memory": "8Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Medium",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "3",
+					"memory": "24Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "6",
+					"memory": "24Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Large",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "7",
+					"memory": "56Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "14",
+					"memory": "56Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "X Large",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "15",
+					"memory": "120Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "30",
+					"memory": "120Gi",
+				},
+			},
+		},
+	}
+	modelServerSizeData = []any{
+		map[string]any{
+			"name": "Small",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "1",
+					"memory": "4Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "2",
+					"memory": "8Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Medium",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "4",
+					"memory": "8Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "8",
+					"memory": "10Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Large",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "6",
+					"memory": "16Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "10",
+					"memory": "20Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Custom",
+			"resources": map[string]any{
+				"requests": map[string]any{},
+				"limits":   map[string]any{},
+			},
+		},
+	}
+)
+
 type ResourceSpec struct {
 	Gvk       schema.GroupVersionKind
 	Namespace string
@@ -614,4 +720,67 @@ func cleanupModelControllerLegacyDeployment(ctx context.Context, cli client.Clie
 	l.Info("legacy deployment deleted", "name", d.Name, "namespace", d.Namespace)
 
 	return nil
+}
+
+// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
+func PatchOdhDashboardConfig(ctx context.Context, cli client.Client) error {
+	log := logf.FromContext(ctx)
+
+	var dashboardConfig unstructured.Unstructured
+	dashboardConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
+
+	if err := cluster.GetSingleton(ctx, cli, &dashboardConfig); err != nil {
+		if k8serr.IsNotFound(err) {
+			log.Info("no odhdashboard instance available, hence skipping patch", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
+			return nil
+		}
+		return fmt.Errorf("failed to retrieve odhdashboardconfg instance: %w", err)
+	}
+
+	log.Info("Found CR, applying patch", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
+
+	patch := dashboardConfig.DeepCopy()
+	updates := map[string][]any{
+		"notebookSizes":    notebookSizesData,
+		"modelServerSizes": modelServerSizeData,
+	}
+
+	updated, err := updateSpecFields(patch, updates)
+	if err != nil {
+		return fmt.Errorf("failed to update odhdashboardconfig spec fields: %w", err)
+	}
+
+	if !updated {
+		log.Info("No changes needed, skipping patch", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
+		return nil
+	}
+
+	if err := cli.Patch(ctx, patch, client.MergeFrom(&dashboardConfig)); err != nil {
+		return fmt.Errorf("failed to patch CR %s in namespace %s: %w", dashboardConfig.GetName(), dashboardConfig.GetNamespace(), err)
+	}
+
+	log.Info("Patched odhdashboardconfig successfully", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
+
+	return nil
+}
+
+// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
+func updateSpecFields(obj *unstructured.Unstructured, updates map[string][]any) (bool, error) {
+	updated := false
+
+	for field, newData := range updates {
+		existingField, exists, err := unstructured.NestedSlice(obj.Object, "spec", field)
+		if err != nil {
+			return false, fmt.Errorf("failed to get field '%s': %w", field, err)
+		}
+
+		if !exists || len(existingField) == 0 {
+			if err := unstructured.SetNestedSlice(obj.Object, newData, "spec", field); err != nil {
+				return false, fmt.Errorf("failed to set field '%s': %w", field, err)
+			}
+			updated = true
+		}
+	}
+
+	return updated, nil
 }
