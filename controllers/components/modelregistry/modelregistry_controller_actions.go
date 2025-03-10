@@ -7,13 +7,12 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -21,28 +20,36 @@ import (
 	_ "embed"
 )
 
-func checkPreConditions(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	mr, ok := rr.Instance.(*componentApi.ModelRegistry)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.ModelRegistry", rr.Instance)
+func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	rr.Conditions.MarkTrue(status.ConditionServiceMeshAvailable)
+
+	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
+		rr.Conditions.MarkFalse(
+			status.ConditionServiceMeshAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
+			conditions.WithMessage(status.ServiceMeshNotConfiguredMessage),
+		)
+
+		return ErrServiceMeshNotConfigured
 	}
 
-	if rr.DSCI.Spec.ServiceMesh != nil && rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-		return nil
+	_, err := cluster.GetCRD(ctx, rr.Client, ServiceMeshMemberCRD)
+	switch {
+	case k8serr.IsNotFound(err):
+		rr.Conditions.MarkFalse(
+			status.ConditionServiceMeshAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
+			conditions.WithMessage(ServiceMeshMemberAPINotFound),
+		)
+
+		return ErrServiceMeshMemberAPINotFound
+	case err != nil:
+		return err
 	}
 
-	s := mr.GetStatus()
-	s.Phase = "NotReady"
-
-	conditions.SetStatusCondition(mr, common.Condition{
-		Type:               status.ConditionTypeReady,
-		Status:             metav1.ConditionFalse,
-		Reason:             status.ServiceMeshNotConfiguredReason,
-		Message:            status.ServiceMeshNotConfiguredMessage,
-		ObservedGeneration: s.ObservedGeneration,
-	})
-
-	return odherrors.NewStopError(status.ServiceMeshNotConfiguredMessage)
+	return nil
 }
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -94,7 +101,6 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 	}
 
 	// Namespace
-
 	if err := rr.AddResources(
 		&corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -102,7 +108,7 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 			},
 		},
 	); err != nil {
-		return fmt.Errorf("failed to add namespace %s to manifests", mr.Spec.RegistriesNamespace)
+		return fmt.Errorf("failed to add namespace %s to manifests: %w", mr.Spec.RegistriesNamespace, err)
 	}
 
 	// Secret

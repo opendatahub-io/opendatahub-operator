@@ -8,6 +8,7 @@ import (
 	"path"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -114,7 +115,6 @@ func defineServiceMeshFeatures(ctx context.Context, cli client.Client, dscispec 
 					manifest.Location(Resources.Location).
 						Include(
 							path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
-							path.Join(Resources.ServiceMeshDir, "envoy-oauth-temp-fix.tmpl.yaml"),
 							path.Join(Resources.ServiceMeshDir, "kserve-predictor-authorizationpolicy.tmpl.yaml"),
 							path.Join(Resources.ServiceMeshDir, "kserve-inferencegraph-envoyfilter.tmpl.yaml"),
 							path.Join(Resources.ServiceMeshDir, "kserve-inferencegraph-authorizationpolicy.tmpl.yaml"),
@@ -153,7 +153,11 @@ func removeServerlessFeatures(ctx context.Context, cli client.Client, k *compone
 
 func getDefaultDeploymentMode(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) (string, error) {
 	kserveConfigMap := corev1.ConfigMap{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: kserveConfigMapName, Namespace: dscispec.ApplicationsNamespace}, &kserveConfigMap); err != nil {
+	err := cli.Get(ctx, client.ObjectKey{Name: kserveConfigMapName, Namespace: dscispec.ApplicationsNamespace}, &kserveConfigMap)
+	if errors.IsNotFound(err) {
+		return "", nil
+	}
+	if err != nil {
 		return "", err
 	}
 

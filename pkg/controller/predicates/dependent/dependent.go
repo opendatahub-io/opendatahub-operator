@@ -77,6 +77,14 @@ func (p Predicate) Update(e event.UpdateEvent) bool {
 	if e.ObjectOld.GetResourceVersion() == e.ObjectNew.GetResourceVersion() {
 		return false
 	}
+	if !p.WatchStatus {
+		oldGen := e.ObjectOld.GetGeneration()
+		newGen := e.ObjectNew.GetGeneration()
+
+		if oldGen == newGen && newGen != 0 {
+			return false
+		}
+	}
 
 	oldObj, err := resources.ToUnstructured(e.ObjectOld)
 	if err != nil {

@@ -74,6 +74,7 @@ const (
 	ConditionServiceMeshAvailable          = "ServiceMeshAvailable"
 	ConditionArgoWorkflowAvailable         = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady           = "ComponentsReady"
+	ConditionServingAvailable              = "ServingAvailable"
 )
 
 const (

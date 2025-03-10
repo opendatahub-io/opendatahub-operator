@@ -11,18 +11,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-type fakeAccessor struct {
-	conditions []common.Condition
-}
-
-func (f *fakeAccessor) GetConditions() []common.Condition {
-	return f.conditions
-}
-
-func (f *fakeAccessor) SetConditions(values []common.Condition) {
-	f.conditions = values
-}
-
 func TestSetStatusCondition_LastTransitionTime(t *testing.T) {
 	a := fakeAccessor{}
 	a.conditions = make([]common.Condition, 0)

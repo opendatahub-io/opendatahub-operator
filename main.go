@@ -22,7 +22,6 @@ import (
 	"flag"
 	"os"
 
-	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
 	configv1 "github.com/openshift/api/config/v1"
@@ -44,11 +43,11 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -113,7 +112,6 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(dscv1.AddToScheme(scheme))
 	utilruntime.Must(featurev1.AddToScheme(scheme))
 	utilruntime.Must(networkingv1.AddToScheme(scheme))
-	utilruntime.Must(addonv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(rbacv1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(routev1.Install(scheme))
@@ -127,7 +125,6 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(imagev1.Install(scheme))
 	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	utilruntime.Must(admissionregistrationv1.AddToScheme(scheme))
-	utilruntime.Must(apiregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(promv1.AddToScheme(scheme))
 	utilruntime.Must(operatorv1.Install(scheme))
 	utilruntime.Must(consolev1.AddToScheme(scheme))
@@ -145,7 +142,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
-	var dscMonitoringNamespace string
+	var monitoringNamespace string
 	var logmode string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -153,7 +150,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&dscMonitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster"+
+	flag.StringVar(&monitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster "+
 		"monitoring stack will be deployed")
 	flag.StringVar(&logmode, "log-mode", "", "Log mode ('', prod, devel), default to ''")
 
@@ -264,6 +261,14 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			&rbacv1.ClusterRoleBinding{}:             {},
 			&securityv1.SecurityContextConstraints{}: {},
 		},
+		DefaultTransform: func(in any) (any, error) {
+			// Nilcheck managed fields to avoid hitting https://github.com/kubernetes/kubernetes/issues/124337
+			if obj, err := meta.Accessor(in); err == nil && obj.GetManagedFields() != nil {
+				obj.SetManagedFields(nil)
+			}
+
+			return in, nil
+		},
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
@@ -295,6 +300,8 @@ func main() { //nolint:funlen,maintidx,gocyclo
 					&ofapiv1alpha1.Subscription{},
 					resources.GvkToUnstructured(gvk.ServiceMeshControlPlane),
 					&authorizationv1.SelfSubjectRulesReview{},
+					&corev1.Pod{},
+					&userv1.Group{},
 				},
 				// Set it to true so the cache-backed client reads unstructured objects
 				// or lists from the cache instead of a live lookup.
@@ -315,6 +322,18 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
+	ons, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		setupLog.Error(err, "unable to determine Operator Namespace")
+		os.Exit(1)
+	}
+
+	gc.Instance = gc.New(
+		oc,
+		ons,
+		gc.WithUnremovables(gvk.CustomResourceDefinition, gvk.Lease),
+	)
+
 	if err = (&dscictrl.DSCInitializationReconciler{
 		Client:   oc,
 		Scheme:   mgr.GetScheme(),
@@ -324,11 +343,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	if err = (&dscctrl.DataScienceClusterReconciler{
-		Client:   oc,
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("datasciencecluster-controller"),
-	}).SetupWithManager(ctx, mgr); err != nil {
+	if err = dscctrl.NewDataScienceClusterReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
 		os.Exit(1)
 	}
@@ -355,18 +370,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
 		os.Exit(1)
 	}
-
-	ons, err := cluster.GetOperatorNamespace()
-	if err != nil {
-		setupLog.Error(err, "unable to determine Operator Namespace")
-		os.Exit(1)
-	}
-
-	gc.Instance = gc.New(
-		oc,
-		ons,
-		gc.WithUnremovables(gvk.CustomResourceDefinition, gvk.Lease),
-	)
 
 	err = mgr.Add(gc.Instance)
 	if err != nil {
@@ -395,7 +398,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Info("DSCI auto creation is disabled")
 	} else {
 		var createDefaultDSCIFunc manager.RunnableFunc = func(ctx context.Context) error {
-			err := upgrade.CreateDefaultDSCI(ctx, setupClient, platform, dscMonitoringNamespace)
+			err := upgrade.CreateDefaultDSCI(ctx, setupClient, platform, monitoringNamespace)
 			if err != nil {
 				setupLog.Error(err, "unable to create initial setup for the operator")
 			}
@@ -425,7 +428,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 	// Cleanup resources from previous v2 releases
 	var cleanExistingResourceFunc manager.RunnableFunc = func(ctx context.Context) error {
-		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, dscMonitoringNamespace, oldReleaseVersion); err != nil {
+		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, oldReleaseVersion); err != nil {
 			setupLog.Error(err, "unable to perform cleanup")
 		}
 		return err

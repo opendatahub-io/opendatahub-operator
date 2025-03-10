@@ -52,23 +52,22 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 		return err
 	}
 
-	// Patch monitoring namespace: no difference for any type of platform
-	err := r.patchMonitoringNS(ctx, dscInit)
-	if err != nil {
-		log.Error(err, "error patch monitoring namespace")
-		return err
+	// Patch monitoring namespace: only for Managed cluster
+	if platform == cluster.ManagedRhoai {
+		if err := r.patchMonitoringNS(ctx, dscInit); err != nil {
+			log.Error(err, "error patch monitoring namespace")
+			return err
+		}
 	}
 
 	// Create default NetworkPolicy for the namespace
-	err = r.reconcileDefaultNetworkPolicy(ctx, dscInit, platform)
-	if err != nil {
+	if err := r.reconcileDefaultNetworkPolicy(ctx, dscInit, platform); err != nil {
 		log.Error(err, "error reconciling network policy ", "name", dscInit.Spec.ApplicationsNamespace)
 		return fmt.Errorf("error: %w", err)
 	}
 
 	// Create odh-common-config Configmap for the Namespace
-	err = r.createOdhCommonConfigMap(ctx, dscInit)
-	if err != nil {
+	if err := r.createOdhCommonConfigMap(ctx, dscInit); err != nil {
 		log.Error(err, "error creating configmap", "name", "odh-common-config")
 		return err
 	}
@@ -177,7 +176,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(
 ) error {
 	log := logf.FromContext(ctx)
 	name := dscInit.Spec.ApplicationsNamespace
-	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
+	if platform == cluster.ManagedRhoai {
 		// Get operator namepsace
 		operatorNs, err := cluster.GetOperatorNamespace()
 		if err != nil {
@@ -419,16 +418,10 @@ func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscIn
 		// Otherwise is errors with "error": "Group.user.openshift.io \"odh-admins\" is invalid: users: Invalid value: \"null\": users in body must be of type array: \"null\""}
 		Users: []string{},
 	}
-	err := r.Client.Get(ctx, client.ObjectKeyFromObject(userGroup), userGroup)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			err = r.Client.Create(ctx, userGroup)
-			if err != nil && !k8serr.IsAlreadyExists(err) {
-				return err
-			}
-		} else {
-			return err
-		}
+
+	err := r.Client.Create(ctx, userGroup)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return err
 	}
 
 	return nil

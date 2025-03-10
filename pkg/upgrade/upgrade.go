@@ -112,7 +112,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform, monNamespace string) error {
 	log := logf.FromContext(ctx)
 	defaultDsciSpec := &dsciv1.DSCInitializationSpec{
-		Monitoring: serviceApi.DSCMonitoring{
+		Monitoring: serviceApi.DSCIMonitoring{
 			ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 				Namespace: monNamespace,
@@ -208,7 +208,6 @@ func getDashboardWatsonResources(ns string) []ResourceSpec {
 func CleanupExistingResource(ctx context.Context,
 	cli client.Client,
 	platform common.Platform,
-	dscMonitoringNamespace string,
 	oldReleaseVersion common.Release,
 ) error {
 	var multiErr *multierror.Error

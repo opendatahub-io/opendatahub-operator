@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -65,6 +65,8 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 			TrainingOperatorARules string `yaml:"trainingoperator-alerting.rules"`
 			ModelRegistryRRules    string `yaml:"model-registry-operator-recording.rules"`
 			ModelRegistryARules    string `yaml:"model-registry-operator-alerting.rules"`
+			FeastOperatorRRules    string `yaml:"feastoperator-recording.rules"`
+			FeastOperatorARules    string `yaml:"feastoperator-alerting.rules"`
 		} `yaml:"data"`
 	}
 
@@ -139,6 +141,6 @@ func isComponentReady(ctx context.Context, cli *odhcli.Client, obj common.Platfo
 	case err != nil:
 		return false, fmt.Errorf("failed to get component instance: %w", err)
 	default:
-		return conditions.IsStatusConditionTrue(obj, status.ConditionTypeReady), nil
+		return conditions.IsStatusConditionTrue(obj.GetStatus(), status.ConditionTypeReady), nil
 	}
 }
