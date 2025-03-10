@@ -6,6 +6,7 @@ metadata:
   labels:
     app.opendatahub.io/kserve: "true"
     app.kubernetes.io/part-of: kserve
+    platform.opendatahub.io/dependency: servicemesh
 spec:
   priority: 20
   workloadSelector:
@@ -30,10 +31,10 @@ spec:
               if not headers then
                 return
               end
-           
+
               local original_host = headers:get("k-original-host")
               if original_host then
-           
+
                 port_seperator = string.find(original_host, ":", 7)
                 if port_seperator then
                   original_host = string.sub(original_host, 0, port_seperator-1)
