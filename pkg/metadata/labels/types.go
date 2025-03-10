@@ -2,10 +2,12 @@ package labels
 
 const (
 	ODHAppPrefix           = "app.opendatahub.io"
+	ODHPlatformPrefix      = "platform.opendatahub.io"
 	InjectTrustCA          = "config.openshift.io/inject-trusted-cabundle"
 	SecurityEnforce        = "pod-security.kubernetes.io/enforce"
 	ClusterMonitoring      = "openshift.io/cluster-monitoring"
-	PlatformPartOf         = "platform.opendatahub.io/part-of"
+	PlatformPartOf         = ODHPlatformPrefix + "/part-of"
+	PlatformDependency     = ODHPlatformPrefix + "/dependency"
 	Platform               = "platform"
 	True                   = "true"
 	CustomizedAppNamespace = "opendatahub.io/application-namespace"
