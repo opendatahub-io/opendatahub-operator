@@ -48,7 +48,8 @@ type DashboardSpec struct {
 
 // DashboardCommonStatus defines the shared observed state of Dashboard
 type DashboardCommonStatus struct {
-	URL string `json:"url,omitempty"`
+	URL                           string `json:"url,omitempty"`
+	common.ComponentReleaseStatus `json:",inline"`
 }
 
 // DashboardStatus defines the observed state of Dashboard
@@ -88,6 +89,12 @@ func (c *Dashboard) GetConditions() []common.Condition {
 
 func (c *Dashboard) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
+}
+
+func (c *Dashboard) GetReleaseStatus() *[]common.ComponentRelease { return &c.Status.Releases }
+
+func (c *Dashboard) SetReleaseStatus(releases []common.ComponentRelease) {
+	c.Status.Releases = releases
 }
 
 // +kubebuilder:object:root=true
