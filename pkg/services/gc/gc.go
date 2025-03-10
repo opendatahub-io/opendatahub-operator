@@ -186,6 +186,9 @@ func (gc *GC) Run(
 			if !canBeDeleted {
 				continue
 			}
+			if !items[i].GetDeletionTimestamp().IsZero() {
+				continue
+			}
 
 			if err := gc.delete(ctx, items[i]); err != nil {
 				return 0, err
