@@ -37,6 +37,112 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
+// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
+var (
+	notebookSizesData = []any{
+		map[string]any{
+			"name": "Small",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "1",
+					"memory": "8Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "2",
+					"memory": "8Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Medium",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "3",
+					"memory": "24Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "6",
+					"memory": "24Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Large",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "7",
+					"memory": "56Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "14",
+					"memory": "56Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "X Large",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "15",
+					"memory": "120Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "30",
+					"memory": "120Gi",
+				},
+			},
+		},
+	}
+	modelServerSizeData = []any{
+		map[string]any{
+			"name": "Small",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "1",
+					"memory": "4Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "2",
+					"memory": "8Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Medium",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "4",
+					"memory": "8Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "8",
+					"memory": "10Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Large",
+			"resources": map[string]any{
+				"requests": map[string]any{
+					"cpu":    "6",
+					"memory": "16Gi",
+				},
+				"limits": map[string]any{
+					"cpu":    "10",
+					"memory": "20Gi",
+				},
+			},
+		},
+		map[string]any{
+			"name": "Custom",
+			"resources": map[string]any{
+				"requests": map[string]any{},
+				"limits":   map[string]any{},
+			},
+		},
+	}
+)
+
 type ResourceSpec struct {
 	Gvk       schema.GroupVersionKind
 	Namespace string
@@ -628,35 +734,36 @@ func PatchOdhDashboardConfig(ctx context.Context, cli client.Client) error {
 		return fmt.Errorf("error listing odhdashboardconfig CRs: %w", err)
 	}
 
-	for _, cr := range dashboardConfigs.Items {
-		if !cluster.IsNotReservedNamespace(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: cr.GetNamespace()}}) {
-			continue
-		}
-
-		log.Info("Found CR, applying patch", "namespace", cr.GetNamespace(), "name", cr.GetName())
-
-		patch := cr.DeepCopy()
-		updates := map[string][]any{
-			"notebookSizes":    getNotebookSizesData(),
-			"modelServerSizes": getModelServerSizeData(),
-		}
-
-		updated, err := updateSpecFields(patch, updates)
-		if err != nil {
-			return fmt.Errorf("failed to update odhdashboardconfig spec fields: %w", err)
-		}
-
-		if !updated {
-			log.Info("No changes needed, skipping patch", "namespace", cr.GetNamespace(), "name", cr.GetName())
-			continue
-		}
-
-		if err := cli.Patch(ctx, patch, client.MergeFrom(&cr)); err != nil {
-			return fmt.Errorf("failed to patch CR %s in namespace %s: %w", cr.GetName(), cr.GetNamespace(), err)
-		}
-
-		log.Info("Patched odhdashboardconfig successfully", "namespace", cr.GetNamespace(), "name", cr.GetName())
+	if len(dashboardConfigs.Items) == 0 {
+		log.Info("No odhdashboardconfig CR found, skipping patch")
+		return nil
 	}
+
+	cr := &dashboardConfigs.Items[0] // singleton
+
+	log.Info("Found CR, applying patch", "namespace", cr.GetNamespace(), "name", cr.GetName())
+
+	patch := cr.DeepCopy()
+	updates := map[string][]any{
+		"notebookSizes":    notebookSizesData,
+		"modelServerSizes": modelServerSizeData,
+	}
+
+	updated, err := updateSpecFields(patch, updates)
+	if err != nil {
+		return fmt.Errorf("failed to update odhdashboardconfig spec fields: %w", err)
+	}
+
+	if !updated {
+		log.Info("No changes needed, skipping patch", "namespace", cr.GetNamespace(), "name", cr.GetName())
+		return nil
+	}
+
+	if err := cli.Patch(ctx, patch, client.MergeFrom(cr)); err != nil {
+		return fmt.Errorf("failed to patch CR %s in namespace %s: %w", cr.GetName(), cr.GetNamespace(), err)
+	}
+
+	log.Info("Patched odhdashboardconfig successfully", "namespace", cr.GetNamespace(), "name", cr.GetName())
 
 	return nil
 }
@@ -680,114 +787,4 @@ func updateSpecFields(obj *unstructured.Unstructured, updates map[string][]any) 
 	}
 
 	return updated, nil
-}
-
-// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
-func getNotebookSizesData() []any {
-	return []any{
-		map[string]any{
-			"name": "Small",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "1",
-					"memory": "8Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "2",
-					"memory": "8Gi",
-				},
-			},
-		},
-		map[string]any{
-			"name": "Medium",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "3",
-					"memory": "24Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "6",
-					"memory": "24Gi",
-				},
-			},
-		},
-		map[string]any{
-			"name": "Large",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "7",
-					"memory": "56Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "14",
-					"memory": "56Gi",
-				},
-			},
-		},
-		map[string]any{
-			"name": "X Large",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "15",
-					"memory": "120Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "30",
-					"memory": "120Gi",
-				},
-			},
-		},
-	}
-}
-
-// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
-func getModelServerSizeData() []any {
-	return []any{
-		map[string]any{
-			"name": "Small",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "1",
-					"memory": "4Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "2",
-					"memory": "8Gi",
-				},
-			},
-		},
-		map[string]any{
-			"name": "Medium",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "4",
-					"memory": "8Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "8",
-					"memory": "10Gi",
-				},
-			},
-		},
-		map[string]any{
-			"name": "Large",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "6",
-					"memory": "16Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "10",
-					"memory": "20Gi",
-				},
-			},
-		},
-		map[string]any{
-			"name": "Custom",
-			"resources": map[string]any{
-				"requests": map[string]any{},
-				"limits":   map[string]any{},
-			},
-		},
-	}
 }
