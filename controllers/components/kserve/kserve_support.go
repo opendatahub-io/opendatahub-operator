@@ -6,10 +6,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -24,6 +27,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -215,4 +219,69 @@ func ifGVKInstalled(kvg schema.GroupVersionKind) func(context.Context, *odhtypes
 		}
 		return hasCRD
 	}
+}
+
+// shouldRemoveOwnerRefAndLabel encapsulates the decision on whether a resource
+// should be excluded from GC collection because it's considered Unmanaged.
+func shouldRemoveOwnerRefAndLabel(
+	dsciServiceMesh *infrav1.ServiceMeshSpec,
+	kserveServing infrav1.ServingSpec,
+	res unstructured.Unstructured,
+) bool {
+	switch {
+	case isForDependency("servicemesh")(res):
+		return dsciServiceMesh != nil && dsciServiceMesh.ManagementState == operatorv1.Unmanaged
+	case isForDependency("serverless")(res):
+		if dsciServiceMesh != nil && dsciServiceMesh.ManagementState == operatorv1.Unmanaged {
+			return true
+		} else if kserveServing.ManagementState == operatorv1.Unmanaged {
+			return true
+		}
+	default:
+		return false
+	}
+	return false
+}
+
+func getAndRemoveOwnerReferences(
+	ctx context.Context,
+	cli client.Client,
+	res unstructured.Unstructured,
+	predicate func(or metav1.OwnerReference) bool,
+) error {
+	current := resources.GvkToUnstructured(res.GroupVersionKind())
+
+	lookupErr := cli.Get(ctx, client.ObjectKeyFromObject(&res), current)
+	if errors.IsNotFound(lookupErr) {
+		return nil
+	}
+	if lookupErr != nil {
+		return fmt.Errorf("failed to lookup object %s/%s: %w",
+			res.GetNamespace(), res.GetName(), lookupErr)
+	}
+
+	ls := current.GetLabels()
+	maps.DeleteFunc(ls, func(k string, v string) bool {
+		return k == labels.PlatformPartOf &&
+			v == strings.ToLower(componentApi.KserveKind)
+	})
+	current.SetLabels(ls)
+
+	return resources.RemoveOwnerReferences(ctx, cli, current, predicate)
+}
+
+func isForDependency(s string) func(u unstructured.Unstructured) bool {
+	return func(u unstructured.Unstructured) bool {
+		for k, v := range u.GetLabels() {
+			if k == labels.PlatformDependency && v == s {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func isKserveOwnerRef(or metav1.OwnerReference) bool {
+	return or.APIVersion == componentApi.GroupVersion.String() &&
+		or.Kind == componentApi.KserveKind
 }

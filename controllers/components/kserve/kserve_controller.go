@@ -127,12 +127,20 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(releases.NewAction()).
-		WithAction(configureServerless).
-		WithAction(configureServiceMesh).
+		WithAction(addTemplateFiles).
 		WithAction(template.NewAction(
 			template.WithCache(),
 			template.WithDataFn(getTemplateData),
 		)).
+
+		// these actions deal with the Kserve serving config and DSCI
+		// service mesh config, and the transitions between different
+		// management states of those.
+		WithAction(addServingCertResourceIfManaged).
+		WithAction(removeOwnershipFromUnmanagedResources).
+		WithAction(cleanUpTemplatedResources).
+
+		//
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
 			// These are the default labels added by the legacy deploy method
@@ -152,6 +160,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(deployments.NewAction()).
 		WithAction(setStatusFields).
+		// TODO: can be removed after RHOAI 2.26 (next EUS)
 		WithAction(deleteFeatureTrackers).
 		// must be the final action
 		WithAction(gc.NewAction()).
