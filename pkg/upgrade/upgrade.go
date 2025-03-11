@@ -723,8 +723,14 @@ func cleanupModelControllerLegacyDeployment(ctx context.Context, cli client.Clie
 }
 
 // TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
-func PatchOdhDashboardConfig(ctx context.Context, cli client.Client) error {
+func PatchOdhDashboardConfig(ctx context.Context, cli client.Client, prevVersion, currVersion common.Release) error {
 	log := logf.FromContext(ctx)
+
+	if !prevVersion.Version.Version.LT(currVersion.Version.Version) {
+		log.Info("Skipping patch as current version is not greater than previous version",
+			"previous version", prevVersion.Version.Version, "current version", currVersion.Version.Version)
+		return nil
+	}
 
 	var dashboardConfig unstructured.Unstructured
 	dashboardConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
