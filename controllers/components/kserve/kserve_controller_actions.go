@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
@@ -165,104 +166,129 @@ func deleteFeatureTrackers(ctx context.Context, rr *odhtypes.ReconciliationReque
 	return nil
 }
 
-func configureServerless(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func addServingCertResourceIfManaged(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
+	}
+
+	if k.Spec.Serving.ManagementState == operatorv1.Managed {
+		if rr.DSCI.Spec.ServiceMesh == nil {
+			return errors.New("ServiceMesh needs to be configured and 'Managed' in DSCI CR, " +
+				"it is required by KServe serving")
+		}
+
+		err := createServingCertResource(ctx, rr.Client, &rr.DSCI.Spec, k)
+		if err != nil {
+			return fmt.Errorf("unable to create serverless serving certificate secret: %w", err)
+		}
+	}
+	return nil
+}
+
+func addTemplateFiles(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// Always add all the templates...will get removed before deploy if necessary
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: "resources/serving-install/service-mesh-subscription.tmpl.yaml",
+		},
+		{
+			FS:   resourcesFS,
+			Path: "resources/serving-install/knative-serving.tmpl.yaml",
+		},
+		{
+			FS:   resourcesFS,
+			Path: "resources/servicemesh/routing/istio-ingress-gateway.tmpl.yaml",
+		},
+		{
+			FS:   resourcesFS,
+			Path: "resources/servicemesh/routing/istio-kserve-local-gateway.tmpl.yaml",
+		},
+		{
+			FS:   resourcesFS,
+			Path: "resources/servicemesh/routing/istio-local-gateway.yaml",
+		},
+		{
+			FS:   resourcesFS,
+			Path: "resources/servicemesh/routing/kserve-local-gateway-svc.tmpl.yaml",
+		},
+		{
+			FS:   resourcesFS,
+			Path: "resources/servicemesh/routing/local-gateway-svc.tmpl.yaml",
+		},
+
+		// TODO these are the servicemesh ones
+		{
+			FS:   resourcesFS,
+			Path: "resources/servicemesh/activator-envoyfilter.tmpl.yaml",
+		},
+		{
+			FS:   resourcesFS,
+			Path: "resources/servicemesh/kserve-predictor-authorizationpolicy.tmpl.yaml",
+		},
+		{
+			FS:   resourcesFS,
+			Path: "resources/servicemesh/kserve-inferencegraph-envoyfilter.tmpl.yaml",
+		},
+		{
+			FS:   resourcesFS,
+			Path: "resources/servicemesh/kserve-inferencegraph-authorizationpolicy.tmpl.yaml",
+		},
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
+	return nil
+}
+
+func removeOwnershipFromUnmanagedResources(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
+	}
+
+	// unmanaged: remove ownerref & label to avoid GC
+	for _, res := range rr.Resources {
+		if shouldRemoveOwnerRefAndLabel(rr.DSCI.Spec.ServiceMesh, k.Spec.Serving, res) {
+			err := getAndRemoveOwnerReferences(ctx, rr.Client, res, isKserveOwnerRef)
+			if err != nil {
+				return odherrors.NewStopErrorW(err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	k, ok := rr.Instance.(*componentApi.Kserve)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
 	}
 
 	logger := logf.FromContext(ctx)
-	cli := rr.Client
 
-	switch k.Spec.Serving.ManagementState {
-	case operatorv1.Unmanaged: // Bring your own CR
-		logger.Info("Serverless CR is not configured by the operator, we won't do anything")
-
-	case operatorv1.Removed: // we remove serving CR
-		logger.Info("existing Serverless CR (owned by operator) will be removed")
-
-	case operatorv1.Managed: // standard workflow to create CR
-		if rr.DSCI.Spec.ServiceMesh == nil {
-			return errors.New("ServiceMesh needs to be configured and 'Managed' in DSCI CR, " +
-				"it is required by KServe serving")
-		}
-
-		switch rr.DSCI.Spec.ServiceMesh.ManagementState {
-		case operatorv1.Unmanaged, operatorv1.Removed:
-			return fmt.Errorf("ServiceMesh is currently set to '%s'. It needs to be set to 'Managed' in DSCI CR, "+
-				"as it is required by the KServe serving field", rr.DSCI.Spec.ServiceMesh.ManagementState)
-		}
-
-		err := createServingCertResource(ctx, cli, &rr.DSCI.Spec, k)
-		if err != nil {
-			return fmt.Errorf("unable to create serverless serving certificate secret: %w", err)
-		}
-
-		templates := []odhtypes.TemplateInfo{
-			{
-				FS:   resourcesFS,
-				Path: "resources/serving-install/service-mesh-subscription.tmpl.yaml",
-			},
-			{
-				FS:   resourcesFS,
-				Path: "resources/serving-install/knative-serving.tmpl.yaml",
-			},
-			{
-				FS:   resourcesFS,
-				Path: "resources/servicemesh/routing/istio-ingress-gateway.tmpl.yaml",
-			},
-			{
-				FS:   resourcesFS,
-				Path: "resources/servicemesh/routing/istio-kserve-local-gateway.tmpl.yaml",
-			},
-			{
-				FS:   resourcesFS,
-				Path: "resources/servicemesh/routing/istio-local-gateway.yaml",
-			},
-			{
-				FS:   resourcesFS,
-				Path: "resources/servicemesh/routing/kserve-local-gateway-svc.tmpl.yaml",
-			},
-			{
-				FS:   resourcesFS,
-				Path: "resources/servicemesh/routing/local-gateway-svc.tmpl.yaml",
-			},
-		}
-
-		rr.Templates = append(rr.Templates, templates...)
-	}
-	return nil
-}
-
-func configureServiceMesh(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	if rr.DSCI.Spec.ServiceMesh != nil {
-		if rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-			templates := []odhtypes.TemplateInfo{
-				{
-					FS:   resourcesFS,
-					Path: "resources/servicemesh/activator-envoyfilter.tmpl.yaml",
-				},
-				{
-					FS:   resourcesFS,
-					Path: "resources/servicemesh/kserve-predictor-authorizationpolicy.tmpl.yaml",
-				},
-				{
-					FS:   resourcesFS,
-					Path: "resources/servicemesh/kserve-inferencegraph-envoyfilter.tmpl.yaml",
-				},
-				{
-					FS:   resourcesFS,
-					Path: "resources/servicemesh/kserve-inferencegraph-authorizationpolicy.tmpl.yaml",
-				},
+	// Removed or unmanaged: remove from rr.Resources
+	if rr.DSCI.Spec.ServiceMesh != nil && rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
+		// Delete servicemesh and serverless resources explicitly in
+		// this case, since the GC won't collect them because the Kserve
+		// CR generation hasn't changed.
+		for _, res := range rr.Resources {
+			if isForDependency("serverless")(res) || isForDependency("servicemesh")(res) {
+				err := rr.Client.Delete(ctx, &res, client.PropagationPolicy(metav1.DeletePropagationForeground))
+				if k8serr.IsNotFound(err) {
+					continue
+				} else if err != nil {
+					return odherrors.NewStopErrorW(err)
+				}
+				logger.Info("Deleted", "kind", res.GetKind(), "name", res.GetName(), "namespace", res.GetNamespace())
 			}
-
-			rr.Templates = append(rr.Templates, templates...)
-
-			return nil
 		}
-		if rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Unmanaged {
-			return nil
-		}
+
+		rr.Resources = slices.DeleteFunc(rr.Resources, isForDependency("serverless"))
+		rr.Resources = slices.DeleteFunc(rr.Resources, isForDependency("servicemesh"))
+	} else if k.Spec.Serving.ManagementState != operatorv1.Managed {
+		rr.Resources = slices.DeleteFunc(rr.Resources, isForDependency("serverless"))
 	}
 
 	return nil
