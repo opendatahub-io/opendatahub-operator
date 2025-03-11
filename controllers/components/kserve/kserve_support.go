@@ -115,7 +115,6 @@ func defineServiceMeshFeatures(ctx context.Context, cli client.Client, dscispec 
 					manifest.Location(Resources.Location).
 						Include(
 							path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
-							path.Join(Resources.ServiceMeshDir, "envoy-oauth-temp-fix.tmpl.yaml"),
 							path.Join(Resources.ServiceMeshDir, "kserve-predictor-authorizationpolicy.tmpl.yaml"),
 							path.Join(Resources.ServiceMeshDir, "kserve-inferencegraph-envoyfilter.tmpl.yaml"),
 							path.Join(Resources.ServiceMeshDir, "kserve-inferencegraph-authorizationpolicy.tmpl.yaml"),
