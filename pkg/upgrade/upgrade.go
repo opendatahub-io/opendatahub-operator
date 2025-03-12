@@ -724,11 +724,15 @@ func cleanupModelControllerLegacyDeployment(ctx context.Context, cli client.Clie
 
 // TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
 func PatchOdhDashboardConfig(ctx context.Context, cli client.Client, prevVersion, currVersion common.Release) error {
-	log := logf.FromContext(ctx)
+	log := logf.FromContext(ctx).WithValues(
+		"prevVersion", prevVersion.Version.Version,
+		"currVersion", currVersion.Version.Version,
+		"action", "migration logic for dashboard",
+		"kind", "OdhDashboardConfig",
+	)
 
 	if !prevVersion.Version.Version.LT(currVersion.Version.Version) {
-		log.Info("Skipping patch as current version is not greater than previous version",
-			"previous version", prevVersion.Version.Version, "current version", currVersion.Version.Version)
+		log.Info("Skipping patch as current version is not greater than previous version")
 		return nil
 	}
 
@@ -742,8 +746,11 @@ func PatchOdhDashboardConfig(ctx context.Context, cli client.Client, prevVersion
 		}
 		return fmt.Errorf("failed to retrieve odhdashboardconfg instance: %w", err)
 	}
-
-	log.Info("Found CR, applying patch", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
+	log = log.WithValues(
+		"namespace", dashboardConfig.GetNamespace(),
+		"name", dashboardConfig.GetName(),
+	)
+	log.Info("Found CR, applying patch")
 
 	patch := dashboardConfig.DeepCopy()
 	updates := map[string][]any{
@@ -757,7 +764,7 @@ func PatchOdhDashboardConfig(ctx context.Context, cli client.Client, prevVersion
 	}
 
 	if !updated {
-		log.Info("No changes needed, skipping patch", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
+		log.Info("No changes needed, skipping patch")
 		return nil
 	}
 
@@ -765,7 +772,7 @@ func PatchOdhDashboardConfig(ctx context.Context, cli client.Client, prevVersion
 		return fmt.Errorf("failed to patch CR %s in namespace %s: %w", dashboardConfig.GetName(), dashboardConfig.GetNamespace(), err)
 	}
 
-	log.Info("Patched odhdashboardconfig successfully", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
+	log.Info("Patched odhdashboardconfig successfully")
 
 	return nil
 }
