@@ -127,6 +127,14 @@ resources:
     crdVersion: v1alpha1
   controller: true
   domain: platform.opendatahub.io
+  group: components
+  kind: FeastOperator
+  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1alpha1
+  controller: true
+  domain: platform.opendatahub.io
   group: services
   kind: Monitoring
   path: github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1
