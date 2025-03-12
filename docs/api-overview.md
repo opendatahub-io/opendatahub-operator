@@ -845,6 +845,9 @@ _Appears in:_
 - [DSCFeastOperatorStatus](#dscfeastoperatorstatus)
 - [FeastOperatorStatus](#feastoperatorstatus)
 
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### FeastOperatorList
@@ -899,6 +902,7 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#condition-v1-meta) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### Kserve
