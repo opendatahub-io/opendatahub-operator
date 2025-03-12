@@ -470,7 +470,7 @@ func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint:
 	depOperators := map[string]string{
 		"serverless-operator": "openshift-serverless",
 		"servicemeshoperator": "openshift-operators",
-		// "authorino-operator":  "openshift-operators",
+		"authorino-operator":  "openshift-operators",
 	}
 
 	var errors *multierror.Error
