@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -34,7 +35,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
 	}
 
-	rr.Conditions.MarkTrue(status.ConditionServingAvailable)
+	rr.Conditions.MarkUnknown(status.ConditionServingAvailable)
 
 	if k.Spec.Serving.ManagementState != operatorv1.Managed {
 		rr.Conditions.MarkFalse(
@@ -57,35 +58,35 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return ErrServiceMeshNotConfigured
 	}
 
+	var operatorsErr error
+
 	if found, err := cluster.OperatorExists(ctx, rr.Client, serviceMeshOperator); err != nil || !found {
-		e := ErrServiceMeshOperatorNotInstalled
 		if err != nil {
-			e = odherrors.NewStopErrorW(err)
+			return odherrors.NewStopErrorW(err)
 		}
 
-		rr.Conditions.MarkFalse(
-			status.ConditionServingAvailable,
-			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
-			conditions.WithError(e),
-		)
-
-		return e
+		operatorsErr = multierror.Append(operatorsErr, ErrServiceMeshOperatorNotInstalled)
 	}
 
 	if found, err := cluster.OperatorExists(ctx, rr.Client, serverlessOperator); err != nil || !found {
-		e := ErrServerlessOperatorNotInstalled
 		if err != nil {
-			e = odherrors.NewStopErrorW(err)
+			return odherrors.NewStopErrorW(err)
 		}
 
+		operatorsErr = multierror.Append(operatorsErr, ErrServerlessOperatorNotInstalled)
+	}
+
+	if operatorsErr != nil {
 		rr.Conditions.MarkFalse(
 			status.ConditionServingAvailable,
 			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
-			conditions.WithError(e),
+			conditions.WithError(operatorsErr),
 		)
 
-		return e
+		return odherrors.NewStopErrorW(operatorsErr)
 	}
+
+	rr.Conditions.MarkTrue(status.ConditionServingAvailable)
 
 	return nil
 }

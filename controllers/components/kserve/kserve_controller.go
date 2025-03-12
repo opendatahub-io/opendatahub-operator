@@ -111,6 +111,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(handlers.ToNamed(componentApi.KserveInstanceName)),
 			reconciler.WithPredicates(predicate.Or(generation.New(), resources.DSCIReadiness)),
 		).
+		WatchesGVK(
+			gvk.OperatorCondition,
+			reconciler.WithEventHandler(handlers.ToNamed(componentApi.KserveInstanceName)),
+			reconciler.WithPredicates(isRequiredOperators),
+		).
 		// operands - dynamically watched
 		//
 		// A watch will be created dynamically for these kinds, if they exist on the cluster
