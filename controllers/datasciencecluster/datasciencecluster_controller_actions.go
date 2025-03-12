@@ -116,6 +116,8 @@ func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error 
 		instance.Status.InstalledComponents = make(map[string]bool)
 	}
 
+	instance.Status.Release = rr.Release
+
 	err := computeComponentsStatus(ctx, rr, cr.DefaultRegistry())
 	if err != nil {
 		return err
