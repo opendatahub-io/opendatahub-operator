@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -24,6 +26,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -50,12 +53,31 @@ func kserveTestSuite(t *testing.T) {
 	t.Run("Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers)
 	t.Run("Validate default certs", componentCtx.validateDefaultCertsAvailable)
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
+	t.Run("Validate serving transition to Unmanaged", componentCtx.ValidateServingTransitionToUnmanaged)
+	t.Run("Validate serving transition to Removed", componentCtx.ValidateServingTransitionToRemoved)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
 	// t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
 }
 
 type KserveTestCtx struct {
 	*ComponentTestCtx
+}
+
+var templatedResources = []struct {
+	gvk schema.GroupVersionKind
+	nn  types.NamespacedName
+}{
+	{gvk.KnativeServing, types.NamespacedName{Namespace: "knative-serving", Name: "knative-serving"}},
+	{gvk.ServiceMeshMember, types.NamespacedName{Namespace: "knative-serving", Name: "default"}},
+	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "activator-host-header"}},
+	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-after"}},
+	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-before"}},
+	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph-host-header"}},
+	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph"}},
+	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-predictor"}},
+	{gvk.Gateway, types.NamespacedName{Namespace: "istio-system", Name: "kserve-local-gateway"}},
+	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-ingress-gateway"}},
+	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-local-gateway"}},
 }
 
 //nolint:thelper
@@ -181,24 +203,7 @@ func (c *KserveTestCtx) validateDefaultCertsAvailable(t *testing.T) {
 func (c *KserveTestCtx) ValidateNoFeatureTrackerOwnerReferences(t *testing.T) {
 	g := c.NewWithT(t)
 
-	children := []struct {
-		gvk schema.GroupVersionKind
-		nn  types.NamespacedName
-	}{
-		{gvk.KnativeServing, types.NamespacedName{Namespace: "knative-serving", Name: "knative-serving"}},
-		{gvk.ServiceMeshMember, types.NamespacedName{Namespace: "knative-serving", Name: "default"}},
-		// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "activator-host-header"}},
-		// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-after"}},
-		// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-before"}},
-		// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph-host-header"}},
-		// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph"}},
-		// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-predictor"}},
-		{gvk.Gateway, types.NamespacedName{Namespace: "istio-system", Name: "kserve-local-gateway"}},
-		{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-ingress-gateway"}},
-		{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-local-gateway"}},
-	}
-
-	for _, child := range children {
+	for _, child := range templatedResources {
 		g.Get(child.gvk, child.nn).Eventually(300).Should(And(
 			jq.Match(`.metadata.ownerReferences | any(.kind == "%s")`, gvk.Kserve.Kind),
 			jq.Match(`.metadata.ownerReferences | all(.kind != "%s")`, gvk.FeatureTracker.Kind),
@@ -223,4 +228,118 @@ func (c *KserveTestCtx) ValidateNoKserveFeatureTrackers(t *testing.T) {
 			jq.Match(`.metadata.ownerReferences | all(.kind != "%s")`, gvk.Kserve.Kind),
 		)),
 		`Ensuring there are no Kserve FeatureTrackers`)
+}
+
+func (c *KserveTestCtx) ValidateServingTransitionToUnmanaged(t *testing.T) {
+	g := c.NewWithT(t)
+
+	for _, child := range templatedResources {
+		g.Get(child.gvk, child.nn).Eventually(120).Should(And(
+			jq.Match(`.metadata.labels | has("platform.opendatahub.io/part-of") == %v`, "true"),
+			jq.Match(`.metadata.ownerReferences | length == %d`, 1),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, c.GVK.Kind),
+		),
+			`Ensuring %s/%s in %s has expected owner ref and part-of label`, child.gvk, child.nn.Name, child.nn.Namespace)
+	}
+
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Unmanaged),
+	).Eventually(120).Should(
+		Succeed(),
+		"Marking serving state as unmanaged",
+	)
+
+	for _, child := range templatedResources {
+		g.Get(child.gvk, child.nn).Eventually(120).Should(And(
+			Not(BeNil()),
+			jq.Match(`.metadata.labels | has("platform.opendatahub.io/part-of") == %v`, false),
+			jq.Match(`.metadata.ownerReferences | length == %d`, 0),
+		),
+			`Ensuring %s/%s in %s still exists but is de-owned`, child.gvk, child.nn.Name, child.nn.Namespace)
+	}
+
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
+	).Eventually(120).Should(
+		Succeed(),
+		"Resetting serving state to managed for subsequent tests",
+	)
+
+	for _, child := range templatedResources {
+		g.Get(child.gvk, child.nn).Eventually(120).Should(And(
+			jq.Match(`.metadata.labels | has("platform.opendatahub.io/part-of") == %v`, "true"),
+			jq.Match(`.metadata.ownerReferences | length == %d`, 1),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, c.GVK.Kind),
+		),
+			`Ensuring %s/%s in %s is re-owned`, child.gvk, child.nn.Name, child.nn.Namespace)
+	}
+}
+
+func (c *KserveTestCtx) ValidateServingTransitionToRemoved(t *testing.T) {
+	g := c.NewWithT(t)
+
+	for _, child := range templatedResources {
+		g.Get(child.gvk, child.nn).Eventually(120).Should(And(
+			jq.Match(`.metadata.labels | has("platform.opendatahub.io/part-of") == %v`, "true"),
+			jq.Match(`.metadata.ownerReferences | length == %d`, 1),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, c.GVK.Kind),
+		),
+			`Ensuring %s/%s in %s has expected owner ref and part-of label`, child.gvk, child.nn.Name, child.nn.Namespace)
+	}
+
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(`.spec.components.%s.defaultDeploymentMode = "%s"`, strings.ToLower(c.GVK.Kind), componentApi.RawDeployment),
+	).Eventually(120).Should(
+		Succeed(),
+		"Setting defaultDeploymentMode to RawDeployment so that serving can be removed",
+	)
+
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Removed),
+	).Eventually(120).Should(
+		Succeed(),
+		"Marking serving state as removed",
+	)
+
+	for _, child := range templatedResources {
+		g.Get(child.gvk, child.nn).Eventually(300).Should(And(
+			BeNil(),
+		),
+			`Ensuring %s/%s in %s no longer exists`, child.gvk, child.nn.Name, child.nn.Namespace)
+	}
+
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
+	).Eventually(120).Should(
+		Succeed(),
+		"Marking serving state as managed for subsequent tests",
+	)
+
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(`.spec.components.%s.defaultDeploymentMode = "%s"`, strings.ToLower(c.GVK.Kind), componentApi.Serverless),
+	).Eventually(120).Should(
+		Succeed(),
+		"Setting defaultDeploymentMode to Serverless for subsequent tests",
+	)
+
+	for _, child := range templatedResources {
+		g.Get(child.gvk, child.nn).Eventually(120).Should(And(
+			jq.Match(`.metadata.labels | has("platform.opendatahub.io/part-of") == %v`, "true"),
+			jq.Match(`.metadata.ownerReferences | length == %d`, 1),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, c.GVK.Kind),
+		),
+			`Ensuring %s/%s in %s is re-created`, child.gvk, child.nn.Name, child.nn.Namespace)
+	}
 }
