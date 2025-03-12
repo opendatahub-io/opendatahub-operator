@@ -162,6 +162,39 @@ func (rr *ReconciliationRequest) RemoveResources(predicate func(*unstructured.Un
 	return nil
 }
 
+// GetResource searches for an object in the ReconciliationRequest's resources based on
+// its GroupVersionKind, namespace, and name. If a match is found, it converts the stored
+// resource into the provided object.
+//
+// Parameters:
+//   - obj (client.Object): The object to search for and populate with data if found.
+//
+// Returns:
+//   - found (bool): True if the resource exists, false otherwise.
+//   - err (error): An error if conversion fails, otherwise nil.
+func (rr *ReconciliationRequest) GetResource(obj client.Object) (bool, error) {
+	err := resources.EnsureGroupVersionKind(rr.Client.Scheme(), obj)
+	if err != nil {
+		return false, err
+	}
+
+	gvk := obj.GetObjectKind().GroupVersionKind()
+	ns := obj.GetNamespace()
+	name := obj.GetName()
+
+	for _, r := range rr.Resources {
+		if r.GroupVersionKind() == gvk && r.GetNamespace() == ns && r.GetName() == name {
+			if err := rr.Client.Scheme().Convert(&r, obj, nil); err != nil {
+				return false, err
+			}
+
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func Hash(rr *ReconciliationRequest) ([]byte, error) {
 	hash := sha256.New()
 
