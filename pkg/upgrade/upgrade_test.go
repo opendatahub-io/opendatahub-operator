@@ -131,6 +131,110 @@ func TestPatchOdhDashboardConfig(t *testing.T) {
 	t.Run("should patch OdhDashboardConfig if changes are needed", func(t *testing.T) {
 		g := NewWithT(t)
 
+		expectedNotebookSizes := []any{
+			map[string]any{
+				"name": "Small",
+				"resources": map[string]any{
+					"requests": map[string]any{
+						"cpu":    "1",
+						"memory": "8Gi",
+					},
+					"limits": map[string]any{
+						"cpu":    "2",
+						"memory": "8Gi",
+					},
+				},
+			},
+			map[string]any{
+				"name": "Medium",
+				"resources": map[string]any{
+					"requests": map[string]any{
+						"cpu":    "3",
+						"memory": "24Gi",
+					},
+					"limits": map[string]any{
+						"cpu":    "6",
+						"memory": "24Gi",
+					},
+				},
+			},
+			map[string]any{
+				"name": "Large",
+				"resources": map[string]any{
+					"requests": map[string]any{
+						"cpu":    "7",
+						"memory": "56Gi",
+					},
+					"limits": map[string]any{
+						"cpu":    "14",
+						"memory": "56Gi",
+					},
+				},
+			},
+			map[string]any{
+				"name": "X Large",
+				"resources": map[string]any{
+					"requests": map[string]any{
+						"cpu":    "15",
+						"memory": "120Gi",
+					},
+					"limits": map[string]any{
+						"cpu":    "30",
+						"memory": "120Gi",
+					},
+				},
+			},
+		}
+
+		var expectedModelServerSizes interface{} = []any{
+			map[string]any{
+				"name": "Small",
+				"resources": map[string]any{
+					"requests": map[string]any{
+						"cpu":    "1",
+						"memory": "4Gi",
+					},
+					"limits": map[string]any{
+						"cpu":    "2",
+						"memory": "8Gi",
+					},
+				},
+			},
+			map[string]any{
+				"name": "Medium",
+				"resources": map[string]any{
+					"requests": map[string]any{
+						"cpu":    "4",
+						"memory": "8Gi",
+					},
+					"limits": map[string]any{
+						"cpu":    "8",
+						"memory": "10Gi",
+					},
+				},
+			},
+			map[string]any{
+				"name": "Large",
+				"resources": map[string]any{
+					"requests": map[string]any{
+						"cpu":    "6",
+						"memory": "16Gi",
+					},
+					"limits": map[string]any{
+						"cpu":    "10",
+						"memory": "20Gi",
+					},
+				},
+			},
+			map[string]any{
+				"name": "Custom",
+				"resources": map[string]any{
+					"requests": map[string]any{},
+					"limits":   map[string]any{},
+				},
+			},
+		}
+
 		dashboardConfig := createOdhDashboardConfig()
 		cli, err := fakeclient.New(dashboardConfig)
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -151,10 +255,12 @@ func TestPatchOdhDashboardConfig(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(noteBookexists).To(BeTrue(), "Expected 'notebookSizes' field to be set")
 		g.Expect(notebookSizes).ToNot(BeEmpty(), "Expected 'notebookSizes' to have values")
+		g.Expect(notebookSizes).To(Equal(expectedNotebookSizes), "Expected 'notebookSizes' to match expected values")
 
 		modelServerSizes, modelServerExists, err := unstructured.NestedSlice(updatedConfig.Object, "spec", "modelServerSizes")
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(modelServerExists).To(BeTrue(), "Expected 'modelServerSizes' field to be set")
 		g.Expect(modelServerSizes).ToNot(BeEmpty(), "Expected 'modelServerSizes' to have values")
+		g.Expect(modelServerSizes).To(Equal(expectedModelServerSizes), "Expected 'modelServerSizes' to match expected values")
 	})
 }
