@@ -7,11 +7,12 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
 // ComponentHandler is an interface to manage a component
@@ -28,26 +29,44 @@ type ComponentHandler interface {
 	NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject
 	NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error
 	// UpdateDSCStatus updates the component specific status part of the DSC
-	UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj client.Object) error
+	UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error)
 }
 
-var registry = []ComponentHandler{}
+// Registry is a struct that maintains a list of registered ComponentHandlers.
+type Registry struct {
+	handlers []ComponentHandler
+}
 
-// Add registers a new component handler
+var r = &Registry{}
+
+// Add registers a new ComponentHandler to the registry.
 // not thread safe, supposed to be called during init.
-// TODO: check if init() can be called in parallel.
-func Add(ch ComponentHandler) {
-	registry = append(registry, ch)
+func (r *Registry) Add(ch ComponentHandler) {
+	r.handlers = append(r.handlers, ch)
 }
 
-// ForEach iterates over all registered component handlers
+// ForEach iterates over all registered ComponentHandlers and applies the given function.
+// If any handler returns an error, that error is collected and returned at the end.
 // With go1.23 probably https://go.dev/blog/range-functions can be used.
-func ForEach(f func(ch ComponentHandler) error) error {
+func (r *Registry) ForEach(f func(ch ComponentHandler) error) error {
 	var errs *multierror.Error
-	for _, ch := range registry {
+	for _, ch := range r.handlers {
 		errs = multierror.Append(errs, f(ch))
 	}
+
 	return errs.ErrorOrNil()
+}
+
+func Add(ch ComponentHandler) {
+	r.Add(ch)
+}
+
+func ForEach(f func(ch ComponentHandler) error) error {
+	return r.ForEach(f)
+}
+
+func DefaultRegistry() *Registry {
+	return r
 }
 
 func IsManaged(ch ComponentHandler, dsc *dscv1.DataScienceCluster) bool {

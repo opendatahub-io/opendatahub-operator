@@ -274,4 +274,10 @@ var (
 		Version: "v1beta1",
 		Kind:    "InferenceService",
 	}
+
+	OperatorCondition = schema.GroupVersionKind{
+		Group:   "operators.coreos.com",
+		Version: "v2",
+		Kind:    "OperatorCondition",
+	}
 )

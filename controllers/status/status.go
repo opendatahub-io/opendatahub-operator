@@ -63,8 +63,18 @@ const (
 
 	// ConditionReconcileComplete represents extra Condition Type, used by .Condition.Type.
 	ConditionReconcileComplete conditionsv1.ConditionType = "ReconcileComplete"
+)
 
-	ConditionTypeReady string = "Ready"
+const (
+	ConditionTypeReady                     = "Ready"
+	ConditionTypeProvisioningSucceeded     = "ProvisioningSucceeded"
+	ConditionDeploymentsNotAvailableReason = "DeploymentsNotReady"
+	ConditionDeploymentsAvailable          = "DeploymentsAvailable"
+	ConditionServerlessAvailable           = "ServerlessAvailable"
+	ConditionServiceMeshAvailable          = "ServiceMeshAvailable"
+	ConditionArgoWorkflowAvailable         = "ArgoWorkflowAvailable"
+	ConditionTypeComponentsReady           = "ComponentsReady"
+	ConditionServingAvailable              = "ServingAvailable"
 )
 
 const (
@@ -74,11 +84,19 @@ const (
 )
 
 const (
-	MissingOperatorReason string = "MissingOperator"
-	ConfiguredReason      string = "Configured"
-	RemovedReason         string = "Removed"
-	CapabilityFailed      string = "CapabilityFailed"
-	ArgoWorkflowExist     string = "ArgoWorkflowExist"
+	MissingOperatorReason     string = "MissingOperator"
+	ConfiguredReason          string = "Configured"
+	RemovedReason             string = "Removed"
+	CapabilityFailed          string = "CapabilityFailed"
+	ArgoWorkflowExist         string = "ArgoWorkflowExist"
+	NoManagedComponentsReason        = "NoManagedComponents"
+
+	DegradedReason  = "Degraded"
+	AvailableReason = "Available"
+	UnknownReason   = "Unknown"
+	NotReadyReason  = "NotReady"
+	ErrorReason     = "Error"
+	ReadyReason     = "Ready"
 )
 
 const (
@@ -97,7 +115,8 @@ const (
 )
 
 const (
-	DataSciencePipelinesDoesntOwnArgoCRDReason  = "DataSciencePipelinesDoesntOwnArgoCRD"
+	DataSciencePipelinesDoesntOwnArgoCRDReason = "DataSciencePipelinesDoesntOwnArgoCRD"
+
 	DataSciencePipelinesDoesntOwnArgoCRDMessage = "Failed upgrade: workflows.argoproj.io CRD already exists but not deployed by this operator " +
 		"remove existing Argo workflows or set `spec.components.datasciencepipelines.managementState` to Removed to proceed"
 )

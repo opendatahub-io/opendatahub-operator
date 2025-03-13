@@ -30,6 +30,9 @@ const (
 	ModelControllerKind         = "ModelController"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*ModelController)(nil)
+
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // +kubebuilder:object:root=true
@@ -103,4 +106,12 @@ func (c *ModelController) GetDevFlags() *common.DevFlags { return nil }
 
 func (c *ModelController) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *ModelController) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *ModelController) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
