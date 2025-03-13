@@ -410,7 +410,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
 	var patchODCFunc manager.RunnableFunc = func(ctx context.Context) error {
-		if err = upgrade.PatchOdhDashboardConfig(ctx, setupClient, oldReleaseVersion, release); err != nil {
+		if err := upgrade.PatchOdhDashboardConfig(ctx, setupClient, oldReleaseVersion, release); err != nil {
 			setupLog.Error(err, "Unable to patch the odhdashboardconfig")
 			return err
 		}
