@@ -35,6 +35,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 // TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
@@ -736,10 +737,9 @@ func PatchOdhDashboardConfig(ctx context.Context, cli client.Client, prevVersion
 		return nil
 	}
 
-	var dashboardConfig unstructured.Unstructured
-	dashboardConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
+	dashboardConfig := resources.GvkToUnstructured(gvk.OdhDashboardConfig)
 
-	if err := cluster.GetSingleton(ctx, cli, &dashboardConfig); err != nil {
+	if err := cluster.GetSingleton(ctx, cli, dashboardConfig); err != nil {
 		if k8serr.IsNotFound(err) {
 			log.Info("no odhdashboard instance available, hence skipping patch", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
 			return nil
@@ -768,7 +768,7 @@ func PatchOdhDashboardConfig(ctx context.Context, cli client.Client, prevVersion
 		return nil
 	}
 
-	if err := cli.Patch(ctx, patch, client.MergeFrom(&dashboardConfig)); err != nil {
+	if err := cli.Patch(ctx, patch, client.MergeFrom(dashboardConfig)); err != nil {
 		return fmt.Errorf("failed to patch CR %s in namespace %s: %w", dashboardConfig.GetName(), dashboardConfig.GetNamespace(), err)
 	}
 
