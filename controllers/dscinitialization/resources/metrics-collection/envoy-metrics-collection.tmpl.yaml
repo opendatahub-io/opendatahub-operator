@@ -10,4 +10,6 @@ spec:
       operator: DoesNotExist
   podMetricsEndpoints:
   - path: /stats/prometheus
+    port: http-envoy-prom # 15090 for both ingress and egress
+    scheme: http
     interval: 30s
