@@ -38,9 +38,10 @@ func trustyAITestSuite(t *testing.T) {
 	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
 	t.Run("Validate CRDs reinstated", componentCtx.validateCRDReinstated)
+	t.Run("Validate pre check", componentCtx.validateTrustyAIPreCheck)
 	t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
-	t.Run("Validate pre check", componentCtx.validateTrustyAIPreCheck)
+
 	t.Run("Disable Kserve", componentCtx.disableKserve)
 }
 
@@ -97,11 +98,22 @@ func (c *TrustyAITestCtx) validateCRDReinstated(t *testing.T) {
 
 func (c *TrustyAITestCtx) validateTrustyAIPreCheck(t *testing.T) {
 	// validate precheck on CRD version:
-	// pre-req: skip trusty to removed (done by ValidateComponentDisabled)
 	// step: delete isvc left from enabled Kserve, wait till it is gone
 	// set trustyai to managed, result to error, enable mm, result to success
 
 	g := c.NewWithT(t)
+
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Removed),
+	).Eventually().Should(
+		Succeed(),
+	)
+
+	g.List(c.GVK).Eventually().Should(
+		BeEmpty())
+
 	g.Delete(gvk.CustomResourceDefinition,
 		types.NamespacedName{Name: "inferenceservices.serving.kserve.io"},
 		client.PropagationPolicy(metav1.DeletePropagationForeground),

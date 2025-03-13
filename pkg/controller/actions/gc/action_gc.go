@@ -3,7 +3,6 @@ package gc
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	odhLabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
@@ -24,10 +24,11 @@ type ActionOpts func(*Action)
 type Action struct {
 	labels            map[string]string
 	selector          labels.Selector
-	unremovables      []schema.GroupVersionKind
+	unremovables      map[schema.GroupVersionKind]struct{}
 	gc                *gc.GC
 	objectPredicateFn ObjectPredicateFn
 	typePredicateFn   TypePredicateFn
+	onlyOwned         bool
 }
 
 func WithLabel(name string, value string) ActionOpts {
@@ -54,7 +55,9 @@ func WithLabels(values map[string]string) ActionOpts {
 
 func WithUnremovables(items ...schema.GroupVersionKind) ActionOpts {
 	return func(action *Action) {
-		action.unremovables = append(action.unremovables, items...)
+		for _, item := range items {
+			action.unremovables[item] = struct{}{}
+		}
 	}
 }
 
@@ -67,6 +70,7 @@ func WithObjectPredicate(value ObjectPredicateFn) ActionOpts {
 		action.objectPredicateFn = value
 	}
 }
+
 func WithTypePredicate(value TypePredicateFn) ActionOpts {
 	return func(action *Action) {
 		if value == nil {
@@ -74,6 +78,12 @@ func WithTypePredicate(value TypePredicateFn) ActionOpts {
 		}
 
 		action.typePredicateFn = value
+	}
+}
+
+func WithOnlyCollectOwned(value bool) ActionOpts {
+	return func(action *Action) {
+		action.onlyOwned = value
 	}
 }
 
@@ -94,19 +104,19 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		return nil
 	}
 
-	kind, err := resources.KindForObject(rr.Client.Scheme(), rr.Instance)
+	igvk, err := resources.GetGroupVersionKindForObject(rr.Client.Scheme(), rr.Instance)
 	if err != nil {
 		return err
 	}
 
-	controllerName := strings.ToLower(kind)
+	controllerName := strings.ToLower(igvk.Kind)
 
 	CyclesTotal.WithLabelValues(controllerName).Inc()
 
 	selector := a.selector
 	if selector == nil {
 		selector = labels.SelectorFromSet(map[string]string{
-			odhLabels.PlatformPartOf: strings.ToLower(kind),
+			odhLabels.PlatformPartOf: controllerName,
 		})
 	}
 
@@ -114,15 +124,28 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 		ctx,
 		selector,
 		gc.WithTypeFilter(func(ctx context.Context, kind schema.GroupVersionKind) (bool, error) {
-			if slices.Contains(a.unremovables, kind) {
+			if _, ok := a.unremovables[kind]; ok {
 				return false, nil
 			}
 
 			return a.typePredicateFn(rr, kind)
 		}),
 		gc.WithObjectFilter(func(ctx context.Context, obj unstructured.Unstructured) (bool, error) {
-			if slices.Contains(a.unremovables, obj.GroupVersionKind()) {
+			if _, ok := a.unremovables[obj.GroupVersionKind()]; ok {
 				return false, nil
+			}
+			if resources.HasAnnotation(&obj, annotations.ManagedByODHOperator, "false") {
+				return false, nil
+			}
+
+			if a.onlyOwned {
+				o, err := resources.IsOwnedByType(&obj, igvk)
+				if err != nil {
+					return false, err
+				}
+				if !o {
+					return false, nil
+				}
 			}
 
 			return a.objectPredicateFn(rr, obj)
@@ -144,7 +167,8 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{}
 	action.objectPredicateFn = DefaultObjectPredicate
 	action.typePredicateFn = DefaultTypePredicate
-	action.unremovables = make([]schema.GroupVersionKind, 0)
+	action.onlyOwned = true
+	action.unremovables = make(map[schema.GroupVersionKind]struct{})
 
 	for _, opt := range opts {
 		opt(&action)

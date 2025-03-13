@@ -101,7 +101,7 @@ func (r *DataScienceClusterReconciler) Reconcile(ctx context.Context, req ctrl.R
 	}
 
 	// deploy components
-	if err := r.reconcileComponents(ctx, instance); err != nil {
+	if err := r.reconcileComponents(ctx, instance, cr.DefaultRegistry()); err != nil {
 		log.Info(err.Error())
 		status.SetCondition(&instance.Status.Conditions, "Degraded", status.ReconcileFailed, err.Error(), corev1.ConditionTrue)
 	}
@@ -139,13 +139,16 @@ func (r *DataScienceClusterReconciler) validate(ctx context.Context, _ *dscv1.Da
 	return nil
 }
 
-func (r *DataScienceClusterReconciler) reconcileComponents(ctx context.Context, instance *dscv1.DataScienceCluster) error {
+func (r *DataScienceClusterReconciler) reconcileComponents(
+	ctx context.Context,
+	instance *dscv1.DataScienceCluster,
+	reg *cr.Registry) error {
 	log := logf.FromContext(ctx).WithName("DataScienceCluster")
 
 	notReadyComponents := make([]string, 0)
 
 	// all DSC defined components
-	componentErrors := cr.ForEach(func(component cr.ComponentHandler) error {
+	componentErrors := reg.ForEach(func(component cr.ComponentHandler) error {
 		ci, err := r.reconcileComponent(ctx, instance, component)
 		if err != nil {
 			return err
