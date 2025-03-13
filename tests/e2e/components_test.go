@@ -17,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -98,6 +99,8 @@ func (c *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 		HaveEach(And(
 			jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, c.GVK.Kind, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeComponentsReady, metav1.ConditionTrue),
 		)),
 	))
 
@@ -105,7 +108,8 @@ func (c *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 		HaveLen(1),
 		HaveEach(And(
 			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
 		)),
 	))
 }

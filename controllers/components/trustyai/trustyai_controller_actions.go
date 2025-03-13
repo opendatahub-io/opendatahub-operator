@@ -20,9 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -33,23 +30,15 @@ import (
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	t, ok := rr.Instance.(*componentApi.TrustyAI)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.TrustyAI)", rr.Instance)
+	isvc, err := cluster.HasCRD(ctx, rr.Client, gvk.InferenceServices)
+	if err != nil {
+		return odherrors.NewStopError("failed to check %s CRDs version: %w", gvk.InferenceServices, err)
 	}
 
-	if err := cluster.CustomResourceDefinitionExists(ctx, rr.Client, gvk.InferenceServices.GroupKind()); err != nil {
-		s := t.GetStatus()
-		s.Phase = status.PhaseNotReady
-		meta.SetStatusCondition(&s.Conditions, metav1.Condition{
-			Type:               status.ConditionTypeReady,
-			Status:             metav1.ConditionFalse,
-			Reason:             status.ISVCMissingCRDReason,
-			Message:            status.ISVCMissingCRDMessage,
-			ObservedGeneration: s.ObservedGeneration,
-		})
-		return odherrors.NewStopError("failed to find InferenceService CRD: %v", err)
+	if !isvc {
+		return odherrors.NewStopError(status.ISVCMissingCRDMessage)
 	}
+
 	return nil
 }
 

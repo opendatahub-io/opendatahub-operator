@@ -28,6 +28,9 @@ const (
 	TrainingOperatorKind         = "TrainingOperator"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*TrainingOperator)(nil)
+
 // NOTE: json tags are required. Any new fields you add must have json tags for the fields to be serialized.
 
 // +kubebuilder:object:root=true
@@ -84,6 +87,14 @@ func (c *TrainingOperator) GetDevFlags() *common.DevFlags {
 
 func (c *TrainingOperator) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *TrainingOperator) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *TrainingOperator) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 func (c *TrainingOperator) GetReleaseStatus() *[]common.ComponentRelease {
