@@ -126,7 +126,7 @@ func (gc *GC) listResources(
 ) ([]unstructured.Unstructured, error) {
 	items, err := gc.client.Dynamic().Resource(res.GroupVersionResource()).Namespace("").List(ctx, opts)
 	switch {
-	case k8serr.IsForbidden(err) || k8serr.IsMethodNotSupported(err):
+	case k8serr.IsForbidden(err) || k8serr.IsMethodNotSupported(err) || k8serr.IsNotFound(err):
 		gc.log(ctx).V(3).Info(
 			"cannot list resource",
 			"reason", err.Error(),

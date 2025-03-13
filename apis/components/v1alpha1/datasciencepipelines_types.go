@@ -28,6 +28,9 @@ const (
 	DataSciencePipelinesKind         = "DataSciencePipelines"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*DataSciencePipelines)(nil)
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
@@ -70,6 +73,14 @@ func (c *DataSciencePipelines) GetDevFlags() *common.DevFlags {
 
 func (c *DataSciencePipelines) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *DataSciencePipelines) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *DataSciencePipelines) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 func (c *DataSciencePipelines) GetReleaseStatus() *[]common.ComponentRelease {

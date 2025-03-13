@@ -29,6 +29,9 @@ const (
 	ModelRegistryKind         = "ModelRegistry"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*ModelRegistry)(nil)
+
 // ModelRegistryCommonSpec spec defines the shared desired state of ModelRegistry
 type ModelRegistryCommonSpec struct {
 	// model registry spec exposed to DSC api
@@ -82,6 +85,14 @@ func (c *ModelRegistry) GetDevFlags() *common.DevFlags {
 
 func (c *ModelRegistry) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *ModelRegistry) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *ModelRegistry) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 func (c *ModelRegistry) GetReleaseStatus() *[]common.ComponentRelease {

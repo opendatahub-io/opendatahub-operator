@@ -28,6 +28,9 @@ const (
 	RayKind         = "Ray"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*Ray)(nil)
+
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // +kubebuilder:object:root=true
@@ -84,6 +87,14 @@ func (c *Ray) GetDevFlags() *common.DevFlags {
 
 func (c *Ray) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *Ray) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *Ray) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 func (c *Ray) GetReleaseStatus() *[]common.ComponentRelease { return &c.Status.Releases }

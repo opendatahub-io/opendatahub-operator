@@ -6,21 +6,22 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
@@ -34,67 +35,63 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
 	}
 
+	rr.Conditions.MarkUnknown(status.ConditionServingAvailable)
+
 	if k.Spec.Serving.ManagementState != operatorv1.Managed {
+		rr.Conditions.MarkFalse(
+			status.ConditionServingAvailable,
+			conditions.WithSeverity(common.ConditionSeverityInfo),
+			conditions.WithReason(string(k.Spec.Serving.ManagementState)),
+			conditions.WithMessage("Serving management state is set to: %s", k.Spec.Serving.ManagementState))
+
 		return nil
 	}
 
 	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
-		s := k.GetStatus()
-		s.Phase = status.PhaseNotReady
+		rr.Conditions.MarkFalse(
+			status.ConditionServingAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
+			conditions.WithMessage(status.ServiceMeshNotConfiguredMessage),
+		)
 
-		meta.SetStatusCondition(&s.Conditions, metav1.Condition{
-			Type:               status.ConditionTypeReady,
-			Status:             metav1.ConditionFalse,
-			Reason:             status.ServiceMeshNotConfiguredReason,
-			Message:            status.ServiceMeshNotConfiguredMessage,
-			ObservedGeneration: s.ObservedGeneration,
-		})
-
-		return odherrors.NewStopError(status.ServiceMeshNotConfiguredMessage)
+		return ErrServiceMeshNotConfigured
 	}
 
+	var operatorsErr error
+
 	if found, err := cluster.OperatorExists(ctx, rr.Client, serviceMeshOperator); err != nil || !found {
-		s := k.GetStatus()
-		s.Phase = status.PhaseNotReady
-
-		meta.SetStatusCondition(&s.Conditions, metav1.Condition{
-			Type:               status.ConditionTypeReady,
-			Status:             metav1.ConditionFalse,
-			Reason:             status.ServiceMeshOperatorNotInstalledReason,
-			Message:            status.ServiceMeshOperatorNotInstalledMessage,
-			ObservedGeneration: s.ObservedGeneration,
-		})
-
 		if err != nil {
 			return odherrors.NewStopErrorW(err)
 		}
 
-		return odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
+		operatorsErr = multierror.Append(operatorsErr, ErrServiceMeshOperatorNotInstalled)
 	}
 
 	if found, err := cluster.OperatorExists(ctx, rr.Client, serverlessOperator); err != nil || !found {
-		s := k.GetStatus()
-		s.Phase = status.PhaseNotReady
-
-		meta.SetStatusCondition(&s.Conditions, metav1.Condition{
-			Type:               status.ConditionTypeReady,
-			Status:             metav1.ConditionFalse,
-			Reason:             status.ServerlessOperatorNotInstalledReason,
-			Message:            status.ServerlessOperatorNotInstalledMessage,
-			ObservedGeneration: s.ObservedGeneration,
-		})
-
 		if err != nil {
 			return odherrors.NewStopErrorW(err)
 		}
 
-		return odherrors.NewStopError(status.ServerlessOperatorNotInstalledMessage)
+		operatorsErr = multierror.Append(operatorsErr, ErrServerlessOperatorNotInstalled)
 	}
+
+	if operatorsErr != nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionServingAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithError(operatorsErr),
+		)
+
+		return odherrors.NewStopErrorW(operatorsErr)
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionServingAvailable)
 
 	return nil
 }
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = []odhtypes.ManifestInfo{
 		kserveManifestInfo(kserveManifestSourcePath),
 	}

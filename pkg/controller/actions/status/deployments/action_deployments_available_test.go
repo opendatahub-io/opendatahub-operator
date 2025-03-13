@@ -1,5 +1,4 @@
-//nolint:dupl
-package updatestatus_test
+package deployments_test
 
 import (
 	"context"
@@ -17,7 +16,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -26,8 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-//nolint:dupl
-func TestUpdateStatusActionNotReady(t *testing.T) {
+func TestDeploymentsAvailableActionNotReady(t *testing.T) {
 	g := NewWithT(t)
 
 	ctx := context.Background()
@@ -72,8 +71,8 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := updatestatus.NewAction(
-		updatestatus.WithSelectorLabel(labels.PlatformPartOf, ns))
+	action := deployments.NewAction(
+		deployments.WithSelectorLabel(labels.PlatformPartOf, ns))
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
@@ -81,6 +80,8 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
+
+	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -91,13 +92,21 @@ func TestUpdateStatusActionNotReady(t *testing.T) {
 			matchers.ExtractStatusCondition(status.ConditionTypeReady),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionFalse),
-				"Reason": Equal(updatestatus.DeploymentsNotReadyReason),
+			}),
+		),
+	)
+	g.Expect(rr.Instance).Should(
+		WithTransform(
+			matchers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Status": Equal(metav1.ConditionFalse),
+				"Reason": Equal(status.ConditionDeploymentsNotAvailableReason),
 			}),
 		),
 	)
 }
 
-func TestUpdateStatusActionReady(t *testing.T) {
+func TestDeploymentsAvailableActionReady(t *testing.T) {
 	g := NewWithT(t)
 
 	ctx := context.Background()
@@ -142,8 +151,8 @@ func TestUpdateStatusActionReady(t *testing.T) {
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := updatestatus.NewAction(
-		updatestatus.WithSelectorLabel(labels.PlatformPartOf, ns))
+	action := deployments.NewAction(
+		deployments.WithSelectorLabel(labels.PlatformPartOf, ns))
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
@@ -151,6 +160,8 @@ func TestUpdateStatusActionReady(t *testing.T) {
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
+
+	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -161,13 +172,20 @@ func TestUpdateStatusActionReady(t *testing.T) {
 			matchers.ExtractStatusCondition(status.ConditionTypeReady),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionTrue),
-				"Reason": Equal(updatestatus.ReadyReason),
+			}),
+		),
+	)
+	g.Expect(rr.Instance).Should(
+		WithTransform(
+			matchers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Status": Equal(metav1.ConditionTrue),
 			}),
 		),
 	)
 }
 
-func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
+func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 	g := NewWithT(t)
 
 	ctx := context.Background()
@@ -212,7 +230,7 @@ func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := updatestatus.NewAction()
+	action := deployments.NewAction()
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
@@ -220,6 +238,8 @@ func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
+
+	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -230,13 +250,20 @@ func TestUpdateStatusActionReadyAutoSelector(t *testing.T) {
 			matchers.ExtractStatusCondition(status.ConditionTypeReady),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionTrue),
-				"Reason": Equal(updatestatus.ReadyReason),
+			}),
+		),
+	)
+	g.Expect(rr.Instance).Should(
+		WithTransform(
+			matchers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Status": Equal(metav1.ConditionTrue),
 			}),
 		),
 	)
 }
 
-func TestUpdateStatusActionNotReadyNotFound(t *testing.T) {
+func TestDeploymentsAvailableActionNotReadyNotFound(t *testing.T) {
 	g := NewWithT(t)
 
 	ctx := context.Background()
@@ -281,7 +308,7 @@ func TestUpdateStatusActionNotReadyNotFound(t *testing.T) {
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := updatestatus.NewAction()
+	action := deployments.NewAction()
 
 	rr := types.ReconciliationRequest{
 		Client:   cl,
@@ -289,6 +316,8 @@ func TestUpdateStatusActionNotReadyNotFound(t *testing.T) {
 		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
+
+	rr.Conditions = conditions.NewManager(rr.Instance, status.ConditionTypeReady)
 
 	err = action(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -299,7 +328,15 @@ func TestUpdateStatusActionNotReadyNotFound(t *testing.T) {
 			matchers.ExtractStatusCondition(status.ConditionTypeReady),
 			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
 				"Status": Equal(metav1.ConditionFalse),
-				"Reason": Equal(updatestatus.DeploymentsNotReadyReason),
+			}),
+		),
+	)
+	g.Expect(rr.Instance).Should(
+		WithTransform(
+			matchers.ExtractStatusCondition(status.ConditionDeploymentsAvailable),
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Status": Equal(metav1.ConditionFalse),
+				"Reason": Equal(status.ConditionDeploymentsNotAvailableReason),
 			}),
 		),
 	)

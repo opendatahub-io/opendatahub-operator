@@ -10,7 +10,6 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -188,7 +187,7 @@ func (tc *WorkbenchesTestCtx) validateWorkbenchesReady() error {
 
 		for _, c := range list.Items[0].Status.Conditions {
 			if c.Type == workbenches.ReadyConditionType {
-				return c.Status == corev1.ConditionTrue, nil
+				return c.Status == metav1.ConditionTrue, nil
 			}
 		}
 
