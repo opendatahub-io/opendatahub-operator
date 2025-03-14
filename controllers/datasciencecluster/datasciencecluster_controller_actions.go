@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	//TODO: remove after https://issues.redhat.com/browse/RHOAIENG-15920
+	// TODO: remove after https://issues.redhat.com/browse/RHOAIENG-15920
 	finalizerName = "datasciencecluster.opendatahub.io/finalizer"
 )
 
@@ -31,7 +31,7 @@ func initialize(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 		instance.Status.InstalledComponents = make(map[string]bool)
 	}
 
-	//TODO: remove after https://issues.redhat.com/browse/RHOAIENG-15920
+	// TODO: remove after https://issues.redhat.com/browse/RHOAIENG-15920
 	if controllerutil.RemoveFinalizer(instance, finalizerName) {
 		if err := rr.Client.Update(ctx, instance); err != nil {
 			return err

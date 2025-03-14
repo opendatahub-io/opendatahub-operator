@@ -117,10 +117,8 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 
 func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{
-		labels: map[string]string{},
-		namespaceFn: func(ctx context.Context, rr *types.ReconciliationRequest) (string, error) {
-			return rr.DSCI.Spec.ApplicationsNamespace, nil
-		},
+		labels:      map[string]string{},
+		namespaceFn: actions.ApplicationNamespace,
 	}
 
 	for _, opt := range opts {
