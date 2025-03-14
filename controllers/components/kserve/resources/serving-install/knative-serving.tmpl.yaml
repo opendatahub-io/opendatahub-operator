@@ -5,6 +5,8 @@ metadata:
   namespace: knative-serving
   annotations:
     serverless.openshift.io/default-enable-http2: "true"
+  labels:
+    platform.opendatahub.io/dependency: serverless
 spec:
   workloads:
     - annotations:
@@ -15,6 +17,12 @@ spec:
         sidecar.istio.io/inject: "true"
         sidecar.istio.io/rewriteAppHTTPProbers: "true"
       name: autoscaler
+    - name: net-istio-controller
+      env:
+        - container: controller
+          envVars:
+            - name: ENABLE_SECRET_INFORMER_FILTERING_BY_CERT_UID
+              value: 'true'
   ingress:
     istio:
       enabled: true

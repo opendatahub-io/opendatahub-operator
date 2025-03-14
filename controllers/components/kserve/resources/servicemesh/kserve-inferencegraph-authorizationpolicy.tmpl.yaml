@@ -6,6 +6,7 @@ metadata:
   labels:
     app.opendatahub.io/kserve: "true"
     app.kubernetes.io/part-of: kserve
+    platform.opendatahub.io/dependency: servicemesh
 spec:
   action: CUSTOM
   provider:
