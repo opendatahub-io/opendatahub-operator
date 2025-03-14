@@ -58,6 +58,14 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelRegistry)", rr.Instance)
 	}
 
+	// update registries namespace in manifests
+	mi := baseManifestInfo(BaseManifestsSourcePath)
+	if err := odhdeploy.ApplyParams(mi.String(), nil, map[string]string{
+		"REGISTRIES_NAMESPACE": mr.Spec.RegistriesNamespace,
+	}); err != nil {
+		return fmt.Errorf("failed to update params on path %s: %w", mi, err)
+	}
+
 	rr.Manifests = []odhtypes.ManifestInfo{
 		baseManifestInfo(BaseManifestsSourcePath),
 		extraManifestInfo(BaseManifestsSourcePath),
