@@ -33,7 +33,7 @@ func addImportField(file *ast.File, componentName string) error {
 		Name: ast.NewIdent("_"),
 		Path: &ast.BasicLit{
 			Kind:  token.STRING,
-			Value: fmt.Sprintf("\"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/%s\"", strings.ToLower(componentName)),
+			Value: fmt.Sprintf("\"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/%s\"", strings.ToLower(componentName)),
 		},
 	}
 

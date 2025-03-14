@@ -7,7 +7,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 
-	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 

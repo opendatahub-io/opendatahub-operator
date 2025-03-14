@@ -11,10 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 )
 
 var (

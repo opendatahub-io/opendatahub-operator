@@ -11,9 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
