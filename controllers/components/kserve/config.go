@@ -11,6 +11,7 @@ import (
 const (
 	DeployConfigName     = "deploy"
 	IngressConfigKeyName = "ingress"
+	ServiceConfigKeyName = "service"
 )
 
 type DeployConfig struct {
