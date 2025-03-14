@@ -49,6 +49,7 @@ spec:
             description: KserveSpec defines the desired state of Kserve
             properties:
               defaultDeploymentMode:
+                default: Serverless
                 description: |-
                   Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.
                   The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.
@@ -95,6 +96,18 @@ spec:
                     pattern: ^(Managed|Unmanaged|Force|Removed)$
                     type: string
                 type: object
+              rawDeploymentServiceConfig:
+                default: Headless
+                description: |-
+                  Configures the type of service that is created for InferenceServices using RawDeployment.
+                  The values for RawDeploymentServiceConfig can be "Headless" or "Headed".
+                  Headless : sets "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.
+                  Headed : sets "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve.
+                enum:
+                - Headless
+                - Headed
+                pattern: ^(Headless|Headed)$
+                type: string
               serving:
                 description: |-
                   Serving configures the KNative-Serving stack used for model serving. A Service
