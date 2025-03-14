@@ -18,7 +18,7 @@ func addKubeBuilderRBAC(logger *logrus.Logger, componentName string) error {
 		fmt.Sprintf("+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=%ss/finalizers,verbs=update", lc),
 	}
 
-	fp := filepath.Join("controllers/datasciencecluster/kubebuilder_rbac.go")
+	fp := filepath.Join("internal/controller/datasciencecluster/kubebuilder_rbac.go")
 	file, err := os.OpenFile(fp, os.O_APPEND|os.O_WRONLY, FilePerm)
 	if err != nil {
 		return fmt.Errorf("error opening file: %w", err)
