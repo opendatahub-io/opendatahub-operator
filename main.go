@@ -82,7 +82,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/codeflare"
@@ -326,18 +325,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	ons, err := cluster.GetOperatorNamespace()
-	if err != nil {
-		setupLog.Error(err, "unable to determine Operator Namespace")
-		os.Exit(1)
-	}
-
-	gc.Instance = gc.New(
-		oc,
-		ons,
-		gc.WithUnremovables(gvk.CustomResourceDefinition, gvk.Lease),
-	)
-
 	if err = (&dscictrl.DSCInitializationReconciler{
 		Client:   oc,
 		Scheme:   mgr.GetScheme(),
@@ -372,12 +359,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
-		os.Exit(1)
-	}
-
-	err = mgr.Add(gc.Instance)
-	if err != nil {
-		setupLog.Error(err, "unable to register GC service")
 		os.Exit(1)
 	}
 
