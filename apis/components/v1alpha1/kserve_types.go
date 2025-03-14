@@ -41,6 +41,14 @@ const (
 	RawDeployment DefaultDeploymentMode = "RawDeployment"
 )
 
+// +kubebuilder:validation:Pattern=`^(Headless|Headed)$`
+type RawServiceConfig string
+
+const (
+	Headless RawServiceConfig = "Headless"
+	Headed   RawServiceConfig = "Headed"
+)
+
 // Check that the component implements common.PlatformObject.
 var _ common.PlatformObject = (*Kserve)(nil)
 
@@ -54,7 +62,15 @@ type KserveCommonSpec struct {
 	// The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.
 	// This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode.
 	// +kubebuilder:validation:Enum=Serverless;RawDeployment
+	// +kubebuilder:default=Serverless
 	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
+	// Configures the type of service that is created for InferenceServices using RawDeployment.
+	// The values for RawDeploymentServiceConfig can be "Headless" or "Headed".
+	// Headless : sets "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.
+	// Headed : sets "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve.
+	// +kubebuilder:validation:Enum=Headless;Headed
+	// +kubebuilder:default=Headless
+	RawDeploymentServiceConfig RawServiceConfig `json:"rawDeploymentServiceConfig,omitempty"`
 	// Configures and enables NVIDIA NIM integration
 	NIM NimSpec `json:"nim,omitempty"`
 }
