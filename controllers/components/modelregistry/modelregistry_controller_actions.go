@@ -94,6 +94,21 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
+func customizeManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	mr, ok := rr.Instance.(*componentApi.ModelRegistry)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.ModelRegistry)", rr.Instance)
+	}
+
+	// update registries namespace in manifests
+	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), nil, map[string]string{
+		"REGISTRIES_NAMESPACE": mr.Spec.RegistriesNamespace,
+	}); err != nil {
+		return fmt.Errorf("failed to update params on path %s: %w", rr.Manifests[0].String(), err)
+	}
+	return nil
+}
+
 func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	mr, ok := rr.Instance.(*componentApi.ModelRegistry)
 	if !ok {
