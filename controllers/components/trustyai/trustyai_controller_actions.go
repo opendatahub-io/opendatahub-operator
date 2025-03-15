@@ -53,7 +53,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return fmt.Errorf("resource instance %v is not a componentApi.TrustyAI)", rr.Instance)
 	}
 
-	if trustyai.Spec.DevFlags == nil {
+	if trustyai.GetDevFlags() == nil {
 		return nil
 	}
 

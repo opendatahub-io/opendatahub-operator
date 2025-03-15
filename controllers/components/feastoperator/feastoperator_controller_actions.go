@@ -20,7 +20,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return fmt.Errorf("resource instance %v is not a componentApi.FeastOperator)", rr.Instance)
 	}
 
-	if feastoperator.Spec.DevFlags == nil {
+	if feastoperator.GetDevFlags() == nil {
 		return nil
 	}
 	if len(feastoperator.Spec.DevFlags.Manifests) != 0 {
