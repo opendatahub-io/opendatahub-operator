@@ -68,6 +68,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		WithAction(initialize).
 		WithAction(devFlags).
+		WithAction(setKustomizedParams).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),

@@ -33,7 +33,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return fmt.Errorf("resource instance %v is not a componentApi.Dashboard)", rr.Instance)
 	}
 
-	if dashboard.Spec.DevFlags == nil {
+	if dashboard.GetDevFlags() == nil {
 		return nil
 	}
 	// Implement devflags support logic

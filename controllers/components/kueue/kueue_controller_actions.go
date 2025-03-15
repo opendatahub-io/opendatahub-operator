@@ -53,7 +53,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return fmt.Errorf("resource instance %v is not a componentApi.Kueue)", rr.Instance)
 	}
 
-	if kueue.Spec.DevFlags == nil {
+	if kueue.GetDevFlags() == nil {
 		return nil
 	}
 
