@@ -48,6 +48,14 @@ spec:
             value: /opt/manifests
           - name: ODH_PLATFORM_TYPE
             value: OpenDataHub
+          - name: GOMEMLIMIT
+            valueFrom:
+              resourceFieldRef:
+                resource: limits.memory
+          - name: GOMAXPROCS
+            valueFrom:
+              resourceFieldRef:
+                resource: limits.cpu
         args:
         - --leader-elect
         - --operator-name=opendatahub
