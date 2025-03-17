@@ -1379,6 +1379,8 @@ spec:
                       fieldPath: metadata.namespace
                 - name: DEFAULT_MANIFESTS_PATH
                   value: /opt/manifests
+                # - name: ODH_PLATFORM_TYPE
+                #   value: SelfManagedRHOAI
                 image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
