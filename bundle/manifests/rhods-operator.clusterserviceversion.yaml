@@ -109,7 +109,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-03-15T17:27:58Z"
+    createdAt: "2025-03-17T14:38:41Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -1390,6 +1390,8 @@ spec:
                       fieldPath: metadata.namespace
                 - name: DEFAULT_MANIFESTS_PATH
                   value: /opt/manifests
+                - name: ODH_PLATFORM_TYPE
+                  value: SelfManagedRHOAI
                 image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
