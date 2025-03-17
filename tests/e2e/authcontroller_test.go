@@ -102,20 +102,17 @@ func (tc *AuthControllerTestCtx) validateAuthCRDefaultContent() error {
 
 	switch tc.platform {
 	case cluster.SelfManagedRhoai:
-		if tc.testAuthInstance.Spec.AdminGroups[0] == "rhods-admins" {
-			return nil
+		if tc.testAuthInstance.Spec.AdminGroups[0] != "rhods-admins" {
+			return fmt.Errorf("expected rhods-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
 		}
-		return fmt.Errorf("expected rhods-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
 	case cluster.ManagedRhoai:
-		if tc.testAuthInstance.Spec.AdminGroups[0] == "dedicated-admins" {
-			return nil
+		if tc.testAuthInstance.Spec.AdminGroups[0] != "dedicated-admins" {
+			return fmt.Errorf("expected dedicated-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
 		}
-		return fmt.Errorf("expected dedicated-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
 	case cluster.OpenDataHub, cluster.Unknown:
-		if tc.testAuthInstance.Spec.AdminGroups[0] == "odh-admins" {
-			return nil
+		if tc.testAuthInstance.Spec.AdminGroups[0] != "odh-admins" {
+			return fmt.Errorf("expected odh-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
 		}
-		return fmt.Errorf("expected odh-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
 	}
 
 	if tc.testAuthInstance.Spec.AllowedGroups[0] != "system:authenticated" {
