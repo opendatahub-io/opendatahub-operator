@@ -40,7 +40,7 @@ import (
 
 // TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
 var (
-	notebookSizesData = []any{
+	NotebookSizesData = []any{
 		map[string]any{
 			"name": "Small",
 			"resources": map[string]any{
@@ -94,7 +94,7 @@ var (
 			},
 		},
 	}
-	modelServerSizeData = []any{
+	ModelServerSizeData = []any{
 		map[string]any{
 			"name": "Small",
 			"resources": map[string]any{
@@ -754,8 +754,8 @@ func PatchOdhDashboardConfig(ctx context.Context, cli client.Client, prevVersion
 
 	patch := dashboardConfig.DeepCopy()
 	updates := map[string][]any{
-		"notebookSizes":    notebookSizesData,
-		"modelServerSizes": modelServerSizeData,
+		"notebookSizes":    NotebookSizesData,
+		"modelServerSizes": ModelServerSizeData,
 	}
 
 	updated, err := updateSpecFields(patch, updates)
