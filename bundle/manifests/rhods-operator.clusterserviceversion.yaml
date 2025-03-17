@@ -109,7 +109,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-03-10T11:37:56Z"
+    createdAt: "2025-03-15T17:27:58Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -269,7 +269,9 @@ spec:
         displayName: Conditions
         path: conditions
       version: v1
-    - kind: FeastOperator
+    - description: FeastOperator is the Schema for the FeastOperator API
+      displayName: Feast Operator
+      kind: FeastOperator
       name: feastoperators.components.platform.opendatahub.io
       version: v1alpha1
     - kind: FeatureTracker

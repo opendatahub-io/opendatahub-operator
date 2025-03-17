@@ -165,6 +165,11 @@ spec:
         displayName: Conditions
         path: conditions
       version: v1
+    - description: FeastOperator is the Schema for the FeastOperator API
+      displayName: Feast Operator
+      kind: FeastOperator
+      name: feastoperators.components.platform.opendatahub.io
+      version: v1alpha1
     - description: Kserve is the Schema for the kserves API
       displayName: Kserve
       kind: Kserve
