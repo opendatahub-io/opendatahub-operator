@@ -50,7 +50,6 @@ func WithScheme(value *runtime.Scheme) TestContextOpt {
 	}
 }
 
-//nolint:fatcontext
 func WitContext(value context.Context) TestContextOpt {
 	return func(tc *testContextOpts) {
 		tc.ctx = value
