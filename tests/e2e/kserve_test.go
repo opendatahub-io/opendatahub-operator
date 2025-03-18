@@ -44,6 +44,9 @@ func kserveTestSuite(t *testing.T) {
 	err = componentCtx.setUpServerless(t)
 	require.NoError(t, err)
 
+	err = componentCtx.createDummyFeatureTrackers(t)
+	require.NoError(t, err)
+
 	t.Run("Validate component enabled", componentCtx.ValidateComponentEnabled)
 	t.Run("Validate component spec", componentCtx.validateSpec)
 	t.Run("Validate component conditions", componentCtx.validateConditions)
@@ -108,22 +111,35 @@ func (c *KserveTestCtx) setUpServerless(t *testing.T) error {
 		}
 	}
 
-	ft := &featuresv1.FeatureTracker{}
-	ft.SetName(c.ApplicationNamespace + "-serverless-serving-deployment")
+	return nil
+}
 
-	if _, err := controllerutil.CreateOrUpdate(c.Context(), c.Client(), ft, func() error {
-		dsc, err := c.GetDSC()
-		if err != nil {
-			return err
-		}
-		if err := controllerutil.SetOwnerReference(dsc, ft, c.Client().Scheme()); err != nil {
-			return err
-		}
-		ft.Spec.Source.Name = xid.New().String()
+func (c *KserveTestCtx) createDummyFeatureTrackers(_ *testing.T) error {
+	ftNames := []string{
+		c.ApplicationNamespace + "-serverless-serving-deployment",
+		c.ApplicationNamespace + "-serverless-net-istio-secret-filtering",
+		c.ApplicationNamespace + "-serverless-serving-gateways",
+		c.ApplicationNamespace + "-kserve-external-authz",
+	}
 
-		return nil
-	}); err != nil {
-		return errors.New("error creating pre-existing FeatureTracker")
+	for _, name := range ftNames {
+		ft := &featuresv1.FeatureTracker{}
+		ft.SetName(name)
+
+		if _, err := controllerutil.CreateOrUpdate(c.Context(), c.Client(), ft, func() error {
+			dsc, err := c.GetDSC()
+			if err != nil {
+				return err
+			}
+			if err := controllerutil.SetOwnerReference(dsc, ft, c.Client().Scheme()); err != nil {
+				return err
+			}
+			ft.Spec.Source.Name = xid.New().String()
+
+			return nil
+		}); err != nil {
+			return errors.New("error creating pre-existing FeatureTracker")
+		}
 	}
 
 	return nil
