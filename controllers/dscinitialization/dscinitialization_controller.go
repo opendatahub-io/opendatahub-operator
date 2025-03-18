@@ -179,7 +179,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}); err != nil {
 			log.Error(err, "Failed to update DSCInitialization conditions", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 
-			// no need to log error as it was already logged in createOperatorResource
 			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
 				"%s for instance %s", err.Error(), instance.Name)
 		}
