@@ -2,7 +2,7 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended"],
     "branchPrefix": "renovate/",
-    "baseBranches": ["main", "rhoai-2.16", "rhoai-2.19", "rhoai-2.8"],
+    "baseBranches": ["main", "rhoai-2.16", "rhoai-2.19", "rhoai-2.20", "rhoai-2.8"],
     "ignoreTests": true,
     "automergeType": "pr",
     "automerge": true,
@@ -28,7 +28,7 @@
       },
       {
         "matchManagers": ["tekton"],
-        "matchBaseBranches": ["rhoai-2.16", "rhoai-2.8", "rhoai-2.19"],
+        "matchBaseBranches": ["rhoai-2.16", "rhoai-2.8", "rhoai-2.19", "rhoai-2.20"],
         "matchUpdateTypes": ["digest", "minor"],
         "schedule": ["* 0-3 1 * *"], 
         "enabled": true,
@@ -43,7 +43,7 @@
       },
       {
         "matchManagers": ["rpm"],
-        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.19", "rhoai-2.8"],
+        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.19", "rhoai-2.20", "rhoai-2.8"],
         "groupName": "RPM Updates",
         "commitMessageTopic": "RPM updates",
         "enabled": true,
