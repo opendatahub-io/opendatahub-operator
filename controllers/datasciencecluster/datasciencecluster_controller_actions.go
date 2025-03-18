@@ -7,7 +7,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
@@ -16,12 +15,7 @@ import (
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-const (
-	// TODO: remove after https://issues.redhat.com/browse/RHOAIENG-15920
-	finalizerName = "datasciencecluster.opendatahub.io/finalizer"
-)
-
-func initialize(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
+func initialize(_ context.Context, rr *odhtype.ReconciliationRequest) error {
 	instance, ok := rr.Instance.(*dscv1.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv1.DataScienceCluster)", rr.Instance)
@@ -29,13 +23,6 @@ func initialize(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 
 	if instance.Status.InstalledComponents == nil {
 		instance.Status.InstalledComponents = make(map[string]bool)
-	}
-
-	// TODO: remove after https://issues.redhat.com/browse/RHOAIENG-15920
-	if controllerutil.RemoveFinalizer(instance, finalizerName) {
-		if err := rr.Client.Update(ctx, instance); err != nil {
-			return err
-		}
 	}
 
 	return nil
