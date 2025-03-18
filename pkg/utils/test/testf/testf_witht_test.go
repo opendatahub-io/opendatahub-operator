@@ -1,10 +1,12 @@
 package testf_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/rs/xid"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -16,6 +18,62 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+//nolint:dupl
+func TestEventuallyValueTimeout(t *testing.T) {
+	g := NewWithT(t)
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cl).ShouldNot(BeNil())
+
+	failureMsg := ""
+	timeout := 2 * time.Second
+
+	tc, err := testf.NewTestContext(
+		testf.WithClient(cl),
+		testf.WithTOptions(testf.WithEventuallyTimeout(timeout)),
+		testf.WithTOptions(testf.WithFailHandler(func(message string, callerSkip ...int) {
+			failureMsg = message
+		})),
+	)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	key := client.ObjectKey{Name: "foo", Namespace: "bar"}
+
+	_ = tc.NewWithT(t).Get(gvk.ConfigMap, key).Eventually().ShouldNot(BeNil())
+
+	assert.Contains(t, failureMsg, fmt.Sprintf("Timed out after %d.", int(timeout.Seconds())))
+}
+
+//nolint:dupl
+func TestEventuallyErrTimeout(t *testing.T) {
+	g := NewWithT(t)
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cl).ShouldNot(BeNil())
+
+	failureMsg := ""
+	timeout := 3 * time.Second
+
+	tc, err := testf.NewTestContext(
+		testf.WithClient(cl),
+		testf.WithTOptions(testf.WithEventuallyTimeout(timeout)),
+		testf.WithTOptions(testf.WithFailHandler(func(message string, callerSkip ...int) {
+			failureMsg = message
+		})),
+	)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	key := client.ObjectKey{Name: "foo", Namespace: "bar"}
+
+	_ = tc.NewWithT(t).Delete(gvk.ConfigMap, key).Eventually().ShouldNot(Succeed())
+
+	assert.Contains(t, failureMsg, fmt.Sprintf("Timed out after %d.", int(timeout.Seconds())))
+}
 
 func TestGet(t *testing.T) {
 	g := NewWithT(t)
