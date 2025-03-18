@@ -229,9 +229,9 @@ func shouldRemoveOwnerRefAndLabel(
 	res unstructured.Unstructured,
 ) bool {
 	switch {
-	case isForDependency("servicemesh")(res):
+	case isForDependency("servicemesh")(&res):
 		return dsciServiceMesh != nil && dsciServiceMesh.ManagementState == operatorv1.Unmanaged
-	case isForDependency("serverless")(res):
+	case isForDependency("serverless")(&res):
 		if dsciServiceMesh != nil && dsciServiceMesh.ManagementState == operatorv1.Unmanaged {
 			return true
 		} else if kserveServing.ManagementState == operatorv1.Unmanaged {
@@ -270,8 +270,8 @@ func getAndRemoveOwnerReferences(
 	return resources.RemoveOwnerReferences(ctx, cli, current, predicate)
 }
 
-func isForDependency(s string) func(u unstructured.Unstructured) bool {
-	return func(u unstructured.Unstructured) bool {
+func isForDependency(s string) func(u *unstructured.Unstructured) bool {
+	return func(u *unstructured.Unstructured) bool {
 		for k, v := range u.GetLabels() {
 			if k == labels.PlatformDependency && v == s {
 				return true

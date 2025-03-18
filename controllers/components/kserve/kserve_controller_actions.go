@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
@@ -274,7 +273,7 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 		// this case, since the GC won't collect them because the Kserve
 		// CR generation hasn't changed.
 		for _, res := range rr.Resources {
-			if isForDependency("serverless")(res) || isForDependency("servicemesh")(res) {
+			if isForDependency("serverless")(&res) || isForDependency("servicemesh")(&res) {
 				err := rr.Client.Delete(ctx, &res, client.PropagationPolicy(metav1.DeletePropagationForeground))
 				if k8serr.IsNotFound(err) {
 					continue
@@ -285,10 +284,19 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 			}
 		}
 
-		rr.Resources = slices.DeleteFunc(rr.Resources, isForDependency("serverless"))
-		rr.Resources = slices.DeleteFunc(rr.Resources, isForDependency("servicemesh"))
+		// rr.Resources = slices.DeleteFunc(rr.Resources, isForDependency("serverless"))
+		// rr.Resources = slices.DeleteFunc(rr.Resources, isForDependency("servicemesh"))
+		if err := rr.RemoveResources(isForDependency("serverless")); err != nil {
+			return odherrors.NewStopErrorW(err)
+		}
+
+		if err := rr.RemoveResources(isForDependency("servicemesh")); err != nil {
+			return odherrors.NewStopErrorW(err)
+		}
 	} else if k.Spec.Serving.ManagementState != operatorv1.Managed {
-		rr.Resources = slices.DeleteFunc(rr.Resources, isForDependency("serverless"))
+		if err := rr.RemoveResources(isForDependency("serverless")); err != nil {
+			return odherrors.NewStopErrorW(err)
+		}
 	}
 
 	return nil
