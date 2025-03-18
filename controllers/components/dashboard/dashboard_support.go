@@ -33,28 +33,24 @@ var (
 		cluster.SelfManagedRhoai: "rhods-admins",
 		cluster.ManagedRhoai:     "dedicated-admins",
 		cluster.OpenDataHub:      "odh-admins",
-		cluster.Unknown:          "odh-admins",
 	}
 
 	sectionTitle = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "OpenShift Self Managed Services",
 		cluster.ManagedRhoai:     "OpenShift Managed Services",
 		cluster.OpenDataHub:      "OpenShift Open Data Hub",
-		cluster.Unknown:          "OpenShift Open Data Hub",
 	}
 
 	baseConsoleURL = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "https://rhods-dashboard-",
 		cluster.ManagedRhoai:     "https://rhods-dashboard-",
 		cluster.OpenDataHub:      "https://odh-dashboard-",
-		cluster.Unknown:          "https://odh-dashboard-",
 	}
 
 	overlaysSourcePaths = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "/rhoai/onprem",
 		cluster.ManagedRhoai:     "/rhoai/addon",
 		cluster.OpenDataHub:      "/odh",
-		cluster.Unknown:          "/odh",
 	}
 
 	imagesMap = map[string]string{

@@ -162,22 +162,12 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 
 // detectSelfManaged detects if it is Self Managed Rhoai or OpenDataHub.
 func detectSelfManaged(ctx context.Context, cli client.Client) (common.Platform, error) {
-	variants := map[string]common.Platform{
-		"opendatahub-operator": OpenDataHub,
-		"rhods-operator":       SelfManagedRhoai,
+	exists, err := OperatorExists(ctx, cli, "rhods-operator")
+	if exists {
+		return SelfManagedRhoai, nil
 	}
 
-	for k, v := range variants {
-		exists, err := OperatorExists(ctx, cli, k)
-		if err != nil {
-			return Unknown, err
-		}
-		if exists {
-			return v, nil
-		}
-	}
-
-	return Unknown, nil
+	return OpenDataHub, err
 }
 
 // detectManagedRhoai checks if catsrc CR add-on exists ManagedRhoai.
@@ -189,7 +179,7 @@ func detectManagedRhoai(ctx context.Context, cli client.Client) (common.Platform
 	}
 	err = cli.Get(ctx, client.ObjectKey{Name: "addon-managed-odh-catalog", Namespace: operatorNs}, catalogSource)
 	if err != nil {
-		return Unknown, client.IgnoreNotFound(err)
+		return OpenDataHub, client.IgnoreNotFound(err)
 	}
 	return ManagedRhoai, nil
 }
@@ -206,7 +196,7 @@ func getPlatform(ctx context.Context, cli client.Client) (common.Platform, error
 		// fall back to detect platform if ODH_PLATFORM_TYPE env is not provided in CSV or set to ""
 		platform, err := detectManagedRhoai(ctx, cli)
 		if err != nil {
-			return Unknown, err
+			return OpenDataHub, err
 		}
 		if platform == ManagedRhoai {
 			return ManagedRhoai, nil
