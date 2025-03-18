@@ -19,6 +19,8 @@ spec:
     istio:
       enabled: true
   config:
+    autoscaler:
+      allow-zero-initial-scale: "true"
     features:
       kubernetes.podspec-affinity: enabled
       kubernetes.podspec-nodeselector: enabled
