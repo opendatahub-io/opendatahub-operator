@@ -210,7 +210,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject
 
-func (s *componentHandler) Init(platform cluster.Platform) error 
+func (s *componentHandler) Init(platform common.Platform) error 
 
 func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj client.Object) error 
 ```
