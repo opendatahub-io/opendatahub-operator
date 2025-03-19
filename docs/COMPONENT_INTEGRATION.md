@@ -226,7 +226,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject
 
-func (s *componentHandler) Init(platform cluster.Platform) error 
+func (s *componentHandler) Init(platform common.Platform) error 
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error)
 ```
