@@ -67,8 +67,7 @@ func TestPatchOdhDashboardConfig(t *testing.T) {
 			releaseV1,
 			releaseV2,
 		)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(err.Error()).To(ContainSubstring("failed to retrieve odhdashboardconfg instance"))
+		g.Expect(err).ToNot(HaveOccurred(), "The CRD is not installed, hence skipping")
 	})
 
 	t.Run("should return error if updateSpecFields fails", func(t *testing.T) {
