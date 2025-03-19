@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.26.0
-    createdAt: "2025-03-18T15:27:18Z"
+    createdAt: "2025-03-19T13:35:36Z"
     olm.skipRange: '>=1.0.0 <2.26.0'
     operators.operatorframework.io/builder: operator-sdk-v1.31.0
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
@@ -1286,12 +1286,14 @@ spec:
       deployments:
       - label:
           control-plane: controller-manager
+          name: opendatahub-operator
         name: opendatahub-operator-controller-manager
         spec:
           replicas: 1
           selector:
             matchLabels:
               control-plane: controller-manager
+              name: opendatahub-operator
           strategy: {}
           template:
             metadata:
