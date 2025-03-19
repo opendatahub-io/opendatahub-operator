@@ -740,6 +740,10 @@ func PatchOdhDashboardConfig(ctx context.Context, cli client.Client, prevVersion
 	dashboardConfig := resources.GvkToUnstructured(gvk.OdhDashboardConfig)
 
 	if err := cluster.GetSingleton(ctx, cli, dashboardConfig); err != nil {
+		if meta.IsNoMatchError(err) {
+			log.Info("OdhDashboardConfig CRD is not installed, skipping patch")
+			return nil
+		}
 		if k8serr.IsNotFound(err) {
 			log.Info("no odhdashboard instance available, hence skipping patch", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
 			return nil
