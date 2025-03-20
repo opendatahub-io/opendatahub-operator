@@ -18,6 +18,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
@@ -25,14 +27,19 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc/engine"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	gcSvc "github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 
 	. "github.com/onsi/gomega"
 )
+
+//nolint:gochecknoinits
+func init() {
+	log.SetLogger(zap.New(zap.UseDevMode(true)))
+}
 
 func TestGcAction(t *testing.T) {
 	g := NewWithT(t)
@@ -149,13 +156,11 @@ func TestGcAction(t *testing.T) {
 			g := NewWithT(t)
 			nsn := xid.New().String()
 
-			gci := gcSvc.New(
-				cli,
-				nsn,
+			gci := engine.New(
 				// This is required as there are no kubernetes controller running
 				// with the envtest, hence we can't use the foreground deletion
 				// policy (default)
-				gcSvc.WithPropagationPolicy(metav1.DeletePropagationBackground),
+				engine.WithDeletePropagationPolicy(metav1.DeletePropagationBackground),
 			)
 
 			ns := corev1.Namespace{
@@ -166,7 +171,7 @@ func TestGcAction(t *testing.T) {
 
 			g.Expect(cli.Create(ctx, &ns)).
 				NotTo(HaveOccurred())
-			g.Expect(gci.Start(ctx)).
+			g.Expect(gci.Refresh(ctx, cli, nsn)).
 				NotTo(HaveOccurred())
 
 			rr := types.ReconciliationRequest{
@@ -241,7 +246,8 @@ func TestGcAction(t *testing.T) {
 				NotTo(HaveOccurred())
 
 			opts := make([]gc.ActionOpts, 0, len(tt.options)+1)
-			opts = append(opts, gc.WithGC(gci))
+			opts = append(opts, gc.WithEngine(gci))
+			opts = append(opts, gc.InNamespace(nsn))
 			opts = append(opts, tt.options...)
 
 			a := gc.NewAction(opts...)
@@ -307,13 +313,11 @@ func TestGcActionOwn(t *testing.T) {
 			g := NewWithT(t)
 			nsn := xid.New().String()
 
-			gci := gcSvc.New(
-				cli,
-				nsn,
+			gci := engine.New(
 				// This is required as there are no kubernetes controller running
 				// with the envtest, hence we can't use the foreground deletion
 				// policy (default)
-				gcSvc.WithPropagationPolicy(metav1.DeletePropagationBackground),
+				engine.WithDeletePropagationPolicy(metav1.DeletePropagationBackground),
 			)
 
 			ns := corev1.Namespace{
@@ -324,7 +328,7 @@ func TestGcActionOwn(t *testing.T) {
 
 			g.Expect(cli.Create(ctx, &ns)).
 				NotTo(HaveOccurred())
-			g.Expect(gci.Start(ctx)).
+			g.Expect(gci.Refresh(ctx, cli, nsn)).
 				NotTo(HaveOccurred())
 
 			rr := types.ReconciliationRequest{
@@ -394,7 +398,8 @@ func TestGcActionOwn(t *testing.T) {
 				NotTo(HaveOccurred())
 
 			opts := make([]gc.ActionOpts, 0, len(tt.options)+1)
-			opts = append(opts, gc.WithGC(gci))
+			opts = append(opts, gc.WithEngine(gci))
+			opts = append(opts, gc.InNamespace(nsn))
 			opts = append(opts, tt.options...)
 
 			a := gc.NewAction(opts...)
@@ -424,13 +429,11 @@ func TestGcActionCluster(t *testing.T) {
 	cli := envTest.Client()
 	nsn := xid.New().String()
 
-	gci := gcSvc.New(
-		cli,
-		nsn,
+	gci := engine.New(
 		// This is required as there are no kubernetes controller running
 		// with the envtest, hence we can't use the foreground deletion
 		// policy (default)
-		gcSvc.WithPropagationPolicy(metav1.DeletePropagationBackground),
+		engine.WithDeletePropagationPolicy(metav1.DeletePropagationBackground),
 	)
 
 	ns := corev1.Namespace{
@@ -441,7 +444,7 @@ func TestGcActionCluster(t *testing.T) {
 
 	g.Expect(cli.Create(ctx, &ns)).
 		NotTo(HaveOccurred())
-	g.Expect(gci.Start(ctx)).
+	g.Expect(gci.Refresh(ctx, cli, nsn)).
 		NotTo(HaveOccurred())
 
 	rr := types.ReconciliationRequest{
@@ -531,7 +534,7 @@ func TestGcActionCluster(t *testing.T) {
 	g.Expect(cli.Create(ctx, &cr2)).
 		NotTo(HaveOccurred())
 
-	a := gc.NewAction(gc.WithGC(gci))
+	a := gc.NewAction(gc.WithEngine(gci), gc.InNamespace(nsn))
 
 	gc.DeletedTotal.Reset()
 	gc.DeletedTotal.WithLabelValues("dashboard").Add(0)
@@ -569,12 +572,10 @@ func TestGcActionOnce(t *testing.T) {
 	cli := envTest.Client()
 	nsn := xid.New().String()
 
-	gci := gcSvc.New(
-		cli,
-		nsn,
+	gci := engine.New(
 		// Since test env does not support foreground deletion, we can
 		// use it to simulate a resource deleted, but not removed.
-		gcSvc.WithPropagationPolicy(metav1.DeletePropagationForeground),
+		engine.WithDeletePropagationPolicy(metav1.DeletePropagationForeground),
 	)
 
 	ns := corev1.Namespace{
@@ -585,7 +586,7 @@ func TestGcActionOnce(t *testing.T) {
 
 	g.Expect(cli.Create(ctx, &ns)).
 		NotTo(HaveOccurred())
-	g.Expect(gci.Start(ctx)).
+	g.Expect(gci.Refresh(ctx, cli, nsn)).
 		NotTo(HaveOccurred())
 
 	rr := types.ReconciliationRequest{
@@ -643,7 +644,7 @@ func TestGcActionOnce(t *testing.T) {
 	g.Expect(cli.Create(ctx, &cm)).
 		NotTo(HaveOccurred())
 
-	a := gc.NewAction(gc.WithGC(gci))
+	a := gc.NewAction(gc.WithEngine(gci), gc.InNamespace(nsn))
 
 	gc.DeletedTotal.Reset()
 	gc.DeletedTotal.WithLabelValues("dashboard").Add(0)

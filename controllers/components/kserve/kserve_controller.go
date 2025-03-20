@@ -33,15 +33,14 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/clusterrole"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/generation"
@@ -53,8 +52,6 @@ import (
 
 // NewComponentReconciler creates a ComponentReconciler for the Dashboard API.
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	ownedViaFTMapFunc := ownedViaFT(mgr.GetClient())
-
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.Kserve{}).
 		// operands - owned
 		Owns(&corev1.Secret{}).
@@ -69,12 +66,20 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// changes. The compareHashPredicate ensures that we don't needlessly enqueue
 		// requests if there are no changes that we don't care about.
 		Owns(&templatev1.Template{}, reconciler.WithPredicates(hash.Updated())).
-		Owns(&featuresv1.FeatureTracker{}).
 		Owns(&networkingv1.NetworkPolicy{}).
 		Owns(&monitoringv1.ServiceMonitor{}).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
+
+		// operands - dynamically owned
+		OwnsGVK(gvk.Gateway, reconciler.Dynamic(ifGVKInstalled(gvk.Gateway))).
+		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(ifGVKInstalled(gvk.EnvoyFilter))).
+		OwnsGVK(gvk.KnativeServing, reconciler.Dynamic(ifGVKInstalled(gvk.KnativeServing))).
+		OwnsGVK(gvk.ServiceMeshMember, reconciler.Dynamic(ifGVKInstalled(gvk.ServiceMeshMember))).
+		OwnsGVK(gvk.AuthorizationPolicy, reconciler.Dynamic(ifGVKInstalled(gvk.AuthorizationPolicy))).
+		OwnsGVK(gvk.AuthorizationPolicyv1beta1, reconciler.Dynamic(ifGVKInstalled(gvk.AuthorizationPolicyv1beta1))).
+
 		// operands - watched
 		//
 		// By default the Watches functions adds:
@@ -116,51 +121,26 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(handlers.ToNamed(componentApi.KserveInstanceName)),
 			reconciler.WithPredicates(isRequiredOperators),
 		).
-		// operands - dynamically watched
-		//
-		// A watch will be created dynamically for these kinds, if they exist on the cluster
-		// (they come from ServiceMesh and Serverless operators).
-		//
-		// They're owned by FeatureTrackers, which are owned by a Kserve; so there's a
-		// custom event mapper to enqueue a reconcile request for a Kserve object, if
-		// applicable.
-		//
-		// They also don't have the "partOf" label that Watches expects in the
-		// implicit predicate, so the simpler "DefaultPredicate" is also added.
-		WatchesGVK(
-			gvk.KnativeServing,
-			reconciler.Dynamic(ifGVKInstalled(gvk.KnativeServing)),
-			reconciler.WithEventMapper(ownedViaFTMapFunc),
-			reconciler.WithPredicates(predicates.DefaultPredicate)).
-		WatchesGVK(
-			gvk.ServiceMeshMember,
-			reconciler.Dynamic(ifGVKInstalled(gvk.ServiceMeshMember)),
-			reconciler.WithEventMapper(ownedViaFTMapFunc),
-			reconciler.WithPredicates(predicates.DefaultPredicate)).
-		WatchesGVK(
-			gvk.EnvoyFilter,
-			reconciler.Dynamic(ifGVKInstalled(gvk.EnvoyFilter)),
-			reconciler.WithEventMapper(ownedViaFTMapFunc),
-			reconciler.WithPredicates(predicates.DefaultPredicate)).
-		WatchesGVK(
-			gvk.AuthorizationPolicy,
-			reconciler.Dynamic(ifGVKInstalled(gvk.AuthorizationPolicy)),
-			reconciler.WithEventMapper(ownedViaFTMapFunc),
-			reconciler.WithPredicates(predicates.DefaultPredicate)).
-		WatchesGVK(
-			gvk.Gateway,
-			reconciler.Dynamic(ifGVKInstalled(gvk.Gateway)),
-			reconciler.WithEventMapper(ownedViaFTMapFunc),
-			reconciler.WithPredicates(predicates.DefaultPredicate)).
 
 		// actions
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(releases.NewAction()).
-		WithAction(removeLegacyFeatureTrackerOwnerRef).
-		WithAction(configureServerless).
-		WithAction(configureServiceMesh).
+		WithAction(addTemplateFiles).
+		WithAction(template.NewAction(
+			template.WithCache(),
+			template.WithDataFn(getTemplateData),
+		)).
+
+		// these actions deal with the Kserve serving config and DSCI
+		// service mesh config, and the transitions between different
+		// management states of those.
+		WithAction(addServingCertResourceIfManaged).
+		WithAction(removeOwnershipFromUnmanagedResources).
+		WithAction(cleanUpTemplatedResources).
+
+		//
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
 			// These are the default labels added by the legacy deploy method
@@ -180,6 +160,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(deployments.NewAction()).
 		WithAction(setStatusFields).
+		// TODO: can be removed after RHOAI 2.26 (next EUS)
+		WithAction(deleteFeatureTrackers).
 		// must be the final action
 		WithAction(gc.NewAction()).
 		// declares the list of additional, controller specific conditions that are
