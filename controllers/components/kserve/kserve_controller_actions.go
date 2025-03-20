@@ -308,8 +308,6 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
 	}
 
-	logger := logf.FromContext(ctx)
-
 	kserveConfigMap := corev1.ConfigMap{}
 	cmidx, err := getIndexedResource(rr.Resources, &kserveConfigMap, gvk.ConfigMap, kserveConfigMapName)
 	if err != nil {
@@ -318,25 +316,14 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 
 	switch k.Spec.Serving.ManagementState {
 	case operatorv1.Managed, operatorv1.Unmanaged:
-		if k.Spec.DefaultDeploymentMode == "" {
-			// if the default mode is empty in the DSC, assume mode is "Serverless" since k.Serving is Managed
-			if err := setDefaultDeploymentMode(&kserveConfigMap, componentApi.Serverless); err != nil {
-				return err
-			}
-		} else {
-			// if the default mode is explicitly specified, respect that
-			if err := setDefaultDeploymentMode(&kserveConfigMap, k.Spec.DefaultDeploymentMode); err != nil {
-				return err
-			}
+		if err := setDefaultDeploymentMode(&kserveConfigMap, k.Spec.DefaultDeploymentMode); err != nil {
+			return err
 		}
 	case operatorv1.Removed:
 		if k.Spec.DefaultDeploymentMode == componentApi.Serverless {
 			return errors.New("setting defaultdeployment mode as Serverless is incompatible with having Serving 'Removed'")
 		}
-		if k.Spec.DefaultDeploymentMode == "" {
-			logger.Info("Serving is removed, Kserve will default to RawDeployment")
-		}
-		if err := setDefaultDeploymentMode(&kserveConfigMap, componentApi.RawDeployment); err != nil {
+		if err := setDefaultDeploymentMode(&kserveConfigMap, k.Spec.DefaultDeploymentMode); err != nil {
 			return err
 		}
 	}
