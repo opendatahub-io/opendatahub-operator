@@ -246,3 +246,148 @@ func TestRenderTemplateWithCache(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderTemplateWithGlob(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := context.Background()
+	ns := xid.New().String()
+	id := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := template.NewAction()
+
+	rrRef := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: id,
+			},
+		},
+		DSCI: &dsciv1.DSCInitialization{
+			Spec: dsciv1.DSCInitializationSpec{
+				ApplicationsNamespace: ns,
+			},
+		},
+		Release: common.Release{Name: cluster.OpenDataHub},
+	}
+
+	t.Run("wildcard", func(t *testing.T) {
+		g := NewWithT(t)
+
+		rr := rrRef
+		rr.Templates = []types.TemplateInfo{{FS: testFS, Path: "resources/g/*.yaml"}}
+
+		err = action(ctx, &rr)
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(rr.Resources).Should(And(
+			HaveLen(2),
+			HaveEach(And(
+				jq.Match(`.metadata.namespace == "%s"`, rr.DSCI.Spec.ApplicationsNamespace),
+				jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, rr.DSCI.Spec.ApplicationsNamespace),
+				jq.Match(`.spec.controlPlaneRef.name == "%s"`, rr.Instance.GetName()),
+			)),
+		))
+	})
+
+	t.Run("named", func(t *testing.T) {
+		g := NewWithT(t)
+
+		rr := rrRef
+		rr.Templates = []types.TemplateInfo{{FS: testFS, Path: "resources/g/sm-01.yaml"}}
+
+		err = action(ctx, &rr)
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(rr.Resources).Should(And(
+			HaveLen(1),
+			HaveEach(And(
+				jq.Match(`.metadata.namespace == "%s"`, rr.DSCI.Spec.ApplicationsNamespace),
+				jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, rr.DSCI.Spec.ApplicationsNamespace),
+				jq.Match(`.spec.controlPlaneRef.name == "%s"`, rr.Instance.GetName()),
+			)),
+		))
+	})
+}
+
+func TestRenderTemplateWithCustomInfo(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := context.Background()
+	ns := xid.New().String()
+	id := xid.New().String()
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := template.NewAction(
+		template.WithLabel("label-foo", "foo-label"),
+		template.WithLabels(map[string]string{"labels-foo": "foo-labels"}),
+		template.WithLabel("label-override", "foo-override"),
+		template.WithAnnotation("annotation-foo", "foo-annotation"),
+		template.WithAnnotations(map[string]string{"annotations-foo": "foo-annotations"}),
+		template.WithAnnotation("annotation-override", "foo-override"),
+	)
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: id,
+			},
+		},
+		DSCI: &dsciv1.DSCInitialization{
+			Spec: dsciv1.DSCInitializationSpec{
+				ApplicationsNamespace: ns,
+			},
+		},
+		Release: common.Release{Name: cluster.OpenDataHub},
+		Templates: []types.TemplateInfo{
+			{
+				FS:   testFS,
+				Path: "resources/g/sm-01.yaml",
+				Labels: map[string]string{
+					"custom-label-foo": "label-01",
+					"label-override":   "label-01",
+				}},
+			{
+				FS:   testFS,
+				Path: "resources/g/sm-02.yaml",
+				Annotations: map[string]string{
+					"custom-annotation-foo": "annotation-02",
+					"annotation-override":   "annotation-02"},
+			},
+		},
+	}
+
+	err = action(ctx, &rr)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(rr.Resources).Should(And(
+		HaveLen(2),
+		HaveEach(And(
+			jq.Match(`.metadata.namespace == "%s"`, rr.DSCI.Spec.ApplicationsNamespace),
+			jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, rr.DSCI.Spec.ApplicationsNamespace),
+			jq.Match(`.spec.controlPlaneRef.name == "%s"`, rr.Instance.GetName()),
+			jq.Match(`.metadata.labels."label-foo" == "foo-label"`),
+			jq.Match(`.metadata.labels."labels-foo" == "foo-labels"`),
+			jq.Match(`.metadata.labels | has("label-override")`),
+			jq.Match(`.metadata.annotations."annotation-foo" == "foo-annotation"`),
+			jq.Match(`.metadata.annotations."annotations-foo" == "foo-annotations"`),
+			jq.Match(`.metadata.annotations | has("annotation-override")`),
+		)),
+	))
+
+	g.Expect(rr.Resources[0]).Should(And(
+		jq.Match(`.metadata.labels."custom-label-foo" == "label-01"`),
+		jq.Match(`.metadata.labels."label-override" == "label-01"`),
+	))
+
+	g.Expect(rr.Resources[1]).Should(And(
+		jq.Match(`.metadata.annotations."custom-annotation-foo" == "annotation-02"`),
+		jq.Match(`.metadata.annotations."annotation-override" == "annotation-02"`),
+	))
+}
