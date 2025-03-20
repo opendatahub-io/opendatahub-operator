@@ -39,21 +39,25 @@ func (e *EventuallyValue[T]) Get() (T, error) {
 
 func (e *EventuallyValue[T]) Eventually(args ...interface{}) *Assertion[T] {
 	return &Assertion[T]{
-		ctx:  e.ctx,
-		g:    e.g,
-		f:    e.f,
-		args: args,
-		m:    eventually,
+		ctx:     e.ctx,
+		g:       e.g,
+		f:       e.f,
+		args:    args,
+		m:       eventually,
+		timeout: e.g.DurationBundle.EventuallyTimeout,
+		polling: e.g.DurationBundle.EventuallyPollingInterval,
 	}
 }
 
 func (e *EventuallyValue[T]) Consistently(args ...interface{}) *Assertion[T] {
 	return &Assertion[T]{
-		ctx:  e.ctx,
-		g:    e.g,
-		f:    e.f,
-		args: args,
-		m:    consistently,
+		ctx:     e.ctx,
+		g:       e.g,
+		f:       e.f,
+		args:    args,
+		m:       consistently,
+		timeout: e.g.DurationBundle.ConsistentlyDuration,
+		polling: e.g.DurationBundle.ConsistentlyPollingInterval,
 	}
 }
 
@@ -199,9 +203,15 @@ func (e *EventuallyErr) Get() error {
 }
 
 func (e *EventuallyErr) Eventually() types.AsyncAssertion {
-	return e.g.Eventually(e.ctx, e.f).WithContext(e.ctx)
+	return e.g.Eventually(e.ctx, e.f).
+		WithContext(e.ctx).
+		WithTimeout(e.g.DurationBundle.EventuallyTimeout).
+		WithPolling(e.g.DurationBundle.EventuallyPollingInterval)
 }
 
 func (e *EventuallyErr) Consistently() types.AsyncAssertion {
-	return e.g.Consistently(e.ctx, e.f)
+	return e.g.Consistently(e.ctx, e.f).
+		WithContext(e.ctx).
+		WithTimeout(e.g.DurationBundle.ConsistentlyDuration).
+		WithPolling(e.g.DurationBundle.ConsistentlyPollingInterval)
 }
