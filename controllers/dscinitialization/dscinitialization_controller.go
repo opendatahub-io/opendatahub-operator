@@ -173,14 +173,20 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Deal with application namespace, configmap, networpolicy etc
 	if err := r.createOperatorResource(ctx, instance, platform); err != nil {
-		message := err.Error()
-		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
-			status.SetProgressingCondition(&saved.Status.Conditions, status.ReconcileFailed, message)
+		if _, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
+			status.SetProgressingCondition(&saved.Status.Conditions, status.ReconcileFailed, err.Error())
 			saved.Status.Phase = status.PhaseError
-		})
+		}); err != nil {
+			log.Error(err, "Failed to update DSCInitialization conditions", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
+
+			r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
+				"%s for instance %s", err.Error(), instance.Name)
+		}
+
 		// no need to log error as it was already logged in createOperatorResource
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
-			"failed to create application namespace", message, instance.Name)
+			"failed to create operator resources for instance %s: %s", instance.Name, err.Error())
+
 		return reconcile.Result{}, err
 	}
 
