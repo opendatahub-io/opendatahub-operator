@@ -197,12 +197,6 @@ var (
 		Kind:    serviceApi.MonitoringKind,
 	}
 
-	FeastOperator = schema.GroupVersionKind{
-		Group:   componentApi.GroupVersion.Group,
-		Version: componentApi.GroupVersion.Version,
-		Kind:    componentApi.FeastOperatorKind,
-	}
-
 	CustomResourceDefinition = schema.GroupVersionKind{
 		Group:   "apiextensions.k8s.io",
 		Version: "v1",

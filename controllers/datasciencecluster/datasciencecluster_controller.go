@@ -39,20 +39,22 @@ import (
 func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
-	_, err := reconciler.ReconcilerFor(mgr, &dscv1.DataScienceCluster{}).
-		Owns(&componentApi.Dashboard{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.Workbenches{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.Ray{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.ModelRegistry{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.TrustyAI{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.Kueue{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.CodeFlare{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.TrainingOperator{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.DataSciencePipelines{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.Kserve{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.ModelMeshServing{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.ModelController{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.FeastOperator{}, reconciler.WithPredicates(componentsPredicate)).
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&dscv1.DataScienceCluster{}, builder.WithPredicates(predicates.DefaultPredicate)).
+		// components
+		Owns(&componentApi.Dashboard{}, builder.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.Workbenches{}, builder.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.Ray{}, builder.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.ModelRegistry{}, builder.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.TrustyAI{}, builder.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.Kueue{}, builder.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.CodeFlare{}, builder.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.TrainingOperator{}, builder.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.DataSciencePipelines{}, builder.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.Kserve{}, builder.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.ModelMeshServing{}, builder.WithPredicates(componentsPredicate)).
+		Owns(&componentApi.ModelController{}, builder.WithPredicates(componentsPredicate)).
+		// others
 		Watches(
 			&dsciv1.DSCInitialization{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {

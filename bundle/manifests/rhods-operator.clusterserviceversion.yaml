@@ -28,9 +28,6 @@ metadata:
               "datasciencepipelines": {
                 "managementState": "Managed"
               },
-              "feastoperator": {
-                "managementState": "Removed"
-              },
               "kserve": {
                 "managementState": "Managed",
                 "nim": {
@@ -109,7 +106,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-03-05T17:26:40Z"
+    createdAt: "2025-03-21T14:49:56Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -198,7 +195,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
-  name: rhods-operator.v2.19.0
+  name: rhods-operator.v2.19.321-1
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -269,9 +266,6 @@ spec:
         displayName: Conditions
         path: conditions
       version: v1
-    - kind: FeastOperator
-      name: feastoperators.components.platform.opendatahub.io
-      version: v1alpha1
     - kind: FeatureTracker
       name: featuretrackers.features.opendatahub.io
       version: v1
@@ -538,7 +532,6 @@ spec:
           - codeflares
           - dashboards
           - datasciencepipelines
-          - feastoperators
           - kserves
           - kueues
           - modelcontrollers
@@ -561,7 +554,6 @@ spec:
           resources:
           - codeflares/finalizers
           - datasciencepipelines/finalizers
-          - feastoperators/finalizers
           - kserves/finalizers
           - kueues/finalizers
           - modelcontrollers/finalizers
@@ -579,7 +571,6 @@ spec:
           - codeflares/status
           - dashboards/status
           - datasciencepipelines/status
-          - feastoperators/status
           - kserves/status
           - kueues/status
           - modelcontrollers/status
@@ -1388,7 +1379,7 @@ spec:
                       fieldPath: metadata.namespace
                 - name: DEFAULT_MANIFESTS_PATH
                   value: /opt/manifests
-                image: REPLACE_IMAGE:latest
+                image: quay.io/wenzhou/opendatahub-operator:2.19.321-1
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -1481,7 +1472,7 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.19.0
+  version: 2.19.321-1
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
