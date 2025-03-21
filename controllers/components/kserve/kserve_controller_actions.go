@@ -328,7 +328,7 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 		}
 	}
 	serviceClusterIPNone := true
-	if k.Spec.RawDeploymentServiceConfig == componentApi.Headed {
+	if k.Spec.RawDeploymentServiceConfig == componentApi.KserveRawHeaded {
 		// As default is Headless, only set false here if Headed is explicitly set
 		serviceClusterIPNone = false
 	}

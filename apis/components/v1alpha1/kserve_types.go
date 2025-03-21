@@ -45,8 +45,8 @@ const (
 type RawServiceConfig string
 
 const (
-	Headless RawServiceConfig = "Headless"
-	Headed   RawServiceConfig = "Headed"
+	KserveRawHeadless RawServiceConfig = "Headless"
+	KserveRawHeaded   RawServiceConfig = "Headed"
 )
 
 // Check that the component implements common.PlatformObject.
