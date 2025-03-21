@@ -31,12 +31,23 @@ func NewFromConfig(cfg *rest.Config, client ctrlCli.Client) (*Client, error) {
 		return nil, fmt.Errorf("unable to construct a Discovery client: %w", err)
 	}
 
-	return New(client, kubernetesCl, dynamicCl), nil
+	uncachedCl, err := ctrlCli.New(cfg, ctrlCli.Options{Scheme: client.Scheme()})
+	if err != nil {
+		return nil, fmt.Errorf("unable to construct an uncached client: %w", err)
+	}
+
+	return New(client, uncachedCl, kubernetesCl, dynamicCl), nil
 }
 
-func New(client ctrlCli.Client, kubernetes kubernetes.Interface, dynamic dynamic.Interface) *Client {
+func New(
+	client ctrlCli.Client,
+	uncached ctrlCli.Client,
+	kubernetes kubernetes.Interface,
+	dynamic dynamic.Interface,
+) *Client {
 	return &Client{
 		Client:     client,
+		uncached:   uncached,
 		kubernetes: kubernetes,
 		dynamic:    dynamic,
 	}
@@ -44,6 +55,7 @@ func New(client ctrlCli.Client, kubernetes kubernetes.Interface, dynamic dynamic
 
 type Client struct {
 	ctrlCli.Client
+	uncached   ctrlCli.Client
 	kubernetes kubernetes.Interface
 	dynamic    dynamic.Interface
 }
@@ -58,6 +70,10 @@ func (c *Client) Discovery() discovery.DiscoveryInterface {
 
 func (c *Client) Dynamic() dynamic.Interface {
 	return c.dynamic
+}
+
+func (c *Client) Uncached() ctrlCli.Client {
+	return c.uncached
 }
 
 func (c *Client) Apply(ctx context.Context, in ctrlCli.Object, opts ...ctrlCli.PatchOption) error {

@@ -74,6 +74,7 @@ linters-settings:
       - common.PlatformObject
       - types.AsyncAssertion
       - kubernetes.Interface
+      - client.Client
   revive:
     rules:
       - name: dot-imports
