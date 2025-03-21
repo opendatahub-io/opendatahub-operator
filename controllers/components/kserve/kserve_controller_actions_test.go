@@ -232,3 +232,69 @@ func TestCheckPreConditions_ServiceMeshManaged_AllOperator(t *testing.T) {
 		)),
 	)
 }
+
+func TestCheckPreConditions_RawServiceConfigHeaded(t *testing.T) {
+	ctx := context.Background()
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ks := componentApi.Kserve{}
+	ks.Spec.DefaultDeploymentMode = componentApi.RawDeployment
+	ks.Spec.RawDeploymentServiceConfig = componentApi.KserveRawHeaded
+
+	dsci := dsciv1.DSCInitialization{}
+	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
+		ManagementState: operatorv1.Managed,
+	}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &ks,
+		DSCI:       &dsci,
+		Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+	}
+
+	err = checkPreConditions(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(&ks).Should(
+		WithTransform(resources.ToUnstructured, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionServingAvailable, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "%s"`, status.ConditionServingAvailable, err.Error()),
+		)),
+	)
+}
+
+func TestCheckPreConditions_RawServiceConfigHeadless(t *testing.T) {
+	ctx := context.Background()
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ks := componentApi.Kserve{}
+	ks.Spec.DefaultDeploymentMode = componentApi.RawDeployment
+	ks.Spec.RawDeploymentServiceConfig = componentApi.KserveRawHeadless
+
+	dsci := dsciv1.DSCInitialization{}
+	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
+		ManagementState: operatorv1.Managed,
+	}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &ks,
+		DSCI:       &dsci,
+		Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+	}
+
+	err = checkPreConditions(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(&ks).Should(
+		WithTransform(resources.ToUnstructured, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionServingAvailable, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "%s"`, status.ConditionServingAvailable, err.Error()),
+		)),
+	)
+}
