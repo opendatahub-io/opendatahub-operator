@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/resourcecacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
