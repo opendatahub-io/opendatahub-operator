@@ -11,8 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 

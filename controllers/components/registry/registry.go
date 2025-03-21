@@ -1,6 +1,4 @@
-// componentsregistry package is a registry of all components that can be managed by the operator
-// TODO: it may make sense to put it under components/ when it's clear from the old stuff
-package componentsregistry
+package registry
 
 import (
 	"context"
