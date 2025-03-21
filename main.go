@@ -82,7 +82,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 
-	// component.
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/codeflare"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/dashboard"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/datasciencepipelines"
@@ -96,7 +95,6 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trainingoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/trustyai"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/workbenches"
-	// services.
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/services/auth"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/services/monitoring"
 )
