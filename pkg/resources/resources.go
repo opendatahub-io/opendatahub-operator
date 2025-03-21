@@ -415,3 +415,55 @@ func IsOwnedByType(obj client.Object, ownerGVK schema.GroupVersionKind) (bool, e
 
 	return false, nil
 }
+
+// ExtractContent extracts the content associated with the specified key from
+// a ConfigMap's data and unmarshals it into the provided content variable.
+//
+// Parameters:
+//   - obj: A pointer to a corev1.ConfigMap from which the content will be extracted.
+//   - key: The key associated with the content to extract from the ConfigMap.
+//   - content: A pointer to a variable where the extracted content will be stored.
+//     It must be of a type compatible with the structure of the YAML data stored in the ConfigMap.
+//
+// Returns:
+//   - An error if the key exists but the content cannot be unmarshaled,
+//     or nil if the operation succeeded (including if the key does not exist).
+func ExtractContent(obj *corev1.ConfigMap, key string, content any) error {
+	c, ok := obj.Data[key]
+	if !ok {
+		return nil
+	}
+
+	if err := yaml.Unmarshal([]byte(c), content); err != nil {
+		return fmt.Errorf("unable to extract content for key %s: %w", key, err)
+	}
+
+	return nil
+}
+
+// SetContent sets the content associated with the specified key in a ConfigMap's data
+// by marshaling the provided content variable into YAML format.
+//
+// Parameters:
+//   - obj: A pointer to a corev1.ConfigMap where the content will be set.
+//   - key: The key to associate with the content in the ConfigMap.
+//   - content: The content to be stored in the ConfigMap, which will be marshaled
+//     into YAML format.
+//
+// Returns:
+//   - An error if the content cannot be marshaled into YAML format,
+//     or nil if the operation succeeded.
+func SetContent(obj *corev1.ConfigMap, key string, content any) error {
+	out, err := yaml.Marshal(&content)
+	if err != nil {
+		return fmt.Errorf("unable to encode content for key %s: %w", key, err)
+	}
+
+	if obj.Data == nil {
+		obj.Data = make(map[string]string)
+	}
+
+	obj.Data[key] = string(out)
+
+	return nil
+}

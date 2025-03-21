@@ -18,7 +18,6 @@ package monitoring
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -26,7 +25,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -36,30 +35,17 @@ import (
 // NewServiceReconciler creates a ServiceReconciler for the Monitoring API.
 func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.Monitoring{}).
-		// operands - watched
-		//
-		// By default the Watches functions adds:
-		// - an event handler mapping to a cluster scope resource identified by the
-		//   components.platform.opendatahub.io/part-of annotation
-		// - a predicate that check for generation change for Delete/Updates events
-		//   for to objects that have the label components.platform.opendatahub.io/part-of
-		// or services.platform.opendatahub.io/part-of set to the current owner
-		//
-		Watches(&dscv1.DataScienceCluster{}, reconciler.WithEventHandler(handlers.ToNamed(serviceApi.MonitoringInstanceName)),
+		Watches(
+			&dscv1.DataScienceCluster{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.MonitoringInstanceName)),
 			reconciler.WithPredicates(resources.DSCComponentUpdatePredicate)).
-		// actions
-		WithAction(deployments.NewAction(
-			deployments.InNamespaceFn(func(_ context.Context, rr *types.ReconciliationRequest) (string, error) {
-				m, ok := rr.Instance.(*serviceApi.Monitoring)
-				if !ok {
-					return "", errors.New("instance is not of type *services.Monitoring")
-				}
-
-				return m.Spec.Namespace, nil
-			}),
-		)).
 		WithAction(initialize).
-		WithAction(updatePrometheusConfigMap).
+		WithAction(kustomize.NewAction(
+			kustomize.WithNamespaceSelector(func(_ context.Context, rr *types.ReconciliationRequest) (string, error) {
+				return rr.DSCI.Spec.Monitoring.Namespace, nil
+			})),
+		).
+		WithAction(NewUpdatePrometheusConfigAction()).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).

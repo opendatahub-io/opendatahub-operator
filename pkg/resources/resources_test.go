@@ -242,3 +242,45 @@ func TestRemoveOwnerRef(t *testing.T) {
 		})),
 	))
 }
+
+const testExtractContentVal = `
+foo: bar
+baz: qux
+`
+
+func TestExtractContent(t *testing.T) {
+	g := NewWithT(t)
+
+	cm := &corev1.ConfigMap{
+		Data: map[string]string{
+			"testKey": testExtractContentVal,
+		},
+	}
+
+	var c1 map[string]string
+	err := resources.ExtractContent(cm, "testKey", &c1)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(c1).Should(gstruct.MatchKeys(gstruct.IgnoreExtras, gstruct.Keys{
+		"foo": Equal("bar"),
+		"baz": Equal("qux")}),
+	)
+
+	var c2 map[string]string
+	err = resources.ExtractContent(cm, "nonExistentKey", &c2)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(c2).Should(BeEmpty())
+}
+
+func TestSetContent(t *testing.T) {
+	g := NewWithT(t)
+
+	cm := &corev1.ConfigMap{
+		Data: make(map[string]string),
+	}
+
+	err := resources.SetContent(cm, "testKey", map[string]string{"foo": "bar"})
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cm.Data).Should(gstruct.MatchKeys(gstruct.IgnoreExtras, gstruct.Keys{
+		"testKey": Equal("foo: bar\n")}),
+	)
+}
