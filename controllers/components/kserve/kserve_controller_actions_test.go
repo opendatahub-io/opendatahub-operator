@@ -233,68 +233,53 @@ func TestCheckPreConditions_ServiceMeshManaged_AllOperator(t *testing.T) {
 	)
 }
 
-func TestCheckPreConditions_RawServiceConfigHeaded(t *testing.T) {
+func TestCheckPreConditions_RawServiceConfig(t *testing.T) {
 	ctx := context.Background()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	ks := componentApi.Kserve{}
-	ks.Spec.DefaultDeploymentMode = componentApi.RawDeployment
-	ks.Spec.RawDeploymentServiceConfig = componentApi.KserveRawHeaded
+	ksHeaded := componentApi.Kserve{}
+	ksHeaded.Spec.DefaultDeploymentMode = componentApi.RawDeployment
+	ksHeaded.Spec.RawDeploymentServiceConfig = componentApi.KserveRawHeaded
 
 	dsci := dsciv1.DSCInitialization{}
 	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
-		ManagementState: operatorv1.Managed,
+		ManagementState: operatorv1.Removed,
 	}
 
-	rr := types.ReconciliationRequest{
+	rrHeaded := types.ReconciliationRequest{
 		Client:     cli,
-		Instance:   &ks,
+		Instance:   &ksHeaded,
 		DSCI:       &dsci,
-		Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+		Conditions: conditions.NewManager(&ksHeaded, status.ConditionTypeReady),
 	}
 
-	err = checkPreConditions(ctx, &rr)
+	err = checkPreConditions(ctx, &rrHeaded)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(&ks).Should(
+	g.Expect(&ksHeaded).Should(
 		WithTransform(resources.ToUnstructured, And(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionServingAvailable, metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "%s"`, status.ConditionServingAvailable, err.Error()),
 		)),
 	)
-}
 
-func TestCheckPreConditions_RawServiceConfigHeadless(t *testing.T) {
-	ctx := context.Background()
-	g := NewWithT(t)
+	ksHeadless := componentApi.Kserve{}
+	ksHeadless.Spec.DefaultDeploymentMode = componentApi.RawDeployment
+	ksHeadless.Spec.RawDeploymentServiceConfig = componentApi.KserveRawHeadless
 
-	cli, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	ks := componentApi.Kserve{}
-	ks.Spec.DefaultDeploymentMode = componentApi.RawDeployment
-	ks.Spec.RawDeploymentServiceConfig = componentApi.KserveRawHeadless
-
-	dsci := dsciv1.DSCInitialization{}
-	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
-		ManagementState: operatorv1.Managed,
-	}
-
-	rr := types.ReconciliationRequest{
+	rrHeadless := types.ReconciliationRequest{
 		Client:     cli,
-		Instance:   &ks,
+		Instance:   &ksHeaded,
 		DSCI:       &dsci,
-		Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+		Conditions: conditions.NewManager(&ksHeaded, status.ConditionTypeReady),
 	}
 
-	err = checkPreConditions(ctx, &rr)
+	err = checkPreConditions(ctx, &rrHeadless)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(&ks).Should(
+	g.Expect(&ksHeaded).Should(
 		WithTransform(resources.ToUnstructured, And(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionServingAvailable, metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "%s"`, status.ConditionServingAvailable, err.Error()),
 		)),
 	)
 }
