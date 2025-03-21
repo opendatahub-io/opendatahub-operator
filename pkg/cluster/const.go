@@ -1,6 +1,6 @@
 package cluster
 
-import "github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+import "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 
 const (
 	// ManagedRhoai defines expected addon catalogsource.
