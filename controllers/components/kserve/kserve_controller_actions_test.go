@@ -232,3 +232,54 @@ func TestCheckPreConditions_ServiceMeshManaged_AllOperator(t *testing.T) {
 		)),
 	)
 }
+
+func TestCheckPreConditions_RawServiceConfig(t *testing.T) {
+	ctx := context.Background()
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ksHeaded := componentApi.Kserve{}
+	ksHeaded.Spec.DefaultDeploymentMode = componentApi.RawDeployment
+	ksHeaded.Spec.RawDeploymentServiceConfig = componentApi.KserveRawHeaded
+
+	dsci := dsciv1.DSCInitialization{}
+	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
+		ManagementState: operatorv1.Removed,
+	}
+
+	rrHeaded := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &ksHeaded,
+		DSCI:       &dsci,
+		Conditions: conditions.NewManager(&ksHeaded, status.ConditionTypeReady),
+	}
+
+	err = checkPreConditions(ctx, &rrHeaded)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(&ksHeaded).Should(
+		WithTransform(resources.ToUnstructured, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionServingAvailable, metav1.ConditionFalse),
+		)),
+	)
+
+	ksHeadless := componentApi.Kserve{}
+	ksHeadless.Spec.DefaultDeploymentMode = componentApi.RawDeployment
+	ksHeadless.Spec.RawDeploymentServiceConfig = componentApi.KserveRawHeadless
+
+	rrHeadless := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &ksHeaded,
+		DSCI:       &dsci,
+		Conditions: conditions.NewManager(&ksHeaded, status.ConditionTypeReady),
+	}
+
+	err = checkPreConditions(ctx, &rrHeadless)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(&ksHeaded).Should(
+		WithTransform(resources.ToUnstructured, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionServingAvailable, metav1.ConditionFalse),
+		)),
+	)
+}
