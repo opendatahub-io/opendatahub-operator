@@ -19,6 +19,7 @@ spec:
         - /debug/pprof/
         - /metrics
         - /wait-for-drain
+        - /health
   selector:
     matchLabels:
       serving.kserve.io/kind: InferenceGraph
