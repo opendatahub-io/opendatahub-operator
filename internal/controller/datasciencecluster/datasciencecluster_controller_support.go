@@ -10,8 +10,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
