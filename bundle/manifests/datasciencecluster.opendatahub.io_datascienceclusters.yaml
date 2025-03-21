@@ -265,6 +265,18 @@ spec:
                             pattern: ^(Managed|Unmanaged|Force|Removed)$
                             type: string
                         type: object
+                      rawDeploymentServiceConfig:
+                        default: Headless
+                        description: |-
+                          Configures the type of service that is created for InferenceServices using RawDeployment.
+                          The values for RawDeploymentServiceConfig can be "Headless" or "Headed".
+                          Headless : sets "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.
+                          Headed : sets "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve.
+                        enum:
+                        - Headless
+                        - Headed
+                        pattern: ^(Headless|Headed)$
+                        type: string
                       serving:
                         description: |-
                           Serving configures the KNative-Serving stack used for model serving. A Service
