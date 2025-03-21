@@ -70,14 +70,14 @@ func (tc *testContext) testOwnedNamespacesAllExist(t *testing.T) {
 }
 
 func removeDeletionConfigMap(tc *testContext) {
-	_ = tc.kubeClient.CoreV1().ConfigMaps(tc.operatorNamespace).Delete(tc.ctx, deleteConfigMap, metav1.DeleteOptions{})
+	_ = tc.kubeClient.CoreV1().ConfigMaps(testOpts.operatorNamespace).Delete(tc.ctx, deleteConfigMap, metav1.DeleteOptions{})
 }
 
 func createDeletionConfigMap(tc *testContext, enableDeletion string) error {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deleteConfigMap,
-			Namespace: tc.operatorNamespace,
+			Namespace: testOpts.operatorNamespace,
 			Labels: map[string]string{
 				upgrade.DeleteConfigMapLabel: enableDeletion,
 			},
