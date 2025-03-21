@@ -1,6 +1,8 @@
 apiVersion: maistra.io/v1
 kind: ServiceMeshMember
 metadata:
+  labels:
+    platform.opendatahub.io/dependency: serverless
   name: default
   namespace: knative-serving
 spec:

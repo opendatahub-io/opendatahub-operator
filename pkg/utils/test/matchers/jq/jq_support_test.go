@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/onsi/gomega/gbytes"
+	"github.com/onsi/gomega/types"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -68,6 +70,12 @@ func TestBytesToType(t *testing.T) {
 	}
 }
 
+func haveType(kind reflect.Kind) func(in any) bool {
+	return func(in any) bool {
+		return reflect.TypeOf(in).Kind() == kind
+	}
+}
+
 func TestToType(t *testing.T) {
 	t.Parallel()
 
@@ -76,9 +84,9 @@ func TestToType(t *testing.T) {
 	g := NewWithT(t)
 
 	tests := []struct {
-		name         string
-		fn           func() any
-		expectedType reflect.Kind
+		name        string
+		fn          func() any
+		expectation types.GomegaMatcher
 	}{
 		{
 			name: "gbytes",
@@ -90,70 +98,84 @@ func TestToType(t *testing.T) {
 
 				return b
 			},
-			expectedType: reflect.Map,
+			expectation: Satisfy(haveType(reflect.Map)),
 		},
 		{
 			name: "bytes",
 			fn: func() any {
 				return typeTestData
 			},
-			expectedType: reflect.Map,
+			expectation: Satisfy(haveType(reflect.Map)),
 		},
 		{
 			name: "string_map",
 			fn: func() any {
 				return string(typeTestData)
 			},
-			expectedType: reflect.Map,
+			expectation: Satisfy(haveType(reflect.Map)),
 		},
 		{
 			name: "string_slice",
 			fn: func() any {
 				return `[ "foo", "bar" ]`
 			},
-			expectedType: reflect.Slice,
+			expectation: Satisfy(haveType(reflect.Slice)),
 		},
 		{
 			name: "json.RawMessage",
 			fn: func() any {
 				return json.RawMessage(typeTestData)
 			},
-			expectedType: reflect.Map,
+			expectation: Satisfy(haveType(reflect.Map)),
 		},
 		{
 			name: "io.Reader",
 			fn: func() any {
 				return strings.NewReader(string(typeTestData))
 			},
-			expectedType: reflect.Map,
+			expectation: Satisfy(haveType(reflect.Map)),
 		},
 		{
 			name: "unstructured.Unstructured",
 			fn: func() any {
 				return *resources.GvkToUnstructured(gvk.ConfigMap)
 			},
-			expectedType: reflect.Map,
+			expectation: Satisfy(haveType(reflect.Map)),
 		},
 		{
 			name: "*unstructured.Unstructured",
 			fn: func() any {
 				return resources.GvkToUnstructured(gvk.ConfigMap)
 			},
-			expectedType: reflect.Map,
+			expectation: Satisfy(haveType(reflect.Map)),
 		},
 		{
 			name: "map",
 			fn: func() any {
 				return map[string]string{"foo": "bar"}
 			},
-			expectedType: reflect.Map,
+			expectation: Satisfy(haveType(reflect.Map)),
 		},
 		{
 			name: "slice",
 			fn: func() any {
 				return []string{"foo", "bar"}
 			},
-			expectedType: reflect.Slice,
+			expectation: Satisfy(haveType(reflect.Slice)),
+		},
+		{
+			name: "*unstructured.Unstructured(nil)",
+			fn: func() any {
+				return (*unstructured.Unstructured)(nil)
+			},
+			expectation: BeNil(),
+		},
+		{
+			name: "nil",
+			fn: func() any {
+				return nil
+			},
+			expectation: BeNil(),
 		},
 	}
 
@@ -164,9 +186,7 @@ func TestToType(t *testing.T) {
 			convertedType, err := toType(tt.fn())
 
 			g.Expect(err).ShouldNot(HaveOccurred())
-			g.Expect(convertedType).Should(Satisfy(func(in any) bool {
-				return reflect.TypeOf(in).Kind() == tt.expectedType
-			}))
+			g.Expect(convertedType).Should(tt.expectation)
 		})
 	}
 }

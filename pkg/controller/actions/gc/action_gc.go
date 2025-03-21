@@ -9,12 +9,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc/engine"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	odhLabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
 )
 
 type ObjectPredicateFn func(*odhTypes.ReconciliationRequest, unstructured.Unstructured) (bool, error)
@@ -25,10 +26,11 @@ type Action struct {
 	labels            map[string]string
 	selector          labels.Selector
 	unremovables      map[schema.GroupVersionKind]struct{}
-	gc                *gc.GC
+	gc                *engine.GC
 	objectPredicateFn ObjectPredicateFn
 	typePredicateFn   TypePredicateFn
 	onlyOwned         bool
+	namespaceFn       actions.StringGetter
 }
 
 func WithLabel(name string, value string) ActionOpts {
@@ -87,7 +89,7 @@ func WithOnlyCollectOwned(value bool) ActionOpts {
 	}
 }
 
-func WithGC(value *gc.GC) ActionOpts {
+func WithEngine(value *engine.GC) ActionOpts {
 	return func(action *Action) {
 		if value == nil {
 			return
@@ -97,11 +99,40 @@ func WithGC(value *gc.GC) ActionOpts {
 	}
 }
 
+func InNamespace(ns string) ActionOpts {
+	return func(action *Action) {
+		action.namespaceFn = func(_ context.Context, _ *odhTypes.ReconciliationRequest) (string, error) {
+			return ns, nil
+		}
+	}
+}
+
+func InNamespaceFn(fn actions.StringGetter) ActionOpts {
+	return func(action *Action) {
+		if fn == nil {
+			return
+		}
+		action.namespaceFn = fn
+	}
+}
+
 func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) error {
 	// To avoid the expensive GC, run it only when resources have
 	// been generated
 	if !rr.Generated {
 		return nil
+	}
+
+	ns, err := a.namespaceFn(ctx, rr)
+	if err != nil {
+		return fmt.Errorf("unable to compute namespace: %w", err)
+	}
+
+	// TODO: use cacher to avoid computing deletable types
+	//       on each run
+	err = a.gc.Refresh(ctx, rr.Client, ns)
+	if err != nil {
+		return fmt.Errorf("unable to refresh collectable resources: %w", err)
 	}
 
 	igvk, err := resources.GetGroupVersionKindForObject(rr.Client.Scheme(), rr.Instance)
@@ -122,15 +153,16 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 
 	deleted, err := a.gc.Run(
 		ctx,
+		rr.Client,
 		selector,
-		gc.WithTypeFilter(func(ctx context.Context, kind schema.GroupVersionKind) (bool, error) {
+		engine.WithTypeFilter(func(ctx context.Context, kind schema.GroupVersionKind) (bool, error) {
 			if _, ok := a.unremovables[kind]; ok {
 				return false, nil
 			}
 
 			return a.typePredicateFn(rr, kind)
 		}),
-		gc.WithObjectFilter(func(ctx context.Context, obj unstructured.Unstructured) (bool, error) {
+		engine.WithObjectFilter(func(ctx context.Context, obj unstructured.Unstructured) (bool, error) {
 			if _, ok := a.unremovables[obj.GroupVersionKind()]; ok {
 				return false, nil
 			}
@@ -169,6 +201,7 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 	action.typePredicateFn = DefaultTypePredicate
 	action.onlyOwned = true
 	action.unremovables = make(map[schema.GroupVersionKind]struct{})
+	action.namespaceFn = actions.OperatorNamespace
 
 	for _, opt := range opts {
 		opt(&action)
@@ -178,9 +211,8 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 		action.selector = labels.SelectorFromSet(action.labels)
 	}
 
-	// TODO: refactor
 	if action.gc == nil {
-		action.gc = gc.Instance
+		action.gc = engine.New(engine.WithUnremovables(gvk.CustomResourceDefinition, gvk.Lease))
 	}
 
 	return action.run

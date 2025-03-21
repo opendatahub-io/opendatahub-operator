@@ -1,10 +1,12 @@
 package testf_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/rs/xid"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -16,6 +18,62 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+//nolint:dupl
+func TestEventuallyValueTimeout(t *testing.T) {
+	g := NewWithT(t)
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cl).ShouldNot(BeNil())
+
+	failureMsg := ""
+	timeout := 2 * time.Second
+
+	tc, err := testf.NewTestContext(
+		testf.WithClient(cl),
+		testf.WithTOptions(testf.WithEventuallyTimeout(timeout)),
+		testf.WithTOptions(testf.WithFailHandler(func(message string, callerSkip ...int) {
+			failureMsg = message
+		})),
+	)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	key := client.ObjectKey{Name: "foo", Namespace: "bar"}
+
+	_ = tc.NewWithT(t).Get(gvk.ConfigMap, key).Eventually().ShouldNot(BeNil())
+
+	assert.Contains(t, failureMsg, fmt.Sprintf("Timed out after %d.", int(timeout.Seconds())))
+}
+
+//nolint:dupl
+func TestEventuallyErrTimeout(t *testing.T) {
+	g := NewWithT(t)
+
+	cl, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(cl).ShouldNot(BeNil())
+
+	failureMsg := ""
+	timeout := 3 * time.Second
+
+	tc, err := testf.NewTestContext(
+		testf.WithClient(cl),
+		testf.WithTOptions(testf.WithEventuallyTimeout(timeout)),
+		testf.WithTOptions(testf.WithFailHandler(func(message string, callerSkip ...int) {
+			failureMsg = message
+		})),
+	)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	key := client.ObjectKey{Name: "foo", Namespace: "bar"}
+
+	_ = tc.NewWithT(t).Delete(gvk.ConfigMap, key).Eventually().ShouldNot(Succeed())
+
+	assert.Contains(t, failureMsg, fmt.Sprintf("Timed out after %d.", int(timeout.Seconds())))
+}
 
 func TestGet(t *testing.T) {
 	g := NewWithT(t)
@@ -80,6 +138,25 @@ func TestGet(t *testing.T) {
 
 		v := wt.Get(gvk.ConfigMap, key).Consistently().WithTimeout(1 * time.Second).Should(Succeed())
 		g.Expect(v).ShouldNot(BeNil())
+	})
+
+	t.Run("Get Not Found", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		key := client.ObjectKey{Namespace: "ns", Name: "name"}
+
+		v, err := wt.Get(gvk.ConfigMap, key).Get()
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(v).Should(BeNil())
+	})
+
+	t.Run("Eventually Not Found", func(t *testing.T) {
+		wt := tc.NewWithT(t)
+
+		key := client.ObjectKey{Namespace: "ns", Name: "name"}
+
+		v := wt.Get(gvk.ConfigMap, key).Eventually().WithTimeout(1 * time.Second).ShouldNot(matchMetadata)
+		g.Expect(v).Should(BeNil())
 	})
 }
 
