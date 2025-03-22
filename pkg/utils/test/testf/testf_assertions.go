@@ -88,7 +88,6 @@ func (a *Assertion[T]) WithContext(ctx context.Context) *Assertion[T] {
 	return a
 }
 
-//nolint:ireturn
 func (a *Assertion[T]) build(f interface{}) gomega.AsyncAssertion {
 	var aa gomega.AsyncAssertion
 
