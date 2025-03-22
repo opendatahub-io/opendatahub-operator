@@ -78,7 +78,7 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 }
 
 func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	if rr.Release.Name == cluster.Unknown || rr.Release.Name == cluster.OpenDataHub {
+	if rr.Release.Name == cluster.OpenDataHub {
 		return nil
 	}
 

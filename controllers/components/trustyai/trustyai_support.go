@@ -30,7 +30,6 @@ var (
 		cluster.SelfManagedRhoai: "/overlays/rhoai",
 		cluster.ManagedRhoai:     "/overlays/rhoai",
 		cluster.OpenDataHub:      "/overlays/odh",
-		cluster.Unknown:          "/overlays/odh",
 	}
 
 	conditionTypes = []string{
