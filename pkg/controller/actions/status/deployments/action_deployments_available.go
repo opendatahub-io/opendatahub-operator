@@ -94,7 +94,7 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 
 	ready := 0
 	for _, deployment := range deployments.Items {
-		if deployment.Status.ReadyReplicas == deployment.Status.Replicas {
+		if deployment.Status.ReadyReplicas == deployment.Status.Replicas && deployment.Status.Replicas != 0 {
 			ready++
 		}
 	}
