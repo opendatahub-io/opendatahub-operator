@@ -31,7 +31,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return fmt.Errorf("resource instance %v is not a componentApi.Workbenches)", rr.Instance)
 	}
 
-	if workbenches.Spec.DevFlags == nil || len(workbenches.Spec.DevFlags.Manifests) == 0 {
+	if workbenches.GetDevFlags() == nil || len(workbenches.Spec.DevFlags.Manifests) == 0 {
 		return nil
 	}
 
