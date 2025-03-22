@@ -149,8 +149,5 @@ spec:
       managementState: Managed
     trustyai:
       managementState: Managed
-    feastoperator:
-      managementState: Managed
-      
 EOF
 ```

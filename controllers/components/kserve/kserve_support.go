@@ -165,6 +165,20 @@ func setDefaultDeploymentMode(inferenceServiceConfigMap *corev1.ConfigMap, defau
 	return nil
 }
 
+func setServiceClusterIPNone(inferenceServiceConfigMap *corev1.ConfigMap, value bool) error {
+	var serviceData map[string]interface{}
+	if err := json.Unmarshal([]byte(inferenceServiceConfigMap.Data[ServiceConfigKeyName]), &serviceData); err != nil {
+		return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", ServiceConfigKeyName, kserveConfigMapName, err)
+	}
+	serviceData["serviceClusterIPNone"] = value
+	serviceDataBytes, err := json.MarshalIndent(serviceData, "", " ")
+	if err != nil {
+		return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
+	}
+	inferenceServiceConfigMap.Data[ServiceConfigKeyName] = string(serviceDataBytes)
+	return nil
+}
+
 func getIndexedResource(rs []unstructured.Unstructured, obj any, g schema.GroupVersionKind, name string) (int, error) {
 	var idx = -1
 	for i, r := range rs {
