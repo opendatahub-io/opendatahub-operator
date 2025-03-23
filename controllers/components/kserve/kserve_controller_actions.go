@@ -340,6 +340,14 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 			return err
 		}
 	}
+	serviceClusterIPNone := true
+	if k.Spec.RawDeploymentServiceConfig == componentApi.KserveRawHeaded {
+		// As default is Headless, only set false here if Headed is explicitly set
+		serviceClusterIPNone = false
+	}
+	if err := setServiceClusterIPNone(&kserveConfigMap, serviceClusterIPNone); err != nil {
+		return err
+	}
 
 	err = replaceResourceAtIndex(rr.Resources, cmidx, &kserveConfigMap)
 	if err != nil {
