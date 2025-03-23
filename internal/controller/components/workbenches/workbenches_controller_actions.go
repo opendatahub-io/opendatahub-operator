@@ -93,7 +93,7 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 	}
 
 	platform := rr.Release.Name
-	if platform == cluster.SelfManagedRhoai || platform == cluster.ManagedRhoai {
+	if platform != cluster.OpenDataHub {
 		// Intentionally leaving the ownership unset for this namespace.
 		// Specifying this label triggers its deletion when the operator is uninstalled.
 		if err := rr.AddResources(&corev1.Namespace{

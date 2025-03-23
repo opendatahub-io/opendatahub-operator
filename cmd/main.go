@@ -431,7 +431,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	// Cleanup resources from previous v2 releases
 	var cleanExistingResourceFunc manager.RunnableFunc = func(ctx context.Context) error {
-		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, oldReleaseVersion); err != nil {
+		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform); err != nil {
 			setupLog.Error(err, "unable to perform cleanup")
 		}
 		return err
