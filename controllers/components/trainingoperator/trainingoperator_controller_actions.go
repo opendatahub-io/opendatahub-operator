@@ -36,7 +36,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return fmt.Errorf("resource instance %v is not a componentApi.TrainingOperator)", rr.Instance)
 	}
 
-	if trainingoperator.Spec.DevFlags == nil {
+	if trainingoperator.GetDevFlags() == nil {
 		return nil
 	}
 	if len(trainingoperator.Spec.DevFlags.Manifests) != 0 {

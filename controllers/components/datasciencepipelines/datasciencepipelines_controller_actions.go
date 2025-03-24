@@ -80,7 +80,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		return fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines)", rr.Instance)
 	}
 
-	if dsp.Spec.DevFlags == nil {
+	if dsp.GetDevFlags() == nil {
 		return nil
 	}
 
