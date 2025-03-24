@@ -322,6 +322,11 @@ func (tc *testContext) validateDSCI() error {
 		return err
 	}
 
+	if len(act.Finalizers) != 0 {
+		err := fmt.Errorf("Expected DSCI does not have finalizer set, but got %v", act.GetFinalizers())
+		return err
+	}
+
 	return nil
 }
 
