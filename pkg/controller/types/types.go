@@ -51,6 +51,9 @@ func (mi ManifestInfo) String() string {
 type TemplateInfo struct {
 	FS   fs.FS
 	Path string
+
+	Labels      map[string]string
+	Annotations map[string]string
 }
 
 type ReconciliationRequest struct {

@@ -2,39 +2,37 @@ package kserve
 
 import (
 	"context"
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"path"
+	"maps"
 	"strings"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
+
+//go:embed resources
+var resourcesFS embed.FS
 
 var isRequiredOperators = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
@@ -59,114 +57,61 @@ func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	}
 }
 
-func configureServerlessFeatures(dsciSpec *dsciv1.DSCInitializationSpec, kserve *componentApi.Kserve) feature.FeaturesProvider {
-	return func(registry feature.FeaturesRegistry) error {
-		servingDeployment := feature.Define("serverless-serving-deployment").
-			Manifests(
-				manifest.Location(Resources.Location).
-					Include(
-						path.Join(Resources.InstallDir),
-					),
-			).
-			WithData(
-				serverless.FeatureData.IngressDomain.Define(&kserve.Spec.Serving).AsAction(),
-				serverless.FeatureData.Serving.Define(&kserve.Spec.Serving).AsAction(),
-				servicemesh.FeatureData.ControlPlane.Define(dsciSpec).AsAction(),
-			).
-			PreConditions(
-				serverless.EnsureServerlessOperatorInstalled,
-				serverless.EnsureServerlessAbsent,
-				servicemesh.EnsureServiceMeshInstalled,
-				feature.CreateNamespaceIfNotExists(serverless.KnativeServingNamespace),
-			).
-			PostConditions(
-				feature.WaitForPodsToBeReady(serverless.KnativeServingNamespace),
-			)
+func createServingCertResource(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, kserve *componentApi.Kserve) error {
+	domain := getKnativeDomain(ctx, cli, kserve)
+	secretName := getKnativeCertSecretName(kserve)
 
-		istioSecretFiltering := feature.Define("serverless-net-istio-secret-filtering").
-			Manifests(
-				manifest.Location(Resources.Location).
-					Include(
-						path.Join(Resources.BaseDir, "serving-net-istio-secret-filtering.patch.tmpl.yaml"),
-					),
-			).
-			WithData(serverless.FeatureData.Serving.Define(&kserve.Spec.Serving).AsAction()).
-			PreConditions(serverless.EnsureServerlessServingDeployed).
-			PostConditions(
-				feature.WaitForPodsToBeReady(serverless.KnativeServingNamespace),
-			)
-
-		servingGateway := feature.Define("serverless-serving-gateways").
-			Manifests(
-				manifest.Location(Resources.Location).
-					Include(
-						path.Join(Resources.GatewaysDir),
-					),
-			).
-			WithData(
-				serverless.FeatureData.IngressDomain.Define(&kserve.Spec.Serving).AsAction(),
-				serverless.FeatureData.CertificateName.Define(&kserve.Spec.Serving).AsAction(),
-				serverless.FeatureData.Serving.Define(&kserve.Spec.Serving).AsAction(),
-				servicemesh.FeatureData.ControlPlane.Define(dsciSpec).AsAction(),
-			).
-			WithResources(serverless.ServingCertificateResource).
-			PreConditions(serverless.EnsureServerlessServingDeployed)
-
-		return registry.Add(
-			servingDeployment,
-			istioSecretFiltering,
-			servingGateway,
-		)
-	}
-}
-
-func defineServiceMeshFeatures(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) feature.FeaturesProvider {
-	return func(registry feature.FeaturesRegistry) error {
-		authorinoInstalled, err := cluster.SubscriptionExists(ctx, cli, "authorino-operator")
-		if err != nil {
-			return fmt.Errorf("failed to list subscriptions %w", err)
-		}
-
-		if authorinoInstalled {
-			kserveExtAuthzErr := registry.Add(feature.Define("kserve-external-authz").
-				Manifests(
-					manifest.Location(Resources.Location).
-						Include(
-							path.Join(Resources.ServiceMeshDir, "activator-envoyfilter.tmpl.yaml"),
-							path.Join(Resources.ServiceMeshDir, "kserve-predictor-authorizationpolicy.tmpl.yaml"),
-							path.Join(Resources.ServiceMeshDir, "kserve-inferencegraph-envoyfilter.tmpl.yaml"),
-							path.Join(Resources.ServiceMeshDir, "kserve-inferencegraph-authorizationpolicy.tmpl.yaml"),
-						),
-				).
-				Managed().
-				WithData(
-					feature.Entry("Domain", cluster.GetDomain),
-					servicemesh.FeatureData.ControlPlane.Define(dscispec).AsAction(),
-				).
-				WithData(
-					servicemesh.FeatureData.Authorization.All(dscispec)...,
-				),
-			)
-
-			if kserveExtAuthzErr != nil {
-				return kserveExtAuthzErr
-			}
-		} else {
-			ctrl.Log.Info("WARN: Authorino operator is not installed on the cluster, skipping authorization capability")
-		}
-
+	switch kserve.Spec.Serving.IngressGateway.Certificate.Type {
+	case infrav1.SelfSigned:
+		return cluster.CreateSelfSignedCertificate(ctx, cli, secretName,
+			domain, dscispec.ServiceMesh.ControlPlane.Namespace,
+			cluster.OwnedBy(kserve, cli.Scheme()))
+	case infrav1.Provided:
 		return nil
+	default:
+		return cluster.PropagateDefaultIngressCertificate(ctx, cli,
+			secretName, dscispec.ServiceMesh.ControlPlane.Namespace)
 	}
 }
 
-func removeServiceMeshConfigurations(ctx context.Context, cli client.Client, owner metav1.Object, dscispec *dsciv1.DSCInitializationSpec) error {
-	serviceMeshInitializer := feature.ComponentFeaturesHandler(owner, componentName, dscispec.ApplicationsNamespace, defineServiceMeshFeatures(ctx, cli, dscispec))
-	return serviceMeshInitializer.Delete(ctx, cli)
+func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return nil, fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
+	}
+
+	knativeIngressDomain := getKnativeDomain(ctx, rr.Client, k)
+	knativeCertificateSecret := getKnativeCertSecretName(k)
+
+	return map[string]any{
+		"AuthExtensionName":        rr.DSCI.Spec.ApplicationsNamespace + "-auth-provider",
+		"ControlPlane":             rr.DSCI.Spec.ServiceMesh.ControlPlane,
+		"KnativeCertificateSecret": knativeCertificateSecret,
+		"KnativeIngressDomain":     knativeIngressDomain,
+		"Serving":                  k.Spec.Serving,
+	}, nil
 }
 
-func removeServerlessFeatures(ctx context.Context, cli client.Client, k *componentApi.Kserve, dscispec *dsciv1.DSCInitializationSpec) error {
-	serverlessFeatures := feature.ComponentFeaturesHandler(k, componentName, dscispec.ApplicationsNamespace, configureServerlessFeatures(dscispec, k))
-	return serverlessFeatures.Delete(ctx, cli)
+func getKnativeDomain(ctx context.Context, cli client.Client, k *componentApi.Kserve) string {
+	domain := k.Spec.Serving.IngressGateway.Domain
+	if domain != "" {
+		return domain
+	}
+
+	domain, err := cluster.GetDomain(ctx, cli)
+	if err != nil {
+		return ""
+	}
+	return domain
+}
+
+func getKnativeCertSecretName(k *componentApi.Kserve) string {
+	name := k.Spec.Serving.IngressGateway.Certificate.SecretName
+	if name == "" {
+		name = "knative-serving-cert"
+	}
+
+	return name
 }
 
 func getDefaultDeploymentMode(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) (string, error) {
@@ -220,6 +165,20 @@ func setDefaultDeploymentMode(inferenceServiceConfigMap *corev1.ConfigMap, defau
 	return nil
 }
 
+func setServiceClusterIPNone(inferenceServiceConfigMap *corev1.ConfigMap, value bool) error {
+	var serviceData map[string]interface{}
+	if err := json.Unmarshal([]byte(inferenceServiceConfigMap.Data[ServiceConfigKeyName]), &serviceData); err != nil {
+		return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", ServiceConfigKeyName, kserveConfigMapName, err)
+	}
+	serviceData["serviceClusterIPNone"] = value
+	serviceDataBytes, err := json.MarshalIndent(serviceData, "", " ")
+	if err != nil {
+		return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
+	}
+	inferenceServiceConfigMap.Data[ServiceConfigKeyName] = string(serviceDataBytes)
+	return nil
+}
+
 func getIndexedResource(rs []unstructured.Unstructured, obj any, g schema.GroupVersionKind, name string) (int, error) {
 	var idx = -1
 	for i, r := range rs {
@@ -265,35 +224,6 @@ func hashConfigMap(cm *corev1.ConfigMap) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(h), nil
 }
 
-func ownedViaFT(cli client.Client) handler.MapFunc {
-	return func(ctx context.Context, a client.Object) []reconcile.Request {
-		for _, or := range a.GetOwnerReferences() {
-			if or.Kind == "FeatureTracker" {
-				ft := featuresv1.FeatureTracker{}
-				if err := cli.Get(ctx, client.ObjectKey{Name: or.Name}, &ft); err != nil {
-					return []reconcile.Request{}
-				}
-
-				for _, ftor := range ft.GetOwnerReferences() {
-					if ftor.Kind == componentApi.KserveKind && ftor.Name != "" {
-						return []reconcile.Request{{
-							NamespacedName: types.NamespacedName{
-								Name: ftor.Name,
-							},
-						}}
-					}
-				}
-			}
-		}
-
-		return []reconcile.Request{}
-	}
-}
-
-func isLegacyOwnerRef(or metav1.OwnerReference) bool {
-	return or.APIVersion == gvk.DataScienceCluster.GroupVersion().String() && or.Kind == gvk.DataScienceCluster.Kind
-}
-
 func ifGVKInstalled(kvg schema.GroupVersionKind) func(context.Context, *odhtypes.ReconciliationRequest) bool {
 	return func(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
 		hasCRD, err := cluster.HasCRD(ctx, rr.Client, kvg)
@@ -303,4 +233,69 @@ func ifGVKInstalled(kvg schema.GroupVersionKind) func(context.Context, *odhtypes
 		}
 		return hasCRD
 	}
+}
+
+// shouldRemoveOwnerRefAndLabel encapsulates the decision on whether a resource
+// should be excluded from GC collection because it's considered Unmanaged.
+func shouldRemoveOwnerRefAndLabel(
+	dsciServiceMesh *infrav1.ServiceMeshSpec,
+	kserveServing infrav1.ServingSpec,
+	res unstructured.Unstructured,
+) bool {
+	switch {
+	case isForDependency("servicemesh")(&res):
+		return dsciServiceMesh != nil && dsciServiceMesh.ManagementState == operatorv1.Unmanaged
+	case isForDependency("serverless")(&res):
+		if dsciServiceMesh != nil && dsciServiceMesh.ManagementState == operatorv1.Unmanaged {
+			return true
+		} else if kserveServing.ManagementState == operatorv1.Unmanaged {
+			return true
+		}
+	default:
+		return false
+	}
+	return false
+}
+
+func getAndRemoveOwnerReferences(
+	ctx context.Context,
+	cli client.Client,
+	res unstructured.Unstructured,
+	predicate func(or metav1.OwnerReference) bool,
+) error {
+	current := resources.GvkToUnstructured(res.GroupVersionKind())
+
+	lookupErr := cli.Get(ctx, client.ObjectKeyFromObject(&res), current)
+	if errors.IsNotFound(lookupErr) {
+		return nil
+	}
+	if lookupErr != nil {
+		return fmt.Errorf("failed to lookup object %s/%s: %w",
+			res.GetNamespace(), res.GetName(), lookupErr)
+	}
+
+	ls := current.GetLabels()
+	maps.DeleteFunc(ls, func(k string, v string) bool {
+		return k == labels.PlatformPartOf &&
+			v == strings.ToLower(componentApi.KserveKind)
+	})
+	current.SetLabels(ls)
+
+	return resources.RemoveOwnerReferences(ctx, cli, current, predicate)
+}
+
+func isForDependency(s string) func(u *unstructured.Unstructured) bool {
+	return func(u *unstructured.Unstructured) bool {
+		for k, v := range u.GetLabels() {
+			if k == labels.PlatformDependency && v == s {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func isKserveOwnerRef(or metav1.OwnerReference) bool {
+	return or.APIVersion == componentApi.GroupVersion.String() &&
+		or.Kind == componentApi.KserveKind
 }

@@ -13,6 +13,8 @@ func isLegacyOwnerRef(or metav1.OwnerReference) bool {
 		return true
 	case or.APIVersion == gvk.DSCInitialization.GroupVersion().String() && or.Kind == gvk.DSCInitialization.Kind:
 		return true
+	case or.APIVersion == gvk.FeatureTracker.GroupVersion().String() && or.Kind == gvk.FeatureTracker.Kind:
+		return true
 	default:
 		return false
 	}

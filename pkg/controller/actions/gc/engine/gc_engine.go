@@ -1,4 +1,4 @@
-package gc
+package engine
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/go-logr/logr"
 	"golang.org/x/exp/maps"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -19,16 +18,8 @@ import (
 	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
+	odhcli "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 )
-
-// TODO: since the GC service is quite heavy, as it has to discover
-//	     resources that can be subject to GC, we share single global
-//	     instance, however as long term, we should find a better way
-//	     to let consumer of the service to access it.
-
-// Instance a global instance of the GC service.
-var Instance *GC
 
 const (
 	DeleteVerb  = "delete"
@@ -36,32 +27,30 @@ const (
 	AnyResource = "*"
 )
 
-type options struct {
+type engineOptions struct {
 	propagationPolicy ctrlCli.PropagationPolicy
 	unremovables      map[schema.GroupVersionKind]struct{}
 }
 
-type OptsFn func(*options)
+type OptsFn func(*engineOptions)
 
 func WithUnremovables(items ...schema.GroupVersionKind) OptsFn {
-	return func(o *options) {
+	return func(o *engineOptions) {
 		for _, i := range items {
 			o.unremovables[i] = struct{}{}
 		}
 	}
 }
 
-func WithPropagationPolicy(policy metav1.DeletionPropagation) OptsFn {
-	return func(o *options) {
+func WithDeletePropagationPolicy(policy metav1.DeletionPropagation) OptsFn {
+	return func(o *engineOptions) {
 		o.propagationPolicy = ctrlCli.PropagationPolicy(policy)
 	}
 }
 
-func New(cli *client.Client, ns string, opts ...OptsFn) *GC {
+func New(opts ...OptsFn) *GC {
 	res := GC{
-		client: cli,
-		ns:     ns,
-		options: options{
+		options: engineOptions{
 			propagationPolicy: ctrlCli.PropagationPolicy(metav1.DeletePropagationForeground),
 			unremovables:      make(map[schema.GroupVersionKind]struct{}),
 		},
@@ -79,17 +68,19 @@ func New(cli *client.Client, ns string, opts ...OptsFn) *GC {
 }
 
 type GC struct {
-	client    *client.Client
-	ns        string
 	resources Resources
-	options   options
+	options   engineOptions
 }
 
-func (gc *GC) Start(ctx context.Context) error {
-	l := gc.log(ctx)
+func (gc *GC) Refresh(
+	ctx context.Context,
+	cli *odhcli.Client,
+	ns string,
+) error {
+	l := logf.FromContext(ctx)
 	l.Info("Start computing deletable types")
 
-	res, err := gc.computeDeletableTypes(ctx)
+	res, err := gc.computeDeletableTypes(ctx, cli, ns)
 	if err != nil {
 		return fmt.Errorf("cannot discover deletable types: %w", err)
 	}
@@ -121,13 +112,14 @@ func WithTypeFilter(fn func(context.Context, schema.GroupVersionKind) (bool, err
 
 func (gc *GC) listResources(
 	ctx context.Context,
+	cli *odhcli.Client,
 	res Resource,
 	opts metav1.ListOptions,
 ) ([]unstructured.Unstructured, error) {
-	items, err := gc.client.Dynamic().Resource(res.GroupVersionResource()).Namespace("").List(ctx, opts)
+	items, err := cli.Dynamic().Resource(res.GroupVersionResource()).Namespace("").List(ctx, opts)
 	switch {
 	case k8serr.IsForbidden(err) || k8serr.IsMethodNotSupported(err) || k8serr.IsNotFound(err):
-		gc.log(ctx).V(3).Info(
+		logf.FromContext(ctx).V(3).Info(
 			"cannot list resource",
 			"reason", err.Error(),
 			"gvk", res.GroupVersionKind(),
@@ -143,6 +135,7 @@ func (gc *GC) listResources(
 
 func (gc *GC) Run(
 	ctx context.Context,
+	cli *odhcli.Client,
 	selector labels.Selector,
 	opts ...RunOptionsFn,
 ) (int, error) {
@@ -173,7 +166,7 @@ func (gc *GC) Run(
 			continue
 		}
 
-		items, err := gc.listResources(ctx, res, lo)
+		items, err := gc.listResources(ctx, cli, res, lo)
 		if err != nil {
 			return 0, fmt.Errorf("cannot list child resources %s: %w", res.String(), err)
 		}
@@ -190,7 +183,7 @@ func (gc *GC) Run(
 				continue
 			}
 
-			if err := gc.delete(ctx, items[i]); err != nil {
+			if err := gc.delete(ctx, cli, items[i]); err != nil {
 				return 0, err
 			}
 
@@ -203,16 +196,17 @@ func (gc *GC) Run(
 
 func (gc *GC) delete(
 	ctx context.Context,
+	cli *odhcli.Client,
 	resource unstructured.Unstructured,
 ) error {
-	gc.log(ctx).Info(
+	logf.FromContext(ctx).Info(
 		"delete",
 		"gvk", resource.GroupVersionKind(),
 		"ns", resource.GetNamespace(),
 		"name", resource.GetName(),
 	)
 
-	err := gc.client.Delete(ctx, &resource, gc.options.propagationPolicy)
+	err := cli.Delete(ctx, &resource, gc.options.propagationPolicy)
 	if err != nil && !k8serr.IsNotFound(err) {
 		return fmt.Errorf(
 			"cannot delete resources gvk:%s, namespace: %s, name: %s, reason: %w",
@@ -226,11 +220,13 @@ func (gc *GC) delete(
 	return nil
 }
 
-func (gc *GC) discoverResources() ([]*metav1.APIResourceList, error) {
+func (gc *GC) discoverResources(
+	cli *odhcli.Client,
+) ([]*metav1.APIResourceList, error) {
 	// We rely on the discovery API to retrieve all the resources GVK, that
 	// results in an unbounded set that can impact garbage collection latency
 	// when scaling up.
-	items, err := gc.client.Discovery().ServerPreferredResources()
+	items, err := cli.Discovery().ServerPreferredResources()
 
 	// Swallow group discovery errors, e.g., Knative serving exposes an
 	// aggregated API for custom.metrics.k8s.io that requires special
@@ -244,8 +240,10 @@ func (gc *GC) discoverResources() ([]*metav1.APIResourceList, error) {
 
 func (gc *GC) computeDeletableTypes(
 	ctx context.Context,
+	cli *odhcli.Client,
+	ns string,
 ) ([]Resource, error) {
-	items, err := gc.discoverResources()
+	items, err := gc.discoverResources(cli)
 	if err != nil {
 		return nil, fmt.Errorf("failure discovering resources: %w", err)
 	}
@@ -261,7 +259,7 @@ func (gc *GC) computeDeletableTypes(
 	)
 
 	// Get the permissions of the service account in the specified namespace.
-	rules, err := gc.retrieveResourceRules(ctx)
+	rules, err := gc.retrieveResourceRules(ctx, cli, ns)
 	if err != nil {
 		return nil, fmt.Errorf("failure retrieving resource rules: %w", err)
 	}
@@ -277,17 +275,19 @@ func (gc *GC) computeDeletableTypes(
 
 func (gc *GC) retrieveResourceRules(
 	ctx context.Context,
+	cli *odhcli.Client,
+	ns string,
 ) ([]authorizationv1.ResourceRule, error) {
 	// Retrieve the permissions granted to the operator service account.
 	// We assume the operator has only to garbage collect the resources
 	// it has created.
 	rulesReview := authorizationv1.SelfSubjectRulesReview{
 		Spec: authorizationv1.SelfSubjectRulesReviewSpec{
-			Namespace: gc.ns,
+			Namespace: ns,
 		},
 	}
 
-	err := gc.client.Create(ctx, &rulesReview)
+	err := cli.Create(ctx, &rulesReview)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create SelfSubjectRulesReviews: %w", err)
 	}
@@ -377,8 +377,4 @@ func (gc *GC) collectDeletableResources(
 	})
 
 	return resources, nil
-}
-
-func (gc *GC) log(ctx context.Context) logr.Logger {
-	return logf.FromContext(ctx).WithName("service").WithName("gc")
 }

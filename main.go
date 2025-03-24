@@ -80,7 +80,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/codeflare"
@@ -322,18 +321,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	ons, err := cluster.GetOperatorNamespace()
-	if err != nil {
-		setupLog.Error(err, "unable to determine Operator Namespace")
-		os.Exit(1)
-	}
-
-	gc.Instance = gc.New(
-		oc,
-		ons,
-		gc.WithUnremovables(gvk.CustomResourceDefinition, gvk.Lease),
-	)
-
 	if err = (&dscictrl.DSCInitializationReconciler{
 		Client:   oc,
 		Scheme:   mgr.GetScheme(),
@@ -368,12 +355,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
-		os.Exit(1)
-	}
-
-	err = mgr.Add(gc.Instance)
-	if err != nil {
-		setupLog.Error(err, "unable to register GC service")
 		os.Exit(1)
 	}
 
@@ -426,6 +407,21 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			os.Exit(1)
 		}
 	}
+
+	// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
+	var patchODCFunc manager.RunnableFunc = func(ctx context.Context) error {
+		if err := upgrade.PatchOdhDashboardConfig(ctx, setupClient, oldReleaseVersion, release); err != nil {
+			setupLog.Error(err, "Unable to patch the odhdashboardconfig")
+			return err
+		}
+		return nil
+	}
+
+	err = mgr.Add(patchODCFunc)
+	if err != nil {
+		setupLog.Error(err, "Error patching odhdashboardconfig")
+	}
+
 	// Cleanup resources from previous v2 releases
 	var cleanExistingResourceFunc manager.RunnableFunc = func(ctx context.Context) error {
 		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, oldReleaseVersion); err != nil {

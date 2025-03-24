@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/onsi/gomega"
+	gomegaTypes "github.com/onsi/gomega/types"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -16,6 +17,12 @@ import (
 )
 
 type WithTOpts func(*WithT)
+
+func WithFailHandler(value gomegaTypes.GomegaFailHandler) WithTOpts {
+	return func(g *WithT) {
+		g.WithT = g.ConfigureWithFailHandler(value)
+	}
+}
 
 func WithEventuallyTimeout(value time.Duration) WithTOpts {
 	return func(g *WithT) {

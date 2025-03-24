@@ -3,6 +3,7 @@ kind: Service
 metadata:
   labels:
     experimental.istio.io/disable-gateway-port-translation: "true"
+    platform.opendatahub.io/dependency: serverless
   name: knative-local-gateway
   namespace: {{ .ControlPlane.Namespace }}
 spec:
