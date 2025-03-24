@@ -102,6 +102,7 @@ func getKnativeDomain(ctx context.Context, cli client.Client, k *componentApi.Ks
 	if err != nil {
 		return ""
 	}
+	domain = "*." + domain
 	return domain
 }
 
