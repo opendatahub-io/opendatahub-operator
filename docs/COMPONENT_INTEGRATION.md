@@ -309,16 +309,17 @@ Lastly, please update the following files to fully integrate new component tests
 ## Integrated components
 
 Currently integrated components are:
-- [Dashboard](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/dashboard)
-- [Codeflare](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/codeflare)
-- [Ray](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/ray)
-- [Data Science Pipelines](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/datasciencepipelines)
-- [KServe](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/kserve)
-- [ModelMesh Serving](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/modelmeshserving)
-- [Workbenches](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/workbenches)
-- [TrustyAI](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/trustyai)
-- [ModelRegistry](https://github.com/opendatahub-io/opendatahub-operator/tree/main/components/modelregistry)
+- [Dashboard](https://github.com/opendatahub-io/odh-dashboard)
+- [Codeflare](https://github.com/opendatahub-io/codeflare-operator)
+- [Ray](https://github.com/opendatahub-io/kuberay)
+- [Data Science Pipelines](https://github.com/opendatahub-io/data-science-pipelines)
+- [KServe](https://github.com/opendatahub-io/kserve)
+- [ModelMesh Serving](https://github.com/opendatahub-io/modelmesh-serving)
+- [Workbenches](https://github.com/opendatahub-io/notebooks)
+- [TrustyAI](https://github.com/opendatahub-io/trustyai-service-operator)
+- [ModelRegistry](https://github.com/opendatahub-io/model-registry)
 - [Kueue](https://github.com/opendatahub-io/kueue)
+- [Training Operator](https://github.com/opendatahub-io/training-operator)
 - [Model Controller](https://github.com/opendatahub-io/odh-model-controller)
 
 The particular controller implementations for the listed components are located in the `controllers/components` directory and the corresponding internal component APIs are located in `apis/components/v1alpha1`.
