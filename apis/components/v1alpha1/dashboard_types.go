@@ -29,6 +29,9 @@ const (
 	DashboardKind         = "Dashboard"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*Dashboard)(nil)
+
 // DashboardCommonSpec spec defines the shared desired state of Dashboard
 type DashboardCommonSpec struct {
 	// dashboard spec exposed to DSC api
@@ -77,6 +80,14 @@ func (c *Dashboard) GetDevFlags() *common.DevFlags {
 
 func (c *Dashboard) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *Dashboard) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *Dashboard) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 // +kubebuilder:object:root=true

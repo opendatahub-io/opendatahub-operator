@@ -1,4 +1,4 @@
-package gc_test
+package engine_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/services/gc"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc/engine"
 
 	. "github.com/onsi/gomega"
 )
@@ -18,9 +18,9 @@ func allVerb() []string {
 
 func anyRule() authorizationv1.ResourceRule {
 	return authorizationv1.ResourceRule{
-		Verbs:     []string{gc.AnyVerb},
-		APIGroups: []string{gc.AnyVerb},
-		Resources: []string{gc.AnyVerb},
+		Verbs:     []string{engine.AnyVerb},
+		APIGroups: []string{engine.AnyVerb},
+		Resources: []string{engine.AnyVerb},
 	}
 }
 
@@ -52,7 +52,7 @@ func TestMatchRules(t *testing.T) {
 				Name: "baz",
 			},
 			rule: authorizationv1.ResourceRule{
-				APIGroups: []string{gc.AnyResource},
+				APIGroups: []string{engine.AnyResource},
 				Resources: []string{"baz"},
 			},
 			matcher: BeTrue(),
@@ -87,7 +87,7 @@ func TestMatchRules(t *testing.T) {
 			g := NewWithT(t)
 
 			g.Expect(
-				gc.MatchRule(
+				engine.MatchRule(
 					test.resourceGroup,
 					test.apiResource,
 					test.rule,

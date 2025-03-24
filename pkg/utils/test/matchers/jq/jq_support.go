@@ -46,6 +46,14 @@ func formattedFailurePath(failurePath []interface{}) string {
 
 //nolint:cyclop
 func toType(in any) (any, error) {
+	valof := reflect.ValueOf(in)
+	if !valof.IsValid() {
+		return nil, nil
+	}
+	if valof.Kind() == reflect.Ptr && valof.IsNil() {
+		return nil, nil
+	}
+
 	switch v := in.(type) {
 	case string:
 		d, err := byteToType([]byte(v))

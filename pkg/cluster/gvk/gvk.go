@@ -41,6 +41,12 @@ var (
 		Kind:    "Deployment",
 	}
 
+	OpenShiftClusterRole = schema.GroupVersionKind{
+		Group:   "authorization.openshift.io",
+		Version: "v1",
+		Kind:    "ClusterRole",
+	}
+
 	ClusterRole = schema.GroupVersionKind{
 		Group:   "rbac.authorization.k8s.io",
 		Version: "v1",
@@ -227,6 +233,12 @@ var (
 		Kind:    "AuthorizationPolicy",
 	}
 
+	AuthorizationPolicyv1beta1 = schema.GroupVersionKind{
+		Group:   "security.istio.io",
+		Version: "v1beta1",
+		Kind:    "AuthorizationPolicy",
+	}
+
 	Gateway = schema.GroupVersionKind{
 		Group:   "networking.istio.io",
 		Version: "v1beta1",
@@ -267,5 +279,11 @@ var (
 		Group:   "serving.kserve.io",
 		Version: "v1beta1",
 		Kind:    "InferenceService",
+	}
+
+	OperatorCondition = schema.GroupVersionKind{
+		Group:   "operators.coreos.com",
+		Version: "v2",
+		Kind:    "OperatorCondition",
 	}
 )

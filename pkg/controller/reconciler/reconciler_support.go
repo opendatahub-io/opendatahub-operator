@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
@@ -72,19 +73,23 @@ func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 }
 
 type ReconcilerBuilder[T common.PlatformObject] struct {
-	mgr          ctrl.Manager
-	input        forInput
-	watches      []watchInput
-	predicates   []predicate.Predicate
-	instanceName string
-	actions      []actions.Fn
-	finalizers   []actions.Fn
-	errors       error
+	mgr                 ctrl.Manager
+	input               forInput
+	watches             []watchInput
+	predicates          []predicate.Predicate
+	instanceName        string
+	actions             []actions.Fn
+	finalizers          []actions.Fn
+	errors              error
+	happyCondition      string
+	dependantConditions []string
 }
 
 func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
 	crb := ReconcilerBuilder[T]{
-		mgr: mgr,
+		mgr:                 mgr,
+		happyCondition:      status.ConditionTypeReady,
+		dependantConditions: []string{status.ConditionTypeProvisioningSucceeded},
 	}
 
 	gvk, err := mgr.GetClient().GroupVersionKindFor(object)
@@ -106,6 +111,11 @@ func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...
 	}
 
 	return &crb
+}
+
+func (b *ReconcilerBuilder[T]) WithConditions(dependants ...string) *ReconcilerBuilder[T] {
+	b.dependantConditions = append(b.dependantConditions, dependants...)
+	return b
 }
 
 func (b *ReconcilerBuilder[T]) WithInstanceName(instanceName string) *ReconcilerBuilder[T] {
@@ -205,7 +215,8 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 	if !ok {
 		return nil, errors.New("invalid type for object")
 	}
-	r, err := NewReconciler(b.mgr, name, obj)
+
+	r, err := NewReconciler(b.mgr, name, obj, WithConditionsManagerFactory(b.happyCondition, b.dependantConditions...))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reconciler for component %s: %w", name, err)
 	}

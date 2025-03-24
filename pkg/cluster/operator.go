@@ -100,28 +100,3 @@ func CustomResourceDefinitionExists(ctx context.Context, cli client.Client, crdG
 
 	return err
 }
-
-// return true if found, return false if not found required CRD with version
-// checks on both CRD API version also if it is under deletion.
-func HasCRDWithVersion(ctx context.Context, cli client.Client, crdGK schema.GroupKind, version string) (bool, error) {
-	crd := &apiextv1.CustomResourceDefinition{}
-	name := strings.ToLower(fmt.Sprintf("%ss.%s", crdGK.Kind, crdGK.Group))
-	err := cli.Get(ctx, client.ObjectKey{Name: name}, crd)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	for _, v := range crd.Status.StoredVersions {
-		if v == version {
-			for _, condition := range crd.Status.Conditions {
-				if condition.Type == apiextv1.Terminating && condition.Status == apiextv1.ConditionTrue {
-					return false, nil
-				}
-			}
-			return true, nil
-		}
-	}
-	return false, nil
-}

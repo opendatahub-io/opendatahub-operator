@@ -34,8 +34,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/updatestatus"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/generation"
@@ -72,17 +72,13 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
-		// Some ClusterRoles are part of the component deployment, but not owned by
-		// the operator (overlays/odh/extras), so in order to properly keep them
-		// in sync with the manifests, we should also create an additional watcher
-		Watches(&rbacv1.ClusterRole{}).
 		// This component adds a ServiceMeshMember resource to the registries
 		// namespaces that may not be known when the controller is started, hence
 		// it should be watched dynamically
 		WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic()).
-		// actions
 		WithAction(checkPreConditions).
 		WithAction(initialize).
+		WithAction(customizeManifests).
 		WithAction(releases.NewAction()).
 		WithAction(configureDependencies).
 		WithAction(template.NewAction(
@@ -93,16 +89,18 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
-		WithAction(customizeResources).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
-		WithAction(updatestatus.NewAction()).
+		WithAction(deployments.NewAction()).
 		WithAction(updateStatus).
 		// must be the final action
 		WithAction(gc.NewAction(
 			gc.WithUnremovables(gvk.ServiceMeshMember),
 		)).
+		// declares the list of additional, controller specific conditions that are
+		// contributing to the controller readiness status
+		WithConditions(conditionTypes...).
 		Build(ctx)
 
 	if err != nil {

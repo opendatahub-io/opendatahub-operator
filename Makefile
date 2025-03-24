@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 2.24.0
+VERSION ?= 2.26.0
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -69,7 +69,7 @@ YQ ?= $(LOCALBIN)/yq
 KUSTOMIZE_VERSION ?= v5.0.2
 CONTROLLER_GEN_VERSION ?= v0.16.1
 OPERATOR_SDK_VERSION ?= v1.31.0
-GOLANGCI_LINT_VERSION ?= v1.63.4
+GOLANGCI_LINT_VERSION ?= v1.64.7
 YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
@@ -92,7 +92,7 @@ SHELL = /usr/bin/env bash -o pipefail
 
 # E2E tests additional flags
 # See README.md, default go test timeout 10m
-E2E_TEST_FLAGS = -timeout 40m
+E2E_TEST_FLAGS = -timeout 50m
 
 # Default image-build is to not use local odh-manifests folder
 # set to "true" to use local instead
@@ -301,6 +301,14 @@ $(CRD_REF_DOCS): $(LOCALBIN)
 	test -s $(CRD_REF_DOCS) || ( \
 		curl -sSL https://github.com/elastic/crd-ref-docs/releases/download/v$(CRD_REF_DOCS_VERSION)/crd-ref-docs_$(CRD_REF_DOCS_VERSION)_$(OS)_$(ARCH).tar.gz | tar -xzf - -C $(LOCALBIN) crd-ref-docs \
 	)
+
+.PHONY: new-component
+new-component: $(LOCALBIN)/component-codegen
+	$< generate $(COMPONENT)
+	$(MAKE) generate manifests api-docs bundle fmt
+
+$(LOCALBIN)/component-codegen: | $(LOCALBIN)
+	cd ./cmd/component-codegen && go mod tidy && go build -o $@
 
 BUNDLE_DIR ?= "bundle"
 WARNINGMSG = "provided API should have an example annotation"

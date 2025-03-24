@@ -14,6 +14,7 @@ import (
 	"github.com/onsi/gomega/format"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	ofapiv1 "github.com/operator-framework/api/pkg/operators/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"golang.org/x/exp/maps"
@@ -61,9 +62,7 @@ var (
 				componentApi.KserveComponentName:               kserveTestSuite,
 				componentApi.ModelMeshServingComponentName:     modelMeshServingTestSuite,
 				componentApi.ModelControllerComponentName:      modelControllerTestSuite,
-				// Temporary disable Feast until images are moved from docker.io
-				// TODO: enable when ready
-				// componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
+				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
 			},
 		},
 		services: TestGroup{
@@ -172,6 +171,7 @@ func TestOdhOperator(t *testing.T) {
 	utilruntime.Must(operatorv1.AddToScheme(Scheme))
 	utilruntime.Must(componentApi.AddToScheme(Scheme))
 	utilruntime.Must(serviceApi.AddToScheme(Scheme))
+	utilruntime.Must(ofapiv1.AddToScheme(Scheme))
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 

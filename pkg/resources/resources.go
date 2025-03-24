@@ -390,3 +390,28 @@ func RemoveOwnerReferences(
 
 	return nil
 }
+
+// IsOwnedByType checks if the given object (obj) is owned by an entity of the specified GroupVersionKind.
+// It iterates through the object's owner references to determine ownership.
+//
+// Parameters:
+// - obj: The Kubernetes object to check ownership for.
+// - ownerGVK: The GroupVersionKind (GVK) of the expected owner.
+//
+// Returns:
+// - A boolean indicating whether the object is owned by an entity of the specified GVK.
+// - An error if any issue occurs while parsing the owner's API version.
+func IsOwnedByType(obj client.Object, ownerGVK schema.GroupVersionKind) (bool, error) {
+	for _, ref := range obj.GetOwnerReferences() {
+		av, err := schema.ParseGroupVersion(ref.APIVersion)
+		if err != nil {
+			return false, err
+		}
+
+		if av.Group == ownerGVK.Group && av.Version == ownerGVK.Version && ref.Kind == ownerGVK.Kind {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}

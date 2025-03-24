@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
@@ -19,7 +18,7 @@ import (
 const (
 	ComponentName = componentApi.DashboardComponentName
 
-	ReadyConditionType = conditionsv1.ConditionType(componentApi.DashboardKind + status.ReadySuffix)
+	ReadyConditionType = componentApi.DashboardKind + status.ReadySuffix
 
 	// Legacy component names are the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
@@ -60,6 +59,10 @@ var (
 
 	imagesMap = map[string]string{
 		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+	}
+
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
 	}
 )
 

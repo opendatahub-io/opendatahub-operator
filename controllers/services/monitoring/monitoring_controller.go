@@ -18,6 +18,7 @@ package monitoring
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -25,9 +26,11 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
 // NewServiceReconciler creates a ServiceReconciler for the Monitoring API.
@@ -45,12 +48,21 @@ func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
 		Watches(&dscv1.DataScienceCluster{}, reconciler.WithEventHandler(handlers.ToNamed(serviceApi.MonitoringInstanceName)),
 			reconciler.WithPredicates(resources.DSCComponentUpdatePredicate)).
 		// actions
+		WithAction(deployments.NewAction(
+			deployments.InNamespaceFn(func(_ context.Context, rr *types.ReconciliationRequest) (string, error) {
+				m, ok := rr.Instance.(*serviceApi.Monitoring)
+				if !ok {
+					return "", errors.New("instance is not of type *services.Monitoring")
+				}
+
+				return m.Spec.Namespace, nil
+			}),
+		)).
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
-		WithAction(updateStatus).
 		Build(ctx)
 
 	if err != nil {

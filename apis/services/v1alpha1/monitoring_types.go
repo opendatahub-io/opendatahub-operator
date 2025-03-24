@@ -29,6 +29,9 @@ const (
 	MonitoringKind         = "Monitoring"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*Monitoring)(nil)
+
 // MonitoringSpec defines the desired state of Monitoring
 type MonitoringSpec struct {
 	// monitoring spec exposed to DSCI api
@@ -67,6 +70,7 @@ type MonitoringCommonSpec struct {
 	// +kubebuilder:default=opendatahub
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="MonitoringNamespace is immutable"
 	Namespace string `json:"namespace,omitempty"`
 }
 
@@ -87,11 +91,19 @@ func (m *Monitoring) GetStatus() *common.Status {
 	return &m.Status.Status
 }
 
+func (c *Monitoring) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *Monitoring) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
+}
+
 func init() {
 	SchemeBuilder.Register(&Monitoring{}, &MonitoringList{})
 }
 
-type DSCMonitoring struct {
+type DSCIMonitoring struct {
 	// configuration fields common across services
 	common.ManagementSpec `json:",inline"`
 	// monitoring specific fields

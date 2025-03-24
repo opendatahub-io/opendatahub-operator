@@ -28,6 +28,9 @@ const (
 	TrustyAIKind         = "TrustyAI"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*TrustyAI)(nil)
+
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // +kubebuilder:object:root=true
@@ -84,6 +87,14 @@ func (c *TrustyAI) GetDevFlags() *common.DevFlags {
 
 func (c *TrustyAI) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *TrustyAI) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *TrustyAI) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }
 
 func (c *TrustyAI) GetReleaseStatus() *[]common.ComponentRelease { return &c.Status.Releases }

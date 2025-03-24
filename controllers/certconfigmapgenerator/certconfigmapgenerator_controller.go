@@ -3,10 +3,10 @@ package certconfigmapgenerator
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -52,7 +52,7 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, req ct
 	// Get namespace instance
 	userNamespace := &corev1.Namespace{}
 	if err := r.Client.Get(ctx, client.ObjectKey{Name: req.Namespace}, userNamespace); err != nil {
-		return ctrl.Result{}, errors.WithMessage(err, "error getting namespace to inject trustedCA bundle")
+		return ctrl.Result{}, fmt.Errorf("error getting namespace to inject trustedCA bundle: %w", err)
 	}
 
 	dsciInstance, err := cluster.GetDSCI(ctx, r.Client)

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,7 +49,7 @@ func CreateSelfSignedCertificate(ctx context.Context, c client.Client, secretNam
 func GenerateSelfSignedCertificateAsSecret(name, addr, namespace string) (*corev1.Secret, error) {
 	cert, key, err := generateCertificate(addr)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, fmt.Errorf("error generating certificate: %w", err)
 	}
 
 	return &corev1.Secret{
@@ -69,12 +68,12 @@ func GenerateSelfSignedCertificateAsSecret(name, addr, namespace string) (*corev
 func generateCertificate(addr string) ([]byte, []byte, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, fmt.Errorf("error generating key: %w", err)
 	}
 
 	seededRand, cryptErr := rand.Int(rand.Reader, big.NewInt(time.Now().UnixNano()))
 	if cryptErr != nil {
-		return nil, nil, errors.WithStack(cryptErr)
+		return nil, nil, fmt.Errorf("error generating random: %w", cryptErr)
 	}
 
 	now := time.Now()
@@ -105,11 +104,11 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 
 	certDERBytes, err := x509.CreateCertificate(rand.Reader, &tmpl, &tmpl, key.Public(), key)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, fmt.Errorf("error creating certificate: %w", err)
 	}
 	certificate, err := x509.ParseCertificate(certDERBytes)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, fmt.Errorf("error parsing certificate: %w", err)
 	}
 
 	certBuffer := bytes.Buffer{}
@@ -117,7 +116,7 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 		Type:  "CERTIFICATE",
 		Bytes: certificate.Raw,
 	}); err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, fmt.Errorf("error encoding pem: %w", err)
 	}
 
 	keyBuffer := bytes.Buffer{}
@@ -125,7 +124,7 @@ func generateCertificate(addr string) ([]byte, []byte, error) {
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(key),
 	}); err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, fmt.Errorf("error encoding pem: %w", err)
 	}
 
 	return certBuffer.Bytes(), keyBuffer.Bytes(), nil

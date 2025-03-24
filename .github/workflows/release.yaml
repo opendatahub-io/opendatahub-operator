@@ -41,7 +41,7 @@ jobs:
         with:
           body: ${{ steps.release-notes.outputs.release-notes-body }}
           tag_name: v${{ env.VERSION }}
-          make_latest: true
+          prerelease: true
   # TODO: To be enabled later.
   # create-community-operators-pr:
   #   needs: [gh-release]

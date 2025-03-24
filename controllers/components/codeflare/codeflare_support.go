@@ -3,8 +3,6 @@ package codeflare
 import (
 	"path"
 
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -14,7 +12,7 @@ import (
 const (
 	ComponentName = componentApi.CodeFlareComponentName
 
-	ReadyConditionType = conditionsv1.ConditionType(componentApi.CodeFlareKind + status.ReadySuffix)
+	ReadyConditionType = componentApi.CodeFlareKind + status.ReadySuffix
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
@@ -27,6 +25,10 @@ var (
 
 	imageParamMap = map[string]string{
 		"codeflare-operator-controller-image": "RELATED_IMAGE_ODH_CODEFLARE_OPERATOR_IMAGE",
+	}
+
+	conditionTypes = []string{
+		status.ConditionDeploymentsAvailable,
 	}
 )
 

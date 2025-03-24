@@ -30,6 +30,9 @@ const (
 	ModelControllerKind         = "ModelController"
 )
 
+// Check that the component implements common.PlatformObject.
+var _ common.PlatformObject = (*ModelController)(nil)
+
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // +kubebuilder:object:root=true
@@ -54,6 +57,7 @@ type ModelControllerSpec struct {
 	// ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"`
 	Kserve           *ModelControllerKerveSpec `json:"kserve,omitempty"`
 	ModelMeshServing *ModelControllerMMSpec    `json:"modelMeshServing,omitempty"`
+	ModelRegistry    *ModelControllerMRSpec    `json:"modelRegistry,omitempty"`
 }
 
 // a mini version of the DSCKserve only keep devflags and management spec
@@ -77,6 +81,10 @@ func (s *ModelControllerMMSpec) GetDevFlags() *common.DevFlags {
 	return s.DevFlags
 }
 
+type ModelControllerMRSpec struct {
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+}
+
 // ModelControllerStatus defines the observed state of ModelController
 type ModelControllerStatus struct {
 	common.Status `json:",inline"`
@@ -98,4 +106,12 @@ func (c *ModelController) GetDevFlags() *common.DevFlags { return nil }
 
 func (c *ModelController) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *ModelController) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *ModelController) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
 }

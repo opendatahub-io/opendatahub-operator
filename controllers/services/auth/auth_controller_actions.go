@@ -143,14 +143,3 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 
 	return nil
 }
-
-func setStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	ai, ok := rr.Instance.(*serviceApi.Auth)
-	if !ok {
-		return errors.New("instance is not of type *services.Auth")
-	}
-
-	ai.Status.Phase = "Ready"
-	ai.Status.ObservedGeneration = ai.GetObjectMeta().GetGeneration()
-	return nil
-}
