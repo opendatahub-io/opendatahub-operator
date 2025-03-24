@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 )
 
 func trainingOperatorTestSuite(t *testing.T) {

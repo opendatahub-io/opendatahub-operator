@@ -1,0 +1,39 @@
+apiVersion: operator.knative.dev/v1beta1
+kind: KnativeServing
+metadata:
+  name: {{ .Serving.Name }}
+  namespace: knative-serving
+  annotations:
+    serverless.openshift.io/default-enable-http2: "true"
+  labels:
+    platform.opendatahub.io/dependency: serverless
+spec:
+  workloads:
+    - annotations:
+        sidecar.istio.io/inject: "true"
+        sidecar.istio.io/rewriteAppHTTPProbers: "true"
+      name: activator
+    - annotations:
+        sidecar.istio.io/inject: "true"
+        sidecar.istio.io/rewriteAppHTTPProbers: "true"
+      name: autoscaler
+    - name: net-istio-controller
+      env:
+        - container: controller
+          envVars:
+            - name: ENABLE_SECRET_INFORMER_FILTERING_BY_CERT_UID
+              value: 'true'
+  ingress:
+    istio:
+      enabled: true
+  config:
+    autoscaler:
+      allow-zero-initial-scale: "true"
+    features:
+      kubernetes.podspec-affinity: enabled
+      kubernetes.podspec-nodeselector: enabled
+      kubernetes.podspec-tolerations: enabled
+      kubernetes.podspec-persistent-volume-write: enabled
+      kubernetes.podspec-persistent-volume-claim: enabled
+    istio:
+      local-gateway.knative-serving.knative-local-gateway: "knative-local-gateway.{{ .ControlPlane.Namespace }}.svc.cluster.local"

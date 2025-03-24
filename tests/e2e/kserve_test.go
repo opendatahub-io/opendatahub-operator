@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -16,14 +18,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/modelcontroller"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/serverless"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -41,23 +44,43 @@ func kserveTestSuite(t *testing.T) {
 	err = componentCtx.setUpServerless(t)
 	require.NoError(t, err)
 
+	err = componentCtx.createDummyFeatureTrackers(t)
+	require.NoError(t, err)
+
 	t.Run("Validate component enabled", componentCtx.ValidateComponentEnabled)
 	t.Run("Validate component spec", componentCtx.validateSpec)
 	t.Run("Validate component conditions", componentCtx.validateConditions)
-	t.Run("Validate FeatureTrackers", componentCtx.validateFeatureTrackers)
 	t.Run("Validate model controller", componentCtx.validateModelControllerInstance)
 	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
-	t.Run("Validate Kserve owns FeatureTrackers", componentCtx.ValidateKserveOwnsFeatureTrackers)
-	t.Run("Validate FeatureTrackers own children", componentCtx.ValidateFeatureTrackersOwnChildren)
-	t.Run("Validate KnativeServing Structure", componentCtx.ValidateKnativeServingStructure)
+	t.Run("Validate no FeatureTracker OwnerReferences", componentCtx.ValidateNoFeatureTrackerOwnerReferences)
+	t.Run("Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers)
 	t.Run("Validate default certs", componentCtx.validateDefaultCertsAvailable)
 	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
+	t.Run("Validate serving transition to Unmanaged", componentCtx.ValidateServingTransitionToUnmanaged)
+	t.Run("Validate serving transition to Removed", componentCtx.ValidateServingTransitionToRemoved)
 	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
 	// t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
 }
 
 type KserveTestCtx struct {
 	*ComponentTestCtx
+}
+
+var templatedResources = []struct {
+	gvk schema.GroupVersionKind
+	nn  types.NamespacedName
+}{
+	{gvk.KnativeServing, types.NamespacedName{Namespace: "knative-serving", Name: "knative-serving"}},
+	{gvk.ServiceMeshMember, types.NamespacedName{Namespace: "knative-serving", Name: "default"}},
+	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "activator-host-header"}},
+	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-after"}},
+	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-before"}},
+	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph-host-header"}},
+	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph"}},
+	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-predictor"}},
+	{gvk.Gateway, types.NamespacedName{Namespace: "istio-system", Name: "kserve-local-gateway"}},
+	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-ingress-gateway"}},
+	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-local-gateway"}},
 }
 
 //nolint:thelper
@@ -88,22 +111,35 @@ func (c *KserveTestCtx) setUpServerless(t *testing.T) error {
 		}
 	}
 
-	ft := &featuresv1.FeatureTracker{}
-	ft.SetName(c.ApplicationNamespace + "-serverless-serving-deployment")
+	return nil
+}
 
-	if _, err := controllerutil.CreateOrUpdate(c.Context(), c.Client(), ft, func() error {
-		dsc, err := c.GetDSC()
-		if err != nil {
-			return err
-		}
-		if err := controllerutil.SetOwnerReference(dsc, ft, c.Client().Scheme()); err != nil {
-			return err
-		}
-		ft.Spec.Source.Name = xid.New().String()
+func (c *KserveTestCtx) createDummyFeatureTrackers(_ *testing.T) error {
+	ftNames := []string{
+		c.ApplicationNamespace + "-serverless-serving-deployment",
+		c.ApplicationNamespace + "-serverless-net-istio-secret-filtering",
+		c.ApplicationNamespace + "-serverless-serving-gateways",
+		c.ApplicationNamespace + "-kserve-external-authz",
+	}
 
-		return nil
-	}); err != nil {
-		return errors.New("error creating pre-existing FeatureTracker")
+	for _, name := range ftNames {
+		ft := &featuresv1.FeatureTracker{}
+		ft.SetName(name)
+
+		if _, err := controllerutil.CreateOrUpdate(c.Context(), c.Client(), ft, func() error {
+			dsc, err := c.GetDSC()
+			if err != nil {
+				return err
+			}
+			if err := controllerutil.SetOwnerReference(dsc, ft, c.Client().Scheme()); err != nil {
+				return err
+			}
+			ft.Spec.Source.Name = xid.New().String()
+
+			return nil
+		}); err != nil {
+			return errors.New("error creating pre-existing FeatureTracker")
+		}
 	}
 
 	return nil
@@ -137,50 +173,6 @@ func (c *KserveTestCtx) validateConditions(t *testing.T) {
 		)),
 	))
 }
-
-func (c *KserveTestCtx) validateFeatureTrackers(t *testing.T) {
-	g := c.NewWithT(t)
-	ftName := types.NamespacedName{Name: c.ApplicationNamespace + "-serverless-serving-deployment"}
-
-	g.Get(gvk.FeatureTracker, ftName).Eventually().Should(And(
-		jq.Match(`(.metadata.ownerReferences | length) == 1`),
-		jq.Match(`.metadata.ownerReferences[0].apiVersion == "%s"`, gvk.Kserve.GroupVersion().String()),
-		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Kserve.Kind),
-		jq.Match(`.metadata.ownerReferences[0].blockOwnerDeletion == true`),
-		jq.Match(`.metadata.ownerReferences[0].controller == true`),
-	))
-
-	dsc, err := c.GetDSC()
-	g.Expect(err).NotTo(HaveOccurred())
-
-	g.Update(
-		gvk.FeatureTracker,
-		ftName,
-		func(obj *unstructured.Unstructured) error {
-			if err := controllerutil.SetOwnerReference(dsc, obj, c.Client().Scheme()); err != nil {
-				return err
-			}
-
-			// trigger reconciliation as spec changes
-			if err = unstructured.SetNestedField(obj.Object, xid.New().String(), "spec", "source", "name"); err != nil {
-				return err
-			}
-
-			return nil
-		},
-	).Eventually().Should(And(
-		jq.Match(`(.metadata.ownerReferences | length) == 2`),
-	))
-
-	g.Get(gvk.FeatureTracker, ftName).Eventually().Should(And(
-		jq.Match(`(.metadata.ownerReferences | length) == 1`),
-		jq.Match(`.metadata.ownerReferences[0].apiVersion == "%s"`, gvk.Kserve.GroupVersion().String()),
-		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Kserve.Kind),
-		jq.Match(`.metadata.ownerReferences[0].blockOwnerDeletion == true`),
-		jq.Match(`.metadata.ownerReferences[0].controller == true`),
-	))
-}
-
 func (c *KserveTestCtx) validateModelControllerInstance(t *testing.T) {
 	g := c.NewWithT(t)
 
@@ -224,62 +216,146 @@ func (c *KserveTestCtx) validateDefaultCertsAvailable(t *testing.T) {
 	g.Expect(defaultIngressSecret.Data).Should(Equal(ctrlPlaneSecret.Data))
 }
 
-func (c *KserveTestCtx) ValidateKserveOwnsFeatureTrackers(t *testing.T) {
+func (c *KserveTestCtx) ValidateNoFeatureTrackerOwnerReferences(t *testing.T) {
 	g := c.NewWithT(t)
 
-	fts := []string{
-		// c.ApplicationNamespace + "-kserve-external-authz",
-		c.ApplicationNamespace + "-serverless-serving-gateways",
-		c.ApplicationNamespace + "-serverless-serving-deployment",
-		c.ApplicationNamespace + "-serverless-net-istio-secret-filtering",
-	}
-
-	for _, ft := range fts {
-		g.Get(
-			gvk.FeatureTracker, types.NamespacedName{Name: ft},
-		).Eventually(300).Should(
+	for _, child := range templatedResources {
+		g.Get(child.gvk, child.nn).Eventually(300).Should(And(
 			jq.Match(`.metadata.ownerReferences | any(.kind == "%s")`, gvk.Kserve.Kind),
-			`Ensuring Kserve ownership of FeatureTracker %s`, ft,
-		)
+			jq.Match(`.metadata.ownerReferences | all(.kind != "%s")`, gvk.FeatureTracker.Kind),
+		),
+			`Checking if %s/%s in %s has expected owner refs`, child.gvk, child.nn.Name, child.nn.Namespace)
 	}
 }
 
-func (c *KserveTestCtx) ValidateFeatureTrackersOwnChildren(t *testing.T) {
+func (c *KserveTestCtx) ValidateNoKserveFeatureTrackers(t *testing.T) {
 	g := c.NewWithT(t)
 
-	children := []struct {
-		gvk schema.GroupVersionKind
-		nn  types.NamespacedName
-	}{
-		{gvk.KnativeServing, types.NamespacedName{Namespace: "knative-serving", Name: "knative-serving"}},
-		{gvk.ServiceMeshMember, types.NamespacedName{Namespace: "knative-serving", Name: "default"}},
-		// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "activator-host-header"}},
-		// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-after"}},
-		// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-before"}},
-		// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph-host-header"}},
-		// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph"}},
-		// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-predictor"}},
-		{gvk.Gateway, types.NamespacedName{Namespace: "istio-system", Name: "kserve-local-gateway"}},
-		{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-ingress-gateway"}},
-		{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-local-gateway"}},
+	g.List(
+		gvk.FeatureTracker,
+	).Eventually(300).Should(
+		HaveEach(And(
+			jq.Match(`.metadata.name != "%s"`, c.ApplicationNamespace+"-kserve-external-authz"),
+			jq.Match(`.metadata.name != "%s"`, c.ApplicationNamespace+"-serverless-serving-gateways"),
+			jq.Match(`.metadata.name != "%s"`, c.ApplicationNamespace+"-serverless-serving-deployment"),
+			jq.Match(`.metadata.name != "%s"`, c.ApplicationNamespace+"-serverless-net-istio-secret-filtering"),
+
+			// there should be no FeatureTrackers owned by a Kserve
+			jq.Match(`.metadata.ownerReferences | all(.kind != "%s")`, gvk.Kserve.Kind),
+		)),
+		`Ensuring there are no Kserve FeatureTrackers`)
+}
+
+func (c *KserveTestCtx) ValidateServingTransitionToUnmanaged(t *testing.T) {
+	g := c.NewWithT(t)
+
+	for _, child := range templatedResources {
+		g.Get(child.gvk, child.nn).Eventually(120).Should(And(
+			jq.Match(`.metadata.labels | has("platform.opendatahub.io/part-of") == %v`, "true"),
+			jq.Match(`.metadata.ownerReferences | length == %d`, 1),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, c.GVK.Kind),
+		),
+			`Ensuring %s/%s in %s has expected owner ref and part-of label`, child.gvk, child.nn.Name, child.nn.Namespace)
 	}
 
-	for _, child := range children {
-		g.Get(child.gvk, child.nn).Eventually(300).Should(
-			jq.Match(`.metadata.ownerReferences | any(.kind == "%s")`, gvk.FeatureTracker.Kind),
-			`Checking if %s/%s in %s has expected owner refs`, child.gvk, child.nn.Name, child.nn.Namespace,
-		)
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Unmanaged),
+	).Eventually(120).Should(
+		Succeed(),
+		"Marking serving state as unmanaged",
+	)
+
+	for _, child := range templatedResources {
+		g.Get(child.gvk, child.nn).Eventually(120).Should(And(
+			Not(BeNil()),
+			jq.Match(`.metadata.labels | has("platform.opendatahub.io/part-of") == %v`, false),
+			jq.Match(`.metadata.ownerReferences | length == %d`, 0),
+		),
+			`Ensuring %s/%s in %s still exists but is de-owned`, child.gvk, child.nn.Name, child.nn.Namespace)
+	}
+
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
+	).Eventually(120).Should(
+		Succeed(),
+		"Resetting serving state to managed for subsequent tests",
+	)
+
+	for _, child := range templatedResources {
+		g.Get(child.gvk, child.nn).Eventually(120).Should(And(
+			jq.Match(`.metadata.labels | has("platform.opendatahub.io/part-of") == %v`, "true"),
+			jq.Match(`.metadata.ownerReferences | length == %d`, 1),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, c.GVK.Kind),
+		),
+			`Ensuring %s/%s in %s is re-owned`, child.gvk, child.nn.Name, child.nn.Namespace)
 	}
 }
 
-func (c *KserveTestCtx) ValidateKnativeServingStructure(t *testing.T) {
+func (c *KserveTestCtx) ValidateServingTransitionToRemoved(t *testing.T) {
 	g := c.NewWithT(t)
 
-	g.Get(
-		gvk.KnativeServing,
-		types.NamespacedName{Namespace: "knative-serving", Name: "knative-serving"},
-	).Eventually(300).Should(And(
-		jq.Match(`.spec.workloads | length == 3`),
-		jq.Match(`.metadata.annotations."serverless.openshift.io/default-enable-http2" == "true"`),
-	), `Ensuring KnativeServing has content from both templates`)
+	for _, child := range templatedResources {
+		g.Get(child.gvk, child.nn).Eventually(120).Should(And(
+			jq.Match(`.metadata.labels | has("platform.opendatahub.io/part-of") == %v`, "true"),
+			jq.Match(`.metadata.ownerReferences | length == %d`, 1),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, c.GVK.Kind),
+		),
+			`Ensuring %s/%s in %s has expected owner ref and part-of label`, child.gvk, child.nn.Name, child.nn.Namespace)
+	}
+
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(`.spec.components.%s.defaultDeploymentMode = "%s"`, strings.ToLower(c.GVK.Kind), componentApi.RawDeployment),
+	).Eventually(120).Should(
+		Succeed(),
+		"Setting defaultDeploymentMode to RawDeployment so that serving can be removed",
+	)
+
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Removed),
+	).Eventually(120).Should(
+		Succeed(),
+		"Marking serving state as removed",
+	)
+
+	for _, child := range templatedResources {
+		g.Get(child.gvk, child.nn).Eventually(300).Should(And(
+			BeNil(),
+		),
+			`Ensuring %s/%s in %s no longer exists`, child.gvk, child.nn.Name, child.nn.Namespace)
+	}
+
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(c.GVK.Kind), operatorv1.Managed),
+	).Eventually(120).Should(
+		Succeed(),
+		"Marking serving state as managed for subsequent tests",
+	)
+
+	g.Update(
+		gvk.DataScienceCluster,
+		c.DSCName,
+		testf.Transform(`.spec.components.%s.defaultDeploymentMode = "%s"`, strings.ToLower(c.GVK.Kind), componentApi.Serverless),
+	).Eventually(120).Should(
+		Succeed(),
+		"Setting defaultDeploymentMode to Serverless for subsequent tests",
+	)
+
+	for _, child := range templatedResources {
+		g.Get(child.gvk, child.nn).Eventually(120).Should(And(
+			jq.Match(`.metadata.labels | has("platform.opendatahub.io/part-of") == %v`, "true"),
+			jq.Match(`.metadata.ownerReferences | length == %d`, 1),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, c.GVK.Kind),
+		),
+			`Ensuring %s/%s in %s is re-created`, child.gvk, child.nn.Name, child.nn.Namespace)
+	}
 }

@@ -30,13 +30,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
-	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/features/v1"
-	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
 
 type TestFn func(t *testing.T)
@@ -138,8 +137,6 @@ func NewTestContext() (*testContext, error) {
 		return nil, fmt.Errorf("failed to initialize custom client: %w", err)
 	}
 
-	release := cluster.GetRelease()
-
 	// setup DSCI CR since we do not create automatically by operator
 	testDSCI := setupDSCICR("e2e-test-dsci")
 	// Setup DataScienceCluster CR
@@ -153,7 +150,7 @@ func NewTestContext() (*testContext, error) {
 		ctx:                   context.TODO(),
 		testDsc:               testDSC,
 		testDSCI:              testDSCI,
-		platform:              release.Name,
+		platform:              testDSCI.Status.Release.Name,
 	}, nil
 }
 

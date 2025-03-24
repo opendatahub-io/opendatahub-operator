@@ -113,10 +113,10 @@ metadata:
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
-    containerImage: quay.io/opendatahub/opendatahub-operator:v2.25.0
-    createdAt: "2025-02-25T16:26:47Z"
-    olm.skipRange: '>=1.0.0 <2.25.0'
-    operators.operatorframework.io/builder: operator-sdk-v1.31.0
+    containerImage: quay.io/opendatahub/opendatahub-operator:v2.26.0
+    createdAt: "2025-03-24T13:15:36Z"
+    olm.skipRange: '>=1.0.0 <2.26.0'
+    operators.operatorframework.io/builder: operator-sdk-v1.33.0
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
       "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
@@ -125,9 +125,9 @@ metadata:
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
       "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io",
       "feastoperators.components.platform.opendatahub.io"]'
-    operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.25.0
+  name: opendatahub-operator.v2.26.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -198,7 +198,9 @@ spec:
         displayName: Conditions
         path: conditions
       version: v1
-    - kind: FeastOperator
+    - description: FeastOperator is the Schema for the FeastOperator API
+      displayName: Feast Operator
+      kind: FeastOperator
       name: feastoperators.components.platform.opendatahub.io
       version: v1alpha1
     - kind: FeatureTracker
@@ -1284,12 +1286,14 @@ spec:
       deployments:
       - label:
           control-plane: controller-manager
+          name: opendatahub-operator
         name: opendatahub-operator-controller-manager
         spec:
           replicas: 1
           selector:
             matchLabels:
               control-plane: controller-manager
+              name: opendatahub-operator
           strategy: {}
           template:
             metadata:
@@ -1402,7 +1406,7 @@ spec:
   selector:
     matchLabels:
       component: opendatahub-operator
-  version: 2.25.0
+  version: 2.26.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1

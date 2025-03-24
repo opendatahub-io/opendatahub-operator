@@ -11,8 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/manager"
@@ -51,6 +51,9 @@ func (mi ManifestInfo) String() string {
 type TemplateInfo struct {
 	FS   fs.FS
 	Path string
+
+	Labels      map[string]string
+	Annotations map[string]string
 }
 
 type ReconciliationRequest struct {
