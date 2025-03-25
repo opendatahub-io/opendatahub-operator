@@ -68,9 +68,10 @@ func createServingCertResource(ctx context.Context, cli client.Client, dscispec 
 			cluster.OwnedBy(kserve, cli.Scheme()))
 	case infrav1.Provided:
 		return nil
+	case infrav1.OpenshiftDefaultIngress:
+		return cluster.PropagateDefaultIngressCertificate(ctx, cli, secretName, dscispec.ServiceMesh.ControlPlane.Namespace)
 	default:
-		return cluster.PropagateDefaultIngressCertificate(ctx, cli,
-			secretName, dscispec.ServiceMesh.ControlPlane.Namespace)
+		return ErrServerlessUnsupportedCertType
 	}
 }
 
@@ -133,13 +134,14 @@ func getDefaultDeploymentMode(ctx context.Context, cli client.Client, dscispec *
 	return deployConfig.DefaultDeploymentMode, nil
 }
 
-func setDefaultDeploymentMode(inferenceServiceConfigMap *corev1.ConfigMap, defaultmode componentApi.DefaultDeploymentMode) error {
+func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, defaultmode componentApi.DefaultDeploymentMode, isHeadless bool) error {
 	deployData, err := getDeployConfig(inferenceServiceConfigMap)
 	if err != nil {
 		return err
 	}
 
 	if deployData.DefaultDeploymentMode != string(defaultmode) {
+		// deploy
 		deployData.DefaultDeploymentMode = string(defaultmode)
 		deployDataBytes, err := json.MarshalIndent(deployData, "", " ")
 		if err != nil {
@@ -147,6 +149,7 @@ func setDefaultDeploymentMode(inferenceServiceConfigMap *corev1.ConfigMap, defau
 		}
 		inferenceServiceConfigMap.Data[DeployConfigName] = string(deployDataBytes)
 
+		// ingress
 		var ingressData map[string]interface{}
 		if err = json.Unmarshal([]byte(inferenceServiceConfigMap.Data[IngressConfigKeyName]), &ingressData); err != nil {
 			return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", IngressConfigKeyName, kserveConfigMapName, err)
@@ -163,15 +166,12 @@ func setDefaultDeploymentMode(inferenceServiceConfigMap *corev1.ConfigMap, defau
 		inferenceServiceConfigMap.Data[IngressConfigKeyName] = string(ingressDataBytes)
 	}
 
-	return nil
-}
-
-func setServiceClusterIPNone(inferenceServiceConfigMap *corev1.ConfigMap, value bool) error {
+	// service
 	var serviceData map[string]interface{}
 	if err := json.Unmarshal([]byte(inferenceServiceConfigMap.Data[ServiceConfigKeyName]), &serviceData); err != nil {
 		return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", ServiceConfigKeyName, kserveConfigMapName, err)
 	}
-	serviceData["serviceClusterIPNone"] = value
+	serviceData["serviceClusterIPNone"] = isHeadless
 	serviceDataBytes, err := json.MarshalIndent(serviceData, "", " ")
 	if err != nil {
 		return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
@@ -249,11 +249,10 @@ func shouldRemoveOwnerRefAndLabel(
 	case isForDependency("serverless")(&res):
 		if dsciServiceMesh != nil && dsciServiceMesh.ManagementState == operatorv1.Unmanaged {
 			return true
-		} else if kserveServing.ManagementState == operatorv1.Unmanaged {
+		}
+		if kserveServing.ManagementState == operatorv1.Unmanaged {
 			return true
 		}
-	default:
-		return false
 	}
 	return false
 }

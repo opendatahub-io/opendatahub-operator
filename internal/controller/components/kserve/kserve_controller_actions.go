@@ -249,8 +249,7 @@ func removeOwnershipFromUnmanagedResources(ctx context.Context, rr *odhtypes.Rec
 	// unmanaged: remove ownerref & label to avoid GC
 	for _, res := range rr.Resources {
 		if shouldRemoveOwnerRefAndLabel(rr.DSCI.Spec.ServiceMesh, k.Spec.Serving, res) {
-			err := getAndRemoveOwnerReferences(ctx, rr.Client, res, isKserveOwnerRef)
-			if err != nil {
+			if err := getAndRemoveOwnerReferences(ctx, rr.Client, res, isKserveOwnerRef); err != nil {
 				return odherrors.NewStopErrorW(err)
 			}
 		}
@@ -267,33 +266,34 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 
 	logger := logf.FromContext(ctx)
 
-	// Removed or unmanaged: remove from rr.Resources
-	if rr.DSCI.Spec.ServiceMesh != nil && rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
-		// Delete servicemesh and serverless resources explicitly in
-		// this case, since the GC won't collect them because the Kserve
-		// CR generation hasn't changed.
-		for _, res := range rr.Resources {
-			if isForDependency("serverless")(&res) || isForDependency("servicemesh")(&res) {
-				err := rr.Client.Delete(ctx, &res, client.PropagationPolicy(metav1.DeletePropagationForeground))
-				if k8serr.IsNotFound(err) {
-					continue
-				} else if err != nil {
-					return odherrors.NewStopErrorW(err)
+	if rr.DSCI.Spec.ServiceMesh != nil {
+		// servicemesh is set to Removed
+		if rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Removed {
+			// Delete servicemesh and serverless resources explicitly in
+			// this case, since the GC won't collect them because the Kserve
+			// CR generation hasn't changed.
+			for _, res := range rr.Resources {
+				if isForDependency("serverless")(&res) || isForDependency("servicemesh")(&res) {
+					err := rr.Client.Delete(ctx, &res, client.PropagationPolicy(metav1.DeletePropagationForeground))
+					if err != nil {
+						if k8serr.IsNotFound(err) {
+							continue
+						}
+						return odherrors.NewStopErrorW(err)
+					}
+					logger.Info("Deleted", "kind", res.GetKind(), "name", res.GetName(), "namespace", res.GetNamespace())
 				}
-				logger.Info("Deleted", "kind", res.GetKind(), "name", res.GetName(), "namespace", res.GetNamespace())
 			}
 		}
-
-		// rr.Resources = slices.DeleteFunc(rr.Resources, isForDependency("serverless"))
-		// rr.Resources = slices.DeleteFunc(rr.Resources, isForDependency("servicemesh"))
-		if err := rr.RemoveResources(isForDependency("serverless")); err != nil {
-			return odherrors.NewStopErrorW(err)
+		// servicemesh is set to Removed or Unmanaged
+		if rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
+			if err := rr.RemoveResources(isForDependency("servicemesh")); err != nil {
+				return odherrors.NewStopErrorW(err)
+			}
 		}
-
-		if err := rr.RemoveResources(isForDependency("servicemesh")); err != nil {
-			return odherrors.NewStopErrorW(err)
-		}
-	} else if k.Spec.Serving.ManagementState != operatorv1.Managed {
+	}
+	// serverless is Removed or Unamanged
+	if k.Spec.Serving.ManagementState != operatorv1.Managed {
 		if err := rr.RemoveResources(isForDependency("serverless")); err != nil {
 			return odherrors.NewStopErrorW(err)
 		}
@@ -316,18 +316,22 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 		return err
 	}
 
+	serviceClusterIPNone := true
+	if k.Spec.RawDeploymentServiceConfig == componentApi.KserveRawHeaded {
+		// As default is Headless, only set false here if Headed is explicitly set
+		serviceClusterIPNone = false
+	}
+
 	switch k.Spec.Serving.ManagementState {
 	case operatorv1.Managed, operatorv1.Unmanaged:
-		if k.Spec.DefaultDeploymentMode == "" {
-			// if the default mode is empty in the DSC, assume mode is "Serverless" since k.Serving is Managed
-			if err := setDefaultDeploymentMode(&kserveConfigMap, componentApi.Serverless); err != nil {
-				return err
-			}
-		} else {
+		// if the default mode is empty in the DSC, assume mode is "Serverless" since k.Serving is Managed
+		defaultmode := componentApi.Serverless
+		if k.Spec.DefaultDeploymentMode != "" {
 			// if the default mode is explicitly specified, respect that
-			if err := setDefaultDeploymentMode(&kserveConfigMap, k.Spec.DefaultDeploymentMode); err != nil {
-				return err
-			}
+			defaultmode = k.Spec.DefaultDeploymentMode
+		}
+		if err := updateInferenceCM(&kserveConfigMap, defaultmode, serviceClusterIPNone); err != nil {
+			return err
 		}
 	case operatorv1.Removed:
 		if k.Spec.DefaultDeploymentMode == componentApi.Serverless {
@@ -336,24 +340,14 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 		if k.Spec.DefaultDeploymentMode == "" {
 			logger.Info("Serving is removed, Kserve will default to RawDeployment")
 		}
-		if err := setDefaultDeploymentMode(&kserveConfigMap, componentApi.RawDeployment); err != nil {
+		if err := updateInferenceCM(&kserveConfigMap, componentApi.RawDeployment, serviceClusterIPNone); err != nil {
 			return err
 		}
 	}
-	serviceClusterIPNone := true
-	if k.Spec.RawDeploymentServiceConfig == componentApi.KserveRawHeaded {
-		// As default is Headless, only set false here if Headed is explicitly set
-		serviceClusterIPNone = false
-	}
-	if err := setServiceClusterIPNone(&kserveConfigMap, serviceClusterIPNone); err != nil {
+
+	if err = replaceResourceAtIndex(rr.Resources, cmidx, &kserveConfigMap); err != nil {
 		return err
 	}
-
-	err = replaceResourceAtIndex(rr.Resources, cmidx, &kserveConfigMap)
-	if err != nil {
-		return err
-	}
-
 	kserveConfigHash, err := hashConfigMap(&kserveConfigMap)
 	if err != nil {
 		return err
@@ -364,11 +358,9 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 	if err != nil {
 		return err
 	}
-
 	kserveDeployment.Spec.Template.Annotations[labels.ODHAppPrefix+"/KserveConfigHash"] = kserveConfigHash
 
-	err = replaceResourceAtIndex(rr.Resources, deployidx, &kserveDeployment)
-	if err != nil {
+	if err = replaceResourceAtIndex(rr.Resources, deployidx, &kserveDeployment); err != nil {
 		return err
 	}
 
