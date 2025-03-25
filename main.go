@@ -224,10 +224,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			// TODO: we can limit scope of namespace if we find a way to only get list of DSProject
 			// also need for monitoring, trustcabundle
 			&corev1.Namespace{}: {},
-			// For catsrc (avoid frequently check cluster type)
-			&ofapiv1alpha1.CatalogSource{}: {
-				Field: fields.Set{"metadata.name": "addon-managed-odh-catalog"}.AsSelector(),
-			},
 			// For domain to get OpenshiftIngress and default cert
 			&operatorv1.IngressController{}: {
 				Field: fields.Set{"metadata.name": "default"}.AsSelector(),
@@ -304,6 +300,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 					&authorizationv1.SelfSubjectRulesReview{},
 					&corev1.Pod{},
 					&userv1.Group{},
+					&ofapiv1alpha1.CatalogSource{},
 				},
 				// Set it to true so the cache-backed client reads unstructured objects
 				// or lists from the cache instead of a live lookup.
