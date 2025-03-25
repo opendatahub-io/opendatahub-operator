@@ -20,17 +20,39 @@ import (
 	"context"
 	"fmt"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 )
 
-// NewServiceReconciler creates a ServiceReconciler for the Auth API.
-func NewServiceReconciler(ctx context.Context, mgr ctrl.Manager) error {
+//nolint:gochecknoinits
+func init() {
+	sr.Add(&serviceHandler{})
+}
+
+type serviceHandler struct {
+}
+
+func (h *serviceHandler) Init(_ common.Platform) error {
+	return nil
+}
+
+func (h *serviceHandler) GetName() string {
+	return ServiceName
+}
+
+func (h *serviceHandler) GetManagementState(platform common.Platform) operatorv1.ManagementState {
+	return operatorv1.Managed
+}
+
+func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.Auth{}).
 		// operands - owned
 		Owns(&rbacv1.ClusterRoleBinding{}).
