@@ -31,6 +31,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
+const DefaultCertificateSecretName = "knative-serving-cert"
+
 //go:embed resources
 var resourcesFS embed.FS
 
@@ -109,7 +111,7 @@ func getKnativeDomain(ctx context.Context, cli client.Client, k *componentApi.Ks
 func getKnativeCertSecretName(k *componentApi.Kserve) string {
 	name := k.Spec.Serving.IngressGateway.Certificate.SecretName
 	if name == "" {
-		name = "knative-serving-cert"
+		name = DefaultCertificateSecretName
 	}
 
 	return name
