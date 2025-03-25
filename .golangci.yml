@@ -53,8 +53,12 @@ linters-settings:
         alias: dscctrl
       - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization
         alias: dscictrl
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry
+        alias: cr
       - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/(\w+)
         alias: ${1}ctrl
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry
+        alias: sr
       - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/(\w+)
         alias: ${1}ctrl
   ireturn:
@@ -74,6 +78,7 @@ linters-settings:
       - common.PlatformObject
       - types.AsyncAssertion
       - kubernetes.Interface
+      - gomega.AsyncAssertion
   revive:
     rules:
       - name: dot-imports

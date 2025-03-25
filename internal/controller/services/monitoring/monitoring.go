@@ -20,9 +20,12 @@ import (
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
+const (
+	ServiceName = serviceApi.MonitoringServiceName
+)
+
 var (
-	ComponentName        = serviceApi.MonitoringServiceName
-	prometheusConfigPath = filepath.Join(odhdeploy.DefaultManifestPath, ComponentName, "prometheus", "apps", "prometheus-configs.yaml")
+	prometheusConfigPath = filepath.Join(odhdeploy.DefaultManifestPath, ServiceName, "prometheus", "apps", "prometheus-configs.yaml")
 )
 
 // updatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
