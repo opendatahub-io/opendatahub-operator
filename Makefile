@@ -299,6 +299,14 @@ $(CRD_REF_DOCS): $(LOCALBIN)
 		curl -sSL https://github.com/elastic/crd-ref-docs/releases/download/v$(CRD_REF_DOCS_VERSION)/crd-ref-docs_$(CRD_REF_DOCS_VERSION)_$(OS)_$(ARCH).tar.gz | tar -xzf - -C $(LOCALBIN) crd-ref-docs \
 	)
 
+.PHONY: new-component
+new-component: $(LOCALBIN)/component-codegen
+	$< generate $(COMPONENT)
+	$(MAKE) generate manifests api-docs bundle fmt
+
+$(LOCALBIN)/component-codegen: | $(LOCALBIN)
+	cd ./cmd/component-codegen && go mod tidy && go build -o $@
+
 BUNDLE_DIR ?= "bundle"
 WARNINGMSG = "provided API should have an example annotation"
 .PHONY: bundle
