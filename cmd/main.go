@@ -70,7 +70,6 @@ import (
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/setupcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -340,13 +339,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	if err = dscctrl.NewDataScienceClusterReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
-		os.Exit(1)
-	}
-
-	if err = (&setupcontroller.SetupControllerReconciler{
-		Client: oc,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "SetupController")
 		os.Exit(1)
 	}
 
