@@ -69,7 +69,6 @@ import (
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/secretgenerator"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/setupcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
@@ -348,14 +347,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		Client: oc,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SetupController")
-		os.Exit(1)
-	}
-
-	if err = (&secretgenerator.SecretGeneratorReconciler{
-		Client: oc,
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "SecretGenerator")
 		os.Exit(1)
 	}
 
