@@ -199,7 +199,7 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager cmd/main.go
 
-RUN_ARGS = --log-mode=devel
+RUN_ARGS = --log-mode=devel --pprof-bind-address=127.0.0.1:6060
 GO_RUN_MAIN = OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=$(DEFAULT_MANIFESTS_PATH) go run $(GO_RUN_ARGS) ./cmd/main.go $(RUN_ARGS)
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
