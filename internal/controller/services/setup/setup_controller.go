@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	ServiceName = "setup"
+	ServiceName = "setupcontroller"
 )
 
 //nolint:gochecknoinits
