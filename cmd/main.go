@@ -164,7 +164,8 @@ func main() { //nolint:funlen,maintidx
 	flag.StringVar(&monitoringNamespace, "dsc-monitoring-namespace", "redhat-ods-monitoring", "The namespace where data science cluster "+
 		"monitoring stack will be deployed")
 	flag.StringVar(&logmode, "log-mode", "", "Log mode ('', prod, devel), default to ''")
-	flag.StringVar(&pprofAddr, "pprof-bind-address", "", "The address that pprof binds to. Disabled by default.")
+	flag.StringVar(&pprofAddr, "pprof-bind-address", os.Getenv("PPROF_BIND_ADDRESS"), "The address that pprof binds to. "+
+		"Read from PPROF_BIND_ADDRESS env var if not provided.")
 
 	opts := zap.Options{}
 	opts.BindFlags(flag.CommandLine)
