@@ -3,11 +3,13 @@ package certconfigmapgenerator
 import (
 	"context"
 	"fmt"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/certconfigmapgenerator"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
-	operatorv1 "github.com/openshift/api/operator/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const (

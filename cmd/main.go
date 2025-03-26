@@ -93,7 +93,10 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/secretgenerator"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/setup"
 )
 
 var (
@@ -142,7 +145,7 @@ func initServices(_ context.Context, p common.Platform) error {
 	})
 }
 
-func main() { //nolint:funlen,maintidx,gocyclo
+func main() { //nolint:funlen,maintidx
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
