@@ -7,6 +7,12 @@ To understand the current operator architecture and its inner workings, please r
 
 The list of the currently integrated ODH components is provided [at the end of this document](#integrated-components).
 
+## Use scaffolding to create boilerplate code
+
+Integrating a new component into the Open Data Hub (ODH) operator is  easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
+
+While the CLI handles most of the heavy lifting, it’s still important to understand the purpose of each generated file. Please refer to the following sections for a detailed breakdown of the key files and their roles in the integration process.
+
 ## Integrating a new component
 
 To ensure a new component is integrated seamlessly in the operator, please follow the steps listed below.
@@ -220,7 +226,7 @@ This function will be responsible for creating the reconciler for the previously
 - resource ownership - using `.Owns()`
 - watching a resource - using `.Watches()`
 - reconciler actions - using `.WithAction()`
-	- this includes pre-implemented actions used commonly across components (e.g. manifest rendering), as well as custom, component-specific actions
+	- this includes pre-implemented actions used commonly across components (e.g. manifests rendering), as well as customized, component-specific actions
 	- more details on actions are provided [below](#actions)
 
 The example pseudo-implementation should look like as follows:
@@ -261,7 +267,6 @@ As seen in the existing component reconciler implementations, it would be recomm
 
 In addition, proper generic actions, intended to be used across the components, are provided as part of the operator implementation (located in `pkg/controller/actions`).
 These support:
-- (if necessary) creating pod security role binding
 - manifest rendering
     - can additionally utilize caching
 - manifest deployment
@@ -274,13 +279,9 @@ If the new component requires additional custom logic, custom actions can also b
 
 For practical examples of all the above-mentioned functionality, please refer to the implementations within `controllers/components` directory.
 
-#### Update upgrade.go
-
-Update the `CreateDefaultDSC()` function in `pkg/upgrade/upgrade.go` to include the newly added component.
-
 #### Update main.go
 
-Add an import for the the newly added component:
+Import the newly added component:
 
 ```diff
 package main
@@ -302,24 +303,33 @@ the e2e test suite to capture deployments introduced by the new component.
 Existing e2e test suites for the integrated components can be also found there.
 
 Lastly, please update the following files to fully integrate new component tests into the overall test suite:
-- update `setupDSCInstance()` function in `tests/e2e/helper_test.go` to include the newly added component
-- update `newDSC()` function in `controllers/webhook/webhook_suite_test.go` to include the newly added component
+- update `setupDSCInstance()` function in `tests/e2e/helper_test.go` to set new component in DSC
+- update `newDSC()` function in `controllers/webhook/webhook_suite_test.go` to update creation of DSC include the new component
 - update `componentsTestSuites` map in `tests/e2e/controller_test.go` to include the reference for the new component e2e test suite
+
+### 4. Update Prometheus config and tests
+
+If the component is planned to be released for downstream, Prometheus rules and promtest need to be updated for the component.
+- Rules are located in `config/monitoring/prometheus/app/prometheus-configs.yaml` file
+- Tests are grouped in `tests/prometheus_unit_tests` <component>_unit_tests.yam file
+
 
 ## Integrated components
 
 Currently integrated components are:
-- [Dashboard](https://github.com/opendatahub-io/odh-dashboard)
+
 - [Codeflare](https://github.com/opendatahub-io/codeflare-operator)
-- [Ray](https://github.com/opendatahub-io/kuberay)
+- [Dashboard](https://github.com/opendatahub-io/odh-dashboard)
 - [Data Science Pipelines](https://github.com/opendatahub-io/data-science-pipelines)
 - [KServe](https://github.com/opendatahub-io/kserve)
-- [ModelMesh Serving](https://github.com/opendatahub-io/modelmesh-serving)
-- [Workbenches](https://github.com/opendatahub-io/notebooks)
-- [TrustyAI](https://github.com/opendatahub-io/trustyai-service-operator)
-- [ModelRegistry](https://github.com/opendatahub-io/model-registry)
 - [Kueue](https://github.com/opendatahub-io/kueue)
-- [Training Operator](https://github.com/opendatahub-io/training-operator)
+- [ModelMesh Serving](https://github.com/opendatahub-io/modelmesh-serving)
 - [Model Controller](https://github.com/opendatahub-io/odh-model-controller)
+- [ModelRegistry](https://github.com/opendatahub-io/model-registry)
+- [Ray](https://github.com/opendatahub-io/kuberay)
+- [Training Operator](https://github.com/opendatahub-io/training-operator)
+- [TrustyAI](https://github.com/opendatahub-io/trustyai-service-operator)
+- [Workbenches](https://github.com/opendatahub-io/notebooks)
+- [Feast Operator](https://github.com/opendatahub-io/feast)
 
 The particular controller implementations for the listed components are located in the `controllers/components` directory and the corresponding internal component APIs are located in `apis/components/v1alpha1`.
