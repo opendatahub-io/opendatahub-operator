@@ -66,13 +66,10 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/certconfigmapgenerator"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/secretgenerator"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/setupcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -96,7 +93,10 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/secretgenerator"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/setup"
 )
 
 var (
@@ -145,7 +145,7 @@ func initServices(_ context.Context, p common.Platform) error {
 	})
 }
 
-func main() { //nolint:funlen,maintidx,gocyclo
+func main() { //nolint:funlen,maintidx
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -342,29 +342,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	if err = dscctrl.NewDataScienceClusterReconciler(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DataScienceCluster")
-		os.Exit(1)
-	}
-
-	if err = (&setupcontroller.SetupControllerReconciler{
-		Client: oc,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "SetupController")
-		os.Exit(1)
-	}
-
-	if err = (&secretgenerator.SecretGeneratorReconciler{
-		Client: oc,
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "SecretGenerator")
-		os.Exit(1)
-	}
-
-	if err = (&certconfigmapgenerator.CertConfigmapGeneratorReconciler{
-		Client: oc,
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
 		os.Exit(1)
 	}
 

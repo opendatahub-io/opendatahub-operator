@@ -28,7 +28,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -40,7 +39,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
@@ -51,8 +49,7 @@ const (
 
 // SecretGeneratorReconciler holds the controller configuration.
 type SecretGeneratorReconciler struct {
-	*odhClient.Client
-	Scheme *runtime.Scheme
+	client.Client
 }
 
 // SetupWithManager sets up the controller with the Manager.
