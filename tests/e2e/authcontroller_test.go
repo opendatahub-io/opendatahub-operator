@@ -109,7 +109,7 @@ func (tc *AuthControllerTestCtx) validateAuthCRDefaultContent() error {
 		if tc.testAuthInstance.Spec.AdminGroups[0] != "dedicated-admins" {
 			return fmt.Errorf("expected dedicated-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
 		}
-	case cluster.OpenDataHub, cluster.Unknown:
+	case cluster.OpenDataHub:
 		if tc.testAuthInstance.Spec.AdminGroups[0] != "odh-admins" {
 			return fmt.Errorf("expected odh-admins, found %v", tc.testAuthInstance.Spec.AdminGroups[0])
 		}
