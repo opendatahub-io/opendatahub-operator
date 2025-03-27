@@ -154,16 +154,18 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 	deleted, err := a.gc.Run(
 		ctx,
 		rr.Client,
-		selector,
-		engine.WithTypeFilter(func(ctx context.Context, kind schema.GroupVersionKind) (bool, error) {
-			if _, ok := a.unremovables[kind]; ok {
+		engine.WithSelector(
+			selector,
+		),
+		engine.WithTypeFilter(func(ctx context.Context, gvk schema.GroupVersionKind) (bool, error) {
+			if a.isUnremovable(gvk) {
 				return false, nil
 			}
 
-			return a.typePredicateFn(rr, kind)
+			return a.typePredicateFn(rr, gvk)
 		}),
 		engine.WithObjectFilter(func(ctx context.Context, obj unstructured.Unstructured) (bool, error) {
-			if _, ok := a.unremovables[obj.GroupVersionKind()]; ok {
+			if a.isUnremovable(obj.GroupVersionKind()) {
 				return false, nil
 			}
 			if resources.HasAnnotation(&obj, annotations.ManagedByODHOperator, "false") {
@@ -195,13 +197,22 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 	return nil
 }
 
+func (a *Action) isUnremovable(gvk schema.GroupVersionKind) bool {
+	_, ok := a.unremovables[gvk]
+	return ok
+}
+
 func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{}
 	action.objectPredicateFn = DefaultObjectPredicate
 	action.typePredicateFn = DefaultTypePredicate
 	action.onlyOwned = true
-	action.unremovables = make(map[schema.GroupVersionKind]struct{})
 	action.namespaceFn = actions.OperatorNamespace
+
+	// default unremovables
+	action.unremovables = make(map[schema.GroupVersionKind]struct{})
+	action.unremovables[gvk.CustomResourceDefinition] = struct{}{}
+	action.unremovables[gvk.Lease] = struct{}{}
 
 	for _, opt := range opts {
 		opt(&action)
@@ -212,7 +223,7 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 	}
 
 	if action.gc == nil {
-		action.gc = engine.New(engine.WithUnremovables(gvk.CustomResourceDefinition, gvk.Lease))
+		action.gc = engine.New()
 	}
 
 	return action.run
