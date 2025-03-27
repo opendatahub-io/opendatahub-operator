@@ -7,6 +7,7 @@ import (
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -20,66 +21,77 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+type DashboardTestCtx struct {
+	*ComponentTestCtx
+}
+
 func dashboardTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(&componentApi.Dashboard{})
+	ct, err := NewComponentTestCtx(t, &componentApi.Dashboard{})
 	require.NoError(t, err)
 
 	componentCtx := DashboardTestCtx{
 		ComponentTestCtx: ct,
 	}
 
-	t.Run("Validate component enabled", componentCtx.ValidateComponentEnabled)
-	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
-	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
-	t.Run("Validate dynamically watches operands", componentCtx.validateOperandsDynamicallyWatchedResources)
-	t.Run("Validate CRDs reinstated", componentCtx.validateCRDReinstated)
-	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
+	// Define test cases.
+	testCases := []TestCase{
+		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
+		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
+		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
+		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
+		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+	}
+
+	// Run the test suite.
+	componentCtx.RunTestCases(t, testCases)
 }
 
-type DashboardTestCtx struct {
-	*ComponentTestCtx
-}
+// ValidateOperandsDynamicallyWatchedResources ensures that operands are correctly watched for dynamic updates.
+func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testing.T) {
+	t.Helper()
 
-func (c *DashboardTestCtx) validateOperandsDynamicallyWatchedResources(t *testing.T) {
-	g := c.NewWithT(t)
-
+	// Generate unique platform type values
 	newPt := xid.New().String()
 	oldPt := ""
 
-	g.Update(
-		gvk.OdhApplication,
-		types.NamespacedName{Name: "jupyter", Namespace: c.ApplicationNamespace},
+	// Apply new platform type annotation and verify
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.OdhApplication, types.NamespacedName{Name: "jupyter", Namespace: tc.AppsNamespace}),
 		func(obj *unstructured.Unstructured) error {
 			oldPt = resources.SetAnnotation(obj, annotations.PlatformType, newPt)
 			return nil
 		},
-	).Eventually().Should(
-		Succeed(),
 	)
 
-	g.List(
+	// Ensure previously created resources retain their old platform type annotation
+	tc.EnsureResourcesExistAndMatchCondition(
 		gvk.OdhApplication,
-		client.MatchingLabels{labels.PlatformPartOf: strings.ToLower(gvk.Dashboard.Kind)},
-	).Eventually().Should(And(
+		types.NamespacedName{Namespace: tc.AppsNamespace},
+		&client.ListOptions{
+			Namespace: tc.AppsNamespace,
+			LabelSelector: k8slabels.Set{
+				labels.PlatformPartOf: strings.ToLower(gvk.Dashboard.Kind),
+			}.AsSelector(),
+		},
 		HaveEach(
 			jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, oldPt),
 		),
-	))
+	)
 }
 
-func (c *DashboardTestCtx) validateCRDReinstated(t *testing.T) {
-	crds := []string{
-		"acceleratorprofiles.dashboard.opendatahub.io",
-		"hardwareprofiles.dashboard.opendatahub.io",
-		"odhapplications.dashboard.opendatahub.io",
-		"odhdocuments.dashboard.opendatahub.io",
+// ValidateCRDReinstated ensures that required CRDs are reinstated if deleted.
+func (tc *DashboardTestCtx) ValidateCRDReinstated(t *testing.T) {
+	t.Helper()
+
+	crds := []CRD{
+		{Name: "acceleratorprofiles.dashboard.opendatahub.io", Version: ""},
+		{Name: "hardwareprofiles.dashboard.opendatahub.io", Version: ""},
+		{Name: "odhapplications.dashboard.opendatahub.io", Version: ""},
+		{Name: "odhdocuments.dashboard.opendatahub.io", Version: ""},
 	}
 
-	for _, crd := range crds {
-		t.Run(crd, func(t *testing.T) {
-			c.ValidateCRDReinstated(t, crd)
-		})
-	}
+	tc.ValidateCRDsReinstated(t, crds)
 }

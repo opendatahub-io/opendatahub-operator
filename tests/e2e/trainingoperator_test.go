@@ -8,23 +8,29 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 )
 
+type TrainingOperatorTestCtx struct {
+	*ComponentTestCtx
+}
+
 func trainingOperatorTestSuite(t *testing.T) {
 	t.Helper()
 
-	ct, err := NewComponentTestCtx(&componentApi.TrainingOperator{})
+	ct, err := NewComponentTestCtx(t, &componentApi.TrainingOperator{})
 	require.NoError(t, err)
 
 	componentCtx := TrainingOperatorTestCtx{
 		ComponentTestCtx: ct,
 	}
 
-	t.Run("Validate component enabled", componentCtx.ValidateComponentEnabled)
-	t.Run("Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences)
-	t.Run("Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources)
-	t.Run("Validate component releases", componentCtx.ValidateComponentReleases)
-	t.Run("Validate component disabled", componentCtx.ValidateComponentDisabled)
-}
+	// Define test cases.
+	testCases := []TestCase{
+		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
+		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
+		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+	}
 
-type TrainingOperatorTestCtx struct {
-	*ComponentTestCtx
+	// Run the test suite.
+	componentCtx.RunTestCases(t, testCases)
 }
