@@ -1,0 +1,8 @@
+# This excludes the dependencies that are only used for the
+# component-codegen tool from being included in any source SBOM
+# generated from the root of the main project. We use these SBOMs
+# downstream to determine if any vulnerable versions of dependencies
+# are being used, so excluding this subproject may reduce toil in
+# fixing CVEs that don't actually affect the operator.
+exclude:
+  - ./cmd/component-codegen/*
