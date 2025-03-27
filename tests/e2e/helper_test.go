@@ -53,7 +53,7 @@ const (
 
 func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) error {
 	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, operatorReadyTimeout, false, func(ctx context.Context) (bool, error) {
-		controllerDeployment, err := tc.kubeClient.AppsV1().Deployments(tc.operatorNamespace).Get(ctx, name, metav1.GetOptions{})
+		controllerDeployment, err := tc.kubeClient.AppsV1().Deployments(testOpts.operatorNamespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			if k8serr.IsNotFound(err) {
 				return false, nil
