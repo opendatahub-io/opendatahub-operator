@@ -8,11 +8,11 @@ import (
 
 const (
 	cmdDir       = "cmd/component-codegen"
-	ApisDir      = "apis/components/v1alpha1"
-	Controllers  = "controllers/components"
-	DscTypesPath = "apis/datasciencecluster/v1/datasciencecluster_types.go"
+	ApisDir      = "api/components/v1alpha1"
+	Controllers  = "internal/controller/components"
+	DscTypesPath = "api/datasciencecluster/v1/datasciencecluster_types.go"
 	templatesDir = cmdDir + "/templates"
-	mainFilePath = "main.go"
+	mainFilePath = "cmd/main.go"
 )
 
 type PathConfig struct {

@@ -36,13 +36,13 @@ COPY go.sum go.sum
 RUN go mod download
 
 # Copy the go source
-COPY apis/ apis/
-COPY controllers/ controllers/
-COPY main.go main.go
+COPY api/ api/
+COPY internal/ internal/
+COPY cmd/main.go cmd/main.go
 COPY pkg/ pkg/
 
 # Build
-RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -tags strictfipsruntime -o manager main.go
+RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -tags strictfipsruntime -o manager cmd/main.go
 
 ################################################################################
 FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi8/ubi-minimal:latest

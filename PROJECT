@@ -4,7 +4,7 @@
 # More info: https://book.kubebuilder.io/reference/project-config.html
 domain: opendatahub.io
 layout:
-- go.kubebuilder.io/v3
+- go.kubebuilder.io/v4
 multigroup: true
 plugins:
   manifests.sdk.operatorframework.io/v2: {}
@@ -18,7 +18,7 @@ resources:
   domain: opendatahub.io
   group: dscinitialization
   kind: DSCInitialization
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1
   version: v1
   webhooks:
     validation: true
@@ -29,7 +29,7 @@ resources:
   domain: opendatahub.io
   group: datasciencecluster
   kind: DataScienceCluster
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1
   version: v1
   webhooks:
     defaulting: true
@@ -41,7 +41,7 @@ resources:
   domain: platform.opendatahub.io
   group: components
   kind: Dashboard
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1alpha1
@@ -49,7 +49,7 @@ resources:
   domain: platform.opendatahub.io
   group: components
   kind: Workbenches
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1alpha1
@@ -57,7 +57,7 @@ resources:
   domain: platform.opendatahub.io
   group: components
   kind: ModelMeshServing
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1alpha1
@@ -65,7 +65,7 @@ resources:
   domain: platform.opendatahub.io
   group: components
   kind: DataSciencePipelines
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1alpha1
@@ -73,7 +73,7 @@ resources:
   domain: platform.opendatahub.io
   group: components
   kind: Kserve
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1alpha1
@@ -81,7 +81,7 @@ resources:
   domain: platform.opendatahub.io
   group: components
   kind: Kueue
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1alpha1
@@ -89,7 +89,7 @@ resources:
   domain: platform.opendatahub.io
   group: components
   kind: CodeFlare
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1alpha1
@@ -97,7 +97,7 @@ resources:
   domain: platform.opendatahub.io
   group: components
   kind: Ray
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1alpha1
@@ -105,7 +105,7 @@ resources:
   domain: platform.opendatahub.io
   group: components
   kind: TrustyAI
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1alpha1
@@ -113,7 +113,7 @@ resources:
   domain: platform.opendatahub.io
   group: components
   kind: ModelRegistry
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1alpha1
@@ -121,7 +121,7 @@ resources:
   domain: platform.opendatahub.io
   group: components
   kind: TrainingOperator
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1alpha1
@@ -129,7 +129,7 @@ resources:
   domain: platform.opendatahub.io
   group: components
   kind: FeastOperator
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1alpha1
@@ -137,7 +137,7 @@ resources:
   domain: platform.opendatahub.io
   group: services
   kind: Monitoring
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1alpha1
@@ -145,10 +145,6 @@ resources:
   domain: platform.opendatahub.io
   group: services
   kind: Auth
-  path: github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1
-  version: v1alpha1
-- domain: opendatahub.io
-  group: services
-  kind: Auth
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1
   version: v1alpha1
 version: "3"
