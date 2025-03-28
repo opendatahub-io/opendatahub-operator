@@ -87,7 +87,7 @@ func computeComponentName() string {
 	release := cluster.GetRelease()
 
 	name := LegacyComponentNameUpstream
-	if release.Name == cluster.SelfManagedRhoai || release.Name == cluster.ManagedRhoai {
+	if release.Name != cluster.OpenDataHub {
 		name = LegacyComponentNameDownstream
 	}
 

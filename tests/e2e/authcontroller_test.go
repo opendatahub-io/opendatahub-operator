@@ -209,7 +209,7 @@ func (tc *AuthControllerTestCtx) validateAddingGroups() error {
 
 func (tc *AuthControllerTestCtx) validateRemovingGroups() error {
 	expectedGroup := "odh-admins"
-	if tc.platform == cluster.ManagedRhoai || tc.platform == cluster.SelfManagedRhoai {
+	if tc.platform != cluster.OpenDataHub {
 		expectedGroup = "rhods-admins"
 	}
 	if _, err := controllerutil.CreateOrUpdate(tc.ctx, tc.customClient, &tc.testAuthInstance, func() error {
