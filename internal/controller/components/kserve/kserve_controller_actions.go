@@ -292,7 +292,7 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 			}
 		}
 	}
-	// serverless is Removed or Unamanged
+	// serverless is Removed or Unmanaged
 	if k.Spec.Serving.ManagementState != operatorv1.Managed {
 		if err := rr.RemoveResources(isForDependency("serverless")); err != nil {
 			return odherrors.NewStopErrorW(err)
