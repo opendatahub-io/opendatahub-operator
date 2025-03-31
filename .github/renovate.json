@@ -6,6 +6,7 @@
     "ignoreTests": true,
     "automergeType": "pr",
     "automerge": true,
+    "prHourlyLimit": 0,
     "enabledManagers": ["dockerfile", "tekton", "rpm"],
     "packageRules": [
       {
@@ -20,11 +21,6 @@
         "groupName": "Dockerfile Digest Updates",
         "branchPrefix": "renovate/docker-main/",
         "semanticCommits": "enabled"
-      },
-      {
-        "matchManagers": ["dockerfile"],
-        "matchBaseBranches": ["rhoai-2.19"],
-        "enabled": false
       },
       {
         "matchManagers": ["tekton"],
@@ -50,7 +46,12 @@
         "schedule": ["at any time"],
         "branchPrefix": "renovate/rpm/",
        "semanticCommits": "enabled"
-      }    
+      },
+      {
+        "matchManagers": ["rpm", "tekton", "dockerfile"],
+        "matchBaseBranches": ["rhoai-2.19"],
+        "enabled": false
+      }   
     ],
     "dockerfile": {
       "enabled": true,
@@ -116,8 +117,7 @@
       ]
     },
     "rpm": {
-    "enabled": true,   
-    "schedule": ["at any time"]
-  },
-    "prHourlyLimit": 0
+      "enabled": true,   
+      "schedule": ["at any time"]
+    }
   }
