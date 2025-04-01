@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -128,7 +129,9 @@ func TestConditions(t *testing.T) {
 		{
 			name: "ready",
 			err:  nil,
+
 			matcher: And(
+				jq.Match(`all(.status.conditions[]?.type; . != "foo")`),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
 			),
@@ -137,6 +140,7 @@ func TestConditions(t *testing.T) {
 			name: "stop",
 			err:  odherrors.NewStopError("stop"),
 			matcher: And(
+				jq.Match(`all(.status.conditions[]?.type; . != "foo")`),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
 			),
@@ -145,6 +149,7 @@ func TestConditions(t *testing.T) {
 			name: "failure",
 			err:  errors.New("failure"),
 			matcher: And(
+				jq.Match(`all(.status.conditions[]?.type; . != "foo")`),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionFalse),
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
 			),
@@ -159,6 +164,26 @@ func TestConditions(t *testing.T) {
 
 			err = cli.Create(ctx, dash)
 			g.Expect(err).NotTo(HaveOccurred())
+
+			st, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&common.Status{
+				Conditions: []common.Condition{{
+					Type:               "foo",
+					Status:             metav1.ConditionFalse,
+					LastTransitionTime: metav1.NewTime(time.Now()),
+				}},
+			})
+
+			g.Expect(err).NotTo(HaveOccurred())
+
+			err = unstructured.SetNestedField(dash.Object, st, "status")
+			g.Expect(err).NotTo(HaveOccurred())
+
+			err = cli.Status().Update(ctx, dash)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			g.Expect(dash).Should(
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, "foo", metav1.ConditionFalse),
+			)
 
 			req := ctrl.Request{
 				NamespacedName: types.NamespacedName{
@@ -180,7 +205,9 @@ func TestConditions(t *testing.T) {
 
 			g.Expect(result.Requeue).Should(BeFalse())
 
-			di := dash.DeepCopy()
+			di := resources.GvkToUnstructured(gvk.Dashboard)
+			di.SetName(dash.GetName())
+
 			err = cli.Get(ctx, client.ObjectKeyFromObject(di), di)
 			g.Expect(err).ShouldNot(HaveOccurred())
 			g.Expect(di).Should(tt.matcher)
