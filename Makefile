@@ -68,7 +68,7 @@ YQ ?= $(LOCALBIN)/yq
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.0.2
 CONTROLLER_GEN_VERSION ?= v0.16.1
-OPERATOR_SDK_VERSION ?= v1.31.0
+OPERATOR_SDK_VERSION ?= v1.33.0
 GOLANGCI_LINT_VERSION ?= v1.64.7
 YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
@@ -194,10 +194,10 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
-	go build -o bin/manager main.go
+	go build -o bin/manager cmd/main.go
 
 RUN_ARGS = --log-mode=devel
-GO_RUN_MAIN = OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=$(DEFAULT_MANIFESTS_PATH) go run $(GO_RUN_ARGS) ./main.go $(RUN_ARGS)
+GO_RUN_MAIN = OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=$(DEFAULT_MANIFESTS_PATH) go run $(GO_RUN_ARGS) ./cmd/main.go $(RUN_ARGS)
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
 	$(GO_RUN_MAIN)
@@ -387,7 +387,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC=./controllers/... ./tests/integration/... ./pkg/...
+TEST_SRC=./internal/... ./tests/integration/... ./pkg/...
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
