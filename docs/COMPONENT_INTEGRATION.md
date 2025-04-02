@@ -103,6 +103,22 @@ func (c *ExampleComponent) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
+func (c *TrainingOperator) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *TrainingOperator) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
+}
+
+func (c *TrainingOperator) GetReleaseStatus() *[]common.ComponentRelease {
+	return &c.Status.Releases
+}
+
+func (c *TrainingOperator) SetReleaseStatus(releases []common.ComponentRelease) {
+	c.Status.Releases = releases
+}
+
 // +kubebuilder:object:root=true
 
 // ExampleComponentList contains a list of ExampleComponent
@@ -212,7 +228,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 
 func (s *componentHandler) Init(platform cluster.Platform) error 
 
-func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj client.Object) error 
+func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error)
 ```
 
 Please refer the existing component implementations in the `internal/controller/components` directory for further details.
