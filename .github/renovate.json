@@ -46,12 +46,7 @@
         "schedule": ["at any time"],
         "branchPrefix": "renovate/rpm/",
        "semanticCommits": "enabled"
-      },
-      {
-        "matchManagers": ["rpm", "tekton", "dockerfile"],
-        "matchBaseBranches": ["rhoai-2.19"],
-        "enabled": false
-      }   
+      }
     ],
     "dockerfile": {
       "enabled": true,
