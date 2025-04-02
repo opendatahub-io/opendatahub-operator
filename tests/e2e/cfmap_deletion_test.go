@@ -6,13 +6,15 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+
+	. "github.com/onsi/gomega"
 )
 
 // CfgMapDeletionTestCtx holds the context for the config map deletion tests.
@@ -73,13 +75,11 @@ func (tc *CfgMapDeletionTestCtx) ValidateDSCDeletionUsingConfigMap(t *testing.T)
 
 	tc.EnsureResourceCreatedOrUpdated(
 		WithObjectToCreate(configMap),
-		NoOpMutationFn,
-		testf.Transform(`.metadata.labels[%s] = %s`, upgrade.DeleteConfigMapLabel, enableDeletion),
-		"Failed to create or update deletion config map",
+		WithCustomErrorMsg("Failed to create or update deletion config map"),
 	)
 
 	// Verify the existence of the DataScienceCluster instance.
-	tc.EnsureResourceExists(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName)
+	tc.EnsureResourceExists(WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
 }
 
 // ValidateOwnedNamespacesAllExist verifies that the owned namespaces exist.
@@ -87,11 +87,16 @@ func (tc *CfgMapDeletionTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
 	t.Helper()
 
 	// Ensure namespaces with the owned namespace label exist
-	tc.EnsureResourcesWithLabelsExist(
-		gvk.Namespace,
-		client.MatchingLabels{labels.ODH.OwnedNamespace: "true"},
-		ownedNamespaceNumber,
-		"Expected %d owned namespaces with label '%s'. Owned namespaces should not be deleted: %v", ownedNamespaceNumber, labels.ODH.OwnedNamespace,
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{}),
+		WithListOptions(
+			&client.ListOptions{
+				LabelSelector: k8slabels.SelectorFromSet(
+					k8slabels.Set{labels.ODH.OwnedNamespace: "true"},
+				),
+			}),
+		WithCondition(BeNumerically(">=", ownedNamespaceNumber)),
+		WithCustomErrorMsg("Expected only %%d owned namespaces with label '%s'. Owned namespaces should not be deleted.", ownedNamespaceNumber, labels.ODH.OwnedNamespace),
 	)
 }
 
@@ -100,9 +105,12 @@ func (tc *CfgMapDeletionTestCtx) RemoveDeletionConfigMap(t *testing.T) {
 	t.Helper()
 
 	// Delete the config map
+	propagationPolicy := metav1.DeletePropagationForeground
 	tc.DeleteResource(
-		gvk.ConfigMap,
-		tc.ConfigMapNamespacedName,
-		client.PropagationPolicy(metav1.DeletePropagationForeground),
+		WithMinimalObject(gvk.ConfigMap, tc.ConfigMapNamespacedName),
+		WithClientDeleteOptions(
+			&client.DeleteOptions{
+				PropagationPolicy: &propagationPolicy,
+			}),
 	)
 }

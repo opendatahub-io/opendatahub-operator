@@ -40,7 +40,7 @@ func (tc *DeletionTestCtx) DeletionDSC(t *testing.T) {
 	t.Helper()
 
 	// Delete the DataScienceCluster instance
-	tc.DeleteResource(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName)
+	tc.DeleteResource(WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
 }
 
 // DeletionDSCI deletes the DSCInitialization instance if it exists.
@@ -48,5 +48,5 @@ func (tc *DeletionTestCtx) DeletionDSCI(t *testing.T) {
 	t.Helper()
 
 	// Delete the DSCInitialization instance
-	tc.DeleteResource(gvk.DSCInitialization, tc.DSCInitializationNamespacedName)
+	tc.DeleteResource(WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName))
 }

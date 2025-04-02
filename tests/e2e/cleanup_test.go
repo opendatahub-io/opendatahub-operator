@@ -18,9 +18,9 @@ func CleanupAllResources(t *testing.T) {
 
 	// Cleanup DataScienceCluster
 	t.Log("Cleaning up DataScienceCluster")
-	tc.DeleteResourceIfExists(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName)
+	tc.DeleteResourceIfExists(WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
 
 	// Cleanup DSCInitialization
 	t.Log("Cleaning up DSCInitialization")
-	tc.DeleteResourceIfExists(gvk.DSCInitialization, tc.DSCInitializationNamespacedName)
+	tc.DeleteResourceIfExists(WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName))
 }

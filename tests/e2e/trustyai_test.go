@@ -104,36 +104,40 @@ func (tc *TrustyAITestCtx) SetKserveState(state operatorv1.ManagementState, shou
 			status.ConditionTypeReady,
 		)
 	} else {
-		tc.EnsureResourceGone(gvk.Kserve, nn)
+		tc.EnsureResourceGone(WithMinimalObject(gvk.Kserve, nn))
 	}
 }
 
 // DeleteInferenceServices deletes the InferenceServices CustomResourceDefinition.
 func (tc *TrustyAITestCtx) DeleteInferenceServices(t *testing.T) {
 	t.Helper()
+
+	propagationPolicy := metav1.DeletePropagationForeground
 	tc.DeleteResource(
-		gvk.CustomResourceDefinition,
-		types.NamespacedName{Name: "inferenceservices.serving.kserve.io"},
-		client.PropagationPolicy(metav1.DeletePropagationForeground),
+		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: "inferenceservices.serving.kserve.io"}),
+		WithClientDeleteOptions(
+			&client.DeleteOptions{
+				PropagationPolicy: &propagationPolicy,
+			}),
 	)
 }
 
 // ValidateTrustyAICondition validates the readiness condition of TrustyAI and DataScienceCluster.
 func (tc *TrustyAITestCtx) ValidateTrustyAICondition(expectedStatus metav1.ConditionStatus) {
 	// Validate TrustyAI readiness.
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.TrustyAI,
-		types.NamespacedName{Name: componentApi.TrustyAIInstanceName},
-		And(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, expectedStatus),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, expectedStatus),
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.TrustyAI, types.NamespacedName{Name: componentApi.TrustyAIInstanceName}),
+		WithCondition(
+			And(
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, expectedStatus),
+				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, expectedStatus),
+			),
 		),
 	)
 
 	// Validate DataScienceCluster readiness.
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.DataScienceCluster,
-		tc.DataScienceClusterNamespacedName,
-		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, expectedStatus),
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, expectedStatus)),
 	)
 }

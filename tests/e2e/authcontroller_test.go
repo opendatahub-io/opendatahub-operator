@@ -10,6 +10,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
@@ -76,7 +77,14 @@ func (tc *AuthControllerTestCtx) ValidateAuthCRCreation(t *testing.T) {
 	t.Helper()
 
 	// Ensure that exactly one Auth CR exists.
-	tc.EnsureExactlyOneResourceExists(gvk.Auth, tc.AuthNamespacedName)
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
+		WithCondition(HaveLen(1)),
+		WithCustomErrorMsg(
+			"Expected exactly one resource '%s' of kind '%s', but found a different number of resources.",
+			resources.FormatNamespacedName(tc.AuthNamespacedName), gvk.Auth.Kind,
+		),
+	)
 }
 
 // ValidateAuthCRDefaultContent validates the default content of the Auth CR.
@@ -87,8 +95,11 @@ func (tc *AuthControllerTestCtx) ValidateAuthCRDefaultContent(t *testing.T) {
 	var expectedAdminGroup string
 	expectedAllowedGroup := "system:authenticated"
 
+	// Fetching the Platform release name
+	platform := tc.FetchPlatformRelease()
+
 	// Determine expected admin group based on platform.
-	switch tc.Platform {
+	switch platform {
 	case cluster.SelfManagedRhoai:
 		expectedAdminGroup = rhodsAdminsName
 	case cluster.ManagedRhoai:
@@ -97,17 +108,18 @@ func (tc *AuthControllerTestCtx) ValidateAuthCRDefaultContent(t *testing.T) {
 		expectedAdminGroup = odhAdminsName
 	}
 
-	// Enhanced error messages with dynamic values.
-	expectedMessage := "Expected resource '%s' to have at least one entry in 'adminGroups' (first value: '%s') and 'allowedGroups' (first value: '%s')"
-
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.Auth,
-		tc.AuthNamespacedName,
-		And(
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
+		WithCondition(And(
 			jq.Match(`.spec.adminGroups | length > 0 and .[0] == "%s"`, expectedAdminGroup),
 			jq.Match(`.spec.allowedGroups | length > 0 and .[0] == "%s"`, expectedAllowedGroup),
+		)),
+		WithCustomErrorMsg(
+			"Expected resource '%s' to have at least one entry in 'adminGroups' (first value: '%s') and 'allowedGroups' (first value: '%s')",
+			gvk.Auth.Kind,
+			expectedAdminGroup,
+			expectedAllowedGroup,
 		),
-		expectedMessage, expectedAdminGroup, expectedAllowedGroup,
 	)
 }
 
@@ -119,9 +131,8 @@ func (tc *AuthControllerTestCtx) ValidateAuthCRRoleCreation(t *testing.T) {
 	roles := []string{adminGroupRoleName, allowedGroupRoleName}
 	for _, roleName := range roles {
 		tc.EnsureResourceExists(
-			gvk.Role,
-			types.NamespacedName{Namespace: tc.AppsNamespace, Name: roleName},
-			"Expected admin Role %s to be created", roleName,
+			WithMinimalObject(gvk.Role, types.NamespacedName{Namespace: tc.AppsNamespace, Name: roleName}),
+			WithCustomErrorMsg("Expected admin Role %s to be created", roleName),
 		)
 	}
 }
@@ -131,9 +142,8 @@ func (tc *AuthControllerTestCtx) ValidateAuthCRClusterRoleCreation(t *testing.T)
 	t.Helper()
 
 	tc.EnsureResourceExists(
-		gvk.ClusterRole,
-		types.NamespacedName{Namespace: tc.AppsNamespace, Name: adminGroupClusterRoleName},
-		"Expected admin ClusterRole %s to be created", adminGroupClusterRoleName,
+		WithMinimalObject(gvk.ClusterRole, types.NamespacedName{Namespace: tc.AppsNamespace, Name: adminGroupClusterRoleName}),
+		WithCustomErrorMsg("Expected admin ClusterRole %s to be created", adminGroupClusterRoleName),
 	)
 }
 
@@ -144,9 +154,8 @@ func (tc *AuthControllerTestCtx) ValidateAuthCRRoleBindingCreation(t *testing.T)
 	roleBindings := []string{adminGroupRoleBindingName, allowedGroupRoleBindingName}
 	for _, roleBinding := range roleBindings {
 		tc.EnsureResourceExists(
-			gvk.RoleBinding,
-			types.NamespacedName{Namespace: tc.AppsNamespace, Name: roleBinding},
-			"Expected admin RoleBinding %s to be created", roleBinding,
+			WithMinimalObject(gvk.RoleBinding, types.NamespacedName{Namespace: tc.AppsNamespace, Name: roleBinding}),
+			WithCustomErrorMsg("Expected admin RoleBinding %s to be created", roleBinding),
 		)
 	}
 }
@@ -156,9 +165,8 @@ func (tc *AuthControllerTestCtx) ValidateAuthCRClusterRoleBindingCreation(t *tes
 	t.Helper()
 
 	tc.EnsureResourceExists(
-		gvk.ClusterRoleBinding,
-		types.NamespacedName{Namespace: tc.AppsNamespace, Name: adminGroupClusterRoleBindingName},
-		"Expected admin ClusterRoleBinding %s to be created", adminGroupClusterRoleBindingName,
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Namespace: tc.AppsNamespace, Name: adminGroupClusterRoleBindingName}),
+		WithCustomErrorMsg("Expected admin ClusterRoleBinding %s to be created", adminGroupClusterRoleBindingName),
 	)
 }
 
@@ -172,17 +180,18 @@ func (tc *AuthControllerTestCtx) ValidateAddingGroups(t *testing.T) {
 	// Update the Auth CR with new admin and allowed groups.
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
-		testf.Transform(
-			`.spec.adminGroups |= . + ["%s"] | .spec.allowedGroups |= . + ["%s"]`, testAdminGroup, testAllowedGroup,
+		WithMutateFunc(
+			testf.Transform(
+				`.spec.adminGroups |= . + ["%s"] | .spec.allowedGroups |= . + ["%s"]`, testAdminGroup, testAllowedGroup,
+			),
 		),
 	)
 
 	// Helper function to validate the role and cluster role bindings.
 	validateBinding := func(gvk schema.GroupVersionKind, bindingName, groupName string) {
-		tc.EnsureResourceExistsAndMatchesCondition(
-			gvk,
-			types.NamespacedName{Namespace: tc.AppsNamespace, Name: bindingName},
-			jq.Match(`.subjects[1].name == "%s"`, groupName),
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk, types.NamespacedName{Namespace: tc.AppsNamespace, Name: bindingName}),
+			WithCondition(jq.Match(`.subjects[1].name == "%s"`, groupName)),
 		)
 	}
 
@@ -196,28 +205,31 @@ func (tc *AuthControllerTestCtx) ValidateAddingGroups(t *testing.T) {
 func (tc *AuthControllerTestCtx) ValidateRemovingGroups(t *testing.T) {
 	t.Helper()
 
+	// Fetching the Platform release name
+	platform := tc.FetchPlatformRelease()
+
 	expectedGroup := odhAdminsName
-	if tc.Platform == cluster.ManagedRhoai || tc.Platform == cluster.SelfManagedRhoai {
+
+	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
 		expectedGroup = rhodsAdminsName
 	}
 
 	// Update the Auth CR to set only the expected admin group.
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
-		testf.Transform(`.spec.adminGroups = ["%s"]`, expectedGroup),
-		"Failed to create or update Auth resource '%s' with admin group '%s'", serviceApi.AuthInstanceName, expectedGroup,
+		WithMutateFunc(testf.Transform(`.spec.adminGroups = ["%s"]`, expectedGroup)),
+		WithCustomErrorMsg("Failed to create or update Auth resource '%s' with admin group '%s'", serviceApi.AuthInstanceName, expectedGroup),
 	)
 
 	// Helper function to validate binding conditions after removal.
 	validateBinding := func(bindingType schema.GroupVersionKind, bindingName string, args ...any) {
-		tc.EnsureResourceExistsAndMatchesCondition(
-			bindingType,
-			types.NamespacedName{Namespace: tc.AppsNamespace, Name: bindingName},
-			And(
+		tc.EnsureResourceExists(
+			WithMinimalObject(bindingType, types.NamespacedName{Namespace: tc.AppsNamespace, Name: bindingName}),
+			WithCondition(And(
 				jq.Match(`.subjects | length == 1`),
 				jq.Match(`.subjects[0].name == "%s"`, expectedGroup),
-			),
-			args...,
+			)),
+			WithCustomErrorMsg(args...),
 		)
 	}
 

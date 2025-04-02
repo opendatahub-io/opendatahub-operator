@@ -8,6 +8,7 @@ import (
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -112,15 +113,14 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 	t.Helper()
 
-	// Increase time required to get DSCI created
-	reset := tc.OverrideEventuallyTimeout(eventuallyTimeoutLong, defaultEventuallyPollInterval)
-	defer reset() // Ensure reset happens after test completes
-
-	tc.EnsureResourceCreatedOrUpdatedWithCondition(
+	tc.EnsureResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace)),
-		NoOpMutationFn,
-		jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady),
-		"Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name,
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
+		WithCustomErrorMsg("Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name),
+
+		// Increase time required to get DSCI created
+		WithEventuallyTimeout(eventuallyTimeoutLong),
+		WithEventuallyPollingInterval(defaultEventuallyPollInterval),
 	)
 }
 
@@ -128,15 +128,14 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 	t.Helper()
 
-	// Increase time required to get DSC created
-	reset := tc.OverrideEventuallyTimeout(eventuallyTimeoutMedium, defaultEventuallyPollInterval)
-	defer reset() // Ensure reset happens after test completes
-
-	tc.EnsureResourceCreatedOrUpdatedWithCondition(
+	tc.EnsureResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name)),
-		NoOpMutationFn,
-		jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady),
-		"Failed to create DataScienceCluster resource %s", tc.DataScienceClusterNamespacedName.Name,
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
+		WithCustomErrorMsg("Failed to create DataScienceCluster resource %s", tc.DataScienceClusterNamespacedName.Name),
+
+		// Increase time required to get DSC created
+		WithEventuallyTimeout(eventuallyTimeoutMedium),
+		WithEventuallyPollingInterval(defaultEventuallyPollInterval),
 	)
 }
 
@@ -162,11 +161,10 @@ func (tc *DSCTestCtx) ValidateServiceMeshSpecInDSCI(t *testing.T) {
 	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Error marshaling expected ServiceMeshSpec")
 
 	// Assert that the actual ServiceMeshSpec matches the expected one.
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.DSCInitialization,
-		tc.DSCInitializationNamespacedName,
-		jq.Match(`.spec.serviceMesh == %s`, expServiceMeshSpecJSON),
-		"Error validating DSCInitialization instance: Service Mesh spec mismatch",
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(jq.Match(`.spec.serviceMesh == %s`, expServiceMeshSpecJSON)),
+		WithCustomErrorMsg("Error validating DSCInitialization instance: Service Mesh spec mismatch"),
 	)
 }
 
@@ -190,11 +188,10 @@ func (tc *DSCTestCtx) ValidateKnativeSpecInDSC(t *testing.T) {
 	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Error marshaling expected ServingSpec")
 
 	// Assert that the actual ServingSpec matches the expected one.
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.DataScienceCluster,
-		tc.DataScienceClusterNamespacedName,
-		jq.Match(`.spec.components.kserve.serving == %s`, expServingSpecJSON),
-		"Error validating DSCInitialization instance: Knative Serving spec mismatch",
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.spec.components.kserve.serving == %s`, expServingSpecJSON)),
+		WithCustomErrorMsg("Error validating DSCInitialization instance: Knative Serving spec mismatch"),
 	)
 }
 
@@ -203,11 +200,16 @@ func (tc *DSCTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
 	t.Helper()
 
 	// Ensure namespaces with the owned namespace label exist.
-	tc.EnsureResourcesWithLabelsExist(
-		gvk.Namespace,
-		client.MatchingLabels{labels.ODH.OwnedNamespace: "true"},
-		ownedNamespaceNumber,
-		"Expected %d owned namespaces with label '%s'.", labels.ODH.OwnedNamespace,
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{}),
+		WithListOptions(
+			&client.ListOptions{
+				LabelSelector: k8slabels.SelectorFromSet(
+					k8slabels.Set{labels.ODH.OwnedNamespace: "true"},
+				),
+			}),
+		WithCondition(BeNumerically(">=", ownedNamespaceNumber)),
+		WithCustomErrorMsg("Expected at least %d owned namespaces with label '%s'.", ownedNamespaceNumber, labels.ODH.OwnedNamespace),
 	)
 }
 
@@ -232,7 +234,7 @@ func (tc *DSCTestCtx) ValidateModelRegistryConfig(t *testing.T) {
 	t.Helper()
 
 	// Retrieve the DataScienceCluster object.
-	dsc := tc.RetrieveDataScienceCluster(tc.DataScienceClusterNamespacedName)
+	dsc := tc.FetchDataScienceCluster()
 
 	// Check if the ModelRegistry is managed.
 	if dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
@@ -264,10 +266,10 @@ func (tc *DSCTestCtx) UpdateRegistriesNamespace(targetNamespace, expectedValue s
 	}
 
 	// Update the registriesNamespace field.
-	tc.EnsureResourceCreatedOrPatchedWithCondition(
+	tc.EnsureResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		testf.Transform(`.spec.components.modelregistry.registriesNamespace = "%s"`, targetNamespace),
-		expectedCondition,
-		"Failed to update RegistriesNamespace to %s, expected %s", targetNamespace, expectedValue,
+		WithMutateFunc(testf.Transform(`.spec.components.modelregistry.registriesNamespace = "%s"`, targetNamespace)),
+		WithCondition(expectedCondition),
+		WithCustomErrorMsg("Failed to update RegistriesNamespace to %s, expected %s", targetNamespace, expectedValue),
 	)
 }

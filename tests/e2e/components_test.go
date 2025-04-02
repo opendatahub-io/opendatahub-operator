@@ -70,27 +70,28 @@ func (tc *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 
 	// Ensure that any Deployment resources for the component are present
 	tc.EnsureResourcesExist(
-		gvk.Deployment,
-		types.NamespacedName{Namespace: tc.AppsNamespace},
-		&client.ListOptions{
-			LabelSelector: k8slabels.Set{
-				labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-			}.AsSelector(),
-		},
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
 	)
 
 	// Ensure the component resource exists and is marked "Ready".
-	tc.EnsureResourcesExistAndMatchCondition(
-		tc.GVK,
-		tc.NamespacedName,
-		nil,
-		And(
-			HaveLen(1),
-			HaveEach(And(
-				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
-				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
-			)),
+	tc.EnsureResourcesExist(
+		WithMinimalObject(tc.GVK, tc.NamespacedName),
+		WithCondition(
+			And(
+				HaveLen(1),
+				HaveEach(And(
+					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+				)),
+			),
 		),
 	)
 }
@@ -100,24 +101,25 @@ func (tc *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 	t.Helper()
 
 	// Ensure that the resources associated with the component exist
-	tc.EnsureResourcesExist(tc.GVK, tc.NamespacedName, nil)
+	tc.EnsureResourcesExist(WithMinimalObject(tc.GVK, tc.NamespacedName))
 
 	// Ensure that DataScienceCluster exists and its component state is "Removed", with the "Ready" condition false.
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
 
 	// Ensure that any Deployment resources for the component are not present
 	tc.EnsureResourcesGone(
-		gvk.Deployment,
-		types.NamespacedName{Namespace: tc.AppsNamespace},
-		&client.ListOptions{
-			LabelSelector: k8slabels.Set{
-				labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-			}.AsSelector(),
-		},
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
 	)
 
 	// Ensure that the resources associated with the component do not exist
-	tc.EnsureResourcesGone(tc.GVK, tc.NamespacedName, nil)
+	tc.EnsureResourcesGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
 }
 
 // ValidateOperandsOwnerReferences ensures that all deployment resources have the correct owner references.
@@ -125,19 +127,22 @@ func (tc *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 	t.Helper()
 
 	// Ensure that the Deployment resources exist with the proper owner references
-	tc.EnsureResourcesExistAndMatchCondition(
-		gvk.Deployment,
-		types.NamespacedName{Namespace: tc.AppsNamespace},
-		&client.ListOptions{
-			Namespace: tc.AppsNamespace,
-			LabelSelector: k8slabels.Set{
-				labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-			}.AsSelector(),
-		},
-		HaveEach(
-			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
 		),
-		"Deployment resources with correct owner references should exist",
+		WithCondition(
+			HaveEach(
+				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
+			),
+		),
+		WithCustomErrorMsg("Deployment resources with correct owner references should exist"),
 	)
 }
 
@@ -147,14 +152,15 @@ func (tc *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 
 	// Ensure that deployments exist for the component
 	deployments := tc.EnsureResourcesExist(
-		gvk.Deployment,
-		types.NamespacedName{Namespace: tc.AppsNamespace},
-		&client.ListOptions{
-			Namespace: tc.AppsNamespace,
-			LabelSelector: k8slabels.Set{
-				labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-			}.AsSelector(),
-		},
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
 	)
 
 	for _, d := range deployments {
@@ -170,18 +176,17 @@ func (tc *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 			}
 
 			// Update the deployment's replica count
-			tc.EnsureResourceCreatedOrUpdatedWithCondition(
+			tc.EnsureResourceCreatedOrUpdated(
 				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&d)),
-				testf.Transform(`.spec.replicas = %d`, expectedReplica),
-				jq.Match(`.spec.replicas == %d`, expectedReplica),
+				WithMutateFunc(testf.Transform(`.spec.replicas = %d`, expectedReplica)),
+				WithCondition(jq.Match(`.spec.replicas == %d`, expectedReplica)),
 			)
 
-			tc.EnsureResourceExistsAndMatchesConditionConsistently(
-				gvk.Deployment,
-				resources.NamespacedNameFromObject(&d),
-				jq.Match(`.spec.replicas == %d`, expectedReplica),
-				30*time.Second,
-				1*time.Second,
+			tc.EnsureResourceExistsConsistently(
+				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&d)),
+				WithCondition(jq.Match(`.spec.replicas == %d`, expectedReplica)),
+				WithConsistentlyDuration(30*time.Second),
+				WithConsistentlyPollingInterval(1*time.Second),
 			)
 		})
 	}
@@ -219,22 +224,23 @@ func (tc *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
 	componentName := strings.ToLower(tc.GVK.Kind)
 
 	// Ensure the DataScienceCluster exists and the component's conditions are met
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.DataScienceCluster,
-		tc.DataScienceClusterNamespacedName,
-		And(
-			// Ensure the component's management state is "Managed"
-			jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Managed),
-
-			// Validate that the releases field contains at least one release for the component
-			jq.Match(`.status.components.%s.releases | length > 0`, componentName),
-
-			// Validate the fields (name, version, repoUrl) for each release
-			// No need to check for length here, the previous check validates if any release exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(
 			And(
-				jq.Match(`.status.components.%s.releases[].name != ""`, componentName),
-				jq.Match(`.status.components.%s.releases[].version != ""`, componentName),
-				jq.Match(`.status.components.%s.releases[].repoUrl != ""`, componentName),
+				// Ensure the component's management state is "Managed"
+				jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Managed),
+
+				// Validate that the releases field contains at least one release for the component
+				jq.Match(`.status.components.%s.releases | length > 0`, componentName),
+
+				// Validate the fields (name, version, repoUrl) for each release
+				// No need to check for length here, the previous check validates if any release exists
+				And(
+					jq.Match(`.status.components.%s.releases[].name != ""`, componentName),
+					jq.Match(`.status.components.%s.releases[].version != ""`, componentName),
+					jq.Match(`.status.components.%s.releases[].repoUrl != ""`, componentName),
+				),
 			),
 		),
 	)
@@ -242,10 +248,9 @@ func (tc *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
 
 // ValidateComponentCondition ensures that the specified component instance has the expected condition set to "True".
 func (tc *ComponentTestCtx) ValidateComponentCondition(gvk schema.GroupVersionKind, componentName, statusType string) {
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk,
-		types.NamespacedName{Name: componentName},
-		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, statusType, metav1.ConditionTrue),
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk, types.NamespacedName{Name: componentName}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, statusType, metav1.ConditionTrue)),
 	)
 }
 
@@ -283,10 +288,10 @@ func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceCluster(state opera
 	}
 
 	// Update the management state of the component in the DataScienceCluster.
-	tc.EnsureResourceCreatedOrUpdatedWithCondition(
+	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state),
-		And(conditions...),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
+		WithCondition(And(conditions...)),
 	)
 }
 
@@ -295,16 +300,20 @@ func (tc *ComponentTestCtx) ValidateCRDRemoval(name string) {
 	nn := types.NamespacedName{Name: name}
 
 	// Ensure the CustomResourceDefinition (CRD) exists before deletion
-	tc.EnsureResourceExists(gvk.CustomResourceDefinition, nn)
+	tc.EnsureResourceExists(WithMinimalObject(gvk.CustomResourceDefinition, nn))
 
 	// Delete the CRD
+	propagationPolicy := metav1.DeletePropagationForeground
 	tc.DeleteResource(
-		gvk.CustomResourceDefinition,
-		types.NamespacedName{Name: name},
-		client.PropagationPolicy(metav1.DeletePropagationForeground))
+		WithMinimalObject(gvk.CustomResourceDefinition, nn),
+		WithClientDeleteOptions(
+			&client.DeleteOptions{
+				PropagationPolicy: &propagationPolicy,
+			}),
+	)
 
 	// Ensure the CRD is removed
-	tc.EnsureResourceGone(gvk.CustomResourceDefinition, nn)
+	tc.EnsureResourceGone(WithMinimalObject(gvk.CustomResourceDefinition, nn))
 }
 
 // ValidateCRDReinstatement ensures that the CRD is properly reinstated when the component is enabled.
@@ -312,14 +321,13 @@ func (tc *ComponentTestCtx) ValidateCRDReinstatement(name string, version string
 	nn := types.NamespacedName{Name: name}
 
 	// Ensure the CRD is recreated
-	tc.EnsureResourceExists(gvk.CustomResourceDefinition, nn)
+	tc.EnsureResourceExists(WithMinimalObject(gvk.CustomResourceDefinition, nn))
 
 	// Ensure the CRD has the specified version
 	if len(version) != 0 {
-		tc.EnsureResourceExistsAndMatchesCondition(
-			gvk.CustomResourceDefinition,
-			types.NamespacedName{Name: name},
-			jq.Match(`.status.storedVersions[0] == "%s"`, version),
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: name}),
+			WithCondition(jq.Match(`.status.storedVersions[0] == "%s"`, version)),
 		)
 	}
 }
@@ -329,12 +337,13 @@ func (tc *ComponentTestCtx) ValidateModelControllerInstance(t *testing.T) {
 	t.Helper()
 
 	// Ensure ModelController resource exists with the expected owner references and status phase.
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.ModelController,
-		types.NamespacedName{Name: componentApi.ModelControllerInstanceName},
-		And(
-			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
-			jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady),
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ModelController, types.NamespacedName{Name: componentApi.ModelControllerInstanceName}),
+		WithCondition(
+			And(
+				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
+				jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady),
+			),
 		),
 	)
 

@@ -60,24 +60,29 @@ func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testi
 	// Apply new platform type annotation and verify
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.OdhApplication, types.NamespacedName{Name: "jupyter", Namespace: tc.AppsNamespace}),
-		func(obj *unstructured.Unstructured) error {
-			oldPt = resources.SetAnnotation(obj, annotations.PlatformType, newPt)
-			return nil
-		},
+		WithMutateFunc(
+			func(obj *unstructured.Unstructured) error {
+				oldPt = resources.SetAnnotation(obj, annotations.PlatformType, newPt)
+				return nil
+			},
+		),
 	)
 
 	// Ensure previously created resources retain their old platform type annotation
-	tc.EnsureResourcesExistAndMatchCondition(
-		gvk.OdhApplication,
-		types.NamespacedName{Namespace: tc.AppsNamespace},
-		&client.ListOptions{
-			Namespace: tc.AppsNamespace,
-			LabelSelector: k8slabels.Set{
-				labels.PlatformPartOf: strings.ToLower(gvk.Dashboard.Kind),
-			}.AsSelector(),
-		},
-		HaveEach(
-			jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, oldPt),
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.OdhApplication, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(gvk.Dashboard.Kind),
+				}.AsSelector(),
+			},
+		),
+		WithCondition(
+			HaveEach(
+				jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, oldPt),
+			),
 		),
 	)
 }

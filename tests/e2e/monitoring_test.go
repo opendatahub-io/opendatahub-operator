@@ -48,7 +48,7 @@ func skipIfMonitoringRemoved(t *testing.T, tc *TestContext) {
 	t.Helper()
 
 	// Retrieve DSCInitialization resource.
-	dsci := tc.RetrieveDSCInitialization(tc.DSCInitializationNamespacedName)
+	dsci := tc.FetchDSCInitialization()
 
 	// Skip tests if ManagementState is 'Removed'.
 	if dsci.Spec.Monitoring.ManagementState == operatorv1.Removed {
@@ -61,20 +61,27 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRCreation(t *testing.T) {
 	t.Helper()
 
 	// Ensure exactly one Monitoring CR exists.
-	tc.EnsureExactlyOneResourceExists(gvk.Monitoring, types.NamespacedName{})
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{}),
+		WithCondition(HaveLen(1)),
+		WithCustomErrorMsg(
+			"Expected exactly one resource of kind '%s', but found a different number of resources.",
+			gvk.Monitoring.Kind,
+		),
+	)
 }
 
 // ValidateMonitoringCRDefaultContent validates the default content of the Monitoring CR.
 func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultContent(t *testing.T) {
 	t.Helper()
 
-	if tc.Platform == cluster.ManagedRhoai {
-		// Retrieve the DSCInitialization object.
-		dsci := tc.RetrieveDSCInitialization(tc.DSCInitializationNamespacedName)
+	// Retrieve the DSCInitialization object.
+	dsci := tc.FetchDSCInitialization()
 
+	if dsci.Status.Release.Name == cluster.ManagedRhoai {
 		// Ensure that the Monitoring resource exists.
 		monitoring := &serviceApi.Monitoring{}
-		tc.RetrieveResource(gvk.Monitoring, types.NamespacedName{}, monitoring)
+		tc.FetchTypedResource(monitoring, WithMinimalObject(gvk.Monitoring, types.NamespacedName{}))
 
 		// Validate that the Monitoring CR's namespace matches the DSCInitialization spec.
 		tc.g.Expect(monitoring.Spec.MonitoringCommonSpec.Namespace).

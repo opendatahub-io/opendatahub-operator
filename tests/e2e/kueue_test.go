@@ -62,29 +62,27 @@ func (tc *KueueTestCtx) ValidateKueueVAPReady(t *testing.T) {
 
 	if v.GTE(semver.MustParse("4.17.0")) {
 		// Validate that VAP exists and has correct owner references.
-		tc.EnsureResourceExistsAndMatchesCondition(
-			gvk.ValidatingAdmissionPolicy,
-			types.NamespacedName{Name: "kueue-validating-admission-policy"},
-			jq.Match(`.metadata.ownerReferences[0].name == "%s"`, componentApi.KueueInstanceName),
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.ValidatingAdmissionPolicy, types.NamespacedName{Name: "kueue-validating-admission-policy"}),
+			WithCondition(jq.Match(`.metadata.ownerReferences[0].name == "%s"`, componentApi.KueueInstanceName)),
 		)
 
 		// Validate that VAPB exists and has no owner references.
-		tc.EnsureResourceExistsAndMatchesCondition(
-			gvk.ValidatingAdmissionPolicyBinding,
-			types.NamespacedName{Name: "kueue-validating-admission-policy-binding"},
-			jq.Match(`.metadata.ownerReferences | length == 0`),
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.ValidatingAdmissionPolicyBinding, types.NamespacedName{Name: "kueue-validating-admission-policy-binding"}),
+			WithCondition(jq.Match(`.metadata.ownerReferences | length == 0`)),
 		)
 	} else {
 		// Ensure that VAP and VAPB do not exist.
-		tc.EnsureResourceDoesNotExistAndErrorMatches(
-			gvk.ValidatingAdmissionPolicy,
-			types.NamespacedName{Name: "kueue-validating-admission-policy"},
-			&meta.NoKindMatchError{})
+		tc.EnsureResourceDoesNotExist(
+			WithMinimalObject(gvk.ValidatingAdmissionPolicy, types.NamespacedName{Name: "kueue-validating-admission-policy"}),
+			WithExpectedErr(&meta.NoKindMatchError{}),
+		)
 
-		tc.EnsureResourceDoesNotExistAndErrorMatches(
-			gvk.ValidatingAdmissionPolicyBinding,
-			types.NamespacedName{Name: "kueue-validating-admission-policy-binding"},
-			&meta.NoKindMatchError{})
+		tc.EnsureResourceDoesNotExist(
+			WithMinimalObject(gvk.ValidatingAdmissionPolicyBinding, types.NamespacedName{Name: "kueue-validating-admission-policy-binding"}),
+			WithExpectedErr(&meta.NoKindMatchError{}),
+		)
 	}
 }
 
@@ -112,7 +110,7 @@ func (tc *KueueTestCtx) ValidateKueuePreCheck(t *testing.T) {
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
 
 	// Verify there are no instances of the component
-	tc.EnsureResourceGone(tc.GVK, types.NamespacedName{Name: componentApi.KueueInstanceName})
+	tc.EnsureResourceGone(WithMinimalObject(tc.GVK, types.NamespacedName{Name: componentApi.KueueInstanceName}))
 
 	// Delete and validate CRDs
 	tc.deleteAndValidateCRD(mkCluster)
@@ -123,59 +121,62 @@ func (tc *KueueTestCtx) ValidateKueuePreCheck(t *testing.T) {
 	tc.createMockCRD(gvk.MultiKueueConfigV1Alpha1, "kueue")
 
 	// Update DataScienceCluster to Managed state and check readiness condition
-	tc.EnsureResourceCreatedOrUpdatedWithCondition(
+	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
-		And(
-			jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
-			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed)),
+		WithCondition(
+			And(
+				jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
+				jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
+			),
 		),
 	)
 
 	// Delete the CRDs.
+	propagationPolicy := metav1.DeletePropagationForeground
 	tc.DeleteResource(
-		gvk.CustomResourceDefinition,
-		types.NamespacedName{Name: mkCluster},
-		client.PropagationPolicy(metav1.DeletePropagationForeground),
+		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: mkCluster}),
+		WithClientDeleteOptions(
+			&client.DeleteOptions{
+				PropagationPolicy: &propagationPolicy,
+			}),
 	)
 	tc.DeleteResource(
-		gvk.CustomResourceDefinition,
-		types.NamespacedName{Name: mkConfig},
-		client.PropagationPolicy(metav1.DeletePropagationForeground),
+		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: mkConfig}),
+		WithClientDeleteOptions(
+			&client.DeleteOptions{
+				PropagationPolicy: &propagationPolicy,
+			}),
 	)
 
 	// Verify the DataScienceCluster become "Ready"
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.DataScienceCluster,
-		tc.DataScienceClusterNamespacedName,
-		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue)),
 	)
 }
 
 // deleteAndValidateCRD deletes a given CRD and ensures it no longer exists.
 func (tc *KueueTestCtx) deleteAndValidateCRD(crdName string) {
 	// Delete the CRD
+	propagationPolicy := metav1.DeletePropagationForeground
 	tc.DeleteResource(
-		gvk.CustomResourceDefinition,
-		types.NamespacedName{Name: crdName},
-		client.PropagationPolicy(metav1.DeletePropagationForeground),
+		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdName}),
+		WithClientDeleteOptions(
+			&client.DeleteOptions{
+				PropagationPolicy: &propagationPolicy,
+			}),
 	)
 
 	// Verify the CRD is deleted
-	tc.EnsureResourceGone(
-		gvk.CustomResourceDefinition,
-		types.NamespacedName{Name: crdName},
-	)
+	tc.EnsureResourceGone(WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdName}))
 }
 
 // createMockCRD creates a mock CRD for a given group, version, kind, and namespace.
 func (tc *KueueTestCtx) createMockCRD(gvk schema.GroupVersionKind, namespace string) {
 	crd := mockCRDCreation(gvk.Group, gvk.Version, strings.ToLower(gvk.Kind), namespace)
 
-	tc.EnsureResourceCreatedOrUpdated(
-		WithObjectToCreate(crd),
-		NoOpMutationFn,
-	)
+	tc.EnsureResourceCreatedOrUpdated(WithObjectToCreate(crd))
 }
 
 // mockCRDCreation generates a mock CRD with the specified parameters.
@@ -212,9 +213,9 @@ func mockCRDCreation(group, version, kind, componentName string) *apiextv1.Custo
 
 // getClusterVersion retrieves and parses the cluster version.
 func (tc *ComponentTestCtx) getClusterVersion() semver.Version {
-	cv := tc.RetrieveClusterVersion()
+	cv := tc.FetchClusterVersion()
 	v, err := semver.ParseTolerant(cv.Status.History[0].Version)
-	tc.g.Expect(err).ToNot(HaveOccurred(), "Failed to get cluster version")
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to get cluster version")
 
 	return v
 }

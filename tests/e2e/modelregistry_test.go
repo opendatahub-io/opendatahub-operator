@@ -59,13 +59,12 @@ func (tc *ModelRegistryTestCtx) ValidateSpec(t *testing.T) {
 	t.Helper()
 
 	// Retrieve the DataScienceCluster instance.
-	dsc := tc.RetrieveDataScienceCluster(tc.DataScienceClusterNamespacedName)
+	dsc := tc.FetchDataScienceCluster()
 
 	// Validate that the registriesNamespace in ModelRegistry matches the corresponding value in DataScienceCluster spec.
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.ModelRegistry,
-		types.NamespacedName{Name: componentApi.ModelRegistryInstanceName},
-		jq.Match(`.spec.registriesNamespace == "%s"`, dsc.Spec.Components.ModelRegistry.RegistriesNamespace),
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ModelRegistry, types.NamespacedName{Name: componentApi.ModelRegistryInstanceName}),
+		WithCondition(jq.Match(`.spec.registriesNamespace == "%s"`, dsc.Spec.Components.ModelRegistry.RegistriesNamespace)),
 	)
 }
 
@@ -89,10 +88,9 @@ func (tc *ModelRegistryTestCtx) ValidateOperandsWatchedResources(t *testing.T) {
 	mri := tc.retrieveModelRegistry()
 
 	// Ensure the correct labels are set on the ServiceMeshMember and that ownerReferences are not present.
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.ServiceMeshMember,
-		types.NamespacedName{Namespace: mri.Spec.RegistriesNamespace, Name: serviceMeshMemberName},
-		jq.Match(`.metadata | has("ownerReferences") | not`),
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceMeshMember, types.NamespacedName{Namespace: mri.Spec.RegistriesNamespace, Name: serviceMeshMemberName}),
+		WithCondition(jq.Match(`.metadata | has("ownerReferences") | not`)),
 	)
 }
 
@@ -112,17 +110,18 @@ func (tc *ModelRegistryTestCtx) ValidateOperandsDynamicallyWatchedResources(t *t
 		WithMinimalObject(gvk.ServiceMeshMember,
 			types.NamespacedName{Namespace: mri.Spec.RegistriesNamespace, Name: serviceMeshMemberName},
 		),
-		func(obj *unstructured.Unstructured) error {
-			oldPt = resources.SetAnnotation(obj, annotations.PlatformType, newPt)
-			return nil
-		},
+		WithMutateFunc(
+			func(obj *unstructured.Unstructured) error {
+				oldPt = resources.SetAnnotation(obj, annotations.PlatformType, newPt)
+				return nil
+			},
+		),
 	)
 
 	// Ensure previously created resource retains their old platform type annotation
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.ServiceMeshMember,
-		types.NamespacedName{Namespace: mri.Spec.RegistriesNamespace, Name: serviceMeshMemberName},
-		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, oldPt),
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceMeshMember, types.NamespacedName{Namespace: mri.Spec.RegistriesNamespace, Name: serviceMeshMemberName}),
+		WithCondition(jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.PlatformType, oldPt)),
 	)
 }
 
@@ -131,25 +130,21 @@ func (tc *ModelRegistryTestCtx) ValidateModelRegistryCert(t *testing.T) {
 	t.Helper()
 
 	// Retrieve DSCInitialization resource
-	dsci := tc.RetrieveDSCInitialization(tc.DSCInitializationNamespacedName)
+	dsci := tc.FetchDSCInitialization()
 
 	// Ensure that the Service Mesh control plane namespace is not empty.
-	tc.g.Expect(dsci.Spec.ServiceMesh.ControlPlane.Namespace).ToNot(BeEmpty())
+	tc.g.Expect(dsci.Spec.ServiceMesh.ControlPlane.Namespace).NotTo(BeEmpty())
 
 	is, err := cluster.FindDefaultIngressSecret(tc.g.Context(), tc.g.Client())
 	tc.g.Expect(err).NotTo(HaveOccurred())
 
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.Secret,
-		types.NamespacedName{
-			Namespace: dsci.Spec.ServiceMesh.ControlPlane.Namespace,
-			Name:      modelregistryctrl.DefaultModelRegistryCert,
-		},
-		And(
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Secret, types.NamespacedName{Namespace: dsci.Spec.ServiceMesh.ControlPlane.Namespace, Name: modelregistryctrl.DefaultModelRegistryCert}),
+		WithCondition(And(
 			jq.Match(`.type == "%s"`, is.Type),
 			jq.Match(`(.data."tls.crt" | @base64d) == "%s"`, is.Data["tls.crt"]),
 			jq.Match(`(.data."tls.key" | @base64d) == "%s"`, is.Data["tls.key"]),
-		),
+		)),
 	)
 }
 
@@ -161,13 +156,12 @@ func (tc *ModelRegistryTestCtx) ValidateModelRegistryServiceMeshMember(t *testin
 	mri := tc.retrieveModelRegistry()
 
 	// Ensure that the registries namespace is not empty.
-	tc.g.Expect(mri.Spec.RegistriesNamespace).ToNot(BeEmpty())
+	tc.g.Expect(mri.Spec.RegistriesNamespace).NotTo(BeEmpty())
 
 	// Ensure that the ServiceMeshMember exists and matches the expected condition.
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.ServiceMeshMember,
-		types.NamespacedName{Namespace: mri.Spec.RegistriesNamespace, Name: serviceMeshMemberName},
-		jq.Match(`.spec | has("controlPlaneRef")`),
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceMeshMember, types.NamespacedName{Namespace: mri.Spec.RegistriesNamespace, Name: serviceMeshMemberName}),
+		WithCondition(jq.Match(`.spec | has("controlPlaneRef")`)),
 	)
 }
 
@@ -184,14 +178,13 @@ func (tc *ModelRegistryTestCtx) ValidateCRDReinstated(t *testing.T) {
 
 func (tc *ModelRegistryTestCtx) retrieveModelRegistry() *componentApi.ModelRegistry {
 	mri := &componentApi.ModelRegistry{}
-	tc.RetrieveResource(
-		gvk.ModelRegistry,
-		types.NamespacedName{Name: componentApi.ModelRegistryInstanceName},
+	tc.FetchTypedResource(
 		mri,
+		WithMinimalObject(gvk.ModelRegistry, types.NamespacedName{Name: componentApi.ModelRegistryInstanceName}),
 	)
 
 	// Ensure that the registries namespace is not empty.
-	tc.g.Expect(mri.Spec.RegistriesNamespace).ToNot(BeEmpty())
+	tc.g.Expect(mri.Spec.RegistriesNamespace).NotTo(BeEmpty())
 
 	return mri
 }

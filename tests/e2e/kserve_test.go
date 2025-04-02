@@ -105,12 +105,13 @@ func (tc *KserveTestCtx) ValidateServingEnabled(t *testing.T) {
 	t.Helper()
 
 	// Ensure the DataScienceCluster exists and the component's conditions are met
-	tc.EnsureResourceCreatedOrUpdatedWithCondition(
+	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		testf.TransformPipeline(
-			testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
-		),
-		jq.Match(`.spec.components.%s.serving.managementState == "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
+		WithMutateFunc(
+			testf.TransformPipeline(
+				testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
+			)),
+		WithCondition(jq.Match(`.spec.components.%s.serving.managementState == "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed)),
 	)
 }
 
@@ -119,12 +120,11 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 	t.Helper()
 
 	// Retrieve the DataScienceCluster instance.
-	dsc := tc.RetrieveDataScienceCluster(tc.DataScienceClusterNamespacedName)
+	dsc := tc.FetchDataScienceCluster()
 
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.Kserve,
-		types.NamespacedName{Name: componentApi.KserveInstanceName},
-		And(
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
+		WithCondition(And(
 			// Validate Kserve default deployment mode.
 			jq.Match(`.spec.defaultDeploymentMode == "%s"`, dsc.Spec.Components.Kserve.DefaultDeploymentMode),
 			// Validate management states of NIM and serving components.
@@ -133,6 +133,7 @@ func (tc *KserveTestCtx) ValidateSpec(t *testing.T) {
 			// Validate serving name and ingress certificate type.
 			jq.Match(`.spec.serving.name == "%s"`, dsc.Spec.Components.Kserve.Serving.Name),
 			jq.Match(`.spec.serving.ingressGateway.certificate.type == "%s"`, dsc.Spec.Components.Kserve.Serving.IngressGateway.Certificate.Type),
+		),
 		),
 	)
 }
@@ -154,14 +155,15 @@ func (tc *KserveTestCtx) ValidateNoFeatureTrackerOwnerReferences(t *testing.T) {
 	t.Helper()
 
 	for _, child := range templatedResources {
-		tc.EnsureResourceExistsAndMatchesCondition(
-			child.gvk,
-			child.nn,
-			And(
-				jq.Match(`.metadata.ownerReferences | any(.kind == "%s")`, gvk.Kserve.Kind),
-				jq.Match(`.metadata.ownerReferences | all(.kind != "%s")`, gvk.FeatureTracker.Kind),
+		tc.EnsureResourceExists(
+			WithMinimalObject(child.gvk, child.nn),
+			WithCondition(
+				And(
+					jq.Match(`.metadata.ownerReferences | any(.kind == "%s")`, tc.GVK.Kind),
+					jq.Match(`.metadata.ownerReferences | all(.kind != "%s")`, gvk.FeatureTracker.Kind),
+				),
 			),
-			`Checking if %s/%s in %s has expected owner refs`, child.gvk, child.nn.Name, child.nn.Namespace,
+			WithCustomErrorMsg(`Checking if %s/%s in %s has expected owner refs`, child.gvk, child.nn.Name, child.nn.Namespace),
 		)
 	}
 }
@@ -170,20 +172,20 @@ func (tc *KserveTestCtx) ValidateNoFeatureTrackerOwnerReferences(t *testing.T) {
 func (tc *KserveTestCtx) ValidateNoKserveFeatureTrackers(t *testing.T) {
 	t.Helper()
 
-	tc.EnsureResourcesExistAndMatchCondition(
-		gvk.FeatureTracker,
-		tc.NamespacedName,
-		nil,
-		HaveEach(And(
-			jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-kserve-external-authz"),
-			jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-serverless-serving-gateways"),
-			jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-serverless-serving-deployment"),
-			jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-serverless-net-istio-secret-filtering"),
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.FeatureTracker, tc.NamespacedName),
+		WithCondition(
+			HaveEach(And(
+				jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-kserve-external-authz"),
+				jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-serverless-serving-gateways"),
+				jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-serverless-serving-deployment"),
+				jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-serverless-net-istio-secret-filtering"),
 
-			// there should be no FeatureTrackers owned by a Kserve
-			jq.Match(`.metadata.ownerReferences | all(.kind != "%s")`, gvk.Kserve.Kind),
-		)),
-		`Ensuring there are no Kserve FeatureTrackers`,
+				// there should be no FeatureTrackers owned by a Kserve
+				jq.Match(`.metadata.ownerReferences | all(.kind != "%s")`, tc.GVK.Kind),
+			)),
+		),
+		WithCustomErrorMsg(`Ensuring there are no Kserve FeatureTrackers`),
 	)
 }
 
@@ -193,11 +195,11 @@ func (tc *KserveTestCtx) ValidateDefaultCertsAvailable(t *testing.T) {
 
 	// Retrieve the default ingress secret used for ingress TLS termination.
 	defaultIngressSecret, err := cluster.FindDefaultIngressSecret(tc.g.Context(), tc.g.Client())
-	tc.g.Expect(err).ToNot(HaveOccurred())
+	tc.g.Expect(err).NotTo(HaveOccurred())
 
 	// Retrieve the DSCInitialization and DataScienceCluster instances.
-	dsci := tc.RetrieveDSCInitialization(tc.DSCInitializationNamespacedName)
-	dsc := tc.RetrieveDataScienceCluster(tc.DataScienceClusterNamespacedName)
+	dsci := tc.FetchDSCInitialization()
+	dsc := tc.FetchDataScienceCluster()
 
 	// Determine the control plane's ingress certificate secret name.
 	defaultSecretName := dsc.Spec.Components.Kserve.Serving.IngressGateway.Certificate.SecretName
@@ -207,7 +209,7 @@ func (tc *KserveTestCtx) ValidateDefaultCertsAvailable(t *testing.T) {
 
 	// Fetch the control plane secret from the ServiceMesh namespace.
 	ctrlPlaneSecret, err := cluster.GetSecret(tc.g.Context(), tc.g.Client(), dsci.Spec.ServiceMesh.ControlPlane.Namespace, defaultSecretName)
-	tc.g.Expect(err).ToNot(HaveOccurred())
+	tc.g.Expect(err).NotTo(HaveOccurred())
 
 	// Validate that the secret types match.
 	tc.EnsureResourcesAreEqual(
@@ -247,7 +249,9 @@ func (tc *KserveTestCtx) ValidateServingTransitionToRemoved(t *testing.T) {
 
 	// Ensure that the associated resources are removed from the cluster.
 	for _, child := range templatedResources {
-		tc.EnsureResourceGone(child.gvk, child.nn, `Ensuring %s/%s in %s no longer exists`, child.gvk, child.nn.Name, child.nn.Namespace)
+		tc.EnsureResourceGone(
+			WithMinimalObject(child.gvk, child.nn),
+			WithCustomErrorMsg(`Ensuring %s/%s in %s no longer exists`, child.gvk, child.nn.Name, child.nn.Namespace))
 	}
 
 	// Restore the Kserve deployment mode and serving state to "Serverless" and "Managed".
@@ -267,7 +271,7 @@ func (tc *KserveTestCtx) createDummyFeatureTrackers() {
 	}
 
 	// Retrieve the DataScienceCluster instance.
-	dsc := tc.RetrieveDataScienceCluster(tc.DataScienceClusterNamespacedName)
+	dsc := tc.FetchDataScienceCluster()
 
 	for _, name := range ftNames {
 		ft := &featuresv1.FeatureTracker{}
@@ -275,7 +279,7 @@ func (tc *KserveTestCtx) createDummyFeatureTrackers() {
 
 		tc.EnsureResourceCreatedOrUpdated(
 			WithMinimalObject(gvk.FeatureTracker, types.NamespacedName{Name: name}),
-			func(obj *unstructured.Unstructured) error {
+			WithMutateFunc(func(obj *unstructured.Unstructured) error {
 				if err := controllerutil.SetOwnerReference(dsc, obj, tc.Client().Scheme()); err != nil {
 					return err
 				}
@@ -286,8 +290,8 @@ func (tc *KserveTestCtx) createDummyFeatureTrackers() {
 				}
 
 				return nil
-			},
-			"error creating or updating pre-existing FeatureTracker",
+			}),
+			WithCustomErrorMsg("error creating or updating pre-existing FeatureTracker"),
 		)
 	}
 }
@@ -296,7 +300,9 @@ func (tc *KserveTestCtx) createDummyFeatureTrackers() {
 func (tc *KserveTestCtx) cleanExistingKnativeServing(t *testing.T) {
 	t.Helper()
 
-	ksl := tc.RetrieveResources(gvk.KnativeServing, types.NamespacedName{Namespace: knativeServingNamespace}, &client.ListOptions{Namespace: knativeServingNamespace})
+	ksl := tc.FetchResources(
+		WithMinimalObject(gvk.KnativeServing, types.NamespacedName{Namespace: knativeServingNamespace}),
+		WithListOptions(&client.ListOptions{Namespace: knativeServingNamespace}))
 
 	if len(ksl) != 0 {
 		t.Logf("Detected %d Knative Serving objects in namespace %s", len(ksl), knativeServingNamespace)
@@ -307,11 +313,11 @@ func (tc *KserveTestCtx) cleanExistingKnativeServing(t *testing.T) {
 		tc.g.Expect(err).NotTo(HaveOccurred(), "error marshalling Knative Serving object: %w", err)
 
 		t.Logf("Deleting Knative Serving %s in namespace %s: %s", obj.GetName(), obj.GetNamespace(), string(data))
-		tc.DeleteResourceIfExists(gvk.KnativeServing, types.NamespacedName{Namespace: knativeServingNamespace, Name: obj.GetName()})
+		tc.DeleteResourceIfExists(WithMinimalObject(gvk.KnativeServing, types.NamespacedName{Namespace: knativeServingNamespace, Name: obj.GetName()}))
 
 		// We also need to restart the Operator Pod.
 		operatorDeployment := "opendatahub-operator-controller-manager"
-		tc.DeleteResource(gvk.Deployment, types.NamespacedName{Namespace: tc.OperatorNamespace, Name: operatorDeployment})
+		tc.DeleteResource(WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.OperatorNamespace, Name: operatorDeployment}))
 	}
 }
 
@@ -319,13 +325,15 @@ func (tc *KserveTestCtx) cleanExistingKnativeServing(t *testing.T) {
 func (tc *KserveTestCtx) updateKserveDeploymentAndServingState(mode componentApi.DefaultDeploymentMode, state operatorv1.ManagementState) {
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		testf.TransformPipeline(
-			// Update defaultDeploymentMode
-			testf.Transform(`.spec.components.%s.defaultDeploymentMode = "%s"`, strings.ToLower(tc.GVK.Kind), mode),
-			// Update serving managementState
-			testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), state),
+		WithMutateFunc(
+			testf.TransformPipeline(
+				// Update defaultDeploymentMode
+				testf.Transform(`.spec.components.%s.defaultDeploymentMode = "%s"`, strings.ToLower(tc.GVK.Kind), mode),
+				// Update serving managementState
+				testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), state),
+			),
 		),
-		"Updating defaultDeploymentMode and serving managementState",
+		WithCustomErrorMsg("Updating defaultDeploymentMode and serving managementState"),
 	)
 }
 
@@ -333,35 +341,35 @@ func (tc *KserveTestCtx) updateKserveDeploymentAndServingState(mode componentApi
 func (tc *KserveTestCtx) updateKserveServingState(state operatorv1.ManagementState) {
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), state),
-		"Updating serving managementState",
+		WithMutateFunc(testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), state)),
+		WithCustomErrorMsg("Updating serving managementState"),
 	)
 }
 
 // validateOwnerRefsAndLabels validates the owner references and labels of Kserve components.
 func (tc *KserveTestCtx) validateOwnerRefsAndLabels(expectOwned bool) {
-	for _, child := range templatedResources {
-		conds := []gomegaTypes.GomegaMatcher{}
-		var msg string
+	var condition gomegaTypes.GomegaMatcher
+	var msg string
 
-		if expectOwned {
-			conds = append(conds,
-				jq.Match(`.metadata.labels | has("%s") == %v`, labels.PlatformPartOf, true),
-				jq.Match(`.metadata.ownerReferences | length == 1`),
-				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
-			)
-			msg = `Ensuring %s/%s in %s has expected owner ref and part-of label`
-		} else {
-			conds = append(conds,
-				jq.Match(`.metadata.labels | has("%s") == %v`, labels.PlatformPartOf, false),
-				jq.Match(`.metadata.ownerReferences | length == 0`),
-			)
-			msg = `Ensuring %s/%s in %s still exists but is de-owned`
-		}
-		tc.EnsureResourceExistsAndMatchesCondition(
-			child.gvk,
-			child.nn,
-			And(conds...),
-			msg, child.gvk, child.nn.Name, child.nn.Namespace)
+	if expectOwned {
+		condition = And(
+			jq.Match(`.metadata.labels | has("%s") == %v`, labels.PlatformPartOf, true),
+			jq.Match(`.metadata.ownerReferences | length == 1`),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
+		)
+		msg = `Ensuring %s/%s in %s has expected owner ref and part-of label`
+	} else {
+		condition = And(
+			jq.Match(`.metadata.labels | has("%s") == %v`, labels.PlatformPartOf, false),
+			jq.Match(`.metadata.ownerReferences | length == 0`),
+		)
+		msg = `Ensuring %s/%s in %s still exists but is de-owned`
+	}
+
+	for _, child := range templatedResources {
+		tc.EnsureResourceExists(
+			WithMinimalObject(child.gvk, child.nn),
+			WithCondition(condition),
+			WithCustomErrorMsg(msg, child.gvk.Kind, child.nn.Name, child.nn.Namespace))
 	}
 }

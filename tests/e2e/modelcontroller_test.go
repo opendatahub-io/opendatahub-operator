@@ -100,10 +100,12 @@ func (tc *ModelControllerTestCtx) ValidateComponentDeployed(
 	// Ensure the components are updated with the correct states in DataScienceCluster.
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		testf.TransformPipeline(
-			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelMeshServingComponentName, modelMeshState),
-			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, kserveState),
-			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelRegistryComponentName, modelRegistryState),
+		WithMutateFunc(
+			testf.TransformPipeline(
+				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelMeshServingComponentName, modelMeshState),
+				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, kserveState),
+				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelRegistryComponentName, modelRegistryState),
+			),
 		),
 	)
 
@@ -115,50 +117,52 @@ func (tc *ModelControllerTestCtx) ValidateComponentDeployed(
 	}
 
 	// Ensure ModelController condition matches the expected status in the DataScienceCluster.
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.DataScienceCluster,
-		tc.DataScienceClusterNamespacedName,
-		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, modelcontroller.ReadyConditionType, status),
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, modelcontroller.ReadyConditionType, status)),
 	)
 }
 
 // verifyResourcesDeployed ensures that the required resources are deployed.
 func (tc *ModelControllerTestCtx) verifyResourcesDeployed() {
 	// Ensure ModelController and related Deployments are deployed.
-	tc.EnsureResourceExistsAndMatchesCondition(
-		gvk.ModelController,
-		types.NamespacedName{Name: componentApi.ModelControllerInstanceName},
-		And(
-			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
-			jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady),
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ModelController, types.NamespacedName{Name: componentApi.ModelControllerInstanceName}),
+		WithCondition(
+			And(
+				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
+				jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady),
+			),
 		),
 	)
 
 	// Ensure the ModelController deployment exists.
 	tc.EnsureResourcesExist(
-		gvk.Deployment,
-		types.NamespacedName{Namespace: tc.AppsNamespace},
-		&client.ListOptions{
-			LabelSelector: k8slabels.Set{
-				labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-			}.AsSelector(),
-		},
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
 	)
 }
 
 // verifyResourcesNotDeployed ensures that the required resources are not deployed.
 func (tc *ModelControllerTestCtx) verifyResourcesNotDeployed() {
 	// Ensure that the components are not deployed
-	tc.EnsureResourceGone(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName})
-	tc.EnsureResourceGone(gvk.ModelMeshServing, types.NamespacedName{Name: componentApi.ModelMeshServingInstanceName})
-	tc.EnsureResourceGone(gvk.ModelController, types.NamespacedName{Name: componentApi.ModelControllerInstanceName})
+	tc.EnsureResourceGone(WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}))
+	tc.EnsureResourceGone(WithMinimalObject(gvk.ModelMeshServing, types.NamespacedName{Name: componentApi.ModelMeshServingInstanceName}))
+	tc.EnsureResourceGone(WithMinimalObject(gvk.ModelController, types.NamespacedName{Name: componentApi.ModelControllerInstanceName}))
 	tc.EnsureResourcesGone(
-		gvk.Deployment,
-		types.NamespacedName{Namespace: tc.AppsNamespace},
-		&client.ListOptions{
-			LabelSelector: k8slabels.Set{
-				labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-			}.AsSelector(),
-		},
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
 	)
 }

@@ -25,13 +25,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 )
 
@@ -81,9 +79,6 @@ type TestContext struct {
 
 	// Namespaced name of the test DataScienceCluster instance.
 	DataScienceClusterNamespacedName types.NamespacedName
-
-	// Test platform.
-	Platform common.Platform
 }
 
 var (
@@ -204,7 +199,7 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		testf.WithTOptions(
 			testf.WithEventuallyTimeout(defaultEventuallyTimeout),
 			testf.WithEventuallyPollingInterval(defaultEventuallyPollInterval),
-			testf.WithConsistentlyDuration(defaultConsistentlyDuration),
+			testf.WithConsistentlyDuration(defaultConsistentlyTimeout),
 			testf.WithConsistentlyPollingInterval(defaultConsistentlyPollInterval),
 		),
 	)
@@ -213,14 +208,11 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		return nil, err
 	}
 
-	release := cluster.GetRelease()
-
 	return &TestContext{
 		TestContext:                      tcf,
 		g:                                tcf.NewWithT(t),
 		DSCInitializationNamespacedName:  types.NamespacedName{Name: dsciInstanceName},
 		DataScienceClusterNamespacedName: types.NamespacedName{Name: dscInstanceName},
-		Platform:                         release.Name,
 		OperatorNamespace:                testOpts.operatorNamespace,
 		AppsNamespace:                    testOpts.appsNamespace,
 	}, nil
