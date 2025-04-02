@@ -253,6 +253,12 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 		Manifests:  make([]types.ManifestInfo, 0),
 	}
 
+	// reset conditions so any unknown condition eventually set on
+	// the owned resource get cleaned up. This is the case when a
+	// condition is replaced/removed.
+
+	rr.Conditions.Reset()
+
 	var provisionErr error
 
 	dsci, dscilErr := cluster.GetDSCI(ctx, r.Client)
