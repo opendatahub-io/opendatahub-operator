@@ -36,6 +36,13 @@ type WorkbenchesCommonSpec struct {
 	// workbenches spec exposed to DSC api
 	common.DevFlagsSpec `json:",inline"`
 	// workbenches spec exposed only to internal api
+
+	// Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "rhods-notebooks"
+	// +kubebuilder:default="rhods-notebooks"
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="WorkbenchNamespace is immutable"
+	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
+	// +kubebuilder:validation:MaxLength=63
+	WorkbenchNamespace string `json:"workbenchNamespace,omitempty"`
 }
 
 // WorkbenchesSpec defines the desired state of Workbenches
@@ -48,6 +55,7 @@ type WorkbenchesSpec struct {
 // WorkbenchesCommonStatus defines the shared observed state of Workbenches
 type WorkbenchesCommonStatus struct {
 	common.ComponentReleaseStatus `json:",inline"`
+	WorkbenchNamespace            string `json:"workbenchNamespace,omitempty"`
 }
 
 // WorkbenchesStatus defines the observed state of Workbenches
