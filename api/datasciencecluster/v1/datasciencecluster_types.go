@@ -27,7 +27,6 @@ import (
 // DataScienceClusterSpec defines the desired state of the cluster.
 type DataScienceClusterSpec struct {
 	// Override and fine tune specific component configurations.
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
 	Components Components `json:"components,omitempty"`
 }
 

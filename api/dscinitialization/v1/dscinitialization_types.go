@@ -27,19 +27,15 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 )
 
-// +operator-sdk:csv:customresourcedefinitions:order=1
-
 // DSCInitializationSpec defines the desired state of DSCInitialization.
 type DSCInitializationSpec struct {
 	// Namespace for applications to be installed, non-configurable, default to "redhat-ods-applications"
 	// +kubebuilder:default:=redhat-ods-applications
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="ApplicationsNamespace is immutable"
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=1
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
 	ApplicationsNamespace string `json:"applicationsNamespace,omitempty"`
 	// Enable monitoring on specified namespace
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=2
 	// +optional
 	Monitoring serviceApi.DSCIMonitoring `json:"monitoring,omitempty"`
 	// Configures Service Mesh as networking layer for Data Science Clusters components.
@@ -47,18 +43,15 @@ type DSCInitializationSpec struct {
 	// you should review this configuration if you are planning to use KServe.
 	// For other components, it enhances user experience; e.g. it provides unified
 	// authentication giving a Single Sign On experience.
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=3
 	// +optional
 	ServiceMesh *infrav1.ServiceMeshSpec `json:"serviceMesh,omitempty"`
 	// When set to `Managed`, adds odh-trusted-ca-bundle Configmap to all namespaces that includes
 	// cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].
 	// Additionally, this fields allows admins to add custom CA bundles to the configmap using the .CustomCABundle field.
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=4
 	// +optional
 	TrustedCABundle *TrustedCABundleSpec `json:"trustedCABundle,omitempty"`
 	// Internal development useful field to test customizations.
 	// This is not recommended to be used in production environment.
-	// +operator-sdk:csv:customresourcedefinitions:type=spec,order=5
 	// +optional
 	DevFlags *DevFlags `json:"devFlags,omitempty"`
 }
@@ -98,7 +91,6 @@ type DSCInitializationStatus struct {
 	Phase string `json:"phase,omitempty"`
 
 	// Conditions describes the state of the DSCInitializationStatus resource
-	// +operator-sdk:csv:customresourcedefinitions:type=status
 	// +optional
 	Conditions []conditionsv1.Condition `json:"conditions,omitempty"`
 
@@ -118,7 +110,6 @@ type DSCInitializationStatus struct {
 //+kubebuilder:printcolumn:name="Age",type=date,JSONPath=.metadata.creationTimestamp
 //+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=.status.phase,description="Current Phase"
 //+kubebuilder:printcolumn:name="Created At",type=string,JSONPath=.metadata.creationTimestamp
-//+operator-sdk:csv:customresourcedefinitions:displayName="DSC Initialization"
 
 // DSCInitialization is the Schema for the dscinitializations API.
 type DSCInitialization struct {
