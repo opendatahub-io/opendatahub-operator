@@ -7,12 +7,13 @@ import (
 )
 
 const (
-	cmdDir       = "cmd/component-codegen"
-	ApisDir      = "apis/components/v1alpha1"
-	Controllers  = "controllers/components"
-	DscTypesPath = "apis/datasciencecluster/v1/datasciencecluster_types.go"
-	templatesDir = cmdDir + "/templates"
-	mainFilePath = "main.go"
+	cmdDir          = "cmd/component-codegen"
+	ApisDir         = "api/components/v1alpha1"
+	Controllers     = "internal/controller/components"
+	DscTypesPath    = "api/datasciencecluster/v1/datasciencecluster_types.go"
+	templatesDir    = cmdDir + "/templates"
+	mainFilePath    = "cmd/main.go"
+	projectFilePath = "PROJECT"
 )
 
 type PathConfig struct {
@@ -36,11 +37,16 @@ func GenerateComponent(logger *logrus.Logger, componentName string) error {
 		}
 	}
 
-	var dirs = []string{DscTypesPath, mainFilePath}
+	dirs := []string{DscTypesPath, mainFilePath}
 	for _, dir := range dirs {
 		if err := addFieldsToStruct(logger, componentName, dir); err != nil {
 			return err
 		}
 	}
-	return addKubeBuilderRBAC(logger, componentName)
+
+	if err := addKubeBuilderRBAC(logger, componentName); err != nil {
+		return err
+	}
+
+	return updateProjectFile(logger, componentName)
 }

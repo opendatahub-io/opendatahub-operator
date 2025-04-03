@@ -1,16 +1,14 @@
 package {{ .Component | lowercase }}
 
 import (
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/controllers/status"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 )
 
 const (
 	ComponentName = componentApi.{{ .Component }}ComponentName
 
-	ReadyConditionType = conditionsv1.ConditionType(componentApi.{{ .Component }}Kind + status.ReadySuffix)
+	ReadyConditionType = componentApi.{{ .Component }}Kind + status.ReadySuffix
 
 	// TODO: Add the legacy componentName
 	// LegacyComponentName is the name of the component that is assigned to deployments

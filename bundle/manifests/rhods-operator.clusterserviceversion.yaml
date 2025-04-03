@@ -106,7 +106,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-03-21T15:39:05Z"
+    createdAt: "2025-03-31T15:18:18Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -183,7 +183,7 @@ metadata:
       }
     operatorframework.io/suggested-namespace: redhat-ods-operator
     operators.openshift.io/infrastructure-features: '["disconnected"]'
-    operators.operatorframework.io/builder: operator-sdk-v1.31.0
+    operators.operatorframework.io/builder: operator-sdk-v1.33.0
     operators.operatorframework.io/internal-objects: |-
       ["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -192,7 +192,7 @@ metadata:
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",  "workbenches.components.platform.opendatahub.io",
       "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io"]
-    operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.19.0

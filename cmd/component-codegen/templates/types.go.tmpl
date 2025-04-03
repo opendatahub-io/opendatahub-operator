@@ -1,7 +1,7 @@
 package v1alpha1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -30,7 +30,7 @@ type {{ .Component }}Spec struct {
 
 // {{ .Component }}CommonStatus defines the shared observed state of {{ .Component }}
 type {{ .Component }}CommonStatus struct {
-	// TODO: add fields/attributes if needed
+	common.ComponentReleaseStatus `json:",inline"`
 }
 
 // {{ .Component }}Status defines the observed state of {{ .Component }}
@@ -61,6 +61,22 @@ func (c *{{ .Component }}) GetDevFlags() *common.DevFlags {
 
 func (c *{{ .Component }}) GetStatus() *common.Status {
 	return &c.Status.Status
+}
+
+func (c *{{ .Component }}) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *{{ .Component }}) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
+}
+
+func (c *{{ .Component }}) GetReleaseStatus() *[]common.ComponentRelease {
+	return &c.Status.Releases
+}
+
+func (c *{{ .Component }}) SetReleaseStatus(releases []common.ComponentRelease) {
+	c.Status.Releases = releases
 }
 
 // +kubebuilder:object:root=true

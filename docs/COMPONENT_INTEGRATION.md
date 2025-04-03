@@ -23,7 +23,7 @@ The first step is to define the internal API spec for the new component and intr
 
 #### Define internal API spec for the new component
 
-1. Create a dedicated `<example_component_name>_types.go` file within `apis/components/v1alpha1` directory.
+1. Create a dedicated `<example_component_name>_types.go` file within `api/component/v1alpha1` directory.
 
 2. Define the internal API spec for the new component according to the expected definitions.
 You can use the following pseudo-implementation for reference:
@@ -32,7 +32,7 @@ You can use the following pseudo-implementation for reference:
 package v1alpha1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/apis/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -103,6 +103,22 @@ func (c *ExampleComponent) GetStatus() *common.Status {
 	return &c.Status.Status
 }
 
+func (c *TrainingOperator) GetConditions() []common.Condition {
+	return c.Status.GetConditions()
+}
+
+func (c *TrainingOperator) SetConditions(conditions []common.Condition) {
+	c.Status.SetConditions(conditions)
+}
+
+func (c *TrainingOperator) GetReleaseStatus() *[]common.ComponentRelease {
+	return &c.Status.Releases
+}
+
+func (c *TrainingOperator) SetReleaseStatus(releases []common.ComponentRelease) {
+	c.Status.Releases = releases
+}
+
 // +kubebuilder:object:root=true
 
 // ExampleComponentList contains a list of ExampleComponent
@@ -134,12 +150,12 @@ type DSCExampleComponentStatus struct {
 }
 ```
 
-Alternatively, you can refer to the existing integrated component APIs located within `apis/components/v1alpha1` directory.
+Alternatively, you can refer to the existing integrated component APIs located within `api/component/v1alpha1` directory.
 
 #### Add Component to DataScienceCluster API spec
 
 DataScienceCluster (DSC) CRD is responsible for enabling individual components and exposing them to end users.
-To introduce the newly defined component API, extend the `Components` struct within the DataScienceCluster API spec (located within `apis/datasciencecluster/v1`) to include the new API.
+To introduce the newly defined component API, extend the `Components` struct within the DataScienceCluster API spec (located within `api/datasciencecluster/v1`) to include the new API.
 
 ```diff
 type Components struct {
@@ -176,7 +192,7 @@ type ComponentsStatus struct {
 
 #### Update kubebuilder_rbac.go
 
-Add kubebuilder RBAC permissions intended for the new component into `controllers/datasciencecluster/kubebuilder_rbac.go`.
+Add kubebuilder RBAC permissions intended for the new component into `internal/controller/datasciencecluster/kubebuilder_rbac.go`.
 
 #### Update the dependent files
 
@@ -188,8 +204,8 @@ This command will (re-)generate the necessary kubebuilder functions, and update 
 
 ### 2. Create a module for the new component reconciliation logic
 
-To add new component-specific reconciler logic, create a dedicated `<example_component_name>` module, located in the `controllers/components` directory.
-For reference, the `controllers/components` directory contains reconciler implementations for the currently integrated components.
+To add new component-specific reconciler logic, create a dedicated `<example_component_name>` module, located in the `internal/controller/components` directory.
+For reference, the `internal/controller/components` directory contains reconciler implementations for the currently integrated components.
 
 #### Implement the component handler interface
 
@@ -212,10 +228,10 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 
 func (s *componentHandler) Init(platform cluster.Platform) error 
 
-func (s *componentHandler) UpdateDSCStatus(dsc *dscv1.DataScienceCluster, obj client.Object) error 
+func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error)
 ```
 
-Please refer the existing component implementations in the `controllers/components` directory for further details.
+Please refer the existing component implementations in the `internal/controller/components` directory for further details.
 
 #### Implement new component reconciler
 
@@ -277,7 +293,7 @@ These support:
 
 If the new component requires additional custom logic, custom actions can also be added to the builder via the respective `.WithAction()` calls.
 
-For practical examples of all the above-mentioned functionality, please refer to the implementations within `controllers/components` directory.
+For practical examples of all the above-mentioned functionality, please refer to the implementations within `internal/controller/components` directory.
 
 #### Update main.go
 
@@ -290,7 +306,7 @@ import (
 	// ... existing imports ...
 
 	// ... component imports for the integrated components ...
-+	_ "github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/<example_component>"
++	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/<example_component>"
 )
 ```
 
@@ -304,7 +320,7 @@ Existing e2e test suites for the integrated components can be also found there.
 
 Lastly, please update the following files to fully integrate new component tests into the overall test suite:
 - update `setupDSCInstance()` function in `tests/e2e/helper_test.go` to set new component in DSC
-- update `newDSC()` function in `controllers/webhook/webhook_suite_test.go` to update creation of DSC include the new component
+- update `newDSC()` function in `/internal/webhook/webhook_suite_test.go` to update creation of DSC include the new component
 - update `componentsTestSuites` map in `tests/e2e/controller_test.go` to include the reference for the new component e2e test suite
 
 ### 4. Update Prometheus config and tests
@@ -332,4 +348,4 @@ Currently integrated components are:
 - [Workbenches](https://github.com/opendatahub-io/notebooks)
 - [Feast Operator](https://github.com/opendatahub-io/feast)
 
-The particular controller implementations for the listed components are located in the `controllers/components` directory and the corresponding internal component APIs are located in `apis/components/v1alpha1`.
+The particular controller implementations for the listed components are located in the `internal/controller/components` directory and the corresponding internal component APIs are located in `api/component/v1alpha1`.

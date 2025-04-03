@@ -32,15 +32,15 @@ linters-settings:
     require-specific: true
   importas:
     alias:
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/apis/dscinitialization/v1
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1
         alias: dsciv1
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/apis/datasciencecluster/v1
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1
         alias: dscv1
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/apis/infrastructure/v1
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1
         alias: infrav1
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/apis/components/v1alpha1
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
         alias: componentApi
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/apis/services/v1alpha1
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1
         alias: serviceApi
       - pkg: k8s.io/apimachinery/pkg/api/errors
         alias: k8serr
@@ -49,13 +49,13 @@ linters-settings:
         alias: $1$2
       - pkg: github.com/openshift/api/(\w+)/(v[\w\d]+)
         alias: $1$2
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/controllers/datasciencecluster
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster
         alias: dscctrl
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/controllers/dscinitialization
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization
         alias: dscictrl
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/controllers/components/(\w+)
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/(\w+)
         alias: ${1}ctrl
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/controllers/services/(\w+)
+      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/(\w+)
         alias: ${1}ctrl
   ireturn:
     allow:
@@ -121,7 +121,7 @@ linters:
 
 issues:
   exclude-dirs:
-    - apis
+    - api
   exclude-rules:
     - path: tests/*/(.+)_test\.go
       linters:
