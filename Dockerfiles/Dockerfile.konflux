@@ -23,9 +23,9 @@ COPY go.sum go.sum
 RUN go mod download
 
 # Copy the go source
-COPY apis/ apis/
-COPY controllers/ controllers/
-COPY main.go main.go
+COPY api/ api/
+COPY internal/ internal/
+COPY cmd/main.go cmd/main.go
 COPY pkg/ pkg/
 
 # Copy monitoring config
@@ -36,7 +36,7 @@ COPY config/osd-configs/ /opt/manifests/osd-configs/
 
 
 # Build
-RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -tags strictfipsruntime -o manager main.go
+RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -tags strictfipsruntime -o manager cmd/main.go
 
 ################################################################################
 FROM registry.redhat.io/ubi8/ubi-minimal@sha256:33161cf5ec11ea13bfe60cad64f56a3aa4d893852e8ec44b2fd2a6b40cc38539
