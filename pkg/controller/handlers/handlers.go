@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 func LabelToName(key string) handler.EventHandler {
@@ -60,6 +61,14 @@ func ToNamed(name string) handler.EventHandler {
 			NamespacedName: types.NamespacedName{
 				Name: name,
 			},
+		}}
+	})
+}
+
+func RequestFromObject() handler.EventHandler {
+	return Fn(func(ctx context.Context, obj client.Object) []reconcile.Request {
+		return []reconcile.Request{{
+			NamespacedName: resources.NamespacedNameFromObject(obj),
 		}}
 	})
 }
