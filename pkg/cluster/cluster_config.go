@@ -127,8 +127,26 @@ func getOperatorNamespace() (string, error) {
 }
 
 func IsNotReservedNamespace(ns *corev1.Namespace) bool {
-	return !strings.HasPrefix(ns.GetName(), "openshift-") && !strings.HasPrefix(ns.GetName(), "kube-") &&
-		ns.GetName() != "default" && ns.GetName() != "openshift"
+	return !IsReservedNamespace(ns)
+}
+
+func IsReservedNamespace(ns *corev1.Namespace) bool {
+	switch {
+	case strings.HasPrefix(ns.GetName(), "openshift-"):
+		return true
+	case strings.HasPrefix(ns.GetName(), "kube-"):
+		return true
+	case ns.GetName() == "default":
+		return true
+	case ns.GetName() == "openshift":
+		return true
+	default:
+		return false
+	}
+}
+
+func IsActiveNamespace(ns *corev1.Namespace) bool {
+	return ns.Status.Phase == corev1.NamespaceActive
 }
 
 // GetClusterServiceVersion retries CSV only from the defined namespace.
