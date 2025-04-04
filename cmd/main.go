@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
@@ -65,17 +66,13 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/certconfigmapgenerator"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/secretgenerator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/setupcontroller"
+	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -95,6 +92,11 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/secretgenerator"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/setup"
 )
 
 var (
@@ -137,12 +139,19 @@ func initComponents(_ context.Context, p common.Platform) error {
 	})
 }
 
-func main() { //nolint:funlen,maintidx,gocyclo
+func initServices(_ context.Context, p common.Platform) error {
+	return sr.ForEach(func(sh sr.ServiceHandler) error {
+		return sh.Init(p)
+	})
+}
+
+func main() { //nolint:funlen,maintidx
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
 	var monitoringNamespace string
 	var logmode string
+	var pprofAddr string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -152,6 +161,8 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	flag.StringVar(&monitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster "+
 		"monitoring stack will be deployed")
 	flag.StringVar(&logmode, "log-mode", "", "Log mode ('', prod, devel), default to ''")
+	flag.StringVar(&pprofAddr, "pprof-bind-address", os.Getenv("PPROF_BIND_ADDRESS"), "The address that pprof binds to. "+
+		"Read from PPROF_BIND_ADDRESS env var if not provided.")
 
 	opts := zap.Options{}
 	opts.BindFlags(flag.CommandLine)
@@ -185,6 +196,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// Get operator platform
 	release := cluster.GetRelease()
 	platform := release.Name
+
+	if err := initServices(ctx, platform); err != nil {
+		setupLog.Error(err, "unable to init services")
+		os.Exit(1)
+	}
 
 	if err := initComponents(ctx, platform); err != nil {
 		setupLog.Error(err, "unable to init components")
@@ -221,10 +237,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			// TODO: we can limit scope of namespace if we find a way to only get list of DSProject
 			// also need for monitoring, trustcabundle
 			&corev1.Namespace{}: {},
-			// For catsrc (avoid frequently check cluster type)
-			&ofapiv1alpha1.CatalogSource{}: {
-				Field: fields.Set{"metadata.name": "addon-managed-odh-catalog"}.AsSelector(),
-			},
 			// For domain to get OpenshiftIngress and default cert
 			&operatorv1.IngressController{}: {
 				Field: fields.Set{"metadata.name": "default"}.AsSelector(),
@@ -277,6 +289,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			Port: 9443,
 			// TLSOpts: , // TODO: it was not set in the old code
 		}),
+		PprofBindAddress:       pprofAddr,
 		HealthProbeBindAddress: probeAddr,
 		Cache:                  cacheOptions,
 		LeaderElection:         enableLeaderElection,
@@ -301,6 +314,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 					&authorizationv1.SelfSubjectRulesReview{},
 					&corev1.Pod{},
 					&userv1.Group{},
+					&ofapiv1alpha1.CatalogSource{},
 				},
 				// Set it to true so the cache-backed client reads unstructured objects
 				// or lists from the cache instead of a live lookup.
@@ -335,42 +349,16 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	if err = (&setupcontroller.SetupControllerReconciler{
-		Client: oc,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "SetupController")
-		os.Exit(1)
-	}
-
-	if err = (&secretgenerator.SecretGeneratorReconciler{
-		Client: oc,
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "SecretGenerator")
-		os.Exit(1)
-	}
-
-	if err = (&certconfigmapgenerator.CertConfigmapGeneratorReconciler{
-		Client: oc,
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "CertConfigmapGenerator")
+	// Initialize service reconcilers
+	if err := CreateServiceReconcilers(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create service controllers")
 		os.Exit(1)
 	}
 
 	// Initialize component reconcilers
 	if err = CreateComponentReconcilers(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create component controllers")
 		os.Exit(1)
-	}
-
-	if err := auth.NewServiceReconciler(ctx, mgr); err != nil {
-		os.Exit(1)
-	}
-
-	if platform == cluster.ManagedRhoai {
-		if err := monitoring.NewServiceReconciler(ctx, mgr); err != nil {
-			os.Exit(1)
-		}
 	}
 
 	// Check if user opted for disabling DSC configuration
@@ -441,10 +429,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
-	}
-	if err := initComponents(ctx, platform); err != nil {
-		setupLog.Error(err, "unable to init components")
 		os.Exit(1)
 	}
 
@@ -528,8 +512,32 @@ func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platfor
 }
 
 func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error {
-	// TODO: can it be moved to initComponents?
+	l := logf.FromContext(ctx)
+
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
-		return ch.NewComponentReconciler(ctx, mgr)
+		l.Info("creating reconciler", "type", "component", "name", ch.GetName())
+		if err := ch.NewComponentReconciler(ctx, mgr); err != nil {
+			return fmt.Errorf("error creating %s component reconciler: %w", ch.GetName(), err)
+		}
+
+		return nil
+	})
+}
+
+func CreateServiceReconcilers(ctx context.Context, mgr manager.Manager) error {
+	rel := cluster.GetRelease()
+	l := logf.FromContext(ctx)
+
+	return sr.ForEach(func(sh sr.ServiceHandler) error {
+		if sh.GetManagementState(rel.Name) != operatorv1.Managed {
+			return nil
+		}
+
+		l.Info("creating reconciler", "type", "service", "name", sh.GetName())
+		if err := sh.NewReconciler(ctx, mgr); err != nil {
+			return fmt.Errorf("error creating %s service reconciler: %w", sh.GetName(), err)
+		}
+
+		return nil
 	})
 }

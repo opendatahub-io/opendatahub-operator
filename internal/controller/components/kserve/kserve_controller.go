@@ -139,8 +139,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(addServingCertResourceIfManaged).
 		WithAction(removeOwnershipFromUnmanagedResources).
 		WithAction(cleanUpTemplatedResources).
-
-		//
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
 			// These are the default labels added by the legacy deploy method

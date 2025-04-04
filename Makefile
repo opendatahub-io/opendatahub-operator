@@ -58,22 +58,22 @@ endif
 
 ##@ Build Dependencies
 ## Tool Binaries
-KUSTOMIZE ?= $(LOCALBIN)/kustomize
-CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
-ENVTEST ?= $(LOCALBIN)/setup-envtest
+KUSTOMIZE ?= $(LOCALBIN)/kustomize-$(KUSTOMIZE_VERSION)
+CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen-$(CONTROLLER_TOOLS_VERSION)
+ENVTEST ?= $(LOCALBIN)/setup-envtest-$(ENVTEST_VERSION)
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
-GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
+GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
 CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
-YQ ?= $(LOCALBIN)/yq
+YQ ?= $(LOCALBIN)/yq-$(YQ_VERSION)
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v5.0.2
-CONTROLLER_GEN_VERSION ?= v0.16.1
-OPERATOR_SDK_VERSION ?= v1.33.0
+KUSTOMIZE_VERSION ?= v5.3.0
+CONTROLLER_TOOLS_VERSION ?= v0.16.1
+OPERATOR_SDK_VERSION ?= v1.37.0
 GOLANGCI_LINT_VERSION ?= v1.64.7
 YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
-ENVTEST_PACKAGE_VERSION = v0.0.0-20240813183042-b901db121e1f
+ENVTEST_VERSION = v0.0.0-20240813183042-b901db121e1f
 CRD_REF_DOCS_VERSION = 0.1.0
 
 PLATFORM ?= linux/amd64
@@ -199,7 +199,7 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager cmd/main.go
 
-RUN_ARGS = --log-mode=devel
+RUN_ARGS = --log-mode=devel --pprof-bind-address=127.0.0.1:6060
 GO_RUN_MAIN = OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) DEFAULT_MANIFESTS_PATH=$(DEFAULT_MANIFESTS_PATH) go run $(GO_RUN_ARGS) ./cmd/main.go $(RUN_ARGS)
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
@@ -265,17 +265,17 @@ KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/k
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
 $(KUSTOMIZE): $(LOCALBIN)
-	test -s $(KUSTOMIZE) || { curl -s $(KUSTOMIZE_INSTALL_SCRIPT) | bash -s -- $(subst v,,$(KUSTOMIZE_VERSION)) $(LOCALBIN); }
+	$(call go-install-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v5,$(KUSTOMIZE_VERSION))
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
-	test -s $(CONTROLLER_GEN) || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_GEN_VERSION)
+	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen,$(CONTROLLER_TOOLS_VERSION))
 
 .PHONY: yq
 yq: $(YQ) ## Download yq locally if necessary.
 $(YQ): $(LOCALBIN)
-	test -s $(YQ) || GOBIN=$(LOCALBIN) go install github.com/mikefarah/yq/v4@$(YQ_VERSION)
+	$(call go-install-tool,$(YQ),github.com/mikefarah/yq/v4,$(YQ_VERSION))
 
 OPERATOR_SDK_DL_URL ?= https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)
 .PHONY: operator-sdk
@@ -285,13 +285,10 @@ $(OPERATOR_SDK): $(LOCALBIN)
 	test -s $(OPERATOR_SDK) || curl -sSLo $(OPERATOR_SDK) $(OPERATOR_SDK_DL_URL)/operator-sdk_$${OS}_$${ARCH} && \
 	chmod +x $(OPERATOR_SDK) ;\
 
-
-GOLANGCI_LINT_INSTALL_SCRIPT ?= 'https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh'
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
-	test -s $(GOLANGCI_LINT) || { curl -sSfL $(GOLANGCI_LINT_INSTALL_SCRIPT) | bash -s $(GOLANGCI_LINT_VERSION); }
-
+	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,${GOLANGCI_LINT_VERSION})
 
 OS=$(shell uname -s)
 ARCH=$(shell uname -m)
@@ -391,12 +388,12 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC=./internal/controller/... ./tests/integration/... ./pkg/...
+TEST_SRC=./internal/... ./tests/integration/... ./pkg/...
 
 .PHONY: envtest
-envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
+envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
 $(ENVTEST): $(LOCALBIN)
-	test -s $(ENVTEST) || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_PACKAGE_VERSION)
+	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
 
 .PHONY: test
 test: unit-test e2e-test
@@ -431,3 +428,17 @@ clean: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) cache clean
 	chmod u+w -R $(LOCALBIN) # envtest makes its dir RO
 	rm -rf $(CLEANFILES)
+
+# go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
+# $1 - target path with name of binary (ideally with version)
+# $2 - package url which can be installed
+# $3 - specific version of package
+define go-install-tool
+@[ -f $(1) ] || { \
+set -e; \
+package=$(2)@$(3) ;\
+echo "Downloading $${package}" ;\
+GOBIN=$(LOCALBIN) go install $${package} ;\
+mv "$$(echo "$(1)" | sed "s/-$(3)$$//")" $(1) ;\
+}
+endef

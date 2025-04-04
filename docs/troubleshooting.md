@@ -90,3 +90,31 @@ In the cluster, one namespace has label `opendatahub.io/application-namespace=tr
 
 3. error "only support max. one namespace with label: opendatahub.io/application-namespace=true"
 Refer to (1).
+
+### Profiling with pprof
+
+If running with the `make run`, or `make run-nowebhook` commands, pprof is enabled.
+
+When pprof is enabled, you can explore collected pprof profiles using commands such as:
+
+- `go tool pprof -http : http://localhost:6060/debug/pprof/heap`
+- `go tool pprof -http : http://localhost:6060/debug/pprof/profile`
+- `go tool pprof -http : http://localhost:6060/debug/pprof/block`
+
+You can also save a pprof file for use in other tools or offline analysis as follows:
+
+```shell
+curl -s "http://127.0.0.1:6060/debug/pprof/profile" > ./cpu-profile.out
+```
+
+This is disabled by default outside local development, but can be enabled by setting the `PPROF_BIND_ADDRESS` env var:
+
+```diff
+  - name: PPROF_BIND_ADDRESS
+    value: 0.0.0.0:6060
+```
+
+This can be set in an existing opendatahub-operator-controller-manager deployment, or on the operator subscription per
+https://github.com/operator-framework/operator-lifecycle-manager/blob/master/doc/design/subscription-config.md#env
+
+See https://github.com/google/pprof/blob/main/doc/README.md for more details on how to use pprof

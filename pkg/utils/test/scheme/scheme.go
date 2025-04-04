@@ -7,6 +7,7 @@ import (
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -31,6 +32,8 @@ var (
 		apiextensionsv1.AddToScheme,
 		oauthv1.AddToScheme,
 		ofapiv2.AddToScheme,
+		coordinationv1.AddToScheme,
+		apiextensionsv1.AddToScheme,
 	}
 )
 

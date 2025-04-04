@@ -256,7 +256,6 @@ spec:
                         enum:
                         - Serverless
                         - RawDeployment
-                        pattern: ^(Serverless|RawDeployment)$
                         type: string
                       devFlags:
                         description: Add developer fields
@@ -315,13 +314,12 @@ spec:
                         default: Headless
                         description: |-
                           Configures the type of service that is created for InferenceServices using RawDeployment.
-                          The values for RawDeploymentServiceConfig can be "Headless" or "Headed".
-                          Headless : sets "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.
-                          Headed : sets "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve.
+                          The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".
+                          Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.
+                          Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve.
                         enum:
                         - Headless
                         - Headed
-                        pattern: ^(Headless|Headed)$
                         type: string
                       serving:
                         description: |-
@@ -716,6 +714,13 @@ spec:
                         - Managed
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                      workbenchNamespace:
+                        default: rhods-notebooks
+                        description: Namespace for workbenches to be installed, configurable
+                          only once when workbenches are enabled, defaults to "rhods-notebooks"
+                        maxLength: 63
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                         type: string
                     type: object
                 type: object
@@ -1151,6 +1156,8 @@ spec:
                         x-kubernetes-list-map-keys:
                         - name
                         x-kubernetes-list-type: map
+                      workbenchNamespace:
+                        type: string
                     type: object
                 type: object
               conditions:
