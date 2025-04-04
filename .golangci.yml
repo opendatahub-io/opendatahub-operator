@@ -75,6 +75,7 @@ linters-settings:
       - dynamic.Interface
       - predicate.Predicate
       - client.Object
+      - client.Client
       - common.PlatformObject
       - types.AsyncAssertion
       - kubernetes.Interface

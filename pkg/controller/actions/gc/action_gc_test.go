@@ -1,3 +1,4 @@
+//nolint:dupl
 package gc_test
 
 import (
@@ -12,6 +13,7 @@ import (
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
+	"github.com/stretchr/testify/mock"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -30,11 +32,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc/engine"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
 
 	. "github.com/onsi/gomega"
 )
@@ -161,13 +163,6 @@ func TestGcAction(t *testing.T) {
 			id := xid.New().String()
 			nsn := xid.New().String()
 
-			gci := engine.New(
-				// This is required as there are no kubernetes controller running
-				// with the envtest, hence we can't use the foreground deletion
-				// policy (default)
-				engine.WithDeletePropagationPolicy(metav1.DeletePropagationBackground),
-			)
-
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: nsn,
@@ -175,8 +170,6 @@ func TestGcAction(t *testing.T) {
 			}
 
 			g.Expect(cli.Create(ctx, &ns)).
-				NotTo(HaveOccurred())
-			g.Expect(gci.Refresh(ctx, cli, nsn)).
 				NotTo(HaveOccurred())
 
 			rr := types.ReconciliationRequest{
@@ -202,6 +195,12 @@ func TestGcAction(t *testing.T) {
 					},
 				},
 				Generated: tt.generated,
+				Controller: mocks.NewMockController(func(m *mocks.MockController) {
+					m.On("GetClient").Return(envTest.Client())
+					m.On("GetDynamicClient").Return(envTest.DynamicClient())
+					m.On("GetDiscoveryClient").Return(envTest.DiscoveryClient())
+					m.On("Owns", mock.Anything).Return(false)
+				}),
 			}
 
 			g.Expect(cli.Create(ctx, rr.Instance)).
@@ -319,7 +318,7 @@ func TestGcAction(t *testing.T) {
 				NotTo(HaveOccurred())
 
 			opts := make([]gc.ActionOpts, 0, len(tt.options)+1)
-			opts = append(opts, gc.WithEngine(gci))
+			opts = append(opts, gc.WithDeletePropagationPolicy(metav1.DeletePropagationBackground))
 			opts = append(opts, gc.InNamespace(nsn))
 			opts = append(opts, tt.options...)
 
@@ -392,13 +391,6 @@ func TestGcActionOwn(t *testing.T) {
 			g := NewWithT(t)
 			nsn := xid.New().String()
 
-			gci := engine.New(
-				// This is required as there are no kubernetes controller running
-				// with the envtest, hence we can't use the foreground deletion
-				// policy (default)
-				engine.WithDeletePropagationPolicy(metav1.DeletePropagationBackground),
-			)
-
 			ns := corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: nsn,
@@ -406,8 +398,6 @@ func TestGcActionOwn(t *testing.T) {
 			}
 
 			g.Expect(cli.Create(ctx, &ns)).
-				NotTo(HaveOccurred())
-			g.Expect(gci.Refresh(ctx, cli, nsn)).
 				NotTo(HaveOccurred())
 
 			rr := types.ReconciliationRequest{
@@ -433,6 +423,12 @@ func TestGcActionOwn(t *testing.T) {
 					},
 				},
 				Generated: true,
+				Controller: mocks.NewMockController(func(m *mocks.MockController) {
+					m.On("GetClient").Return(envTest.Client())
+					m.On("GetDynamicClient").Return(envTest.DynamicClient())
+					m.On("GetDiscoveryClient").Return(envTest.DiscoveryClient())
+					m.On("Owns", mock.Anything).Return(false)
+				}),
 			}
 
 			g.Expect(cli.Create(ctx, rr.Instance)).
@@ -477,7 +473,7 @@ func TestGcActionOwn(t *testing.T) {
 				NotTo(HaveOccurred())
 
 			opts := make([]gc.ActionOpts, 0, len(tt.options)+1)
-			opts = append(opts, gc.WithEngine(gci))
+			opts = append(opts, gc.WithDeletePropagationPolicy(metav1.DeletePropagationBackground))
 			opts = append(opts, gc.InNamespace(nsn))
 			opts = append(opts, tt.options...)
 
@@ -508,13 +504,6 @@ func TestGcActionCluster(t *testing.T) {
 	cli := envTest.Client()
 	nsn := xid.New().String()
 
-	gci := engine.New(
-		// This is required as there are no kubernetes controller running
-		// with the envtest, hence we can't use the foreground deletion
-		// policy (default)
-		engine.WithDeletePropagationPolicy(metav1.DeletePropagationBackground),
-	)
-
 	ns := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: nsn,
@@ -522,8 +511,6 @@ func TestGcActionCluster(t *testing.T) {
 	}
 
 	g.Expect(cli.Create(ctx, &ns)).
-		NotTo(HaveOccurred())
-	g.Expect(gci.Refresh(ctx, cli, nsn)).
 		NotTo(HaveOccurred())
 
 	rr := types.ReconciliationRequest{
@@ -549,6 +536,12 @@ func TestGcActionCluster(t *testing.T) {
 			},
 		},
 		Generated: true,
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("GetClient").Return(envTest.Client())
+			m.On("GetDynamicClient").Return(envTest.DynamicClient())
+			m.On("GetDiscoveryClient").Return(envTest.DiscoveryClient())
+			m.On("Owns", mock.Anything).Return(false)
+		}),
 	}
 
 	g.Expect(cli.Create(ctx, rr.Instance)).
@@ -613,7 +606,7 @@ func TestGcActionCluster(t *testing.T) {
 	g.Expect(cli.Create(ctx, &cr2)).
 		NotTo(HaveOccurred())
 
-	a := gc.NewAction(gc.WithEngine(gci), gc.InNamespace(nsn))
+	a := gc.NewAction(gc.WithDeletePropagationPolicy(metav1.DeletePropagationBackground), gc.InNamespace(nsn))
 
 	gc.DeletedTotal.Reset()
 	gc.DeletedTotal.WithLabelValues("dashboard").Add(0)
@@ -651,12 +644,6 @@ func TestGcActionOnce(t *testing.T) {
 	cli := envTest.Client()
 	nsn := xid.New().String()
 
-	gci := engine.New(
-		// Since test env does not support foreground deletion, we can
-		// use it to simulate a resource deleted, but not removed.
-		engine.WithDeletePropagationPolicy(metav1.DeletePropagationForeground),
-	)
-
 	ns := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: nsn,
@@ -664,8 +651,6 @@ func TestGcActionOnce(t *testing.T) {
 	}
 
 	g.Expect(cli.Create(ctx, &ns)).
-		NotTo(HaveOccurred())
-	g.Expect(gci.Refresh(ctx, cli, nsn)).
 		NotTo(HaveOccurred())
 
 	rr := types.ReconciliationRequest{
@@ -691,6 +676,12 @@ func TestGcActionOnce(t *testing.T) {
 			},
 		},
 		Generated: true,
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("GetClient").Return(envTest.Client())
+			m.On("GetDynamicClient").Return(envTest.DynamicClient())
+			m.On("GetDiscoveryClient").Return(envTest.DiscoveryClient())
+			m.On("Owns", mock.Anything).Return(false)
+		}),
 	}
 
 	g.Expect(cli.Create(ctx, rr.Instance)).
@@ -723,7 +714,7 @@ func TestGcActionOnce(t *testing.T) {
 	g.Expect(cli.Create(ctx, &cm)).
 		NotTo(HaveOccurred())
 
-	a := gc.NewAction(gc.WithEngine(gci), gc.InNamespace(nsn))
+	a := gc.NewAction(gc.WithDeletePropagationPolicy(metav1.DeletePropagationBackground), gc.InNamespace(nsn))
 
 	gc.DeletedTotal.Reset()
 	gc.DeletedTotal.WithLabelValues("dashboard").Add(0)
