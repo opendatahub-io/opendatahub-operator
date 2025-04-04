@@ -36,12 +36,21 @@ import (
 // Test function signature.
 type TestFn func(t *testing.T)
 
+// DeletionPolicy type representing the deletion policy.
+type DeletionPolicy string
+
+// Constants for the valid deletion policies.
+const (
+	DeletionPolicyAlways    DeletionPolicy = "always"
+	DeletionPolicyOnFailure DeletionPolicy = "on-failure"
+	DeletionPolicyNever     DeletionPolicy = "never"
+)
+
 // Struct to store test configurations.
 type TestContextConfig struct {
 	operatorNamespace string
 	appsNamespace     string
-	skipDeletion      bool
-	deleteOnFailure   bool
+	deletionPolicy    DeletionPolicy
 
 	operatorControllerTest bool
 	webhookTest            bool
@@ -193,6 +202,19 @@ func (tg *TestGroup) Run(t *testing.T) {
 	}
 }
 
+// Helper function to handle cleanup logic.
+func handleCleanup(t *testing.T) {
+	t.Helper()
+
+	// Cleanup logic to be shared for "always" and "on-failure" policies
+	t.Cleanup(func() {
+		if t.Failed() {
+			fmt.Println("Test failed, running cleanup...")
+			CleanupAllResources(t)
+		}
+	})
+}
+
 // NewTestContext initializes a new test context.
 func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 	tcf, err := testf.NewTestContext(
@@ -236,32 +258,41 @@ func TestOdhOperator(t *testing.T) {
 	mustRun(t, Components.String(), Components.Run)
 	mustRun(t, Services.String(), Services.Run)
 
-	// Run deletion if skipDeletion is not set
-	if !testOpts.skipDeletion {
+	// Deletion logic based on deletionPolicy
+	switch testOpts.deletionPolicy {
+	case DeletionPolicyAlways:
+		// Always run deletion tests
+		fmt.Println("Deletion Policy: Always. Running deletion tests.")
 		if testOpts.operatorControllerTest {
 			// this is a negative test case, since by using the positive CM('true'), even CSV gets deleted which leaves no operator pod in prow
 			mustRun(t, "Deletion ConfigMap E2E Tests", cfgMapDeletionTestSuite)
 		}
-
 		mustRun(t, "DataScienceCluster/DSCInitialization Deletion E2E Tests", deletionTestSuite)
-	}
 
-	// Cleanup logic after the test finishes, if the test failed
-	t.Cleanup(func() {
-		if t.Failed() && testOpts.deleteOnFailure {
-			fmt.Println("Test failed, running cleanup...")
-			// Cleanup all resources (DSC, DSCI, etc.)
-			CleanupAllResources(t)
-		}
-	})
+		// Always perform cleanup after failure
+		handleCleanup(t)
+
+	case DeletionPolicyOnFailure:
+		// Only cleanup if the test fails
+		fmt.Println("Deletion Policy: On Failure. Will delete resources only on failure.")
+		handleCleanup(t)
+
+	case DeletionPolicyNever:
+		// Do nothing for "never" policy
+		fmt.Println("Deletion Policy: Never. Skipping deletion tests.")
+
+	default:
+		fmt.Printf("Unknown deletion-policy: %s", testOpts.deletionPolicy)
+		os.Exit(1)
+	}
 }
 
 func TestMain(m *testing.M) {
 	// call flag.Parse() here if TestMain uses flags
 	flag.StringVar(&testOpts.operatorNamespace, "operator-namespace", "opendatahub-operator-system", "Namespace where the odh operator is deployed")
 	flag.StringVar(&testOpts.appsNamespace, "applications-namespace", "opendatahub", "Namespace where the odh applications are deployed")
-	flag.BoolVar(&testOpts.skipDeletion, "skip-deletion", false, "skip deletion of the controllers")
-	flag.BoolVar(&testOpts.deleteOnFailure, "delete-on-failure", false, "Delete DSCInitialization/DataScienceCluster on test failure")
+	flag.StringVar((*string)(&testOpts.deletionPolicy), "deletion-policy", "always",
+		"Specify when to delete DataScienceCluster, DSCInitialization, and controllers. Options: always, on-failure, never.")
 
 	flag.BoolVar(&testOpts.operatorControllerTest, "test-operator-controller", true, "run operator controller tests")
 	flag.BoolVar(&testOpts.webhookTest, "test-webhook", true, "run webhook tests")

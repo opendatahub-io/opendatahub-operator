@@ -54,13 +54,16 @@ const (
 const (
 	generalRetryInterval = 10 * time.Second // Retry interval for general operations
 
-	defaultEventuallyTimeout        = 5 * time.Minute  // Set default timeout for Eventually (default is 1 second).
-	defaultEventuallyPollInterval   = 2 * time.Second  // Set default timeout for Eventually (default is 1 second).
-	defaultConsistentlyTimeout      = 10 * time.Second // Set default duration for Consistently (default is 2 seconds).
-	defaultConsistentlyPollInterval = 2 * time.Second  // Set default polling interval for Consistently (default is 50ms).
+	// Gomega default values for Eventually/Consistently can be found here:
+	// https://onsi.github.io/gomega/#making-asynchronous-assertions
 
-	eventuallyTimeoutMedium = 7 * time.Minute  // Medium timeout for readiness checks (e.g., CSV, DSC)
-	eventuallyTimeoutLong   = 10 * time.Minute // Longer timeout for more complex readiness (e.g., DSCInitialization, KServe)
+	defaultEventuallyTimeout        = 5 * time.Minute  // Timeout used for Eventually; overrides Gomega's default of 1 second.
+	defaultEventuallyPollInterval   = 2 * time.Second  // Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.
+	defaultConsistentlyTimeout      = 10 * time.Second // Duration used for Consistently; overrides Gomega's default of 2 seconds.
+	defaultConsistentlyPollInterval = 2 * time.Second  // Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.
+
+	eventuallyTimeoutMedium = 7 * time.Minute  // Medium timeout for readiness checks (e.g., ClusterServiceVersion, DataScienceCluster).
+	eventuallyTimeoutLong   = 10 * time.Minute // Long timeout for more complex readiness (e.g., DSCInitialization, KServe).
 )
 
 // Configuration and Miscellaneous Constants.
@@ -253,11 +256,15 @@ func (tc *TestContext) EnsureResourceCreatedOrPatched(opts ...ResourceOpts) *uns
 	return tc.ensureResourceApplied(ro, tc.g.CreateOrPatch)
 }
 
-// EnsureResourceDoesNotExist verifies that a Kubernetes resource does not exist.
-// If the resource is found, the test fails. If an expected error is provided via WithExpectedErr, it validates the error.
+// EnsureResourceDoesNotExist performs a one-time check to verify that a resource does not exist in the cluster.
+//
+// This function fetches the resource once and fails the test immediately if it exists.
+// If an expected error is provided via WithExpectedErr, it validates the error.
 //
 // Parameters:
 //   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
+//
+// This function does not retry; use EnsureResourceGone if you need to wait for deletion.
 func (tc *TestContext) EnsureResourceDoesNotExist(opts ...ResourceOpts) {
 	// Create a ResourceOptions object based on the provided opts.
 	ro := tc.NewResourceOptions(opts...)
@@ -275,9 +282,6 @@ func (tc *TestContext) EnsureResourceDoesNotExist(opts ...ResourceOpts) {
 //
 // Parameters:
 //   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
-//
-// Returns:
-//   - error: If the resource still exists after the timeout.
 func (tc *TestContext) EnsureResourceGone(opts ...ResourceOpts) {
 	// Create a ResourceOptions object based on the provided opts.
 	ro := tc.NewResourceOptions(opts...)
