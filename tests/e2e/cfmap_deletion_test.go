@@ -1,104 +1,116 @@
 package e2e_test
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
+
+	. "github.com/onsi/gomega"
 )
 
+// CfgMapDeletionTestCtx holds the context for the config map deletion tests.
+type CfgMapDeletionTestCtx struct {
+	*TestContext
+	ConfigMapNamespacedName types.NamespacedName
+}
+
+// cfgMapDeletionTestSuite runs the testing flow for DataScienceCluster deletion logic via ConfigMap.
 func cfgMapDeletionTestSuite(t *testing.T) {
-	testCtx, err := NewTestContext()
-	require.NoError(t, err)
+	t.Helper()
 
-	defer removeDeletionConfigMap(testCtx)
+	// Initialize the test context.
+	tc, err := NewTestContext(t)
+	require.NoError(t, err, "Failed to initialize test context")
 
-	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
-		t.Run("create configmap but set to disable deletion", func(t *testing.T) {
-			err = testCtx.testDSCDeletionUsingConfigMap("false")
-			require.NoError(t, err, "Configmap should not delete DSC instance")
-		})
-
-		t.Run("owned namespaces should be not deleted", testCtx.testOwnedNamespacesAllExist)
-	})
-}
-
-func (tc *testContext) testDSCDeletionUsingConfigMap(enableDeletion string) error {
-	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
-	expectedDSC := &dscv1.DataScienceCluster{}
-
-	if err := createDeletionConfigMap(tc, enableDeletion); err != nil {
-		return err
+	// Create an instance of test context.
+	cfgMapDeletionTestCtx := &CfgMapDeletionTestCtx{
+		TestContext: tc,
+		ConfigMapNamespacedName: types.NamespacedName{
+			Name:      "delete-configmap-name",
+			Namespace: tc.OperatorNamespace,
+		},
 	}
 
-	err := tc.customClient.Get(tc.ctx, dscLookupKey, expectedDSC)
-	// should have DSC instance
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return fmt.Errorf("should have DSC instance in cluster:%w", err)
-		}
-		return fmt.Errorf("error getting DSC instance :%w", err)
+	// Ensure ConfigMap cleanup after tests
+	defer cfgMapDeletionTestCtx.RemoveDeletionConfigMap(t)
+
+	// Define test cases
+	testCases := []TestCase{
+		{name: "Validate creation of configmap with deletion disabled", testFn: cfgMapDeletionTestCtx.ValidateDSCDeletionUsingConfigMap},
+		{name: "Validate that owned namespaces are not deleted", testFn: cfgMapDeletionTestCtx.ValidateOwnedNamespacesAllExist},
 	}
 
-	return nil
-}
-func (tc *testContext) testOwnedNamespacesAllExist(t *testing.T) {
-	g := gomega.NewWithT(t)
-
-	g.Eventually(func() ([]corev1.Namespace, error) {
-		namespaces, err := tc.kubeClient.CoreV1().Namespaces().List(tc.ctx, metav1.ListOptions{
-			LabelSelector: labels.ODH.OwnedNamespace,
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("failed getting owned namespaces %w", err)
-		}
-
-		return namespaces.Items, nil
-	}).Should(gomega.Satisfy(func(in []corev1.Namespace) bool {
-		return len(in) >= ownedNamespaceNumber
-	}))
+	// Run the test suite
+	cfgMapDeletionTestCtx.RunTestCases(t, testCases)
 }
 
-func removeDeletionConfigMap(tc *testContext) {
-	_ = tc.kubeClient.CoreV1().ConfigMaps(testOpts.operatorNamespace).Delete(tc.ctx, deleteConfigMap, metav1.DeleteOptions{})
-}
+// ValidateDSCDeletionUsingConfigMap tests the deletion of DataScienceCluster based on the config map setting.
+func (tc *CfgMapDeletionTestCtx) ValidateDSCDeletionUsingConfigMap(t *testing.T) {
+	t.Helper()
 
-func createDeletionConfigMap(tc *testContext, enableDeletion string) error {
+	// Create or update the deletion config map
+	enableDeletion := "false"
 	configMap := &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: corev1.SchemeGroupVersion.Version,
+		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      deleteConfigMap,
-			Namespace: testOpts.operatorNamespace,
+			Name:      tc.ConfigMapNamespacedName.Name,
+			Namespace: tc.ConfigMapNamespacedName.Namespace,
 			Labels: map[string]string{
 				upgrade.DeleteConfigMapLabel: enableDeletion,
 			},
 		},
 	}
 
-	configMaps := tc.kubeClient.CoreV1().ConfigMaps(configMap.Namespace)
-	if _, err := configMaps.Get(tc.ctx, configMap.Name, metav1.GetOptions{}); err != nil {
-		switch {
-		case k8serr.IsNotFound(err):
-			if _, err = configMaps.Create(tc.ctx, configMap, metav1.CreateOptions{}); err != nil {
-				return err
-			}
-		case k8serr.IsAlreadyExists(err):
-			if _, err = configMaps.Update(tc.ctx, configMap, metav1.UpdateOptions{}); err != nil {
-				return err
-			}
-		default:
-			return err
-		}
-	}
+	tc.EnsureResourceCreatedOrUpdated(
+		WithObjectToCreate(configMap),
+		WithCustomErrorMsg("Failed to create or update deletion config map"),
+	)
 
-	return nil
+	// Verify the existence of the DataScienceCluster instance.
+	tc.EnsureResourceExists(WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
+}
+
+// ValidateOwnedNamespacesAllExist verifies that the owned namespaces exist.
+func (tc *CfgMapDeletionTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
+	t.Helper()
+
+	// Ensure namespaces with the owned namespace label exist
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{}),
+		WithListOptions(
+			&client.ListOptions{
+				LabelSelector: k8slabels.SelectorFromSet(
+					k8slabels.Set{labels.ODH.OwnedNamespace: "true"},
+				),
+			}),
+		WithCondition(BeNumerically(">=", ownedNamespaceNumber)),
+		WithCustomErrorMsg("Expected only %%d owned namespaces with label '%s'. Owned namespaces should not be deleted.", ownedNamespaceNumber, labels.ODH.OwnedNamespace),
+	)
+}
+
+// RemoveDeletionConfigMap ensures the deletion of the ConfigMap.
+func (tc *CfgMapDeletionTestCtx) RemoveDeletionConfigMap(t *testing.T) {
+	t.Helper()
+
+	// Delete the config map
+	propagationPolicy := metav1.DeletePropagationForeground
+	tc.DeleteResource(
+		WithMinimalObject(gvk.ConfigMap, tc.ConfigMapNamespacedName),
+		WithClientDeleteOptions(
+			&client.DeleteOptions{
+				PropagationPolicy: &propagationPolicy,
+			}),
+	)
 }
