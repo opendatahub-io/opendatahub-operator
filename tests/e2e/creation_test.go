@@ -71,13 +71,13 @@ func dscManagementTestSuite(t *testing.T) {
 			name: "Webhook",
 			testFn: func(t *testing.T) {
 				t.Helper()
-				dscTestCtx.RunTestCases(t, webhookTests)
+				RunTestCases(t, webhookTests)
 			},
 		})
 	}
 
 	// Run the test suite.
-	dscTestCtx.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // ValidateOperatorsInstallation ensures the Service Mesh and Serverless operators are installed.
@@ -106,7 +106,7 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		}
 	}
 
-	tc.RunTestCases(t, testCases, WithParallel())
+	RunTestCases(t, testCases, WithParallel())
 }
 
 // ValidateDSCICreation validates the creation of a DSCInitialization.

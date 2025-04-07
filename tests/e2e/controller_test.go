@@ -19,7 +19,6 @@ import (
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -30,7 +29,6 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 )
 
 // Test function signature.
@@ -67,27 +65,6 @@ type TestGroup struct {
 type TestCase struct {
 	name   string
 	testFn func(t *testing.T)
-}
-
-// TestContext holds test execution context.
-type TestContext struct {
-	// Embeds the common test context.
-	*testf.TestContext
-
-	// Shared Gomega test wrapper.
-	g *testf.WithT
-
-	// Namespace of the deployed applications.
-	OperatorNamespace string
-
-	// Namespace of the deployed applications.
-	AppsNamespace string
-
-	// Namespaced name of the test DSCInitialization CR instance.
-	DSCInitializationNamespacedName types.NamespacedName
-
-	// Namespaced name of the test DataScienceCluster instance.
-	DataScienceClusterNamespacedName types.NamespacedName
 }
 
 var (
@@ -213,31 +190,6 @@ func handleCleanup(t *testing.T) {
 			CleanupAllResources(t)
 		}
 	})
-}
-
-// NewTestContext initializes a new test context.
-func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
-	tcf, err := testf.NewTestContext(
-		testf.WithTOptions(
-			testf.WithEventuallyTimeout(defaultEventuallyTimeout),
-			testf.WithEventuallyPollingInterval(defaultEventuallyPollInterval),
-			testf.WithConsistentlyDuration(defaultConsistentlyTimeout),
-			testf.WithConsistentlyPollingInterval(defaultConsistentlyPollInterval),
-		),
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &TestContext{
-		TestContext:                      tcf,
-		g:                                tcf.NewWithT(t),
-		DSCInitializationNamespacedName:  types.NamespacedName{Name: dsciInstanceName},
-		DataScienceClusterNamespacedName: types.NamespacedName{Name: dscInstanceName},
-		OperatorNamespace:                testOpts.operatorNamespace,
-		AppsNamespace:                    testOpts.appsNamespace,
-	}, nil
 }
 
 // TestOdhOperator sets up the testing suite for ODH Operator.

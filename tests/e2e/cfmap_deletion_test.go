@@ -50,7 +50,7 @@ func cfgMapDeletionTestSuite(t *testing.T) {
 	}
 
 	// Run the test suite
-	cfgMapDeletionTestCtx.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // ValidateDSCDeletionUsingConfigMap tests the deletion of DataScienceCluster based on the config map setting.
