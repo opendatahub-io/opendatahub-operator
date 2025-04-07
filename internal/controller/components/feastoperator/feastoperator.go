@@ -56,9 +56,9 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 	}
 }
 
-func (s *componentHandler) Init(_ common.Platform) error {
-	if err := odhdeploy.ApplyParams(manifestPath().String(), imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", manifestPath(), err)
+func (s *componentHandler) Init(p common.Platform) error {
+	if err := odhdeploy.ApplyParams(manifestPath(p).String(), imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", manifestPath(p), err)
 	}
 
 	return nil
