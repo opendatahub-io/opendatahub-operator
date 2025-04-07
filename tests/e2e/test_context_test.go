@@ -221,7 +221,7 @@ func (tc *TestContext) EnsureResourcesExist(opts ...ResourceOpts) []unstructured
 	var resourcesList []unstructured.Unstructured
 
 	tc.g.Eventually(func(g Gomega) {
-		resourcesList, _ := tc.fetchResources(ro)
+		resourcesList, _ := fetchResources(ro)
 
 		// If no condition is provided, simply ensure the list is not empty
 		g.Expect(resourcesList).NotTo(BeEmpty(), resourceEmptyErrorMsg, ro.ResourceID, ro.GVK.Kind)
@@ -719,7 +719,7 @@ func (tc *TestContext) FetchResource(opts ...ResourceOpts) *unstructured.Unstruc
 	ro := tc.NewResourceOptions(opts...)
 
 	// Use fetchResource to attempt to fetch the resources with retries
-	resourcesList, _ := tc.fetchResource(ro)
+	resourcesList, _ := fetchResource(ro)
 
 	return resourcesList
 }
@@ -756,7 +756,7 @@ func (tc *TestContext) FetchResources(opts ...ResourceOpts) []unstructured.Unstr
 	ro := tc.NewResourceOptions(opts...)
 
 	// Use fetchResources to attempt to fetch the resources with retries
-	resourcesList, _ := tc.fetchResources(ro)
+	resourcesList, _ := fetchResources(ro)
 
 	return resourcesList
 }
@@ -801,6 +801,69 @@ func (tc *TestContext) convertToResource(u *unstructured.Unstructured, obj clien
 	// Convert Unstructured object to the given resource object
 	err := resources.ObjectFromUnstructured(tc.Scheme(), u, obj)
 	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed converting %T from Unstructured.Object: %v", obj, u.Object)
+}
+
+// ensureResourceExistsOrNil retrieves a Kubernetes resource, retrying until it is found or the timeout expires.
+// If the resource exists, it returns the object. If not found, it returns nil without failing the test.
+// Unexpected errors will fail the test.
+//
+// Parameters:
+//   - ro (*ResourceOptions): Metadata and retrieval logic for the resource.
+//
+// Returns:
+//   - *unstructured.Unstructured: The resource if found, otherwise nil.
+//   - error: Any error encountered during retrieval.
+func (tc *TestContext) ensureResourceExistsOrNil(ro *ResourceOptions) (*unstructured.Unstructured, error) {
+	// Fetch the resource using fetchResource.
+	u, err := fetchResource(ro)
+
+	// Ensure no unexpected errors occurred while fetching the resource
+	ro.tc.g.Expect(err).NotTo(
+		HaveOccurred(),
+		defaultErrorMessageIfNone(resourceFetchErrorMsg, []any{ro.ResourceID, ro.GVK.Kind, err}, ro.CustomErrorArgs)...,
+	)
+
+	// Return the resource or nil if it wasn't found
+	return u, err
+}
+
+// ensureResourceDoesNotExist attempts to retrieve a Kubernetes resource and checks if it does not exist.
+// It uses Gomega assertions to ensure the resource is not found and fails the test if it is found.
+//
+// Parameters:
+//   - g (Gomega): The Gomega assertion wrapper.
+//   - ro (*ResourceOptions): Metadata and retrieval logic for the resource.
+//
+// Returns:
+//   - error: An error if the resource is found, or nil if the resource does not exist.
+func (tc *TestContext) ensureResourceDoesNotExist(g Gomega, ro *ResourceOptions) error {
+	// Fetch the resource using fetchResource.
+	u, err := fetchResource(ro)
+
+	// Assert that the resource is not found.
+	g.Expect(u).To(BeNil(), resourceFoundErrorMsg, ro.ResourceID, ro.GVK.Kind)
+
+	// Return the error encountered during resource retrieval, if any.
+	return err
+}
+
+// ensureResourcesDoNotExist is a helper function that retrieves a list of Kubernetes resources
+// and checks if the resources do not exist (i.e., the list is empty). It performs an assertion
+// to ensure that the list of resources is empty. If any resources are found, it fails the test.
+//
+// Parameters:
+//   - g (Gomega): The Gomega assertion wrapper.
+//   - ro (*ResourceOptions): Metadata and retrieval logic for the resource.
+//
+// Returns:
+//   - error: An error if the resource is found in the cluster, or nil if the resource does not exist.
+func (tc *TestContext) ensureResourcesDoNotExist(g Gomega, ro *ResourceOptions) error {
+	resourcesList, err := fetchResources(ro)
+
+	// Ensure that the resources list is empty (resources should not exist)
+	g.Expect(resourcesList).To(BeEmpty(), resourceListNotEmptyErrorMsg, ro.ResourceID, ro.GVK.Kind)
+
+	return err
 }
 
 // createSubscription creates a Subscription object.
