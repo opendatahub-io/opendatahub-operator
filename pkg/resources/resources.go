@@ -38,18 +38,6 @@ func ToUnstructured(obj any) (*unstructured.Unstructured, error) {
 	return &u, nil
 }
 
-func FromUnstructured(obj *unstructured.Unstructured, intoObj any) error {
-	if obj == nil {
-		return errors.New("nil object")
-	}
-
-	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, intoObj)
-	if err != nil {
-		return fmt.Errorf("unable to convert unstructured object to %T: %w", intoObj, err)
-	}
-	return nil
-}
-
 func ObjectToUnstructured(s *runtime.Scheme, obj client.Object) (*unstructured.Unstructured, error) {
 	// Ensure that the object has a GroupVersionKind set
 	if err := EnsureGroupVersionKind(s, obj); err != nil {
@@ -66,8 +54,12 @@ func ObjectToUnstructured(s *runtime.Scheme, obj client.Object) (*unstructured.U
 }
 
 func ObjectFromUnstructured(s *runtime.Scheme, obj *unstructured.Unstructured, intoObj client.Object) error {
+	if obj == nil {
+		return errors.New("nil object")
+	}
+
 	// Convert the unstructured object to the typed object
-	err := FromUnstructured(obj, intoObj)
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, intoObj)
 	if err != nil {
 		return fmt.Errorf("unable to convert unstructured object to %T: %w", intoObj, err)
 	}

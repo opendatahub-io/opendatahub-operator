@@ -45,7 +45,7 @@ func trustyAITestSuite(t *testing.T) {
 	}
 
 	// Run the test suite.
-	componentCtx.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // ValidateTrustyAIPreCheck defines the test cases for TrustyAI pre-check validation.
@@ -69,7 +69,7 @@ func (tc *TrustyAITestCtx) ValidateTrustyAIPreCheck(t *testing.T) {
 	}
 
 	// Run the test suite.
-	tc.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // EnableKserve enables the Kserve component for the TrustyAI test context.

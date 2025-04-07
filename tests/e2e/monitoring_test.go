@@ -40,7 +40,7 @@ func monitoringTestSuite(t *testing.T) {
 	}
 
 	// Run the test suite.
-	monitoringServiceCtx.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // skipIfMonitoringRemoved checks if the ManagementState is 'Removed' and skips tests accordingly.

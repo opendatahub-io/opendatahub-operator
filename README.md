@@ -414,7 +414,7 @@ variable. Following table lists all the available flags to run the tests:
 | --test-operator-controller | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes       | `true`                        |
 | --test-webhook             | To configure the execution of tests rellated to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | `true`                        |
 | --test-component           | A repeatable flag that control what component should be tested, by default all component specific test are executed                                                           | `true`                        |
-| --deletion-policy          | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`. The default is never.              | `always`                      |
+| --deletion-policy          | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                    | `always`                      |
 
 Example command to run full test suite skipping the test for DataScienceCluster deletion.
 

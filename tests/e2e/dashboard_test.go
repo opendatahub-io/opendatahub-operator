@@ -46,7 +46,7 @@ func dashboardTestSuite(t *testing.T) {
 	}
 
 	// Run the test suite.
-	componentCtx.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // ValidateOperandsDynamicallyWatchedResources ensures that operands are correctly watched for dynamic updates.

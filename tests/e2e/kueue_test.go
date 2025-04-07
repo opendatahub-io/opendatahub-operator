@@ -51,7 +51,7 @@ func kueueTestSuite(t *testing.T) {
 	}
 
 	// Run the test suite.
-	componentCtx.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // ValidateKueueVAPReady ensures that Validating Admission Policies (VAP) and Bindings (VAPB) are properly configured.

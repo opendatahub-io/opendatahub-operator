@@ -109,9 +109,6 @@ func Transform(format string, args ...any) TransformFn {
 // representing a Kubernetes resource spec into an unstructured format and applies it to
 // the spec field of an unstructured Kubernetes object (`unstructured.Unstructured`).
 //
-// This function generates a transformation function that, when applied to an `*unstructured.Unstructured`
-// object, will set its `spec` field to the unstructured representation of the provided struct.
-//
 // Parameters:
 //   - spec: A Go struct representing the spec of a Kubernetes resource (e.g., SubscriptionSpec, PodSpec).
 //     This struct will be converted into an unstructured format and applied to the `spec` field.

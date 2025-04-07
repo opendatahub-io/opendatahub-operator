@@ -35,7 +35,7 @@ func dataSciencePipelinesTestSuite(t *testing.T) {
 	}
 
 	// Run the test suite.
-	componentCtx.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // ValidateConditions validates that the DataSciencePipelines instance's status conditions are correct.
