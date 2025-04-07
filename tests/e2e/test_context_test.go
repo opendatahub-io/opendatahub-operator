@@ -139,7 +139,7 @@ func (tc *TestContext) EnsureResourceCreatedOrUpdated(opts ...ResourceOpts) *uns
 	}
 
 	// Apply the resource using ensureResourceApplied.
-	return tc.ensureResourceApplied(ro, tc.g.CreateOrUpdate)
+	return ensureResourceApplied(ro, tc.g.CreateOrUpdate)
 }
 
 // EnsureResourceCreatedOrPatched ensures that a given Kubernetes resource exists.
@@ -161,7 +161,7 @@ func (tc *TestContext) EnsureResourceCreatedOrPatched(opts ...ResourceOpts) *uns
 	}
 
 	// Apply the resource using ensureResourceApplied
-	return tc.ensureResourceApplied(ro, tc.g.CreateOrPatch)
+	return ensureResourceApplied(ro, tc.g.CreateOrPatch)
 }
 
 // EnsureResourceDoesNotExist performs a one-time check to verify that a resource does not exist in the cluster.

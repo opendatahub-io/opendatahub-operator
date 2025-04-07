@@ -189,7 +189,7 @@ func isFailureExpected(condition gTypes.GomegaMatcher) bool {
 //
 // Returns:
 //   - *unstructured.Unstructured: The applied resource if it meets the expected condition.
-func (tc *TestContext) ensureResourceApplied(
+func ensureResourceApplied(
 	ro *ResourceOptions,
 	applyResourceFn func(obj *unstructured.Unstructured, fn ...func(obj *unstructured.Unstructured) error) *testf.EventuallyValue[*unstructured.Unstructured],
 ) *unstructured.Unstructured {
@@ -198,7 +198,7 @@ func (tc *TestContext) ensureResourceApplied(
 
 	// Use Eventually to retry getting the resource until it appears
 	var u *unstructured.Unstructured
-	tc.g.Eventually(func(g Gomega) {
+	ro.tc.g.Eventually(func(innerG Gomega) {
 		// Fetch the resource
 		var err error
 		u, err = applyResourceFn(ro.Obj, ro.MutateFunc).Get()
@@ -209,7 +209,7 @@ func (tc *TestContext) ensureResourceApplied(
 		// Error handling based on failure expectation
 		if !expectingFailure {
 			// Expect no error if success is expected
-			g.Expect(err).NotTo(
+			innerG.Expect(err).NotTo(
 				HaveOccurred(),
 				"Error occurred while applying the resource '%s' of kind '%s': %v",
 				ro.ResourceID,
@@ -218,14 +218,14 @@ func (tc *TestContext) ensureResourceApplied(
 			)
 
 			// Ensure that the resource object is not nil
-			g.Expect(u).NotTo(BeNil(), resourceNotFoundErrorMsg, ro.ResourceID, ro.GVK.Kind)
+			innerG.Expect(u).NotTo(BeNil(), resourceNotFoundErrorMsg, ro.ResourceID, ro.GVK.Kind)
 		} else {
 			// Expect error if failure is expected
-			g.Expect(err).To(HaveOccurred(), "Expected applyResourceFn to fail but it succeeded")
+			innerG.Expect(err).To(HaveOccurred(), "Expected applyResourceFn to fail but it succeeded")
 		}
 
 		// Apply the matchers based on the condition
-		applyMatchers(g, ro.ResourceID, ro.GVK, u, err, ro.Condition, ro.CustomErrorArgs)
+		applyMatchers(innerG, ro.ResourceID, ro.GVK, u, err, ro.Condition, ro.CustomErrorArgs)
 	}).Should(Succeed())
 
 	return u
