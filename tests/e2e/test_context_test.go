@@ -44,6 +44,38 @@ func (tc *TestContext) OverrideEventuallyTimeout(timeout, pollInterval time.Dura
 	}
 }
 
+// NewResourceOptions creates and returns a ResourceOptions object
+// It configures a ResourceOptions object by applying the provided ResourceOpts.
+func (tc *TestContext) NewResourceOptions(opts ...ResourceOpts) *ResourceOptions {
+	ro := &ResourceOptions{tc: tc}
+	for _, opt := range opts {
+		opt(ro)
+	}
+
+	// Ensure ObjFn is set and fetch the object.
+	if ro.Obj == nil && ro.ObjFn != nil {
+		// If Obj is not provided, call ObjFn to get the object.
+		ro.Obj = ro.ObjFn(tc)
+	}
+
+	// Ensure that Obj is not nil before returning the options.
+	if ro.Obj == nil {
+		panic("Obj must be set in ResourceOptions") // Panics if Obj is nil to enforce validation.
+	}
+
+	// Ensure ListOptions is not nil before using it
+	if ro.ListOptions == nil {
+		ro.ListOptions = &client.ListOptions{}
+	}
+
+	// Ensure ClientDeleteOptions is not nil before using it
+	if ro.ClientDeleteOptions == nil {
+		ro.ClientDeleteOptions = &client.DeleteOptions{}
+	}
+
+	return ro
+}
+
 // ==============================
 //     RESOURCE OPERATIONS
 // ==============================
