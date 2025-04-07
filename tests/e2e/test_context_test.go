@@ -1,16 +1,10 @@
 package e2e_test
 
 import (
+	"time"
+
 	"github.com/onsi/gomega/gstruct"
 	gTypes "github.com/onsi/gomega/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 	configv1 "github.com/openshift/api/config/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -21,7 +15,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -75,10 +77,6 @@ func (tc *TestContext) NewResourceOptions(opts ...ResourceOpts) *ResourceOptions
 
 	return ro
 }
-
-// ==============================
-//     RESOURCE OPERATIONS
-// ==============================
 
 // EnsureResourceExists verifies whether a specific Kubernetes resource exists in the cluster and optionally matches a given condition.
 // If the resource exists and matches the condition (if provided), it will return the object.
@@ -315,7 +313,7 @@ func (tc *TestContext) EnsureSubscriptionExistsOrCreate(nn types.NamespacedName)
 	resourceID := resources.FormatNamespacedName(nn)
 
 	// Create the subscription object using the necessary values (adapt as needed)
-	sub := createSubscription(nn)
+	sub := tc.createSubscription(nn)
 
 	// Ensure the Subscription exists or create it if missing
 	return tc.EnsureResourceCreatedOrUpdated(
@@ -805,7 +803,7 @@ func (tc *TestContext) FetchResources(opts ...ResourceOpts) []unstructured.Unstr
 //   - plan (*ofapi.InstallPlan): The InstallPlan object that needs to be approved.
 func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 	// Prepare the InstallPlan object to be approved
-	obj := createInstallPlan(plan.ObjectMeta.Name, plan.ObjectMeta.Namespace, plan.Spec.ClusterServiceVersionNames)
+	obj := tc.createInstallPlan(plan.ObjectMeta.Name, plan.ObjectMeta.Namespace, plan.Spec.ClusterServiceVersionNames)
 
 	// Set up patch options
 	force := true
@@ -899,7 +897,7 @@ func (tc *TestContext) ensureResourcesDoNotExist(g Gomega, ro *ResourceOptions) 
 }
 
 // createSubscription creates a Subscription object.
-func createSubscription(nn types.NamespacedName) *ofapi.Subscription {
+func (tc *TestContext) createSubscription(nn types.NamespacedName) *ofapi.Subscription {
 	return &ofapi.Subscription{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       ofapi.SubscriptionKind,
@@ -920,7 +918,7 @@ func createSubscription(nn types.NamespacedName) *ofapi.Subscription {
 }
 
 // createInstallPlan creates an InstallPlan object.
-func createInstallPlan(name string, ns string, csvNames []string) *ofapi.InstallPlan {
+func (tc *TestContext) createInstallPlan(name string, ns string, csvNames []string) *ofapi.InstallPlan {
 	return &ofapi.InstallPlan{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       ofapi.InstallPlanKind,
