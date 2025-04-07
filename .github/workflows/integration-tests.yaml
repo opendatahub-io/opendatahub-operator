@@ -1,6 +1,15 @@
 name: Integration tests
 on:
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      # - '.github/**'
+      - '**.md'
+      - 'Makefile'
+      - 'OWNERS'
+      - 'OWNERS_ALIASES'
+      - 'PROJECT'
+
 env:
   IMAGE_TAG_BASE: quay.io/<username-or-org>/opendatahub-operator
   TAG: pr-${{ github.event.number }}
