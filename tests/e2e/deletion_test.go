@@ -27,24 +27,24 @@ func deletionTestSuite(t *testing.T) {
 
 	// Define the test cases
 	testCases := []TestCase{
-		{"Deletion DataScienceCluster instance", deletionTestCtx.DeletionDSC},
-		{"Deletion DSCInitialization instance", deletionTestCtx.DeletionDSCI},
+		{"Delete DataScienceCluster instance", deletionTestCtx.TestDSCDeletion},
+		{"Delete DSCInitialization instance", deletionTestCtx.TestDSCIDeletion},
 	}
 
 	// Run the test suite.
 	deletionTestCtx.RunTestCases(t, testCases)
 }
 
-// DeletionDSC deletes the DataScienceCluster instance if it exists.
-func (tc *DeletionTestCtx) DeletionDSC(t *testing.T) {
+// TestDSCDeletion deletes the DataScienceCluster instance if it exists.
+func (tc *DeletionTestCtx) TestDSCDeletion(t *testing.T) {
 	t.Helper()
 
 	// Delete the DataScienceCluster instance
 	tc.DeleteResource(WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
 }
 
-// DeletionDSCI deletes the DSCInitialization instance if it exists.
-func (tc *DeletionTestCtx) DeletionDSCI(t *testing.T) {
+// TestDSCIDeletion deletes the DSCInitialization instance if it exists.
+func (tc *DeletionTestCtx) TestDSCIDeletion(t *testing.T) {
 	t.Helper()
 
 	// Delete the DSCInitialization instance

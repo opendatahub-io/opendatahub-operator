@@ -65,7 +65,7 @@ func NewComponentTestCtx(t *testing.T, object common.PlatformObject) (*Component
 func (tc *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 	t.Helper()
 
-	// Ensure that DataScienceCluster exists and its component state is "Removed", with the "Ready" condition true.
+	// Ensure that DataScienceCluster exists and its component state is "Managed", with the "Ready" condition true.
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
 
 	// Ensure that any Deployment resources for the component are present

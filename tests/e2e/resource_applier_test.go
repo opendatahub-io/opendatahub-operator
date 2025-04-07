@@ -49,7 +49,7 @@ func dereferenceCondition(condition gTypes.GomegaMatcher) any {
 //
 // Parameters:
 //   - g (Gomega): The Gomega assertion wrapper.
-//   - ResourceID (string): A string identifier for logging purposes.
+//   - resourceID (string): A string identifier for logging purposes.
 //   - gvk (schema.GroupVersionKind): The GroupVersionKind of the resource(s).
 //   - resource any: Can be a single unstructured.Unstructured or a list ([]unstructured.Unstructured).
 //   - err error: The error returned when fetching the resource(s).

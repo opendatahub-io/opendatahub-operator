@@ -228,13 +228,13 @@ func (tc *KserveTestCtx) ValidateDefaultCertsAvailable(t *testing.T) {
 func (tc *KserveTestCtx) ValidateServingTransitionToUnmanaged(t *testing.T) {
 	t.Helper()
 
-	tc.validateOwnerRefsAndLabels(true)
+	tc.validateTemplatedResourceOwnerRefsAndLabels(true)
 
 	tc.updateKserveServingState(operatorv1.Unmanaged)
-	tc.validateOwnerRefsAndLabels(false)
+	tc.validateTemplatedResourceOwnerRefsAndLabels(false)
 
 	tc.updateKserveServingState(operatorv1.Managed)
-	tc.validateOwnerRefsAndLabels(true)
+	tc.validateTemplatedResourceOwnerRefsAndLabels(true)
 }
 
 // ValidateServingTransitionToRemoved checks if serving transitions to removed state.
@@ -242,7 +242,7 @@ func (tc *KserveTestCtx) ValidateServingTransitionToRemoved(t *testing.T) {
 	t.Helper()
 
 	// Validate that the resources have the expected owner references and labels when they are "Managed".
-	tc.validateOwnerRefsAndLabels(true)
+	tc.validateTemplatedResourceOwnerRefsAndLabels(true)
 
 	// Update Kserve to transition to the "Removed" state.
 	tc.updateKserveDeploymentAndServingState(componentApi.RawDeployment, operatorv1.Removed)
@@ -258,7 +258,7 @@ func (tc *KserveTestCtx) ValidateServingTransitionToRemoved(t *testing.T) {
 	tc.updateKserveDeploymentAndServingState(componentApi.Serverless, operatorv1.Managed)
 
 	// Validate that the resources have the expected owner references and labels after the restoration.
-	tc.validateOwnerRefsAndLabels(true)
+	tc.validateTemplatedResourceOwnerRefsAndLabels(true)
 }
 
 // createDummyFeatureTrackers creates dummy FeatureTrackers for the Kserve component.
@@ -346,8 +346,17 @@ func (tc *KserveTestCtx) updateKserveServingState(state operatorv1.ManagementSta
 	)
 }
 
-// validateOwnerRefsAndLabels validates the owner references and labels of Kserve components.
-func (tc *KserveTestCtx) validateOwnerRefsAndLabels(expectOwned bool) {
+// validateTemplatedResourceOwnerRefsAndLabels validates the owner references and labels of Kserve components created from predefined templates.
+// The function checks if the owner references and labels are correctly set for the templated resources, which include KNative, Istio, and other related components.
+//
+// Parameters:
+//   - expectOwned: A boolean indicating whether the resources should be owned by a specific entity or not (e.g., Kserve's controller).
+//
+// Templated resources include:
+//   - Knative Serving components
+//   - ServiceMesh components (e.g., Gateway, EnvoyFilter)
+//   - Other resources specified in the `templatedResources` array.
+func (tc *KserveTestCtx) validateTemplatedResourceOwnerRefsAndLabels(expectOwned bool) {
 	var condition gomegaTypes.GomegaMatcher
 	var msg string
 

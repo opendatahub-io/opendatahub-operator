@@ -408,8 +408,6 @@ func (tc *TestContext) EnsureResourcesAreEqual(actualResource, expectedResource 
 //
 // Parameters:
 //   - obj (*unstructured.Unstructured): The resource object to check.
-//   - ResourceID (string): The identifier of the resource (e.g., "namespace/name").
-//   - kind (string): The kind of the resource (e.g., "Deployment").
 //   - args (...interface{}): Optional Gomega assertion message arguments.
 func (tc *TestContext) EnsureResourceNotNil(obj any, args ...any) {
 	tc.EnsureResourceConditionMet(obj, Not(BeNil()), args...)
@@ -420,7 +418,7 @@ func (tc *TestContext) EnsureResourceNotNil(obj any, args ...any) {
 //
 // Parameters:
 //   - obj (any): The resource object to check.
-//   - matcher: A Gomega matcher specifying the expected condition (e.g., BeEmpty(), Not(BeEmpty())).
+//   - condition: A Gomega matcher specifying the expected condition (e.g., BeEmpty(), Not(BeEmpty())).
 //   - args (...interface{}): Optional Gomega assertion message arguments. If not provided, a default message is used.
 func (tc *TestContext) EnsureResourceConditionMet(obj any, condition gTypes.GomegaMatcher, args ...any) {
 	// Ensure obj is not nil before proceeding
@@ -520,11 +518,8 @@ func (tc *TestContext) EnsureCRDEstablished(name string) {
 // 5. Asserts that the creation attempt fails, ensuring uniqueness constraints are enforced.
 //
 // Parameters:
-//   - tc (*TestContext): The test context that provides access to Gomega and the Kubernetes client.
-//   - obj (any): The resource object to create, which must be convertible to an unstructured format.
-//
-// Returns:
-//   - error: Returns nil if the duplicate creation fails as expected, otherwise returns an error.
+//   - obj (client.Object): The resource object to create, which must be convertible to an unstructured format.
+//   - args (...interface{}): Optional Gomega assertion message arguments.
 func (tc *TestContext) EnsureResourceIsUnique(obj client.Object, args ...any) {
 	// Ensure obj is not nil before proceeding
 	tc.g.Expect(obj).NotTo(BeNil(), resourceNotNilErrorMsg)
@@ -623,7 +618,7 @@ func (tc *TestContext) EnsureOperatorInstalled(nn types.NamespacedName, skipOper
 // does not exist or if the deletion fails.
 //
 // Parameters:
-//   - options(...ResourceOpts): Optional options for configuring the resource and deletion behavior.
+//   - opts(...ResourceOpts): Optional options for configuring the resource and deletion behavior.
 func (tc *TestContext) DeleteResource(opts ...ResourceOpts) {
 	// Create a ResourceOptions object based on the provided opts.
 	ro := tc.NewResourceOptions(opts...)
@@ -723,8 +718,7 @@ func (tc *TestContext) FetchInstallPlan(nn types.NamespacedName) *ofapi.InstallP
 // If the CSV does not exist, the function will fail the test using Gomega assertions.
 //
 // Parameters:
-//   - name (string): The name of the ClusterServiceVersion to retrieve.
-//   - ns (string): The namespace where the ClusterServiceVersion is expected to be found.
+//   - nn (types.NamespacedName): The coordinates of the ClusterServiceVersion to retrieve.
 //
 // Returns:
 //   - *ofapi.ClusterServiceVersion: A pointer to the retrieved ClusterServiceVersion object.
@@ -766,12 +760,11 @@ func (tc *TestContext) FetchClusterVersion() *configv1.ClusterVersion {
 // Returns:
 //   - common.Platform: The platform release name retrieved from the DSCInitialization resource.
 func (tc *TestContext) FetchPlatformRelease() common.Platform {
-	// Ensure the DSCInitialization exists and retrieve the object
-	dsci := &dsciv1.DSCInitialization{}
-	tc.FetchTypedResource(dsci,
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithCondition(jq.Match(`.status.release.name | length > 0`)), // Ensure that the release name is non-empty
-	)
+	// Fetch the DSCInitialization object
+	dsci := tc.FetchDSCInitialization()
+
+	// Ensure that the DSCInitialization object has a non-nil release name
+	tc.g.Expect(dsci.Status.Release.Name).NotTo(BeEmpty(), "DSCI release name should not be empty")
 
 	return dsci.Status.Release.Name
 }
@@ -809,7 +802,7 @@ func (tc *TestContext) FetchDataScienceCluster() *dscv1.DataScienceCluster {
 // FetchResource ensures a Kubernetes resource exists and retrieves it as an Unstructured object.
 //
 // Parameters:
-//   - options(...ResourceOpts): Functional options to configure the resource retrieval.
+//   - opts(...ResourceOpts): Functional options to configure the resource retrieval.
 //
 // Returns:
 //   - *unstructured.Unstructured: The retrieved resource in unstructured format.
@@ -830,7 +823,7 @@ func (tc *TestContext) FetchResource(opts ...ResourceOpts) *unstructured.Unstruc
 //
 // Parameters:
 //   - obj (client.Object): The target object where the retrieved resource should be stored.
-//   - options(...ResourceOpts): Functional options to configure the resource retrieval.
+//   - opts(...ResourceOpts): Functional options to configure the resource retrieval.
 //
 // Panics:
 //   - If the resource does not exist.
@@ -846,7 +839,7 @@ func (tc *TestContext) FetchTypedResource(obj client.Object, opts ...ResourceOpt
 // FetchResources fetches a list of Kubernetes resources from the cluster and fails the test if retrieval fails.
 //
 // Parameters:
-//   - options(...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
+//   - opts(...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
 //
 // Returns:
 //   - []unstructured.Unstructured: A list of resources fetched from the cluster.
