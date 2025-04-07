@@ -49,7 +49,7 @@ func modelControllerTestSuite(t *testing.T) {
 	defer reset() // Make sure it's reset after all tests run
 
 	// Run the test suite.
-	componentCtx.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // ValidateComponentEnabled validates that the components are enabled with the correct states.
@@ -77,7 +77,7 @@ func (tc *ModelControllerTestCtx) ValidateComponentEnabled(t *testing.T) {
 	}
 
 	// Run the test suite.
-	tc.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // ValidateComponentDisabled validates that the components are disabled.

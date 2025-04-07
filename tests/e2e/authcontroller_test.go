@@ -69,7 +69,7 @@ func authControllerTestSuite(t *testing.T) {
 	}
 
 	// Run the test suite.
-	authCtx.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // ValidateAuthCRCreation ensures that the Auth CR is created.

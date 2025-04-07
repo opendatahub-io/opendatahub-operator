@@ -51,7 +51,7 @@ func modelRegistryTestSuite(t *testing.T) {
 	}
 
 	// Run the test suite.
-	componentCtx.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // ValidateSpec checks the ModelRegistry spec against the DataScienceCluster instance.

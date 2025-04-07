@@ -32,7 +32,7 @@ func deletionTestSuite(t *testing.T) {
 	}
 
 	// Run the test suite.
-	deletionTestCtx.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // TestDSCDeletion deletes the DataScienceCluster instance if it exists.

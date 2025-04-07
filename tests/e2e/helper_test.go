@@ -67,13 +67,16 @@ const (
 	unexpectedErrorMismatchMsg   = "Expected error '%v' to match the actual error '%v' for resource of kind '%s'."
 )
 
+// TestCaseOpts defines a function type that can be used to modify how individual test cases are executed.
+type TestCaseOpts func(t *testing.T)
+
 // RunTestCases runs a series of test cases, optionally in parallel based on the provided options.
 //
 // Parameters:
 //   - t (*testing.T): The test context passed into the test function.
 //   - testCases ([]TestCase): A slice of test cases to execute.
 //   - opts (...TestCaseOpts): Optional configuration options, like enabling parallel execution.
-func (tc *TestContext) RunTestCases(t *testing.T, testCases []TestCase, opts ...TestCaseOpts) {
+func RunTestCases(t *testing.T, testCases []TestCase, opts ...TestCaseOpts) {
 	t.Helper()
 
 	// Apply all provided options (e.g., parallel execution) to each test case.
@@ -89,9 +92,6 @@ func (tc *TestContext) RunTestCases(t *testing.T, testCases []TestCase, opts ...
 		})
 	}
 }
-
-// TestCaseOpts defines a function type that can be used to modify how individual test cases are executed.
-type TestCaseOpts func(t *testing.T)
 
 // WithParallel is an option that marks test cases to run in parallel.
 func WithParallel() TestCaseOpts {

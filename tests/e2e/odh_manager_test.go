@@ -30,7 +30,7 @@ func odhOperatorTestSuite(t *testing.T) {
 	}
 
 	// Run the test suite.
-	operatorTestCtx.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // testODHDeployment checks if the ODH deployment exists and is correctly configured.

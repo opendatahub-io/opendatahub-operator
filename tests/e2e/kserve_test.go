@@ -85,7 +85,7 @@ func kserveTestSuite(t *testing.T) {
 	}
 
 	// Run the test suite.
-	componentCtx.RunTestCases(t, testCases)
+	RunTestCases(t, testCases)
 }
 
 // SetUpServerless sets up the serverless feature in the test environment.
