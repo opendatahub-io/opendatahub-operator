@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"testing"
 	"time"
 
 	"github.com/onsi/gomega/gstruct"
@@ -27,6 +28,63 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+// TestContext holds shared context and utilities used during E2E test execution.
+type TestContext struct {
+	// Embeds the common test context (e.g., cluster clients, config)
+	*testf.TestContext
+
+	// Shared Gomega wrapper for making assertions in tests.
+	g *testf.WithT
+
+	// Namespace where the operator components are deployed.
+	OperatorNamespace string
+
+	// Namespace where application workloads are deployed.
+	AppsNamespace string
+
+	// Namespaced name of the DSCInitialization custom resource used for testing.
+	DSCInitializationNamespacedName types.NamespacedName
+
+	// Namespaced name of the DataScienceCluster custom resource used for testing.
+	DataScienceClusterNamespacedName types.NamespacedName
+}
+
+// NewTestContext creates and initializes a new TestContext instance.
+//
+// It wraps the underlying test framework context (`testf.TestContext`) and sets up
+// common testing parameters like default timeouts and polling intervals for Gomega assertions.
+// This function is typically used at the beginning of a test to prepare a consistent test environment.
+//
+// Parameters:
+//   - t (*testing.T): The standard Go testing instance for the current test.
+//
+// Returns:
+//   - *TestContext: A fully initialized test context with Gomega and test options pre-configured.
+//   - error: An error if the internal test context fails to initialize.
+func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
+	tcf, err := testf.NewTestContext(
+		testf.WithTOptions(
+			testf.WithEventuallyTimeout(defaultEventuallyTimeout),
+			testf.WithEventuallyPollingInterval(defaultEventuallyPollInterval),
+			testf.WithConsistentlyDuration(defaultConsistentlyTimeout),
+			testf.WithConsistentlyPollingInterval(defaultConsistentlyPollInterval),
+		),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &TestContext{
+		TestContext:                      tcf,
+		g:                                tcf.NewWithT(t),
+		DSCInitializationNamespacedName:  types.NamespacedName{Name: dsciInstanceName},
+		DataScienceClusterNamespacedName: types.NamespacedName{Name: dscInstanceName},
+		OperatorNamespace:                testOpts.operatorNamespace,
+		AppsNamespace:                    testOpts.appsNamespace,
+	}, nil
+}
 
 // OverrideEventuallyTimeout temporarily changes the Eventually timeout and polling period.
 func (tc *TestContext) OverrideEventuallyTimeout(timeout, pollInterval time.Duration) func() {
