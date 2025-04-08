@@ -312,6 +312,14 @@ func (r *Manager) findUnhappyDependent() *common.Condition {
 	return nil
 }
 
+// Reset clears all conditions managed by the Manager.
+//
+// It achieves this by setting an empty slice of common.Condition
+// in the underlying accessor.
+func (r *Manager) Reset() {
+	r.accessor.SetConditions([]common.Condition{})
+}
+
 // Sort arranges the conditions retrieved from the accessor based on the following rules:
 // 1. `happy` condition is assigned the highest priority.
 // 2. `dependents` are prioritized in the order they are defined.
