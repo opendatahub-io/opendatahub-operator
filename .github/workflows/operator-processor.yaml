@@ -63,7 +63,7 @@ jobs:
           ln -s $yq_filename yq
           cp $yq_filename /usr/local/bin/yq
   
-          pip install -r utils/utils/operator-processor/requirements.txt
+          pip install --default-timeout=100 -r utils/utils/operator-processor/requirements.txt
 
       - name: Execute Operator Processor
         env:
