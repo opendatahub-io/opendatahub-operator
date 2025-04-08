@@ -98,7 +98,7 @@ Additionally installing `Authorino operator` & `Service Mesh operator` enhances 
 #### Pre-requisites
 
 - Go version **go1.22**
-- operator-sdk version can be updated to **v1.33.0**
+- operator-sdk version can be updated to **v1.37.0**
 
 #### Download manifests
 
