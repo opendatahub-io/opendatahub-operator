@@ -1,7 +1,6 @@
 package modelregistry
 
 import (
-	"embed"
 	"path"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -49,9 +48,6 @@ var (
 		status.ConditionDeploymentsAvailable,
 	}
 )
-
-//go:embed resources
-var resourcesFS embed.FS
 
 func baseManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
