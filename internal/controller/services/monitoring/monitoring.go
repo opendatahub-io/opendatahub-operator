@@ -15,7 +15,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	odhcli "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -136,8 +135,8 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 	return err
 }
 
-func isComponentReady(ctx context.Context, cli *odhcli.Client, obj common.PlatformObject) (bool, error) {
-	err := cli.Client.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+func isComponentReady(ctx context.Context, cli client.Client, obj common.PlatformObject) (bool, error) {
+	err := cli.Get(ctx, client.ObjectKeyFromObject(obj), obj)
 	switch {
 	case k8serr.IsNotFound(err):
 		return false, nil

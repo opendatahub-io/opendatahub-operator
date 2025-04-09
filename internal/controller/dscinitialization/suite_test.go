@@ -49,7 +49,6 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
-	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -126,13 +125,11 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(serviceApi.AddToScheme(testScheme))
 	// +kubebuilder:scaffold:scheme
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
+	cli, err := client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).NotTo(HaveOccurred())
-	Expect(k8sClient).NotTo(BeNil())
+	Expect(cli).NotTo(BeNil())
 
-	odhClient, err := odhClient.NewFromConfig(cfg, k8sClient)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(odhClient).NotTo(BeNil())
+	k8sClient = cli
 
 	webhookInstallOptions := &testEnv.WebhookInstallOptions
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
@@ -147,7 +144,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&dscictrl.DSCInitializationReconciler{
-		Client:   odhClient,
+		Client:   k8sClient,
 		Scheme:   testScheme,
 		Recorder: mgr.GetEventRecorderFor("dscinitialization-controller"),
 	}).SetupWithManager(gCtx, mgr)

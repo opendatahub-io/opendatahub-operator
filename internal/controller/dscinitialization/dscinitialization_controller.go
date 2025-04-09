@@ -49,10 +49,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
+	rp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -67,7 +67,7 @@ var managementStateChangeTrustedCA = false
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct {
-	*odhClient.Client
+	client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 }
@@ -355,17 +355,17 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
 				return r.watchDSCResource(ctx)
 			}),
-			builder.WithPredicates(resources.DSCDeletionPredicate), // TODO: is it needed?
+			builder.WithPredicates(rp.DSCDeletionPredicate), // TODO: is it needed?
 		).
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringSecretResource),
-			builder.WithPredicates(resources.SecretContentChangedPredicate),
+			builder.WithPredicates(rp.SecretContentChangedPredicate),
 		).
 		Watches(
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(r.watchMonitoringConfigMapResource),
-			builder.WithPredicates(resources.CMContentChangedPredicate),
+			builder.WithPredicates(rp.CMContentChangedPredicate),
 		).
 		Watches(
 			&serviceApi.Auth{},
@@ -467,7 +467,15 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 
 	// for generic case if we need to support configable monitoring namespace
 	// set filed manager to DSCI
-	if err := r.Apply(ctx, defaultMonitoring, client.FieldOwner("dscinitialization.opendatahub.io"), client.ForceOwnership); err != nil && !k8serr.IsAlreadyExists(err) {
+	err := resources.Apply(
+		ctx,
+		r.Client,
+		defaultMonitoring,
+		client.FieldOwner("dscinitialization.opendatahub.io"),
+		client.ForceOwnership,
+	)
+
+	if err != nil && !k8serr.IsAlreadyExists(err) {
 		return err
 	}
 

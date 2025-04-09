@@ -10,6 +10,7 @@ import (
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
+	"github.com/stretchr/testify/mock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -17,7 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -26,9 +27,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/gomega"
@@ -64,10 +65,7 @@ func TestDeployWithCacheAction(t *testing.T) {
 	cfg, err := envTest.Start()
 	g.Expect(err).NotTo(HaveOccurred())
 
-	envTestClient, err := ctrlCli.New(cfg, ctrlCli.Options{Scheme: s})
-	g.Expect(err).NotTo(HaveOccurred())
-
-	cli, err := client.NewFromConfig(cfg, envTestClient)
+	cli, err := client.New(cfg, client.Options{Scheme: s})
 	g.Expect(err).NotTo(HaveOccurred())
 
 	t.Run("ExistingResource", func(t *testing.T) {
@@ -121,7 +119,7 @@ func TestDeployWithCacheAction(t *testing.T) {
 	})
 }
 
-func testResourceNotReDeployed(t *testing.T, cli *client.Client, obj ctrlCli.Object, create bool) {
+func testResourceNotReDeployed(t *testing.T, cli client.Client, obj client.Object, create bool) {
 	t.Helper()
 
 	g := NewWithT(t)
@@ -161,6 +159,9 @@ func testResourceNotReDeployed(t *testing.T, cli *client.Client, obj ctrlCli.Obj
 		Resources: []unstructured.Unstructured{
 			*in.DeepCopy(),
 		},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(false)
+		}),
 	}
 
 	action := deploy.NewAction(
@@ -180,7 +181,7 @@ func testResourceNotReDeployed(t *testing.T, cli *client.Client, obj ctrlCli.Obj
 	out1 := unstructured.Unstructured{}
 	out1.SetGroupVersionKind(in.GroupVersionKind())
 
-	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(in), &out1)
+	err = cli.Get(ctx, client.ObjectKeyFromObject(in), &out1)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Resource should not be re-deployed
@@ -192,14 +193,14 @@ func testResourceNotReDeployed(t *testing.T, cli *client.Client, obj ctrlCli.Obj
 	out2 := unstructured.Unstructured{}
 	out2.SetGroupVersionKind(in.GroupVersionKind())
 
-	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(in), &out2)
+	err = cli.Get(ctx, client.ObjectKeyFromObject(in), &out2)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// check that the resource version has not changed
 	g.Expect(out1.GetResourceVersion()).Should(Equal(out2.GetResourceVersion()))
 }
 
-func testCacheTTL(t *testing.T, cli *client.Client, obj ctrlCli.Object) {
+func testCacheTTL(t *testing.T, cli client.Client, obj client.Object) {
 	t.Helper()
 
 	g := NewWithT(t)
@@ -234,6 +235,9 @@ func testCacheTTL(t *testing.T, cli *client.Client, obj ctrlCli.Object) {
 		Resources: []unstructured.Unstructured{
 			*in.DeepCopy(),
 		},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(false)
+		}),
 	}
 
 	ttl := 1 * time.Second

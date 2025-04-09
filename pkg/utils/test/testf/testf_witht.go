@@ -13,7 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -21,7 +20,7 @@ import (
 // It provides utility methods to interact with resources in a Kubernetes cluster and perform assertions on them.
 type WithT struct {
 	ctx    context.Context
-	client *odhClient.Client
+	client client.Client
 
 	*gomega.WithT
 }
@@ -96,11 +95,11 @@ func (t *WithT) Context() context.Context {
 	return t.ctx
 }
 
-// Client returns the `odhClient.Client` used to interact with the cluster for resource operations.
+// Client returns the `client.Client` used to interact with the cluster for resource operations.
 //
 // Returns:
-//   - *odhClient.Client: The Kubernetes client used for performing operations on the cluster.
-func (t *WithT) Client() *odhClient.Client {
+//   - client.Client: The Kubernetes client used for performing operations on the cluster.
+func (t *WithT) Client() client.Client {
 	return t.client
 }
 
