@@ -66,6 +66,22 @@ jobs:
           make catalog-build 
           make catalog-push
 
-# run-jenkins:
-#   needs: create-catalog-image
-#  ... TBD ...
+  run-jenkins:
+    name: Run Jenkins test pipeline
+    needs: create-catalog-image
+    runs-on: ubuntu-latest
+    env:
+      JENKINS_URL: ${{ secrets.JENKINS_URL }}
+      JENKINS_USER: ${{ secrets.JENKINS_USER }}
+      JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
+      JENKINS_JOB: $(( env.JENKINS_JOB ))
+    steps:
+    - name: Trigger Jenkins test
+      uses: appleboy/jenkins-action@master
+      with:
+        url: ${{ env.JENKINS_URL }}
+        user: ${{ env.JENKINS_USER }}
+        token: ${{ env.JENKINS_TOKEN }}
+        job: $(( env.JENKINS_JOB ))
+        # parameters: *add chosen final job parameters*
+
