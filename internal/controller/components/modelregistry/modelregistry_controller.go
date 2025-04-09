@@ -33,7 +33,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
@@ -76,14 +75,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// namespaces that may not be known when the controller is started, hence
 		// it should be watched dynamically
 		WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic()).
-		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(customizeManifests).
 		WithAction(releases.NewAction()).
 		WithAction(configureDependencies).
-		WithAction(template.NewAction(
-			template.WithCache(),
-		)).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
