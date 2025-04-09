@@ -10,7 +10,6 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -38,14 +37,13 @@ func modelRegistryTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate component spec", componentCtx.ValidateSpec},
-		{"Validate component conditions", componentCtx.ValidateConditions},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate watched resources", componentCtx.ValidateOperandsWatchedResources},
 		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
-		{"Validate cert", componentCtx.ValidateModelRegistryCert},
-		{"Validate ServiceMeshMember", componentCtx.ValidateModelRegistryServiceMeshMember},
+		{"Validate cert should be created from default DSCI", componentCtx.ValidateModelRegistryCert},
+		{"Validate no SMM should be created", componentCtx.ValidateNoSMM},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
@@ -65,18 +63,6 @@ func (tc *ModelRegistryTestCtx) ValidateSpec(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ModelRegistry, types.NamespacedName{Name: componentApi.ModelRegistryInstanceName}),
 		WithCondition(jq.Match(`.spec.registriesNamespace == "%s"`, dsc.Spec.Components.ModelRegistry.RegistriesNamespace)),
-	)
-}
-
-// ValidateConditions validates that the ModelRegistry instance's status conditions are correct.
-func (tc *ModelRegistryTestCtx) ValidateConditions(t *testing.T) {
-	t.Helper()
-
-	// Ensure the ModelRegistry resource has the "ServiceMeshAvailable" condition set to "True".
-	tc.ValidateComponentCondition(
-		gvk.ModelRegistry,
-		componentApi.ModelRegistryInstanceName,
-		status.ConditionServiceMeshAvailable,
 	)
 }
 
@@ -148,20 +134,15 @@ func (tc *ModelRegistryTestCtx) ValidateModelRegistryCert(t *testing.T) {
 	)
 }
 
-// ValidateModelRegistryServiceMeshMember validates the ModelRegistry ServiceMeshMember.
-func (tc *ModelRegistryTestCtx) ValidateModelRegistryServiceMeshMember(t *testing.T) {
+// ValidateNoSMM ensures there are no ServiceMeshMember.
+func (tc *ModelRegistryTestCtx) ValidateNoSMM(t *testing.T) {
 	t.Helper()
+	// Retrieve the DataScienceCluster instance.
+	dsc := tc.FetchDataScienceCluster()
 
-	// Retrieve the ModelRegistry instance.
-	mri := tc.retrieveModelRegistry()
-
-	// Ensure that the registries namespace is not empty.
-	tc.g.Expect(mri.Spec.RegistriesNamespace).NotTo(BeEmpty())
-
-	// Ensure that the ServiceMeshMember exists and matches the expected condition.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ServiceMeshMember, types.NamespacedName{Namespace: mri.Spec.RegistriesNamespace, Name: serviceMeshMemberName}),
-		WithCondition(jq.Match(`.spec | has("controlPlaneRef")`)),
+	tc.EnsureResourceDoesNotExist(
+		WithMinimalObject(gvk.ServiceMeshMember, types.NamespacedName{Name: "default", Namespace: dsc.Spec.Components.ModelRegistry.RegistriesNamespace}),
+		WithCustomErrorMsg(`Ensuring there is no SMM created`),
 	)
 }
 
