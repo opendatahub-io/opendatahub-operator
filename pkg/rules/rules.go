@@ -58,7 +58,7 @@ func RetrieveSelfSubjectRules(
 
 	err := cli.Create(ctx, &rulesReview)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create SelfSubjectRulesReviews: %w", err)
+		return nil, fmt.Errorf("failed to create SelfSubjectRulesReview for namespace '%s': %w", ns, err)
 	}
 
 	if rulesReview.Status.EvaluationError != "" {
