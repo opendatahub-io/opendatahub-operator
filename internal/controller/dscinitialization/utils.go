@@ -54,7 +54,7 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 
 	// Patch monitoring namespace: only for Managed cluster
 	if platform == cluster.ManagedRhoai {
-		if err := r.patchMonitoringNS(ctx, dscInit); err != nil {
+		if err := PatchMonitoringNS(ctx, r.Client, dscInit); err != nil {
 			log.Error(err, "error patch monitoring namespace")
 			return err
 		}
@@ -125,7 +125,7 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 
 	// label only for managed cluster
 	if platform == cluster.ManagedRhoai {
-		labelList["openshift.io/cluster-monitoring"] = "true"
+		labelList[labels.ClusterMonitoring] = labels.True
 	}
 
 	for _, l := range extraLabel {
@@ -141,7 +141,7 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 	return err
 }
 
-func (r *DSCInitializationReconciler) patchMonitoringNS(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
+func PatchMonitoringNS(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 	if dscInit.Spec.Monitoring.ManagementState != operatorv1.Managed {
 		return nil
@@ -152,19 +152,19 @@ func (r *DSCInitializationReconciler) patchMonitoringNS(ctx context.Context, dsc
 	desiredMonitoringNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: monitoringName,
-			Labels: map[string]string{
-				labels.ODH.OwnedNamespace: "true",
-				labels.SecurityEnforce:    "baseline",
-				labels.ClusterMonitoring:  "true",
-			},
 		},
 	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, desiredMonitoringNamespace, func() error {
+	_, err := controllerutil.CreateOrUpdate(ctx, cli, desiredMonitoringNamespace, func() error {
+		resources.SetLabels(desiredMonitoringNamespace, map[string]string{
+			labels.ODH.OwnedNamespace: labels.True,
+			labels.SecurityEnforce:    "baseline",
+			labels.ClusterMonitoring:  labels.True,
+		})
 		return nil
 	})
 	if err != nil {
-		log.Error(err, "Unable to create or patcth monitoirng namespace")
+		log.Error(err, "Unable to create or patch monitoring namespace")
 	}
 	return err
 }
