@@ -427,7 +427,7 @@ make e2e-test OPERATOR_NAMESPACE=<namespace> E2E_TEST_FLAGS="--deletion-policy=n
 Example commands to run test suite for the dashboard `component` only, with the operator running out of the cluster.
 
 ```shell
-make run-notebhook
+make run-nowebhook
 ```
 ```shell
 make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--test-operator-controller=false --test-webhook=false --test-component=dashboard"

@@ -71,7 +71,6 @@ const (
 	ConditionDeploymentsNotAvailableReason = "DeploymentsNotReady"
 	ConditionDeploymentsAvailable          = "DeploymentsAvailable"
 	ConditionServerlessAvailable           = "ServerlessAvailable"
-	ConditionServiceMeshAvailable          = "ServiceMeshAvailable"
 	ConditionArgoWorkflowAvailable         = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady           = "ComponentsReady"
 	ConditionServingAvailable              = "ServingAvailable"

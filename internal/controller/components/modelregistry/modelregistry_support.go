@@ -44,7 +44,6 @@ var (
 	}
 
 	conditionTypes = []string{
-		status.ConditionServiceMeshAvailable,
 		status.ConditionDeploymentsAvailable,
 	}
 )
