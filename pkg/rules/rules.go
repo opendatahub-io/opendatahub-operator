@@ -158,7 +158,7 @@ func ComputeDeletableResources(
 	for _, list := range resourceLists {
 		groupVersion, err := schema.ParseGroupVersion(list.GroupVersion)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse group version: %w", err)
+			return nil, fmt.Errorf("unable to parse group version '%s': %w", list.GroupVersion, err)
 		}
 
 		for _, apiResource := range list.APIResources {
