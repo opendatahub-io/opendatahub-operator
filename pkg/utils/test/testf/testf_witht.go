@@ -12,10 +12,20 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
+// WithT encapsulates the test context and the Kubernetes client, along with gomega's assertion methods.
+// It provides utility methods to interact with resources in a Kubernetes cluster and perform assertions on them.
+type WithT struct {
+	ctx    context.Context
+	client client.Client
+
+	*gomega.WithT
+}
+
+// WithTOpts is a function type used to configure options for the WithT object.
+// These options modify the behavior of the tests, such as timeouts and polling intervals.
 type WithTOpts func(*WithT)
 
 func WithFailHandler(value gomegaTypes.GomegaFailHandler) WithTOpts {
@@ -48,18 +58,15 @@ func WithConsistentlyPollingInterval(value time.Duration) WithTOpts {
 	}
 }
 
-type WithT struct {
-	ctx    context.Context
-	client *odhClient.Client
-
-	*gomega.WithT
-}
-
 func (t *WithT) Context() context.Context {
 	return t.ctx
 }
 
-func (t *WithT) Client() *odhClient.Client {
+// Client returns the `client.Client` used to interact with the cluster for resource operations.
+//
+// Returns:
+//   - client.Client: The Kubernetes client used for performing operations on the cluster.
+func (t *WithT) Client() client.Client {
 	return t.client
 }
 

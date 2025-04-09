@@ -47,7 +47,6 @@ type MockManager struct {
 	mapper meta.RESTMapper
 }
 
-//nolint:ireturn
 func (f *MockManager) GetClient() client.Client   { return f.client }
 func (f *MockManager) GetScheme() *runtime.Scheme { return f.scheme }
 

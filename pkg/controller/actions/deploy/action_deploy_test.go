@@ -11,6 +11,7 @@ import (
 	"github.com/onsi/gomega/gstruct"
 	"github.com/operator-framework/api/pkg/lib/version"
 	"github.com/rs/xid"
+	"github.com/stretchr/testify/mock"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -31,14 +32,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
-	odhCli "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/gomega"
@@ -86,6 +86,9 @@ func TestDeployAction(t *testing.T) {
 				Major: 1, Minor: 2, Patch: 3,
 			}}},
 		Resources: []unstructured.Unstructured{*obj1},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(false)
+		}),
 	}
 
 	err = action(ctx, &rr)
@@ -283,10 +286,7 @@ func TestDeployClusterRole(t *testing.T) {
 	cfg, err := envTest.Start()
 	g.Expect(err).NotTo(HaveOccurred())
 
-	envTestClient, err := client.New(cfg, client.Options{Scheme: s})
-	g.Expect(err).NotTo(HaveOccurred())
-
-	cli, err := odhCli.NewFromConfig(cfg, envTestClient)
+	cli, err := client.New(cfg, client.Options{Scheme: s})
 	g.Expect(err).NotTo(HaveOccurred())
 
 	t.Run("aggregation", func(t *testing.T) {
@@ -343,7 +343,7 @@ func TestDeployClusterRole(t *testing.T) {
 	})
 }
 
-func deployClusterRoles(t *testing.T, ctx context.Context, cli *odhCli.Client, roles ...rbacv1.ClusterRole) {
+func deployClusterRoles(t *testing.T, ctx context.Context, cli client.Client, roles ...rbacv1.ClusterRole) {
 	t.Helper()
 
 	g := NewWithT(t)
@@ -364,6 +364,9 @@ func deployClusterRoles(t *testing.T, ctx context.Context, cli *odhCli.Client, r
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
 			}}},
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(false)
+		}),
 	}
 
 	for i := range roles {
@@ -409,10 +412,7 @@ func TestDeployCRD(t *testing.T) {
 	cfg, err := envTest.Start()
 	g.Expect(err).NotTo(HaveOccurred())
 
-	envTestClient, err := client.New(cfg, client.Options{Scheme: s})
-	g.Expect(err).NotTo(HaveOccurred())
-
-	cli, err := odhCli.NewFromConfig(cfg, envTestClient)
+	cli, err := client.New(cfg, client.Options{Scheme: s})
 	g.Expect(err).NotTo(HaveOccurred())
 
 	rr := types.ReconciliationRequest{
@@ -513,10 +513,7 @@ func TestDeployOwnerRef(t *testing.T) {
 	cfg, err := envTest.Start()
 	g.Expect(err).NotTo(HaveOccurred())
 
-	envTestClient, err := client.New(cfg, client.Options{Scheme: s})
-	g.Expect(err).NotTo(HaveOccurred())
-
-	cli, err := odhCli.NewFromConfig(cfg, envTestClient)
+	cli, err := client.New(cfg, client.Options{Scheme: s})
 	g.Expect(err).NotTo(HaveOccurred())
 
 	err = cli.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
@@ -604,10 +601,10 @@ func TestDeployOwnerRef(t *testing.T) {
 			Version: version.OperatorVersion{Version: semver.Version{
 				Major: 1, Minor: 2, Patch: 3,
 			}}},
-		Manager: manager.New(nil),
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", gvk.ConfigMap).Return(true)
+		}),
 	}
-
-	rr.Manager.AddGVK(gvk.ConfigMap, true)
 
 	err = rr.AddResources(configMapRef.DeepCopy(), crdRef.DeepCopy())
 	g.Expect(err).NotTo(HaveOccurred())

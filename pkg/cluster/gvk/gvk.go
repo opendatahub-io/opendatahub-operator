@@ -35,6 +35,12 @@ var (
 		Kind:    "FeatureTracker",
 	}
 
+	Pod = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "Pod",
+	}
+
 	Deployment = schema.GroupVersionKind{
 		Group:   appsv1.SchemeGroupVersion.Group,
 		Version: appsv1.SchemeGroupVersion.Version,

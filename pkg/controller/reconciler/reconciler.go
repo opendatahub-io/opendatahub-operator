@@ -11,6 +11,8 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,12 +26,14 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
-	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	odhManager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
+
+type gvkInfo struct {
+	owned bool
+}
 
 type ReconcilerOpt func(*Reconciler)
 
@@ -45,7 +49,10 @@ const platformFinalizer = "platform.opendatahub.io/finalizer"
 
 // Reconciler provides generic reconciliation functionality for ODH objects.
 type Reconciler struct {
-	Client     *odhClient.Client
+	Client          client.Client
+	discoveryClient discovery.DiscoveryInterface
+	dynamicClient   dynamic.Interface
+
 	Scheme     *runtime.Scheme
 	Actions    []actions.Fn
 	Finalizer  []actions.Fn
@@ -55,26 +62,29 @@ type Reconciler struct {
 	Release    common.Release
 
 	name                     string
-	m                        *odhManager.Manager
 	instanceFactory          func() (common.PlatformObject, error)
 	conditionsManagerFactory func(common.ConditionsAccessor) *conditions.Manager
+	gvks                     map[schema.GroupVersionKind]gvkInfo
 }
 
 // NewReconciler creates a new reconciler for the given type.
 func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, object T, opts ...ReconcilerOpt) (*Reconciler, error) {
-	oc, err := odhClient.NewFromManager(mgr)
+	discoveryCli, err := discovery.NewDiscoveryClientForConfig(mgr.GetConfig())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to construct a Discovery client: %w", err)
+	}
+	dynamicCli, err := dynamic.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return nil, fmt.Errorf("unable to construct a Dynamic client: %w", err)
 	}
 
 	cc := Reconciler{
-		Client:   oc,
+		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Log:      ctrl.Log.WithName("controllers").WithName(name),
 		Recorder: mgr.GetEventRecorderFor(name),
 		Release:  cluster.GetRelease(),
 		name:     name,
-		m:        odhManager.New(mgr),
 		instanceFactory: func() (common.PlatformObject, error) {
 			t := reflect.TypeOf(object).Elem()
 			res, ok := reflect.New(t).Interface().(T)
@@ -87,6 +97,9 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		conditionsManagerFactory: func(accessor common.ConditionsAccessor) *conditions.Manager {
 			return conditions.NewManager(accessor, status.ConditionTypeReady)
 		},
+		gvks:            make(map[schema.GroupVersionKind]gvkInfo),
+		dynamicClient:   dynamicCli,
+		discoveryClient: discoveryCli,
 	}
 
 	for _, opt := range opts {
@@ -104,12 +117,27 @@ func (r *Reconciler) GetLogger() logr.Logger {
 	return r.Log
 }
 
-func (r *Reconciler) AddOwnedType(gvk schema.GroupVersionKind) {
-	r.m.AddGVK(gvk, true)
+func (r *Reconciler) GetClient() client.Client {
+	return r.Client
 }
 
-func (r *Reconciler) Owns(obj client.Object) bool {
-	return r.m.Owns(obj.GetObjectKind().GroupVersionKind())
+func (r *Reconciler) GetDiscoveryClient() discovery.DiscoveryInterface {
+	return r.discoveryClient
+}
+
+func (r *Reconciler) GetDynamicClient() dynamic.Interface {
+	return r.dynamicClient
+}
+
+func (r *Reconciler) AddOwnedType(gvk schema.GroupVersionKind) {
+	r.gvks[gvk] = gvkInfo{
+		owned: true,
+	}
+}
+
+func (r *Reconciler) Owns(gvk schema.GroupVersionKind) bool {
+	i, ok := r.gvks[gvk]
+	return ok && i.owned
 }
 
 func (r *Reconciler) AddAction(action actions.Fn) {
@@ -204,7 +232,7 @@ func (r *Reconciler) delete(ctx context.Context, res common.PlatformObject) erro
 
 	rr := types.ReconciliationRequest{
 		Client:     r.Client,
-		Manager:    r.m,
+		Controller: r,
 		Instance:   res,
 		Conditions: r.conditionsManagerFactory(res),
 		Release:    r.Release,
@@ -246,7 +274,7 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 
 	rr := types.ReconciliationRequest{
 		Client:     r.Client,
-		Manager:    r.m,
+		Controller: r,
 		Instance:   res,
 		Conditions: r.conditionsManagerFactory(res),
 		Release:    r.Release,
@@ -314,8 +342,9 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 		is.ObservedGeneration = rr.Instance.GetGeneration()
 	}
 
-	err := r.Client.ApplyStatus(
+	err := resources.ApplyStatus(
 		ctx,
+		r.Client,
 		rr.Instance,
 		client.FieldOwner(r.name),
 		client.ForceOwnership,
