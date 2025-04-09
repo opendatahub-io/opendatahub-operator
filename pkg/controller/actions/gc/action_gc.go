@@ -141,16 +141,8 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 
 	CyclesTotal.WithLabelValues(controllerName).Inc()
 
-	selector := a.selector
-	if selector == nil {
-		selector = labels.SelectorFromSet(map[string]string{
-			odhLabels.PlatformPartOf: controllerName,
-		})
-	}
-
-	deleted := 0
 	lo := metav1.ListOptions{
-		LabelSelector: selector.String(),
+		LabelSelector: a.getOrComputeSelector(controllerName).String(),
 	}
 
 	l.V(3).Info("run", "selector", lo.LabelSelector)
@@ -170,36 +162,19 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 			return fmt.Errorf("cannot list child resources %s: %w", res.String(), err)
 		}
 
-		for i := range items {
-			canBeDeleted, err = a.isObjectDeletable(rr, igvk, items[i])
-			if err != nil {
-				return fmt.Errorf("cannot determine if object %s in namespace %q can be deleted: %w",
-					items[i].GetName(),
-					items[i].GetNamespace(),
-					err,
-				)
-			}
-			if !canBeDeleted {
-				continue
-			}
-			if !items[i].GetDeletionTimestamp().IsZero() {
-				continue
-			}
-
-			if err := a.delete(ctx, rr.Client, items[i]); err != nil {
-				return err
-			}
-
-			deleted++
+		deleted, err := a.deleteResources(ctx, rr, igvk, items)
+		if err != nil {
+			return fmt.Errorf("error processing items to delete: %w", err)
 		}
-	}
 
-	if deleted > 0 {
-		DeletedTotal.WithLabelValues(controllerName).Add(float64(deleted))
+		if deleted > 0 {
+			DeletedTotal.WithLabelValues(controllerName).Add(float64(deleted))
+		}
 	}
 
 	return nil
 }
+
 func (a *Action) computeDeletableTypes(ctx context.Context, rr *odhTypes.ReconciliationRequest) ([]resources.Resource, error) {
 	res, err := resources.ListAvailableAPIResources(rr.Controller.GetDiscoveryClient())
 	if err != nil {
@@ -278,6 +253,42 @@ func (a *Action) isObjectDeletable(
 	return a.objectPredicateFn(rr, obj)
 }
 
+func (a *Action) deleteResources(
+	ctx context.Context,
+	rr *odhTypes.ReconciliationRequest,
+	igvk schema.GroupVersionKind,
+	items []unstructured.Unstructured,
+) (int, error) {
+	deleted := 0
+
+	for i := range items {
+		canBeDeleted, err := a.isObjectDeletable(rr, igvk, items[i])
+		if err != nil {
+			return 0, fmt.Errorf("cannot determine if object %s in namespace %q can be deleted: %w",
+				items[i].GetName(),
+				items[i].GetNamespace(),
+				err,
+			)
+		}
+
+		if !canBeDeleted {
+			continue
+		}
+
+		if !items[i].GetDeletionTimestamp().IsZero() {
+			continue
+		}
+
+		if err := a.delete(ctx, rr.Client, items[i]); err != nil {
+			return 0, err
+		}
+
+		deleted++
+	}
+
+	return deleted, nil
+}
+
 func (a *Action) delete(
 	ctx context.Context,
 	cli client.Client,
@@ -302,6 +313,24 @@ func (a *Action) delete(
 	}
 
 	return nil
+}
+
+// getOrComputeSelector returns the existing label selector if provided, or, it generates
+// a new selector using the provided value and 'platform.opendatahub.io/part-of' as a key.
+//
+// Parameters:
+//   - controllerName: the name of the controller to associate with the selector.
+//
+// Returns:
+//   - labels.Selector: either the cached selector or a newly constructed one.
+func (a *Action) getOrComputeSelector(partOf string) labels.Selector {
+	if a.selector != nil {
+		return a.selector
+	}
+
+	return labels.SelectorFromSet(map[string]string{
+		odhLabels.PlatformPartOf: partOf,
+	})
 }
 
 func (a *Action) isUnremovable(gvk schema.GroupVersionKind) bool {

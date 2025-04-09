@@ -80,6 +80,7 @@ linters-settings:
       - types.AsyncAssertion
       - kubernetes.Interface
       - gomega.AsyncAssertion
+      - labels.Selector
   revive:
     rules:
       - name: dot-imports
