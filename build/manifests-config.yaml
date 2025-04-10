@@ -47,3 +47,6 @@ map:
   odh-training-operator:
     src: manifests
     dest: trainingoperator
+  odh-feast-operator:
+    src: infra/feast-operator/config
+    dest: feastoperator
