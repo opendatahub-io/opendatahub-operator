@@ -20,6 +20,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-2.19:manifests"
     ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-2.19:config"
     ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-2.19:config"
+    ["feastoperator"]="red-hat-data-services:feast:rhoai-2.19:infra/feast-operator/config"
 )
 
 # Allow overwriting repo using flags component=repo

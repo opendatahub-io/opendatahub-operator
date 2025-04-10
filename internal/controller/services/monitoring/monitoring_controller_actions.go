@@ -26,6 +26,7 @@ var componentRules = map[string]string{
 	componentApi.TrainingOperatorComponentName:     "trainingoperator",
 	componentApi.ModelRegistryComponentName:        "model-registry-operator",
 	componentApi.ModelControllerComponentName:      "odh-model-controller",
+	componentApi.FeastOperatorComponentName:        "feastoperator",
 }
 
 // initialize handles all pre-deployment configurations.
