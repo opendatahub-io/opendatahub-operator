@@ -198,7 +198,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
-  name: rhods-operator.v2.19.0
+  name: rhods-operator.v2.20.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1449,7 +1449,7 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.19.0
+  version: 2.20.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
