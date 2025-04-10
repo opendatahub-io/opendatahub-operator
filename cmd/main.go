@@ -87,6 +87,7 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/codeflare"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/feastoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
