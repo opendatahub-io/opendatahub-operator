@@ -7,8 +7,8 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -26,6 +26,7 @@ var componentRules = map[string]string{
 	componentApi.TrainingOperatorComponentName:     "trainingoperator",
 	componentApi.ModelRegistryComponentName:        "model-registry-operator",
 	componentApi.ModelControllerComponentName:      "odh-model-controller",
+	componentApi.FeastOperatorComponentName:        "feastoperator",
 }
 
 // initialize handles all pre-deployment configurations.

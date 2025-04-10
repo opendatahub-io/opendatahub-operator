@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 
 	addonv1alpha1 "github.com/openshift/addon-operator/apis/addons/v1alpha1"
@@ -68,16 +69,15 @@ import (
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/certconfigmapgenerator"
+	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/secretgenerator"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
+	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/setupcontroller"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	cr "github.com/opendatahub-io/opendatahub-operator/v2/pkg/componentsregistry"
 	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -87,6 +87,7 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/codeflare"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/feastoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
@@ -96,6 +97,8 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
 )
 
 var (
@@ -137,6 +140,12 @@ func init() { //nolint:gochecknoinits
 func initComponents(_ context.Context, p common.Platform) error {
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
 		return ch.Init(p)
+	})
+}
+
+func initServices(_ context.Context, p common.Platform) error {
+	return sr.ForEach(func(sh sr.ServiceHandler) error {
+		return sh.Init(p)
 	})
 }
 
@@ -188,6 +197,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// Get operator platform
 	release := cluster.GetRelease()
 	platform := release.Name
+
+	if err := initServices(ctx, platform); err != nil {
+		setupLog.Error(err, "unable to init services")
+		os.Exit(1)
+	}
 
 	if err := initComponents(ctx, platform); err != nil {
 		setupLog.Error(err, "unable to init components")
@@ -358,19 +372,16 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
+	// Initialize service reconcilers
+	if err := CreateServiceReconcilers(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create service controllers")
+		os.Exit(1)
+	}
+
 	// Initialize component reconcilers
 	if err = CreateComponentReconcilers(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to create component controllers")
 		os.Exit(1)
-	}
-
-	if err := auth.NewServiceReconciler(ctx, mgr); err != nil {
-		os.Exit(1)
-	}
-
-	if platform == cluster.ManagedRhoai {
-		if err := monitoring.NewServiceReconciler(ctx, mgr); err != nil {
-			os.Exit(1)
-		}
 	}
 
 	// Check if user opted for disabling DSC configuration
@@ -441,10 +452,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
-	}
-	if err := initComponents(ctx, platform); err != nil {
-		setupLog.Error(err, "unable to init components")
 		os.Exit(1)
 	}
 
@@ -529,8 +536,32 @@ func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platfor
 }
 
 func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error {
-	// TODO: can it be moved to initComponents?
+	l := logf.FromContext(ctx)
+
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
-		return ch.NewComponentReconciler(ctx, mgr)
+		l.Info("creating reconciler", "type", "component", "name", ch.GetName())
+		if err := ch.NewComponentReconciler(ctx, mgr); err != nil {
+			return fmt.Errorf("error creating %s component reconciler: %w", ch.GetName(), err)
+		}
+
+		return nil
+	})
+}
+
+func CreateServiceReconcilers(ctx context.Context, mgr manager.Manager) error {
+	rel := cluster.GetRelease()
+	l := logf.FromContext(ctx)
+
+	return sr.ForEach(func(sh sr.ServiceHandler) error {
+		if sh.GetManagementState(rel.Name) != operatorv1.Managed {
+			return nil
+		}
+
+		l.Info("creating reconciler", "type", "service", "name", sh.GetName())
+		if err := sh.NewReconciler(ctx, mgr); err != nil {
+			return fmt.Errorf("error creating %s service reconciler: %w", sh.GetName(), err)
+		}
+
+		return nil
 	})
 }

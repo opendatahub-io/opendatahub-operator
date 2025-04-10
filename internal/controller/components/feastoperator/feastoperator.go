@@ -1,4 +1,4 @@
-package datasciencepipelines
+package feastoperator
 
 import (
 	"context"
@@ -15,10 +15,9 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
@@ -29,51 +28,47 @@ func init() { //nolint:gochecknoinits
 }
 
 func (s *componentHandler) GetName() string {
-	return componentApi.DataSciencePipelinesComponentName
+	return componentApi.FeastOperatorComponentName
 }
 
 func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	if dsc.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed {
+	if dsc.Spec.Components.FeastOperator.ManagementState == operatorv1.Managed {
 		return operatorv1.Managed
 	}
 	return operatorv1.Removed
 }
 
-func (s *componentHandler) Init(_ common.Platform) error {
-	release := cluster.GetRelease()
-	extraParams := map[string]string{
-		platformVersionParamsKey: release.Version.String(),
+func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
+	return &componentApi.FeastOperator{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       componentApi.FeastOperatorKind,
+			APIVersion: componentApi.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: componentApi.FeastOperatorInstanceName,
+			Annotations: map[string]string{
+				annotations.ManagementStateAnnotation: string(s.GetManagementState(dsc)),
+			},
+		},
+		Spec: componentApi.FeastOperatorSpec{
+			FeastOperatorCommonSpec: dsc.Spec.Components.FeastOperator.FeastOperatorCommonSpec,
+		},
 	}
-	if err := deploy.ApplyParams(paramsPath, imageParamMap, extraParams); err != nil {
-		return fmt.Errorf("failed to apply params on path %s: %w", paramsPath, err)
+}
+
+func (s *componentHandler) Init(_ common.Platform) error {
+	if err := odhdeploy.ApplyParams(manifestPath().String(), imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", manifestPath(), err)
 	}
 
 	return nil
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
-	return &componentApi.DataSciencePipelines{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       componentApi.DataSciencePipelinesKind,
-			APIVersion: componentApi.GroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.DataSciencePipelinesInstanceName,
-			Annotations: map[string]string{
-				annotations.ManagementStateAnnotation: string(s.GetManagementState(dsc)),
-			},
-		},
-		Spec: componentApi.DataSciencePipelinesSpec{
-			DataSciencePipelinesCommonSpec: dsc.Spec.Components.DataSciencePipelines.DataSciencePipelinesCommonSpec,
-		},
-	}
-}
-
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
 
-	c := componentApi.DataSciencePipelines{}
-	c.Name = componentApi.DataSciencePipelinesInstanceName
+	c := componentApi.FeastOperator{}
+	c.Name = componentApi.FeastOperatorInstanceName
 
 	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&c), &c); err != nil && !k8serr.IsNotFound(err) {
 		return cs, nil
@@ -84,16 +79,16 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
-	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.DataSciencePipelines.ManagementSpec.ManagementState = s.GetManagementState(dsc)
-	dsc.Status.Components.DataSciencePipelines.DataSciencePipelinesCommonStatus = nil
+	dsc.Status.InstalledComponents[ComponentName] = false
+	dsc.Status.Components.FeastOperator.ManagementSpec.ManagementState = s.GetManagementState(dsc)
+	dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
-		dsc.Status.InstalledComponents[LegacyComponentName] = true
-		dsc.Status.Components.DataSciencePipelines.DataSciencePipelinesCommonStatus = c.Status.DataSciencePipelinesCommonStatus.DeepCopy()
+		dsc.Status.InstalledComponents[ComponentName] = true
+		dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = c.Status.FeastOperatorCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
 			rr.Conditions.MarkFrom(ReadyConditionType, *rc)

@@ -20,9 +20,12 @@ import (
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
+const (
+	ServiceName = serviceApi.MonitoringServiceName
+)
+
 var (
-	ComponentName        = serviceApi.MonitoringServiceName
-	prometheusConfigPath = filepath.Join(odhdeploy.DefaultManifestPath, ComponentName, "prometheus", "apps", "prometheus-configs.yaml")
+	prometheusConfigPath = filepath.Join(odhdeploy.DefaultManifestPath, ServiceName, "prometheus", "apps", "prometheus-configs.yaml")
 )
 
 // updatePrometheusConfig update prometheus-configs.yaml to include/exclude <component>.rules
@@ -65,6 +68,8 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 			TrainingOperatorARules string `yaml:"trainingoperator-alerting.rules"`
 			ModelRegistryRRules    string `yaml:"model-registry-operator-recording.rules"`
 			ModelRegistryARules    string `yaml:"model-registry-operator-alerting.rules"`
+			FeastOperatorRRules    string `yaml:"feastoperator-recording.rules"`
+			FeastOperatorARules    string `yaml:"feastoperator-alerting.rules"`
 		} `yaml:"data"`
 	}
 
