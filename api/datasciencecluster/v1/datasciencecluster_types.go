@@ -67,6 +67,9 @@ type Components struct {
 
 	// Training Operator component configuration.
 	TrainingOperator componentApi.DSCTrainingOperator `json:"trainingoperator,omitempty"`
+
+	// Feast Operator component configuration.
+	FeastOperator componentApi.DSCFeastOperator `json:"feastoperator,omitempty"`
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
@@ -103,6 +106,9 @@ type ComponentsStatus struct {
 
 	// Training Operator component status.
 	TrainingOperator componentApi.DSCTrainingOperatorStatus `json:"trainingoperator,omitempty"`
+
+	// Feast Operator component status.
+	FeastOperator componentApi.DSCFeastOperatorStatus `json:"feastoperator,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.

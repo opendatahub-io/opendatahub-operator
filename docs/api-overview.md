@@ -18,6 +18,8 @@ Package v1 contains API Schema definitions for the components v1 API group
 - [DashboardList](#dashboardlist)
 - [DataSciencePipelines](#datasciencepipelines)
 - [DataSciencePipelinesList](#datasciencepipelineslist)
+- [FeastOperator](#feastoperator)
+- [FeastOperatorList](#feastoperatorlist)
 - [Kserve](#kserve)
 - [KserveList](#kservelist)
 - [Kueue](#kueue)
@@ -238,6 +240,39 @@ _Appears in:_
 
 
 DSCDataSciencePipelinesStatus contains the observed state of the DataSciencePipelines exposed in the DSC instance
+
+
+
+_Appears in:_
+- [ComponentsStatus](#componentsstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
+#### DSCFeastOperator
+
+
+
+DSCFeastOperator defines the configuration exposed in the DSC instance for FeastOperator
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### DSCFeastOperatorStatus
+
+
+
+DSCFeastOperatorStatus struct holds the status for the FeastOperator component exposed in the DSC
 
 
 
@@ -759,6 +794,117 @@ _Appears in:_
 | --- | --- |
 | `Serverless` | Serverless will be used as the default deployment mode for Kserve. This requires Serverless and ServiceMesh operators configured as dependencies.<br /> |
 | `RawDeployment` | RawDeployment will be used as the default deployment mode for Kserve.<br /> |
+
+
+#### FeastOperator
+
+
+
+FeastOperator is the Schema for the FeastOperator API
+
+
+
+_Appears in:_
+- [FeastOperatorList](#feastoperatorlist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `FeastOperator` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[FeastOperatorSpec](#feastoperatorspec)_ |  |  |  |
+| `status` _[FeastOperatorStatus](#feastoperatorstatus)_ |  |  |  |
+
+
+#### FeastOperatorCommonSpec
+
+
+
+FeastOperatorCommonSpec defines the common spec shared across APIs for FeastOperator
+
+
+
+_Appears in:_
+- [DSCFeastOperator](#dscfeastoperator)
+- [FeastOperatorSpec](#feastoperatorspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### FeastOperatorCommonStatus
+
+
+
+FeastOperatorCommonStatus defines the shared observed state of FeastOperator
+
+
+
+_Appears in:_
+- [DSCFeastOperatorStatus](#dscfeastoperatorstatus)
+- [FeastOperatorStatus](#feastoperatorstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+
+
+#### FeastOperatorList
+
+
+
+FeastOperatorList contains a list of FeastOperator objects
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `FeastOperatorList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[FeastOperator](#feastoperator) array_ |  |  |  |
+
+
+#### FeastOperatorSpec
+
+
+
+FeastOperatorSpec defines the desired state of FeastOperator
+
+
+
+_Appears in:_
+- [FeastOperator](#feastoperator)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+
+
+#### FeastOperatorStatus
+
+
+
+FeastOperatorStatus defines the observed state of FeastOperator
+
+
+
+_Appears in:_
+- [FeastOperator](#feastoperator)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
+| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### Kserve
@@ -1931,6 +2077,7 @@ _Appears in:_
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
 | `trainingoperator` _[DSCTrainingOperator](#dsctrainingoperator)_ | Training Operator component configuration. |  |  |
+| `feastoperator` _[DSCFeastOperator](#dscfeastoperator)_ | Feast Operator component configuration. |  |  |
 
 
 #### ComponentsStatus
@@ -1957,6 +2104,7 @@ _Appears in:_
 | `trustyai` _[DSCTrustyAIStatus](#dsctrustyaistatus)_ | TrustyAI component status. |  |  |
 | `modelregistry` _[DSCModelRegistryStatus](#dscmodelregistrystatus)_ | ModelRegistry component status. |  |  |
 | `trainingoperator` _[DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)_ | Training Operator component status. |  |  |
+| `feastoperator` _[DSCFeastOperatorStatus](#dscfeastoperatorstatus)_ | Feast Operator component status. |  |  |
 
 
 #### ControlPlaneSpec

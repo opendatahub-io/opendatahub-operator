@@ -196,6 +196,52 @@ spec:
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                     type: object
+                  feastoperator:
+                    description: Feast Operator component configuration.
+                    properties:
+                      devFlags:
+                        description: Add developer fields
+                        properties:
+                          manifests:
+                            description: List of custom manifests for the given component
+                            items:
+                              properties:
+                                contextDir:
+                                  default: manifests
+                                  description: contextDir is the relative path to
+                                    the folder containing manifests in a repository,
+                                    default value "manifests"
+                                  type: string
+                                sourcePath:
+                                  default: ""
+                                  description: 'sourcePath is the subpath within contextDir
+                                    where kustomize builds start. Examples include
+                                    any sub-folder or path: `base`, `overlays/dev`,
+                                    `default`, `odh` etc.'
+                                  type: string
+                                uri:
+                                  default: ""
+                                  description: uri is the URI point to a git repo
+                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
+                                  type: string
+                              type: object
+                            type: array
+                        type: object
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
                   kserve:
                     description: |-
                       Kserve component configuration.
@@ -745,6 +791,42 @@ spec:
                     type: object
                   datasciencepipelines:
                     description: DataSciencePipeline component status.
+                    properties:
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                      releases:
+                        items:
+                          description: ComponentRelease represents the detailed status
+                            of a component release.
+                          properties:
+                            name:
+                              type: string
+                            repoUrl:
+                              type: string
+                            version:
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                    type: object
+                  feastoperator:
+                    description: Feast Operator component status.
                     properties:
                       managementState:
                         description: |-
