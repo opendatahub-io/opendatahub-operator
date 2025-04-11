@@ -229,7 +229,7 @@ spec:
   - Machine Learning
   - Data Science
   - Feast
-  - feasturestore
+  - featurestore
   links:
   - name: Red Hat OpenShift AI
     url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.16.0
