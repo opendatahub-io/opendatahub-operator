@@ -1,6 +1,6 @@
 [![codecov](https://codecov.io/github/opendatahub-io/opendatahub-operator/graph/badge.svg?token=QN7G7IVSYA)](https://codecov.io/github/opendatahub-io/opendatahub-operator)
 
-This operator is the primary operator for Open Data Hub. It is responsible for enabling Data science applications like 
+This operator is the primary operator for Open Data Hub. It is responsible for enabling Data science applications like
 Jupyter Notebooks, Modelmesh serving, Datascience pipelines etc. The operator makes use of `DataScienceCluster` CRD to deploy
 and configure these applications.
 
@@ -99,7 +99,7 @@ Additionally installing `Authorino operator` & `Service Mesh operator` enhances 
 
 #### Pre-requisites
 
-- Go version **go1.22**
+- Go version **go1.23**
 - operator-sdk version can be updated to **v1.37.0**
 
 #### Download manifests
@@ -217,13 +217,13 @@ e.g `make image-build USE_LOCAL=true"`
   **Note** : Skip the above step if you want to run the existing operator bundle.
 
 - Build Bundle Image:
-  
+
   ```commandline
   make bundle-build bundle-push BUNDLE_IMG=quay.io/<username>/opendatahub-operator-bundle:<VERSION>
   ```
 
 - Run the Bundle on a cluster:
-  
+
   ```commandline
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE --decompression-image quay.io/project-codeflare/busybox:1.36
   ```
@@ -307,7 +307,7 @@ Apply this example with modification for your usage.
 
 ### Example DataScienceCluster
 
-When the operator is installed successfully in the cluster, a user can create a `DataScienceCluster` CR to enable ODH 
+When the operator is installed successfully in the cluster, a user can create a `DataScienceCluster` CR to enable ODH
 components. At a given time, ODH supports only **one** instance of the CR, which can be updated to get custom list of components.
 
 1. Enable all components
@@ -352,7 +352,7 @@ spec:
     workbenches:
       managementState: Managed
     feastoperator:
-      managementState: Managed         
+      managementState: Managed
 ```
 
 2. Enable only Dashboard and Workbenches
