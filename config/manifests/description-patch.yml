@@ -18,3 +18,4 @@ spec:
     * Distributed Workloads(Incubation) - Stack built to make managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists. This stack consists of three components 
                                           Codeflare , KubeRay and Kueue.
     * Kserve - Kserve is the Controller for for serving machine learning (ML) models on arbitrary frameworks
+    * Feast - Feature Store is the fastest path to manage existing infrastructure to productionize analytic data for model training and online inference.

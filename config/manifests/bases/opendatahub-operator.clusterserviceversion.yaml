@@ -136,6 +136,8 @@ spec:
   - distributed workloads
   - trustyai
   - modelregistry
+  - feast
+  - feasturestore
   links:
   - name: Open Data Hub
     url: https://opendatahub.io

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/secretgenerator"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/secretgenerator"
 )
 
 const (
