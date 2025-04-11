@@ -26,3 +26,4 @@ spec:
     * Distributed workloads (KubeRay, CodeFlare, Kueue, Training Operator)
     * XAI explanations of predictive models (TrustyAI)
     * Index and manage models, versions, and artifacts metadata (Model Registry)
+    * Feast - Feature Store is the fastest path to manage existing infrastructure to productionize analytic data for model training and online inference.
