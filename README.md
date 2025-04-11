@@ -401,17 +401,19 @@ make e2e-test
 Additional flags that can be passed to e2e-tests by setting up `E2E_TEST_FLAGS`
 variable. Following table lists all the available flags to run the tests:
 
-| Flag                       | Description                                                                                                                                                                   | Default value |
-|----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
-| --skip-deletion            | To skip running  of `dsc-deletion` test that includes deleting `DataScienceCluster` resources. Assign this variable to `true` to skip DataScienceCluster deletion.            | false         |
-| --test-operator-controller | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes       | true          |
-| --test-webhook             | To configure the execution of tests rellated to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | true          |
-| --test-component           | A repeatable flag that control what component should be tested, by default all component specific test are executed                                                           | true          |
+| Flag                       | Description                                                                                                                                                                   | Default value                 |
+|----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
+| --operator-namespace       | Namespace where the ODH operator is deployed.                                                                                                                                 | `opendatahub-operator-system` |
+| --applications-namespace   | Namespace where the ODH applications are deployed.                                                                                                                            | `opendatahub`                 |
+| --test-operator-controller | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes       | `true`                        |
+| --test-webhook             | To configure the execution of tests rellated to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | `true`                        |
+| --test-component           | A repeatable flag that control what component should be tested, by default all component specific test are executed                                                           | `true`                        |
+| --deletion-policy          | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`. The default is never.              | `always`                      |
 
 Example command to run full test suite skipping the test for DataScienceCluster deletion.
 
 ```shell
-make e2e-test OPERATOR_NAMESPACE=<namespace> E2E_TEST_FLAGS="--skip-deletion=true"
+make e2e-test OPERATOR_NAMESPACE=<namespace> E2E_TEST_FLAGS="--deletion-policy=never"
 ```
 
 Example commands to run test suite for the dashboard `component` only, with the operator running out of the cluster.
