@@ -119,8 +119,8 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 		WithCustomErrorMsg("Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name),
 
 		// Increase time required to get DSCI created
-		WithEventuallyTimeout(eventuallyTimeoutLong),
-		WithEventuallyPollingInterval(defaultEventuallyPollInterval),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
 }
 
@@ -134,8 +134,8 @@ func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 		WithCustomErrorMsg("Failed to create DataScienceCluster resource %s", tc.DataScienceClusterNamespacedName.Name),
 
 		// Increase time required to get DSC created
-		WithEventuallyTimeout(eventuallyTimeoutMedium),
-		WithEventuallyPollingInterval(defaultEventuallyPollInterval),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
 }
 

@@ -59,7 +59,7 @@ func kserveTestSuite(t *testing.T) {
 	}
 
 	// Increase the global eventually timeout
-	reset := componentCtx.OverrideEventuallyTimeout(eventuallyTimeoutLong, defaultEventuallyPollInterval)
+	reset := componentCtx.OverrideEventuallyTimeout(ct.TestTimeouts.longEventuallyTimeout, ct.TestTimeouts.defaultEventuallyPollInterval)
 	defer reset() // Make sure it's reset after all tests run
 
 	// TODO: removed once we know what's left on the cluster that's causing the tests
