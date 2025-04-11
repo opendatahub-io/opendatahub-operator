@@ -137,7 +137,7 @@ spec:
   - trustyai
   - modelregistry
   - feast
-  - feasturestore
+  - featurestore
   links:
   - name: Open Data Hub
     url: https://opendatahub.io

@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.27.0
-    createdAt: "2025-04-10T16:26:40Z"
+    createdAt: "2025-04-11T06:00:11Z"
     olm.skipRange: '>=1.0.0 <2.27.0'
     operators.operatorframework.io/builder: operator-sdk-v1.37.0
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
@@ -1360,7 +1360,7 @@ spec:
   - trustyai
   - modelregistry
   - feast
-  - feasturestore
+  - featurestore
   links:
   - name: Open Data Hub
     url: https://opendatahub.io
