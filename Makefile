@@ -374,7 +374,7 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
 
-TOOLBOX_GOLANG_VERSION := 1.22.10
+TOOLBOX_GOLANG_VERSION := 1.23.8
 
 # Generate a Toolbox container for locally testing changes easily
 .PHONY: toolbox
