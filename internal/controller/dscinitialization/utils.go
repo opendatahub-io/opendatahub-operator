@@ -42,8 +42,7 @@ var (
 //   - Pod security labels for baseline permissions
 //
 // - 2. Patch monitoring namespace
-// - 3. Network Policies 'opendatahub' that allow traffic between the ODH namespaces
-// - 4. ConfigMap 'odh-common-config'.
+// - 3. Network Policies 'opendatahub' that allow traffic between the ODH namespaces.
 func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
@@ -64,12 +63,6 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 	if err := r.reconcileDefaultNetworkPolicy(ctx, dscInit, platform); err != nil {
 		log.Error(err, "error reconciling network policy ", "name", dscInit.Spec.ApplicationsNamespace)
 		return fmt.Errorf("error: %w", err)
-	}
-
-	// Create odh-common-config Configmap for the Namespace
-	if err := r.createOdhCommonConfigMap(ctx, dscInit); err != nil {
-		log.Error(err, "error creating configmap", "name", "odh-common-config")
-		return err
 	}
 
 	return nil
@@ -370,44 +363,6 @@ func GenerateRandomHex(length int) ([]byte, error) {
 	}
 
 	return randomBytes, nil
-}
-
-func (r *DSCInitializationReconciler) createOdhCommonConfigMap(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
-	log := logf.FromContext(ctx)
-	name := dscInit.Spec.ApplicationsNamespace
-	// Expected configmap for the given namespace
-	desiredConfigMap := &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ConfigMap",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "odh-common-config",
-			Namespace: name,
-		},
-		Data: map[string]string{"namespace": name},
-	}
-
-	// Create Configmap if doesn't exists
-	foundConfigMap := &corev1.ConfigMap{}
-	err := r.Client.Get(ctx, client.ObjectKeyFromObject(desiredConfigMap), foundConfigMap)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			// Set Controller reference
-			err = ctrl.SetControllerReference(dscInit, foundConfigMap, r.Scheme)
-			if err != nil {
-				log.Error(err, "Unable to add OwnerReference to the odh-common-config ConfigMap")
-				return err
-			}
-			err = r.Client.Create(ctx, desiredConfigMap)
-			if err != nil && !k8serr.IsAlreadyExists(err) {
-				return err
-			}
-		} else {
-			return err
-		}
-	}
-	return nil
 }
 
 func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscInit *dsciv1.DSCInitialization, userGroupName string) error {
