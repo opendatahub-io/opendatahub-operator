@@ -16,9 +16,6 @@ spec:
       managementState: "Managed"
     datasciencepipelines:
       managementState: "Managed"
-      managedPipelines:
-        instructLab:
-          state: Removed
     kserve: {
       managementState: "Managed",
       nim: {
