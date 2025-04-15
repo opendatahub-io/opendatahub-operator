@@ -168,6 +168,12 @@ e.g `make image-build USE_LOCAL=true"`
 
   The default image used is `quay.io/opendatahub/opendatahub-operator:dev-0.0.1` when not supply argument for `make image`
 
+- To build multi-arch image, set environment variable PLATFORM
+  ```commandline
+  export PLATFORM=linux/amd64,linux/arm64,linux/ppc64le,linux/s390x
+  make image
+  ```
+
 - Once the image is created, the operator can be deployed either directly, or through OLM. For each deployment method a
   kubeconfig should be exported
 

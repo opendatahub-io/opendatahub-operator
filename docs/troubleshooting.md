@@ -75,6 +75,7 @@ OPERATOR_NAMESPACE=my-dev-odh-operator-system
 IMAGE_BUILD_FLAGS=--build-arg USE_LOCAL=true
 E2E_TEST_FLAGS="--skip-deletion=true" -timeout 15m
 DEFAULT_MANIFESTS_PATH=./opt/manifests
+PLATFORM=linux/amd64,linux/ppc64le,linux/s390x
 ```
 
 ### When I try to use my own application namespace, I get different errors:
