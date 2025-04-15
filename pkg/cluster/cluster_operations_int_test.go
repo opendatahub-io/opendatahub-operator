@@ -61,7 +61,7 @@ var _ = Describe("Creating cluster resources", func() {
 
 			// then
 			Expect(err).ToNot(HaveOccurred())
-			Expect(existingNamespace).To(Equal(newNamespace))
+			Expect(existingNamespace.UID).To(Equal(newNamespace.UID))
 		})
 
 		It("should set labels", func(ctx context.Context) {

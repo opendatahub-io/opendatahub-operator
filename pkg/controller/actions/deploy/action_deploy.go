@@ -27,8 +27,6 @@ type Mode string
 const (
 	ModePatch Mode = "patch"
 	ModeSSA   Mode = "ssa"
-
-	PlatformFieldOwner = "platform.opendatahub.io"
 )
 
 // Action deploys the resources that are included in the ReconciliationRequest using
@@ -198,7 +196,7 @@ func (a *Action) deployCRD(
 		client.ForceOwnership,
 		// Since CRDs are not bound to a component, set the field
 		// owner to the platform itself
-		client.FieldOwner(PlatformFieldOwner),
+		client.FieldOwner(resources.PlatformFieldOwner),
 	}
 
 	switch a.deployMode {
