@@ -21,6 +21,7 @@ spec:
       nim: {
         managementState: "Managed"
       },
+      rawDeploymentServiceConfig: "Headed",
       serving: {
         ingressGateway: {
           certificate: {
