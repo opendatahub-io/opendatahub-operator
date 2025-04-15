@@ -29,18 +29,9 @@ const (
 
 type engineOptions struct {
 	propagationPolicy ctrlCli.PropagationPolicy
-	unremovables      map[schema.GroupVersionKind]struct{}
 }
 
 type OptsFn func(*engineOptions)
-
-func WithUnremovables(items ...schema.GroupVersionKind) OptsFn {
-	return func(o *engineOptions) {
-		for _, i := range items {
-			o.unremovables[i] = struct{}{}
-		}
-	}
-}
 
 func WithDeletePropagationPolicy(policy metav1.DeletionPropagation) OptsFn {
 	return func(o *engineOptions) {
@@ -52,7 +43,6 @@ func New(opts ...OptsFn) *GC {
 	res := GC{
 		options: engineOptions{
 			propagationPolicy: ctrlCli.PropagationPolicy(metav1.DeletePropagationForeground),
-			unremovables:      make(map[schema.GroupVersionKind]struct{}),
 		},
 
 		resources: Resources{
@@ -95,6 +85,7 @@ func (gc *GC) Refresh(
 type runOptions struct {
 	typePredicate   func(context.Context, schema.GroupVersionKind) (bool, error)
 	objectPredicate func(context.Context, unstructured.Unstructured) (bool, error)
+	selector        labels.Selector
 }
 
 type RunOptionsFn func(*runOptions)
@@ -107,6 +98,11 @@ func WithObjectFilter(fn func(context.Context, unstructured.Unstructured) (bool,
 func WithTypeFilter(fn func(context.Context, schema.GroupVersionKind) (bool, error)) RunOptionsFn {
 	return func(o *runOptions) {
 		o.typePredicate = fn
+	}
+}
+func WithSelector(value labels.Selector) RunOptionsFn {
+	return func(o *runOptions) {
+		o.selector = value
 	}
 }
 
@@ -136,15 +132,16 @@ func (gc *GC) listResources(
 func (gc *GC) Run(
 	ctx context.Context,
 	cli *odhcli.Client,
-	selector labels.Selector,
 	opts ...RunOptionsFn,
 ) (int, error) {
+	l := logf.FromContext(ctx)
+
 	ro := runOptions{
 		typePredicate: func(_ context.Context, _ schema.GroupVersionKind) (bool, error) {
 			return true, nil
 		},
 		objectPredicate: func(_ context.Context, _ unstructured.Unstructured) (bool, error) {
-			return true, nil
+			return false, nil
 		},
 	}
 
@@ -154,7 +151,12 @@ func (gc *GC) Run(
 
 	deleted := 0
 	resources := gc.resources.Get()
-	lo := metav1.ListOptions{LabelSelector: selector.String()}
+	lo := metav1.ListOptions{}
+
+	if ro.selector != nil {
+		lo.LabelSelector = ro.selector.String()
+		l.V(3).Info("run", "selector", lo.LabelSelector)
+	}
 
 	for _, res := range resources {
 		canBeDeleted, err := ro.typePredicate(ctx, res.GroupVersionKind())
@@ -174,7 +176,11 @@ func (gc *GC) Run(
 		for i := range items {
 			canBeDeleted, err = ro.objectPredicate(ctx, items[i])
 			if err != nil {
-				return 0, err
+				return 0, fmt.Errorf("cannot determine if object %s in namespace %q can be deleted: %w",
+					items[i].GetName(),
+					items[i].GetNamespace(),
+					err,
+				)
 			}
 			if !canBeDeleted {
 				continue
@@ -209,7 +215,7 @@ func (gc *GC) delete(
 	err := cli.Delete(ctx, &resource, gc.options.propagationPolicy)
 	if err != nil && !k8serr.IsNotFound(err) {
 		return fmt.Errorf(
-			"cannot delete resources gvk:%s, namespace: %s, name: %s, reason: %w",
+			"cannot delete resources gvk: %s, namespace: %s, name: %s, reason: %w",
 			resource.GroupVersionKind().String(),
 			resource.GetNamespace(),
 			resource.GetName(),
@@ -361,10 +367,6 @@ func (gc *GC) collectDeletableResources(
 
 			if !apiRes.Namespaced {
 				gvr.Scope = meta.RESTScopeRoot
-			}
-
-			if _, ok := gc.options.unremovables[gvr.GroupVersionKind()]; ok {
-				continue
 			}
 
 			resp[gvr] = struct{}{}
