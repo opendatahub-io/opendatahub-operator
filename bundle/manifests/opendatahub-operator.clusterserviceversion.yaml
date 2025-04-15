@@ -26,11 +26,6 @@ metadata:
                 "managementState": "Managed"
               },
               "datasciencepipelines": {
-                "managedPipelines": {
-                  "instructLab": {
-                    "state": "Removed"
-                  }
-                },
                 "managementState": "Managed"
               },
               "feastoperator": {
