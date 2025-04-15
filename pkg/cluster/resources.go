@@ -185,30 +185,21 @@ func CreateOrUpdateConfigMap(ctx context.Context, c client.Client, desiredCfgMap
 		return errors.New("configmap name and namespace must be set")
 	}
 
-	existingCfgMap := &corev1.ConfigMap{}
-	err := c.Get(ctx, client.ObjectKeyFromObject(desiredCfgMap), existingCfgMap)
-	if k8serr.IsNotFound(err) {
-		return c.Create(ctx, desiredCfgMap)
-	} else if err != nil {
+	// Explicitly setting the TypeMeta is required to use resources.Apply()
+	// Otherwise will return error stating that the unstructured object has no kind
+	desiredCfgMap.TypeMeta = metav1.TypeMeta{
+		APIVersion: gvk.ConfigMap.Version,
+		Kind:       gvk.ConfigMap.Kind,
+	}
+
+	opts := []client.PatchOption{
+		client.ForceOwnership,
+		client.FieldOwner(resources.PlatformFieldOwner),
+	}
+	err := resources.Apply(ctx, c, desiredCfgMap, opts...)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
 		return err
 	}
-
-	if applyErr := ApplyMetaOptions(existingCfgMap, metaOptions...); applyErr != nil {
-		return applyErr
-	}
-
-	if existingCfgMap.Data == nil {
-		existingCfgMap.Data = make(map[string]string)
-	}
-	for key, value := range desiredCfgMap.Data {
-		existingCfgMap.Data[key] = value
-	}
-
-	if updateErr := c.Update(ctx, existingCfgMap); updateErr != nil {
-		return updateErr
-	}
-
-	existingCfgMap.DeepCopyInto(desiredCfgMap)
 	return nil
 }
 
@@ -216,6 +207,10 @@ func CreateOrUpdateConfigMap(ctx context.Context, c client.Client, desiredCfgMap
 // If a namespace already exists, the operation has no effect on it.
 func CreateNamespace(ctx context.Context, cli client.Client, namespace string, metaOptions ...MetaOptions) (*corev1.Namespace, error) {
 	desiredNamespace := &corev1.Namespace{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: gvk.Namespace.Version,
+			Kind:       gvk.Namespace.Kind,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespace,
 		},
@@ -225,17 +220,16 @@ func CreateNamespace(ctx context.Context, cli client.Client, namespace string, m
 		return nil, err
 	}
 
-	foundNamespace := &corev1.Namespace{}
-	if getErr := cli.Get(ctx, client.ObjectKeyFromObject(desiredNamespace), foundNamespace); client.IgnoreNotFound(getErr) != nil {
-		return nil, getErr
+	opts := []client.PatchOption{
+		client.ForceOwnership,
+		client.FieldOwner(resources.PlatformFieldOwner),
+	}
+	err := resources.Apply(ctx, cli, desiredNamespace, opts...)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return nil, err
 	}
 
-	createErr := cli.Create(ctx, desiredNamespace)
-	if k8serr.IsAlreadyExists(createErr) {
-		return foundNamespace, nil
-	}
-
-	return desiredNamespace, client.IgnoreAlreadyExists(createErr)
+	return desiredNamespace, nil
 }
 
 // ExecuteOnAllNamespaces executes the passed function for all namespaces in the cluster retrieved in batches.

@@ -21,11 +21,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 const (
-	CAConfigMapName = "odh-trusted-ca-bundle"
-	CADataFieldName = "odh-ca-bundle.crt"
+	CAConfigMapName           = "odh-trusted-ca-bundle"
+	CADataFieldName           = "odh-ca-bundle.crt"
+	TrustedCABundleFieldOwner = resources.PlatformFieldOwner + "/trustedcabundle"
 )
 
 func ShouldInjectTrustedBundle(ns *corev1.Namespace) bool {
@@ -73,22 +75,13 @@ func CreateOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 		Data: map[string]string{CADataFieldName: customCAData},
 	}
 
-	// Create Configmap if doesn't exist
-	foundConfigMap := &corev1.ConfigMap{}
-	if err := cli.Get(ctx, client.ObjectKeyFromObject(desiredConfigMap), foundConfigMap); err != nil {
-		if k8serr.IsNotFound(err) {
-			err = cli.Create(ctx, desiredConfigMap)
-			if err != nil && !k8serr.IsAlreadyExists(err) {
-				return err
-			}
-			return nil
-		}
-		return err
+	opts := []client.PatchOption{
+		client.ForceOwnership,
+		client.FieldOwner(TrustedCABundleFieldOwner),
 	}
-
-	if foundConfigMap.Data[CADataFieldName] != customCAData {
-		foundConfigMap.Data[CADataFieldName] = customCAData
-		return cli.Update(ctx, foundConfigMap)
+	err := resources.Apply(ctx, cli, desiredConfigMap, opts...)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return err
 	}
 
 	return nil
