@@ -23,6 +23,7 @@ import (
 
 const (
 	componentName            = componentApi.KserveComponentName
+	authorinoOperator        = "authorino-operator"
 	serviceMeshOperator      = "servicemeshoperator"
 	serverlessOperator       = "serverless-operator"
 	kserveConfigMapName      = "inferenceservice-config"
