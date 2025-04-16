@@ -329,6 +329,7 @@ spec:
       managementState: Managed
       nim:
         managementState: Managed
+      rawDeploymentServiceConfig: Headed
       serving:
         ingressGateway:
           certificate:
