@@ -76,6 +76,8 @@ ENVTEST_K8S_VERSION = 1.31.0
 ENVTEST_VERSION = v0.0.0-20240813183042-b901db121e1f
 CRD_REF_DOCS_VERSION = 0.1.0
 
+PLATFORM ?= linux/amd64
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -97,6 +99,7 @@ E2E_TEST_FLAGS = -timeout 50m
 # see target "image-build"
 IMAGE_BUILD_FLAGS ?= --build-arg USE_LOCAL=$(USE_LOCAL)
 IMAGE_BUILD_FLAGS += --build-arg CGO_ENABLED=$(CGO_ENABLED)
+IMAGE_BUILD_FLAGS += --platform $(PLATFORM)
 
 # Prometheus-Unit Tests Parameters
 PROMETHEUS_CONFIG_YAML = ./config/monitoring/prometheus/apps/prometheus-configs.yaml
@@ -211,7 +214,7 @@ run-nowebhook: manifests generate fmt vet ## Run a controller from your host wit
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/Dockerfile  ${IMAGE_BUILD_FLAGS} -t $(IMG) .
+	$(IMAGE_BUILDER) buildx build --no-cache -f Dockerfiles/Dockerfile ${IMAGE_BUILD_FLAGS} -t $(IMG) .
 
 .PHONY: image-push
 image-push: ## Push image with the manager.
@@ -373,7 +376,7 @@ catalog-build: opm ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
 
-TOOLBOX_GOLANG_VERSION := 1.22.10
+TOOLBOX_GOLANG_VERSION := 1.23.8
 
 # Generate a Toolbox container for locally testing changes easily
 .PHONY: toolbox
