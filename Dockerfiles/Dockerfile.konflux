@@ -1,7 +1,7 @@
 # Build the manager binary
 ################################################################################
 
-FROM registry.redhat.io/ubi8/go-toolset:1.23@sha256:72aec87b00b0eca51c7be956197fcbdcdaa65271e14d8065a485a0717154bbd5 as builder
+FROM registry.redhat.io/ubi8/go-toolset:1.23@sha256:292c09f5962fed4ea5c239c6901cd14f21d97efbec55788637212bc5ada01707 as builder
 
 # These built-in args are defined in the global scope, and are not automatically accessible within build stages or RUN commands.
 # To expose these arguments inside the build stage, we need to redefine it without a value.
