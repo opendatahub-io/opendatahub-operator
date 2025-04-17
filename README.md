@@ -407,32 +407,76 @@ Once the above variables are set, run the following:
 make e2e-test
 ```
 
-Additional flags that can be passed to e2e-tests by setting up `E2E_TEST_FLAGS`
-variable. Following table lists all the available flags to run the tests:
+#### Configuring e2e Tests
+Evn vars can be set to configure e2e tests:
 
-| Flag                       | Description                                                                                                                                                                   | Default value                 |
-|----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
-| --operator-namespace       | Namespace where the ODH operator is deployed.                                                                                                                                 | `opendatahub-operator-system` |
-| --applications-namespace   | Namespace where the ODH applications are deployed.                                                                                                                            | `opendatahub`                 |
-| --test-operator-controller | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes       | `true`                        |
-| --test-webhook             | To configure the execution of tests rellated to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | `true`                        |
-| --test-component           | A repeatable flag that control what component should be tested, by default all component specific test are executed                                                           | `true`                        |
-| --deletion-policy          | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                    | `always`                      |
+| Configuration Env var           | Description                                                                                                                                                                  | Default value                 |
+|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
+| E2E_TEST_OPERATOR_NAMESPACE     | Namespace where the ODH operator is deployed.                                                                                                                                | `opendatahub-operator-system` |
+| E2E_TEST_APPLICATIONS_NAMESPACE | Namespace where the ODH applications are deployed.                                                                                                                           | `opendatahub`                 |
+| E2E_TEST_OPERATOR_CONTROLLER    | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes      | `true`                        |
+| E2E_TEST_WEBHOOK                | To configure the execution of tests related to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | `true`                        |
+| E2E_TEST_DELETION_POLICY        | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                   | `always`                      |
+| E2E_TEST_COMPONENTS             | Enable testing of individual components specified by --test-component flag                                                                                                   | `true`                        |
+| E2E_TEST_COMPONENT              | A comma separated configuration to control which component should be tested, by default all component specific test are executed                                             | `all components`              |
+| E2E_TEST_SERVICES               | Enable testing of individual services specified by --test-service flag                                                                                                       | `true`                        |
+| E2E_TEST_SERVICE                | A comma separated configuration to control which services should be tested, by default all service specific test are executed                                                | `all services`                |
+|                                 |                                                                                                                                                                              |                               |
+| E2E_TEST_FLAGS                  | Alternatively the above configurations can be passed to e2e-tests as flags using this env var (see flags table below)                                                        |                               |
 
-Example command to run full test suite skipping the test for DataScienceCluster deletion.
+Alternatively the above configurations can be passed to e2e-tests as flags by setting up `E2E_TEST_FLAGS` variable. Following table lists all the available flags:
+
+| Flag                       | Description                                                                                                                                                                  | Default value                 |
+|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
+| --operator-namespace       | Namespace where the ODH operator is deployed.                                                                                                                                | `opendatahub-operator-system` |
+| --applications-namespace   | Namespace where the ODH applications are deployed.                                                                                                                           | `opendatahub`                 |
+| --test-operator-controller | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes      | `true`                        |
+| --test-webhook             | To configure the execution of tests related to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | `true`                        |
+| --deletion-policy          | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                   | `always`                      |
+| --test-components          | Enable testing of individual components specified by --test-component flag                                                                                                   | `true`                        |
+| --test-component           | A repeatable (or comma separated no spaces) flag that control which component should be tested, by default all component specific test are executed                          | `all components`              |
+| --test-services            | Enable testing of individual services specified by --test-service flag                                                                                                       | `true`                        |
+| --test-service             | A repeatable (or comma separated no spaces) flag that control which services should be tested, by default all service specific test are executed                             | `all services`                |
+
+Example command to run full test suite skipping the DataScienceCluster deletion (useful to troubleshooting tests failures):
 
 ```shell
-make e2e-test OPERATOR_NAMESPACE=<namespace> E2E_TEST_FLAGS="--deletion-policy=never"
+make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_DELETION_POLICY=never
 ```
 
-Example commands to run test suite for the dashboard `component` only, with the operator running out of the cluster.
+Example commands to run test suite for the dashboard `component` only, with the operator running out of the cluster:
 
 ```shell
 make run-nowebhook
 ```
 ```shell
-make e2e-test -e OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_FLAGS="--test-operator-controller=false --test-webhook=false --test-component=dashboard"
+make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_WEBHOOK=false -e E2E_TEST_SERVICES=false -e E2E_TEST_COMPONENT=dashboard
 ```
+
+Example commands to run test suite for the monitoring `service` only, with the operator running out of the cluster:
+
+```shell
+make run-nowebhook
+```
+```shell
+make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_WEBHOOK=false -e E2E_TEST_COMPONENTS=false -e E2E_TEST_SERVICE=monitoring
+```
+
+Example commands to run test suite excluding tests for ray `component`:
+```shell
+make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_COMPONENT=!ray
+```
+
+Additionally specific env vars can be used to configure tests timeouts
+
+| Timeouts Env var                         | Description                                                                             | Default value |
+|------------------------------------------|-----------------------------------------------------------------------------------------|---------------|
+| E2E_TEST_DEFAULTEVENTUALLYTIMEOUT        | Timeout used for Eventually; overrides Gomega's default of 1 second.                    | `5m`          |
+| E2E_TEST_MEDIUMEVENTUALLYTIMEOUT         | Medium timeout: for readiness checks (e.g., ClusterServiceVersion, DataScienceCluster). | `7m`          |
+| E2E_TEST_LONGEVENTUALLYTIMEOUT           | Long timeout: for more complex readiness (e.g., DSCInitialization, KServe).             | `10m`         |
+| E2E_TEST_DEFAULTEVENTUALLYPOLLINTERVAL   | Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.         | `2s`          |
+| E2E_TEST_DEFAULTCONSISTENTLYTIMEOUT      | Duration used for Consistently; overrides Gomega's default of 2 seconds.                | `10s`         |
+| E2E_TEST_DEFAULTCONSISTENTLYPOLLINTERVAL | Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.       | `2s`          |
 
 ## Run Prometheus Unit Tests for Alerts
 
