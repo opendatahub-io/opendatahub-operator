@@ -88,7 +88,7 @@ func (tc *TrustyAITestCtx) DisableKserve(t *testing.T) {
 func (tc *TrustyAITestCtx) SetKserveState(state operatorv1.ManagementState, shouldExist bool) {
 	// Temporarily change timeout for this test since it takes lots of time because of FeatureGates
 	// TODO: remove it once we understood why it's taking lots of time for kserve to become Ready/NotReady
-	reset := tc.OverrideEventuallyTimeout(eventuallyTimeoutLong, defaultEventuallyPollInterval)
+	reset := tc.OverrideEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout, tc.TestTimeouts.defaultEventuallyPollInterval)
 	defer reset() // Ensure reset happens after test completes
 
 	nn := types.NamespacedName{Name: componentApi.KserveInstanceName}

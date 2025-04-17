@@ -1,9 +1,11 @@
 package e2e_test
 
 import (
+	"flag"
 	"fmt"
+	"os"
+	"strings"
 	"testing"
-	"time"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -34,22 +36,6 @@ const (
 	serviceMeshNamespace         = "istio-system"        // Namespace for Istio Service Mesh control plane
 	serviceMeshMetricsCollection = "Istio"               // Metrics collection for Service Mesh (e.g., Istio)
 	serviceMeshMemberName        = "default"
-)
-
-// Timeout & Interval Constants.
-const (
-	generalRetryInterval = 10 * time.Second // Retry interval for general operations
-
-	// Gomega default values for Eventually/Consistently can be found here:
-	// https://onsi.github.io/gomega/#making-asynchronous-assertions
-
-	defaultEventuallyTimeout        = 5 * time.Minute  // Timeout used for Eventually; overrides Gomega's default of 1 second.
-	defaultEventuallyPollInterval   = 2 * time.Second  // Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.
-	defaultConsistentlyTimeout      = 10 * time.Second // Duration used for Consistently; overrides Gomega's default of 2 seconds.
-	defaultConsistentlyPollInterval = 2 * time.Second  // Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.
-
-	eventuallyTimeoutMedium = 7 * time.Minute  // Medium timeout for readiness checks (e.g., ClusterServiceVersion, DataScienceCluster).
-	eventuallyTimeoutLong   = 10 * time.Minute // Long timeout for more complex readiness (e.g., DSCInitialization, KServe).
 )
 
 // Configuration and Miscellaneous Constants.
@@ -264,4 +250,18 @@ func defaultErrorMessageIfNone(format string, formatArgs []any, args []any) []an
 		args = append(args, fmt.Sprintf(format, formatArgs...))
 	}
 	return args
+}
+
+// ParseTestFlags Parses go test flags separately because pflag package ignores flags with '-test.' prefix
+// Related issues:
+// https://github.com/spf13/pflag/issues/63
+// https://github.com/spf13/pflag/issues/238
+func ParseTestFlags() error {
+	var testFlags []string
+	for _, f := range os.Args[1:] {
+		if strings.HasPrefix(f, "-test.") {
+			testFlags = append(testFlags, f)
+		}
+	}
+	return flag.CommandLine.Parse(testFlags)
 }

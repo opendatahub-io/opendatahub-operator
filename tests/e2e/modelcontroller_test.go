@@ -45,7 +45,7 @@ func modelControllerTestSuite(t *testing.T) {
 	}
 
 	// Increase the global eventually timeout
-	reset := componentCtx.OverrideEventuallyTimeout(eventuallyTimeoutMedium, defaultEventuallyPollInterval)
+	reset := componentCtx.OverrideEventuallyTimeout(ct.TestTimeouts.mediumEventuallyTimeout, ct.TestTimeouts.defaultEventuallyPollInterval)
 	defer reset() // Make sure it's reset after all tests run
 
 	// Run the test suite.

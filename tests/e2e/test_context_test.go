@@ -37,6 +37,9 @@ type TestContext struct {
 	// Shared Gomega wrapper for making assertions in tests.
 	g *testf.WithT
 
+	// Test timeouts
+	TestTimeouts TestTimeouts
+
 	// Namespace where the operator components are deployed.
 	OperatorNamespace string
 
@@ -65,10 +68,10 @@ type TestContext struct {
 func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 	tcf, err := testf.NewTestContext(
 		testf.WithTOptions(
-			testf.WithEventuallyTimeout(defaultEventuallyTimeout),
-			testf.WithEventuallyPollingInterval(defaultEventuallyPollInterval),
-			testf.WithConsistentlyDuration(defaultConsistentlyTimeout),
-			testf.WithConsistentlyPollingInterval(defaultConsistentlyPollInterval),
+			testf.WithEventuallyTimeout(testOpts.TestTimeouts.defaultEventuallyTimeout),
+			testf.WithEventuallyPollingInterval(testOpts.TestTimeouts.defaultEventuallyPollInterval),
+			testf.WithConsistentlyDuration(testOpts.TestTimeouts.defaultConsistentlyTimeout),
+			testf.WithConsistentlyPollingInterval(testOpts.TestTimeouts.defaultConsistentlyPollInterval),
 		),
 	)
 
@@ -83,6 +86,7 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		DataScienceClusterNamespacedName: types.NamespacedName{Name: dscInstanceName},
 		OperatorNamespace:                testOpts.operatorNamespace,
 		AppsNamespace:                    testOpts.appsNamespace,
+		TestTimeouts:                     testOpts.TestTimeouts,
 	}, nil
 }
 
@@ -609,7 +613,7 @@ func (tc *TestContext) EnsureOperatorInstalled(nn types.NamespacedName, skipOper
 			Equal(ofapi.CSVPhaseSucceeded),
 			"CSV %s did not reach 'Succeeded' phase", resourceID,
 		)
-	}).WithTimeout(eventuallyTimeoutMedium).WithPolling(generalRetryInterval)
+	}).WithTimeout(tc.TestTimeouts.mediumEventuallyTimeout).WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval)
 }
 
 // DeleteResource deletes a Kubernetes resource. If IgnoreNotFound is set via WithIgnoreNotFound,
