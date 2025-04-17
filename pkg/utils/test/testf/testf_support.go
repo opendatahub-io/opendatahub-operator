@@ -6,6 +6,7 @@ import (
 	"github.com/itchyny/gojq"
 	"github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // StopErr stops the retry process with a specified message and wraps the provided error.
@@ -99,6 +100,32 @@ func Transform(format string, args ...any) TransformFn {
 		}
 
 		in.SetUnstructuredContent(uc)
+
+		return nil
+	}
+}
+
+// TransformSpecToUnstructured creates a transformation function that converts a Go struct
+// representing a Kubernetes resource spec into an unstructured format and applies it to
+// the spec field of an unstructured Kubernetes object (`unstructured.Unstructured`).
+//
+// Parameters:
+//   - spec: A Go struct representing the spec of a Kubernetes resource (e.g., SubscriptionSpec, PodSpec).
+//     This struct will be converted into an unstructured format and applied to the `spec` field.
+//
+// Returns:
+//   - func(*unstructured.Unstructured) error: A function that applies the unstructured spec data
+//     to the provided `*unstructured.Unstructured` object. If the conversion or update fails, an error is returned.
+func TransformSpecToUnstructured(spec interface{}) TransformFn {
+	return func(in *unstructured.Unstructured) error {
+		// Convert the spec to unstructured format
+		specData, err := runtime.DefaultUnstructuredConverter.ToUnstructured(spec)
+		if err != nil {
+			return fmt.Errorf("failed to convert spec to unstructured: %w", err)
+		}
+
+		// Set the spec in the unstructured object
+		in.Object["spec"] = specData
 
 		return nil
 	}
