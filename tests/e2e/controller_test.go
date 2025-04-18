@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -17,7 +18,6 @@ import (
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"golang.org/x/exp/maps"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -156,7 +156,7 @@ func (tg *TestGroup) String() string {
 }
 
 func (tg *TestGroup) Names() []string {
-	return maps.Keys(tg.scenarios)
+	return slices.AppendSeq(make([]string, 0, len(tg.scenarios)), maps.Keys(tg.scenarios))
 }
 
 func (tg *TestGroup) Validate() error {
@@ -197,7 +197,7 @@ func (tg *TestGroup) Run(t *testing.T) {
 
 	// Run all tests if none are explicitly enabled
 	if len(enabledTests) == 0 {
-		enabledTests = maps.Keys(tg.scenarios)
+		enabledTests = slices.AppendSeq(make([]string, 0, len(tg.scenarios)), maps.Keys(tg.scenarios))
 	}
 
 	// Remove disabled tests
