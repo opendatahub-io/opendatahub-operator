@@ -218,7 +218,7 @@ func addTemplateFiles(ctx context.Context, rr *odhtypes.ReconciliationRequest) e
 			Path: "resources/servicemesh/routing/local-gateway-svc.tmpl.yaml",
 		},
 
-		// TODO these are the servicemesh ones
+		// These are the servicemesh ones, only deployed when authorino also installed
 		{
 			FS:   resourcesFS,
 			Path: "resources/servicemesh/activator-envoyfilter.tmpl.yaml",
@@ -268,6 +268,11 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 
 	logger := logf.FromContext(ctx)
 
+	authorinoInstalled, err := cluster.SubscriptionExists(ctx, rr.Client, "authorino-operator")
+	if err != nil {
+		return fmt.Errorf("failed to list subscriptions %w", err)
+	}
+
 	if rr.DSCI.Spec.ServiceMesh != nil {
 		// servicemesh is set to Removed
 		if rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Removed {
@@ -290,6 +295,30 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 				}
 			}
 		}
+
+		// Need to explicitly remove resources from cluster if they exist,
+		// to delete resources accidentally created in 2.19.0.
+		if !authorinoInstalled {
+			for _, res := range rr.Resources {
+				if isForDependency("servicemesh")(&res) {
+					err := rr.Client.Delete(ctx, &res, client.PropagationPolicy(metav1.DeletePropagationForeground))
+					if err != nil {
+						if k8serr.IsNotFound(err) {
+							continue
+						}
+						if errors.Is(err, &meta.NoKindMatchError{}) { // when CRD is missing,
+							continue
+						}
+						return odherrors.NewStopErrorW(err)
+					}
+					logger.Info("Deleted", "kind", res.GetKind(), "name", res.GetName(), "namespace", res.GetNamespace())
+				}
+			}
+			if err := rr.RemoveResources(isForDependency("servicemesh")); err != nil {
+				return odherrors.NewStopErrorW(err)
+			}
+		}
+
 		// servicemesh is set to Removed or Unmanaged
 		if rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
 			if err := rr.RemoveResources(isForDependency("servicemesh")); err != nil {
@@ -297,7 +326,7 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 			}
 		}
 	}
-	// serverless is Removed or Unamanged
+	// serverless is Removed or Unmananged
 	if k.Spec.Serving.ManagementState != operatorv1.Managed {
 		if err := rr.RemoveResources(isForDependency("serverless")); err != nil {
 			return odherrors.NewStopErrorW(err)

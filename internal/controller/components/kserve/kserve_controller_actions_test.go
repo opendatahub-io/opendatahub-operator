@@ -5,7 +5,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/onsi/gomega/gstruct"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -13,6 +15,8 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -281,5 +285,128 @@ func TestCheckPreConditions_RawServiceConfig(t *testing.T) {
 		WithTransform(resources.ToUnstructured, And(
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionServingAvailable, metav1.ConditionFalse),
 		)),
+	)
+}
+
+func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
+	ctx := context.Background()
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New(
+		&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+			Name: serviceMeshOperator,
+		}},
+		&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+			Name: serverlessOperator,
+		}},
+		&ofapiv1alpha1.Subscription{ObjectMeta: metav1.ObjectMeta{
+			Name: authorinoOperator,
+		}},
+	)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ksHeaded := componentApi.Kserve{}
+	ksHeaded.Spec.DefaultDeploymentMode = componentApi.Serverless
+	ksHeaded.Spec.Serving.ManagementState = operatorv1.Managed
+
+	dsci := dsciv1.DSCInitialization{}
+	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
+		ManagementState: operatorv1.Managed,
+	}
+
+	rrHeaded := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &ksHeaded,
+		DSCI:       &dsci,
+		Conditions: conditions.NewManager(&ksHeaded, status.ConditionTypeReady),
+	}
+
+	err = addTemplateFiles(ctx, &rrHeaded)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = template.NewAction(
+		template.WithCache(),
+		template.WithDataFn(getTemplateData),
+	)(ctx, &rrHeaded)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cleanUpTemplatedResources(ctx, &rrHeaded)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(rrHeaded.Resources).Should(
+		And(
+			HaveLen(11),
+			ContainElement(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Object": And(
+					HaveKeyWithValue("kind", gvk.AuthorizationPolicy.Kind),
+				),
+			})),
+			ContainElement(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Object": And(
+					HaveKeyWithValue("kind", gvk.EnvoyFilter.Kind),
+				),
+			})),
+		),
+	)
+}
+
+func TestCleanUpTemplatedResources_withoutAuthorino(t *testing.T) {
+	ctx := context.Background()
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New(
+		&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+			Name: serviceMeshOperator,
+		}},
+		&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+			Name: serverlessOperator,
+		}},
+	)
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ksHeaded := componentApi.Kserve{}
+	ksHeaded.Spec.DefaultDeploymentMode = componentApi.Serverless
+	ksHeaded.Spec.Serving.ManagementState = operatorv1.Managed
+
+	dsci := dsciv1.DSCInitialization{}
+	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
+		ManagementState: operatorv1.Managed,
+	}
+
+	rrHeaded := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &ksHeaded,
+		DSCI:       &dsci,
+		Conditions: conditions.NewManager(&ksHeaded, status.ConditionTypeReady),
+	}
+
+	err = addTemplateFiles(ctx, &rrHeaded)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = template.NewAction(
+		template.WithCache(),
+		template.WithDataFn(getTemplateData),
+	)(ctx, &rrHeaded)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cleanUpTemplatedResources(ctx, &rrHeaded)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(rrHeaded.Resources).Should(
+		And(
+			HaveLen(7),
+			Not(ContainElement(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Object": And(
+					HaveKeyWithValue("kind", gvk.AuthorizationPolicy.Kind),
+				),
+			}))),
+			Not(ContainElement(gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Object": And(
+					HaveKeyWithValue("kind", gvk.EnvoyFilter.Kind),
+				),
+			}))),
+		),
 	)
 }
