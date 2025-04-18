@@ -26,7 +26,6 @@ const (
 	customizedAppNs      = "my-opendatahub"
 	applicationNamespace = "test-application-ns"
 	usergroupName        = "odh-admins"
-	configmapName        = "odh-common-config"
 	monitoringNamespace  = "test-monitoring-ns"
 	readyPhase           = "Ready"
 )
@@ -75,20 +74,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(foundNetworkPolicy.Name).To(Equal(applicationNamespace))
 			Expect(foundNetworkPolicy.Namespace).To(Equal(applicationNamespace))
 			Expect(foundNetworkPolicy.Spec.PolicyTypes[0]).To(Equal(networkingv1.PolicyTypeIngress))
-		})
-
-		It("Should create default configmap", func(ctx context.Context) {
-			// then
-			foundConfigMap := &corev1.ConfigMap{}
-			Eventually(objectExists(configmapName, applicationNamespace, foundConfigMap)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-			Expect(foundConfigMap.Name).To(Equal(configmapName))
-			Expect(foundConfigMap.Namespace).To(Equal(applicationNamespace))
-			expectedConfigmapData := map[string]string{"namespace": applicationNamespace}
-			Expect(foundConfigMap.Data).To(Equal(expectedConfigmapData))
 		})
 
 		It("Should not create user group when we do not have authentications CR in the cluster", func(ctx context.Context) {
@@ -147,50 +132,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 	Context("Handling existing resources", func() {
 		AfterEach(cleanupResources)
 		const applicationName = "default-dsci"
-
-		It("Should not update configmap if it exists", func(ctx context.Context) {
-
-			// given
-			desiredConfigMap := &corev1.ConfigMap{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "ConfigMap",
-					APIVersion: "v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      configmapName,
-					Namespace: applicationNamespace,
-				},
-				Data: map[string]string{"namespace": "existing-data"},
-			}
-			Expect(k8sClient.Create(ctx, desiredConfigMap)).Should(Succeed())
-			createdConfigMap := &corev1.ConfigMap{}
-			Eventually(objectExists(configmapName, applicationNamespace, createdConfigMap)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-
-			// when
-			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
-			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
-			foundDsci := &dsciv1.DSCInitialization{}
-			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-
-			// then
-			foundConfigMap := &corev1.ConfigMap{}
-			Eventually(objectExists(configmapName, applicationNamespace, foundConfigMap)).
-				WithContext(ctx).
-				WithTimeout(timeout).
-				WithPolling(interval).
-				Should(BeTrue())
-			Expect(foundConfigMap.UID).To(Equal(createdConfigMap.UID))
-			Expect(foundConfigMap.Data).To(Equal(map[string]string{"namespace": "existing-data"}))
-			Expect(foundConfigMap.Data).ToNot(Equal(map[string]string{"namespace": applicationNamespace}))
-		})
 
 		It("Should not update namespace if it exists", func(ctx context.Context) {
 			anotherNamespace := "test-another-ns"
