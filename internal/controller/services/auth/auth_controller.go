@@ -64,6 +64,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(template.NewAction(
 			template.WithCache(),
 		)).
+		WithAction(createDefaultGroup).
 		WithAction(managePermissions).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
