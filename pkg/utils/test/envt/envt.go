@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
@@ -84,6 +85,7 @@ func New(opts ...OptionFn) (*EnvT, error) {
 		return nil, fmt.Errorf("unable to construct a Dynamic client: %w", err)
 	}
 
+	result.cfg = cfg
 	result.cli = envTestClient
 	result.discoveryClient = discoveryCli
 	result.dynamicClient = dynamicCli
@@ -95,6 +97,7 @@ type EnvT struct {
 	root            string
 	s               *runtime.Scheme
 	e               envtest.Environment
+	cfg             *rest.Config
 	cli             client.Client
 	discoveryClient discovery.DiscoveryInterface
 	dynamicClient   dynamic.Interface
@@ -102,6 +105,10 @@ type EnvT struct {
 
 func (et *EnvT) Scheme() *runtime.Scheme {
 	return et.s
+}
+
+func (et *EnvT) Config() *rest.Config {
+	return et.cfg
 }
 
 func (et *EnvT) Client() client.Client {
