@@ -27,6 +27,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 )
 
+const PlatformFieldOwner = "platform.opendatahub.io"
+
 func ToUnstructured(obj any) (*unstructured.Unstructured, error) {
 	data, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
 	if err != nil {
