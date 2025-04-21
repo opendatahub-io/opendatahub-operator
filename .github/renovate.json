@@ -2,7 +2,7 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended"],
     "branchPrefix": "renovate/",
-    "baseBranches": ["main", "rhoai-2.16", "rhoai-2.19", "rhoai-2.20", "rhoai-2.8"],
+    "baseBranches": ["test-mintmaker","main", "rhoai-2.16", "rhoai-2.19", "rhoai-2.20", "rhoai-2.8"],
     "ignoreTests": true,
     "automergeType": "pr",
     "automerge": true,
@@ -11,7 +11,7 @@
     "packageRules": [
       {
         "matchManagers": ["dockerfile"],
-        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.8"],
+        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.8", "test-mintmaker"],
         "matchUpdateTypes": ["digest"],
         "matchFileNames": ["*Dockerfile.konflux*"],
         "enabled": true,
