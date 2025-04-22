@@ -241,8 +241,8 @@ func TestOdhOperator(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	// call flag.Parse() here if TestMain uses flags
-	flag.StringVar(&testOpts.operatorNamespace, "operator-namespace", "opendatahub-operator-system", "Namespace where the odh operator is deployed")
-	flag.StringVar(&testOpts.appsNamespace, "applications-namespace", "opendatahub", "Namespace where the odh applications are deployed")
+	flag.StringVar(&testOpts.operatorNamespace, "operator-namespace", "redhat-ods-operator", "Namespace where the odh operator is deployed")
+	flag.StringVar(&testOpts.appsNamespace, "applications-namespace", "redhat-ods-applications", "Namespace where the odh applications are deployed")
 	flag.StringVar((*string)(&testOpts.deletionPolicy), "deletion-policy", "always",
 		"Specify when to delete DataScienceCluster, DSCInitialization, and controllers. Options: always, on-failure, never.")
 
