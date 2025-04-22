@@ -19,13 +19,19 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 
+	userv1 "github.com/openshift/api/user/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -141,5 +147,62 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 		return err
 	}
 
+	return nil
+}
+
+func addUserGroup(ctx context.Context, rr *odhtypes.ReconciliationRequest, userGroupName string) error {
+	namespace, err := actions.ApplicationNamespace(ctx, rr)
+	if err != nil {
+		logf.Log.Error(err, "error getting application namespace")
+		return err
+	}
+	userGroup := &userv1.Group{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: userGroupName,
+			// Otherwise it errors with  "error": "an empty namespace may not be set during creation"
+			Namespace: namespace,
+			Annotations: map[string]string{
+				annotations.ManagedByODHOperator: "false",
+			},
+		},
+		// Otherwise is errors with "error": "Group.user.openshift.io \"odh-admins\" is invalid: users: Invalid value: \"null\": users in body must be of type array: \"null\""}
+		Users: []string{},
+	}
+	err = rr.AddResources(userGroup)
+	if err != nil {
+		return fmt.Errorf("unable to add user group: %w", err)
+	}
+
+	return nil
+}
+
+func createDefaultGroup(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	ok, err := isDefaultAuthMethod(ctx, rr)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		logf.Log.Info("default auth method is not enabled")
+		return nil
+	}
+
+	release := cluster.GetRelease()
+	switch release.Name {
+	case cluster.ManagedRhoai:
+		err = addUserGroup(ctx, rr, "rhods-admins")
+		if err != nil && !k8serr.IsAlreadyExists(err) {
+			return err
+		}
+	case cluster.SelfManagedRhoai:
+		err = addUserGroup(ctx, rr, "rhods-admins")
+		if err != nil && !k8serr.IsAlreadyExists(err) {
+			return err
+		}
+	default:
+		err = addUserGroup(ctx, rr, "odh-admins")
+		if err != nil && !k8serr.IsAlreadyExists(err) {
+			return err
+		}
+	}
 	return nil
 }

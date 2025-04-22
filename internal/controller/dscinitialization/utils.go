@@ -9,7 +9,6 @@ import (
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	userv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -363,23 +362,4 @@ func GenerateRandomHex(length int) ([]byte, error) {
 	}
 
 	return randomBytes, nil
-}
-
-func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscInit *dsciv1.DSCInitialization, userGroupName string) error {
-	userGroup := &userv1.Group{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: userGroupName,
-			// Otherwise it errors with  "error": "an empty namespace may not be set during creation"
-			Namespace: dscInit.Spec.ApplicationsNamespace,
-		},
-		// Otherwise is errors with "error": "Group.user.openshift.io \"odh-admins\" is invalid: users: Invalid value: \"null\": users in body must be of type array: \"null\""}
-		Users: []string{},
-	}
-
-	err := r.Client.Create(ctx, userGroup)
-	if err != nil && !k8serr.IsAlreadyExists(err) {
-		return err
-	}
-
-	return nil
 }
