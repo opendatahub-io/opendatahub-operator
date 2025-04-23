@@ -2,7 +2,7 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended"],
     "branchPrefix": "renovate/",
-    "baseBranches": ["test-mintmaker","main", "rhoai-2.16", "rhoai-2.19", "rhoai-2.20", "rhoai-2.8"],
+    "baseBranches": ["main", "rhoai-2.8", "rhoai-2.16", "rhoai-2.19"],
     "ignoreTests": true,
     "automergeType": "pr",
     "automerge": true,
@@ -11,7 +11,7 @@
     "packageRules": [
       {
         "matchManagers": ["dockerfile"],
-        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.8", "test-mintmaker"],
+        "matchBaseBranches": ["main", "rhoai-2.8", "rhoai-2.16", "rhoai-2.19", "rhoai-2.20"],
         "matchUpdateTypes": ["digest"],
         "matchFileNames": ["*Dockerfile.konflux*"],
         "enabled": true,
@@ -24,7 +24,7 @@
       },
       {
         "matchManagers": ["tekton"],
-        "matchBaseBranches": ["rhoai-2.16", "rhoai-2.8", "rhoai-2.19", "rhoai-2.20"],
+        "matchBaseBranches": ["rhoai-2.8", "rhoai-2.16", "rhoai-2.19"],
         "matchUpdateTypes": ["digest", "minor"],
         "schedule": ["* 0-3 1 * *"], 
         "enabled": true,
@@ -39,7 +39,7 @@
       },
       {
         "matchManagers": ["rpm"],
-        "matchBaseBranches": ["main", "rhoai-2.16", "rhoai-2.19", "rhoai-2.20", "rhoai-2.8"],
+        "matchBaseBranches": ["main", "rhoai-2.8", "rhoai-2.16", "rhoai-2.19", "rhoai-2.20"],
         "groupName": "RPM Updates",
         "commitMessageTopic": "RPM updates",
         "enabled": true,
