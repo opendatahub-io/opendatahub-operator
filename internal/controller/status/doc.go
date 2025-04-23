@@ -16,7 +16,7 @@
 // createReporter initializes a new status reporter for a DSCInitialization resource.
 // It encapsulates the logic for updating the condition based on errors encountered during the resource's lifecycle operations.
 //
-//	func createReporter(cli client.Client, object *dsciv1.DSCInitialization, condition *conditionsv1.Condition) *status.Reporter[*dsciv1.DSCInitialization] {
+//	func createReporter(cli client.GetClient, object *dsciv1.DSCInitialization, condition *conditionsv1.Condition) *status.Reporter[*dsciv1.DSCInitialization] {
 //		return status.NewStatusReporter[*dsciv1.DSCInitialization](
 //			cli,
 //			object,
@@ -41,7 +41,7 @@
 // It creates a reporter and reports any conditions derived from the service mesh configuration process.
 //
 //	func (r *DSCInitializationReconciler) doStdoServiceMeshStuffff(instance *dsciv1.DSCInitialization) error {
-//		reporter := createReporter(r.Client, instance, &conditionsv1.Condition{
+//		reporter := createReporter(r.GetClient, instance, &conditionsv1.Condition{
 //			Type:    status.CapabilityServiceMesh,
 //			Status:  corev1.ConditionTrue,
 //			Reason:  status.ConfiguredReason,

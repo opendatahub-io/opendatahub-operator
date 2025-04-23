@@ -24,7 +24,6 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	client2 "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -311,7 +310,7 @@ func GetCRD(ctx context.Context, cli client.Client, name string) (apiextensionsv
 	return obj, nil
 }
 
-func HasCRD(ctx context.Context, cli *client2.Client, gvk schema.GroupVersionKind) (bool, error) {
+func HasCRD(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind) (bool, error) {
 	return HasCRDWithVersion(ctx, cli, gvk.GroupKind(), gvk.Version)
 }
 
@@ -328,7 +327,7 @@ func HasCRD(ctx context.Context, cli *client2.Client, gvk schema.GroupVersionKin
 //   - (true, nil) if the CRD with the specified version exists and is not terminating.
 //   - (false, nil) if the CRD does not exist, does not store the requested version, or is terminating.
 //   - (false, error) if there was an error fetching the CRD.
-func HasCRDWithVersion(ctx context.Context, cli *client2.Client, gk schema.GroupKind, version string) (bool, error) {
+func HasCRDWithVersion(ctx context.Context, cli client.Client, gk schema.GroupKind, version string) (bool, error) {
 	m, err := cli.RESTMapper().RESTMapping(gk, version)
 	if err != nil {
 		if meta.IsNoMatchError(err) {

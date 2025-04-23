@@ -7,10 +7,11 @@ import (
 	"path/filepath"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	ctrlCli "sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 )
@@ -70,34 +71,49 @@ func New(opts ...OptionFn) (*EnvT, error) {
 		return nil, fmt.Errorf("unable to start envtest: %w", err)
 	}
 
-	envTestClient, err := ctrlCli.New(cfg, ctrlCli.Options{Scheme: result.s})
+	envTestClient, err := client.New(cfg, client.Options{Scheme: result.s})
 	if err != nil {
 		return nil, fmt.Errorf("unable to creaste envtest client: %w", err)
 	}
-
-	cli, err := client.NewFromConfig(cfg, envTestClient)
+	discoveryCli, err := discovery.NewDiscoveryClientForConfig(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("unable to creaste client: %w", err)
+		return nil, fmt.Errorf("unable to construct a Discovery client: %w", err)
+	}
+	dynamicCli, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("unable to construct a Dynamic client: %w", err)
 	}
 
-	result.cli = cli
+	result.cli = envTestClient
+	result.discoveryClient = discoveryCli
+	result.dynamicClient = dynamicCli
 
 	return &result, nil
 }
 
 type EnvT struct {
-	root string
-	s    *runtime.Scheme
-	e    envtest.Environment
-	cli  *client.Client
+	root            string
+	s               *runtime.Scheme
+	e               envtest.Environment
+	cli             client.Client
+	discoveryClient discovery.DiscoveryInterface
+	dynamicClient   dynamic.Interface
 }
 
 func (et *EnvT) Scheme() *runtime.Scheme {
 	return et.s
 }
 
-func (et *EnvT) Client() *client.Client {
+func (et *EnvT) Client() client.Client {
 	return et.cli
+}
+
+func (et *EnvT) DiscoveryClient() discovery.DiscoveryInterface {
+	return et.discoveryClient
+}
+
+func (et *EnvT) DynamicClient() dynamic.Interface {
+	return et.dynamicClient
 }
 
 func (et *EnvT) Stop() error {
