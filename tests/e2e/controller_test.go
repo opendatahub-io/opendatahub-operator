@@ -198,6 +198,9 @@ func TestOdhOperator(t *testing.T) {
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 
+	// Removing any existing default DSC, DSCI, and Auth CRs before starting the tests.
+	CleanupDefaultResources(t)
+
 	if testOpts.operatorControllerTest {
 		// individual test suites after the operator is running
 		mustRun(t, "ODH Manager E2E Tests", odhOperatorTestSuite)
