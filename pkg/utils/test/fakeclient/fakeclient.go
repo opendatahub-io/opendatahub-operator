@@ -27,10 +27,10 @@ func New(objs ...client.Object) (client.Client, error) {
 
 	fakeMapper := meta.NewDefaultRESTMapper(s.PreferredVersionAllGroups())
 	for kt := range s.AllKnownTypes() {
-		switch {
-		case kt == gvk.CustomResourceDefinition:
+		switch kt {
+		case gvk.CustomResourceDefinition:
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
-		case kt == gvk.ClusterRole:
+		case gvk.ClusterRole:
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
 		default:
 			fakeMapper.Add(kt, meta.RESTScopeNamespace)

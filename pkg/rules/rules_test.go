@@ -226,10 +226,10 @@ func TestListAuthorizedDeletableResources(t *testing.T) {
 
 			mapper := meta.NewDefaultRESTMapper(s.PreferredVersionAllGroups())
 			for kt := range s.AllKnownTypes() {
-				switch {
-				case kt == gvk.CustomResourceDefinition:
+				switch kt {
+				case gvk.CustomResourceDefinition:
 					mapper.Add(kt, meta.RESTScopeRoot)
-				case kt == gvk.ClusterRole:
+				case gvk.ClusterRole:
 					mapper.Add(kt, meta.RESTScopeRoot)
 				default:
 					mapper.Add(kt, meta.RESTScopeNamespace)
