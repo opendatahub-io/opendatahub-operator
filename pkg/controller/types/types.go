@@ -9,15 +9,31 @@ import (
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
-	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
+
+// Controller defines the core interface for a controller in the OpenDataHub Operator.
+type Controller interface {
+	// Owns returns true if the controller manages resources of the specified GroupVersionKind.
+	Owns(gvk schema.GroupVersionKind) bool
+
+	// GetClient returns a controller-runtime client used to interact with the Kubernetes API.
+	GetClient() client.Client
+
+	// GetDiscoveryClient returns a client-go discovery client used to discover API resources on the cluster.
+	GetDiscoveryClient() discovery.DiscoveryInterface
+
+	// GetDynamicClient returns a client-go dynamic client for working with unstructured resources.
+	GetDynamicClient() dynamic.Interface
+}
 
 type ResourceObject interface {
 	client.Object
@@ -57,9 +73,9 @@ type TemplateInfo struct {
 }
 
 type ReconciliationRequest struct {
-	*odhClient.Client
+	client.Client
 
-	Manager    *manager.Manager
+	Controller Controller
 	Conditions *conditions.Manager
 	Instance   common.PlatformObject
 	DSCI       *dsciv1.DSCInitialization

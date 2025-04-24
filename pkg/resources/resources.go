@@ -14,11 +14,13 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
@@ -469,4 +471,132 @@ func IsOwnedByType(obj client.Object, ownerGVK schema.GroupVersionKind) (bool, e
 	}
 
 	return false, nil
+}
+
+// Apply patches an object using server-side apply.
+//
+// This function converts the input object to an unstructured type, removes fields that
+// are not required for patching (i.e. managedFields, resourceVersion, and status), applies
+// the patch, and updates the input object with the patched result.
+//
+// The function handles the case where the resource doesn't exist (NotFound error) by treating
+// it as a success condition and returning nil.
+//
+// Parameters:
+//   - ctx: The context for the client operation
+//   - cli: The Kubernetes client interface used to perform the patch operation
+//   - in: The Kubernetes object to be applied
+//   - opts: Optional client patch options
+//
+// Returns:
+//   - error: nil on success, or an error with context if the operation fails
+func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...client.PatchOption) error {
+	u, err := ToUnstructured(in)
+	if err != nil {
+		return fmt.Errorf("failed to convert resource to unstructured: %w", err)
+	}
+
+	// safe copy
+	u = u.DeepCopy()
+
+	// remove not required fields
+	unstructured.RemoveNestedField(u.Object, "metadata", "managedFields")
+	unstructured.RemoveNestedField(u.Object, "metadata", "resourceVersion")
+	unstructured.RemoveNestedField(u.Object, "status")
+
+	err = cli.Patch(ctx, u, client.Apply, opts...)
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("unable to patch object %s: %w", u, err)
+	}
+
+	// Write back the modified object so callers can access the patched object.
+	err = cli.Scheme().Convert(u, in, ctx)
+	if err != nil {
+		return fmt.Errorf("failed to write modified object: %w", err)
+	}
+
+	return nil
+}
+
+// ApplyStatus patches the status subresource of a Kubernetes object using server-side apply.
+//
+// This function converts the input object to an unstructured type, removes fields that are
+// not required for patching (i.e. managedFields and resourceVersion), applies the patch to
+// the status subresource, and updates the input object with the patched result.
+//
+// The function handles the case where the resource doesn't exist (NotFound error) by treating
+// it as a success condition and returning nil.
+//
+// Parameters:
+//   - ctx: The context for the client operation
+//   - cli: The Kubernetes client interface used to perform the patch operation
+//   - in: The Kubernetes object whose status should be applied
+//   - opts: Optional client subresource patch options
+//
+// Returns:
+//   - error: nil on success, or an error with context if the operation fails
+func ApplyStatus(ctx context.Context, cli client.Client, in client.Object, opts ...client.SubResourcePatchOption) error {
+	u, err := ToUnstructured(in)
+	if err != nil {
+		return fmt.Errorf("failed to convert resource to unstructured: %w", err)
+	}
+
+	// safe copy
+	u = u.DeepCopy()
+
+	// remove not required fields
+	unstructured.RemoveNestedField(u.Object, "metadata", "managedFields")
+	unstructured.RemoveNestedField(u.Object, "metadata", "resourceVersion")
+
+	err = cli.Status().Patch(ctx, u, client.Apply, opts...)
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("unable to patch object status %s: %w", u, err)
+	}
+
+	// Write back the modified object so callers can access the patched object.
+	err = cli.Scheme().Convert(u, in, ctx)
+	if err != nil {
+		return fmt.Errorf("failed to write modified object: %w", err)
+	}
+
+	return nil
+}
+
+// ListAvailableAPIResources retrieves the preferred API resource lists available on
+// the Kubernetes server using the provided discovery client.
+//
+// This function calls ServerPreferredResources to get a prioritized list of
+// APIResourceList, which describes the API groups, versions, and resources the
+// server supports.
+//
+// It gracefully handles partial discovery failures (e.g. due to aggregated APIs like
+// Knative or custom metrics APIs that may require special permissions). In such cases,
+// it still returns the successfully discovered resource lists.
+//
+// Parameters:
+//   - cli: A discovery.DiscoveryInterface used to interact with the Kubernetes API server.
+//
+// Returns:
+//   - []*metav1.APIResourceList: A list of resource groups and versions supported by
+//     the server.
+//   - error: Non-nil only if a non-group-discovery-related error occurs during discovery.
+func ListAvailableAPIResources(
+	cli discovery.DiscoveryInterface,
+) ([]*metav1.APIResourceList, error) {
+	items, err := cli.ServerPreferredResources()
+
+	// Swallow group discovery errors, e.g., Knative serving exposes an
+	// aggregated API for custom.metrics.k8s.io that requires special
+	// authentication scheme while discovering preferred resources.
+	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
+		return nil, fmt.Errorf("failure retrieving supported resources: %w", err)
+	}
+
+	return items, nil
 }

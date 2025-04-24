@@ -5,18 +5,15 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
-	dynamicFake "k8s.io/client-go/dynamic/fake"
-	k8sFake "k8s.io/client-go/kubernetes/fake"
-	ctrlClient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	clientFake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 )
 
-func New(objs ...ctrlClient.Object) (*client.Client, error) {
+func New(objs ...client.Object) (client.Client, error) {
 	s, err := scheme.New()
 	if err != nil {
 		return nil, errors.New("unable to create default scheme")
@@ -50,15 +47,11 @@ func New(objs ...ctrlClient.Object) (*client.Client, error) {
 		ro[i] = u
 	}
 
-	c := client.New(
-		clientFake.NewClientBuilder().
-			WithScheme(s).
-			WithRESTMapper(fakeMapper).
-			WithObjects(objs...).
-			Build(),
-		k8sFake.NewSimpleClientset(ro...),
-		dynamicFake.NewSimpleDynamicClient(s, ro...),
-	)
+	c := clientFake.NewClientBuilder().
+		WithScheme(s).
+		WithRESTMapper(fakeMapper).
+		WithObjects(objs...).
+		Build()
 
 	return c, nil
 }

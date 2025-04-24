@@ -68,7 +68,7 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		WithAction(gc.NewAction(
 			gc.WithTypePredicate(
 				func(rr *types.ReconciliationRequest, objGVK schema.GroupVersionKind) (bool, error) {
-					return rr.Manager.Owns(objGVK), nil
+					return rr.Controller.Owns(objGVK), nil
 				},
 			),
 		)).

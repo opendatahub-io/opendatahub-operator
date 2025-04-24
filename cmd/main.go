@@ -75,7 +75,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -329,14 +328,8 @@ func main() { //nolint:funlen,maintidx
 
 	webhook.Init(mgr)
 
-	oc, err := odhClient.NewFromManager(mgr)
-	if err != nil {
-		setupLog.Error(err, "unable to create client")
-		os.Exit(1)
-	}
-
 	if err = (&dscictrl.DSCInitializationReconciler{
-		Client:   oc,
+		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("dscinitialization-controller"),
 	}).SetupWithManager(ctx, mgr); err != nil {
