@@ -75,6 +75,14 @@ type ResourceOptions struct {
 	// The ResourceID is used to provide a unique identifier for the resource, which is especially useful
 	// when working with multiple resources of the same type.
 	ResourceID string
+
+	// IgnoreNotFound determines whether to ignore "not found" errors during operations.
+	// Useful in scenarios where the resource may not exist and that's considered acceptable (e.g., optional cleanup).
+	IgnoreNotFound bool
+
+	// WaitForDeletion determines whether to wait for the resource to be fully deleted from the cluster.
+	// If true, the DeleteResource function will block until the resource is confirmed to be gone.
+	WaitForDeletion bool
 }
 
 // ResourceOpts is a function type used to configure options for the ResourceOptions object.
@@ -148,11 +156,30 @@ func WithListOptions(listOptions *client.ListOptions) ResourceOpts {
 	}
 }
 
+// WithIgnoreNotFound sets the IgnoreNotFound flag.
+// By default, the flag is true to skip errors when the resource is not found,
+// which is often useful in situations where the resource may not exist but its absence
+// doesn't necessarily indicate a failure (e.g., when attempting to delete a resource).
+// Set it to false if you want to enforce checking for the resource before performing operations.
+func WithIgnoreNotFound(ignore bool) ResourceOpts {
+	return func(ro *ResourceOptions) {
+		ro.IgnoreNotFound = ignore
+	}
+}
+
 // WithClientDeleteOptions creates a ResourceOpts function that sets the ClientDeleteOptions field
 // of the ResourceOptions. This will be used to configure the deletion behavior (e.g., propagation policy, grace period).
 func WithClientDeleteOptions(deleteOptions *client.DeleteOptions) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.ClientDeleteOptions = deleteOptions
+	}
+}
+
+// WithWaitForDeletion sets the WaitForDeletion flag.
+// When enabled, DeleteResource will wait until the resource is fully removed from the cluster.
+func WithWaitForDeletion(wait bool) ResourceOpts {
+	return func(ro *ResourceOptions) {
+		ro.WaitForDeletion = wait
 	}
 }
 
