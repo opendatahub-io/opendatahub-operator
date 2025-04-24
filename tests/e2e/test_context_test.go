@@ -133,6 +133,9 @@ func (tc *TestContext) NewResourceOptions(opts ...ResourceOpts) *ResourceOptions
 		ro.ClientDeleteOptions = &client.DeleteOptions{}
 	}
 
+	// Ensure IgnoreNotFound is true by default
+	ro.IgnoreNotFound = true
+
 	return ro
 }
 
@@ -609,9 +612,10 @@ func (tc *TestContext) EnsureOperatorInstalled(nn types.NamespacedName, skipOper
 	}).WithTimeout(eventuallyTimeoutMedium).WithPolling(generalRetryInterval)
 }
 
-// DeleteResource verifies whether a specific Kubernetes resource exists and deletes it if found.
-// If the resource exists, it is deleted using the provided client options. The test will fail if the resource
-// does not exist or if the deletion fails.
+// DeleteResource deletes a Kubernetes resource. If IgnoreNotFound is set via WithIgnoreNotFound,
+// the function will not check for existence beforehand and will silently ignore if the resource does not exist.
+//
+// If WaitForDeletion is set via WithWaitForDeletion, the function will wait until the resource is fully deleted.
 //
 // Parameters:
 //   - opts(...ResourceOpts): Optional options for configuring the resource and deletion behavior.
@@ -619,18 +623,51 @@ func (tc *TestContext) DeleteResource(opts ...ResourceOpts) {
 	// Create a ResourceOptions object based on the provided opts.
 	ro := tc.NewResourceOptions(opts...)
 
-	// Ensure the resource exists before attempting deletion
-	tc.EnsureResourceExists(
-		WithMinimalObject(ro.GVK, ro.NN),
-		WithCustomErrorMsg("Expected %s instance %s to exist before attempting deletion", ro.GVK.Kind, ro.ResourceID),
-	)
+	tc.g.Eventually(func(g Gomega) {
+		// Optionally check existence unless IgnoreNotFound is set
+		if !ro.IgnoreNotFound {
+			u, err := fetchResource(ro)
+			g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch %s instance %s before deletion", ro.GVK.Kind, ro.ResourceID)
+			g.Expect(u).NotTo(BeNil(), "Expected %s instance %s to exist before deletion", ro.GVK.Kind, ro.ResourceID)
+		}
 
-	// Delete the resource if it exists
+		// Perform the delete (client already handles IsNotFound gracefully)
+		tc.g.Delete(
+			ro.GVK,
+			ro.NN,
+			ro.ClientDeleteOptions,
+		).Eventually().Should(Succeed(), "Failed to delete %s instance %s", ro.GVK.Kind, ro.ResourceID)
+
+		// Optionally wait for deletion
+		if ro.WaitForDeletion {
+			// Ensure resource no longer exists
+			u, err := fetchResource(ro)
+			g.Expect(errors.IsNotFound(err)).To(BeTrue(), "Expected %s instance %s to be fully deleted", ro.GVK.Kind, ro.ResourceID)
+			g.Expect(u).To(BeNil(), "Expected %s instance %s to be nil after deletion", ro.GVK.Kind, ro.ResourceID)
+		}
+	}).Should(Succeed())
+
+	if !ro.IgnoreNotFound {
+		// Ensure the resource exists before attempting deletion
+		tc.EnsureResourceExists(
+			WithMinimalObject(ro.GVK, ro.NN),
+			WithCustomErrorMsg("Expected %s instance %s to exist before attempting deletion", ro.GVK.Kind, ro.ResourceID),
+		)
+	}
+
+	// Perform the delete (client gracefully handles NotFound already)
 	tc.g.Delete(
 		ro.GVK,
 		ro.NN,
 		ro.ClientDeleteOptions,
 	).Eventually().Should(Succeed(), "Failed to delete %s instance %s", ro.GVK.Kind, ro.ResourceID)
+
+	if ro.WaitForDeletion {
+		tc.g.Eventually(func(g Gomega) {
+			_, err := fetchResource(ro)
+			g.Expect(errors.IsNotFound(err)).To(BeTrue(), "Expected %s instance %s to be fully deleted", ro.GVK.Kind, ro.ResourceID)
+		}).Should(Succeed(), "Resource %s instance %s was not fully deleted", ro.GVK.Kind, ro.ResourceID)
+	}
 }
 
 // DeleteResourceIfExists verifies whether a specific Kubernetes resource exists and deletes it if found.

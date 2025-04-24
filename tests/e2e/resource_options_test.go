@@ -75,6 +75,14 @@ type ResourceOptions struct {
 	// The ResourceID is used to provide a unique identifier for the resource, which is especially useful
 	// when working with multiple resources of the same type.
 	ResourceID string
+
+	// IgnoreNotFound determines whether to ignore "not found" errors during operations.
+	// Useful in scenarios where the resource may not exist and that's considered acceptable (e.g., optional cleanup).
+	IgnoreNotFound bool
+
+	// WaitForDeletion determines whether to wait for the resource to be fully deleted from the cluster.
+	// If true, the DeleteResource function will block until the resource is confirmed to be gone.
+	WaitForDeletion bool
 }
 
 // ResourceOpts is a function type used to configure options for the ResourceOptions object.
@@ -148,11 +156,27 @@ func WithListOptions(listOptions *client.ListOptions) ResourceOpts {
 	}
 }
 
+// WithIgnoreNotFound sets the IgnoreNotFound flag to true.
+// This allows operations to skip failures caused by missing resources.
+func WithIgnoreNotFound() ResourceOpts {
+	return func(ro *ResourceOptions) {
+		ro.IgnoreNotFound = true
+	}
+}
+
 // WithClientDeleteOptions creates a ResourceOpts function that sets the ClientDeleteOptions field
 // of the ResourceOptions. This will be used to configure the deletion behavior (e.g., propagation policy, grace period).
 func WithClientDeleteOptions(deleteOptions *client.DeleteOptions) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.ClientDeleteOptions = deleteOptions
+	}
+}
+
+// WithWaitForDeletion sets the WaitForDeletion flag to true.
+// When enabled, DeleteResource will wait until the resource is fully removed from the cluster.
+func WithWaitForDeletion() ResourceOpts {
+	return func(ro *ResourceOptions) {
+		ro.WaitForDeletion = true
 	}
 }
 
