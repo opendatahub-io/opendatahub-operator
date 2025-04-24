@@ -349,6 +349,7 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 		return err
 	}
 
+	//nolint:staticcheck
 	serviceClusterIPNone := true
 	if k.Spec.RawDeploymentServiceConfig == componentApi.KserveRawHeaded {
 		// As default is Headless, only set false here if Headed is explicitly set
@@ -419,10 +420,13 @@ func setStatusFields(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 			serviceMeshEnabled = true
 		}
 	}
+
+	//nolint:staticcheck
 	serverlessEnabled := false
 	if k.Spec.Serving.ManagementState == operatorv1.Managed || k.Spec.Serving.ManagementState == operatorv1.Unmanaged {
 		serverlessEnabled = true
 	}
+
 	k.Status.ServerlessMode = operatorv1.Removed
 	if serverlessEnabled && serviceMeshEnabled {
 		k.Status.ServerlessMode = operatorv1.Managed
