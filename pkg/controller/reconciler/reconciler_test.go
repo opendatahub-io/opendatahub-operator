@@ -31,7 +31,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
-	odhClient "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/client"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -68,7 +67,7 @@ func createEnvTest(s *runtime.Scheme) (*envtest.Environment, error) {
 	return &envTest, nil
 }
 
-func createReconciler(cli *odhClient.Client) *Reconciler {
+func createReconciler(cli client.Client) *Reconciler {
 	return &Reconciler{
 		Client:   cli,
 		Scheme:   cli.Scheme(),
@@ -108,10 +107,7 @@ func TestConditions(t *testing.T) {
 	cfg, err := envTest.Start()
 	g.Expect(err).NotTo(HaveOccurred())
 
-	envTestClient, err := client.New(cfg, client.Options{Scheme: s})
-	g.Expect(err).NotTo(HaveOccurred())
-
-	cli, err := odhClient.NewFromConfig(cfg, envTestClient)
+	cli, err := client.New(cfg, client.Options{Scheme: s})
 	g.Expect(err).NotTo(HaveOccurred())
 
 	dsci := resources.GvkToUnstructured(gvk.DSCInitialization)
