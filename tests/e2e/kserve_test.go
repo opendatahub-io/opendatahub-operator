@@ -313,7 +313,10 @@ func (tc *KserveTestCtx) cleanExistingKnativeServing(t *testing.T) {
 		tc.g.Expect(err).NotTo(HaveOccurred(), "error marshalling Knative Serving object: %w", err)
 
 		t.Logf("Deleting Knative Serving %s in namespace %s: %s", obj.GetName(), obj.GetNamespace(), string(data))
-		tc.DeleteResourceIfExists(WithMinimalObject(gvk.KnativeServing, types.NamespacedName{Namespace: knativeServingNamespace, Name: obj.GetName()}))
+		tc.DeleteResource(
+			WithMinimalObject(gvk.KnativeServing, types.NamespacedName{Namespace: knativeServingNamespace, Name: obj.GetName()}),
+			WithWaitForDeletion(true),
+		)
 
 		// We also need to restart the Operator Pod.
 		operatorDeployment := "opendatahub-operator-controller-manager"

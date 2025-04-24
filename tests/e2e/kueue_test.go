@@ -166,10 +166,8 @@ func (tc *KueueTestCtx) deleteAndValidateCRD(crdName string) {
 			&client.DeleteOptions{
 				PropagationPolicy: &propagationPolicy,
 			}),
+		WithWaitForDeletion(true),
 	)
-
-	// Verify the CRD is deleted
-	tc.EnsureResourceGone(WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdName}))
 }
 
 // createMockCRD creates a mock CRD for a given group, version, kind, and namespace.

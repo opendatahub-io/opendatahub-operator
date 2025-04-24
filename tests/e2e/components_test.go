@@ -310,10 +310,8 @@ func (tc *ComponentTestCtx) ValidateCRDRemoval(name string) {
 			&client.DeleteOptions{
 				PropagationPolicy: &propagationPolicy,
 			}),
+		WithWaitForDeletion(true),
 	)
-
-	// Ensure the CRD is removed
-	tc.EnsureResourceGone(WithMinimalObject(gvk.CustomResourceDefinition, nn))
 }
 
 // ValidateCRDReinstatement ensures that the CRD is properly reinstated when the component is enabled.
