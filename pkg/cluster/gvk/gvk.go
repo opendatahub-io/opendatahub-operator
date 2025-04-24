@@ -13,6 +13,12 @@ import (
 )
 
 var (
+	Namespace = schema.GroupVersionKind{
+		Group:   "",
+		Version: "v1",
+		Kind:    "Namespace",
+	}
+
 	ClusterServiceVersion = schema.GroupVersionKind{
 		Group:   "operators.coreos.com",
 		Version: "v1alpha1",
