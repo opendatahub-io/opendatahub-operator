@@ -623,30 +623,6 @@ func (tc *TestContext) DeleteResource(opts ...ResourceOpts) {
 	// Create a ResourceOptions object based on the provided opts.
 	ro := tc.NewResourceOptions(opts...)
 
-	tc.g.Eventually(func(g Gomega) {
-		// Optionally check existence unless IgnoreNotFound is set
-		if !ro.IgnoreNotFound {
-			u, err := fetchResource(ro)
-			g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch %s instance %s before deletion", ro.GVK.Kind, ro.ResourceID)
-			g.Expect(u).NotTo(BeNil(), "Expected %s instance %s to exist before deletion", ro.GVK.Kind, ro.ResourceID)
-		}
-
-		// Perform the delete (client already handles IsNotFound gracefully)
-		tc.g.Delete(
-			ro.GVK,
-			ro.NN,
-			ro.ClientDeleteOptions,
-		).Eventually().Should(Succeed(), "Failed to delete %s instance %s", ro.GVK.Kind, ro.ResourceID)
-
-		// Optionally wait for deletion
-		if ro.WaitForDeletion {
-			// Ensure resource no longer exists
-			u, err := fetchResource(ro)
-			g.Expect(errors.IsNotFound(err)).To(BeTrue(), "Expected %s instance %s to be fully deleted", ro.GVK.Kind, ro.ResourceID)
-			g.Expect(u).To(BeNil(), "Expected %s instance %s to be nil after deletion", ro.GVK.Kind, ro.ResourceID)
-		}
-	}).Should(Succeed())
-
 	if !ro.IgnoreNotFound {
 		// Ensure the resource exists before attempting deletion
 		tc.EnsureResourceExists(
@@ -663,41 +639,9 @@ func (tc *TestContext) DeleteResource(opts ...ResourceOpts) {
 	).Eventually().Should(Succeed(), "Failed to delete %s instance %s", ro.GVK.Kind, ro.ResourceID)
 
 	if ro.WaitForDeletion {
-		tc.g.Eventually(func(g Gomega) {
-			_, err := fetchResource(ro)
-			g.Expect(errors.IsNotFound(err)).To(BeTrue(), "Expected %s instance %s to be fully deleted", ro.GVK.Kind, ro.ResourceID)
-		}).Should(Succeed(), "Resource %s instance %s was not fully deleted", ro.GVK.Kind, ro.ResourceID)
+		opts = append(opts, WithCustomErrorMsg("Resource %s instance %s was not fully deleted", ro.GVK.Kind, ro.ResourceID))
+		tc.EnsureResourceGone(opts...)
 	}
-}
-
-// DeleteResourceIfExists verifies whether a specific Kubernetes resource exists and deletes it if found.
-// If the resource exists, it is deleted using the provided client options. The test will succeed even if the resource
-// does not exist (i.e., the deletion is considered successful if the resource is not found).
-//
-// Parameters:
-//   - opts(...ResourceOpts): Optional options for configuring the resource and deletion behavior.
-func (tc *TestContext) DeleteResourceIfExists(opts ...ResourceOpts) {
-	// Create a ResourceOptions object based on the provided opts.
-	ro := tc.NewResourceOptions(opts...)
-
-	// Use ensureResourceExistsOrNil to attempt to fetch the resource with retries
-	_, err := tc.ensureResourceExistsOrNil(ro)
-
-	// If error is not nil and not IsNotFound, we fail the test.
-	if err != nil && !errors.IsNotFound(err) {
-		tc.g.Expect(err).NotTo(
-			HaveOccurred(),
-			"Unexpected error while checking existence of %s instance %s", ro.GVK.Kind, ro.ResourceID,
-		)
-		return
-	}
-
-	// Delete the resource
-	tc.g.Delete(
-		ro.GVK,
-		ro.NN,
-		ro.ClientDeleteOptions,
-	).Eventually().Should(Succeed(), "Failed to delete %s instance %s", ro.GVK.Kind, ro.ResourceID)
 }
 
 // FetchInstallPlanName retrieves the name of the InstallPlan associated with a subscription.

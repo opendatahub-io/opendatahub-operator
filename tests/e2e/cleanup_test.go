@@ -15,7 +15,10 @@ import (
 // cleanupResource logs and deletes the specified resource if it exists.
 func cleanupResource(t *testing.T, tc *TestContext, kind schema.GroupVersionKind, name types.NamespacedName, label string) { //nolint:thelper
 	t.Logf("Cleaning up %s if present", label)
-	tc.DeleteResourceIfExists(WithMinimalObject(kind, name))
+	tc.DeleteResource(
+		WithMinimalObject(kind, name),
+		WithWaitForDeletion(true),
+	)
 }
 
 // cleanupListResources deletes a list of resources of a given kind.
