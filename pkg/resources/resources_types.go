@@ -33,7 +33,7 @@ type Resource struct {
 
 // GroupVersionResource returns the schema.GroupVersionResource associated with this Resource.
 func (r Resource) GroupVersionResource() schema.GroupVersionResource {
-	return r.RESTMapping.Resource
+	return r.Resource
 }
 
 // GroupVersionKind returns the schema.GroupVersionKind associated with this Resource.
@@ -44,15 +44,15 @@ func (r Resource) GroupVersionKind() schema.GroupVersionKind {
 // String returns a string representation of this Resource that includes both
 // the GroupVersionResource and GroupVersionKind for better debugging.
 func (r Resource) String() string {
-	gv := r.RESTMapping.Resource.Version
+	gv := r.Resource.Version
 
-	if len(r.RESTMapping.Resource.Group) > 0 {
-		gv = r.RESTMapping.Resource.Group + "/" + r.RESTMapping.Resource.Version
+	if len(r.Resource.Group) > 0 {
+		gv = r.Resource.Group + "/" + r.Resource.Version
 	}
 
 	return strings.Join(
 		[]string{
-			gv, "Resource=", r.RESTMapping.Resource.Resource, "Kind=", r.RESTMapping.GroupVersionKind.Kind,
+			gv, "Resource=", r.Resource.Resource, "Kind=", r.RESTMapping.GroupVersionKind.Kind,
 		},
 		" ",
 	)

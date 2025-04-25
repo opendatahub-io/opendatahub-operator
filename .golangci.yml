@@ -1,139 +1,151 @@
-run:
-  deadline: 10m
-
-linters-settings:
-  gocyclo:
-    min-complexity: 30
-  lll:
-    line-length: 180
-  gci:
-    sections:
-      - standard
-      - default
-      - prefix(github.com/opendatahub-io/opendatahub-operator)
-      - blank
-      - dot
-    skip-generated: false
-    custom-order: true
-  goconst:
-    ignore-strings: "true|false"
-  errcheck:
-    check-type-assertions: true
-  exhaustive:
-    check:
-      - switch
-    default-signifies-exhaustive: true
-  funlen:
-    lines: 100
-    statements: 100
-    ignore-comments: true
-  nolintlint:
-    allow-no-explanation: [ funlen, lll ]
-    require-specific: true
-  importas:
-    alias:
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1
-        alias: dsciv1
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1
-        alias: dscv1
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1
-        alias: infrav1
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
-        alias: componentApi
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1
-        alias: serviceApi
-      - pkg: k8s.io/apimachinery/pkg/api/errors
-        alias: k8serr
-      # Ensures that i.e. k8s.io/api/rbac/v1 is aliased as rbacv1
-      - pkg: k8s.io/api/(\w+)/(v[\w\d]+)
-        alias: $1$2
-      - pkg: github.com/openshift/api/(\w+)/(v[\w\d]+)
-        alias: $1$2
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster
-        alias: dscctrl
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization
-        alias: dscictrl
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry
-        alias: cr
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/(\w+)
-        alias: ${1}ctrl
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry
-        alias: sr
-      - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/(\w+)
-        alias: ${1}ctrl
-  ireturn:
-    allow:
-      # defaults https://golangci-lint.run/usage/linters/#ireturn
-      - anon
-      - error
-      - empty
-      - stdlib
-      # also allow generics
-      - generic
-      - EventHandler # for ToOwner
-      - discovery.DiscoveryInterface
-      - dynamic.Interface
-      - predicate.Predicate
-      - client.Object
-      - client.Client
-      - common.PlatformObject
-      - types.AsyncAssertion
-      - kubernetes.Interface
-      - gomega.AsyncAssertion
-      - labels.Selector
-  revive:
-    rules:
-      - name: dot-imports
-        arguments:
-          - allowedPackages: ["github.com/onsi/ginkgo/v2","github.com/onsi/gomega","github.com/onsi/gomega/gstruct"]
-  perfsprint:
-    sprintf1: false
-    strconcat: false
-  # Enable gocritic for detecting bugs, performance, and style issues: https://golangci-lint.run/usage/linters/#gocritic
-  gocritic:
-    # https://go-critic.com/overview.html#checkers
-    enabled-checks:
-      - deferInLoop
-      - unnecessaryDefer
-
+version: "2"
 linters:
-  enable-all: true
+  default: all
   disable:
-    - depguard # [replaced by gomodguard] checks if package imports are in a list of acceptable packages
-    - exhaustruct # Prevents empty struct. We use a lot of these so I think it is safe to disable.c
+    - cyclop
+    - depguard
+    - err113
+    - exhaustruct
     - forbidigo
-    - gochecknoglobals # Prevents use of global vars.
-    - gofumpt
-    - gomoddirectives # Doesnot allow replace in go mod file
+    - funlen
+    - gochecknoglobals
+    - gocognit
+    - godox
+    - gomoddirectives
     - mnd
     - nestif
     - nilnil
-    - paralleltest # [too many false positives] detects missing usage of t.Parallel() method in your Go test
+    - nlreturn
+    - paralleltest
     - tagliatelle
-    - varnamelen # doesnot allow shorter names like c,k etc. But golang prefers short named vars.
-    - wsl # [too strict and mostly code is not more readable] whitespace linter forces you to use empty lines
-    - wrapcheck # check if this is required. Prevents direct return of err.
-    - tenv # Duplicate feature in another linter. Replaced by usetesting.
-
-
-    # Need to check
-    - nlreturn # [too strict and mostly code is not more readable] checks for a new line before return and branch statements to increase code clarity
-    - err113 # [too strict] checks the errors handling expressions
-
-    # To be fixed
-    - gocognit # https://github.com/opendatahub-io/opendatahub-operator/issues/709
-    - cyclop   # https://github.com/opendatahub-io/opendatahub-operator/issues/709
-    - funlen   # https://github.com/opendatahub-io/opendatahub-operator/issues/709
-    - godox    # https://github.com/opendatahub-io/opendatahub-operator/issues/699
-
-issues:
-  exclude-dirs:
-    - api
-  exclude-rules:
-    - path: tests/*/(.+)_test\.go
-      linters:
-        - typecheck
-        - dupl
-    - path: pkg/utils/test/testf/(.+)\.go
-      linters:
-        - containedctx
+    - varnamelen
+    - wrapcheck
+    - wsl
+    - funcorder
+  settings:
+    errcheck:
+      check-type-assertions: true
+    exhaustive:
+      check:
+        - switch
+      default-signifies-exhaustive: true
+    funlen:
+      lines: 100
+      statements: 100
+      ignore-comments: true
+    goconst:
+      ignore-string-values:
+        - "true"
+        - "false"
+    gocritic:
+      enabled-checks:
+        - deferInLoop
+        - unnecessaryDefer
+    gocyclo:
+      min-complexity: 30
+    importas:
+      alias:
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1
+          alias: dsciv1
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1
+          alias: dscv1
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1
+          alias: infrav1
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1
+          alias: componentApi
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1
+          alias: serviceApi
+        - pkg: k8s.io/apimachinery/pkg/api/errors
+          alias: k8serr
+        - pkg: k8s.io/api/(\w+)/(v[\w\d]+)
+          alias: $1$2
+        - pkg: github.com/openshift/api/(\w+)/(v[\w\d]+)
+          alias: $1$2
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster
+          alias: dscctrl
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization
+          alias: dscictrl
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry
+          alias: cr
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/(\w+)
+          alias: ${1}ctrl
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry
+          alias: sr
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/(\w+)
+          alias: ${1}ctrl
+    ireturn:
+      allow:
+        - anon
+        - error
+        - empty
+        - stdlib
+        - generic
+        - EventHandler
+        - discovery.DiscoveryInterface
+        - dynamic.Interface
+        - predicate.Predicate
+        - client.Object
+        - client.Client
+        - common.PlatformObject
+        - types.AsyncAssertion
+        - kubernetes.Interface
+        - gomega.AsyncAssertion
+        - labels.Selector
+    lll:
+      line-length: 180
+    nolintlint:
+      require-specific: true
+      allow-no-explanation:
+        - funlen
+        - lll
+    perfsprint:
+      sprintf1: false
+      strconcat: false
+    revive:
+      rules:
+        - name: dot-imports
+          arguments:
+            - allowedPackages:
+                - github.com/onsi/ginkgo/v2
+                - github.com/onsi/gomega
+                - github.com/onsi/gomega/gstruct
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - dupl
+        path: tests/*/(.+)_test\.go
+      - linters:
+          - containedctx
+        path: pkg/utils/test/testf/(.+)\.go
+    paths:
+      - api
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/opendatahub-io/opendatahub-operator)
+        - blank
+        - dot
+      custom-order: true
+  exclusions:
+    generated: lax
+    paths:
+      - api
+      - third_party$
+      - builtin$
+      - examples$
