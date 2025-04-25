@@ -2,7 +2,7 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended"],
     "branchPrefix": "renovate/",
-    "baseBranches": ["main", "rhoai-2.8", "rhoai-2.16", "rhoai-2.19"],
+    "baseBranches": ["main", "rhoai-2.8", "rhoai-2.16", "rhoai-2.19", "rhoai-2.20"],
     "ignoreTests": true,
     "automergeType": "pr",
     "automerge": true,
