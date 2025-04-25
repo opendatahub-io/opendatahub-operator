@@ -21,9 +21,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-const IngressNamespace = "openshift-ingress"
+const (
+	CertFieldOwner   = resources.PlatformFieldOwner + "/cert"
+	IngressNamespace = "openshift-ingress"
+)
 
 var IngressControllerName = types.NamespacedName{
 	Namespace: "openshift-ingress-operator",
@@ -40,8 +46,13 @@ func CreateSelfSignedCertificate(ctx context.Context, c client.Client, secretNam
 		return errApply
 	}
 
-	if errGen := generateCertSecret(ctx, c, certSecret); errGen != nil {
-		return fmt.Errorf("failed update self-signed certificate secret: %w", errGen)
+	opts := []client.PatchOption{
+		client.ForceOwnership,
+		client.FieldOwner(CertFieldOwner),
+	}
+	err = resources.Apply(ctx, c, certSecret, opts...)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return err
 	}
 
 	return nil
@@ -54,6 +65,10 @@ func GenerateSelfSignedCertificateAsSecret(name, addr, namespace string) (*corev
 	}
 
 	return &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       gvk.Secret.Kind,
+			APIVersion: gvk.Secret.Version,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -185,6 +200,10 @@ func GetSecret(ctx context.Context, c client.Client, namespace, name string) (*c
 
 func copySecretToNamespace(ctx context.Context, c client.Client, secret *corev1.Secret, newSecretName, namespace string) error {
 	newSecret := &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       gvk.Secret.Kind,
+			APIVersion: gvk.Secret.Version,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      newSecretName,
 			Namespace: namespace,
@@ -193,67 +212,14 @@ func copySecretToNamespace(ctx context.Context, c client.Client, secret *corev1.
 		Type: secret.Type,
 	}
 
-	if err := generateCertSecret(ctx, c, newSecret); err != nil {
-		return fmt.Errorf("failed to deploy default cert secret to namespace %s: %w", namespace, err)
+	opts := []client.PatchOption{
+		client.ForceOwnership,
+		client.FieldOwner(CertFieldOwner),
+	}
+	err := resources.Apply(ctx, c, newSecret, opts...)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return err
 	}
 
 	return nil
-}
-
-// recreateSecret deletes the existing secret and creates a new one.
-func recreateSecret(ctx context.Context, c client.Client, existingSecret, newSecret *corev1.Secret) error {
-	if err := c.Delete(ctx, existingSecret); err != nil {
-		return fmt.Errorf("failed to delete existing secret before recreating new one: %w", err)
-	}
-	if err := c.Create(ctx, newSecret); err != nil {
-		return fmt.Errorf("failed to create new secret after existing one has been deleted: %w", err)
-	}
-	return nil
-}
-
-// generateCertSecret creates a secret if it does not exist; recreate this secret if type not match; update data if outdated.
-func generateCertSecret(ctx context.Context, c client.Client, certSecret *corev1.Secret) error {
-	existingSecret := &corev1.Secret{}
-	errGet := c.Get(ctx, client.ObjectKeyFromObject(certSecret), existingSecret)
-	switch {
-	case errGet == nil:
-		// Secret exists but with a different type, delete and create it again
-		if existingSecret.Type != certSecret.Type {
-			return recreateSecret(ctx, c, existingSecret, certSecret)
-		}
-		// update data if found with same type but outdated content
-		if isSecretOutdated(existingSecret.Data, certSecret.Data) {
-			if errUpdate := c.Update(ctx, certSecret); errUpdate != nil {
-				return fmt.Errorf("failed to update existing secret: %w", errUpdate)
-			}
-		}
-	case k8serr.IsNotFound(errGet):
-		// Secret does not exist, create it
-		if errCreate := c.Create(ctx, certSecret); errCreate != nil {
-			return fmt.Errorf("failed creating new certificate secret: %w", errCreate)
-		}
-	default:
-		return fmt.Errorf("failed getting certificate secret: %w", errGet)
-	}
-
-	return nil
-}
-
-// isSecretOutdated compares two secret data of type map[string][]byte and returns true if they are not equal.
-func isSecretOutdated(existingSecretData, newSecretData map[string][]byte) bool {
-	if len(existingSecretData) != len(newSecretData) {
-		return true
-	}
-
-	for key, value1 := range existingSecretData {
-		value2, ok := newSecretData[key]
-		if !ok {
-			return true
-		}
-		if !bytes.Equal(value1, value2) {
-			return true
-		}
-	}
-
-	return false
 }
