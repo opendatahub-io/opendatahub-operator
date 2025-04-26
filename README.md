@@ -97,7 +97,7 @@ Additionally installing `Authorino operator` & `Service Mesh operator` enhances 
 
 #### Pre-requisites
 
-- Go version **go1.22**
+- Go version **go1.23**
 - operator-sdk version can be updated to **v1.37.0**
 
 #### Download manifests
@@ -206,7 +206,7 @@ e.g `make image-build USE_LOCAL=true"`
 **Deploying operator using OLM**
 
 - To create a new bundle in defined operator namespace, run following command:
-  
+
   ```commandline
   export OPERATOR_NAMESPACE=<namespace-to-install-operator>
   make bundle
@@ -215,13 +215,13 @@ e.g `make image-build USE_LOCAL=true"`
   **Note** : Skip the above step if you want to run the existing operator bundle.
 
 - Build Bundle Image:
-  
+
   ```commandline
   make bundle-build bundle-push BUNDLE_IMG=quay.io/<username>/opendatahub-operator-bundle:<VERSION>
   ```
 
 - Run the Bundle on a cluster:
-  
+
   ```commandline
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE --decompression-image quay.io/project-codeflare/busybox:1.36
   ```
@@ -237,7 +237,7 @@ There are 2 ways to test your changes with modification:
 
 Whenever a new api is added or a new field is added to the CRD, please make sure to run the command:
   ```commandline
-  make api-docs 
+  make api-docs
   ```
 This will ensure that the doc for the apis are updated accordingly.
 
@@ -305,7 +305,7 @@ Apply this example with modification for your usage.
 
 ### Example DataScienceCluster
 
-When the operator is installed successfully in the cluster, a user can create a `DataScienceCluster` CR to enable ODH 
+When the operator is installed successfully in the cluster, a user can create a `DataScienceCluster` CR to enable ODH
 components. At a given time, ODH supports only **one** instance of the CR, which can be updated to get custom list of components.
 
 1. Enable all components
@@ -349,7 +349,7 @@ spec:
     workbenches:
       managementState: Managed
     feastoperator:
-      managementState: Managed         
+      managementState: Managed
 ```
 
 2. Enable only Dashboard and Workbenches

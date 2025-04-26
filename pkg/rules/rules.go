@@ -3,10 +3,10 @@ package rules
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
-	"golang.org/x/exp/maps"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -197,7 +197,7 @@ func ComputeDeletableResources(
 		}
 	}
 
-	result := maps.Keys(allowedResources)
+	result := slices.AppendSeq(make([]resources.Resource, 0, len(allowedResources)), maps.Keys(allowedResources))
 	slices.SortFunc(result, func(a, b resources.Resource) int {
 		return strings.Compare(a.String(), b.String())
 	})

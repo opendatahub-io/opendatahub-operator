@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -15,7 +16,6 @@ import (
 	ofapiv1 "github.com/operator-framework/api/pkg/operators/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
-	"golang.org/x/exp/maps"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -223,7 +223,7 @@ func TestMain(m *testing.M) {
 	flag.BoolVar(&testOpts.operatorControllerTest, "test-operator-controller", true, "run operator controller tests")
 	flag.BoolVar(&testOpts.webhookTest, "test-webhook", true, "run webhook tests")
 
-	componentNames := strings.Join(maps.Keys(componentsTestSuites), ", ")
+	componentNames := strings.Join(slices.AppendSeq(make([]string, 0, len(componentsTestSuites)), maps.Keys(componentsTestSuites)), ", ")
 	flag.Var(&testOpts.components, "test-component", "run tests for the specified component. valid components names are: "+componentNames)
 
 	for _, n := range testOpts.components {
@@ -233,7 +233,7 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	serviceNames := strings.Join(maps.Keys(servicesTestSuites), ", ")
+	serviceNames := strings.Join(slices.AppendSeq(make([]string, 0, len(servicesTestSuites)), maps.Keys(servicesTestSuites)), ", ")
 	flag.Var(&testOpts.services, "test-service", "run tests for the specified service. valid service names are: "+serviceNames)
 
 	for _, n := range testOpts.components {
