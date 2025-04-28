@@ -42,6 +42,47 @@ func ToUnstructured(obj any) (*unstructured.Unstructured, error) {
 	return &u, nil
 }
 
+func ObjectToUnstructured(s *runtime.Scheme, obj client.Object) (*unstructured.Unstructured, error) {
+	// Ensure that the object has a GroupVersionKind set
+	if err := EnsureGroupVersionKind(s, obj); err != nil {
+		return nil, fmt.Errorf("failed to ensure GroupVersionKind: %w", err)
+	}
+
+	// Now, convert the object to unstructured
+	u, err := ToUnstructured(obj)
+	if err != nil {
+		return nil, err
+	}
+
+	return u, nil
+}
+
+func ObjectFromUnstructured(s *runtime.Scheme, obj *unstructured.Unstructured, intoObj client.Object) error {
+	if obj == nil {
+		return errors.New("nil object")
+	}
+
+	// Convert the unstructured object to the typed object
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, intoObj)
+	if err != nil {
+		return fmt.Errorf("unable to convert unstructured object to %T: %w", intoObj, err)
+	}
+
+	// Ensure that the GroupVersionKind is correctly set on the target object
+	err = EnsureGroupVersionKind(s, intoObj)
+	if err != nil {
+		return fmt.Errorf("unable to ensure GroupVersionKind: %w", err)
+	}
+
+	// Validate that the GroupVersionKind is known in the scheme
+	gvk := intoObj.GetObjectKind().GroupVersionKind()
+	if _, err := s.New(gvk); err != nil {
+		return fmt.Errorf("unable to create object for GVK %s: %w", gvk, err)
+	}
+
+	return nil
+}
+
 func Decode(decoder runtime.Decoder, content []byte) ([]unstructured.Unstructured, error) {
 	results := make([]unstructured.Unstructured, 0)
 
@@ -342,6 +383,20 @@ func NamespacedNameFromObject(obj client.Object) types.NamespacedName {
 		Namespace: obj.GetNamespace(),
 		Name:      obj.GetName(),
 	}
+}
+
+func FormatNamespacedName(nn types.NamespacedName) string {
+	if nn.Namespace == "" {
+		return nn.Name
+	}
+	return nn.String()
+}
+
+func FormatUnstructuredName(obj *unstructured.Unstructured) string {
+	if obj.GetNamespace() == "" {
+		return obj.GetName()
+	}
+	return obj.GetNamespace() + string(types.Separator) + obj.GetName()
 }
 
 // RemoveOwnerReferences removes all owner references from a Kubernetes object that match the provided predicate.

@@ -1,26 +1,15 @@
 package e2e_test
 
 import (
-	"context"
+	"flag"
 	"fmt"
-	"log"
+	"os"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/hashicorp/go-multierror"
+	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	ofapiv1 "github.com/operator-framework/api/pkg/operators/v1"
-	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -29,85 +18,119 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+
+	. "github.com/onsi/gomega"
 )
 
+// Namespace and Operator Constants.
 const (
-	knativeServingNamespace  = "knative-serving"
-	serverlessOpName         = "serverless-operator"
-	ownedNamespaceNumber     = 1 // set to 4 for RHOAI
-	deleteConfigMap          = "delete-configmap-name"
-	operatorReadyTimeout     = 2 * time.Minute
-	componentReadyTimeout    = 7 * time.Minute // in component code is to set 2-3 mins, keep it 7 mins just the same value we used after introduce "Ready" check
-	componentDeletionTimeout = 1 * time.Minute
-	crdReadyTimeout          = 1 * time.Minute
-	csvWaitTimeout           = 1 * time.Minute
-	dsciCreationTimeout      = 20 * time.Second // time required to get a DSCI is created.
-	dscCreationTimeout       = 20 * time.Second // time required to wait till DSC is created.
-	generalRetryInterval     = 10 * time.Second
-	generalWaitTimeout       = 2 * time.Minute
-	generalPollInterval      = 1 * time.Second
-	readyStatus              = "Ready"
-	dscKind                  = "DataScienceCluster"
+	// Namespaces for various components.
+	knativeServingNamespace = "knative-serving" // Namespace for Knative Serving components
+
+	// Operators constants.
+	serviceMeshOpName            = "servicemeshoperator" // Name of the Service Mesh Operator
+	serverlessOpName             = "serverless-operator" // Name of the Serverless Operator
+	authorinoOpName              = "authorino-operator"  // Name of the Serverless Operator
+	serviceMeshControlPlane      = "data-science-smcp"   // Service Mesh control plane name
+	serviceMeshNamespace         = "istio-system"        // Namespace for Istio Service Mesh control plane
+	serviceMeshMetricsCollection = "Istio"               // Metrics collection for Service Mesh (e.g., Istio)
+	serviceMeshMemberName        = "default"
 )
 
-func (tc *testContext) waitForOperatorDeployment(name string, replicas int32) error {
-	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, operatorReadyTimeout, false, func(ctx context.Context) (bool, error) {
-		controllerDeployment, err := tc.kubeClient.AppsV1().Deployments(tc.operatorNamespace).Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			if k8serr.IsNotFound(err) {
-				return false, nil
+// Configuration and Miscellaneous Constants.
+const (
+	ownedNamespaceNumber = 1 // Number of namespaces owned, adjust to 4 for RHOAI deployment
+
+	dsciInstanceName = "e2e-test-dsci" // Instance name for the DSCInitialization
+	dscInstanceName  = "e2e-test-dsc"  // Instance name for the DataScienceCluster
+
+	// Standard error messages format.
+	resourceNotNilErrorMsg       = "Expected a non-nil resource object but got nil."
+	resourceNotFoundErrorMsg     = "Expected resource '%s' of kind '%s' to exist, but it was not found or could not be retrieved."
+	resourceFoundErrorMsg        = "Expected resource '%s' of kind '%s' to not exist, but it was found."
+	resourceEmptyErrorMsg        = "Expected resource list '%s' of kind '%s' to contain resources, but it was empty."
+	resourceListNotEmptyErrorMsg = "Expected resource list '%s' of kind '%s' to be empty, but it contains resources."
+	resourceFetchErrorMsg        = "Error occurred while fetching the resource '%s' of kind '%s': %v"
+	unexpectedErrorMismatchMsg   = "Expected error '%v' to match the actual error '%v' for resource of kind '%s'."
+)
+
+// TestCaseOpts defines a function type that can be used to modify how individual test cases are executed.
+type TestCaseOpts func(t *testing.T)
+
+// RunTestCases runs a series of test cases, optionally in parallel based on the provided options.
+//
+// Parameters:
+//   - t (*testing.T): The test context passed into the test function.
+//   - testCases ([]TestCase): A slice of test cases to execute.
+//   - opts (...TestCaseOpts): Optional configuration options, like enabling parallel execution.
+func RunTestCases(t *testing.T, testCases []TestCase, opts ...TestCaseOpts) {
+	t.Helper()
+
+	// Apply all provided options (e.g., parallel execution) to each test case.
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			// Apply each option to the current test
+			for _, opt := range opts {
+				opt(t)
 			}
-			log.Printf("Failed to get %s controller deployment", name)
-			return false, err
-		}
 
-		for _, condition := range controllerDeployment.Status.Conditions {
-			if condition.Type == appsv1.DeploymentAvailable {
-				if condition.Status == corev1.ConditionTrue && controllerDeployment.Status.ReadyReplicas == replicas {
-					return true, nil
-				}
-			}
-		}
-		log.Printf("Error in %s deployment", name)
-		return false, nil
-	})
-	return err
-}
-
-func (tc *testContext) getComponentDeployments(componentGVK schema.GroupVersionKind) ([]appsv1.Deployment, error) {
-	deployments := appsv1.DeploymentList{}
-	err := tc.customClient.List(
-		tc.ctx,
-		&deployments,
-		client.InNamespace(
-			tc.applicationsNamespace,
-		),
-		client.MatchingLabels{
-			labels.PlatformPartOf: strings.ToLower(componentGVK.Kind),
-		},
-	)
-
-	if err != nil {
-		return nil, err
+			// Run the test function for the current test case
+			testCase.testFn(t)
+		})
 	}
-
-	return deployments.Items, nil
 }
 
-func setupDSCICR(name string) *dsciv1.DSCInitialization {
-	dsciTest := &dsciv1.DSCInitialization{
+// WithParallel is an option that marks test cases to run in parallel.
+func WithParallel() TestCaseOpts {
+	return func(t *testing.T) {
+		t.Helper()
+
+		t.Parallel() // Marks the test case to run in parallel with other tests
+	}
+}
+
+// ExtractAndExpectValue extracts a value from an input using a jq expression and asserts conditions on it.
+//
+// This function extracts a value of type T from the given input using the specified jq expression.
+// It ensures that extraction succeeds and applies one or more assertions to validate the extracted value.
+//
+// Parameters:
+//   - g (Gomega): The Gomega testing instance used for assertions.
+//   - in (any): The input data (e.g., a Kubernetes resource).
+//   - expression (string): The jq expression used to extract a value from the input.
+//   - matchers (GomegaMatcher): One or more Gomega matchers to validate the extracted value.
+func ExtractAndExpectValue[T any](g Gomega, in any, expression string, matchers ...gTypes.GomegaMatcher) T {
+	// Extract the value using the jq expression
+	value, err := jq.ExtractValue[T](in, expression)
+
+	// Expect no errors during extraction
+	g.Expect(err).NotTo(HaveOccurred(), "Failed to extract value using expression: %s", expression)
+
+	// Apply matchers to validate the extracted value
+	g.Expect(value).To(And(matchers...), "Extracted value from %s does not match expected conditions", expression)
+
+	return value
+}
+
+// CreateDSCI creates a DSCInitialization CR.
+func CreateDSCI(name, appNamespace string) *dsciv1.DSCInitialization {
+	return &dsciv1.DSCInitialization{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DSCInitialization",
+			APIVersion: dsciv1.GroupVersion.String(),
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: "redhat-ods-applications",
+			ApplicationsNamespace: appNamespace,
 			Monitoring: serviceApi.DSCIMonitoring{
 				ManagementSpec: common.ManagementSpec{
-					ManagementState: operatorv1.Managed,
+					ManagementState: operatorv1.Removed, // keep rhoai branch to Managed so we can test it
 				},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
-					Namespace: "redhat-ods-monitoring",
+					Namespace: appNamespace,
 				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
@@ -115,20 +138,24 @@ func setupDSCICR(name string) *dsciv1.DSCInitialization {
 				CustomCABundle:  "",
 			},
 			ServiceMesh: &infrav1.ServiceMeshSpec{
-				ControlPlane: infrav1.ControlPlaneSpec{
-					MetricsCollection: "Istio",
-					Name:              "data-science-smcp",
-					Namespace:         "istio-system",
-				},
 				ManagementState: operatorv1.Managed,
+				ControlPlane: infrav1.ControlPlaneSpec{
+					Name:              serviceMeshControlPlane,
+					Namespace:         serviceMeshNamespace,
+					MetricsCollection: serviceMeshMetricsCollection,
+				},
 			},
 		},
 	}
-	return dsciTest
 }
 
-func setupDSCInstance(name string) *dscv1.DataScienceCluster {
-	dscTest := &dscv1.DataScienceCluster{
+// CreateDSC creates a DataScienceCluster CR.
+func CreateDSC(name string) *dscv1.DataScienceCluster {
+	return &dscv1.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DataScienceCluster",
+			APIVersion: dscv1.GroupVersion.String(),
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
@@ -163,7 +190,7 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 						DefaultDeploymentMode: componentApi.Serverless,
 						Serving: infrav1.ServingSpec{
 							ManagementState: operatorv1.Managed,
-							Name:            "knative-serving",
+							Name:            knativeServingNamespace,
 							IngressGateway: infrav1.GatewaySpec{
 								Certificate: infrav1.CertificateSpec{
 									Type: infrav1.OpenshiftDefaultIngress,
@@ -213,314 +240,28 @@ func setupDSCInstance(name string) *dscv1.DataScienceCluster {
 			},
 		},
 	}
-	return dscTest
 }
 
-func setupSubscription(name string, ns string) *ofapi.Subscription {
-	return &ofapi.Subscription{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: ns,
-		},
-		Spec: &ofapi.SubscriptionSpec{
-			CatalogSource:          "redhat-operators",
-			CatalogSourceNamespace: "openshift-marketplace",
-			Channel:                "stable",
-			Package:                name,
-			InstallPlanApproval:    ofapi.ApprovalAutomatic,
-		},
+// defaultErrorMessageIfNone appends a default message to args if args is empty.
+// It formats the default message using the provided format and formatArgs.
+func defaultErrorMessageIfNone(format string, formatArgs []any, args []any) []any {
+	// If no custom args are provided, append the default message
+	if len(args) == 0 {
+		args = append(args, fmt.Sprintf(format, formatArgs...))
 	}
+	return args
 }
 
-func (tc *testContext) validateCRD(crdName string) error {
-	crd := &apiextv1.CustomResourceDefinition{}
-	obj := client.ObjectKey{
-		Name: crdName,
-	}
-
-	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, crdReadyTimeout, false, func(ctx context.Context) (bool, error) {
-		err := tc.customClient.Get(ctx, obj, crd)
-		if err != nil {
-			if k8serr.IsNotFound(err) {
-				return false, nil
-			}
-			log.Printf("Failed to get CRD %s", crdName)
-			return false, err
-		}
-
-		for _, condition := range crd.Status.Conditions {
-			if condition.Type == apiextv1.Established {
-				if condition.Status == apiextv1.ConditionTrue {
-					return true, nil
-				}
-			}
-		}
-		log.Printf("Error to get CRD %s condition's matching", crdName)
-		return false, nil
-	})
-	return err
-}
-
-func (tc *testContext) wait(isReady func(ctx context.Context) (bool, error)) error {
-	return wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, generalWaitTimeout, true, isReady)
-}
-
-func getCSV(ctx context.Context, cli client.Client, name string, namespace string) (*ofapi.ClusterServiceVersion, error) {
-	isMatched := func(csv *ofapi.ClusterServiceVersion, name string) bool {
-		return strings.Contains(csv.ObjectMeta.Name, name)
-	}
-
-	opt := &client.ListOptions{
-		Namespace: namespace,
-	}
-	csvList := &ofapi.ClusterServiceVersionList{}
-	err := cli.List(ctx, csvList, opt)
-	if err != nil {
-		return nil, err
-	}
-
-	// do not use range Items to avoid pointer to the loop variable
-	for i := range len(csvList.Items) {
-		csv := &csvList.Items[i]
-		if isMatched(csv, name) {
-			return csv, nil
+// ParseTestFlags Parses go test flags separately because pflag package ignores flags with '-test.' prefix
+// Related issues:
+// https://github.com/spf13/pflag/issues/63
+// https://github.com/spf13/pflag/issues/238
+func ParseTestFlags() error {
+	var testFlags []string
+	for _, f := range os.Args[1:] {
+		if strings.HasPrefix(f, "-test.") {
+			testFlags = append(testFlags, f)
 		}
 	}
-
-	return nil, k8serr.NewNotFound(schema.GroupResource{}, name)
-}
-
-// Use existing or create a new one.
-func getSubscription(tc *testContext, name string, ns string) (*ofapi.Subscription, error) {
-	createSubscription := func(name string, ns string) (*ofapi.Subscription, error) {
-		// this just creates a manifest
-		sub := setupSubscription(name, ns)
-
-		if err := tc.customClient.Create(tc.ctx, sub); err != nil {
-			return nil, fmt.Errorf("error creating subscription: %w", err)
-		}
-
-		return sub, nil
-	}
-
-	sub := &ofapi.Subscription{}
-	key := types.NamespacedName{
-		Namespace: ns,
-		Name:      name,
-	}
-
-	err := tc.customClient.Get(tc.ctx, key, sub)
-	if k8serr.IsNotFound(err) {
-		return createSubscription(name, ns)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("error getting subscription: %w", err)
-	}
-
-	return sub, nil
-}
-
-func waitCSV(tc *testContext, name string, ns string) error {
-	interval := generalRetryInterval
-	isReady := func(ctx context.Context) (bool, error) {
-		csv, err := getCSV(ctx, tc.customClient, name, ns)
-		if k8serr.IsNotFound(err) {
-			return false, nil
-		}
-		if err != nil {
-			return false, err
-		}
-
-		return csv.Status.Phase == "Succeeded", nil
-	}
-
-	err := wait.PollUntilContextTimeout(tc.ctx, interval, csvWaitTimeout, false, isReady)
-	if err != nil {
-		return fmt.Errorf("Error installing %s CSV: %w", name, err)
-	}
-
-	return nil
-}
-
-func getInstallPlanName(tc *testContext, name string, ns string) (string, error) {
-	sub := &ofapi.Subscription{}
-
-	// waits for InstallPlanRef and copies value out of the closure
-	err := tc.wait(func(ctx context.Context) (bool, error) {
-		_sub, err := getSubscription(tc, name, ns)
-		if err != nil {
-			return false, err
-		}
-		*sub = *_sub
-		return sub.Status.InstallPlanRef != nil, nil
-	})
-
-	if err != nil {
-		return "", fmt.Errorf("Error creating subscription %s: %w", name, err)
-	}
-
-	return sub.Status.InstallPlanRef.Name, nil
-}
-
-func getInstallPlan(tc *testContext, name string, ns string) (*ofapi.InstallPlan, error) {
-	// it creates subscription under the hood if needed and waits for InstallPlan reference
-	planName, err := getInstallPlanName(tc, name, ns)
-	if err != nil {
-		return nil, err
-	}
-
-	obj := &ofapi.InstallPlan{}
-	key := types.NamespacedName{
-		Namespace: ns,
-		Name:      planName,
-	}
-
-	err = tc.customClient.Get(tc.ctx, key, obj)
-	if err != nil {
-		return nil, err
-	}
-	return obj, nil
-}
-
-func approveInstallPlan(tc *testContext, plan *ofapi.InstallPlan) error {
-	obj := &ofapi.InstallPlan{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "InstallPlan",
-			APIVersion: "operators.coreos.com/v1alpha1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      plan.ObjectMeta.Name,
-			Namespace: plan.ObjectMeta.Namespace,
-		},
-		Spec: ofapi.InstallPlanSpec{
-			Approved:                   true,
-			Approval:                   ofapi.ApprovalAutomatic,
-			ClusterServiceVersionNames: plan.Spec.ClusterServiceVersionNames,
-		},
-	}
-	force := true
-	opt := &client.PatchOptions{
-		FieldManager: "e2e-test-dsc",
-		Force:        &force,
-	}
-
-	err := tc.customClient.Patch(tc.ctx, obj, client.Apply, opt)
-	if err != nil {
-		return fmt.Errorf("Error patching InstallPlan %s: %w", obj.ObjectMeta.Name, err)
-	}
-
-	return nil
-}
-
-func ensureOperatorNamespace(tc *testContext, name, ns string) error {
-	operatorNS := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: ns,
-		},
-	}
-	foundNamespace := &corev1.Namespace{}
-	err := tc.customClient.Get(tc.ctx, client.ObjectKeyFromObject(operatorNS), foundNamespace)
-	if k8serr.IsNotFound(err) {
-		if err := tc.customClient.Create(tc.ctx, operatorNS); err != nil {
-			return fmt.Errorf("error create dependent operator namespace: %w", err)
-		}
-		// Just create it since namespace was not even there, and do not set spec with targetnamespaces!
-		operatorGroup := &ofapiv1.OperatorGroup{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      name,
-				Namespace: ns,
-			},
-		}
-		if err := tc.customClient.Create(tc.ctx, operatorGroup); err != nil {
-			return fmt.Errorf("error create operatorgroup %s: %w", name, err)
-		}
-		return nil
-	}
-	return err
-}
-
-// 1. Ensure namespace exists.
-// 2. Ensure Subscription exists.
-// 3. Ensure InstallPlan exists.
-// 4. InstallPlan to Automatic.
-// 5. Wait for CSV.
-func ensureOperator(tc *testContext, name string, ns string) error {
-	// check namespace first if not exsit then create it along with OG
-	if err := ensureOperatorNamespace(tc, name, ns); err != nil {
-		return err
-	}
-	// it creates subscription under the hood if needed
-	plan, err := getInstallPlan(tc, name, ns)
-	if err != nil {
-		return err
-	}
-
-	// in CI InstallPlan is in Manual mode
-	if !plan.Spec.Approved {
-		err = approveInstallPlan(tc, plan)
-		if err != nil {
-			return err
-		}
-	}
-
-	return waitCSV(tc, name, ns)
-}
-
-func ensureServicemeshOperators(t *testing.T, tc *testContext) error { //nolint: thelper
-	depOperators := map[string]string{
-		"serverless-operator": "openshift-serverless",
-		"servicemeshoperator": "openshift-operators",
-		"authorino-operator":  "openshift-operators",
-	}
-
-	var errors *multierror.Error
-	c := make(chan error)
-
-	for name, ns := range depOperators {
-		t.Logf("Ensuring %s is installed", name)
-		go func(name, ns string) {
-			err := ensureOperator(tc, name, ns)
-			c <- err
-		}(name, ns)
-	}
-	for range depOperators {
-		err := <-c
-		errors = multierror.Append(errors, err)
-	}
-	return errors.ErrorOrNil()
-}
-
-func (tc *testContext) setUp(t *testing.T) error { //nolint: thelper
-	return ensureServicemeshOperators(t, tc)
-}
-
-func mockCRDcreation(group, version, kind, componentName string) *apiextv1.CustomResourceDefinition {
-	return &apiextv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: strings.ToLower(fmt.Sprintf("%ss.%s", kind, group)),
-			Labels: map[string]string{
-				labels.ODH.Component(componentName): labels.True,
-			},
-		},
-		Spec: apiextv1.CustomResourceDefinitionSpec{
-			Group: group,
-			Names: apiextv1.CustomResourceDefinitionNames{
-				Kind:   kind,
-				Plural: strings.ToLower(kind) + "s",
-			},
-			Scope: apiextv1.ClusterScoped,
-			Versions: []apiextv1.CustomResourceDefinitionVersion{
-				{
-					Name:    version,
-					Served:  true,
-					Storage: true,
-					Schema: &apiextv1.CustomResourceValidation{
-						OpenAPIV3Schema: &apiextv1.JSONSchemaProps{
-							Type: "object",
-						},
-					},
-				},
-			},
-		},
-	}
+	return flag.CommandLine.Parse(testFlags)
 }

@@ -1,334 +1,181 @@
-//nolint:unused
 package e2e_test
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
-	"log"
-	"reflect"
 	"testing"
 
+	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+
+	. "github.com/onsi/gomega"
 )
 
-func creationTestSuite(t *testing.T) {
-	testCtx, err := NewTestContext()
-	require.NoError(t, err)
+const (
+	testNamespace               = "test-model-registries"   // Namespace used for model registry testing
+	dsciInstanceNameDuplicate   = "e2e-test-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
+	dscInstanceNameDuplicate    = "e2e-test-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
+	openshiftOperatorsNamespace = "openshift-operators"     // Namespace for OpenShift Operators
+	serverlessOperatorNamespace = "openshift-serverless"    // Namespace for the Serverless Operator
+)
 
-	err = testCtx.setUp(t)
-	require.NoError(t, err, "error setting up environment")
-
-	t.Run(testCtx.testDsc.Name, func(t *testing.T) {
-		// DSCI
-		t.Run("Creation of DSCI CR", func(t *testing.T) {
-			err = testCtx.testDSCICreation()
-			require.NoError(t, err, "error creating DSCI CR")
-		})
-		if testCtx.testOpts.webhookTest {
-			t.Run("Creation of more than one of DSCInitialization instance", func(t *testing.T) {
-				testCtx.testDSCIDuplication(t)
-			})
-		}
-		// Validates Servicemesh fields
-		t.Run("Validate DSCInitialization instance", func(t *testing.T) {
-			err = testCtx.validateDSCI()
-			require.NoError(t, err, "error validating DSCInitialization instance")
-		})
-
-		t.Run("Check owned namespaces exist", testCtx.testOwnedNamespacesAllExist)
-
-		// DSC
-		t.Run("Creation of DataScienceCluster instance", func(t *testing.T) {
-			err = testCtx.testDSCCreation(t)
-			require.NoError(t, err, "error creating DataScienceCluster instance")
-		})
-		if testCtx.testOpts.webhookTest {
-			t.Run("Creation of more than one of DataScienceCluster instance", func(t *testing.T) {
-				testCtx.testDSCDuplication(t)
-			})
-		}
-
-		// Kserve
-		t.Run("Validate Knative resource", func(t *testing.T) {
-			err = testCtx.validateDSC()
-			require.NoError(t, err, "error getting Knative resource as part of DataScienceCluster validation")
-		})
-
-		// ModelReg
-		if testCtx.testOpts.webhookTest {
-			t.Run("Validate model registry config", func(t *testing.T) {
-				err = testCtx.validateModelRegistryConfig()
-				require.NoError(t, err, "error validating ModelRegistry config")
-			})
-		}
-	})
+// DSCTestCtx holds the context for the DSCInitialization and DataScienceCluster management tests.
+type DSCTestCtx struct {
+	*TestContext
 }
 
-func (tc *testContext) testDSCICreation() error {
-	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
-	createdDSCI := &dsciv1.DSCInitialization{}
-	existingDSCIList := &dsciv1.DSCInitializationList{}
-
-	err := tc.customClient.List(tc.ctx, existingDSCIList)
-	if err == nil {
-		// use what you have
-		if len(existingDSCIList.Items) == 1 {
-			tc.testDSCI = &existingDSCIList.Items[0]
-			return nil
-		}
-	}
-	// create one for you
-	err = tc.customClient.Get(tc.ctx, dscLookupKey, createdDSCI)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			nberr := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, dsciCreationTimeout, false, func(ctx context.Context) (bool, error) {
-				creationErr := tc.customClient.Create(ctx, tc.testDSCI)
-				if creationErr != nil {
-					log.Printf("error creating DSCI resource %v: %v, trying again",
-						tc.testDSCI.Name, creationErr)
-					return false, nil
-				}
-				return true, nil
-			})
-			if nberr != nil {
-				return fmt.Errorf("error creating e2e-test-dsci DSCI CR %s: %w", tc.testDSCI.Name, nberr)
-			}
-		} else {
-			return fmt.Errorf("error getting e2e-test-dsci DSCI CR %s: %w", tc.testDSCI.Name, err)
-		}
-	}
-
-	return nil
-}
-
-func (tc *testContext) testDSCCreation(t *testing.T) error {
+// dscManagementTestSuite runs the DataScienceCluster and DSCInitialization management test suite.
+func dscManagementTestSuite(t *testing.T) {
 	t.Helper()
-	// Create DataScienceCluster resource if not already created
 
-	existingDSCList := &dscv1.DataScienceClusterList{}
-	err := tc.customClient.List(tc.ctx, existingDSCList)
-	if err == nil {
-		if len(existingDSCList.Items) > 0 {
-			// Use DSC instance if it already exists
-			tc.testDsc = &existingDSCList.Items[0]
-			return nil
-		}
+	// Initialize the test context.
+	tc, err := NewTestContext(t)
+	require.NoError(t, err, "Failed to initialize test context")
+
+	// Create an instance of test context.
+	dscTestCtx := DSCTestCtx{
+		TestContext: tc,
 	}
 
-	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
-	createdDSC := &dscv1.DataScienceCluster{}
-	err = tc.customClient.Get(tc.ctx, dscLookupKey, createdDSC)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			dsciErr := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, dscCreationTimeout, false, func(ctx context.Context) (bool, error) {
-				creationErr := tc.customClient.Create(ctx, tc.testDsc)
-				if creationErr != nil {
-					log.Printf("error creating DSC resource %v: %v, trying again",
-						tc.testDsc.Name, creationErr)
-
-					return false, nil
-				}
-				return true, nil
-			})
-			if dsciErr != nil {
-				return fmt.Errorf("error creating e2e-test-dsc DSC %s: %w", tc.testDsc.Name, dsciErr)
-			}
-		} else {
-			return fmt.Errorf("error getting e2e-test-dsc DSC %s: %w", tc.testDsc.Name, err)
-		}
-	}
-	return nil
-}
-
-func (tc *testContext) validateDSCReady() error {
-	return waitDSCReady(tc)
-}
-
-// Verify DSC instance is in Ready phase when all components are up and running.
-func waitDSCReady(tc *testContext) error {
-	// wait for 2 mins which is on the safe side, normally it should get ready once all components are ready
-	err := tc.wait(func(ctx context.Context) (bool, error) {
-		key := types.NamespacedName{Name: tc.testDsc.Name}
-		dsc := &dscv1.DataScienceCluster{}
-
-		err := tc.customClient.Get(ctx, key, dsc)
-		if err != nil {
-			return false, err
-		}
-		return dsc.Status.Phase == readyStatus, nil
-	})
-
-	if err != nil {
-		return fmt.Errorf("Error waiting Ready state for DSC %v: %w", tc.testDsc.Name, err)
+	// Define test cases.
+	testCases := []TestCase{
+		{"Ensure Service Mesh and Serverless operators are installed", dscTestCtx.ValidateOperatorsInstallation},
+		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
+		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
+		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
+		{"Validate Knative resource", dscTestCtx.ValidateKnativeSpecInDSC},
+		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 	}
 
-	return nil
+	// Append webhook-specific tests.
+	if testOpts.webhookTest {
+		webhookTests := []TestCase{
+			{"Validate creation of more than one DSCInitialization instance", dscTestCtx.ValidateDSCIDuplication},
+			{"Validate creation of more than one DataScienceCluster instance", dscTestCtx.ValidateDSCDuplication},
+			{"Validate Model Registry Configuration Changes", dscTestCtx.ValidateModelRegistryConfig},
+		}
+
+		testCases = append(testCases, TestCase{
+			name: "Webhook",
+			testFn: func(t *testing.T) {
+				t.Helper()
+				RunTestCases(t, webhookTests)
+			},
+		})
+	}
+
+	// Run the test suite.
+	RunTestCases(t, testCases)
 }
 
-func (tc *testContext) requireInstalled(t *testing.T, gvk schema.GroupVersionKind) {
+// ValidateOperatorsInstallation ensures the Service Mesh and Serverless operators are installed.
+func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	t.Helper()
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(gvk)
 
-	err := tc.customClient.List(tc.ctx, list)
-	require.NoErrorf(t, err, "Could not get %s list", gvk.Kind)
+	// Define operators to be installed.
+	operators := []struct {
+		nn                types.NamespacedName
+		skipOperatorGroup bool
+	}{
+		{nn: types.NamespacedName{Name: serviceMeshOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
+		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: serverlessOperatorNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
+	}
 
-	require.NotEmptyf(t, list.Items, "%s has not been installed", gvk.Kind)
+	// Create and run test cases in parallel.
+	testCases := make([]TestCase, len(operators))
+	for i, op := range operators {
+		testCases[i] = TestCase{
+			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
+			testFn: func(t *testing.T) {
+				t.Helper()
+				tc.EnsureOperatorInstalled(op.nn, op.skipOperatorGroup)
+			},
+		}
+	}
+
+	RunTestCases(t, testCases, WithParallel())
 }
 
-func (tc *testContext) testDuplication(t *testing.T, gvk schema.GroupVersionKind, o any) {
+// ValidateDSCICreation validates the creation of a DSCInitialization.
+func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 	t.Helper()
-	tc.requireInstalled(t, gvk)
 
-	u, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
-	require.NoErrorf(t, err, "Could not unstructure %s", gvk.Kind)
+	tc.EnsureResourceCreatedOrUpdated(
+		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace)),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
+		WithCustomErrorMsg("Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name),
 
-	obj := &unstructured.Unstructured{
-		Object: u,
-	}
-	obj.SetGroupVersionKind(gvk)
-
-	err = tc.customClient.Create(tc.ctx, obj)
-
-	require.Errorf(t, err, "Could create second %s", gvk.Kind)
+		// Increase time required to get DSCI created
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
 }
 
-func (tc *testContext) testDSCIDuplication(t *testing.T) { //nolint:thelper
-	gvk := schema.GroupVersionKind{
-		Group:   "dscinitialization.opendatahub.io",
-		Version: "v1",
-		Kind:    "DSCInitialization",
-	}
-	dup := setupDSCICR("e2e-test-dsci-dup")
+// ValidateDSCCreation validates the creation of a DataScienceCluster.
+func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
+	t.Helper()
 
-	tc.testDuplication(t, gvk, dup)
+	tc.EnsureResourceCreatedOrUpdated(
+		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name)),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
+		WithCustomErrorMsg("Failed to create DataScienceCluster resource %s", tc.DataScienceClusterNamespacedName.Name),
+
+		// Increase time required to get DSC created
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
 }
 
-func (tc *testContext) testDSCDuplication(t *testing.T) { //nolint:thelper
-	gvk := schema.GroupVersionKind{
-		Group:   "datasciencecluster.opendatahub.io",
-		Version: "v1",
-		Kind:    "DataScienceCluster",
-	}
-	dup := setupDSCInstance("e2e-test-dsc-dup")
+// ValidateServiceMeshSpecInDSCI validates the ServiceMeshSpec within a DSCInitialization instance.
+func (tc *DSCTestCtx) ValidateServiceMeshSpecInDSCI(t *testing.T) {
+	t.Helper()
 
-	tc.testDuplication(t, gvk, dup)
-}
-
-// TODO: cleanup
-// func (tc *testContext) testAllComponentCreation(t *testing.T) error { //nolint:funlen,thelper
-// 	// Validate all components are in Ready state
-
-// 	dscLookupKey := types.NamespacedName{Name: tc.testDsc.Name}
-// 	createdDSC := &dscv1.DataScienceCluster{}
-
-// 	// Wait for components to get deployed
-// 	time.Sleep(1 * time.Minute)
-
-// 	err := tc.customClient.Get(tc.ctx, dscLookupKey, createdDSC)
-// 	if err != nil {
-// 		return fmt.Errorf("error getting DataScienceCluster instance :%v", tc.testDsc.Name)
-// 	}
-// 	tc.testDsc = createdDSC
-
-// 	components, err := tc.testDsc.GetComponents()
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	for _, c := range components {
-// 		c := c
-// 		name := c.GetComponentName()
-// 		t.Run("Validate "+name, func(t *testing.T) {
-// 			t.Parallel()
-// 			err = tc.testComponentCreation(c)
-// 			require.NoError(t, err, "error validating component %s when %v", name, c.GetManagementState())
-// 		})
-// 	}
-// 	return nil
-// }
-
-// TODO: cleanup
-// func (tc *testContext) testComponentCreation(component components.ComponentInterface) error {
-// 	err := wait.PollUntilContextTimeout(tc.ctx, generalRetryInterval, componentReadyTimeout, true, func(ctx context.Context) (bool, error) {
-// 		// TODO: see if checking deployment is a good test, CF does not create deployment
-// 		appList, err := tc.kubeClient.AppsV1().Deployments(tc.applicationsNamespace).List(ctx, metav1.ListOptions{
-// 			LabelSelector: labels.ODH.Component(component.GetComponentName()),
-// 		})
-// 		if err != nil {
-// 			log.Printf("error listing component deployments :%v", err)
-// 			return false, fmt.Errorf("error listing component deployments :%w", err)
-// 		}
-// 		if len(appList.Items) != 0 {
-// 			if component.GetManagementState() == operatorv1.Removed {
-// 				// deployment exists for removed component, retrying
-// 				return false, nil
-// 			}
-
-// 			for _, deployment := range appList.Items {
-// 				if deployment.Status.ReadyReplicas < 1 {
-// 					log.Printf("waiting for component deployments to be in Ready state: %s", deployment.Name)
-// 					return false, nil
-// 				}
-// 			}
-// 			return true, nil
-// 		}
-// 		// when no deployment is found
-// 		// It's ok not to have deployements for unmanaged component
-// 		if component.GetManagementState() != operatorv1.Managed {
-// 			return true, nil
-// 		}
-
-// 		return false, nil
-// 	})
-
-// 	return err
-// }
-
-func (tc *testContext) validateDSCI() error {
-	// expected
+	// expected ServiceMeshSpec.
 	expServiceMeshSpec := &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Managed,
 		ControlPlane: infrav1.ControlPlaneSpec{
-			Name:              "data-science-smcp",
-			Namespace:         "istio-system",
-			MetricsCollection: "Istio",
+			Name:              serviceMeshControlPlane,
+			Namespace:         serviceMeshNamespace,
+			MetricsCollection: serviceMeshMetricsCollection,
 		},
 		Auth: infrav1.AuthSpec{
 			Audiences: &[]string{"https://kubernetes.default.svc"},
 		},
 	}
 
-	// actual
-	act := tc.testDSCI
+	// Marshal the expected ServiceMeshSpec to JSON.
+	expServiceMeshSpecJSON, err := json.Marshal(expServiceMeshSpec)
+	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Error marshaling expected ServiceMeshSpec")
 
-	if !reflect.DeepEqual(act.Spec.ServiceMesh, expServiceMeshSpec) {
-		err := fmt.Errorf("Expected service mesh spec %v, got %v",
-			expServiceMeshSpec, act.Spec.ServiceMesh)
-		return err
-	}
-
-	return nil
+	// Assert that the actual ServiceMeshSpec matches the expected one.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(jq.Match(`.spec.serviceMesh == %s`, expServiceMeshSpecJSON)),
+		WithCustomErrorMsg("Error validating DSCInitialization instance: Service Mesh spec mismatch"),
+	)
 }
 
-// test if knative resource has been created.
-func (tc *testContext) validateDSC() error {
-	expServingSpec := infrav1.ServingSpec{
+// ValidateKnativeSpecInDSC validates that the Kserve serving spec in the DataScienceCluster matches the expected spec.
+func (tc *DSCTestCtx) ValidateKnativeSpecInDSC(t *testing.T) {
+	t.Helper()
+
+	// expected ServingSpec
+	expServingSpec := &infrav1.ServingSpec{
 		ManagementState: operatorv1.Managed,
-		Name:            "knative-serving",
+		Name:            knativeServingNamespace,
 		IngressGateway: infrav1.GatewaySpec{
 			Certificate: infrav1.CertificateSpec{
 				Type: infrav1.OpenshiftDefaultIngress,
@@ -336,61 +183,93 @@ func (tc *testContext) validateDSC() error {
 		},
 	}
 
-	act := tc.testDsc
+	// Marshal the expected ServingSpec to JSON
+	expServingSpecJSON, err := json.Marshal(expServingSpec)
+	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Error marshaling expected ServingSpec")
 
-	if act.Spec.Components.Kserve.Serving != expServingSpec {
-		err := fmt.Errorf("Expected serving spec %v, got %v",
-			expServingSpec, act.Spec.Components.Kserve.Serving)
-		return err
-	}
-
-	return nil
+	// Assert that the actual ServingSpec matches the expected one.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.spec.components.kserve.serving == %s`, expServingSpecJSON)),
+		WithCustomErrorMsg("Error validating DSCInitialization instance: Knative Serving spec mismatch"),
+	)
 }
 
-const testNs = "test-model-registries"
+// ValidateOwnedNamespacesAllExist verifies that the owned namespaces exist.
+func (tc *DSCTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
+	t.Helper()
 
-func (tc *testContext) validateModelRegistryConfig() error {
-	// check immutable property registriesNamespace
-	if tc.testDsc.Spec.Components.ModelRegistry.ManagementState != operatorv1.Managed {
-		// allowed to set registriesNamespace to non-default
-		err := patchRegistriesNamespace(tc, testNs, testNs, false)
-		if err != nil {
-			return err
-		}
-		// allowed to set registriesNamespace back to default value
-		err = patchRegistriesNamespace(tc, modelregistryctrl.DefaultModelRegistriesNamespace,
-			modelregistryctrl.DefaultModelRegistriesNamespace, false)
-		if err != nil {
-			return err
-		}
-	} else {
-		// not allowed to change registriesNamespace
-		err := patchRegistriesNamespace(tc, testNs, modelregistryctrl.DefaultModelRegistriesNamespace, true)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	// Ensure namespaces with the owned namespace label exist.
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{}),
+		WithListOptions(
+			&client.ListOptions{
+				LabelSelector: k8slabels.SelectorFromSet(
+					k8slabels.Set{labels.ODH.OwnedNamespace: "true"},
+				),
+			}),
+		WithCondition(BeNumerically(">=", ownedNamespaceNumber)),
+		WithCustomErrorMsg("Expected at least %d owned namespaces with label '%s'.", ownedNamespaceNumber, labels.ODH.OwnedNamespace),
+	)
 }
 
-func patchRegistriesNamespace(tc *testContext, namespace string, expected string, expectErr bool) error {
-	patchStr := fmt.Sprintf("{\"spec\":{\"components\":{\"modelregistry\":{\"registriesNamespace\":\"%s\"}}}}", namespace)
-	err := tc.customClient.Patch(tc.ctx, tc.testDsc, client.RawPatch(types.MergePatchType, []byte(patchStr)))
-	if err != nil {
-		if !expectErr {
-			return fmt.Errorf("unexpected error when setting registriesNamespace in DSC %s to %s: %w",
-				tc.testDsc.Name, namespace, err)
-		}
+// ValidateDSCIDuplication ensures that no duplicate DSCInitialization resource can be created.
+func (tc *DSCTestCtx) ValidateDSCIDuplication(t *testing.T) {
+	t.Helper()
+
+	dup := CreateDSCI(dsciInstanceNameDuplicate, tc.AppsNamespace)
+	tc.EnsureResourceIsUnique(dup)
+}
+
+// ValidateDSCDuplication ensures that no duplicate DataScienceCluster resource can be created.
+func (tc *DSCTestCtx) ValidateDSCDuplication(t *testing.T) {
+	t.Helper()
+
+	dup := CreateDSC(dscInstanceNameDuplicate)
+	tc.EnsureResourceIsUnique(dup, "Error validating DataScienceCluster duplication")
+}
+
+// ValidateModelRegistryConfig validates the ModelRegistry configuration changes based on ManagementState.
+func (tc *DSCTestCtx) ValidateModelRegistryConfig(t *testing.T) {
+	t.Helper()
+
+	// Retrieve the DataScienceCluster object.
+	dsc := tc.FetchDataScienceCluster()
+
+	// Check if the ModelRegistry is managed.
+	if dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
+		// Ensure changing registriesNamespace is not allowed and expect failure.
+		tc.UpdateRegistriesNamespace(testNamespace, modelregistryctrl.DefaultModelRegistriesNamespace, true)
+
+		// No further checks if it's managed
+		return
+	}
+
+	// Ensure setting registriesNamespace to a non-default value is allowed.
+	// No error is expected, and we check the value of the patch after it's successful.
+	tc.UpdateRegistriesNamespace(testNamespace, testNamespace, false)
+
+	// Ensure resetting registriesNamespace to the default value is allowed.
+	tc.UpdateRegistriesNamespace(modelregistryctrl.DefaultModelRegistriesNamespace, modelregistryctrl.DefaultModelRegistriesNamespace, false)
+}
+
+// UpdateRegistriesNamespace updates the ModelRegistry component's `RegistriesNamespace` field.
+func (tc *DSCTestCtx) UpdateRegistriesNamespace(targetNamespace, expectedValue string, shouldFail bool) {
+	// Build the condition:
+	// If shouldFail, we expect a failure (Not(Succeed())).
+	// If should not fail, we expect the registriesNamespace to match the expected value.
+	var expectedCondition gTypes.GomegaMatcher
+	if shouldFail {
+		expectedCondition = Not(Succeed()) // If shouldFail is true, expect failure.
 	} else {
-		if expectErr {
-			return fmt.Errorf("unexpected success when setting registriesNamespace in DSC %s to %s",
-				tc.testDsc.Name, namespace)
-		}
+		expectedCondition = And(Succeed(), jq.Match(`.spec.components.modelregistry.registriesNamespace == "%s"`, expectedValue))
 	}
-	// compare expected against returned registriesNamespace
-	if tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace != expected {
-		return fmt.Errorf("expected registriesNamespace %s, got %s",
-			expected, tc.testDsc.Spec.Components.ModelRegistry.RegistriesNamespace)
-	}
-	return nil
+
+	// Update the registriesNamespace field.
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.modelregistry.registriesNamespace = "%s"`, targetNamespace)),
+		WithCondition(expectedCondition),
+		WithCustomErrorMsg("Failed to update RegistriesNamespace to %s, expected %s", targetNamespace, expectedValue),
+	)
 }
