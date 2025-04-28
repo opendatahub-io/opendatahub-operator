@@ -1,10 +1,9 @@
 package cmd
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/component-codegen/cmd/generator"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/component-codegen/cmd/generator"
 )
 
 func newLogger() *logrus.Logger {

@@ -49,7 +49,7 @@ const (
 
 // SecretGeneratorReconciler holds the controller configuration.
 type SecretGeneratorReconciler struct {
-	Client client.Client
+	client.Client
 }
 
 // SetupWithManager sets up the controller with the Manager.

@@ -82,7 +82,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.TrustyAI.ManagementState = s.GetManagementState(dsc)
+	dsc.Status.Components.TrustyAI.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.TrustyAI.TrustyAICommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)

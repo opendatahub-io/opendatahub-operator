@@ -90,7 +90,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.Workbenches.ManagementState = s.GetManagementState(dsc)
+	dsc.Status.Components.Workbenches.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)

@@ -73,7 +73,8 @@ type TemplateInfo struct {
 }
 
 type ReconciliationRequest struct {
-	Client     client.Client
+	client.Client
+
 	Controller Controller
 	Conditions *conditions.Manager
 	Instance   common.PlatformObject

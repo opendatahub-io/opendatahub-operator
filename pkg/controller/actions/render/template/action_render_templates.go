@@ -40,7 +40,7 @@ type ActionOpts func(*Action)
 
 func WithCache() ActionOpts {
 	return func(action *Action) {
-		action.SetKeyFn(types.Hash)
+		action.ResourceCacher.SetKeyFn(types.Hash)
 	}
 }
 
@@ -83,7 +83,7 @@ func WithAnnotations(values map[string]string) ActionOpts {
 }
 
 func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
-	return a.Render(ctx, rr, a.render)
+	return a.ResourceCacher.Render(ctx, rr, a.render)
 }
 
 func (a *Action) decode(decoder runtime.Decoder, data []byte, info types.TemplateInfo) ([]unstructured.Unstructured, error) {

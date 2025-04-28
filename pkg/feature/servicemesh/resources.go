@@ -52,12 +52,12 @@ func AuthRefs(ctx context.Context, cli client.Client, f *feature.Feature) error 
 
 	authNamespace, errAuthNs := FeatureData.Authorization.Namespace.Extract(f)
 	if errAuthNs != nil {
-		return fmt.Errorf("could not get auth provider namespace from feature: %w", errAuthNs)
+		return fmt.Errorf("could not get auth provider namespace from feature: %w", err)
 	}
 
 	authProviderName, errAuthProvider := FeatureData.Authorization.Provider.Extract(f)
 	if errAuthProvider != nil {
-		return fmt.Errorf("could not get auth provider name from feature: %w", errAuthProvider)
+		return fmt.Errorf("could not get auth provider name from feature: %w", err)
 	}
 
 	audiences := auth.Audiences

@@ -732,7 +732,7 @@ func PatchOdhDashboardConfig(ctx context.Context, cli client.Client, prevVersion
 		"kind", "OdhDashboardConfig",
 	)
 
-	if !prevVersion.Version.LT(currVersion.Version.Version) {
+	if !prevVersion.Version.Version.LT(currVersion.Version.Version) {
 		log.Info("Skipping patch as current version is not greater than previous version")
 		return nil
 	}

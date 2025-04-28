@@ -64,12 +64,12 @@ func WithManifestsOptions(values ...kustomize.EngineOptsFn) ActionOpts {
 
 func WithCache() ActionOpts {
 	return func(action *Action) {
-		action.SetKeyFn(types.Hash)
+		action.ResourceCacher.SetKeyFn(types.Hash)
 	}
 }
 
 func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
-	return a.Render(ctx, rr, a.render)
+	return a.ResourceCacher.Render(ctx, rr, a.render)
 }
 
 func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (resources.UnstructuredList, error) {

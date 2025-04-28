@@ -80,7 +80,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.CodeFlare.ManagementState = s.GetManagementState(dsc)
+	dsc.Status.Components.CodeFlare.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.CodeFlare.CodeFlareCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)

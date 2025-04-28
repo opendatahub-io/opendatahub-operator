@@ -67,7 +67,7 @@ var managementStateChangeTrustedCA = false
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct {
-	Client   client.Client
+	client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 }
@@ -104,11 +104,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
-	if instance.DeletionTimestamp.IsZero() {
+	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
 			log.Info("Adding finalizer for DSCInitialization", "name", instance.Name, "finalizer", finalizerName)
 			controllerutil.AddFinalizer(instance, finalizerName)
-			if err := r.Client.Update(ctx, instance); err != nil {
+			if err := r.Update(ctx, instance); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -125,7 +125,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 			if controllerutil.ContainsFinalizer(newInstance, finalizerName) {
 				controllerutil.RemoveFinalizer(newInstance, finalizerName)
-				if err := r.Client.Update(ctx, newInstance); err != nil {
+				if err := r.Update(ctx, newInstance); err != nil {
 					return err
 				}
 			}

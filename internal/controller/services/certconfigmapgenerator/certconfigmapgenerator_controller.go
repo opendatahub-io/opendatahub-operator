@@ -27,7 +27,7 @@ import (
 
 // CertConfigmapGeneratorReconciler holds the controller configuration.
 type CertConfigmapGeneratorReconciler struct {
-	Client client.Client
+	client.Client
 }
 
 // SetupWithManager sets up the controller with the Manager.

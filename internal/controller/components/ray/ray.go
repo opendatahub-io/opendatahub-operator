@@ -80,7 +80,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.Ray.ManagementState = s.GetManagementState(dsc)
+	dsc.Status.Components.Ray.ManagementSpec.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.Ray.RayCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)

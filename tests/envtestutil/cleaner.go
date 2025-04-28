@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	. "github.com/onsi/gomega" //nolint:staticcheck // This is the standard for ginkgo and gomega.
+	. "github.com/onsi/gomega" //nolint:stylecheck // This is the standard for ginkgo and gomega.
 )
 
 // Cleaner is a struct to perform deletion of resources,
@@ -57,7 +57,7 @@ func (c *Cleaner) DeleteAll(ctx context.Context, objects ...client.Object) {
 			// recreated with the same name.
 
 			// Look up all namespaced resources under the discovery API
-			_, apiResources, err := c.clientset.ServerGroupsAndResources()
+			_, apiResources, err := c.clientset.DiscoveryClient.ServerGroupsAndResources()
 			Expect(err).ShouldNot(HaveOccurred())
 			namespacedGVKs := make(map[string]schema.GroupVersionKind)
 			for _, apiResourceList := range apiResources {

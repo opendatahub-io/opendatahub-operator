@@ -28,7 +28,7 @@ func (r *DSCInitializationReconciler) createAuth(ctx context.Context, dscInit *d
 	// can't find the dashboardConfig kind so create the default.
 	if err != nil && k8serr.IsNotFound(err) {
 		log.Info("couldn't find odhDashboardConfig CRD, creating auth with defaults.")
-		err = r.Client.Create(ctx, buildDefaultAuth())
+		err = r.Create(ctx, buildDefaultAuth())
 		if err != nil && !k8serr.IsAlreadyExists(err) {
 			return err
 		}
@@ -46,7 +46,7 @@ func (r *DSCInitializationReconciler) createAuth(ctx context.Context, dscInit *d
 	}, odhObject)
 	if err != nil && k8serr.IsNotFound(err) {
 		log.Info("couldn't find odhDashboardConfig instance, creating auth with defaults.")
-		err = r.Client.Create(ctx, buildDefaultAuth())
+		err = r.Create(ctx, buildDefaultAuth())
 		if err != nil && !k8serr.IsAlreadyExists(err) {
 			return err
 		}
@@ -70,7 +70,7 @@ func (r *DSCInitializationReconciler) createAuth(ctx context.Context, dscInit *d
 		if added == 0 {
 			return nil
 		}
-		err = r.Client.Create(ctx, buildAuthWithGroups(adminGroup, allowedGroup))
+		err = r.Create(ctx, buildAuthWithGroups(adminGroup, allowedGroup))
 		if err != nil && !k8serr.IsAlreadyExists(err) {
 			return err
 		}
@@ -78,7 +78,7 @@ func (r *DSCInitializationReconciler) createAuth(ctx context.Context, dscInit *d
 	}
 
 	// found a dashboardConfig CRD and instance but no groupsConfig so instantiate an empty auth.
-	err = r.Client.Create(ctx, buildEmptyAuth())
+	err = r.Create(ctx, buildEmptyAuth())
 	if err != nil && !k8serr.IsAlreadyExists(err) {
 		return err
 	}

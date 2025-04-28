@@ -69,7 +69,7 @@ YQ ?= $(LOCALBIN)/yq-$(YQ_VERSION)
 KUSTOMIZE_VERSION ?= v5.3.0
 CONTROLLER_TOOLS_VERSION ?= v0.16.1
 OPERATOR_SDK_VERSION ?= v1.37.0
-GOLANGCI_LINT_VERSION ?= v2.1.2
+GOLANGCI_LINT_VERSION ?= v1.64.7
 YQ_VERSION ?= v4.12.2
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.31.0
@@ -166,7 +166,8 @@ GOLANGCI_TMP_FILE = .golangci.mktmp.yml
 .PHONY: fmt
 fmt: golangci-lint yq ## Formats code and imports.
 	go fmt ./...
-	$(GOLANGCI_LINT) fmt
+	$(YQ) e '.linters = {"disable-all": true, "enable": ["gci"]}' .golangci.yml  > $(GOLANGCI_TMP_FILE)
+	$(GOLANGCI_LINT) run --config=$(GOLANGCI_TMP_FILE) --fix
 CLEANFILES += $(GOLANGCI_TMP_FILE)
 
 .PHONY: vet
@@ -176,12 +177,11 @@ vet: ## Run go vet against code.
 GOLANGCI_LINT_TIMEOUT ?= 5m0s
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint against code.
-	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT)
+	$(GOLANGCI_LINT) run --timeout=$(GOLANGCI_LINT_TIMEOUT) --sort-results
 
 .PHONY: lint-fix
 lint-fix: golangci-lint ## Run golangci-lint against code.
-	$(GOLANGCI_LINT) run --fix
-	$(GOLANGCI_LINT) fmt
+	$(GOLANGCI_LINT) run --fix --sort-results
 
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
@@ -288,7 +288,7 @@ $(OPERATOR_SDK): $(LOCALBIN)
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
-	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,${GOLANGCI_LINT_VERSION})
+	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,${GOLANGCI_LINT_VERSION})
 
 OS=$(shell uname -s)
 ARCH=$(shell uname -m)
