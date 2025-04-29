@@ -19,9 +19,9 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
@@ -37,6 +37,8 @@ import (
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -77,6 +79,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/codeflare"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
@@ -145,31 +148,52 @@ func initServices(_ context.Context, p common.Platform) error {
 	})
 }
 
-func main() { //nolint:funlen,maintidx
-	var metricsAddr string
-	var enableLeaderElection bool
-	var probeAddr string
-	var monitoringNamespace string
-	var logmode string
-	var pprofAddr string
+func main() { //nolint:funlen,maintidx,gocyclo
+	// Viper settings
+	viper.SetEnvPrefix("ODH_MANAGER")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.AutomaticEnv()
 
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&monitoringNamespace, "dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster "+
-		"monitoring stack will be deployed")
-	flag.StringVar(&logmode, "log-mode", "", "Log mode ('', prod, devel), default to ''")
-	flag.StringVar(&pprofAddr, "pprof-bind-address", os.Getenv("PPROF_BIND_ADDRESS"), "The address that pprof binds to. "+
-		"Read from PPROF_BIND_ADDRESS env var if not provided.")
+	// define flags and env vars
+	if err := flags.AddOperatorFlagsAndEnvvars(viper.GetEnvPrefix()); err != nil {
+		fmt.Printf("Error in adding flags or binding env vars: %s", err.Error())
+		os.Exit(1)
+	}
+
+	// parse and bind flags
+	pflag.Parse()
+	if err := viper.BindPFlags(pflag.CommandLine); err != nil {
+		fmt.Printf("Error in binding flags: %s", err.Error())
+		os.Exit(1)
+	}
+
+	// Get configs
+	metricsAddr := viper.GetString("metrics-bind-address")
+	enableLeaderElection := viper.GetBool("leader-elect")
+	probeAddr := viper.GetString("health-probe-bind-address")
+	monitoringNamespace := viper.GetString("dsc-monitoring-namespace")
+	logMode := viper.GetString("log-mode")
+	pprofAddr := viper.GetString("pprof-bind-address")
+
+	zapDevel := viper.GetBool("zap-devel")
+	zapEncoder := viper.GetString("zap-encoder")
+	zapLogLevel := viper.GetString("zap-log-level")
+	zapStacktrace := viper.GetString("zap-stacktrace-level")
+	zapTimeEncoding := viper.GetString("zap-time-encoding")
+
+	// After getting the zap related configs an ad hoc flag set is created so the zap BindFlags mechanism can be reused
+	zapFlagSet := flags.NewZapFlagSet()
 
 	opts := zap.Options{}
-	opts.BindFlags(flag.CommandLine)
+	opts.BindFlags(zapFlagSet)
 
-	flag.Parse()
+	err := flags.ParseZapFlags(zapFlagSet, zapDevel, zapEncoder, zapLogLevel, zapStacktrace, zapTimeEncoding)
+	if err != nil {
+		fmt.Printf("Error in parsing zap flags: %s", err.Error())
+		os.Exit(1)
+	}
 
-	ctrl.SetLogger(logger.NewLogger(logmode, &opts))
+	ctrl.SetLogger(logger.NewLogger(logMode, &opts))
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()
