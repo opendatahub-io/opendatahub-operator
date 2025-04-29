@@ -1,6 +1,10 @@
 package gvk
 
 import (
+	configv1 "github.com/openshift/api/config/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -8,6 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
@@ -19,22 +25,48 @@ var (
 		Kind:    "Namespace",
 	}
 
+	OperatorGroup = schema.GroupVersionKind{
+		Group:   operatorsv1.SchemeGroupVersion.Group,
+		Version: operatorsv1.SchemeGroupVersion.Version,
+		Kind:    "OperatorGroup",
+	}
+
+	Subscription = schema.GroupVersionKind{
+		Group:   operatorsv1alpha1.SchemeGroupVersion.Group,
+		Version: operatorsv1alpha1.SchemeGroupVersion.Version,
+		Kind:    operatorsv1alpha1.SubscriptionKind,
+	}
+
+	InstallPlan = schema.GroupVersionKind{
+		Group:   operatorsv1alpha1.SchemeGroupVersion.Group,
+		Version: operatorsv1alpha1.SchemeGroupVersion.Version,
+		Kind:    operatorsv1alpha1.InstallPlanKind,
+	}
+
 	ClusterServiceVersion = schema.GroupVersionKind{
-		Group:   "operators.coreos.com",
-		Version: "v1alpha1",
-		Kind:    "ClusterServiceVersion",
+		Group:   operatorsv1alpha1.SchemeGroupVersion.Group,
+		Version: operatorsv1alpha1.SchemeGroupVersion.Version,
+		Kind:    operatorsv1alpha1.ClusterServiceVersionKind,
+	}
+
+	ClusterVersion = schema.GroupVersionKind{
+		Group:   configv1.SchemeGroupVersion.Group,
+		Version: configv1.SchemeGroupVersion.Version,
+		Kind:    "ClusterVersion",
 	}
 
 	DataScienceCluster = schema.GroupVersionKind{
-		Group:   "datasciencecluster.opendatahub.io",
-		Version: "v1",
+		Group:   dscv1.GroupVersion.Group,
+		Version: dscv1.GroupVersion.Version,
 		Kind:    "DataScienceCluster",
 	}
+
 	DSCInitialization = schema.GroupVersionKind{
-		Group:   "dscinitialization.opendatahub.io",
-		Version: "v1",
+		Group:   dsciv1.GroupVersion.Group,
+		Version: dsciv1.GroupVersion.Version,
 		Kind:    "DSCInitialization",
 	}
+
 	FeatureTracker = schema.GroupVersionKind{
 		Group:   featuresv1.GroupVersion.Group,
 		Version: featuresv1.GroupVersion.Version,
@@ -60,9 +92,21 @@ var (
 	}
 
 	ClusterRole = schema.GroupVersionKind{
-		Group:   "rbac.authorization.k8s.io",
-		Version: "v1",
+		Group:   rbacv1.SchemeGroupVersion.Group,
+		Version: rbacv1.SchemeGroupVersion.Version,
 		Kind:    "ClusterRole",
+	}
+
+	ClusterRoleBinding = schema.GroupVersionKind{
+		Group:   rbacv1.SchemeGroupVersion.Group,
+		Version: rbacv1.SchemeGroupVersion.Version,
+		Kind:    "ClusterRoleBinding",
+	}
+
+	Role = schema.GroupVersionKind{
+		Group:   rbacv1.SchemeGroupVersion.Group,
+		Version: rbacv1.SchemeGroupVersion.Version,
+		Kind:    "Role",
 	}
 
 	RoleBinding = schema.GroupVersionKind{
@@ -258,20 +302,20 @@ var (
 	}
 
 	Auth = schema.GroupVersionKind{
-		Group:   "services.platform.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "Auth",
+		Group:   serviceApi.GroupVersion.Group,
+		Version: serviceApi.GroupVersion.Version,
+		Kind:    serviceApi.AuthKind,
 	}
 
 	ValidatingAdmissionPolicy = schema.GroupVersionKind{
-		Group:   "admissionregistration.k8s.io",
-		Version: "v1",
+		Group:   admissionregistrationv1.SchemeGroupVersion.Group,
+		Version: admissionregistrationv1.SchemeGroupVersion.Version,
 		Kind:    "ValidatingAdmissionPolicy",
 	}
 
 	ValidatingAdmissionPolicyBinding = schema.GroupVersionKind{
-		Group:   "admissionregistration.k8s.io",
-		Version: "v1",
+		Group:   admissionregistrationv1.SchemeGroupVersion.Group,
+		Version: admissionregistrationv1.SchemeGroupVersion.Version,
 		Kind:    "ValidatingAdmissionPolicyBinding",
 	}
 

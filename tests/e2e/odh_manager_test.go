@@ -4,116 +4,74 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/types"
 )
 
-func testODHOperatorValidation(t *testing.T) {
-	testCtx, err := NewTestContext()
-	require.NoError(t, err)
-
-	t.Run("validate RHOAI Operator pod", testCtx.testODHDeployment)
-	t.Run("validate CRDs owned by the operator", testCtx.validateOwnedCRDs)
+type OperatorTestCtx struct {
+	*TestContext
 }
 
-func (tc *testContext) testODHDeployment(t *testing.T) {
+func odhOperatorTestSuite(t *testing.T) {
+	t.Helper()
+
+	// Initialize the test context.
+	tc, err := NewTestContext(t)
+	require.NoError(t, err, "Failed to initialize test context")
+
+	// Create an instance of test context.
+	operatorTestCtx := OperatorTestCtx{
+		TestContext: tc,
+	}
+
+	// Define test cases.
+	testCases := []TestCase{
+		{name: "Validate RHOAI Operator pod", testFn: operatorTestCtx.testODHDeployment},
+		{name: "Validate CRDs owned by the operator", testFn: operatorTestCtx.ValidateOwnedCRDs},
+	}
+
+	// Run the test suite.
+	RunTestCases(t, testCases)
+}
+
+// testODHDeployment checks if the ODH deployment exists and is correctly configured.
+func (tc *OperatorTestCtx) testODHDeployment(t *testing.T) {
+	t.Helper()
+
 	// Verify if the operator deployment is created
-	require.NoErrorf(t, tc.waitForOperatorDeployment("rhods-operator", 1),
-		"error in validating rhods-operator deployment")
+	controllerDeployment := "rhods-operator"
+	tc.EnsureDeploymentReady(types.NamespacedName{Namespace: tc.OperatorNamespace, Name: controllerDeployment}, 1)
 }
 
-func (tc *testContext) validateOwnedCRDs(t *testing.T) {
-	// Verify if 3 operators CRDs are installed in parallel
-	t.Run("Validate DSC CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("datascienceclusters.datasciencecluster.opendatahub.io"),
-			"error in validating CRD : datascienceclusters.datasciencecluster.opendatahub.io")
-	})
-	t.Run("Validate DSCI CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("dscinitializations.dscinitialization.opendatahub.io"),
-			"error in validating CRD : dscinitializations.dscinitialization.opendatahub.io")
-	})
-	t.Run("Validate FeatureTracker CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("featuretrackers.features.opendatahub.io"),
-			"error in validating CRD : featuretrackers.features.opendatahub.io")
-	})
+// ValidateOwnedCRDs validates if the owned CRDs are properly created and available.
+func (tc *OperatorTestCtx) ValidateOwnedCRDs(t *testing.T) {
+	t.Helper()
 
-	// Validate component CRDs
-	t.Run("Validate Dashboard CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("dashboards.components.platform.opendatahub.io"),
-			"error in validating CRD : dashboards.components.platform.opendatahub.io")
-	})
+	crdsTestCases := []struct {
+		name string
+		crd  string
+	}{
+		{"Datascience Cluster CRD", "datascienceclusters.datasciencecluster.opendatahub.io"},
+		{"DataScienceCluster Initialization CRD", "dscinitializations.dscinitialization.opendatahub.io"},
+		{"FeatureTracker CRD", "featuretrackers.features.opendatahub.io"},
+		{"Dashboard CRD", "dashboards.components.platform.opendatahub.io"},
+		{"Ray CRD", "rays.components.platform.opendatahub.io"},
+		{"ModelRegistry CRD", "modelregistries.components.platform.opendatahub.io"},
+		{"TrustyAI CRD", "trustyais.components.platform.opendatahub.io"},
+		{"Kueue CRD", "kueues.components.platform.opendatahub.io"},
+		{"TrainingOperator CRD", "trainingoperators.components.platform.opendatahub.io"},
+		{"FeastOperator CRD", "feastoperators.components.platform.opendatahub.io"},
+		{"DataSciencePipelines CRD", "datasciencepipelines.components.platform.opendatahub.io"},
+		{"Workbenches CRD", "workbenches.components.platform.opendatahub.io"},
+		{"Kserve CRD", "kserves.components.platform.opendatahub.io"},
+		{"ModelMeshServing CRD", "modelmeshservings.components.platform.opendatahub.io"},
+		{"ModelController CRD", "modelcontrollers.components.platform.opendatahub.io"},
+		{"Monitoring CRD", "monitorings.services.platform.opendatahub.io"},
+	}
 
-	t.Run("Validate Ray CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("rays.components.platform.opendatahub.io"),
-			"error in validating CRD : rays.components.platform.opendatahub.io")
-	})
-
-	t.Run("Validate ModelRegistry CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("modelregistries.components.platform.opendatahub.io"),
-			"error in validating CRD : modelregistries.components.platform.opendatahub.io")
-	})
-
-	t.Run("Validate TrustyAI CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("trustyais.components.platform.opendatahub.io"),
-			"error in validating CRD : trustyais.components.platform.opendatahub.io")
-	})
-
-	t.Run("Validate Kueue CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("kueues.components.platform.opendatahub.io"),
-			"error in validating CRD : kueues.components.platform.opendatahub.io")
-	})
-
-	t.Run("Validate TrainingOperator CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("trainingoperators.components.platform.opendatahub.io"),
-			"error in validating CRD : trainingoperators.components.platform.opendatahub.io")
-	})
-
-	t.Run("Validate FeastOperator CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("feastoperators.components.platform.opendatahub.io"),
-			"error in validating CRD : feastoperators.components.platform.opendatahub.io")
-	})
-
-	t.Run("Validate DataSciencePipelines CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("datasciencepipelines.components.platform.opendatahub.io"),
-			"error in validating CRD : datasciencepipelines.components.platform.opendatahub.io")
-	})
-
-	t.Run("Validate Workbenches CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("workbenches.components.platform.opendatahub.io"),
-			"error in validating CRD : workbenches.components.platform.opendatahub.io")
-	})
-
-	t.Run("Validate Kserve CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("kserves.components.platform.opendatahub.io"),
-			"error in validating CRD : kserves.components.platform.opendatahub.io")
-	})
-
-	t.Run("Validate ModelMeshServing CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("modelmeshservings.components.platform.opendatahub.io"),
-			"error in validating CRD : modelmeshservings.components.platform.opendatahub.io")
-	})
-
-	t.Run("Validate ModelController CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("modelcontrollers.components.platform.opendatahub.io"),
-			"error in validating CRD : modelcontrollers.components.platform.opendatahub.io")
-	})
-
-	t.Run("Validate Monitoring CRD", func(t *testing.T) {
-		t.Parallel()
-		require.NoErrorf(t, tc.validateCRD("monitorings.services.platform.opendatahub.io"),
-			"error in validating CRD : monitorings.services.platform.opendatahub.io")
-	})
+	for _, testCase := range crdsTestCases {
+		t.Run("Validate "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+			tc.EnsureCRDEstablished(testCase.crd)
+		})
+	}
 }

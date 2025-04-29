@@ -422,8 +422,12 @@ check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES)
 CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 
 .PHONY: e2e-test
+e2e-test:
+ifndef E2E_TEST_OPERATOR_NAMESPACE
+export E2E_TEST_OPERATOR_NAMESPACE = $(OPERATOR_NAMESPACE)
+endif
 e2e-test: ## Run e2e tests for the controller
-	go test ./tests/e2e/ -run ^TestOdhOperator -v --operator-namespace=${OPERATOR_NAMESPACE} ${E2E_TEST_FLAGS}
+	go test ./tests/e2e/ -run ^TestOdhOperator -v ${E2E_TEST_FLAGS}
 
 .PHONY: clean
 clean: $(GOLANGCI_LINT)
