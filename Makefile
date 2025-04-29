@@ -196,7 +196,7 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 ##@ Build
 
 .PHONY: build
-build: generate fmt vet ## Build manager binary.
+build: manifests generate fmt vet ## Build manager binary.
 	go build -o bin/manager cmd/main.go
 
 RUN_ARGS = --log-mode=devel --pprof-bind-address=127.0.0.1:6060
