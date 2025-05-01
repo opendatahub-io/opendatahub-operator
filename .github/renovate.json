@@ -24,7 +24,7 @@
       },
       {
         "matchManagers": ["tekton"],
-        "matchBaseBranches": ["rhoai-2.8", "rhoai-2.16", "rhoai-2.19", "rhoai-2.20"],
+        "matchBaseBranches": ["rhoai-2.8", "rhoai-2.16", "rhoai-2.19"],
         "matchUpdateTypes": ["digest", "minor"],
         "schedule": ["* 0-3 1 * *"], 
         "enabled": true,
