@@ -36,6 +36,10 @@ var clusterConfig struct {
 	ClusterInfo ClusterInfo
 }
 
+type InstallConfig struct {
+	FIPS *bool `json:"fips"` // Use a pointer to handle cases where fips is not present
+}
+
 // Init initializes cluster configuration variables on startup
 // init() won't work since it is needed to check the error.
 func Init(ctx context.Context, cli client.Client) error {
@@ -281,14 +285,24 @@ func isFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 		return false, fmt.Errorf("failed to get ConfigMap %s/%s: %w", namespacedName.Namespace, namespacedName.Name, err)
 	}
 
-	if data, ok := cm.Data["install-config"]; ok {
-		if strings.Contains(strings.ToLower(data), "fips") {
-			return true, nil
+	if installConfigStr, ok := cm.Data["install-config"]; ok {
+		var installConfig InstallConfig
+		if err := legacy.Unmarshal([]byte(installConfigStr), &installConfig); err != nil {
+			// If unmarshaling fails, fall back to the string search
+			if strings.Contains(strings.ToLower(installConfigStr), "fips: true") {
+				return true, nil
+			}
+			if strings.Contains(strings.ToLower(installConfigStr), "fips: false") {
+				return false, nil
+			}
+			return false, fmt.Errorf("failed to unmarshal install-config: %w, falling back to string search", err)
 		}
-	} else if data, ok := cm.Data["config.yaml"]; ok { // Added check for alternative key
-		if strings.Contains(strings.ToLower(data), "fips") {
-			return true, nil
+
+		if installConfig.FIPS != nil {
+			return *installConfig.FIPS, nil
 		}
+		// If the fips key is present but has a null value (unlikely but possible)
+		return false, nil
 	}
 
 	return false, nil
