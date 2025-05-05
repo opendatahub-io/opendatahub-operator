@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+    "sigs.k8s.io/yaml"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -289,7 +290,7 @@ func isFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 
 	if installConfigStr, ok := cm.Data["install-config"]; ok {
 		var installConfig InstallConfig
-		if err := legacy.Unmarshal([]byte(installConfigStr), &installConfig); err != nil {
+        if err := yaml.Unmarshal([]byte(installConfigStr), &installConfig); err != nil {
 			// If unmarshaling fails, fall back to the string search
 			if strings.Contains(strings.ToLower(installConfigStr), "fips: true") {
 				return true, nil
