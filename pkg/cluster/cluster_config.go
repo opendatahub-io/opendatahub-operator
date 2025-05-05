@@ -275,6 +275,8 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 }
 
 func isFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
+    // Check the install-config for the fips flag and it's value
+    // https://access.redhat.com/solutions/6525331
 	cm := &corev1.ConfigMap{}
 	namespacedName := types.NamespacedName{
 		Name:      "cluster-config-v1",
