@@ -265,11 +265,11 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 	c.Version = ocpVersion
 
 	// Check for FIPs
-	fipsEnabled, err := isFipsEnabled(ctx, cli)
-	if err != nil {
-		return c, err
+	if fipsEnabled, err := isFipsEnabled(ctx, cli); err == nil {
+		c.FipsEnabled = fipsEnabled
+	} else {
+		logf.FromContext(ctx).Info("could not determine FIPS status, defaulting to false", "error", err)
 	}
-	c.FipsEnabled = fipsEnabled
 
 	return c, nil
 }
