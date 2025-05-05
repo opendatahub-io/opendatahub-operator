@@ -173,29 +173,26 @@ invalid: yaml`,
 
 			// Check the result
 			if result != tc.expectedResult {
-				t.Errorf("1. isFIPSEnabled() = %v, want %v", result, tc.expectedResult)
+				t.Errorf("isFIPSEnabled() = %v, want %v", result, tc.expectedResult)
 			}
 
 			// Check the error.  We need to handle nil vs. non-nil errors carefully.
 			if tc.expectedError != nil {
 				if err == nil {
 					t.Errorf("2. isFIPSEnabled() error = nil, want %v", tc.expectedError)
-
-				} else if _, ok := tc.expectedError.(*k8serrors.StatusError); ok {
-
+				} else if k8serrors.IsNotFound(tc.expectedError) {
 					if !k8serrors.IsNotFound(err) {
-						t.Errorf("3. isFIPSEnabled() error = %T, want %T", err, tc.expectedError)
+						t.Errorf("isFipsEnabled() error = %v, want NotFound error", err)
 					}
-
 				} else {
 					// For generic errors, compare error strings
 					if err.Error() != tc.expectedError.Error() {
-						t.Errorf("4. isFIPSEnabled() error = %v, want %v", err, tc.expectedError)
+						t.Errorf("isFIPSEnabled() error = %v, want %v", err, tc.expectedError)
 					}
 				}
 
 			} else if err != nil {
-				t.Errorf("5. isFIPSEnabled() error = %v, want nil", err)
+				t.Errorf("isFIPSEnabled() error = %v, want nil", err)
 			}
 		})
 	}
