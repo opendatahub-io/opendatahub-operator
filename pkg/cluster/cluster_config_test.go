@@ -3,7 +3,6 @@ package cluster
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -171,8 +170,6 @@ invalid: yaml`,
 			// Call the function under test
 			ctx := context.Background()
 			result, err := isFipsEnabled(ctx, fakeClient)
-
-			fmt.Printf("   # result:%t err:%s\n", result, err)
 
 			// Check the result
 			if result != tc.expectedResult {
