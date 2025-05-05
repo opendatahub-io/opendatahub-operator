@@ -16,6 +16,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -24,8 +25,9 @@ import (
 )
 
 type ClusterInfo struct {
-	Type    string                  `json:"type,omitempty"` // openshift , TODO: can be other value if we later support other type
-	Version version.OperatorVersion `json:"version,omitempty"`
+	Type        string                  `json:"type,omitempty"` // openshift , TODO: can be other value if we later support other type
+	Version     version.OperatorVersion `json:"version,omitempty"`
+	FipsEnabled bool                    `json:"fips_enabled,omitempty"`
 }
 
 var clusterConfig struct {
@@ -248,7 +250,8 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 		Version: version.OperatorVersion{
 			Version: semver.Version{},
 		},
-		Type: "OpenShift",
+		Type:        "OpenShift",
+		FipsEnabled: false,
 	}
 	// Set OCP
 	ocpVersion, err := getOCPVersion(ctx, cli)
@@ -257,5 +260,36 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 	}
 	c.Version = ocpVersion
 
+	// Check for FIPs
+	fipsEnabled, err := getFipsState(ctx, cli)
+	if err != nil {
+		return c, err
+	}
+	c.FipsEnabled = fipsEnabled
+
 	return c, nil
+}
+
+func getFipsState(ctx context.Context, cli client.Client) (bool, error) {
+	cm := &corev1.ConfigMap{}
+	namespacedName := types.NamespacedName{
+		Name:      "cluster-config-v1",
+		Namespace: "kube-system",
+	}
+
+	if err := cli.Get(ctx, namespacedName, cm); err != nil {
+		return false, fmt.Errorf("failed to get ConfigMap %s/%s: %w", namespacedName.Namespace, namespacedName.Name, err)
+	}
+
+	if data, ok := cm.Data["install-config"]; ok {
+		if strings.Contains(strings.ToLower(data), "fips") {
+			return true, nil
+		}
+	} else if data, ok := cm.Data["config.yaml"]; ok { // Added check for alternative key
+		if strings.Contains(strings.ToLower(data), "fips") {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
