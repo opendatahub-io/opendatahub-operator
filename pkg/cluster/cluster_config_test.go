@@ -177,8 +177,16 @@ invalid: yaml`,
 			if tc.expectedError != nil {
 				if err == nil {
 					t.Errorf("isFIPSEnabled() error = nil, want %v", tc.expectedError)
-				} else if !errors.Is(err, tc.expectedError) {
-					t.Errorf("isFIPSEnabled() error = %v, want %v", err, tc.expectedError)
+				} else if notFoundErr, ok := tc.expectedError.(*k8serrors.StatusError); ok {
+					// For Kubernetes errors, use errors.Is
+					if !errors.Is(err, notFoundErr) {
+						t.Errorf("isFIPSEnabled() error = %v, want %v", err, tc.expectedError)
+					}
+				} else {
+					// For generic errors, compare error strings
+					if err.Error() != tc.expectedError.Error() {
+						t.Errorf("isFIPSEnabled() error = %v, want %v", err, tc.expectedError)
+					}
 				}
 			} else if err != nil {
 				t.Errorf("isFIPSEnabled() error = %v, want nil", err)
