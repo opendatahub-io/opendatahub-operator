@@ -190,7 +190,7 @@ invalid: yaml`,
 
 			// Check the result
 			if result != tc.expectedResult {
-				t.Errorf("1. isFIPSEnabled() = %v, want %v", result, tc.expectedResult )
+				t.Errorf("1. isFIPSEnabled() = %v, want %v", result, tc.expectedResult)
 			}
 
 			// Check the error.  We need to handle nil vs. non-nil errors carefully.
