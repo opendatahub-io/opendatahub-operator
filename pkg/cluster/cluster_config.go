@@ -38,7 +38,7 @@ var clusterConfig struct {
 }
 
 type InstallConfig struct {
-	FIPS bool `json:"fips"` // Use a pointer to handle cases where fips is not present
+	FIPS bool `json:"fips"`
 }
 
 // Init initializes cluster configuration variables on startup
