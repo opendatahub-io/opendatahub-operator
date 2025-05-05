@@ -261,7 +261,7 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 	c.Version = ocpVersion
 
 	// Check for FIPs
-	fipsEnabled, err := getFipsState(ctx, cli)
+	fipsEnabled, err := isFipsEnabled(ctx, cli)
 	if err != nil {
 		return c, err
 	}
@@ -270,7 +270,7 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 	return c, nil
 }
 
-func getFipsState(ctx context.Context, cli client.Client) (bool, error) {
+func isFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 	cm := &corev1.ConfigMap{}
 	namespacedName := types.NamespacedName{
 		Name:      "cluster-config-v1",
