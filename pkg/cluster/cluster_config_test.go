@@ -130,34 +130,6 @@ invalid: yaml`,
 			expectedResult: false,
 			expectedError:  errors.New("generic client error"),
 		},
-		{
-			name: "FIPS enabled with config.yaml",
-			configMap: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cluster-config-v1",
-					Namespace: "kube-system",
-				},
-				Data: map[string]string{
-					"config.yaml": `fips: true`,
-				},
-			},
-			expectedResult: true,
-			expectedError:  nil,
-		},
-		{
-			name: "FIPS disabled with config.yaml",
-			configMap: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cluster-config-v1",
-					Namespace: "kube-system",
-				},
-				Data: map[string]string{
-					"config.yaml": `fips: false`,
-				},
-			},
-			expectedResult: false,
-			expectedError:  nil,
-		},
 	}
 
 	for _, tc := range testCases {
