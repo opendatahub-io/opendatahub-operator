@@ -285,11 +285,16 @@ func isFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 	}
 
 	if err := cli.Get(ctx, namespacedName, cm); err != nil {
-		fmt.Println("   # RETURN false, err")
 		return false, err
 	}
 
 	if installConfigStr, ok := cm.Data["install-config"]; ok {
+
+		if installConfigStr == "" {
+			// No install-config found or empty
+			return false, nil
+		}
+
 		var installConfig InstallConfig
 		if err := yaml.Unmarshal([]byte(installConfigStr), &installConfig); err != nil {
 			// If unmarshaling fails, fall back to the string search
@@ -298,17 +303,14 @@ func isFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 				return true, nil
 			}
 			if strings.Contains(strings.ToLower(installConfigStr), "fips: false") {
-				fmt.Println("   # RETURN false, nil")
 				return false, nil
 			}
-			fmt.Println("   # RETURN false, fmt.Errorf")
 			return false, fmt.Errorf("failed to unmarshal install-config: %w, falling back to string search", err)
 		}
 
-		fmt.Println("   # RETURN installConfig.FIPS, nil")
 		return installConfig.FIPS, nil
 	}
 
-	fmt.Println("   # RETURN false, nil")
+	// default to false with no error
 	return false, nil
 }
