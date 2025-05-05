@@ -15,6 +15,9 @@ import (
 )
 
 func TestIsFIPSEnabled(t *testing.T) {
+
+    var genericError = errors.New("generic client error")
+
 	// Define test cases
 	testCases := []struct {
 		name            string
@@ -108,7 +111,7 @@ invalid: yaml`,
 		},
 		{
 			name: "Other client error",
-			clientErr: errors.New("generic client error"),
+			clientErr: genericError,
 			expectedResult:  false,
 			expectedError:   errors.New("generic client error"),
 		},
