@@ -41,8 +41,10 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 
 func (s *componentHandler) Init(_ common.Platform) error {
 	release := cluster.GetRelease()
+	clusterInfo := cluster.GetClusterInfo()
 	extraParams := map[string]string{
 		platformVersionParamsKey: release.Version.String(),
+		fipsEnabledParamsKey:     fmt.Sprintf("%t", clusterInfo.FipsEnabled),
 	}
 	if err := deploy.ApplyParams(paramsPath, imageParamMap, extraParams); err != nil {
 		return fmt.Errorf("failed to apply params on path %s: %w", paramsPath, err)
