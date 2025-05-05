@@ -119,6 +119,20 @@ invalid: yaml`,
 			expectedError:  nil,
 		},
 		{
+			name: "Empty install-config",
+			configMap: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cluster-config-v1",
+					Namespace: "kube-system",
+				},
+				Data: map[string]string{
+					"install-config": "",
+				},
+			},
+			expectedResult: false,
+			expectedError:  nil,
+		},
+		{
 			name:           "ConfigMap not found",
 			clientErr:      k8serrors.NewNotFound(schema.GroupResource{Group: "", Resource: "configmaps"}, "cluster-config-v1"),
 			expectedResult: false,
