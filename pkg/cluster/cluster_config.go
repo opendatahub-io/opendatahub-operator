@@ -19,7 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-    "sigs.k8s.io/yaml"
+	"sigs.k8s.io/yaml"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -276,8 +276,8 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 }
 
 func isFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
-    // Check the install-config for the fips flag and it's value
-    // https://access.redhat.com/solutions/6525331
+	// Check the install-config for the fips flag and it's value
+	// https://access.redhat.com/solutions/6525331
 	cm := &corev1.ConfigMap{}
 	namespacedName := types.NamespacedName{
 		Name:      "cluster-config-v1",
@@ -285,30 +285,30 @@ func isFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 	}
 
 	if err := cli.Get(ctx, namespacedName, cm); err != nil {
-        fmt.Println("   # RETURN false, err")
+		fmt.Println("   # RETURN false, err")
 		return false, err
 	}
 
 	if installConfigStr, ok := cm.Data["install-config"]; ok {
 		var installConfig InstallConfig
-        if err := yaml.Unmarshal([]byte(installConfigStr), &installConfig); err != nil {
+		if err := yaml.Unmarshal([]byte(installConfigStr), &installConfig); err != nil {
 			// If unmarshaling fails, fall back to the string search
 			if strings.Contains(strings.ToLower(installConfigStr), "fips: true") {
-        		fmt.Println("   # RETURN true, nil")
+				fmt.Println("   # RETURN true, nil")
 				return true, nil
 			}
 			if strings.Contains(strings.ToLower(installConfigStr), "fips: false") {
-        		fmt.Println("   # RETURN false, nil")
+				fmt.Println("   # RETURN false, nil")
 				return false, nil
 			}
-        	fmt.Println("   # RETURN false, fmt.Errorf")
+			fmt.Println("   # RETURN false, fmt.Errorf")
 			return false, fmt.Errorf("failed to unmarshal install-config: %w, falling back to string search", err)
 		}
 
-        fmt.Println("   # RETURN installConfig.FIPS, nil")
+		fmt.Println("   # RETURN installConfig.FIPS, nil")
 		return installConfig.FIPS, nil
 	}
 
-    fmt.Println("   # RETURN false, nil")
+	fmt.Println("   # RETURN false, nil")
 	return false, nil
 }
