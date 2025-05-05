@@ -275,6 +275,10 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 	return c, nil
 }
 
+func IsFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
+	return isFipsEnabled(ctx, cli)
+}
+
 func isFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
     // Check the install-config for the fips flag and it's value
     // https://access.redhat.com/solutions/6525331

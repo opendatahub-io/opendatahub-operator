@@ -9,6 +9,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors" // Import k8serrors
     metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+    "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -105,9 +106,9 @@ invalid: yaml`,
 		},
 		{
 			name: "ConfigMap not found",
-			clientErr: k8serrors.NewNotFound(corev1.Resource("ConfigMap"), "cluster-config-v1"),
+            clientErr: k8serrors.NewNotFound(schema.GroupResource{Group: "", Resource: "configmaps"}, "cluster-config-v1"),
 			expectedResult:  false,
-			expectedError:   k8serrors.NewNotFound(corev1.Resource("ConfigMap"), "cluster-config-v1"), // Expect the same error
+            expectedError:   k8serrors.NewNotFound(schema.GroupResource{Group: "", Resource: "configmaps"}, "cluster-config-v1"), // Expect the same error
 		},
 		{
 			name: "Other client error",
@@ -166,7 +167,7 @@ invalid: yaml`,
 
 			// Call the function under test
 			ctx := context.Background()
-			result, err := isFIPSEnabled(ctx, fakeClient)
+			result, err := IsFIPSEnabled(ctx, fakeClient)
 
 			// Check the result
 			if result != tc.expectedResult {
