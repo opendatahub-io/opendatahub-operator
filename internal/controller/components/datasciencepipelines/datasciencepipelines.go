@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -44,7 +45,7 @@ func (s *componentHandler) Init(_ common.Platform) error {
 	clusterInfo := cluster.GetClusterInfo()
 	extraParams := map[string]string{
 		platformVersionParamsKey: release.Version.String(),
-		fipsEnabledParamsKey:     fmt.Sprintf("%t", clusterInfo.FipsEnabled),
+		fipsEnabledParamsKey:     strconv.FormatBool(clusterInfo.FipsEnabled),
 	}
 	if err := deploy.ApplyParams(paramsPath, imageParamMap, extraParams); err != nil {
 		return fmt.Errorf("failed to apply params on path %s: %w", paramsPath, err)
