@@ -173,7 +173,7 @@ invalid: yaml`,
 
 			// Check the result
 			if result != tc.expectedResult {
-				t.Errorf("isFIPSEnabled() = %v, want %v", result, tc.expectedResult)
+				t.Errorf("IsFIPSEnabled() = %v, want %v", result, tc.expectedResult)
 			}
 
 			// Check the error.  We need to handle nil vs. non-nil errors carefully.
@@ -187,11 +187,11 @@ invalid: yaml`,
 					}
 				default:
 					if err.Error() != tc.expectedError.Error() {
-						t.Errorf("isFIPSEnabled() error = %v, want %v", err, tc.expectedError)
+						t.Errorf("IsFIPSEnabled() error = %v, want %v", err, tc.expectedError)
 					}
 				}
 			} else if err != nil {
-				t.Errorf("isFIPSEnabled() error = %v, want nil", err)
+				t.Errorf("IsFIPSEnabled() error = %v, want nil", err)
 			}
 		})
 	}
