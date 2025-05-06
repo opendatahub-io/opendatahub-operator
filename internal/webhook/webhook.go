@@ -43,10 +43,9 @@ import (
 //+kubebuilder:webhook:path=/validate-opendatahub-io-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io;dscinitialization.opendatahub.io,resources=datascienceclusters;dscinitializations,verbs=create;delete,versions=v1,name=operator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
-// TODO: Get rid of platform in name, rename to ValidatingWebhook.
 type OpenDataHubValidatingWebhook struct {
 	Client  client.Client
-	Decoder *admission.Decoder
+	Decoder admission.Decoder
 	Name    string
 }
 
