@@ -266,7 +266,7 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 	c.Version = ocpVersion
 
 	// Check for FIPs
-	if fipsEnabled, err := isFipsEnabled(ctx, cli); err == nil {
+	if fipsEnabled, err := IsFipsEnabled(ctx, cli); err == nil {
 		c.FipsEnabled = fipsEnabled
 	} else {
 		logf.FromContext(ctx).Info("could not determine FIPS status, defaulting to false", "error", err)
@@ -275,7 +275,7 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 	return c, nil
 }
 
-func isFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
+func IsFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 	// Check the install-config for the fips flag and it's value
 	// https://access.redhat.com/solutions/6525331
 	cm := &corev1.ConfigMap{}
@@ -296,9 +296,8 @@ func isFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 
 	var installConfig InstallConfig
 	if err := yaml.Unmarshal([]byte(installConfigStr), &installConfig); err != nil {
-		// If unmarshaling fails, fall back to the string search
-		// swallow the error
-		return strings.Contains(strings.ToLower(installConfigStr), "fips: true"), nil
+		// fallback: ignore unmarshal error and fall back to string search
+		return strings.Contains(strings.ToLower(installConfigStr), "fips: true"), nil //nolint:nilerr
 	}
 
 	return installConfig.FIPS, nil
