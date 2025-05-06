@@ -303,7 +303,7 @@ func isFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 			return strings.Contains(strings.ToLower(installConfigStr), "fips: true"), nil
 		}
 
-		return installConfig.FIPS, nil		
+		return installConfig.FIPS, nil
 	}
 
 	// default to false with no error
