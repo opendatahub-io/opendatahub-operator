@@ -284,33 +284,26 @@ func isFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 		Namespace: "kube-system",
 	}
 
-	var err error
-
 	if err := cli.Get(ctx, namespacedName, cm); err != nil {
 		return false, err
 	}
 
-	if installConfigStr, ok := cm.Data["install-config"]; ok {
+	if _, ok := cm.Data["install-config"]; ok {
 
+		installConfigStr := cm.Data["install-config"]
 		if installConfigStr == "" {
 			// No install-config found or empty
 			return false, nil
 		}
 
 		var installConfig InstallConfig
-
-		if err := yaml.Unmarshal([]byte(installConfigStr), &installConfig); err == nil {
-			return installConfig.FIPS, nil
+		if err := yaml.Unmarshal([]byte(installConfigStr), &installConfig); err != nil {
+			// If unmarshaling fails, fall back to the string search
+			// swallow the error
+			return strings.Contains(strings.ToLower(installConfigStr), "fips: true"), nil
 		}
 
-		// If unmarshaling fails, fall back to the string search
-		if strings.Contains(strings.ToLower(installConfigStr), "fips: true") {
-			return true, nil
-		}
-		if strings.Contains(strings.ToLower(installConfigStr), "fips: false") {
-			return false, nil
-		}
-		return false, fmt.Errorf("failed to unmarshal install-config: %w, falling back to string search", err)
+		return installConfig.FIPS, nil		
 	}
 
 	// default to false with no error
