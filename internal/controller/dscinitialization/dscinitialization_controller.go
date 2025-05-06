@@ -114,9 +114,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	} else {
 		log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
-		if err := r.removeServiceMesh(ctx, instance); err != nil {
-			return reconcile.Result{}, err
-		}
 
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			newInstance := &dsciv1.DSCInitialization{}
@@ -258,10 +255,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 
-		// Apply Service Mesh configurations
-		if errServiceMesh := r.configureServiceMesh(ctx, instance); errServiceMesh != nil {
-			return reconcile.Result{}, errServiceMesh
-		}
 		// Create Auth
 		if err = r.createAuth(ctx, instance); err != nil {
 			log.Info("failed to create Auth")
@@ -269,7 +262,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		// Finish reconciling
-		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
+		_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
 			saved.Status.Phase = status.PhaseReady
 		})

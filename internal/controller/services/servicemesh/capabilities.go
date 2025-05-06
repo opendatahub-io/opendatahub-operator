@@ -1,4 +1,4 @@
-package dscinitialization
+package servicemesh
 
 import (
 	"errors"
@@ -31,7 +31,7 @@ func authorizationCondition(reason, message string) *conditionsv1.Condition {
 }
 
 func createCapabilityReporter(cli client.Client, object *dsciv1.DSCInitialization, successfulCondition *conditionsv1.Condition) *status.Reporter[*dsciv1.DSCInitialization] {
-	return status.NewStatusReporter[*dsciv1.DSCInitialization](
+	return status.NewStatusReporter(
 		cli,
 		object,
 		func(err error) status.SaveStatusFunc[*dsciv1.DSCInitialization] {
