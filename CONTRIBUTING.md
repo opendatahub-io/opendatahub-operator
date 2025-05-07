@@ -5,10 +5,12 @@ Thanks for your interest in the opendatahub-operator project! You can contribute
 Before you begin, please take a look at our contribution guidelines below to ensure that your contribuutions are aligned with the project's goals.
 
 ## Reporting Issues
+
 Issues are tracked using [Jira](https://issues.redhat.com/secure/RapidBoard.jspa?rapidView=18680#). If you encounter a bug or have suggestions for enhancements, please follow the steps below:
 
 1. **Check for Existing Issues:** Before creating a new issue, search the Jira project to see if a similar issue already exists.
-2. **Create a Jira Ticket:** If the issue doesn’t exist, create a new ticket in Jira. 
+2. **Create a Jira Ticket:** If the issue doesn’t exist, create a new ticket in Jira.
+
    - **For Feature Requests:**  Set the issue type to be `Initative`
    - **For Bugs:** Set the issue type to `Bug`
    - **For all other code changes:** Use the issue type `Story`
@@ -22,13 +24,15 @@ Issues are tracked using [Jira](https://issues.redhat.com/secure/RapidBoard.jspa
 2. **Create a Branch:** Create your own branch to include changes for the feature or a bug fix off of `main` branch.
 3. **Work on Your Changes:** Commit often, and ensure your code adheres to these [Code Style Guidelines](#code-style-guidelines) and passes all the [quality gates](#quality-gates) for the operator.
 4. **Testing:** Make sure your code passes all the tests, including any new tests you've added. And that your changes do not decrease the test coverage as shown on report. Every new feature should come with unit tests that cover that new part of the code.
+5. **Open a PR Against `main`:** See PR guidelines below.
+6. **Sync Changes to Downstream**: After a PR is merged into the `main` branch, the changes need to be synced with the downstream `rhoai` branch with a separate PR, see [details](./docs/sync_code.md#basic-workflow-for-operator)
 
-### Open a Pull Request:
+### Open a Pull Request
 
 1. **Link to Jira Issue**: Include the Jira issue link in your PR description.
 2. **Description**: Provide a detailed description of the changes and what they fix or implement.
 3. **Add Testing Steps**: Provide information on how the PR has been tested, and list out testing steps if any for reviewers.
-4. **Review Request**: Tag the relevant maintainers(@opendatahub-io/odh-operator-maintainers ) or team members(@opendatahub-io/odh-platform-members) for a review.
+4. **Review Request**: Tag the relevant maintainers(@opendatahub-io/odh-operator-maintainers ) or team members(@opendatahub-io/odh-platform-members) for a review. We follow the [kubernetes review process](https://github.com/kubernetes/community/blob/master/contributors/guide/owners.md#the-code-review-process).
 5. **Resolve Feedback**: Be open to feedback and iterate on your changes.
 
 ### Quality Gates
@@ -53,6 +57,7 @@ To ensure the contributed code adheres to the project goals, we have set up some
 ### Commit Messages
 
 We follow the conventional commits format for writing commit messages. A good commit message should include:
+
 1. **Type:** `fix`, `feat`, `docs`, `chore`, etc. **Note:** All commits except `chore` require an associated jira issue. Please add link to your jira issue.
 2. **Scope:** A short description of the area affected.
 3. **Summary:** A brief explanation of what the commit does.
@@ -63,11 +68,6 @@ We follow the conventional commits format for writing commit messages. A good co
 2. Set up your environment to override Makefile defaults as described [here](./docs/troubleshooting.md#using-a-localmk-file-to-override-makefile-variables-for-your-development-environment)
 3. Use developer [guide](./README.md#developer-guide) to deploy operator [using OLM](./README.md#deployment) on a cluster.
 4. Follow the steps given [here](./README.md#run-e2e-tests) to run e2e tests in your environment.
-
-## Sync Changes in Downstream
-
-After a PR is merged into the upstream `opendatahub-io/opendatahub-operator` repository, the changes need to be synced with the downstream repository:
-detail see (./docs/sync_code.md#basic-workflow-for-operator)
 
 ## Communication
 
