@@ -4,8 +4,10 @@ import (
 	"embed"
 	"path"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -18,7 +20,7 @@ const (
 
 	DefaultModelRegistriesNamespace = "odh-model-registries"
 	DefaultModelRegistryCert        = "default-modelregistry-cert"
-	BaseManifestsSourcePath         = "overlays/odh"
+	BaseManifestsSourcePath         = "base"
 	ServiceMeshMemberTemplate       = "resources/servicemesh-member.tmpl.yaml"
 	ServiceMeshMemberCRD            = "servicemeshmembers.maistra.io"
 	ServiceMeshMemberAPINotFound    = "ServiceMeshMember API not found"
@@ -31,6 +33,12 @@ const (
 var (
 	ErrServiceMeshNotConfigured     = odherrors.NewStopError(status.ServiceMeshNotConfiguredMessage)
 	ErrServiceMeshMemberAPINotFound = odherrors.NewStopError(ServiceMeshMemberAPINotFound)
+
+	overlaysSourcePaths = map[common.Platform]string{
+		cluster.SelfManagedRhoai: "/overlays/rhoai",
+		cluster.ManagedRhoai:     "/overlays/rhoai",
+		cluster.OpenDataHub:      "/overlays/odh",
+	}
 )
 
 var (
@@ -58,6 +66,14 @@ func baseManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 		Path:       deploy.DefaultManifestPath,
 		ContextDir: ComponentName,
 		SourcePath: sourcePath,
+	}
+}
+
+func manifestsPath(p common.Platform) odhtypes.ManifestInfo {
+	return odhtypes.ManifestInfo{
+		Path:       deploy.DefaultManifestPath,
+		ContextDir: ComponentName,
+		SourcePath: overlaysSourcePaths[p],
 	}
 }
 

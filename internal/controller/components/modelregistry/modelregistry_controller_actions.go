@@ -59,7 +59,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	}
 
 	rr.Manifests = []odhtypes.ManifestInfo{
-		baseManifestInfo(BaseManifestsSourcePath),
+		manifestsPath(rr.Release.Name),
 		extraManifestInfo(BaseManifestsSourcePath),
 	}
 
