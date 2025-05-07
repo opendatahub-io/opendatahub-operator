@@ -36,11 +36,7 @@ func (h *serviceHandler) GetManagementState(_ common.Platform) operatorv1.Manage
 }
 
 func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	rec := &CertConfigmapGeneratorReconciler{
-		Client: mgr.GetClient(),
-	}
-
-	if err := rec.SetupWithManager(ctx, mgr); err != nil {
+	if err := NewWithManager(ctx, mgr); err != nil {
 		return fmt.Errorf("could not create the %s controller: %w", ServiceName, err)
 	}
 
