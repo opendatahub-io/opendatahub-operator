@@ -14,7 +14,6 @@ import (
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -259,21 +258,4 @@ func getClusterInfo(ctx context.Context, cli client.Client) (ClusterInfo, error)
 	c.Version = ocpVersion
 
 	return c, nil
-}
-
-// IsDefaultAuthMethod returns true if the default authentication method is IntegratedOAuth or empty.
-// This will give indication that Operator should create userGroups or not in the cluster.
-func IsDefaultAuthMethod(ctx context.Context, cli client.Client) (bool, error) {
-	authenticationobj := &configv1.Authentication{}
-	if err := cli.Get(ctx, client.ObjectKey{Name: ClusterAuthenticationObj, Namespace: ""}, authenticationobj); err != nil {
-		if errors.Is(err, &meta.NoKindMatchError{}) { // when CRD is missing, conver error type
-			return false, k8serr.NewNotFound(configv1.Resource("authentications"), ClusterAuthenticationObj)
-		}
-		return false, err
-	}
-
-	// for now, HPC support "" "None" "IntegratedOAuth"(default) "OIDC"
-	// other offering support "" "None" "IntegratedOAuth"(default)
-	// we only create userGroups for "IntegratedOAuth" or "" and leave other or new supported type value in the future
-	return authenticationobj.Spec.Type == configv1.AuthenticationTypeIntegratedOAuth || authenticationobj.Spec.Type == "", nil
 }
