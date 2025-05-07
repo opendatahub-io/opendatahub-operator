@@ -87,6 +87,6 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultContent(t *testing.T) {
 		tc.g.Expect(monitoring.Spec.MonitoringCommonSpec.Namespace).
 			To(Equal(dsci.Spec.Monitoring.Namespace),
 				"Monitoring CR's namespace mismatch: Expected namespace '%v' as per DSCInitialization, but found '%v' in Monitoring CR.",
-				dsci.Spec.Monitoring.Namespace, monitoring.Spec.MonitoringCommonSpec.Namespace)
+				dsci.Spec.Monitoring.Namespace, monitoring.Spec.Namespace)
 	}
 }

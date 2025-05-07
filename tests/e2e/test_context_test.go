@@ -846,7 +846,7 @@ func (tc *TestContext) FetchResources(opts ...ResourceOpts) []unstructured.Unstr
 //   - plan (*ofapi.InstallPlan): The InstallPlan object that needs to be approved.
 func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 	// Prepare the InstallPlan object to be approved
-	obj := tc.createInstallPlan(plan.ObjectMeta.Name, plan.ObjectMeta.Namespace, plan.Spec.ClusterServiceVersionNames)
+	obj := tc.createInstallPlan(plan.Name, plan.Namespace, plan.Spec.ClusterServiceVersionNames)
 
 	// Set up patch options
 	force := true
@@ -860,7 +860,7 @@ func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 	tc.g.Expect(err).
 		NotTo(
 			HaveOccurred(),
-			"Failed to approve InstallPlan %s in namespace %s: %v", obj.ObjectMeta.Name, obj.ObjectMeta.Namespace, err,
+			"Failed to approve InstallPlan %s in namespace %s: %v", obj.Name, obj.Namespace, err,
 		)
 }
 

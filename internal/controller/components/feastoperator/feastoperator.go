@@ -80,7 +80,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	dsc.Status.InstalledComponents[ComponentName] = false
-	dsc.Status.Components.FeastOperator.ManagementSpec.ManagementState = s.GetManagementState(dsc)
+	dsc.Status.Components.FeastOperator.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
