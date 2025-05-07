@@ -225,18 +225,15 @@ func main() { //nolint:funlen,maintidx
 	cacheOptions := cache.Options{
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
-			// all CRD: mainly for pipeline v1 teckon and v2 argo and dashboard's own CRD
-			&apiextensionsv1.CustomResourceDefinition{}: {},
 			// Cannot find a label on various screts, so we need to watch all secrets
 			// this include, monitoring, dashboard, trustcabundle default cert etc for these NS
 			&corev1.Secret{}: {
 				Namespaces: secretCache,
 			},
 			// it is hard to find a label can be used for both trustCAbundle configmap and inferenceservice-config and deletionCM
-			&corev1.ConfigMap{}: {},
-			// TODO: we can limit scope of namespace if we find a way to only get list of DSProject
-			// also need for monitoring, trustcabundle
-			&corev1.Namespace{}: {},
+			&corev1.ConfigMap{}: {
+				Namespaces: oDHCache,
+			},
 			// For domain to get OpenshiftIngress and default cert
 			&operatorv1.IngressController{}: {
 				Field: fields.Set{"metadata.name": "default"}.AsSelector(),
@@ -268,9 +265,6 @@ func main() { //nolint:funlen,maintidx
 			&rbacv1.RoleBinding{}: {
 				Namespaces: oDHCache,
 			},
-			&rbacv1.ClusterRole{}:                    {},
-			&rbacv1.ClusterRoleBinding{}:             {},
-			&securityv1.SecurityContextConstraints{}: {},
 		},
 		DefaultTransform: func(in any) (any, error) {
 			// Nilcheck managed fields to avoid hitting https://github.com/kubernetes/kubernetes/issues/124337

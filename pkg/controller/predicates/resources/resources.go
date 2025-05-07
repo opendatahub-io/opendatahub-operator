@@ -10,6 +10,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 var _ predicate.Predicate = DeploymentPredicate{}
@@ -141,4 +142,18 @@ var DSCIReadiness = predicate.Funcs{
 	GenericFunc: func(e event.GenericEvent) bool {
 		return false
 	},
+}
+
+func AnnotationChanged(name string) predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return true
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return false
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return resources.GetAnnotation(e.ObjectNew, name) != resources.GetAnnotation(e.ObjectOld, name)
+		},
+	}
 }

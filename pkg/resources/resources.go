@@ -475,6 +475,15 @@ func IsOwnedByType(obj client.Object, ownerGVK schema.GroupVersionKind) (bool, e
 	return false, nil
 }
 
+func GvkToPartial(gvk schema.GroupVersionKind) *metav1.PartialObjectMetadata {
+	return &metav1.PartialObjectMetadata{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: gvk.GroupVersion().String(),
+			Kind:       gvk.Kind,
+		},
+	}
+}
+
 // Apply patches an object using server-side apply.
 //
 // This function converts the input object to an unstructured type, removes fields that
@@ -493,6 +502,11 @@ func IsOwnedByType(obj client.Object, ownerGVK schema.GroupVersionKind) (bool, e
 // Returns:
 //   - error: nil on success, or an error with context if the operation fails
 func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...client.PatchOption) error {
+	err := EnsureGroupVersionKind(cli.Scheme(), in)
+	if err != nil {
+		return fmt.Errorf("failed to ensure GVK: %w", err)
+	}
+
 	u, err := ToUnstructured(in)
 	if err != nil {
 		return fmt.Errorf("failed to convert resource to unstructured: %w", err)
@@ -541,6 +555,11 @@ func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...cli
 // Returns:
 //   - error: nil on success, or an error with context if the operation fails
 func ApplyStatus(ctx context.Context, cli client.Client, in client.Object, opts ...client.SubResourcePatchOption) error {
+	err := EnsureGroupVersionKind(cli.Scheme(), in)
+	if err != nil {
+		return fmt.Errorf("failed to ensure GVK: %w", err)
+	}
+
 	u, err := ToUnstructured(in)
 	if err != nil {
 		return fmt.Errorf("failed to convert resource to unstructured: %w", err)
