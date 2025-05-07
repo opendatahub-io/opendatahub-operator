@@ -112,6 +112,8 @@ const (
 
 	ServerlessOperatorNotInstalledReason  = "ServerlessOperatorNotInstalled"
 	ServerlessOperatorNotInstalledMessage = "Serverless operator must be installed for this component's configuration"
+
+	ServerlessUnsupportedCertMessage = "Serverless certificate type is not supported"
 )
 
 const (

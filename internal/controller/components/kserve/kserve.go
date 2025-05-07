@@ -49,6 +49,7 @@ var (
 	ErrServiceMeshMemberAPINotFound    = odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
 	ErrServiceMeshOperatorNotInstalled = odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
 	ErrServerlessOperatorNotInstalled  = odherrors.NewStopError(status.ServerlessOperatorNotInstalledMessage)
+	ErrServerlessUnsupportedCertType   = odherrors.NewStopError(status.ServerlessUnsupportedCertMessage)
 )
 
 type componentHandler struct{}
