@@ -119,7 +119,7 @@ metadata:
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
       "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io",
-      "feastoperators.components.platform.opendatahub.io"]'
+      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v2.29.0
@@ -176,6 +176,11 @@ spec:
       displayName: Kueue
       kind: Kueue
       name: kueues.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: LlamaStackOperator is the Schema for the LlamaStackOperator API
+      displayName: Llama Stack Operator
+      kind: LlamaStackOperator
+      name: llamastackoperators.components.platform.opendatahub.io
       version: v1alpha1
     - kind: ModelController
       name: modelcontrollers.components.platform.opendatahub.io
@@ -433,6 +438,7 @@ spec:
           - feastoperators
           - kserves
           - kueues
+          - llamastackoperators
           - modelcontrollers
           - modelmeshservings
           - modelregistries
@@ -456,6 +462,7 @@ spec:
           - feastoperators/finalizers
           - kserves/finalizers
           - kueues/finalizers
+          - llamastackoperators/finalizers
           - modelcontrollers/finalizers
           - modelmeshservings/finalizers
           - modelregistries/finalizers
@@ -474,6 +481,7 @@ spec:
           - feastoperators/status
           - kserves/status
           - kueues/status
+          - llamastackoperators/status
           - modelcontrollers/status
           - modelmeshservings/status
           - modelregistries/status
@@ -1305,7 +1313,7 @@ spec:
                   value: /opt/manifests
                 - name: ODH_PLATFORM_TYPE
                   value: OpenDataHub
-                image: REPLACE_IMAGE:latest
+                image: quay.io/opendatahub/opendatahub-operator:latest
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -1377,6 +1385,7 @@ spec:
   - modelregistry
   - feast
   - featurestore
+  - llamastack
   links:
   - name: Open Data Hub
     url: https://opendatahub.io
