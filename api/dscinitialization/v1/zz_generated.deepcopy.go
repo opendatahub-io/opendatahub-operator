@@ -21,8 +21,8 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrastructurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -122,7 +122,7 @@ func (in *DSCInitializationStatus) DeepCopyInto(out *DSCInitializationStatus) {
 	*out = *in
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
-		*out = make([]conditionsv1.Condition, len(*in))
+		*out = make([]common.Condition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}

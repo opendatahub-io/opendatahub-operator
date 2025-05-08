@@ -21,7 +21,7 @@ limitations under the License.
 package v1
 
 import (
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -105,7 +105,7 @@ func (in *FeatureTrackerStatus) DeepCopyInto(out *FeatureTrackerStatus) {
 	*out = *in
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
-		*out = make([]conditionsv1.Condition, len(*in))
+		*out = make([]common.Condition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
