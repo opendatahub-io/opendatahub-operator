@@ -3,34 +3,35 @@ package servicemesh
 import (
 	"errors"
 
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 )
 
-func serviceMeshCondition(reason, message string) *conditionsv1.Condition {
-	return &conditionsv1.Condition{
+func serviceMeshCondition(reason, message string) *common.Condition {
+	return &common.Condition{
 		Type:    status.CapabilityServiceMesh,
-		Status:  corev1.ConditionTrue,
+		Status:  metav1.ConditionTrue,
 		Reason:  reason,
 		Message: message,
 	}
 }
 
-func authorizationCondition(reason, message string) *conditionsv1.Condition {
-	return &conditionsv1.Condition{
+func authorizationCondition(reason, message string) *common.Condition {
+	return &common.Condition{
 		Type:    status.CapabilityServiceMeshAuthorization,
-		Status:  corev1.ConditionTrue,
+		Status:  metav1.ConditionTrue,
 		Reason:  reason,
 		Message: message,
 	}
 }
 
-func createCapabilityReporter(cli client.Client, object *dsciv1.DSCInitialization, successfulCondition *conditionsv1.Condition) *status.Reporter[*dsciv1.DSCInitialization] {
+func createCapabilityReporter(cli client.Client, object *dsciv1.DSCInitialization, successfulCondition *common.Condition) *status.Reporter[*dsciv1.DSCInitialization] {
 	return status.NewStatusReporter(
 		cli,
 		object,
@@ -38,7 +39,7 @@ func createCapabilityReporter(cli client.Client, object *dsciv1.DSCInitializatio
 			return func(saved *dsciv1.DSCInitialization) {
 				actualCondition := successfulCondition.DeepCopy()
 				if err != nil {
-					actualCondition.Status = corev1.ConditionFalse
+					actualCondition.Status = metav1.ConditionFalse
 					actualCondition.Message = err.Error()
 					actualCondition.Reason = status.CapabilityFailed
 					var missingOperatorErr *feature.MissingOperatorError
@@ -46,7 +47,7 @@ func createCapabilityReporter(cli client.Client, object *dsciv1.DSCInitializatio
 						actualCondition.Reason = status.MissingOperatorReason
 					}
 				}
-				conditionsv1.SetStatusCondition(&saved.Status.Conditions, *actualCondition)
+				cond.SetStatusCondition(&saved.Status, *actualCondition)
 			}
 		},
 	)

@@ -69,7 +69,6 @@ const (
 
 // +kubebuilder:object:generate=true
 type Condition struct {
-
 	// type of condition in CamelCase or in foo.example.com/CamelCase.
 	//
 	// +required
