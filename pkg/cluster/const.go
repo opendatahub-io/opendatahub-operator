@@ -10,8 +10,10 @@ const (
 	// OpenDataHub defines display name in csv.
 	OpenDataHub common.Platform = "Open Data Hub"
 
-	// DefaultNotebooksNamespace defines default namespace for notebooks.
-	DefaultNotebooksNamespace = "rhods-notebooks"
+	// DefaultNotebooksNamespaceODH defines default namespace for notebooks.
+	DefaultNotebooksNamespaceODH = "opendatahub"
+	// DefaultNotebooksNamespaceRHOAI defines default namespace for notebooks.
+	DefaultNotebooksNamespaceRHOAI = "rhods-notebooks"
 
 	// Default cluster-scope Authentication CR name.
 	ClusterAuthenticationObj = "cluster"
