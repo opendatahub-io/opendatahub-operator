@@ -67,7 +67,7 @@ var managementStateChangeTrustedCA = false
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct {
-	client.Client
+	Client   client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 }
@@ -104,11 +104,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
-	if instance.ObjectMeta.DeletionTimestamp.IsZero() {
+	if instance.DeletionTimestamp.IsZero() {
 		if !controllerutil.ContainsFinalizer(instance, finalizerName) {
 			log.Info("Adding finalizer for DSCInitialization", "name", instance.Name, "finalizer", finalizerName)
 			controllerutil.AddFinalizer(instance, finalizerName)
-			if err := r.Update(ctx, instance); err != nil {
+			if err := r.Client.Update(ctx, instance); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -125,7 +125,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 			if controllerutil.ContainsFinalizer(newInstance, finalizerName) {
 				controllerutil.RemoveFinalizer(newInstance, finalizerName)
-				if err := r.Update(ctx, newInstance); err != nil {
+				if err := r.Client.Update(ctx, newInstance); err != nil {
 					return err
 				}
 			}
@@ -225,24 +225,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		return ctrl.Result{}, nil
 	default:
-		createUsergroup, err := cluster.IsDefaultAuthMethod(ctx, r.Client)
-		if err != nil && !k8serr.IsNotFound(err) { // only keep reconcile if real error but not missing CRD or missing CR
-			return ctrl.Result{}, err
-		}
-
 		switch platform {
 		case cluster.SelfManagedRhoai:
-			// Check if user opted for disabling creating user groups
-			if !createUsergroup {
-				log.Info("DSCI disabled usergroup creation")
-			} else {
-				if err := r.createUserGroup(ctx, instance, "rhods-admins"); err != nil {
-					return reconcile.Result{}, err
-				}
-			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
-				if err := r.configureSegmentIO(ctx, instance); err != nil {
+				if err = r.configureSegmentIO(ctx, instance); err != nil {
 					return reconcile.Result{}, err
 				}
 			}
@@ -254,26 +241,18 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 				return reconcile.Result{}, err
 			}
-			// TODO: till we allow user to disable Monitoring in Managed clsuter
+			// TODO: till we allow user to disable Monitoring in Managed cluster
 			log.Info("Monitoring enabled in initialization stage", "cluster", "Managed Service Mode")
-			if err := r.newMonitoringCR(ctx, instance); err != nil {
+			if err = r.newMonitoringCR(ctx, instance); err != nil {
 				return ctrl.Result{}, err
 			}
-			if err := r.configureManagedMonitoring(ctx, instance, "init"); err != nil {
+			if err = r.configureManagedMonitoring(ctx, instance, "init"); err != nil {
 				return reconcile.Result{}, err
 			}
 			if err = r.configureCommonMonitoring(ctx, instance); err != nil {
 				return reconcile.Result{}, err
 			}
 		default:
-			// Check if user opted for disabling creating user groups
-			if !createUsergroup {
-				log.Info("DSCI disabled usergroup creation")
-			} else {
-				if err := r.createUserGroup(ctx, instance, "odh-admins"); err != nil {
-					return reconcile.Result{}, err
-				}
-			}
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
 			}
@@ -283,7 +262,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if errServiceMesh := r.configureServiceMesh(ctx, instance); errServiceMesh != nil {
 			return reconcile.Result{}, errServiceMesh
 		}
-
+		// Create Auth
 		if err = r.createAuth(ctx, instance); err != nil {
 			log.Info("failed to create Auth")
 			return ctrl.Result{}, err

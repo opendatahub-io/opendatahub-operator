@@ -9,7 +9,6 @@ import (
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	userv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -75,7 +74,7 @@ func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, d
 	ns := &corev1.Namespace{}
 	dsciNsName := dscInit.Spec.ApplicationsNamespace
 
-	if err := r.List(ctx, nsList, client.MatchingLabels{
+	if err := r.Client.List(ctx, nsList, client.MatchingLabels{
 		labels.CustomizedAppNamespace: labels.True,
 	}); err != nil {
 		return err
@@ -89,7 +88,7 @@ func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, d
 				Name: dsciNsName,
 			},
 		}
-		if err := r.Get(ctx, client.ObjectKeyFromObject(desiredAppNS), ns); err != nil {
+		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(desiredAppNS), ns); err != nil {
 			if !k8serr.IsNotFound(err) {
 				return err
 			}
@@ -307,7 +306,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(
 		// updates the resource version field
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			// Get the last route revision
-			if err := r.Get(ctx, types.NamespacedName{
+			if err := r.Client.Get(ctx, types.NamespacedName{
 				Name:      desiredNetworkPolicy.Name,
 				Namespace: desiredNetworkPolicy.Namespace,
 			}, foundNetworkPolicy); err != nil {
@@ -315,8 +314,8 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(
 			}
 			// Reconcile labels and spec field
 			foundNetworkPolicy.Spec = desiredNetworkPolicy.Spec
-			foundNetworkPolicy.ObjectMeta.Labels = desiredNetworkPolicy.ObjectMeta.Labels
-			return r.Update(ctx, foundNetworkPolicy)
+			foundNetworkPolicy.Labels = desiredNetworkPolicy.Labels
+			return r.Client.Update(ctx, foundNetworkPolicy)
 		})
 		if err != nil {
 			log.Error(err, "Unable to reconcile the Network Policy")
@@ -329,7 +328,7 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(
 // CompareNotebookNetworkPolicies checks if two services are equal, if not return false.
 func CompareNotebookNetworkPolicies(np1 networkingv1.NetworkPolicy, np2 networkingv1.NetworkPolicy) bool {
 	// Two network policies will be equal if the labels and specs are identical
-	return reflect.DeepEqual(np1.ObjectMeta.Labels, np2.ObjectMeta.Labels) &&
+	return reflect.DeepEqual(np1.Labels, np2.Labels) &&
 		reflect.DeepEqual(np1.Spec, np2.Spec)
 }
 
@@ -363,23 +362,4 @@ func GenerateRandomHex(length int) ([]byte, error) {
 	}
 
 	return randomBytes, nil
-}
-
-func (r *DSCInitializationReconciler) createUserGroup(ctx context.Context, dscInit *dsciv1.DSCInitialization, userGroupName string) error {
-	userGroup := &userv1.Group{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: userGroupName,
-			// Otherwise it errors with  "error": "an empty namespace may not be set during creation"
-			Namespace: dscInit.Spec.ApplicationsNamespace,
-		},
-		// Otherwise is errors with "error": "Group.user.openshift.io \"odh-admins\" is invalid: users: Invalid value: \"null\": users in body must be of type array: \"null\""}
-		Users: []string{},
-	}
-
-	err := r.Client.Create(ctx, userGroup)
-	if err != nil && !k8serr.IsAlreadyExists(err) {
-		return err
-	}
-
-	return nil
 }
