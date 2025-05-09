@@ -83,10 +83,6 @@ func TestNewSecret(t *testing.T) {
 				assert.Equal(t, tt.complexity, secret.Complexity)
 				assert.NotEmpty(t, secret.Value)
 				assert.True(t, base64Regex.MatchString(secret.Value), "Secret value should be base64 encoded")
-				actualSize := len(secret.Value)
-				// A more precise size check after base64 encoding is complex due to padding.
-				// We'll focus on ensuring it's a non-empty base64 string and its decoded length is reasonable.
-				_ = actualSize // To avoid "unused variable" warning
 			}
 		})
 	}
