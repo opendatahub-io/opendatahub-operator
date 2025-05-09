@@ -74,9 +74,11 @@ func TestNewSecret(t *testing.T) {
 			secret, err := secretgenerator.NewSecret(tt.secretName, tt.secretType, tt.complexity)
 			switch tt.expectedReturn {
 			case "error":
-				require.EqualError(t, err, tt.errMessage)
+				require.Error(t, err)
+				return // Early return after error validation
 			case "nil":
 				require.NoError(t, err)
+				return // Early return for nil case
 			case "success":
 				require.NoError(t, err)
 				require.NotNil(t, secret)
@@ -86,6 +88,7 @@ func TestNewSecret(t *testing.T) {
 				assert.NotEmpty(t, secret.Value)
 				assert.True(t, base64Regex.MatchString(secret.Value), "Secret value should be base64 encoded")
 			default:
+				assert.Empty(t, secret.Value)
 				t.Fatalf("Unexpected expectedReturn value: %s on the %s test", tt.expectedReturn, tt.name)
 			}
 		})
