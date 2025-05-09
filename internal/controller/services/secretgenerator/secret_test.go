@@ -2,12 +2,13 @@ package secretgenerator_test
 
 import (
 	"errors"
-	"math"
 	"regexp"
 	"testing"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/secretgenerator"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/secretgenerator"
 )
 
 // Secret represents a secret with a name, type, complexity, and value.
@@ -59,21 +60,16 @@ func TestNewSecret(t *testing.T) {
 			secret, err := secretgenerator.NewSecret(tt.secretName, tt.secretType, tt.complexity)
 
 			if tt.expectError {
-				assert.Error(t, err)
-				assert.Nil(t, secret)
+				require.Error(t, err)
+				require.Nil(t, secret)
 			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, secret)
+				require.NoError(t, err)
+				require.NotNil(t, secret)
 				assert.Equal(t, tt.secretName, secret.Name)
 				assert.Equal(t, tt.secretType, secret.Type)
 				assert.Equal(t, tt.complexity, secret.Complexity)
 				assert.NotEmpty(t, secret.Value)
 				assert.True(t, base64Regex.MatchString(secret.Value), "Secret value should be base64 encoded")
-
-				expectedSize := DefaultSecretSize * int(math.Ceil(float64(tt.complexity)/2.0))
-				if expectedSize <= 0 {
-					expectedSize = DefaultSecretSize
-				}
 				actualSize := len(secret.Value)
 				// A more precise size check after base64 encoding is complex due to padding.
 				// We'll focus on ensuring it's a non-empty base64 string and its decoded length is reasonable.
