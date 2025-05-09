@@ -28,7 +28,7 @@ func TestNewSecret(t *testing.T) {
 		secretName     string
 		secretType     string
 		complexity     int
-		expectedReturn string
+		expectedResult string
 		errMessage     string
 	}{
 		{
@@ -36,21 +36,21 @@ func TestNewSecret(t *testing.T) {
 			secretName:     "my-secret",
 			secretType:     "random",
 			complexity:     1,
-			expectedReturn: "success",
+			expectedResult: "success",
 		},
 		{
 			name:           "oauth case",
 			secretName:     "another-secret",
 			secretType:     "oauth",
 			complexity:     1,
-			expectedReturn: "success",
+			expectedResult: "success",
 		},
 		{
 			name:           "unsupported secret type",
 			secretName:     "my-secret",
 			secretType:     "·%$@&?",
 			complexity:     1,
-			expectedReturn: "error",
+			expectedResult: "error",
 			errMessage:     errUnsupportedType,
 		},
 		{
@@ -58,21 +58,21 @@ func TestNewSecret(t *testing.T) {
 			secretName:     "my-secret",
 			secretType:     "random",
 			complexity:     0,
-			expectedReturn: "nil",
+			expectedResult: "nil",
 		},
 		{
 			name:           "empty name",
 			secretName:     "",
 			secretType:     "random",
 			complexity:     1,
-			expectedReturn: "success",
+			expectedResult: "success",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			secret, err := secretgenerator.NewSecret(tt.secretName, tt.secretType, tt.complexity)
-			switch tt.expectedReturn {
+			switch tt.expectedResult {
 			case "error":
 				require.Error(t, err)
 				return // Early return after error validation
@@ -89,7 +89,7 @@ func TestNewSecret(t *testing.T) {
 				assert.True(t, base64Regex.MatchString(secret.Value), "Secret value should be base64 encoded")
 			default:
 				assert.Empty(t, secret.Value)
-				t.Fatalf("Unexpected expectedReturn value: %s on the %s test", tt.expectedReturn, tt.name)
+				t.Fatalf("Unexpected expectedResult value: %s on the %s test", tt.expectedResult, tt.name)
 			}
 		})
 	}
