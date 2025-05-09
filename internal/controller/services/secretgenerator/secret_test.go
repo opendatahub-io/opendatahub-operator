@@ -77,7 +77,6 @@ func TestNewSecret(t *testing.T) {
 				require.EqualError(t, err, tt.errMessage)
 			case "nil":
 				require.NoError(t, err)
-				require.NoError(t, err)
 			case "success":
 				require.NoError(t, err)
 				require.NotNil(t, secret)
