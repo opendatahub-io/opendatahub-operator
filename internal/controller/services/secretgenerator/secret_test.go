@@ -25,52 +25,44 @@ var (
 
 func TestNewSecret(t *testing.T) {
 	tests := []struct {
-		name        string
-		secretName  string
-		secretType  string
-		complexity  int
-		expectError bool
-		expectNil   bool
+		name         string
+		secretName   string
+		secretType   string
+		complexity   int
+		expectReturn string
 	}{
 		{
-			name:        "random case",
-			secretName:  "my-secret",
-			secretType:  "random",
-			complexity:  1,
-			expectError: false,
-			expectNil:   false,
+			name:       "random case",
+			secretName: "my-secret",
+			secretType: "random",
+			complexity: 1,
 		},
 		{
-			name:        "oauth case",
-			secretName:  "another-secret",
-			secretType:  "oauth",
-			complexity:  1,
-			expectError: false,
-			expectNil:   false,
+			name:       "oauth case",
+			secretName: "another-secret",
+			secretType: "oauth",
+			complexity: 1,
 		},
 		{
-			name:        "unsupported type",
-			secretName:  "my-secret",
-			secretType:  "·%$%&%",
-			complexity:  1,
-			expectError: true,
-			expectNil:   false,
+			name:         "unsupported type",
+			secretName:   "my-secret",
+			secretType:   "·%$%&%",
+			complexity:   1,
+			expectReturn: "err",
 		},
 		{
-			name:        "zero complexity",
-			secretName:  "my-secret",
-			secretType:  "random",
-			complexity:  0,
-			expectError: false,
-			expectNil:   true,
+			name:         "zero complexity",
+			secretName:   "my-secret",
+			secretType:   "random",
+			complexity:   0,
+			expectReturn: "nil",
 		},
 		{
-			name:        "empty name",
-			secretName:  "",
-			secretType:  "random",
-			complexity:  1,
-			expectError: false,
-			expectNil:   true,
+			name:         "empty name",
+			secretName:   "",
+			secretType:   "random",
+			complexity:   1,
+			expectReturn: "nil",
 		},
 	}
 
@@ -78,11 +70,12 @@ func TestNewSecret(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			secret, err := secretgenerator.NewSecret(tt.secretName, tt.secretType, tt.complexity)
 
-			if tt.expectError {
+			switch tt.expectReturn {
+			case "err":
 				require.Error(t, err)
-			} else if tt.expectNil {
-				require.Nil(t, err)
-			} else {
+			case "nil":
+				require.NoError(t, err)
+			default:
 				require.NoError(t, err)
 				require.NotNil(t, secret)
 				assert.Equal(t, tt.secretName, secret.Name)
