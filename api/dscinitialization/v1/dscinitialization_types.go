@@ -20,7 +20,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -92,7 +91,7 @@ type DSCInitializationStatus struct {
 
 	// Conditions describes the state of the DSCInitializationStatus resource
 	// +optional
-	Conditions []conditionsv1.Condition `json:"conditions,omitempty"`
+	Conditions []common.Condition `json:"conditions,omitempty"`
 
 	// RelatedObjects is a list of objects created and maintained by this operator.
 	// Object references will be added to this list after they have been created AND found in the cluster
@@ -102,6 +101,16 @@ type DSCInitializationStatus struct {
 
 	// Version and release type
 	Release common.Release `json:"release,omitempty"`
+}
+
+// GetConditions returns the conditions slice
+func (d *DSCInitializationStatus) GetConditions() []common.Condition {
+	return d.Conditions
+}
+
+// SetConditions sets the conditions slice
+func (d *DSCInitializationStatus) SetConditions(conditions []common.Condition) {
+	d.Conditions = conditions
 }
 
 //+kubebuilder:object:root=true

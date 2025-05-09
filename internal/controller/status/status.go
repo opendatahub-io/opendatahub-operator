@@ -19,9 +19,24 @@ limitations under the License.
 package status
 
 import (
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 )
+
+// conditionsWrapper implements common.ConditionsAccessor for a slice of conditions.
+type conditionsWrapper struct {
+	conditions *[]common.Condition
+}
+
+func (w *conditionsWrapper) GetConditions() []common.Condition {
+	return *w.conditions
+}
+
+func (w *conditionsWrapper) SetConditions(conditions []common.Condition) {
+	*w.conditions = conditions
+}
 
 // These constants represent the overall Phase as used by .Status.Phase.
 const (
@@ -60,13 +75,23 @@ const (
 	ReconcileCompleted                    = "ReconcileCompleted"
 	ReconcileCompletedWithComponentErrors = "ReconcileCompletedWithComponentErrors"
 	ReconcileCompletedMessage             = "Reconcile completed successfully"
-
-	// ConditionReconcileComplete represents extra Condition Type, used by .Condition.Type.
-	ConditionReconcileComplete conditionsv1.ConditionType = "ReconcileComplete"
 )
 
 const (
-	ConditionTypeReady                     = "Ready"
+	// ConditionTypeAvailable indicates whether the resource is available.
+	ConditionTypeAvailable = "Available"
+	// ConditionTypeProgressing indicates whether the resource is progressing.
+	ConditionTypeProgressing = "Progressing"
+	// ConditionTypeDegraded indicates whether the resource is degraded.
+	ConditionTypeDegraded = "Degraded"
+	// ConditionTypeUpgradeable indicates whether the resource is upgradeable.
+	ConditionTypeUpgradeable = "Upgradeable"
+	// ConditionTypeReady indicates whether the resource is ready.
+	ConditionTypeReady = "Ready"
+	// ConditionTypeReconcileComplete indicates whether reconciliation is complete.
+	ConditionTypeReconcileComplete = "ReconcileComplete"
+
+	// Component-specific condition types.
 	ConditionTypeProvisioningSucceeded     = "ProvisioningSucceeded"
 	ConditionDeploymentsNotAvailableReason = "DeploymentsNotReady"
 	ConditionDeploymentsAvailable          = "DeploymentsAvailable"
@@ -78,9 +103,9 @@ const (
 )
 
 const (
-	CapabilityServiceMesh              conditionsv1.ConditionType = "CapabilityServiceMesh"
-	CapabilityServiceMeshAuthorization conditionsv1.ConditionType = "CapabilityServiceMeshAuthorization"
-	CapabilityDSPv2Argo                conditionsv1.ConditionType = "CapabilityDSPv2Argo"
+	CapabilityServiceMesh              string = "CapabilityServiceMesh"
+	CapabilityServiceMeshAuthorization string = "CapabilityServiceMeshAuthorization"
+	CapabilityDSPv2Argo                string = "CapabilityDSPv2Argo"
 )
 
 const (
@@ -135,116 +160,133 @@ const (
 	ISVCMissingCRDMessage = "InferenceServices CRD does not exist, please enable serving component first"
 )
 
+// setConditions is a helper function to set multiple conditions at once.
+func setConditions(wrapper *conditionsWrapper, conditions []common.Condition) {
+	for _, c := range conditions {
+		cond.SetStatusCondition(wrapper, c)
+	}
+}
+
 // SetProgressingCondition sets the ProgressingCondition to True and other conditions to false or
 // Unknown. Used when we are just starting to reconcile, and there are no existing conditions.
-func SetProgressingCondition(conditions *[]conditionsv1.Condition, reason string, message string) {
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    ConditionReconcileComplete,
-		Status:  corev1.ConditionUnknown,
-		Reason:  reason,
-		Message: message,
-	})
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionAvailable,
-		Status:  corev1.ConditionFalse,
-		Reason:  reason,
-		Message: message,
-	})
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionProgressing,
-		Status:  corev1.ConditionTrue,
-		Reason:  reason,
-		Message: message,
-	})
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionDegraded,
-		Status:  corev1.ConditionFalse,
-		Reason:  reason,
-		Message: message,
-	})
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionUpgradeable,
-		Status:  corev1.ConditionUnknown,
-		Reason:  reason,
-		Message: message,
+func SetProgressingCondition(conditions *[]common.Condition, reason string, message string) {
+	wrapper := &conditionsWrapper{conditions: conditions}
+	setConditions(wrapper, []common.Condition{
+		{
+			Type:    ConditionTypeReconcileComplete,
+			Status:  metav1.ConditionUnknown,
+			Reason:  reason,
+			Message: message,
+		},
+		{
+			Type:    ConditionTypeAvailable,
+			Status:  metav1.ConditionFalse,
+			Reason:  reason,
+			Message: message,
+		},
+		{
+			Type:    ConditionTypeProgressing,
+			Status:  metav1.ConditionTrue,
+			Reason:  reason,
+			Message: message,
+		},
+		{
+			Type:    ConditionTypeDegraded,
+			Status:  metav1.ConditionFalse,
+			Reason:  reason,
+			Message: message,
+		},
+		{
+			Type:    ConditionTypeUpgradeable,
+			Status:  metav1.ConditionUnknown,
+			Reason:  reason,
+			Message: message,
+		},
 	})
 }
 
-// SetErrorCondition sets the ConditionReconcileComplete to False in case of any errors
+// SetErrorCondition sets the ConditionTypeReconcileComplete to False in case of any errors
 // during the reconciliation process.
-func SetErrorCondition(conditions *[]conditionsv1.Condition, reason string, message string) {
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    ConditionReconcileComplete,
-		Status:  corev1.ConditionFalse,
-		Reason:  reason,
-		Message: message,
-	})
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionAvailable,
-		Status:  corev1.ConditionFalse,
-		Reason:  reason,
-		Message: message,
-	})
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionProgressing,
-		Status:  corev1.ConditionFalse,
-		Reason:  reason,
-		Message: message,
-	})
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionDegraded,
-		Status:  corev1.ConditionTrue,
-		Reason:  reason,
-		Message: message,
-	})
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionUpgradeable,
-		Status:  corev1.ConditionFalse,
-		Reason:  reason,
-		Message: message,
+func SetErrorCondition(conditions *[]common.Condition, reason string, message string) {
+	wrapper := &conditionsWrapper{conditions: conditions}
+	setConditions(wrapper, []common.Condition{
+		{
+			Type:    ConditionTypeReconcileComplete,
+			Status:  metav1.ConditionFalse,
+			Reason:  reason,
+			Message: message,
+		},
+		{
+			Type:    ConditionTypeAvailable,
+			Status:  metav1.ConditionFalse,
+			Reason:  reason,
+			Message: message,
+		},
+		{
+			Type:    ConditionTypeProgressing,
+			Status:  metav1.ConditionFalse,
+			Reason:  reason,
+			Message: message,
+		},
+		{
+			Type:    ConditionTypeDegraded,
+			Status:  metav1.ConditionTrue,
+			Reason:  reason,
+			Message: message,
+		},
+		{
+			Type:    ConditionTypeUpgradeable,
+			Status:  metav1.ConditionFalse,
+			Reason:  reason,
+			Message: message,
+		},
 	})
 }
 
-// SetCompleteCondition sets the ConditionReconcileComplete to True and other Conditions
+// SetCompleteCondition sets the ConditionTypeReconcileComplete to True and other Conditions
 // to indicate that the reconciliation process has completed successfully.
-func SetCompleteCondition(conditions *[]conditionsv1.Condition, reason string, message string) {
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    ConditionReconcileComplete,
-		Status:  corev1.ConditionTrue,
-		Reason:  reason,
-		Message: message,
+func SetCompleteCondition(conditions *[]common.Condition, reason string, message string) {
+	wrapper := &conditionsWrapper{conditions: conditions}
+	setConditions(wrapper, []common.Condition{
+		{
+			Type:    ConditionTypeReconcileComplete,
+			Status:  metav1.ConditionTrue,
+			Reason:  reason,
+			Message: message,
+		},
+		{
+			Type:    ConditionTypeAvailable,
+			Status:  metav1.ConditionTrue,
+			Reason:  reason,
+			Message: message,
+		},
+		{
+			Type:    ConditionTypeProgressing,
+			Status:  metav1.ConditionFalse,
+			Reason:  reason,
+			Message: message,
+		},
+		{
+			Type:    ConditionTypeDegraded,
+			Status:  metav1.ConditionFalse,
+			Reason:  reason,
+			Message: message,
+		},
+		{
+			Type:    ConditionTypeUpgradeable,
+			Status:  metav1.ConditionTrue,
+			Reason:  reason,
+			Message: message,
+		},
 	})
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionAvailable,
-		Status:  corev1.ConditionTrue,
-		Reason:  reason,
-		Message: message,
-	})
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionProgressing,
-		Status:  corev1.ConditionFalse,
-		Reason:  reason,
-		Message: message,
-	})
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionDegraded,
-		Status:  corev1.ConditionFalse,
-		Reason:  reason,
-		Message: message,
-	})
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionUpgradeable,
-		Status:  corev1.ConditionTrue,
-		Reason:  reason,
-		Message: message,
-	})
-	conditionsv1.RemoveStatusCondition(conditions, CapabilityDSPv2Argo)
+	cond.RemoveStatusCondition(wrapper, CapabilityDSPv2Argo)
 }
 
 // SetCondition is a general purpose function to update any type of condition.
-func SetCondition(conditions *[]conditionsv1.Condition, conditionType string, reason string, message string, status corev1.ConditionStatus) {
-	conditionsv1.SetStatusCondition(conditions, conditionsv1.Condition{
-		Type:    conditionsv1.ConditionType(conditionType),
+func SetCondition(conditions *[]common.Condition, conditionType string, reason string, message string, status metav1.ConditionStatus) {
+	wrapper := &conditionsWrapper{conditions: conditions}
+	cond.SetStatusCondition(wrapper, common.Condition{
+		Type:    conditionType,
 		Status:  status,
 		Reason:  reason,
 		Message: message,

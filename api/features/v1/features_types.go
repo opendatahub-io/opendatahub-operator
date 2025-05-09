@@ -1,7 +1,7 @@
 package v1
 
 import (
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -90,7 +90,7 @@ type FeatureTrackerStatus struct {
 	// This is used by OLM UI to provide status information to the user.
 	Phase string `json:"phase,omitempty"`
 	// +optional
-	Conditions []conditionsv1.Condition `json:"conditions,omitempty"`
+	Conditions []common.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
