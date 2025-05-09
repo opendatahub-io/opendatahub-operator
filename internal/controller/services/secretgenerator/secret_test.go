@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	base64Regex = regexp.MustCompile("^[A-Za-z0-9+/]*={0,2}$")
+	base64Regex = regexp.MustCompile("^[A-Za-z0-9+/]*={0,3}$")
 )
 
 func TestNewSecret(t *testing.T) {
