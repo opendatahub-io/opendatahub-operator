@@ -11,20 +11,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/secretgenerator"
 )
 
-// Secret represents a secret with a name, type, complexity, and value.
-type Secret struct {
-	Name       string
-	Type       string
-	Complexity int
-	Value      string
-}
-
 const (
 	errEmptyAnnotation        = "secret annotations is empty"
 	errNameAnnotationNotFound = "name annotation not found in secret"
 	errTypeAnnotationNotFound = "type annotation not found in secret"
 	errUnsupportedType        = "secret type is not supported"
-	DefaultSecretSize         = 32
+	DefaultSecretSize         = secretgenerator.SECRET_DEFAULT_COMPLEXITY
 )
 
 var (
@@ -38,6 +30,7 @@ func TestNewSecret(t *testing.T) {
 		secretType  string
 		complexity  int
 		expectError bool
+		expectNil   bool
 	}{
 		{
 			name:        "random case",
@@ -45,13 +38,39 @@ func TestNewSecret(t *testing.T) {
 			secretType:  "random",
 			complexity:  1,
 			expectError: false,
+			expectNil:   false,
 		},
 		{
 			name:        "oauth case",
 			secretName:  "another-secret",
+			secretType:  "oauth",
+			complexity:  1,
+			expectError: false,
+			expectNil:   false,
+		},
+		{
+			name:        "unsupported type",
+			secretName:  "my-secret",
+			secretType:  "·%$%&%",
+			complexity:  1,
+			expectError: true,
+			expectNil:   false,
+		},
+		{
+			name:        "zero complexity",
+			secretName:  "my-secret",
+			secretType:  "random",
+			complexity:  0,
+			expectError: false,
+			expectNil:   true,
+		},
+		{
+			name:        "empty name",
+			secretName:  "",
 			secretType:  "random",
 			complexity:  1,
 			expectError: false,
+			expectNil:   true,
 		},
 	}
 
@@ -61,7 +80,8 @@ func TestNewSecret(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				require.Nil(t, secret)
+			} else if tt.expectNil {
+				require.Nil(t, err)
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, secret)
