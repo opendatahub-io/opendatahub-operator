@@ -24,12 +24,12 @@ var (
 
 func TestNewSecret(t *testing.T) {
 	tests := []struct {
-		name           string
-		secretName     string
-		secretType     string
-		complexity     int
-		expectedResult string
-		errMessage     string
+		name               string
+		secretName         string
+		secretType         string
+		complexity         int
+		expectedResult     string
+		expectedErrMessage string
 	}{
 		{
 			name:           "random case",
@@ -46,12 +46,12 @@ func TestNewSecret(t *testing.T) {
 			expectedResult: "success",
 		},
 		{
-			name:           "unsupported secret type",
-			secretName:     "my-secret",
-			secretType:     "·%$@&?",
-			complexity:     1,
-			expectedResult: "error",
-			errMessage:     errUnsupportedType,
+			name:               "unsupported secret type",
+			secretName:         "my-secret",
+			secretType:         "·%$@&?",
+			complexity:         1,
+			expectedResult:     "error",
+			expectedErrMessage: errUnsupportedType,
 		},
 		{
 			name:           "zero complexity",
