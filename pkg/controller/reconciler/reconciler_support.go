@@ -281,7 +281,7 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 	r.AddAction(
 		newDynamicWatchAction(
 			func(obj client.Object, eventHandler handler.EventHandler, predicates ...predicate.Predicate) error {
-				return cc.Watch(source.Kind(b.mgr.GetCache(), obj), eventHandler, predicates...)
+				return cc.Watch(source.Kind(b.mgr.GetCache(), obj, eventHandler, predicates...))
 			},
 			b.watches,
 		),
