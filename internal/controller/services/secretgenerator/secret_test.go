@@ -51,7 +51,7 @@ func TestNewSecret(t *testing.T) {
 			secretType:     "·%$@&?",
 			complexity:     1,
 			expectedReturn: "error",
-			errMessage:     "secret type is not supported",
+			errMessage:     errUnsupportedType,
 		},
 		{
 			name:           "zero complexity",
