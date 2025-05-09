@@ -15,11 +15,7 @@ import (
 	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
-const envVarName = "ZAP_LOG_LEVEL"
-
-var defaultLogLevel = zap.InfoLevel
-
-var logLevel atomic.Value
+var currentLogLevel atomic.Value
 
 // copy from controller-runtime/pkg/log/zap/flag.go.
 var levelStrings = map[string]zapcore.Level{
@@ -55,10 +51,9 @@ func SetLevel(levelStr string) error {
 		return err
 	}
 
-	// ctrlzap.addDefauls() uses a pointer to the AtomicLevel,
-	// but ctrlzap.(*levelFlag).Set() the structure itsef.
-	// So use the structure and always set the value in newOptions() to addDefaults() call
-	level, ok := logLevel.Load().(zap.AtomicLevel)
+	// We must be sure that ctrlzap.Options.Level is not nil when addDefaults() is called
+	// because otherwise ctrlzap.addDefaults() will set the log level to an AtomicLevel we don't have a reference to
+	level, ok := currentLogLevel.Load().(zap.AtomicLevel)
 	if !ok {
 		return errors.New("stored loglevel is not of type *zap.AtomicLevel")
 	}
@@ -67,28 +62,15 @@ func SetLevel(levelStr string) error {
 	return nil
 }
 
-func levelFromEnvOrDefault() zapcore.Level {
-	levelStr := os.Getenv(envVarName)
-	if levelStr == "" {
-		return defaultLogLevel
-	}
-	level, err := stringToLevel(levelStr)
-	if err != nil {
-		return defaultLogLevel
-	}
-	return level
-}
-
 func NewLogger(mode string, override *ctrlzap.Options) logr.Logger {
-	opts := newOptions(mode, levelFromEnvOrDefault())
+	opts := newBaseOptionsFromMode(mode)
 	overrideOptions(opts, override)
-	logLevel.Store(opts.Level)
+	currentLogLevel.Store(opts.Level)
 	return ctrlzap.New(ctrlzap.UseFlagOptions(opts))
 }
 
-func newOptions(mode string, defaultLevel zapcore.Level) *ctrlzap.Options {
+func newBaseOptionsFromMode(mode string) *ctrlzap.Options {
 	var opts ctrlzap.Options
-	level := zap.NewAtomicLevelAt(defaultLevel)
 
 	switch mode {
 	case "devel", "development": //  the most logging verbosity
@@ -121,7 +103,6 @@ func newOptions(mode string, defaultLevel zapcore.Level) *ctrlzap.Options {
 		}
 	}
 
-	opts.Level = level
 	return &opts
 }
 
