@@ -75,6 +75,7 @@ func TestNewSecret(t *testing.T) {
 			switch tt.expectedResult {
 			case "error":
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErrMessage)
 				return // Early return after error validation
 			case "nil":
 				require.NoError(t, err)
