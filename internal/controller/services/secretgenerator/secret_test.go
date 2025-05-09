@@ -16,7 +16,6 @@ const (
 	errNameAnnotationNotFound = "name annotation not found in secret"
 	errTypeAnnotationNotFound = "type annotation not found in secret"
 	errUnsupportedType        = "secret type is not supported"
-	DefaultSecretSize         = secretgenerator.SECRET_DEFAULT_COMPLEXITY
 )
 
 var (
@@ -25,57 +24,61 @@ var (
 
 func TestNewSecret(t *testing.T) {
 	tests := []struct {
-		name         string
-		secretName   string
-		secretType   string
-		complexity   int
-		expectReturn string
+		name           string
+		secretName     string
+		secretType     string
+		complexity     int
+		expectedReturn string
+		errMessage     string
 	}{
 		{
-			name:       "random case",
-			secretName: "my-secret",
-			secretType: "random",
-			complexity: 1,
+			name:           "random case",
+			secretName:     "my-secret",
+			secretType:     "random",
+			complexity:     1,
+			expectedReturn: "success",
 		},
 		{
-			name:       "oauth case",
-			secretName: "another-secret",
-			secretType: "oauth",
-			complexity: 1,
+			name:           "oauth case",
+			secretName:     "another-secret",
+			secretType:     "oauth",
+			complexity:     1,
+			expectedReturn: "success",
 		},
 		{
-			name:         "unsupported type",
-			secretName:   "my-secret",
-			secretType:   "·%$%&%",
-			complexity:   1,
-			expectReturn: "err",
+			name:           "unsupported secret type",
+			secretName:     "my-secret",
+			secretType:     "·%$@&?",
+			complexity:     1,
+			expectedReturn: "error",
+			errMessage:     "secret type is not supported",
 		},
 		{
-			name:         "zero complexity",
-			secretName:   "my-secret",
-			secretType:   "random",
-			complexity:   0,
-			expectReturn: "nil",
+			name:           "zero complexity",
+			secretName:     "my-secret",
+			secretType:     "random",
+			complexity:     0,
+			expectedReturn: "nil",
 		},
 		{
-			name:         "empty name",
-			secretName:   "",
-			secretType:   "random",
-			complexity:   1,
-			expectReturn: "nil",
+			name:           "empty name",
+			secretName:     "",
+			secretType:     "random",
+			complexity:     1,
+			expectedReturn: "success",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			secret, err := secretgenerator.NewSecret(tt.secretName, tt.secretType, tt.complexity)
-
-			switch tt.expectReturn {
-			case "err":
-				require.Error(t, err)
+			switch tt.expectedReturn {
+			case "error":
+				require.EqualError(t, err, tt.errMessage)
 			case "nil":
 				require.NoError(t, err)
-			default:
+				require.NoError(t, err)
+			case "success":
 				require.NoError(t, err)
 				require.NotNil(t, secret)
 				assert.Equal(t, tt.secretName, secret.Name)
@@ -83,6 +86,8 @@ func TestNewSecret(t *testing.T) {
 				assert.Equal(t, tt.complexity, secret.Complexity)
 				assert.NotEmpty(t, secret.Value)
 				assert.True(t, base64Regex.MatchString(secret.Value), "Secret value should be base64 encoded")
+			default:
+				t.Fatalf("Unexpected expectedReturn value: %s on the %s test", tt.expectedReturn, tt.name)
 			}
 		})
 	}
