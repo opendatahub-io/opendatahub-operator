@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -73,9 +74,11 @@ func (f *MockManager) AddMetricsServerExtraHandler(name string, handler http.Han
 func (f *MockManager) AddReadyzCheck(name string, check healthz.Checker) error { return nil }
 
 //nolint:ireturn
-func (f *MockManager) GetAPIReader() client.Reader             { return nil }
-func (f *MockManager) GetControllerOptions() config.Controller { return config.Controller{} }
-func (f *MockManager) GetHTTPClient() *http.Client             { return &http.Client{} }
+func (f *MockManager) GetAPIReader() client.Reader { return nil }
+func (f *MockManager) GetControllerOptions() config.Controller {
+	return config.Controller{SkipNameValidation: ptr.To(true)}
+}
+func (f *MockManager) GetHTTPClient() *http.Client { return &http.Client{} }
 
 //nolint:ireturn
 func (f *MockManager) GetWebhookServer() webhook.Server { return nil }
