@@ -9,6 +9,7 @@ and configure these applications.
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Configuration](#configuration)
+    - [Custom application namespace](#use-custom-application-namespace)
 - [Developer Guide](#developer-guide)
     - [Pre-requisites](#pre-requisites)
     - [Download manifests](#download-manifests)
@@ -23,7 +24,7 @@ and configure these applications.
     - [Deployment](#deployment)
   - [Test with customized manifests](#test-with-customized-manifests)
   - [Update API docs](#update-api-docs)
-  - [Enabled logging](#enabled-logging)
+  - [Change logging level at runtime](#change-logging-level-at-runtime)
   - [Example DSCInitialization](#example-dscinitialization)
   - [Example DataScienceCluster](#example-datasciencecluster)
   - [Run functional Tests](#run-functional-tests)
@@ -78,22 +79,47 @@ Additionally installing `Authorino operator` & `Service Mesh operator` enhances 
 
 ### Configuration
 
-- in ODH 2.23.1, we introduced a new feature which allows user to use their own application namespace than default one "opendatahub".
+ODH operator can be configured both through flags and environment variables, here a list of the available one:
 
-1. for new cluster, as this cluster has not been used for ODH or RHOAI.
-   Here we use namespace A for example as targeted application namespace, please follow below steps before install ODH operator:
+| Env variable                                         | Corresponding flag          | Description                                                                                                                                                                | Default value |
+|------------------------------------------------------|-----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
+| ODH_MANAGER_METRICS_BIND_ADDRESS                     | --metrics-bind-address      | The address the metric endpoint binds to.                                                                                                                                  | :8080         |
+| ODH_MANAGER_HEALTH_PROBE_BIND_ADDRESS                | --health-probe-bind-address | The address the probe endpoint binds to.                                                                                                                                   | :8081         |
+| ODH_MANAGER_LEADER_ELECT                             | --leader-elect              | Enable leader election for controller manager.                                                                                                                             | false         |
+| ODH_MANAGER_DSC_MONITORING_NAMESPACE                 | --dsc-monitoring-namespace  | The namespace where data science cluster monitoring stack will be deployed                                                                                                 | opendatahub   |
+| ODH_MANAGER_LOG_MODE                                 | --log-mode                  | Log mode ('', prod, devel), default to ''. See [Log mode values](#log-mode-values) for details.                                                                            |               |
+| ODH_MANAGER_PPROF_BIND_ADDRESS or PPROF_BIND_ADDRESS | --pprof-bind-address        | The address that pprof binds to.                                                                                                                                           |               |
+| ZAP_DEVEL                                            | --zap-devel                 | Development Mode defaults(encoder=consoleEncoder,logLevel=Debug,stackTraceLevel=Warn)<br>Production Mode defaults(encoder=jsonEncoder,logLevel=Info,stackTraceLevel=Error) | false         |
+| ZAP_ENCODER                                          | --zap-encoder               | Zap log encoding (one of 'json' or 'console')                                                                                                                              |               |
+| ZAP_LOG_LEVEL                                        | --zap-log-level             | Zap Level to configure the verbosity of logging. Can be one of 'debug', 'info', 'error'                                                                                    | info          |
+| ZAP_STACKTRACE_LEVEL                                 | --zap-stacktrace-level      | Zap Level at and above which stacktraces are captured (one of 'info', 'error', 'panic').                                                                                   |               |
+| ZAP_TIME_ENCODING                                    | --zap-time-encoding         | Zap time encoding (one of 'epoch', 'millis', 'nano', 'iso8601', 'rfc3339' or 'rfc3339nano').                                                                               |               |
 
-   - create namespace A
-   - add label `opendatahub.io/application-namespace: true`  onto namespace A. Only one namespace in the cluster can have this label.
-   - install ODH operator either from UI or by GitOps/CLI
-   - once Operator is up and running, manually create DSCI CR by set `.spec.applicationsNamespace:A`
-   - wait till DSCI status update to "Ready"
-   - continue to create DSC CR
+If both env variables and flags are set for the same configuration, flags values will be used.
 
-2. for upgrade case, as ODH is running in the cluster.
+#### Log mode values
 
-   Be aware: to switch to a different application namespace can cause more issues and require manual cleanup, therefore we suggest this to be done for new cluster.
+| log-mode    | zap-stacktrace-level | zap-log-level | zap-encoder | Comments                                      |
+|-------------|----------------------|---------------|-------------|-----------------------------------------------|
+| devel       | WARN                 | INFO          | Console     | lowest level, using epoch time                |
+| development | WARN                 | INFO          | Console     | same as devel                                 |
+| ""          | ERROR                | INFO          | JSON        | default option                                |
+| prod        | ERROR                | INFO          | JSON        | highest level, using human readable timestamp |
+| production  | ERROR                | INFO          | JSON        | same as prod                                  |
 
+#### Use custom application namespace
+In ODH 2.23.1, we introduced a new feature which allows user to use their own application namespace than default one "opendatahub".
+To enable it:
+
+- For new cluster (i.e. a cluster that has not been used for ODH or RHOAI), using "namespace A" as an example of the targeted application namespace. Follow below steps before install ODH operator:
+  1. create namespace A
+  2. add label `opendatahub.io/application-namespace: true`  onto namespace A. Only one namespace in the cluster can have this label.
+  3. install ODH operator either from UI or by GitOps/CLI
+  4. once Operator is up and running, manually create DSCI CR by set `.spec.applicationsNamespace:A`
+  5. wait till DSCI status update to "Ready"
+  6. continue to create DSC CR
+- For cases in which ODH is already running in the cluster:
+  - WARNING: Be aware that switching to a different application namespace can cause issues that require manual intervention to be fixed, therefore we suggest this to be done for new clusters only.
 
 ## Developer Guide
 
@@ -243,20 +269,10 @@ Whenever a new api is added or a new field is added to the CRD, please make sure
   ```
 This will ensure that the doc for the apis are updated accordingly.
 
-### Enabled logging
+### Change logging level at runtime
 
-Global logger configuration can be changed with an environemnt variable `ZAP_LOG_LEVEL`
-or a command line switch `--log-mode <mode>` for example from CSV.
-Command line switch has higher priority.
-Valid values for `<mode>`: "" (as default) || prod || production || devel || development.
-
-Verbosity level is INFO.
-To fine tune zap backend [standard operator sdk zap switches](https://sdk.operatorframework.io/docs/building-operators/golang/references/logging/)
-can be used.
-
-Log level can be changed by DSCI devFlags during runtime by setting
-.spec.devFlags.logLevel. It accepts the same values as `--zap-log-level`
-command line switch. See example :
+Log level can be changed at runtime by DSCI devFlags by setting
+`.spec.devFlags.logLevel`. It accepts the same values as `--zap-log-level` flag or `ZAP_LOG_LEVEL` env variable. See example :
 
 ```console
 apiVersion: dscinitialization.opendatahub.io/v1
@@ -268,14 +284,6 @@ spec:
     logLevel: debug
   ...
 ```
-
-| logmode     | stacktrace level | verbosity | Output  | Comments                                      |
-|-------------|------------------|-----------|---------|-----------------------------------------------|
-| devel       | WARN             | INFO      | Console | lowest level, using epoch time                |
-| development | WARN             | INFO      | Console | same as devel                                 |
-| ""          | ERROR            | INFO      | JSON    | default option                                |
-| prod        | ERROR            | INFO      | JSON    | highest level, using human readable timestamp |
-| production  | ERROR            | INFO      | JSON    | same as prod                                  |
 
 ### Example DSCInitialization
 
