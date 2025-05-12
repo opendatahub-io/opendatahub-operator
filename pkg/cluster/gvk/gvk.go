@@ -8,6 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -341,5 +342,11 @@ var (
 		Group:   "operators.coreos.com",
 		Version: "v2",
 		Kind:    "OperatorCondition",
+	}
+
+	NetworkPolicy = schema.GroupVersionKind{
+		Group:   networkingv1.SchemeGroupVersion.Group,
+		Version: networkingv1.SchemeGroupVersion.Version,
+		Kind:    "NetworkPolicy",
 	}
 )
