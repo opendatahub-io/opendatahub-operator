@@ -57,6 +57,7 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
 		{"Validate Knative resource", dscTestCtx.ValidateKnativeSpecInDSC},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
+		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
 	}
 
 	// Append webhook-specific tests.
@@ -210,6 +211,19 @@ func (tc *DSCTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
 			}),
 		WithCondition(BeNumerically(">=", ownedNamespaceNumber)),
 		WithCustomErrorMsg("Expected at least %d owned namespaces with label '%s'.", ownedNamespaceNumber, labels.ODH.OwnedNamespace),
+	)
+}
+
+// ValidateDefaultNetworkPolicyExists verifies that the default network policy exists.
+func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Ensure namespaces with the owned namespace label exist.
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.NetworkPolicy, types.NamespacedName{Namespace: dsci.Spec.ApplicationsNamespace, Name: dsci.Spec.ApplicationsNamespace}),
+		WithCustomErrorMsg("Expected the default NetworkPolicy to be created."),
 	)
 }
 

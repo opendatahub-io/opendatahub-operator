@@ -59,6 +59,7 @@ import (
 
 const (
 	finalizerName = "dscinitialization.opendatahub.io/finalizer"
+	fieldManager  = "dscinitialization.opendatahub.io"
 )
 
 // This ar is required by the .spec.TrustedCABundle field on Reconcile Update Event. When a user goes from Unmanaged to Managed, update all
@@ -450,7 +451,7 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		ctx,
 		r.Client,
 		defaultMonitoring,
-		client.FieldOwner("dscinitialization.opendatahub.io"),
+		client.FieldOwner(fieldManager),
 		client.ForceOwnership,
 	)
 
