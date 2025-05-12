@@ -57,6 +57,7 @@ import (
 
 const (
 	finalizerName = "dscinitialization.opendatahub.io/finalizer"
+	fieldManager  = "dscinitialization.opendatahub.io"
 )
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
@@ -419,7 +420,7 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		ctx,
 		r.Client,
 		defaultMonitoring,
-		client.FieldOwner("dscinitialization.opendatahub.io"),
+		client.FieldOwner(fieldManager),
 		client.ForceOwnership,
 	)
 
