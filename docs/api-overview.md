@@ -2314,7 +2314,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase describes the Phase of DSCInitializationStatus<br />This is used by OLM UI to provide status information to the user |  |  |
-| `conditions` _Condition array_ | Conditions describes the state of the DSCInitializationStatus resource |  |  |
+| `conditions` _[Condition](#condition) array_ | Conditions describes the state of the DSCInitializationStatus resource |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `release` _[Release](#release)_ | Version and release type |  |  |

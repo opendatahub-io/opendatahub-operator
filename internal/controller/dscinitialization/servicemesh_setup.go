@@ -6,11 +6,12 @@ import (
 	"path"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -93,23 +94,23 @@ func (r *DSCInitializationReconciler) removeServiceMesh(ctx context.Context, ins
 	return nil
 }
 
-func (r *DSCInitializationReconciler) serviceMeshCapability(instance *dsciv1.DSCInitialization, initialCondition *conditionsv1.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
+func (r *DSCInitializationReconciler) serviceMeshCapability(instance *dsciv1.DSCInitialization, initialCondition *common.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
 	return feature.NewHandlerWithReporter(
 		feature.ClusterFeaturesHandler(instance, r.serviceMeshCapabilityFeatures(instance)),
 		createCapabilityReporter(r.Client, instance, initialCondition),
 	)
 }
 
-func (r *DSCInitializationReconciler) authorizationCapability(ctx context.Context, instance *dsciv1.DSCInitialization, condition *conditionsv1.Condition) (*feature.HandlerWithReporter[*dsciv1.DSCInitialization], error) { //nolint:lll // Reason: generics are long
+func (r *DSCInitializationReconciler) authorizationCapability(ctx context.Context, instance *dsciv1.DSCInitialization, condition *common.Condition) (*feature.HandlerWithReporter[*dsciv1.DSCInitialization], error) { //nolint:lll // Reason: generics are long
 	authorinoInstalled, err := cluster.SubscriptionExists(ctx, r.Client, "authorino-operator")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list subscriptions %w", err)
 	}
 
 	if !authorinoInstalled {
-		authzMissingOperatorCondition := &conditionsv1.Condition{
+		authzMissingOperatorCondition := &common.Condition{
 			Type:    status.CapabilityServiceMeshAuthorization,
-			Status:  corev1.ConditionFalse,
+			Status:  metav1.ConditionFalse,
 			Reason:  status.MissingOperatorReason,
 			Message: "Authorino operator is not installed on the cluster, skipping authorization capability",
 		}
