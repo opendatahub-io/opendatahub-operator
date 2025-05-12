@@ -98,7 +98,7 @@ func ApplyParams(componentPath string, imageParamsMap map[string]string, extraPa
 		}
 	}
 
-	// 2. Update other fileds with extraParamsMap which are not carried from component
+	// 2. Update other fields with extraParamsMap which are not carried from component
 	for _, extraParamsMap := range extraParamsMaps {
 		for eKey, eValue := range extraParamsMap {
 			updated |= updateMap(&paramsEnvMap, eKey, eValue)
