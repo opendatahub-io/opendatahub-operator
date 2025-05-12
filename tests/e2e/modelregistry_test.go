@@ -38,7 +38,7 @@ func modelRegistryTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate cert should be created from default DSCI when servicmesh is Managed", componentCtx.ValidateModelRegistryCert},
-		{"Validate no SMM should be created", componentCtx.ValidateNoSMM},
+		{"Validate SMM only created if servicemesh is Managed", componentCtx.ValidateSMM},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
@@ -86,16 +86,29 @@ func (tc *ModelRegistryTestCtx) ValidateModelRegistryCert(t *testing.T) {
 	}
 }
 
-// ValidateNoSMM ensures there are no ServiceMeshMember.
-func (tc *ModelRegistryTestCtx) ValidateNoSMM(t *testing.T) {
+func (tc *ModelRegistryTestCtx) ValidateSMM(t *testing.T) {
 	t.Helper()
-	// Retrieve the DataScienceCluster instance.
-	dsc := tc.FetchDataScienceCluster()
 
-	tc.EnsureResourceDoesNotExist(
-		WithMinimalObject(gvk.ServiceMeshMember, types.NamespacedName{Name: "default", Namespace: dsc.Spec.Components.ModelRegistry.RegistriesNamespace}),
-		WithCustomErrorMsg(`Ensuring there is no SMM created`),
-	)
+	// Retrieve the ModelRegistry instance.
+	mri := tc.retrieveModelRegistry()
+
+	// Ensure that the registries namespace is not empty.
+	tc.g.Expect(mri.Spec.RegistriesNamespace).NotTo(BeEmpty())
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Ensure that the ServiceMeshMember exists and matches the expected condition if ServiceMesh is enabled.
+	if dsci.Spec.ServiceMesh != nil && dsci.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
+		tc.EnsureResourceExists(
+			WithMinimalObject(gvk.ServiceMeshMember, types.NamespacedName{Namespace: mri.Spec.RegistriesNamespace, Name: serviceMeshMemberName}),
+			WithCondition(jq.Match(`.spec | has("controlPlaneRef")`)),
+		)
+	} else {
+		tc.EnsureResourceDoesNotExist(
+			WithMinimalObject(gvk.ServiceMeshMember, types.NamespacedName{Name: serviceMeshMemberName, Namespace: mri.Spec.RegistriesNamespace}),
+			WithCustomErrorMsg(`Ensuring there is no SMM created`),
+		)
+	}
 }
 
 // ValidateCRDReinstated ensures that required CRDs are reinstated if deleted.
@@ -107,4 +120,17 @@ func (tc *ModelRegistryTestCtx) ValidateCRDReinstated(t *testing.T) {
 	}
 
 	tc.ValidateCRDsReinstated(t, crds)
+}
+
+func (tc *ModelRegistryTestCtx) retrieveModelRegistry() *componentApi.ModelRegistry {
+	mri := &componentApi.ModelRegistry{}
+	tc.FetchTypedResource(
+		mri,
+		WithMinimalObject(gvk.ModelRegistry, types.NamespacedName{Name: componentApi.ModelRegistryInstanceName}),
+	)
+
+	// Ensure that the registries namespace is not empty.
+	tc.g.Expect(mri.Spec.RegistriesNamespace).NotTo(BeEmpty())
+
+	return mri
 }
