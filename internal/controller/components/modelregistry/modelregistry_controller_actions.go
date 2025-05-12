@@ -8,6 +8,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	maistrav1 "maistra.io/api/core/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -86,26 +87,49 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return fmt.Errorf("failed to add namespace %s to manifests: %w", mr.Spec.RegistriesNamespace, err)
 	}
 
-	// To create secret only when ServiceMesh is enabled
+	// Do nothing if ServiceMesh is not Managed
+	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
+		return nil
+	}
 
-	if rr.DSCI.Spec.ServiceMesh != nil && rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-		// TODO: this should be done by a dedicated controller
-		is, err := cluster.FindDefaultIngressSecret(ctx, rr.Client)
-		if err != nil {
-			return fmt.Errorf("failed to find default ingress secret for model registry: %w", err)
-		}
-		if err := rr.AddResources(
-			&corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      DefaultModelRegistryCert,
-					Namespace: rr.DSCI.Spec.ServiceMesh.ControlPlane.Namespace,
-				},
-				Data: is.Data,
-				Type: is.Type,
+	// To create secret only when ServiceMesh is enabled
+	// TODO: this should be done by a dedicated controller
+	is, err := cluster.FindDefaultIngressSecret(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to find default ingress secret for model registry: %w", err)
+	}
+	if err := rr.AddResources(
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      DefaultModelRegistryCert,
+				Namespace: rr.DSCI.Spec.ServiceMesh.ControlPlane.Namespace,
 			},
-		); err != nil {
-			return fmt.Errorf("failed to add default ingress secret for model registry: %w", err)
-		}
+			Data: is.Data,
+			Type: is.Type,
+		},
+	); err != nil {
+		return fmt.Errorf("failed to add default ingress secret for model registry: %w", err)
+	}
+
+	// To add SMM only when ServiceMesh is enabled
+	if _, err := cluster.GetCRD(ctx, rr.Client, ServiceMeshMemberCRD); err != nil {
+		return fmt.Errorf("ServiceMeshMember CRD %s not found, cannot create ServiceMeshMember resource: %w", ServiceMeshMemberCRD, err)
+	}
+	if err := rr.AddResources(
+		&maistrav1.ServiceMeshMember{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "default",
+				Namespace: mr.Spec.RegistriesNamespace,
+			},
+			Spec: maistrav1.ServiceMeshMemberSpec{
+				ControlPlaneRef: maistrav1.ServiceMeshControlPlaneRef{
+					Namespace: rr.DSCI.Spec.ServiceMesh.ControlPlane.Namespace,
+					Name:      rr.DSCI.Spec.ServiceMesh.ControlPlane.Name,
+				},
+			},
+		},
+	); err != nil {
+		return fmt.Errorf("failed to add ServiceMeshMember resource: %w", err)
 	}
 
 	return nil
