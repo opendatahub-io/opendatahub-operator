@@ -16,6 +16,7 @@ const (
 	errNameAnnotationNotFound = "name annotation not found in secret"
 	errTypeAnnotationNotFound = "type annotation not found in secret"
 	errUnsupportedType        = "secret type is not supported"
+	secretName                = "my-secret"
 )
 
 var (
@@ -33,21 +34,21 @@ func TestNewSecret(t *testing.T) {
 	}{
 		{
 			name:           "random case",
-			secretName:     "my-secret",
+			secretName:     secretName,
 			secretType:     "random",
 			complexity:     1,
 			expectedResult: "success",
 		},
 		{
 			name:           "oauth case",
-			secretName:     "another-secret",
+			secretName:     secretName,
 			secretType:     "oauth",
 			complexity:     1,
 			expectedResult: "success",
 		},
 		{
 			name:               "unsupported secret type",
-			secretName:         "my-secret",
+			secretName:         secretName,
 			secretType:         "·%$@&?",
 			complexity:         1,
 			expectedResult:     "error",
@@ -55,7 +56,7 @@ func TestNewSecret(t *testing.T) {
 		},
 		{
 			name:           "zero complexity",
-			secretName:     "my-secret",
+			secretName:     secretName,
 			secretType:     "random",
 			complexity:     0,
 			expectedResult: "nil",
@@ -76,10 +77,8 @@ func TestNewSecret(t *testing.T) {
 			case "error":
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedErrMessage)
-				return // Early return after error validation
 			case "nil":
 				require.NoError(t, err)
-				return // Early return for nil case
 			case "success":
 				require.NoError(t, err)
 				require.NotNil(t, secret)
