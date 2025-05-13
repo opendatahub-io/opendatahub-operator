@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 
-	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
-	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlruntime "sigs.k8s.io/controller-runtime/pkg/client"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
@@ -53,8 +52,8 @@ var _ = Describe("Feature tracking capability", func() {
 			Expect(featureTracker.Status.Phase).To(Equal(status.PhaseReady))
 			Expect(featureTracker.Status.Conditions).To(ContainElement(
 				MatchFields(IgnoreExtras, Fields{
-					"Type":   Equal(conditionsv1.ConditionAvailable),
-					"Status": Equal(corev1.ConditionTrue),
+					"Type":   Equal(status.ConditionTypeAvailable),
+					"Status": Equal(metav1.ConditionTrue),
 					"Reason": Equal(string(featurev1.ConditionReason.FeatureCreated)),
 				}),
 			))
@@ -83,8 +82,8 @@ var _ = Describe("Feature tracking capability", func() {
 			Expect(featureTracker.Status.Phase).To(Equal(status.PhaseError))
 			Expect(featureTracker.Status.Conditions).To(ContainElement(
 				MatchFields(IgnoreExtras, Fields{
-					"Type":   Equal(conditionsv1.ConditionDegraded),
-					"Status": Equal(corev1.ConditionTrue),
+					"Type":   Equal(status.ConditionTypeDegraded),
+					"Status": Equal(metav1.ConditionTrue),
 					"Reason": Equal(string(featurev1.ConditionReason.PreConditions)),
 				}),
 			))
@@ -113,8 +112,8 @@ var _ = Describe("Feature tracking capability", func() {
 			Expect(featureTracker.Status.Phase).To(Equal(status.PhaseError))
 			Expect(featureTracker.Status.Conditions).To(ContainElement(
 				MatchFields(IgnoreExtras, Fields{
-					"Type":   Equal(conditionsv1.ConditionDegraded),
-					"Status": Equal(corev1.ConditionTrue),
+					"Type":   Equal(status.ConditionTypeDegraded),
+					"Status": Equal(metav1.ConditionTrue),
 					"Reason": Equal(string(featurev1.ConditionReason.PostConditions)),
 				}),
 			))
