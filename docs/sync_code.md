@@ -54,7 +54,7 @@ sequenceDiagram
     rhoai ->> rhds: merge (via CI)
 alt landing a change in the next rhoai release
     rhds ->> rhoaixy: merge (via CI)
-else hotfixing a change into a rhoai release
+else fixing a blocker issue in a frozen release branch/fixing an issue in a z-stream release
     engineer ->> rhoaixy: cherry-pick & pull request
 end
 ```
@@ -71,8 +71,9 @@ A change that lands in the odh-operator `main` branch ends up in the next `rhoai
 1. CI automation periodically merges the opendatahub-operator`rhoai` branch into the rhods-operator `main` branch.
 2. CI automation periodically merges the rhods-operator `main` branch into the active rhods-operator `rhoai-x.y` release branch.
 
-If a change is needed in an inactive* downstream release branch, an engineer opens a pull request against that specific
+If a change is needed in a frozen/z-stream downstream release branch, an engineer opens a pull request against that specific
 release branch.
 
-*Downstream release branches are "frozen" (no longer updated via CI automation) as part of the regular process for
-stabilization.
+1. Frozen branches are for an upcoming downstream release, where automatic merging is disabled for stabilization. For a
+   frozen branch, pull requests are appropriate for blocker issues only.
+2. Older release branches are used for z-stream fixes, where we provide critical fixes to the released product.
