@@ -23,7 +23,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/open-data-hub-tenant/odh-operator-odh-poc1:{{revision}}
+    value: quay.io/redhat-user-workloads/open-data-hub-tenant/odh-operator-odh-poc1:v2.29.0
   - name: dockerfile
     value: Dockerfiles/Dockerfile
   pipelineSpec:

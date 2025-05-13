@@ -1,6 +1,6 @@
 # The base image is expected to contain
 # /bin/opm (with a serve subcommand) and /bin/grpc_health_probe
-FROM registry.redhat.io/openshift4/ose-operator-registry-rhel9:v4.18
+FROM quay.io/operator-framework/opm:latest
 
 
 # Configure the entrypoint and command
@@ -24,4 +24,5 @@ LABEL com.redhat.component="odh-fbc-fragment" \
       io.k8s.display-name="odh-fbc-fragment" \
       io.k8s.description="odh-fbc-fragment" \
       com.redhat.delivery.operator.bundle="true" \
-      com.redhat.license_terms="https://www.redhat.com/licenses/Red_Hat_Standard_EULA_20191108.pdf"
+      com.redhat.license_terms="https://www.redhat.com/licenses/Red_Hat_Standard_EULA_20191108.pdf" \
+      operators.operatorframework.io.index.configs.v1="/configs"
