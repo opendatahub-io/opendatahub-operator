@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -13,10 +12,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -59,9 +55,8 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 	}
 
 	// Create default NetworkPolicy for the namespace
-	if err := r.reconcileDefaultNetworkPolicy(ctx, dscInit, platform); err != nil {
-		log.Error(err, "error reconciling network policy ", "name", dscInit.Spec.ApplicationsNamespace)
-		return fmt.Errorf("error: %w", err)
+	if err := ReconcileDefaultNetworkPolicy(ctx, r.Client, dscInit, platform); err != nil {
+		return err
 	}
 
 	return nil
@@ -161,14 +156,15 @@ func PatchMonitoringNS(ctx context.Context, cli client.Client, dscInit *dsciv1.D
 	return err
 }
 
-func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(
+func ReconcileDefaultNetworkPolicy(
 	ctx context.Context,
+	cli client.Client,
 	dscInit *dsciv1.DSCInitialization,
 	platform common.Platform,
 ) error {
-	log := logf.FromContext(ctx)
-	name := dscInit.Spec.ApplicationsNamespace
 	if platform == cluster.ManagedRhoai {
+		log := logf.FromContext(ctx)
+
 		// Get operator namepsace
 		operatorNs, err := cluster.GetOperatorNamespace()
 		if err != nil {
@@ -176,99 +172,39 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(
 			return err
 		}
 		// Deploy networkpolicy for operator namespace
-		err = deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, networkpolicyPath+"/operator", operatorNs, "networkpolicy", true)
+		err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, networkpolicyPath+"/operator", operatorNs, "networkpolicy", true)
 		if err != nil {
 			log.Error(err, "error to set networkpolicy in operator namespace", "path", networkpolicyPath)
 			return err
 		}
 		// Deploy networkpolicy for monitoring namespace
-		err = deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, networkpolicyPath+"/monitoring", dscInit.Spec.Monitoring.Namespace, "networkpolicy", true)
+		err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, networkpolicyPath+"/monitoring", dscInit.Spec.Monitoring.Namespace, "networkpolicy", true)
 		if err != nil {
 			log.Error(err, "error to set networkpolicy in monitroing namespace", "path", networkpolicyPath)
 			return err
 		}
 		// Deploy networkpolicy for applications namespace
-		err = deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, networkpolicyPath+"/applications", dscInit.Spec.ApplicationsNamespace, "networkpolicy", true)
+		err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, networkpolicyPath+"/applications", dscInit.Spec.ApplicationsNamespace, "networkpolicy", true)
 		if err != nil {
 			log.Error(err, "error to set networkpolicy in applications namespace", "path", networkpolicyPath)
 			return err
 		}
 		return nil
 	}
+
 	// Expected namespace for the given name in ODH
-	desiredNetworkPolicy := &networkingv1.NetworkPolicy{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "NetworkPolicy",
-			APIVersion: "v1",
-		},
+	np := networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: name,
+			Name:      dscInit.Spec.ApplicationsNamespace,
+			Namespace: dscInit.Spec.ApplicationsNamespace,
 		},
 		Spec: networkingv1.NetworkPolicySpec{
-			// open ingress for all port for now, TODO: add explicit port per component
-			// Ingress: []networkingv1.NetworkPolicyIngressRule{{}},
-			// open ingress for only operator created namespaces
-			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				{
-					From: []networkingv1.NetworkPolicyPeer{
-						{ /* allow ODH namespace <->ODH namespace:
-							- default notebook project: rhods-notebooks
-							- redhat-odh-monitoring
-							- redhat-odh-applications / opendatahub
-							*/
-							NamespaceSelector: &metav1.LabelSelector{ // AND logic
-								MatchLabels: map[string]string{
-									labels.ODH.OwnedNamespace: labels.True,
-								},
-							},
-						},
-					},
-				},
-				{ // OR logic to minic customized application namespace
-					From: []networkingv1.NetworkPolicyPeer{
-						{
-							NamespaceSelector: &metav1.LabelSelector{ // AND logic
-								MatchLabels: map[string]string{
-									labels.CustomizedAppNamespace: labels.True,
-								},
-							},
-						},
-					},
-				},
-				{ // OR logic
-					From: []networkingv1.NetworkPolicyPeer{
-						{ // need this to access external-> dashboard
-							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"network.openshift.io/policy-group": "ingress",
-								},
-							},
-						},
-					},
-				},
-				{ // OR logic for PSI
-					From: []networkingv1.NetworkPolicyPeer{
-						{ // need this to access external->dashboard
-							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"kubernetes.io/metadata.name": "openshift-host-network",
-								},
-							},
-						},
-					},
-				},
-				{
-					From: []networkingv1.NetworkPolicyPeer{
-						{ // need this for cluster-monitoring work: cluster-monitoring->ODH namespaces
-							NamespaceSelector: &metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"kubernetes.io/metadata.name": "openshift-monitoring",
-								},
-							},
-						},
-					},
-				},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{{
+				From: createNetworkPolicyPeer(labels.ODH.OwnedNamespace, labels.True)}, {
+				From: createNetworkPolicyPeer(labels.CustomizedAppNamespace, labels.True)}, {
+				From: createNetworkPolicyPeer("network.openshift.io/policy-group", "ingress")}, {
+				From: createNetworkPolicyPeer("kubernetes.io/metadata.name", "openshift-host-network")}, {
+				From: createNetworkPolicyPeer("kubernetes.io/metadata.name", "openshift-monitoring")},
 			},
 			PolicyTypes: []networkingv1.PolicyType{
 				networkingv1.PolicyTypeIngress,
@@ -276,58 +212,23 @@ func (r *DSCInitializationReconciler) reconcileDefaultNetworkPolicy(
 		},
 	}
 
-	// Create NetworkPolicy if it doesn't exist
-	foundNetworkPolicy := &networkingv1.NetworkPolicy{}
-	justCreated := false
-	err := r.Client.Get(ctx, client.ObjectKeyFromObject(desiredNetworkPolicy), foundNetworkPolicy)
+	if err := controllerutil.SetControllerReference(dscInit, &np, cli.Scheme()); err != nil {
+		return fmt.Errorf("unable to add OwnerReference to the Network policy: %w", err)
+	}
+
+	err := resources.Apply(
+		ctx,
+		cli,
+		&np,
+		client.FieldOwner(fieldManager),
+		client.ForceOwnership,
+	)
+
 	if err != nil {
-		if !k8serr.IsNotFound(err) {
-			return err
-		}
-		// Set Controller reference
-		err = ctrl.SetControllerReference(dscInit, desiredNetworkPolicy, r.Scheme)
-		if err != nil {
-			log.Error(err, "Unable to add OwnerReference to the Network policy")
-			return err
-		}
-		err = r.Client.Create(ctx, desiredNetworkPolicy)
-		if err != nil && !k8serr.IsAlreadyExists(err) {
-			return err
-		}
-		justCreated = true
+		return err
 	}
 
-	// Reconcile the NetworkPolicy spec if it has been manually modified
-	if !justCreated && !CompareNotebookNetworkPolicies(*desiredNetworkPolicy, *foundNetworkPolicy) {
-		log.Info("Reconciling Network policy", "name", foundNetworkPolicy.Name)
-		// Retry the update operation when the ingress controller eventually
-		// updates the resource version field
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			// Get the last route revision
-			if err := r.Client.Get(ctx, types.NamespacedName{
-				Name:      desiredNetworkPolicy.Name,
-				Namespace: desiredNetworkPolicy.Namespace,
-			}, foundNetworkPolicy); err != nil {
-				return err
-			}
-			// Reconcile labels and spec field
-			foundNetworkPolicy.Spec = desiredNetworkPolicy.Spec
-			foundNetworkPolicy.Labels = desiredNetworkPolicy.Labels
-			return r.Client.Update(ctx, foundNetworkPolicy)
-		})
-		if err != nil {
-			log.Error(err, "Unable to reconcile the Network Policy")
-			return err
-		}
-	}
 	return nil
-}
-
-// CompareNotebookNetworkPolicies checks if two services are equal, if not return false.
-func CompareNotebookNetworkPolicies(np1 networkingv1.NetworkPolicy, np2 networkingv1.NetworkPolicy) bool {
-	// Two network policies will be equal if the labels and specs are identical
-	return reflect.DeepEqual(np1.Labels, np2.Labels) &&
-		reflect.DeepEqual(np1.Spec, np2.Spec)
 }
 
 func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error) {
@@ -360,4 +261,12 @@ func GenerateRandomHex(length int) ([]byte, error) {
 	}
 
 	return randomBytes, nil
+}
+
+func createNetworkPolicyPeer(key, value string) []networkingv1.NetworkPolicyPeer {
+	return []networkingv1.NetworkPolicyPeer{{
+		NamespaceSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{key: value},
+		},
+	}}
 }
