@@ -48,6 +48,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	rp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
@@ -245,7 +246,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		// Create Auth
-		if err = r.createAuth(ctx, instance); err != nil {
+		if err = CreateAuth(ctx, r.Client, instance); err != nil {
 			log.Info("failed to create Auth")
 			return ctrl.Result{}, err
 		}
@@ -330,7 +331,7 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 		).
 		Watches(
 			&serviceApi.Auth{},
-			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
+			handlers.NewEventHandlerForGVK(mgr.GetClient(), gvk.DSCInitialization),
 		).
 		Complete(r)
 }
@@ -373,23 +374,6 @@ func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) []re
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
 	}
-	return nil
-}
-
-func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a client.Object) []reconcile.Request {
-	log := logf.FromContext(ctx)
-	instanceList := &serviceApi.AuthList{}
-	if err := r.Client.List(ctx, instanceList); err != nil {
-		// do not handle if cannot get list
-		log.Error(err, "Failed to get AuthList")
-		return nil
-	}
-	if len(instanceList.Items) == 0 {
-		log.Info("Found no Auth instance in cluster, reconciling to recreate")
-
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "auth"}}}
-	}
-
 	return nil
 }
 

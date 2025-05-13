@@ -24,8 +24,9 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"slices"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // ReplaceStringsInFile replaces variable with value in manifests during runtime.
@@ -90,20 +91,20 @@ func GetMonitoringData(data string) (string, error) {
 	return encodedData, nil
 }
 
-func sliceAddMissing(s *[]string, e string) int {
-	e = strings.TrimSpace(e)
-	if slices.Contains(*s, e) {
-		return 0
-	}
-	*s = append(*s, e)
-	return 1
-}
+func SplitUnique(s string, sep string) []string {
+	parts := strings.Split(s, sep)
 
-// adds elements of comma separated list.
-func AddMissing(s *[]string, list string) int {
-	added := 0
-	for _, e := range strings.Split(list, ",") {
-		added += sliceAddMissing(s, e)
+	// Create a string set
+	set := sets.New[string]()
+
+	// Add trimmed values to the set
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			set.Insert(trimmed)
+		}
 	}
-	return added
+
+	// Convert set back to slice
+	return set.UnsortedList()
 }
