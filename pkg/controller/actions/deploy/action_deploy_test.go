@@ -158,7 +158,7 @@ func TestDeployNotOwnedSkip(t *testing.T) {
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	cl, err := fakeclient.New(oldObj)
+	cl, err := fakeclient.New(fakeclient.WithObjects(oldObj))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	rr := types.ReconciliationRequest{
