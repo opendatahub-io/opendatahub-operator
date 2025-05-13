@@ -109,7 +109,7 @@ metadata:
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
-    containerImage: quay.io/opendatahub/opendatahub-operator:v2.29.0
+    containerImage: quay.io/redhat-user-workloads/open-data-hub-tenant/odh-operator-odh-poc1:v2.29.0
     createdAt: "2025-05-12T00:00:00Z"
     operators.operatorframework.io/builder: operator-sdk-v1.37.0
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
