@@ -8,7 +8,7 @@ metadata:
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
     pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
-      == "konflux-poc"
+      == "konflux-poc" && ("bundle/**".pathChanged() || "Dockerfiles/bundle.Dockerfile".pathChanged() || ".tekton/odh-operator-bundle-odh-poc1-push.yaml".pathChanged())
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: odh-release
@@ -23,7 +23,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/open-data-hub-tenant/odh-operator-bundle-odh-poc1:{{revision}}
+    value: quay.io/redhat-user-workloads/open-data-hub-tenant/odh-operator-bundle-odh-poc1:v2.29.0
   - name: dockerfile
     value: Dockerfiles/bundle.Dockerfile
   pipelineSpec:
