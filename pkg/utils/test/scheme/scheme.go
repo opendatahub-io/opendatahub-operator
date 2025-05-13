@@ -16,6 +16,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
 
 var (
@@ -34,6 +35,7 @@ var (
 		ofapiv2.AddToScheme,
 		coordinationv1.AddToScheme,
 		apiextensionsv1.AddToScheme,
+		serviceApi.AddToScheme,
 	}
 )
 
