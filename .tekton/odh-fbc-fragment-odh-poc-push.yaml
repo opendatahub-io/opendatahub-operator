@@ -8,7 +8,7 @@ metadata:
     pipelinesascode.tekton.dev/cancel-in-progress: "false"
     pipelinesascode.tekton.dev/max-keep-runs: "3"
     pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
-      == "konflux-poc"
+      == "konflux-poc" && ("catalog/**".pathChanged() || ".tekton/odh-fbc-fragment-odh-poc-push.yaml".pathChanged())
   creationTimestamp: null
   labels:
     appstudio.openshift.io/application: odh-release
@@ -23,7 +23,7 @@ spec:
   - name: revision
     value: '{{revision}}'
   - name: output-image
-    value: quay.io/redhat-user-workloads/open-data-hub-tenant/odh-fbc-fragment-odh-poc:{{revision}}
+    value: quay.io/redhat-user-workloads/open-data-hub-tenant/odh-fbc-fragment-odh-poc:v2.29.0
   - name: build-platforms
     value:
     - linux/x86_64

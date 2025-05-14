@@ -395,7 +395,7 @@ relatedImages:
   name: ""
 schema: olm.bundle
 ---
-image: quay.io/opendatahub/opendatahub-operator-bundle:v2.29.0
+image: quay.io/redhat-user-workloads/open-data-hub-tenant/odh-operator-bundle-odh-poc1:v2.29.0
 name: opendatahub-operator.v2.29.0
 package: opendatahub-operator
 properties:
@@ -603,10 +603,9 @@ properties:
       capabilities: Full Lifecycle
       categories: AI/Machine Learning, Big Data
       certified: "False"
-      containerImage: quay.io/opendatahub/opendatahub-operator:v2.29.0
-      createdAt: "2025-04-30T05:29:00Z"
-      olm.skipRange: '>=1.0.0 <2.29.0'
-      operators.operatorframework.io/builder: operator-sdk-v1.33.0
+      containerImage: quay.io/redhat-user-workloads/open-data-hub-tenant/odh-operator-odh-poc1:v2.29.0
+      createdAt: "2025-05-12T00:00:00Z"
+      operators.operatorframework.io/builder: operator-sdk-v1.37.0
       operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
         "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
         "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
@@ -769,8 +768,8 @@ properties:
     provider:
       name: ODH
 relatedImages:
-- image: quay.io/opendatahub/opendatahub-operator-bundle:v2.29.0
+- image: quay.io/redhat-user-workloads/open-data-hub-tenant/odh-operator-bundle-odh-poc1:v2.29.0
   name: ""
-- image: quay.io/opendatahub/opendatahub-operator:v2.29.0
+- image: quay.io/redhat-user-workloads/open-data-hub-tenant/odh-operator-odh-poc1:v2.29.0
   name: ""
 schema: olm.bundle
