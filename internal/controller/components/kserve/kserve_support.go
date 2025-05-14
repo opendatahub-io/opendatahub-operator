@@ -16,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -237,17 +236,6 @@ func hashConfigMap(cm *corev1.ConfigMap) (string, error) {
 	}
 
 	return base64.RawURLEncoding.EncodeToString(h), nil
-}
-
-func ifGVKInstalled(kvg schema.GroupVersionKind) func(context.Context, *odhtypes.ReconciliationRequest) bool {
-	return func(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
-		hasCRD, err := cluster.HasCRD(ctx, rr.Client, kvg)
-		if err != nil {
-			ctrl.Log.Error(err, "error checking if CRD installed", "GVK", kvg)
-			return false
-		}
-		return hasCRD
-	}
 }
 
 // shouldRemoveOwnerRefAndLabel encapsulates the decision on whether a resource

@@ -3,6 +3,9 @@ package actions
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	ctrl "sigs.k8s.io/controller-runtime"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -18,4 +21,15 @@ func OperatorNamespace(_ context.Context, _ *odhTypes.ReconciliationRequest) (st
 	}
 
 	return ns, nil
+}
+
+func IfGVKInstalled(kvg schema.GroupVersionKind) func(context.Context, *odhTypes.ReconciliationRequest) bool {
+	return func(ctx context.Context, rr *odhTypes.ReconciliationRequest) bool {
+		hasCRD, err := cluster.HasCRD(ctx, rr.Client, kvg)
+		if err != nil {
+			ctrl.Log.Error(err, "error checking if CRD installed", "GVK", kvg)
+			return false
+		}
+		return hasCRD
+	}
 }
