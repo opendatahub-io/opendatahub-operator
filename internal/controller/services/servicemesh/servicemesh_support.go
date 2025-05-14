@@ -54,9 +54,9 @@ func (r *ServiceMeshReconciler) configureServiceMesh(ctx context.Context, instan
 
 	case operatorv1.Unmanaged:
 		log.Info("ServiceMesh CR is not configured by the operator, we won't do anything")
-		// Update status ServiceMesh is unmanaged
+		// Update status ServiceMesh when DSCI has unmanaged
 		conditions := instance.Status.Conditions
-		status.SetCondition(&conditions, status.CapabilityServiceMesh, status.MissingOperatorReason,
+		status.SetCondition(&conditions, status.CapabilityServiceMesh, status.UnmanagedReason,
 			"ServiceMesh is Unmanaged in DSCI", metav1.ConditionFalse)
 		instance.Status.SetConditions(conditions)
 		if err := r.Client.Status().Update(ctx, instance); err != nil {
@@ -69,24 +69,13 @@ func (r *ServiceMeshReconciler) configureServiceMesh(ctx context.Context, instan
 		if err := r.removeServiceMesh(ctx, instance); err != nil {
 			return err
 		}
-
-		// Remove condition if it was set when DSCI has Removed
+		// RUpdate status ServiceMesh when DSCI has removed
 		conditions := instance.Status.Conditions
-		newConditions := []common.Condition{}
-		conditionExists := false
-		for _, cond := range conditions {
-			if cond.Type != status.CapabilityServiceMesh {
-				newConditions = append(newConditions, cond)
-			} else {
-				conditionExists = true
-			}
-		}
-		if !conditionExists {
-			return nil // fast exit
-		}
-		instance.Status.SetConditions(newConditions)
+		status.SetCondition(&conditions, status.CapabilityServiceMesh, status.RemovedReason,
+			"ServiceMesh is Removed in DSCI", metav1.ConditionFalse)
+		instance.Status.SetConditions(conditions)
 		if err := r.Client.Status().Update(ctx, instance); err != nil {
-			log.Error(err, "failed to remove status condition for Removed ServiceMesh case")
+			log.Error(err, "failed to update DSCI status condition for ServiceMesh")
 			return err
 		}
 	}
