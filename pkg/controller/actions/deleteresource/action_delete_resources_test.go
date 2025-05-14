@@ -12,7 +12,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deleteresource"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -28,32 +27,26 @@ func TestDeleteResourcesAction(t *testing.T) {
 	ns := xid.New().String()
 
 	cl, err := fakeclient.New(
-		&appsv1.Deployment{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: gvk.Deployment.GroupVersion().String(),
-				Kind:       gvk.Deployment.Kind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "my-deployment",
-				Namespace: ns,
-				Labels: map[string]string{
-					labels.K8SCommon.PartOf: "foo",
+		fakeclient.WithObjects(
+			&appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-deployment",
+					Namespace: ns,
+					Labels: map[string]string{
+						labels.K8SCommon.PartOf: "foo",
+					},
 				},
 			},
-		},
-		&appsv1.Deployment{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: gvk.Deployment.GroupVersion().String(),
-				Kind:       gvk.Deployment.Kind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "my-deployment-2",
-				Namespace: ns,
-				Labels: map[string]string{
-					labels.K8SCommon.PartOf: "baz",
+			&appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-deployment-2",
+					Namespace: ns,
+					Labels: map[string]string{
+						labels.K8SCommon.PartOf: "baz",
+					},
 				},
 			},
-		},
+		),
 	)
 
 	g.Expect(err).ShouldNot(HaveOccurred())

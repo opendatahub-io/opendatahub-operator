@@ -67,11 +67,13 @@ func TestPatchExistingMonitoringNS(t *testing.T) {
 	monitoringNS := xid.New().String()
 	appsNS := xid.New().String()
 
-	cli, err := fakeclient.New(&corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: monitoringNS,
-		},
-	})
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: monitoringNS,
+			},
+		}),
+	)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
