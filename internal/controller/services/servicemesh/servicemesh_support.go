@@ -73,10 +73,16 @@ func (r *ServiceMeshReconciler) configureServiceMesh(ctx context.Context, instan
 		// Remove condition if it was set when DSCI has Removed
 		conditions := instance.Status.Conditions
 		newConditions := []common.Condition{}
+		conditionExists := false
 		for _, cond := range conditions {
 			if cond.Type != status.CapabilityServiceMesh {
 				newConditions = append(newConditions, cond)
+			} else {
+				conditionExists = true
 			}
+		}
+		if !conditionExists {
+			return nil // fast exit
 		}
 		instance.Status.SetConditions(newConditions)
 		if err := r.Client.Status().Update(ctx, instance); err != nil {
