@@ -123,9 +123,11 @@ func TestCheckPreConditions_ServiceMeshManaged_NoServerlessOperator(t *testing.T
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New(
-		&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-			Name: serviceMeshOperator,
-		}},
+		fakeclient.WithObjects(
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serviceMeshOperator,
+			}},
+		),
 	)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -163,9 +165,11 @@ func TestCheckPreConditions_ServiceMeshManaged_NoServiceMeshOperator(t *testing.
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New(
-		&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-			Name: serverlessOperator,
-		}},
+		fakeclient.WithObjects(
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serverlessOperator,
+			}},
+		),
 	)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -203,12 +207,14 @@ func TestCheckPreConditions_ServiceMeshManaged_AllOperator(t *testing.T) {
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New(
-		&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-			Name: serviceMeshOperator,
-		}},
-		&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-			Name: serverlessOperator,
-		}},
+		fakeclient.WithObjects(
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serviceMeshOperator,
+			}},
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serverlessOperator,
+			}},
+		),
 	)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -293,15 +299,17 @@ func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New(
-		&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-			Name: serviceMeshOperator,
-		}},
-		&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-			Name: serverlessOperator,
-		}},
-		&ofapiv1alpha1.Subscription{ObjectMeta: metav1.ObjectMeta{
-			Name: authorinoOperator,
-		}},
+		fakeclient.WithObjects(
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serviceMeshOperator,
+			}},
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serverlessOperator,
+			}},
+			&ofapiv1alpha1.Subscription{ObjectMeta: metav1.ObjectMeta{
+				Name: authorinoOperator,
+			}},
+		),
 	)
 
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -356,12 +364,14 @@ func TestCleanUpTemplatedResources_withoutAuthorino(t *testing.T) {
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New(
-		&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-			Name: serviceMeshOperator,
-		}},
-		&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-			Name: serverlessOperator,
-		}},
+		fakeclient.WithObjects(
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serviceMeshOperator,
+			}},
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serverlessOperator,
+			}},
+		),
 	)
 
 	g.Expect(err).ShouldNot(HaveOccurred())

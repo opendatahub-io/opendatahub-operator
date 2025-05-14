@@ -79,17 +79,13 @@ func TestGet(t *testing.T) {
 	g := NewWithT(t)
 
 	cm := corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: gvk.ConfigMap.GroupVersion().String(),
-			Kind:       gvk.ConfigMap.Kind,
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "default",
 			Name:      xid.New().String(),
 		},
 	}
 
-	cl, err := fakeclient.New(&cm)
+	cl, err := fakeclient.New(fakeclient.WithObjects(&cm))
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(cl).ShouldNot(BeNil())
 
@@ -164,17 +160,13 @@ func TestList(t *testing.T) {
 	g := NewWithT(t)
 
 	cm := corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: gvk.ConfigMap.GroupVersion().String(),
-			Kind:       gvk.ConfigMap.Kind,
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "default",
 			Name:      xid.New().String(),
 		},
 	}
 
-	cl, err := fakeclient.New(&cm)
+	cl, err := fakeclient.New(fakeclient.WithObjects(&cm))
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(cl).ShouldNot(BeNil())
 
@@ -231,17 +223,13 @@ func TestUpdate(t *testing.T) {
 	g := NewWithT(t)
 
 	cm := corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: gvk.ConfigMap.GroupVersion().String(),
-			Kind:       gvk.ConfigMap.Kind,
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "default",
 			Name:      xid.New().String(),
 		},
 	}
 
-	cl, err := fakeclient.New(&cm)
+	cl, err := fakeclient.New(fakeclient.WithObjects(&cm))
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(cl).ShouldNot(BeNil())
 
