@@ -539,7 +539,31 @@ func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platfor
 	namespaceConfigs["istio-system"] = cache.Config{}        // for serivcemonitor: data-science-smcp-pilot-monitor
 	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
 
+	// this relies on the default auth namespace naming '<applicationNamespace>-auth-provider'
+	// without this, ServiceMesh controller will fail with the following error:
+	// `failed to lookup object <applicationNamespace>-auth-provider/authorino:
+	// unable to get: <applicationNamespace>-auth-provider/authorino because of unknown namespace for the cache`
+	authorinoNamespace := getAuthorinoNamespace(platform)
+	namespaceConfigs[authorinoNamespace] = cache.Config{}
+
 	return namespaceConfigs, nil
+}
+
+func getAuthorinoNamespace(platform common.Platform) string {
+	var appNamespace string
+
+	switch platform {
+	case cluster.SelfManagedRhoai:
+		appNamespace = "redhat-ods-applications"
+	case cluster.ManagedRhoai:
+		appNamespace = "redhat-ods-applications"
+	case cluster.OpenDataHub:
+		appNamespace = "opendatahub"
+	default:
+		appNamespace = "opendatahub"
+	}
+
+	return appNamespace + "-auth-provider"
 }
 
 func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error {
