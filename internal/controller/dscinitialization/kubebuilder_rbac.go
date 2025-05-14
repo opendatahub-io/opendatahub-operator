@@ -11,7 +11,7 @@ package dscinitialization
 // +kubebuilder:rbac:groups="config.openshift.io",resources=authentications,verbs=get;watch;list
 
 /* Service Mesh Integration */
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshcontrolplanes,verbs=create;get;list;patch;update;use;watch
+// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshcontrolplanes,verbs=create;delete;get;list;patch;update;use;watch
 // +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmemberrolls,verbs=create;get;list;patch;update;use;watch
 // +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers,verbs=create;get;list;patch;update;use;watch
 // +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers/finalizers,verbs=create;get;list;patch;update;use;watch
@@ -61,3 +61,7 @@ package dscinitialization
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=opentelemetrycollectors,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=opentelemetrycollectors/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=opentelemetrycollectors/finalizers,verbs=update
+
+//+kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=servicemeshes,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=servicemeshes/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=servicemeshes/finalizers,verbs=update

@@ -649,10 +649,10 @@ rules:
   - maistra.io
   resources:
   - servicemeshcontrolplanes
-  - servicemeshmemberrolls
-  - servicemeshmembers/finalizers
+  - servicemeshmembers
   verbs:
   - create
+  - delete
   - get
   - list
   - patch
@@ -662,10 +662,10 @@ rules:
 - apiGroups:
   - maistra.io
   resources:
-  - servicemeshmembers
+  - servicemeshmemberrolls
+  - servicemeshmembers/finalizers
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
@@ -1027,6 +1027,7 @@ rules:
   resources:
   - auths
   - monitorings
+  - servicemeshes
   verbs:
   - create
   - delete
@@ -1040,6 +1041,7 @@ rules:
   resources:
   - auths/finalizers
   - monitorings/finalizers
+  - servicemeshes/finalizers
   verbs:
   - update
 - apiGroups:
@@ -1047,6 +1049,7 @@ rules:
   resources:
   - auths/status
   - monitorings/status
+  - servicemeshes/status
   verbs:
   - get
   - patch
