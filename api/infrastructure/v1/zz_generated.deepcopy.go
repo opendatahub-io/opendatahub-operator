@@ -27,12 +27,8 @@ func (in *AuthSpec) DeepCopyInto(out *AuthSpec) {
 	*out = *in
 	if in.Audiences != nil {
 		in, out := &in.Audiences, &out.Audiences
-		*out = new([]string)
-		if **in != nil {
-			in, out := *in, *out
-			*out = make([]string, len(*in))
-			copy(*out, *in)
-		}
+		*out = make([]string, len(*in))
+		copy(*out, *in)
 	}
 }
 

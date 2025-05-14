@@ -197,7 +197,7 @@ func (tc *DSCTestCtx) ValidateServiceMeshSpecInDSCI(t *testing.T) {
 			MetricsCollection: serviceMeshMetricsCollection,
 		},
 		Auth: infrav1.AuthSpec{
-			Audiences: &[]string{"https://kubernetes.default.svc"},
+			Audiences: []string{"https://kubernetes.default.svc"},
 		},
 	}
 
