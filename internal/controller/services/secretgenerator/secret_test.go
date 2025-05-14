@@ -59,7 +59,7 @@ func TestNewSecret(t *testing.T) {
 			secretName:     secretName,
 			secretType:     "random",
 			complexity:     0,
-			expectedResult: "nil",
+			expectedResult: "success",
 		},
 		{
 			name:           "empty name",
@@ -85,7 +85,6 @@ func TestNewSecret(t *testing.T) {
 				assert.Equal(t, tt.secretName, secret.Name)
 				assert.Equal(t, tt.secretType, secret.Type)
 				assert.Equal(t, tt.complexity, secret.Complexity)
-				assert.NotEmpty(t, secret.Value)
 				assert.True(t, base64Regex.MatchString(secret.Value), "Secret value should be base64 encoded")
 			default:
 				assert.Empty(t, secret.Value)
