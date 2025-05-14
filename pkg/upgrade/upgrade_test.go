@@ -38,7 +38,7 @@ func TestPatchOdhDashboardConfig(t *testing.T) {
 		g := NewWithT(t)
 
 		dashboardConfig := resources.GvkToUnstructured(gvk.OdhDashboardConfig)
-		cli, err := fakeclient.New(dashboardConfig)
+		cli, err := fakeclient.New(fakeclient.WithObjects(dashboardConfig))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		err = upgrade.PatchOdhDashboardConfig(
@@ -77,7 +77,7 @@ func TestPatchOdhDashboardConfig(t *testing.T) {
 		err := unstructured.SetNestedField(dashboardConfig.Object, "invalid_type", "spec")
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cli, err := fakeclient.New(dashboardConfig)
+		cli, err := fakeclient.New(fakeclient.WithObjects(dashboardConfig))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		err = upgrade.PatchOdhDashboardConfig(
@@ -106,7 +106,7 @@ func TestPatchOdhDashboardConfig(t *testing.T) {
 		err = unstructured.SetNestedSlice(dashboardConfig.Object, expectedModelServerSizes, "spec", "modelServerSizes")
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cli, err := fakeclient.New(dashboardConfig)
+		cli, err := fakeclient.New(fakeclient.WithObjects(dashboardConfig))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		err = upgrade.PatchOdhDashboardConfig(ctx, cli, releaseV1, releaseV2)
@@ -131,7 +131,7 @@ func TestPatchOdhDashboardConfig(t *testing.T) {
 		g := NewWithT(t)
 
 		dashboardConfig := createOdhDashboardConfig()
-		cli, err := fakeclient.New(dashboardConfig)
+		cli, err := fakeclient.New(fakeclient.WithObjects(dashboardConfig))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		err = upgrade.PatchOdhDashboardConfig(

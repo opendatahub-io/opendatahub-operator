@@ -40,7 +40,10 @@ func TestGetSingletonWithConfigMap(t *testing.T) {
 		g := NewWithT(t)
 
 		cli, err := fakeclient.New(
-			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "singleton-configmap"}})
+			fakeclient.WithObjects(
+				&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "singleton-configmap"}},
+			),
+		)
 
 		g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -54,8 +57,10 @@ func TestGetSingletonWithConfigMap(t *testing.T) {
 		g := NewWithT(t)
 
 		cli, err := fakeclient.New(
-			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "configmap1"}},
-			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "configmap2"}},
+			fakeclient.WithObjects(
+				&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "configmap1"}},
+				&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "configmap2"}},
+			),
 		)
 
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -143,7 +148,7 @@ func TestGetClusterSingletons(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cli, err := fakeclient.New(tt.objs...)
+			cli, err := fakeclient.New(fakeclient.WithObjects(tt.objs...))
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			ctx := context.Background()
