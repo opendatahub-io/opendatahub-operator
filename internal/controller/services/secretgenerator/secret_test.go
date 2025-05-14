@@ -59,7 +59,7 @@ func TestNewSecret(t *testing.T) {
 			secretName:     secretName,
 			secretType:     "random",
 			complexity:     0,
-			expectedResult: "success",
+			expectedResult: "nil",
 		},
 		{
 			name:           "empty name",
@@ -79,12 +79,14 @@ func TestNewSecret(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.expectedErrMessage)
 			case "nil":
 				require.NoError(t, err)
+				assert.Empty(t, secret.Value)
 			case "success":
 				require.NoError(t, err)
 				require.NotNil(t, secret)
 				assert.Equal(t, tt.secretName, secret.Name)
 				assert.Equal(t, tt.secretType, secret.Type)
 				assert.Equal(t, tt.complexity, secret.Complexity)
+				assert.NotEmpty(t, secret.Value)
 				assert.True(t, base64Regex.MatchString(secret.Value), "Secret value should be base64 encoded")
 			default:
 				assert.Empty(t, secret.Value)
