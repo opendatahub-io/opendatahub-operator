@@ -893,6 +893,7 @@ rules:
   resources:
   - auths
   - monitorings
+  - servicemeshes
   verbs:
   - create
   - delete
@@ -906,6 +907,7 @@ rules:
   resources:
   - auths/finalizers
   - monitorings/finalizers
+  - servicemeshes/finalizers
   verbs:
   - update
 - apiGroups:
@@ -913,6 +915,7 @@ rules:
   resources:
   - auths/status
   - monitorings/status
+  - servicemeshes/status
   verbs:
   - get
   - patch
