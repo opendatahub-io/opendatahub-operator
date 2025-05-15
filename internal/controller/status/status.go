@@ -112,6 +112,7 @@ const (
 	MissingOperatorReason     string = "MissingOperator"
 	ConfiguredReason          string = "Configured"
 	RemovedReason             string = "Removed"
+	UnmanagedReason           string = "Unmanaged"
 	CapabilityFailed          string = "CapabilityFailed"
 	ArgoWorkflowExist         string = "ArgoWorkflowExist"
 	NoManagedComponentsReason        = "NoManagedComponents"
