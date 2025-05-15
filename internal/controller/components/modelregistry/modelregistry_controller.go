@@ -19,6 +19,7 @@ package modelregistry
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -48,7 +49,8 @@ import (
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	dsci, err := cluster.GetDSCI(ctx, mgr.GetClient())
-	if err != nil && !k8serr.IsNotFound(err) {
+
+	if err != nil && !k8serr.IsNotFound(err) && strings.Contains(err.Error(), "failed to list resources of type DSCInitialization") {
 		return fmt.Errorf("failed to get DSCI: %w", err)
 	}
 
