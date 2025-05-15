@@ -37,7 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -53,7 +52,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/trustedcabundle"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
@@ -61,10 +59,6 @@ const (
 	finalizerName = "dscinitialization.opendatahub.io/finalizer"
 	fieldManager  = "dscinitialization.opendatahub.io"
 )
-
-// This ar is required by the .spec.TrustedCABundle field on Reconcile Update Event. When a user goes from Unmanaged to Managed, update all
-// namespaces irrespective of any changes in the configmap.
-var managementStateChangeTrustedCA = false
 
 // DSCInitializationReconciler reconciles a DSCInitialization object.
 type DSCInitializationReconciler struct {
@@ -191,12 +185,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return reconcile.Result{}, err
 	}
 
-	// Check ManagementState to verify if odh-trusted-ca-bundle Configmap should be configured for namespaces
-	if err := trustedcabundle.ConfigureTrustedCABundle(ctx, r.Client, log, instance, managementStateChangeTrustedCA); err != nil {
-		return reconcile.Result{}, err
-	}
-	managementStateChangeTrustedCA = false
-
 	switch req.Name {
 	case "prometheus": // prometheus configmap
 		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
@@ -290,7 +278,7 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 		// not use WithEventFilter() because it conflict with secret and configmap predicate
 		For(
 			&dsciv1.DSCInitialization{},
-			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}), dsciPredicateStateChangeTrustedCA),
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})),
 		).
 		Owns(
 			&corev1.Namespace{},
@@ -352,18 +340,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
 		Complete(r)
-}
-
-var dsciPredicateStateChangeTrustedCA = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldDSCI, _ := e.ObjectOld.(*dsciv1.DSCInitialization)
-		newDSCI, _ := e.ObjectNew.(*dsciv1.DSCInitialization)
-
-		if oldDSCI.Spec.TrustedCABundle.ManagementState != newDSCI.Spec.TrustedCABundle.ManagementState {
-			managementStateChangeTrustedCA = true
-		}
-		return true
-	},
 }
 
 func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(ctx context.Context, a client.Object) []reconcile.Request {
