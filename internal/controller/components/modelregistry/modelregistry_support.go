@@ -28,7 +28,6 @@ const (
 )
 
 var (
-	ErrServiceMeshNotConfigured     = odherrors.NewStopError(status.ServiceMeshNotConfiguredMessage)
 	ErrServiceMeshMemberAPINotFound = odherrors.NewStopError(ServiceMeshMemberAPINotFound)
 )
 

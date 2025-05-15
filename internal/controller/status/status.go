@@ -96,6 +96,7 @@ const (
 	ConditionDeploymentsNotAvailableReason = "DeploymentsNotReady"
 	ConditionDeploymentsAvailable          = "DeploymentsAvailable"
 	ConditionServerlessAvailable           = "ServerlessAvailable"
+	ConditionServiceMeshAvailable          = "ServiceMeshAvailable"
 	ConditionArgoWorkflowAvailable         = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady           = "ComponentsReady"
 	ConditionServingAvailable              = "ServingAvailable"
@@ -129,8 +130,9 @@ const (
 )
 
 const (
-	ServiceMeshNotConfiguredReason  = "ServiceMeshNotConfigured"
-	ServiceMeshNotConfiguredMessage = "ServiceMesh needs to be set to 'Managed' in DSCI CR"
+	ServiceMeshNotConfiguredReason   = "ServiceMeshNotConfigured"
+	ServiceMeshNeedConfiguredMessage = "ServiceMesh needs to be set to 'Managed' in DSCI CR"
+	ServiceMeshNotConfiguredMessage  = "ServiceMesh is not configured in DSCI CR"
 
 	ServiceMeshOperatorNotInstalledReason  = "ServiceMeshOperatorNotInstalled"
 	ServiceMeshOperatorNotInstalledMessage = "ServiceMesh operator must be installed for this component's configuration"

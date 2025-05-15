@@ -20,15 +20,18 @@ import (
 	"context"
 	"fmt"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
@@ -44,8 +47,20 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ReconcilerFor(mgr, &componentApi.ModelRegistry{}).
-		Owns(&corev1.ConfigMap{}).
+	dsci, err := cluster.GetDSCI(ctx, mgr.GetClient())
+	if err != nil && !k8serr.IsNotFound(err) {
+		return fmt.Errorf("failed to get DSCI: %w", err)
+	}
+
+	b := reconciler.ReconcilerFor(mgr, &componentApi.ModelRegistry{})
+	if dsci.Spec.ServiceMesh == nil && dsci.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
+		// This component adds a ServiceMeshMember resource to the registries
+		// namespaces that may not be known when the controller is started, hence
+		// it should be watched dynamically
+		b = b.WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic())
+	}
+
+	b.Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
@@ -71,10 +86,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
-		// This component adds a ServiceMeshMember resource to the registries
-		// namespaces that may not be known when the controller is started, hence
-		// it should be watched dynamically
-		WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic()).
 		WithAction(initialize).
 		WithAction(customizeManifests).
 		WithAction(releases.NewAction()).
@@ -95,11 +106,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		// declares the list of additional, controller specific conditions that are
 		// contributing to the controller readiness status
-		WithConditions(conditionTypes...).
-		Build(ctx)
+		WithConditions(conditionTypes...)
 
-	if err != nil {
-		return fmt.Errorf("could not create the model registry controller: %w", err)
+	if _, err := b.Build(ctx); err != nil {
+		return err
 	}
 
 	return nil
