@@ -88,8 +88,7 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return fmt.Errorf("failed to add namespace %s to manifests: %w", mr.Spec.RegistriesNamespace, err)
 	}
 
-	// Do nothing if ServiceMesh is not Managed, but only set contidtion
-	rr.Conditions.MarkTrue(status.ConditionServiceMeshAvailable)
+	// Do nothing if ServiceMesh is not Managed, but only set condition
 	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
 		rr.Conditions.MarkFalse(
 			status.ConditionServiceMeshAvailable,
@@ -130,8 +129,10 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 			)
 			return ErrServiceMeshMemberAPINotFound
 		}
-		return err
+		return fmt.Errorf("failed to get ServiceMeshMember CRD: %w", err)
 	}
+
+	rr.Conditions.MarkTrue(status.ConditionServiceMeshAvailable)
 	// To add SMM only when ServiceMesh is enabled
 	if err := rr.AddResources(
 		&maistrav1.ServiceMeshMember{
