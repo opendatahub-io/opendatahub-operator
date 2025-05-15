@@ -1372,7 +1372,7 @@ spec:
   selector:
     matchLabels:
       component: opendatahub-operator
-  version: 2.28,0
+  version: 2.28.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
