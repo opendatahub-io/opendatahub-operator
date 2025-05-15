@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -93,30 +92,24 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 	}
 
 	wbNS := &corev1.Namespace{}
-
-	switch rr.Release.Name {
-	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
-		wbNS.Name = cluster.DefaultNotebooksNamespaceRHOAI
-
-	case cluster.OpenDataHub:
-		wbNS.Name = cluster.DefaultNotebooksNamespaceODH
-		wbNS.Labels = map[string]string{
-			labels.ODH.OwnedNamespace: "true",
-		}
+	wbNS.Labels = map[string]string{
+		labels.ODH.OwnedNamespace: "true",
 	}
 
 	if workbench.Spec.WorkbenchNamespace != "" || len(workbench.Spec.WorkbenchNamespace) > 0 {
 		wbNS.Name = workbench.Spec.WorkbenchNamespace
+	} else {
+		switch rr.Release.Name {
+		case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+			wbNS.Name = cluster.DefaultNotebooksNamespaceRHOAI
+		case cluster.OpenDataHub:
+			wbNS.Name = cluster.DefaultNotebooksNamespaceODH
+		}
 	}
 
-	err := rr.Client.Create(ctx, wbNS)
-	if err != nil && !errors.IsAlreadyExists(err) {
-		return fmt.Errorf("failed to create namespace %s: %w", wbNS.Name, err)
-	}
-
-	err = rr.AddResources(wbNS)
+	err := rr.AddResources(wbNS)
 	if err != nil {
-		return fmt.Errorf("failed to add resource to workbenches: %w", err)
+		return fmt.Errorf("failed to create namespace for workbenches: %w", err)
 	}
 	return nil
 }

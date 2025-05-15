@@ -61,6 +61,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
+		Watches(&corev1.Namespace{}).
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(releases.NewAction(
