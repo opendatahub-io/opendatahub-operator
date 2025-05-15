@@ -53,7 +53,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 	}
 
 	b := reconciler.ReconcilerFor(mgr, &componentApi.ModelRegistry{})
-	if dsci.Spec.ServiceMesh == nil && dsci.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
+	if dsci != nil && dsci.Spec.ServiceMesh != nil && dsci.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
 		// This component adds a ServiceMeshMember resource to the registries
 		// namespaces that may not be known when the controller is started, hence
 		// it should be watched dynamically
