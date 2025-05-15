@@ -1,0 +1,60 @@
+name: FBC Processor
+run-name: FBC Processor
+on:
+  workflow_dispatch:
+    inputs:
+      odh_version:
+        description: 'ODH Version'
+        default: 'v2.29.0'
+        required: true
+    branches:
+      - 'konflux-poc'
+
+
+permissions:
+  contents: write
+
+env:
+  GITHUB_ORG: opendatahub-io
+  GITHUB_RKA_ORG: rhoai-rhtap
+  BUNDLE_REPO_URI: 'quay.io/redhat-user-workloads/open-data-hub-tenant/odh-fbc-fragment-odh-poc'
+
+jobs:
+  process-fbc:
+    if: ${{ github.ref_name != 'main' }}
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/rhoai/rhoai-task-toolset:latest
+      options: --privileged
+    steps:
+      - name: Install dependencies
+        run: |
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          arch="$(uname -m | sed 's/x86_64/amd64/')"
+          yq_version="v4.44.3"
+          yq_filename="yq-$yq_version"
+          echo "-> Downloading yq" >&2
+          curl -sSfLo "$yq_filename" "https://github.com/mikefarah/yq/releases/download/$yq_version/yq_${os}_${arch}"
+          chmod +x $yq_filename
+          ln -s $yq_filename yq
+          cp $yq_filename /usr/local/bin/yq
+  
+          opm_version="v1.47.0"
+          opm_filename="opm-$opm_version"
+          echo "-> Downloading opm" >&2
+          curl -sSfLo "$opm_filename" "https://github.com/operator-framework/operator-registry/releases/download/$opm_version/$os-$arch-opm"
+          chmod +x "$opm_filename"
+          ln -fs "$opm_filename" opm
+          cp "$opm_filename" /usr/local/bin/opm
+          pip install --default-timeout=100 -r utils/utils/fbc-processor/requirements.txt
+
+          microdnf install -y skopeo && \
+              microdnf clean all && rm -rf /var/cache/dnf/*
+          skopeo login -u "${RHOAI_QUAY_RO_USERNAME}" -p "${RHOAI_QUAY_RO_TOKEN}" quay.io/rhoai
+
+      - name: Process FBC Fragment
+        id: process-fbc-fragment
+        run: |
+          microdnf install -y coreutils-single && \
+              microdnf clean all && rm -rf /var/cache/dnf/*
+          BUNDLE_IMAGE_URI="${{ env.BUNDLE_REPO_URI }}:${{ github.event.inputs.odh_version }}"
