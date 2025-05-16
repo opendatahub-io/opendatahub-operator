@@ -1,7 +1,6 @@
 package modelregistry
 
 import (
-	"embed"
 	"path"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -29,7 +28,6 @@ const (
 )
 
 var (
-	ErrServiceMeshNotConfigured     = odherrors.NewStopError(status.ServiceMeshNotConfiguredMessage)
 	ErrServiceMeshMemberAPINotFound = odherrors.NewStopError(ServiceMeshMemberAPINotFound)
 )
 
@@ -45,13 +43,9 @@ var (
 	}
 
 	conditionTypes = []string{
-		status.ConditionServiceMeshAvailable,
 		status.ConditionDeploymentsAvailable,
 	}
 )
-
-//go:embed resources
-var resourcesFS embed.FS
 
 func baseManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{

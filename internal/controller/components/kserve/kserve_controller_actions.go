@@ -52,7 +52,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 			status.ConditionServingAvailable,
 			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
 			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
-			conditions.WithMessage(status.ServiceMeshNotConfiguredMessage),
+			conditions.WithMessage(status.ServiceMeshNeedConfiguredMessage),
 		)
 
 		return ErrServiceMeshNotConfigured
