@@ -38,3 +38,42 @@ ticket, edit the description to include the ticket link.
 
 4. **Merge sync PR:**
 After the sync PR has passed github checks and is reviewed and approved, CI will merge it into `rhoai` branch.
+
+## Merging Changes Downstream
+
+```mermaid
+sequenceDiagram
+    actor engineer
+    participant main as opendatahub-io/main
+    participant rhoai as opendatahub-io/rhoai
+    participant rhds as red-hat-data-services/main
+    participant rhoaixy as red-hat-data-services/rhoai-x.y
+
+    engineer ->> main: pull request
+    engineer ->> rhoai: cherry-pick & pull request
+    rhoai ->> rhds: merge (via CI)
+alt landing a change in the next rhoai release
+    rhds ->> rhoaixy: merge (via CI)
+else fixing a blocker issue in a frozen release branch/fixing an issue in a z-stream release
+    engineer ->> rhoaixy: cherry-pick & pull request
+end
+```
+
+The overall process involves four branches across two repos.
+
+First, a change lands in the opendatahub-operator repo according to the basic workflow above.
+
+Then, downstream work happens in the [red-hat-data-services/rhods-operator](https://github.com/red-hat-data-services/rhods-operator)
+repo.
+
+A change that lands in the odh-operator `main` branch ends up in the next `rhoai-x.y` branch as follows:
+
+1. CI automation periodically merges the opendatahub-operator`rhoai` branch into the rhods-operator `main` branch.
+2. CI automation periodically merges the rhods-operator `main` branch into the active rhods-operator `rhoai-x.y` release branch.
+
+If a change is needed in a frozen/z-stream downstream release branch, an engineer opens a pull request against that specific
+release branch.
+
+1. Frozen branches are for an upcoming downstream release, where automatic merging is disabled for stabilization. For a
+   frozen branch, pull requests are appropriate for blocker issues only.
+2. Older release branches are used for z-stream fixes, where we provide critical fixes to the released product.
