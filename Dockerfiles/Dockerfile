@@ -5,7 +5,7 @@ ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
 ################################################################################
-FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi8/toolbox as manifests
+FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/toolbox as manifests
 ARG USE_LOCAL=false
 ARG OVERWRITE_MANIFESTS=""
 USER root
@@ -23,7 +23,7 @@ COPY config/monitoring/ /opt/manifests/monitoring
 COPY config/osd-configs/ /opt/manifests/osd-configs
 
 ################################################################################
-FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi8/go-toolset:$GOLANG_VERSION as builder
+FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder
 ARG CGO_ENABLED=1
 ARG TARGETARCH
 USER root
@@ -45,7 +45,7 @@ COPY pkg/ pkg/
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -tags strictfipsruntime -o manager cmd/main.go
 
 ################################################################################
-FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi8/ubi-minimal:latest
+FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/ubi-minimal:latest
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --chown=1001:0 --from=manifests /opt/manifests /opt/manifests

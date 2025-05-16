@@ -48,7 +48,7 @@ spec:
         - -openshift-ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         - -client-id=system:serviceaccount:redhat-ods-monitoring:prometheus
         - -skip-auth-regex=^/metrics
-        image: registry.redhat.io/openshift4/ose-oauth-proxy@sha256:4bef31eb993feb6f1096b51b4876c65a6fb1f4401fee97fa4f4542b6b7c9bc46
+        image: registry.redhat.io/openshift4/ose-oauth-proxy-rhel9@sha256:3bb1803cae39a31cc87bcf8affee0ad2576f1d2774a6c3de556adbbbc2687abc
         ports:
         - containerPort: 9114
           name: metrics
