@@ -24,7 +24,7 @@ spec:
             - name: addon-managed-odh-pullsecret
           containers:
           - name: anaconda-ce-validator
-            image: registry.redhat.io/openshift4/ose-cli@sha256:75bf9b911b6481dcf29f7942240d1555adaa607eec7fc61bedb7f624f87c36d4
+            image: registry.redhat.io/openshift4/ose-cli-rhel9@sha256:b1dbd11b70fae906ba445082bbbe9a1427731b9a0b64d6e67dd4c309d1477300
             command:
               - /bin/sh
               - -c
@@ -97,7 +97,7 @@ spec:
                 fi
 
                 exit 0
-                
+
             volumeMounts:
                 - name: secret-volume
                   mountPath: /etc/secret-volume
