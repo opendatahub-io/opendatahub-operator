@@ -181,7 +181,7 @@ func ReconcileDefaultNetworkPolicy(
 		if platform == cluster.ManagedRhoai {
 			err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, networkpolicyPath+"/monitoring", dscInit.Spec.Monitoring.Namespace, "networkpolicy", true)
 			if err != nil {
-				log.Error(err, "error to set networkpolicy in monitroing namespace", "path", networkpolicyPath)
+				log.Error(err, "error to set networkpolicy in monitoring namespace", "path", networkpolicyPath)
 				return err
 			}
 		}
