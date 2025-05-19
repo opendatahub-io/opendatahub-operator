@@ -212,6 +212,10 @@ func ReconcileDefaultNetworkPolicy(
 		},
 	}
 
+	if err := resources.EnsureGroupVersionKind(cli.Scheme(), &np); err != nil {
+		return fmt.Errorf("unable to set GVK to NetworkPolicy: %w", err)
+	}
+
 	if err := controllerutil.SetControllerReference(dscInit, &np, cli.Scheme()); err != nil {
 		return fmt.Errorf("unable to add OwnerReference to the Network policy: %w", err)
 	}
