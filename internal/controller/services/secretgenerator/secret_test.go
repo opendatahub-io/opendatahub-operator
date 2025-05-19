@@ -2,7 +2,11 @@ package secretgenerator_test
 
 import (
 	"errors"
+	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/secretgenerator"
 )
@@ -12,9 +16,90 @@ const (
 	errNameAnnotationNotFound = "name annotation not found in secret"
 	errTypeAnnotationNotFound = "type annotation not found in secret"
 	errUnsupportedType        = "secret type is not supported"
+	secretName                = "my-secret"
+)
+
+var (
+	base64Regex = regexp.MustCompile("^[A-Za-z0-9+/]*={0,3}$")
 )
 
 func TestNewSecret(t *testing.T) {
+	tests := []struct {
+		name               string
+		secretName         string
+		secretType         string
+		complexity         int
+		expectedResult     string
+		expectedErrMessage string
+	}{
+		{
+			name:           "random case",
+			secretName:     secretName,
+			secretType:     "random",
+			complexity:     1,
+			expectedResult: "success",
+		},
+		{
+			name:           "oauth case",
+			secretName:     secretName,
+			secretType:     "oauth",
+			complexity:     1,
+			expectedResult: "success",
+		},
+		{
+			name:               "unsupported secret type",
+			secretName:         secretName,
+			secretType:         "·%$@&?",
+			complexity:         1,
+			expectedResult:     "error",
+			expectedErrMessage: errUnsupportedType,
+		},
+		{
+			name:           "zero complexity",
+			secretName:     secretName,
+			secretType:     "random",
+			complexity:     0,
+			expectedResult: "nil secret",
+		},
+		{
+			name:           "empty name",
+			secretName:     "",
+			secretType:     "random",
+			complexity:     1,
+			expectedResult: "success",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			secret, err := secretgenerator.NewSecret(tt.secretName, tt.secretType, tt.complexity)
+			switch tt.expectedResult {
+			case "error":
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErrMessage)
+			case "nil secret":
+				require.NoError(t, err)
+				assert.Empty(t, secret.Value)
+				assert.Equal(t, tt.secretName, secret.Name)
+				assert.Equal(t, tt.secretType, secret.Type)
+				assert.Equal(t, tt.complexity, secret.Complexity)
+			case "success":
+				require.NoError(t, err)
+				require.NotNil(t, secret)
+				assert.Equal(t, tt.secretName, secret.Name)
+				assert.Equal(t, tt.secretType, secret.Type)
+				assert.Equal(t, tt.complexity, secret.Complexity)
+				assert.NotEmpty(t, secret.Value)
+				assert.True(t, base64Regex.MatchString(secret.Value), "Secret value should be base64 encoded")
+			default:
+				assert.Empty(t, secret.Value)
+				t.Fatalf("Unexpected expectedResult value: %s on the %s test", tt.expectedResult, tt.name)
+			}
+		})
+	}
+}
+
+func TestNewSecretFrom(t *testing.T) {
 	cases := map[string]struct {
 		annotations map[string]string
 		secret      secretgenerator.Secret
