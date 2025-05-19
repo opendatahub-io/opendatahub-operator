@@ -59,7 +59,7 @@ func TestNewSecret(t *testing.T) {
 			secretName:     secretName,
 			secretType:     "random",
 			complexity:     0,
-			expectedResult: "nil",
+			expectedResult: "nil secret",
 		},
 		{
 			name:           "empty name",
@@ -77,9 +77,12 @@ func TestNewSecret(t *testing.T) {
 			case "error":
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedErrMessage)
-			case "nil":
+			case "nil secret":
 				require.NoError(t, err)
 				assert.Empty(t, secret.Value)
+				assert.Equal(t, tt.secretName, secret.Name)
+				assert.Equal(t, tt.secretType, secret.Type)
+				assert.Equal(t, tt.complexity, secret.Complexity)
 			case "success":
 				require.NoError(t, err)
 				require.NotNil(t, secret)
