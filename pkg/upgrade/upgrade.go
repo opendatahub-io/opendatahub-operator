@@ -206,7 +206,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 			},
 		},
 	}
-	err := cluster.CreateWithRetry(ctx, cli, releaseDataScienceCluster, 1) // 1 min timeout
+	err := cluster.CreateWithRetry(ctx, cli, releaseDataScienceCluster) // 1 min timeout
 	if err != nil {
 		return fmt.Errorf("failed to create DataScienceCluster custom resource: %w", err)
 	}
@@ -264,7 +264,7 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform
 		return nil
 	case len(instances.Items) == 0:
 		log.Info("create default DSCI CR.")
-		err := cluster.CreateWithRetry(ctx, cli, defaultDsci, 1) // 1 min timeout
+		err := cluster.CreateWithRetry(ctx, cli, defaultDsci) // 1 min timeout
 		if err != nil {
 			return err
 		}

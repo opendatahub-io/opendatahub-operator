@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	interval = 2 * time.Second
+	interval = 10 * time.Second
 	duration = 5 * time.Minute
 )
 
@@ -88,7 +88,13 @@ func WaitForControlPlaneToBeReady(ctx context.Context, cli client.Client, f *fea
 
 	f.Log.Info("waiting for control plane components to be ready", "control-plane", smcp, "namespace", smcpNs, "duration (s)", duration.Seconds())
 
-	return wait.PollUntilContextTimeout(ctx, interval, duration, false, func(ctx context.Context) (bool, error) {
+	backoff := wait.Backoff{
+		Duration: interval,
+		Factor:   2.0,
+		Steps:    5,
+	}
+	// 5 minute timeout
+	return wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
 		ready, err := CheckControlPlaneComponentReadiness(ctx, cli, smcp, smcpNs)
 		if err != nil {
 			return false, err
@@ -114,7 +120,7 @@ func CheckControlPlaneComponentReadiness(ctx context.Context, c client.Client, s
 	case k8serr.IsNotFound(err):
 		return false, nil
 	case err != nil:
-		return false, fmt.Errorf("failed to find Service Mesh Control Plane: %w", err)
+		return false, fmt.Errorf("failed to get Service Mesh Control Plane: %w", err)
 	}
 
 	components, found, err := unstructured.NestedMap(smcpObj.Object, "status", "readiness", "components")
