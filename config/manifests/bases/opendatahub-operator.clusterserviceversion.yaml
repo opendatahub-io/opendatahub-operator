@@ -8,7 +8,7 @@ metadata:
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.28.0
     createdAt: "2025-4-30T00:00:00Z"
-    olm.skipRange: '>=1.0.0 <2.28.0'
+    replaces: opendatahub-operator.v2.28.0
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
       "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
