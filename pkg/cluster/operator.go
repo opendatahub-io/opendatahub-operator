@@ -76,10 +76,15 @@ func OperatorExists(ctx context.Context, cli client.Client, operatorPrefix strin
 // CustomResourceDefinitionExists checks if a CustomResourceDefinition with the given GVK exists.
 func CustomResourceDefinitionExists(ctx context.Context, cli client.Client, crdGK schema.GroupKind) error {
 	crd := &apiextv1.CustomResourceDefinition{}
-	resourceInterval, resourceTimeout := 2*time.Second, 5*time.Second
 	name := strings.ToLower(fmt.Sprintf("%ss.%s", crdGK.Kind, crdGK.Group)) // we need plural form of the kind
 
-	err := wait.PollUntilContextTimeout(ctx, resourceInterval, resourceTimeout, false, func(ctx context.Context) (bool, error) {
+	backoff := wait.Backoff{
+		Duration: 1 * time.Second,
+		Factor:   1.0,
+		Steps:    5,
+	}
+	// 5 second timeout
+	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
 		err := cli.Get(ctx, client.ObjectKey{Name: name}, crd)
 		if err != nil {
 			if errors.IsNotFound(err) {

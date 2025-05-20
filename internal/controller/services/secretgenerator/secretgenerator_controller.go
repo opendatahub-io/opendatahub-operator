@@ -43,8 +43,7 @@ import (
 )
 
 const (
-	resourceRetryInterval = 10 * time.Second
-	resourceRetryTimeout  = 1 * time.Minute
+	resourceRetryInterval = 2 * time.Second
 )
 
 // SecretGeneratorReconciler holds the controller configuration.
@@ -200,7 +199,13 @@ func (r *SecretGeneratorReconciler) generateSecret(ctx context.Context, foundSec
 func (r *SecretGeneratorReconciler) getRoute(ctx context.Context, name string, namespace string) (*routev1.Route, error) {
 	route := &routev1.Route{}
 	// Get spec.host from route
-	err := wait.PollUntilContextTimeout(ctx, resourceRetryInterval, resourceRetryTimeout, false, func(ctx context.Context) (bool, error) {
+	backoff := wait.Backoff{
+		Duration: resourceRetryInterval,
+		Factor:   2.0,
+		Steps:    5,
+	}
+	// 1 minute timeout
+	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
 		err := r.Client.Get(ctx, client.ObjectKey{
 			Name:      name,
 			Namespace: namespace,
