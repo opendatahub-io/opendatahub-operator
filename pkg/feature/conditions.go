@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	interval = 2 * time.Second
+	interval = 10 * time.Second
 	duration = 5 * time.Minute
 )
 
@@ -55,8 +55,13 @@ func EnsureOperatorIsInstalled(operatorName string) Action {
 func WaitForPodsToBeReady(namespace string) Action {
 	return func(ctx context.Context, cli client.Client, f *Feature) error {
 		f.Log.Info("waiting for pods to become ready", "namespace", namespace, "duration (s)", duration.Seconds())
-
-		return wait.PollUntilContextTimeout(ctx, interval, duration, false, func(ctx context.Context) (bool, error) {
+		backoff := wait.Backoff{
+			Duration: interval,
+			Factor:   2.0,
+			Steps:    5,
+		}
+		// 5 minute timeout
+		return wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
 			var podList corev1.PodList
 
 			err := cli.List(ctx, &podList, client.InNamespace(namespace))
@@ -118,8 +123,13 @@ func filterEvictedPods(pods []corev1.Pod) []corev1.Pod {
 func WaitForResourceToBeCreated(namespace string, gvk schema.GroupVersionKind) Action {
 	return func(ctx context.Context, cli client.Client, f *Feature) error {
 		f.Log.Info("waiting for resource to be created", "namespace", namespace, "resource", gvk)
-
-		return wait.PollUntilContextTimeout(ctx, interval, duration, false, func(ctx context.Context) (bool, error) {
+		backoff := wait.Backoff{
+			Duration: interval,
+			Factor:   2.0,
+			Steps:    5,
+		}
+		// 5 minute timeout
+		return wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
 			list := &unstructured.UnstructuredList{}
 			list.SetGroupVersionKind(gvk)
 
