@@ -495,33 +495,25 @@ func getCommonCache(ctx context.Context, cli client.Client, platform common.Plat
 }
 
 func createSecretCacheConfig(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs := map[string]cache.Config{
-		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
-		"openshift-ingress": {},
-	}
-
-	c, err := getCommonCache(ctx, cli, platform)
+	namespaceConfigs, err := getCommonCache(ctx, cli, platform)
 	if err != nil {
 		return nil, err
 	}
-	for n := range c {
-		namespaceConfigs[n] = cache.Config{}
-	}
+
+	namespaceConfigs["istio-system"] = cache.Config{} // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
+	namespaceConfigs["openshift-ingress"] = cache.Config{}
+
 	return namespaceConfigs, nil
 }
 
 func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs := map[string]cache.Config{
-		"istio-system": {}, // for serivcemonitor: data-science-smcp-pilot-monitor
-	}
-
-	c, err := getCommonCache(ctx, cli, platform)
+	namespaceConfigs, err := getCommonCache(ctx, cli, platform)
 	if err != nil {
 		return nil, err
 	}
-	for n := range c {
-		namespaceConfigs[n] = cache.Config{}
-	}
+
+	namespaceConfigs["istio-system"] = cache.Config{} // for serivcemonitor: data-science-smcp-pilot-monitor
+
 	return namespaceConfigs, nil
 }
 
