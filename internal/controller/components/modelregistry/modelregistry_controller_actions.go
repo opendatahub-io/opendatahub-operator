@@ -71,6 +71,37 @@ func customizeManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	return nil
 }
 
+func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+
+	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
+		rr.Conditions.MarkFalse(
+			status.ConditionServiceMeshAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
+			conditions.WithMessage(status.ServiceMeshNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	_, err := cluster.GetCRD(ctx, rr.Client, ServiceMeshMemberCRD)
+	switch {
+	case k8serr.IsNotFound(err):
+		rr.Conditions.MarkFalse(
+			status.ConditionServiceMeshAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
+			conditions.WithMessage(ServiceMeshMemberAPINotFound),
+		)
+
+		return ErrServiceMeshMemberAPINotFound
+	case err != nil:
+		return err
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionServiceMeshAvailable)
+	return nil
+}
+
 func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	mr, ok := rr.Instance.(*componentApi.ModelRegistry)
 	if !ok {
@@ -88,14 +119,8 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return fmt.Errorf("failed to add namespace %s to manifests: %w", mr.Spec.RegistriesNamespace, err)
 	}
 
-	// Do nothing if ServiceMesh is not Managed, but only set condition
+	// Do nothing more if ServiceMesh is not Managed
 	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
-		rr.Conditions.MarkFalse(
-			status.ConditionServiceMeshAvailable,
-			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
-			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
-			conditions.WithMessage(status.ServiceMeshNotConfiguredMessage),
-		)
 		return nil
 	}
 
@@ -118,21 +143,6 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return fmt.Errorf("failed to add default ingress secret for model registry: %w", err)
 	}
 
-	// update condition and exit
-	if _, err := cluster.GetCRD(ctx, rr.Client, ServiceMeshMemberCRD); err != nil {
-		if k8serr.IsNotFound(err) {
-			rr.Conditions.MarkFalse(
-				status.ConditionServiceMeshAvailable,
-				conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
-				conditions.WithReason(status.ServiceMeshNotConfiguredReason),
-				conditions.WithMessage(ServiceMeshMemberAPINotFound),
-			)
-			return ErrServiceMeshMemberAPINotFound
-		}
-		return fmt.Errorf("failed to get ServiceMeshMember CRD: %w", err)
-	}
-
-	rr.Conditions.MarkTrue(status.ConditionServiceMeshAvailable)
 	// To add SMM only when ServiceMesh is enabled
 	if err := rr.AddResources(
 		&maistrav1.ServiceMeshMember{
