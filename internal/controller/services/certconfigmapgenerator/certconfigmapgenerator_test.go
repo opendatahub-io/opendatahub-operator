@@ -76,6 +76,25 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 	err = env.Client().Create(gctx, &ns2)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
+	t.Run("TrustedCABundle missing (nil)", func(t *testing.T) {
+		ctx := context.Background()
+		g := G(t)
+
+		// Remove TrustedCABundle from the spec (set to nil)
+		_, err = ctrl.CreateOrUpdate(ctx, env.Client(), &dsci, func() error {
+			dsci.Spec.TrustedCABundle = nil
+			return nil
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		g.Consistently(func() ([]corev1.ConfigMap, error) {
+			return listCABundleConfigMaps(ctx, env.Client())
+		}).Should(
+			BeEmpty(),
+		)
+	})
+
 	t.Run("TrustedCABundle set to Removed", func(t *testing.T) {
 		ctx := context.Background()
 		g := G(t)
