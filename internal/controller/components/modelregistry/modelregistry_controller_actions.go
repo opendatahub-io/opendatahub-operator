@@ -9,11 +9,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	maistrav1 "maistra.io/api/core/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -28,6 +28,14 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = []odhtypes.ManifestInfo{
 		baseManifestInfo(BaseManifestsSourcePath),
 		extraManifestInfo(BaseManifestsSourcePath),
+	}
+
+	// only include template if ServiceMesh is enabled and SMM CRD exists
+	if ifGVKWatched(gvk.ServiceMeshMember)(ctx, rr) {
+		rr.Templates = []odhtypes.TemplateInfo{{
+			FS:   resourcesFS,
+			Path: ServiceMeshMemberTemplate,
+		}}
 	}
 
 	df := mr.GetDevFlags()
@@ -72,7 +80,6 @@ func customizeManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 }
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-
 	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
 		rr.Conditions.MarkFalse(
 			status.ConditionServiceMeshAvailable,
@@ -141,24 +148,6 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 		},
 	); err != nil {
 		return fmt.Errorf("failed to add default ingress secret for model registry: %w", err)
-	}
-
-	// To add SMM only when ServiceMesh is enabled
-	if err := rr.AddResources(
-		&maistrav1.ServiceMeshMember{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "default",
-				Namespace: mr.Spec.RegistriesNamespace,
-			},
-			Spec: maistrav1.ServiceMeshMemberSpec{
-				ControlPlaneRef: maistrav1.ServiceMeshControlPlaneRef{
-					Namespace: rr.DSCI.Spec.ServiceMesh.ControlPlane.Namespace,
-					Name:      rr.DSCI.Spec.ServiceMesh.ControlPlane.Name,
-				},
-			},
-		},
-	); err != nil {
-		return fmt.Errorf("failed to add ServiceMeshMember resource: %w", err)
 	}
 
 	return nil
