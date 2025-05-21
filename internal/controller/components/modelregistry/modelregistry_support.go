@@ -6,12 +6,12 @@ import (
 	"path"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -75,17 +75,17 @@ func extraManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 }
 
 func isServiceMeshEnabled(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
-    // Check if ServiceMesh exists and is managed
-    if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
-        return false
-    }
-    
-    // Check if the cluster has the `ServiceMeshMember` CRD installed
-    hasCRD, err := cluster.HasCRD(ctx, rr.Client, gvk.ServiceMeshMember)
-    if err != nil {
-        ctrl.Log.Error(err, "error checking if CRD installed", "GVK", specificGVK)
-        return false
-    }
-    
-    return hasCRD
+	// Check if ServiceMesh exists and is managed
+	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
+		return false
+	}
+
+	// Check if the cluster has the `ServiceMeshMember` CRD installed
+	hasCRD, err := cluster.HasCRD(ctx, rr.Client, gvk.ServiceMeshMember)
+	if err != nil {
+		ctrl.Log.Error(err, "error checking if CRD installed", "GVK", gvk.ServiceMeshMember)
+		return false
+	}
+
+	return hasCRD
 }
