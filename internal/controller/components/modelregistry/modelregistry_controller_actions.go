@@ -13,7 +13,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -31,7 +30,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	}
 
 	// only include template if ServiceMesh is enabled and SMM CRD exists
-	if ifGVKWatched(gvk.ServiceMeshMember)(ctx, rr) {
+	if isServiceMeshEnabled(ctx, rr) {
 		rr.Templates = []odhtypes.TemplateInfo{{
 			FS:   resourcesFS,
 			Path: ServiceMeshMemberTemplate,

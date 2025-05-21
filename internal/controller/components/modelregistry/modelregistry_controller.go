@@ -76,7 +76,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// This component adds a ServiceMeshMember resource to the registries
 		// namespaces that may not be known when the controller is started, hence
 		// it should be watched dynamically if SMM CR exists
-		WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic(ifGVKWatched(gvk.ServiceMeshMember))).
+		WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic(isServiceMeshEnabled)).
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(customizeManifests).
