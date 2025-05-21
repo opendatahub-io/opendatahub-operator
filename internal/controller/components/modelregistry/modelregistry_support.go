@@ -74,16 +74,18 @@ func extraManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	}
 }
 
-func ifGVKWatched(kvg schema.GroupVersionKind) func(context.Context, *odhtypes.ReconciliationRequest) bool {
-	return func(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
-		if rr.DSCI.Spec.ServiceMesh != nil && rr.DSCI.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-			hasCRD, err := cluster.HasCRD(ctx, rr.Client, kvg)
-			if err != nil {
-				ctrl.Log.Error(err, "error checking if CRD installed", "GVK", kvg)
-				return false
-			}
-			return hasCRD
-		}
-		return false
-	}
+func isServiceMeshEnabled(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
+    // Check if ServiceMesh exists and is managed
+    if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
+        return false
+    }
+    
+    // Check if the cluster has the `ServiceMeshMember` CRD installed
+    hasCRD, err := cluster.HasCRD(ctx, rr.Client, gvk.ServiceMeshMember)
+    if err != nil {
+        ctrl.Log.Error(err, "error checking if CRD installed", "GVK", specificGVK)
+        return false
+    }
+    
+    return hasCRD
 }
