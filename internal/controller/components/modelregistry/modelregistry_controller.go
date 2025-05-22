@@ -47,6 +47,7 @@ import (
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.ModelRegistry{}).
 		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
@@ -74,8 +75,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		// This component adds a ServiceMeshMember resource to the registries
 		// namespaces that may not be known when the controller is started, hence
-		// it should be watched dynamically
-		WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic()).
+		// it should be watched dynamically if SMM CR exists
+		WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic(isServiceMeshEnabled)).
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(customizeManifests).
@@ -102,7 +103,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// contributing to the controller readiness status
 		WithConditions(conditionTypes...).
 		Build(ctx)
-
 	if err != nil {
 		return fmt.Errorf("could not create the model registry controller: %w", err)
 	}
