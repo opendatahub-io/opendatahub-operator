@@ -186,19 +186,29 @@ func (r *CertConfigmapGeneratorReconciler) Reconcile(ctx context.Context, ns *co
 	}
 
 	switch {
-	case dsci.Spec.TrustedCABundle == nil || dsci.Spec.TrustedCABundle.ManagementState != operatorv1.Managed:
-		l.Info("TrustedCABundle is not set as Managed, skip CA bundle injection and delete existing configmap")
+	case dsci.Spec.TrustedCABundle == nil:
+		l.Info("Trusted CA Bundle is not configured in DSCI, skip CA bundle injection and delete existing configmap")
 
 		if err := DeleteOdhTrustedCABundleConfigMap(ctx, r.certClient, ns.Name); err != nil {
 			return reconcile.Result{}, fmt.Errorf("error deleting existing configmap: %w", err)
 		}
 
-	case resources.HasAnnotation(ns, annotation.InjectionOfCABundleAnnotatoion, "false"):
+	case !ShouldInjectTrustedCABundle(ns):
 		l.Info("Namespace has opted-out of CA bundle injection, deleting it")
 
 		if err := DeleteOdhTrustedCABundleConfigMap(ctx, r.certClient, ns.Name); err != nil {
 			return reconcile.Result{}, fmt.Errorf("error deleting existing configmap: %w", err)
 		}
+
+	case dsci.Spec.TrustedCABundle.ManagementState == operatorv1.Removed:
+		l.Info("Trusted CA Bundle injection is set to `Removed` state, skip CA bundle injection and delete existing configmap")
+
+		if err := DeleteOdhTrustedCABundleConfigMap(ctx, r.certClient, ns.Name); err != nil {
+			return reconcile.Result{}, fmt.Errorf("error deleting existing configmap: %w", err)
+		}
+
+	case dsci.Spec.TrustedCABundle.ManagementState == operatorv1.Unmanaged:
+		l.Info("Trusted CA Bundle injection is set to `Unmanaged` state, configmap is no longer managed by operator")
 
 	default:
 		l.Info("Adding CA bundle configmap")
