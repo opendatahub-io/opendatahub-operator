@@ -453,11 +453,13 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 func getCommonCache(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
 	namespaceConfigs := map[string]cache.Config{}
-	// newtowkrpolicy need operator namespace
+
+	// networkpolicy need operator namespace
 	operatorNs, err := cluster.GetOperatorNamespace()
 	if err != nil {
-		return namespaceConfigs, err
+		return nil, err
 	}
+
 	namespaceConfigs[operatorNs] = cache.Config{}
 
 	if platform == cluster.ManagedRhoai {
@@ -465,61 +467,53 @@ func getCommonCache(ctx context.Context, cli client.Client, platform common.Plat
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
 		namespaceConfigs[cluster.NamespaceConsoleLink] = cache.Config{}
 		return namespaceConfigs, nil
-	}
-	cNamespaceList := &corev1.NamespaceList{}
-	labelSelector := client.MatchingLabels{
-		labels.CustomizedAppNamespace: labels.True,
-	}
-	if err := cli.List(ctx, cNamespaceList, labelSelector); err != nil {
-		return map[string]cache.Config{}, err
-	}
-
-	switch len(cNamespaceList.Items) {
-	case 0:
-		if platform == cluster.SelfManagedRhoai {
-			namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-			namespaceConfigs["redhat-ods-monitoring"] = cache.Config{} // since we still create monitoring namespace for self-managed
-			return namespaceConfigs, nil
+	} else {
+		// get the managed application's namespaces
+		cNamespaceList := &corev1.NamespaceList{}
+		labelSelector := client.MatchingLabels{
+			labels.CustomizedAppNamespace: labels.True,
 		}
-		namespaceConfigs["opendatahub"] = cache.Config{}
-		return namespaceConfigs, nil
-	case 1:
-		namespaceConfigs[cNamespaceList.Items[0].Name] = cache.Config{}
-		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{} // since we still create monitoring namespace for self-managed
-	default:
-		return map[string]cache.Config{}, errors.New("only support max. one namespace with label: opendatahub.io/application-namespace: true")
+		if err := cli.List(ctx, cNamespaceList, labelSelector); err != nil {
+			return nil, err
+		}
+
+		switch len(cNamespaceList.Items) {
+		case 0:
+			if platform == cluster.SelfManagedRhoai {
+				namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+			} else {
+				namespaceConfigs["opendatahub"] = cache.Config{}
+			}
+			return namespaceConfigs, nil
+		case 1:
+			namespaceConfigs[cNamespaceList.Items[0].Name] = cache.Config{}
+			return namespaceConfigs, nil
+		default:
+			return nil, errors.New("only support max. one namespace with label: opendatahub.io/application-namespace: true")
+		}
 	}
-	return namespaceConfigs, nil
 }
 
 func createSecretCacheConfig(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs := map[string]cache.Config{
-		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
-		"openshift-ingress": {},
-	}
-
-	c, err := getCommonCache(ctx, cli, platform)
+	namespaceConfigs, err := getCommonCache(ctx, cli, platform)
 	if err != nil {
 		return nil, err
 	}
-	for n := range c {
-		namespaceConfigs[n] = cache.Config{}
-	}
+
+	namespaceConfigs["istio-system"] = cache.Config{} // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
+	namespaceConfigs["openshift-ingress"] = cache.Config{}
+
 	return namespaceConfigs, nil
 }
 
 func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs := map[string]cache.Config{
-		"istio-system": {}, // for serivcemonitor: data-science-smcp-pilot-monitor
-	}
-
-	c, err := getCommonCache(ctx, cli, platform)
+	namespaceConfigs, err := getCommonCache(ctx, cli, platform)
 	if err != nil {
 		return nil, err
 	}
-	for n := range c {
-		namespaceConfigs[n] = cache.Config{}
-	}
+
+	namespaceConfigs["istio-system"] = cache.Config{} // for serivcemonitor: data-science-smcp-pilot-monitor
+
 	return namespaceConfigs, nil
 }
 
