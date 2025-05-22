@@ -102,5 +102,39 @@ var _ = Describe("feature postconditions", func() {
 			// then
 			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 		})
+
+		It("should fail when there are no pods ready in the namespace", func(ctx context.Context) {
+			// given
+			ns := fixtures.NewNamespace(namespace)
+			Expect(envTestClient.Create(ctx, ns)).To(Succeed())
+
+			podNotReady, err := fixtures.CreatePod(ctx, envTestClient, namespace, "test-pod-not-ready")
+			Expect(err).ToNot(HaveOccurred())
+
+			podNotReady.Status.Phase = corev1.PodFailed
+			podNotReady.Status.Reason = "Evicted"
+			podNotReady.Status.Conditions = []corev1.PodCondition{
+				{
+					Type:   corev1.PodReady,
+					Status: corev1.ConditionFalse,
+				},
+			}
+
+			Expect(envTestClient.Status().Update(ctx, podNotReady)).To(Succeed())
+
+			// when
+			featuresHandler := feature.ClusterFeaturesHandler(dsci, func(registry feature.FeaturesRegistry) error {
+				errFeatureAdd := registry.Add(feature.Define("check-pods-ready").
+					PostConditions(feature.WaitForPodsToBeReady(namespace)),
+				)
+
+				Expect(errFeatureAdd).ToNot(HaveOccurred())
+
+				return nil
+			})
+
+			// then
+			Expect(featuresHandler.Apply(ctx, envTestClient)).To(Not(Succeed()))
+		})
 	})
 })
