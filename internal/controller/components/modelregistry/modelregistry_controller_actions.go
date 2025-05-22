@@ -16,41 +16,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-
-	_ "embed"
 )
-
-func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	rr.Conditions.MarkTrue(status.ConditionServiceMeshAvailable)
-
-	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
-		rr.Conditions.MarkFalse(
-			status.ConditionServiceMeshAvailable,
-			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
-			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
-			conditions.WithMessage(status.ServiceMeshNotConfiguredMessage),
-		)
-
-		return ErrServiceMeshNotConfigured
-	}
-
-	_, err := cluster.GetCRD(ctx, rr.Client, ServiceMeshMemberCRD)
-	switch {
-	case k8serr.IsNotFound(err):
-		rr.Conditions.MarkFalse(
-			status.ConditionServiceMeshAvailable,
-			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
-			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
-			conditions.WithMessage(ServiceMeshMemberAPINotFound),
-		)
-
-		return ErrServiceMeshMemberAPINotFound
-	case err != nil:
-		return err
-	}
-
-	return nil
-}
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	mr, ok := rr.Instance.(*componentApi.ModelRegistry)
@@ -63,10 +29,13 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		extraManifestInfo(BaseManifestsSourcePath),
 	}
 
-	rr.Templates = []odhtypes.TemplateInfo{{
-		FS:   resourcesFS,
-		Path: ServiceMeshMemberTemplate,
-	}}
+	// only include template if ServiceMesh is enabled and SMM CRD exists
+	if isServiceMeshEnabled(ctx, rr) {
+		rr.Templates = []odhtypes.TemplateInfo{{
+			FS:   resourcesFS,
+			Path: ServiceMeshMemberTemplate,
+		}}
+	}
 
 	df := mr.GetDevFlags()
 
@@ -109,6 +78,36 @@ func customizeManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	return nil
 }
 
+func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
+		rr.Conditions.MarkFalse(
+			status.ConditionServiceMeshAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
+			conditions.WithMessage(status.ServiceMeshNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	_, err := cluster.GetCRD(ctx, rr.Client, ServiceMeshMemberCRD)
+	switch {
+	case k8serr.IsNotFound(err):
+		rr.Conditions.MarkFalse(
+			status.ConditionServiceMeshAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithReason(status.ServiceMeshNotConfiguredReason),
+			conditions.WithMessage(ServiceMeshMemberAPINotFound),
+		)
+
+		return ErrServiceMeshMemberAPINotFound
+	case err != nil:
+		return err
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionServiceMeshAvailable)
+	return nil
+}
+
 func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	mr, ok := rr.Instance.(*componentApi.ModelRegistry)
 	if !ok {
@@ -126,14 +125,17 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return fmt.Errorf("failed to add namespace %s to manifests: %w", mr.Spec.RegistriesNamespace, err)
 	}
 
-	// Secret
+	// Do nothing more if ServiceMesh is not Managed
+	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
+		return nil
+	}
 
+	// To create secret only when ServiceMesh is enabled
 	// TODO: this should be done by a dedicated controller
 	is, err := cluster.FindDefaultIngressSecret(ctx, rr.Client)
 	if err != nil {
 		return fmt.Errorf("failed to find default ingress secret for model registry: %w", err)
 	}
-
 	if err := rr.AddResources(
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
