@@ -130,11 +130,11 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 
 func PatchMonitoringNS(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) error {
 	log := logf.FromContext(ctx)
-	if dscInit.Spec.Monitoring.ManagementState != operatorv1.Managed {
+	monitoringName := dscInit.Spec.Monitoring.Namespace
+	if dscInit.Spec.Monitoring.ManagementState != operatorv1.Managed || dscInit.Spec.ApplicationsNamespace == monitoringName {
 		return nil
 	}
 	// Create Monitoring Namespace if it is enabled and not exists
-	monitoringName := dscInit.Spec.Monitoring.Namespace
 
 	desiredMonitoringNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -162,7 +162,7 @@ func ReconcileDefaultNetworkPolicy(
 	dscInit *dsciv1.DSCInitialization,
 	platform common.Platform,
 ) error {
-	if platform == cluster.ManagedRhoai {
+	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
 		log := logf.FromContext(ctx)
 
 		// Get operator namepsace
@@ -177,11 +177,11 @@ func ReconcileDefaultNetworkPolicy(
 			log.Error(err, "error to set networkpolicy in operator namespace", "path", networkpolicyPath)
 			return err
 		}
-		// Deploy networkpolicy for monitoring namespace
-		if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed {
+		// Deploy networkpolicy for monitoring namespace only when it is managed cluster.
+		if platform == cluster.ManagedRhoai {
 			err = deploy.DeployManifestsFromPath(ctx, cli, dscInit, networkpolicyPath+"/monitoring", dscInit.Spec.Monitoring.Namespace, "networkpolicy", true)
 			if err != nil {
-				log.Error(err, "error to set networkpolicy in monitroing namespace", "path", networkpolicyPath)
+				log.Error(err, "error to set networkpolicy in monitoring namespace", "path", networkpolicyPath)
 				return err
 			}
 		}
