@@ -4,6 +4,7 @@ package certconfigmapgenerator
 import (
 	"context"
 	"reflect"
+	"strconv"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -16,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -84,6 +86,20 @@ func DeleteOdhTrustedCABundleConfigMap(ctx context.Context, cli client.Client, n
 	}
 
 	return nil
+}
+
+func ShouldInjectTrustedCABundle(obj client.Object) bool {
+	value, found := obj.GetAnnotations()[annotation.InjectionOfCABundleAnnotatoion]
+	if !found {
+		return true
+	}
+
+	shouldInject, err := strconv.ParseBool(value)
+	if err != nil {
+		return true
+	}
+
+	return shouldInject
 }
 
 // dsciEventHandler creates an event handler for DSCInitialization events. When a DSCInitialization
