@@ -150,6 +150,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			// so they would affect only objects metadata without side effects
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
+			kustomize.WithLabel(labels.Scraping, labels.True),
 		)).
 		WithAction(customizeKserveConfigMap).
 		WithAction(deploy.NewAction(

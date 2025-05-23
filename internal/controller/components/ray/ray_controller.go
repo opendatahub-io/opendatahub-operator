@@ -65,6 +65,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithCache(),
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
+			kustomize.WithLabel(labels.Scraping, labels.True),
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
