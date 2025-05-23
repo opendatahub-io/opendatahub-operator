@@ -74,7 +74,7 @@ func TestCheckPreConditions_ServiceMeshUnmanaged(t *testing.T) {
 
 	err = checkPreConditions(ctx, &rr)
 	g.Expect(err).Should(
-		MatchError(ContainSubstring(status.ServiceMeshNotConfiguredMessage)),
+		MatchError(ContainSubstring(status.ServiceMeshNeedConfiguredMessage)),
 	)
 	g.Expect(&ks).Should(
 		WithTransform(resources.ToUnstructured,
