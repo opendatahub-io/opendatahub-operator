@@ -33,6 +33,7 @@ and configure these applications.
   - [Component Integration](#component-integration)
   - [Troubleshooting](#troubleshooting)
   - [Upgrade testing](#upgrade-testing)
+  - [Release Workflow Guide](#release-workflow-guide)
 
 ## Usage
 
@@ -517,3 +518,7 @@ Please refer to [troubleshooting documentation](docs/troubleshooting.md)
 ### Upgrade testing
 
 Please refer to [upgrade testing documentation](docs/upgrade-testing.md)
+
+### Release Workflow Guide
+
+Please refer to [release workflow documentation](docs/release-workflow-guide.md)
