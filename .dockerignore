@@ -1,4 +1,12 @@
-# More info: https://docs.docker.com/engine/reference/builder/#dockerignore-file
-# Ignore build and test binaries.
-bin/
-testbin/
+# optimize build caching
+# Add .dockerignore improvements
+**/.git
+**/coverage
+tests
+**/*.md
+**/docs
+**/bin
+**/samples
+opt/manifests/**/scorecard
+**/e2e
+opt/manifests/**/example-*

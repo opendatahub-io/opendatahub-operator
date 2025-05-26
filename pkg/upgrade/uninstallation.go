@@ -59,7 +59,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform common.P
 			if err := cli.Delete(ctx, &namespace); err != nil {
 				return fmt.Errorf("error deleting namespace %v: %w", namespace.Name, err)
 			}
-			log.Info("Namespace " + namespace.Name + " deleted as a part of uninstallation.")
+			log.Info("Namespace deleted as a part of uninstallation", "namespace", namespace.Name)
 		}
 	}
 
@@ -153,7 +153,7 @@ func removeCSV(ctx context.Context, c client.Client) error {
 		return err
 	}
 
-	log.Info("Deleting CSV " + operatorCsv.Name)
+	log.Info("Deleting CSV", "name", operatorCsv.Name)
 	err = c.Delete(ctx, operatorCsv)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
@@ -162,7 +162,7 @@ func removeCSV(ctx context.Context, c client.Client) error {
 
 		return fmt.Errorf("error deleting clusterserviceversion: %w", err)
 	}
-	log.Info("Clusterserviceversion " + operatorCsv.Name + " deleted as a part of uninstall")
+	log.Info("Clusterserviceversion deleted as a part of uninstall", "name", operatorCsv.Name)
 
 	return nil
 }

@@ -17,6 +17,10 @@ RUN if [ "${USE_LOCAL}" != "true" ]; then \
         ./get_all_manifests.sh ${OVERWRITE_MANIFESTS}; \
     fi
 
+# Clean up unwanted directories and files from manifests
+RUN rm -rf /opt/manifests/*/e2e /opt/manifests/*/scorecard /opt/manifests/*/test /opt/manifests/*/samples /opt/manifests/*/example-* \
+    && find /opt/manifests -name "README.md" -delete
+
 # Copy monitoring config
 COPY config/monitoring/ /opt/manifests/monitoring
 # Copy ods-configs
@@ -41,8 +45,8 @@ COPY internal/ internal/
 COPY cmd/main.go cmd/main.go
 COPY pkg/ pkg/
 
-# Build
-RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -tags strictfipsruntime -o manager cmd/main.go
+# Build stripe out debug info to minimize binary size
+RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o manager cmd/main.go
 
 ################################################################################
 FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/ubi-minimal:latest
