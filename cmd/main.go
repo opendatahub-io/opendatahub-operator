@@ -512,7 +512,8 @@ func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platfor
 		return nil, err
 	}
 
-	namespaceConfigs["istio-system"] = cache.Config{} // for serivcemonitor: data-science-smcp-pilot-monitor
+	namespaceConfigs["istio-system"] = cache.Config{}        // for serivcemonitor: data-science-smcp-pilot-monitor
+	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
 
 	return namespaceConfigs, nil
 }
