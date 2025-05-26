@@ -72,7 +72,9 @@ import (
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/shared"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
@@ -166,11 +168,11 @@ type OperatorConfig struct {
 }
 
 func LoadConfig() (*OperatorConfig, error) {
-	var config OperatorConfig
-	if err := viper.Unmarshal(&config); err != nil {
+	var operatorConfig OperatorConfig
+	if err := viper.Unmarshal(&operatorConfig); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal operator manager config: %w", err)
 	}
-	return &config, nil
+	return &operatorConfig, nil
 }
 
 func main() { //nolint:funlen,maintidx,gocyclo
@@ -362,7 +364,15 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	webhook.Init(mgr)
+	// Register all webhooks using the shared helper
+	if err := shared.RegisterAllWebhooks(
+		mgr,
+		datasciencecluster.RegisterWebhooks,
+		dscinitialization.RegisterWebhooks,
+	); err != nil {
+		setupLog.Error(err, "unable to register webhooks")
+		os.Exit(1)
+	}
 
 	if err = (&dscictrl.DSCInitializationReconciler{
 		Client:   mgr.GetClient(),
