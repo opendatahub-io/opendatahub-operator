@@ -72,7 +72,9 @@ import (
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/shared"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
@@ -146,6 +148,31 @@ func initServices(_ context.Context, p common.Platform) error {
 	return sr.ForEach(func(sh sr.ServiceHandler) error {
 		return sh.Init(p)
 	})
+}
+
+// Create a config struct with viper's mapstructure.
+type OperatorConfig struct {
+	MetricsAddr         string `mapstructure:"metrics-bind-address"`
+	HealthProbeAddr     string `mapstructure:"health-probe-bind-address"`
+	LeaderElection      bool   `mapstructure:"leader-elect"`
+	MonitoringNamespace string `mapstructure:"dsc-monitoring-namespace"`
+	LogMode             string `mapstructure:"log-mode"`
+	PprofAddr           string `mapstructure:"pprof-bind-address"`
+
+	// Zap logging configuration
+	ZapDevel        bool   `mapstructure:"zap-devel"`
+	ZapEncoder      string `mapstructure:"zap-encoder"`
+	ZapLogLevel     string `mapstructure:"zap-log-level"`
+	ZapStacktrace   string `mapstructure:"zap-stacktrace-level"`
+	ZapTimeEncoding string `mapstructure:"zap-time-encoding"`
+}
+
+func LoadConfig() (*OperatorConfig, error) {
+	var operatorConfig OperatorConfig
+	if err := viper.Unmarshal(&operatorConfig); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal operator manager config: %w", err)
+	}
+	return &operatorConfig, nil
 }
 
 func main() { //nolint:funlen,maintidx,gocyclo
@@ -345,7 +372,15 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	webhook.Init(mgr)
+	// Register all webhooks using the shared helper
+	if err := shared.RegisterAllWebhooks(
+		mgr,
+		datasciencecluster.RegisterWebhooks,
+		dscinitialization.RegisterWebhooks,
+	); err != nil {
+		setupLog.Error(err, "unable to register webhooks")
+		os.Exit(1)
+	}
 
 	if err = (&dscictrl.DSCInitializationReconciler{
 		Client:   mgr.GetClient(),
