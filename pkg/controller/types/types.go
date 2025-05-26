@@ -165,18 +165,23 @@ func (rr *ReconciliationRequest) ForEachResource(fn func(*unstructured.Unstructu
 //   - predicate: A function that takes a pointer to an unstructured.Unstructured object
 //     and returns a boolean indicating whether the resource should be removed.
 func (rr *ReconciliationRequest) RemoveResources(predicate func(*unstructured.Unstructured) bool) error {
-	filtered := rr.Resources[:0] // Create a slice with zero length but full capacity
-
-	for i := range rr.Resources {
-		if predicate(&rr.Resources[i]) {
-			continue
+	// Use in-place filtering to avoid allocations
+	writeIndex := 0
+	for readIndex := range rr.Resources {
+		if !predicate(&rr.Resources[readIndex]) {
+			if writeIndex != readIndex {
+				rr.Resources[writeIndex] = rr.Resources[readIndex]
+			}
+			writeIndex++
 		}
-
-		filtered = append(filtered, rr.Resources[i])
 	}
 
-	rr.Resources = filtered
+	// Clear references to help GC
+	for i := writeIndex; i < len(rr.Resources); i++ {
+		rr.Resources[i] = unstructured.Unstructured{}
+	}
 
+	rr.Resources = rr.Resources[:writeIndex]
 	return nil
 }
 
