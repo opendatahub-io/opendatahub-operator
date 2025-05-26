@@ -10,9 +10,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-opendatahub-io-v1
+      path: /mutate-datasciencecluster
   failurePolicy: Fail
-  name: mutate.operator.opendatahub.io
+  name: datasciencecluster-defaulter.opendatahub.io
   rules:
   - apiGroups:
     - datasciencecluster.opendatahub.io
@@ -36,12 +36,30 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-opendatahub-io-v1
+      path: /validate-datasciencecluster
   failurePolicy: Fail
-  name: operator.opendatahub.io
+  name: datasciencecluster-validator.opendatahub.io
   rules:
   - apiGroups:
     - datasciencecluster.opendatahub.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    resources:
+    - datascienceclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-dscinitialization
+  failurePolicy: Fail
+  name: dscinitialization-validator.opendatahub.io
+  rules:
+  - apiGroups:
     - dscinitialization.opendatahub.io
     apiVersions:
     - v1
@@ -49,6 +67,5 @@ webhooks:
     - CREATE
     - DELETE
     resources:
-    - datascienceclusters
     - dscinitializations
   sideEffects: None

@@ -74,7 +74,7 @@ func New(opts ...OptionFn) (*EnvT, error) {
 
 	envTestClient, err := client.New(cfg, client.Options{Scheme: result.s})
 	if err != nil {
-		return nil, fmt.Errorf("unable to creaste envtest client: %w", err)
+		return nil, fmt.Errorf("unable to create envtest client: %w", err)
 	}
 	discoveryCli, err := discovery.NewDiscoveryClientForConfig(cfg)
 	if err != nil {
