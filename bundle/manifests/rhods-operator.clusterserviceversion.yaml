@@ -109,7 +109,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-05-29T11:37:42Z"
+    createdAt: "2025-06-13T12:11:43Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -201,7 +201,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
-  name: rhods-operator.v2.21.0
+  name: rhods-operator.v2.22.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1455,14 +1455,14 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.21.0
+  version: 2.22.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
     containerPort: 443
     deploymentName: rhods-operator
     failurePolicy: Fail
-    generateName: mutate.operator.opendatahub.io
+    generateName: datasciencecluster-defaulter.opendatahub.io
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -1476,16 +1476,34 @@ spec:
     sideEffects: None
     targetPort: 9443
     type: MutatingAdmissionWebhook
-    webhookPath: /mutate-opendatahub-io-v1
+    webhookPath: /mutate-datasciencecluster
   - admissionReviewVersions:
     - v1
     containerPort: 443
     deploymentName: rhods-operator
     failurePolicy: Fail
-    generateName: operator.opendatahub.io
+    generateName: datasciencecluster-validator.opendatahub.io
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      resources:
+      - datascienceclusters
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-datasciencecluster
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: rhods-operator
+    failurePolicy: Fail
+    generateName: dscinitialization-validator.opendatahub.io
+    rules:
+    - apiGroups:
       - dscinitialization.opendatahub.io
       apiVersions:
       - v1
@@ -1493,9 +1511,8 @@ spec:
       - CREATE
       - DELETE
       resources:
-      - datascienceclusters
       - dscinitializations
     sideEffects: None
     targetPort: 9443
     type: ValidatingAdmissionWebhook
-    webhookPath: /validate-opendatahub-io-v1
+    webhookPath: /validate-dscinitialization

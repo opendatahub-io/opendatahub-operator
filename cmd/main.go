@@ -344,7 +344,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	webhook.Init(mgr)
+	// Register all webhooks using the helper
+	if err := webhook.RegisterAllWebhooks(mgr); err != nil {
+		setupLog.Error(err, "unable to register webhooks")
+		os.Exit(1)
+	}
 
 	if err = (&dscictrl.DSCInitializationReconciler{
 		Client:   mgr.GetClient(),

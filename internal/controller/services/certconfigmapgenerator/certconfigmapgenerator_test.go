@@ -46,7 +46,7 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 
 	id := xid.New().String()
 
-	env, err := envt.New()
+	env, err := envt.New(envt.WithManager())
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	t.Cleanup(func() {
@@ -56,22 +56,18 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 		g.Expect(err).NotTo(HaveOccurred())
 	})
 
-	mgr, err := ctrl.NewManager(env.Config(), ctrl.Options{
-		Scheme: env.Scheme(),
-	})
-
 	go func() {
-		err = mgr.Start(gctx)
+		err = env.Manager().Start(gctx)
 		g.Expect(err).ShouldNot(HaveOccurred())
 	}()
 
-	err = certconfigmapgenerator.NewWithManager(gctx, mgr)
+	err = certconfigmapgenerator.NewWithManager(gctx, env.Manager())
 	g.Expect(err).ToNot(HaveOccurred())
 
 	dsci := dsciv1.DSCInitialization{}
 	dsci.Name = id
 
-	mgr.GetCache().WaitForCacheSync(gctx)
+	env.Manager().GetCache().WaitForCacheSync(gctx)
 
 	ns1 := corev1.Namespace{}
 	ns1.Name = xid.New().String()
