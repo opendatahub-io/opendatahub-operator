@@ -328,6 +328,10 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	mv bundle.Dockerfile Dockerfiles/
 	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
+	
+	# Remove the entries as they are no longer required by FBC
+	sed -i '' '/operators.operatorframework.io.bundle.channels.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile
+	sed -i '' '/operators.operatorframework.io.bundle.channel.default.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile
 
 .PHONY: bundle-build
 bundle-build: bundle
@@ -374,12 +378,33 @@ ifneq ($(origin CATALOG_BASE_IMG), undefined)
 FROM_INDEX_OPT := --from-index $(CATALOG_BASE_IMG)
 endif
 
+.PHONY: catalog-clean
+catalog-clean: ## Clean up catalog files and Dockerfile
+	rm -rf catalog
+	rm -f catalog.Dockerfile
+	
+.PHONY: catalog-prepare
+catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel.
+	@{ \
+		mkdir -p catalog; \
+		$(OPM) generate dockerfile catalog; \
+		./hack/update-catalog-template.sh config/catalog/fbc-basic-template.yaml $(BUNDLE_IMGS) $(YQ); \
+		$(OPM) alpha render-template basic \
+			--migrate-level=bundle-object-to-csv-metadata \
+			-o yaml \
+			config/catalog/fbc-basic-template.yaml > catalog/operator.yaml; \
+		$(OPM) validate catalog; \
+	} || true
+	$(YQ) eval "del(.entries[] | select(.schema == \"olm.channel\" or .schema == \"olm.bundle\"))" \
+		-i config/catalog/fbc-basic-template.yaml
+
 # Build a catalog image by adding bundle images to an empty catalog using the operator package manager tool, 'opm'.
 # This recipe invokes 'opm' in 'semver' bundle add mode. For more information on add modes, see:
 # https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
 .PHONY: catalog-build
-catalog-build: opm ## Build a catalog image.
-	$(OPM) index add --container-tool $(IMAGE_BUILDER) --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+catalog-build: catalog-prepare ## Build a catalog image (the bundle image must have been pushed first).
+	$(IMAGE_BUILDER) build --no-cache --load -f catalog.Dockerfile -t $(CATALOG_IMG) .
+	$(MAKE) catalog-clean
 
 # Push the catalog image.
 .PHONY: catalog-push

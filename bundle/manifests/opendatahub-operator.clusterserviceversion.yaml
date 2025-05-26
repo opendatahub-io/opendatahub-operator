@@ -111,7 +111,6 @@ metadata:
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.29.0
     createdAt: "2025-05-26T09:48:40Z"
-    olm.skipRange: '>=1.0.0 <2.29.0'
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
