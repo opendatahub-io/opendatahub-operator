@@ -13,6 +13,7 @@ rules:
   - list
   - watch
   - patch
+  - update
 - apiGroups:
   - services.opendatahub.io
   resources:
@@ -23,11 +24,14 @@ rules:
   - dashboard.opendatahub.io
   resources:
   - acceleratorprofiles
+  - hardwareprofiles
   verbs:
   - create
   - get
   - list
+  - watch
   - patch
+  - update
   - delete
 - apiGroups:
   - route.openshift.io
@@ -54,6 +58,7 @@ rules:
   - get
   - list
   - patch
+  - update
   - delete
   - watch
 - apiGroups:
@@ -63,6 +68,8 @@ rules:
   - buildconfigs
   verbs:
   - list
+  - get
+  - watch
 - apiGroups:
   - apps
   resources:
@@ -76,19 +83,11 @@ rules:
   - odhdashboardconfigs
   verbs:
   - get
+  - list
   - watch
   - create
   - update
   - patch
-- apiGroups:
-  - datasciencecluster.opendatahub.io
-  resources:
-  - datascienceclusters
-  verbs:
-  - get
-  - list
-  - watch
-  - update
 - apiGroups:
   - dashboard.opendatahub.io
   resources:
@@ -96,7 +95,8 @@ rules:
   - odhdocuments
   verbs:
   - get
-  - list      
+  - list
+  - watch
 - apiGroups:
   - console.openshift.io
   resources:
@@ -104,6 +104,7 @@ rules:
   verbs:
   - get
   - list
+  - watch
 - apiGroups:
   - template.openshift.io
   resources:
@@ -114,6 +115,7 @@ rules:
   - watch
   - create
   - patch
+  - update
   - delete
 - apiGroups:
   - serving.kserve.io
@@ -121,3 +123,15 @@ rules:
   - servingruntimes
   verbs:
   - create
+- apiGroups:
+    - nim.opendatahub.io
+  resources:
+    - accounts
+  verbs:
+    - watch
+    - update
+    - get
+    - list
+    - create
+    - patch
+    - delete
