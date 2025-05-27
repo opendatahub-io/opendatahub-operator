@@ -2,8 +2,10 @@ package envtestutil
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -20,7 +22,31 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 )
 
-const DefaultWebhookTimeout = 30 * time.Second
+// WaitForWebhookServer waits until the webhook server is ready by dialing the port using TLS.
+//
+// Parameters:
+//   - host: The host address of the webhook server.
+//   - port: The port number of the webhook server.
+//   - timeout: The maximum duration to wait for the server to become ready.
+//
+// Returns:
+//   - error: If the server is not ready within the timeout or a connection error occurs.
+func WaitForWebhookServer(host string, port int, timeout time.Duration) error {
+	addrPort := fmt.Sprintf("%s:%d", host, port)
+	dialer := &net.Dialer{Timeout: time.Second}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		conn, err := tls.DialWithDialer(dialer, "tcp", addrPort, &tls.Config{
+			InsecureSkipVerify: true, // #nosec G402
+			MinVersion:         tls.VersionTLS12,
+		})
+		if err == nil {
+			return conn.Close()
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("webhook server not ready after %s", timeout)
+}
 
 // SetupEnvAndClient sets up an envtest environment for integration tests.
 // Parameters:
@@ -39,7 +65,6 @@ func SetupEnvAndClient(
 ) (context.Context, *envt.EnvT, func()) {
 	t.Helper()
 
-	// Create a root context with timeout for the whole test
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 
 	env, err := envt.New(
@@ -49,40 +74,32 @@ func SetupEnvAndClient(
 		t.Fatalf("failed to start envtest: %v", err)
 	}
 
-	// Derive manager context from root context
 	mgrCtx, mgrCancel := context.WithCancel(ctx)
 	errChan := make(chan error, 1)
 	go func() {
 		t.Log("Starting manager...")
 		if err := env.Manager().Start(mgrCtx); err != nil {
-			errChan <- fmt.Errorf("manager exited with error: %w", err)
+			select {
+			case errChan <- fmt.Errorf("manager exited with error: %w", err):
+			default:
+			}
 		}
 	}()
 
 	t.Log("Waiting for webhook server to be ready...")
-	if err := env.WaitForWebhookServer(timeout); err != nil {
-		mgrCancel()
-		cancel()
-		_ = env.Stop()
+	if err := WaitForWebhookServer(env.Env.WebhookInstallOptions.LocalServingHost, env.Env.WebhookInstallOptions.LocalServingPort, timeout); err != nil {
 		t.Fatalf("webhook server not ready: %v", err)
 	}
 
 	teardown := func() {
-		// Cancel manager context first, then root context
 		mgrCancel()
 		cancel()
 		_ = env.Stop()
-		if err := env.Stop(); err != nil {
-			t.Errorf("failed to stop environment: %v", err)
-		}
-		// Drain error channel to avoid goroutine leaks
 		select {
 		case err := <-errChan:
 			if err != nil {
 				t.Errorf("manager goroutine error: %v", err)
 			}
-		case <-time.After(5 * time.Second):
-			t.Error("timeout waiting for manager to stop")
 		default:
 			// No error
 		}
@@ -170,7 +187,7 @@ func NewAdmissionRequest(
 	}
 	metaObj, ok := obj.(metav1.Object)
 	if !ok {
-		t.Fatalf("object of type %T does not implement metav1.Object", obj)
+		t.Fatalf("object does not implement metav1.Object")
 	}
 	return admission.Request{
 		AdmissionRequest: admissionv1.AdmissionRequest{
