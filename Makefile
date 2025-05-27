@@ -330,8 +330,8 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
 	
 	# Remove the entries as they are no longer required by FBC
-	sed -i '' '/operators.operatorframework.io.bundle.channels.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile
-	sed -i '' '/operators.operatorframework.io.bundle.channel.default.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile
+	sed -i.bak '/operators.operatorframework.io.bundle.channels.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile && rm -f bundle/metadata/annotations.yaml.bak Dockerfiles/bundle.Dockerfile.bak
+	sed -i.bak '/operators.operatorframework.io.bundle.channel.default.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile && rm -f bundle/metadata/annotations.yaml.bak Dockerfiles/bundle.Dockerfile.bak
 
 .PHONY: bundle-build
 bundle-build: bundle
