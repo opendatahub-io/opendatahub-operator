@@ -65,4 +65,3 @@ local.mk
 
 # Ignore catalog related files
 catalog/
-catalog.Dockerfile

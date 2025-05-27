@@ -11,27 +11,7 @@ if ! command -v "$YQ" &> /dev/null; then
     exit 1
 fi
 
-function extract_package_name() {
-    local name
-    name=$($YQ e '.entries[] | select(.schema == "olm.package") | .name' "$CATALOG_TEMPLATE")
-    if [[ -z "$name" ]]; then
-        echo "Error: Could not extract package name from catalog template" >&2
-        exit 1
-    fi
-    echo "$name"
-}
-
-function create_fast_channel() {
-    local package_name=$1
-    $YQ -i e "
-        select(.schema == \"olm.template.basic\").entries += [{
-            \"schema\": \"olm.channel\",
-            \"package\": \"$package_name\",
-            \"name\": \"fast\",
-            \"entries\": []
-        }]
-    " "$CATALOG_TEMPLATE"
-}
+package_name="opendatahub-operator"
 
 function add_bundle() {
     local package_name=$1 img=$2 prev_version=$3
@@ -67,12 +47,7 @@ function add_bundle() {
     echo "$version"
 }
 
-package_name=$(extract_package_name)
 echo "Package Name: $package_name"
-
-if [[ -z "$($YQ e '.entries[] | select(.schema == "olm.channel" and .name == "fast")' "$CATALOG_TEMPLATE")" ]]; then
-    create_fast_channel "$package_name"
-fi
 
 prev_version=""
 IFS=',' read -r -a images <<< "$BUNDLE_IMGS"

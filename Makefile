@@ -381,26 +381,21 @@ catalog-clean: ## Clean up catalog files and Dockerfile
 	
 .PHONY: catalog-prepare
 catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel.
-	@{ \
-		mkdir -p catalog; \
-		$(OPM) generate dockerfile catalog; \
-		./hack/update-catalog-template.sh config/catalog/fbc-basic-template.yaml $(BUNDLE_IMGS) $(YQ); \
-		$(OPM) alpha render-template basic \
-			--migrate-level=bundle-object-to-csv-metadata \
-			-o yaml \
-			config/catalog/fbc-basic-template.yaml > catalog/operator.yaml; \
-		$(OPM) validate catalog; \
-	} || true
-	$(YQ) eval "del(.entries[] | select(.schema == \"olm.channel\" or .schema == \"olm.bundle\"))" \
-		-i config/catalog/fbc-basic-template.yaml
+	mkdir -p catalog
+	cp config/catalog/fbc-basic-template.yaml catalog/fbc-basic-template.yaml
+	./hack/update-catalog-template.sh catalog/fbc-basic-template.yaml $(BUNDLE_IMGS) $(YQ)
+	$(OPM) alpha render-template basic \
+		--migrate-level=bundle-object-to-csv-metadata \
+		-o yaml \
+		catalog/fbc-basic-template.yaml > catalog/operator.yaml
+	$(OPM) validate catalog
 
 # Build a catalog image by adding bundle images to an empty catalog using the operator package manager tool, 'opm'.
 # This recipe invokes 'opm' in 'semver' bundle add mode. For more information on add modes, see:
 # https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
 .PHONY: catalog-build
 catalog-build: catalog-prepare ## Build a catalog image (the bundle image must have been pushed first).
-	$(IMAGE_BUILDER) build --no-cache --load -f catalog.Dockerfile -t $(CATALOG_IMG) .
-	$(MAKE) catalog-clean
+	$(IMAGE_BUILDER) build --no-cache --load -f Dockerfiles/catalog.Dockerfile -t $(CATALOG_IMG) .
 
 # Push the catalog image.
 .PHONY: catalog-push
