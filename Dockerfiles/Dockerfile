@@ -21,6 +21,8 @@ RUN if [ "${USE_LOCAL}" != "true" ]; then \
 COPY config/monitoring/ /opt/manifests/monitoring
 # Copy ods-configs
 COPY config/osd-configs/ /opt/manifests/osd-configs
+# Copy kueue-configs
+COPY config/kueue-configs/ /opt/manifests/kueue-configs
 
 ################################################################################
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder
