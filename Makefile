@@ -142,7 +142,7 @@ output:crd:artifacts:config=config/crd/external
 endef
 
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen kueue-configs ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	$(call fetch-external-crds,github.com/openshift/api,user/v1)
@@ -265,6 +265,12 @@ $(KUSTOMIZE): $(LOCALBIN)
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
 	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen,$(CONTROLLER_TOOLS_VERSION))
+
+.PHONY: kueue-configs
+kueue-configs: $(DEFAULT_MANIFESTS_PATH)/kueue-configs
+
+$(DEFAULT_MANIFESTS_PATH)/kueue-configs:
+	ln -s $(shell pwd)/config/kueue-configs $(DEFAULT_MANIFESTS_PATH)/kueue-configs
 
 .PHONY: yq
 yq: $(YQ) ## Download yq locally if necessary.
