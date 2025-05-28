@@ -56,7 +56,6 @@ func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 		Handler:        v,
 		LogConstructor: shared.NewLogConstructor(v.Name),
 	})
-	// No error to return currently, but return nil for future extensibility
 	return nil
 }
 
@@ -70,20 +69,19 @@ func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 // Returns:
 //   - admission.Response: The result of the admission check, indicating whether the operation is allowed or denied.
 func (v *Validator) Handle(ctx context.Context, req admission.Request) admission.Response {
-	log := logf.FromContext(ctx).WithValues("operation", req.Operation)
+	log := logf.FromContext(ctx)
 	ctx = logf.IntoContext(ctx, log)
 
 	var resp admission.Response
-	resp.Allowed = true // initialize Allowed to be true in case Operation falls into "default" case
 
 	switch req.Operation {
 	case admissionv1.Create:
 		resp = shared.ValidateDupCreation(ctx, v.Client, &req, gvk.DSCInitialization.Kind)
 	case admissionv1.Delete:
 		resp = shared.DenyCountGtZero(ctx, v.Client, gvk.DataScienceCluster,
-			fmt.Sprintln("Cannot delete DSCInitialization object when DataScienceCluster object still exists"))
+			"Cannot delete DSCInitialization object when DataScienceCluster object still exists")
 	default:
-		// no-op
+		resp.Allowed = true
 	}
 
 	if !resp.Allowed {

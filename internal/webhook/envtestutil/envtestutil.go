@@ -2,10 +2,8 @@ package envtestutil
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"net"
 	"testing"
 	"time"
 
@@ -22,31 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 )
 
-// WaitForWebhookServer waits until the webhook server is ready by dialing the port using TLS.
-//
-// Parameters:
-//   - host: The host address of the webhook server.
-//   - port: The port number of the webhook server.
-//   - timeout: The maximum duration to wait for the server to become ready.
-//
-// Returns:
-//   - error: If the server is not ready within the timeout or a connection error occurs.
-func WaitForWebhookServer(host string, port int, timeout time.Duration) error {
-	addrPort := fmt.Sprintf("%s:%d", host, port)
-	dialer := &net.Dialer{Timeout: time.Second}
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		conn, err := tls.DialWithDialer(dialer, "tcp", addrPort, &tls.Config{
-			InsecureSkipVerify: true, // #nosec G402
-			MinVersion:         tls.VersionTLS12,
-		})
-		if err == nil {
-			return conn.Close()
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return fmt.Errorf("webhook server not ready after %s", timeout)
-}
+const DefaultWebhookTimeout = 30 * time.Second
 
 // SetupEnvAndClient sets up an envtest environment for integration tests.
 // Parameters:
@@ -87,7 +61,7 @@ func SetupEnvAndClient(
 	}()
 
 	t.Log("Waiting for webhook server to be ready...")
-	if err := WaitForWebhookServer(env.Env.WebhookInstallOptions.LocalServingHost, env.Env.WebhookInstallOptions.LocalServingPort, timeout); err != nil {
+	if err := env.WaitForWebhookServer(timeout); err != nil {
 		t.Fatalf("webhook server not ready: %v", err)
 	}
 
