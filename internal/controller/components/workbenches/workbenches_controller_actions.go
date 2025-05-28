@@ -86,7 +86,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	workbench, ok := rr.Instance.(*componentApi.Workbenches)
+	_, ok := rr.Instance.(*componentApi.Workbenches)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.Workbenches", rr.Instance)
 	}
@@ -96,15 +96,11 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 		labels.ODH.OwnedNamespace: "true",
 	}
 
-	if workbench.Spec.WorkbenchNamespace != "" || len(workbench.Spec.WorkbenchNamespace) > 0 {
-		wbNS.Name = workbench.Spec.WorkbenchNamespace
-	} else {
-		switch rr.Release.Name {
-		case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
-			wbNS.Name = cluster.DefaultNotebooksNamespaceRHOAI
-		case cluster.OpenDataHub:
-			wbNS.Name = cluster.DefaultNotebooksNamespaceODH
-		}
+	switch rr.Release.Name {
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+		wbNS.Name = cluster.DefaultNotebooksNamespaceRHOAI
+	case cluster.OpenDataHub:
+		wbNS.Name = cluster.DefaultNotebooksNamespaceODH
 	}
 
 	err := rr.AddResources(wbNS)
