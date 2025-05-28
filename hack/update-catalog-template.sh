@@ -17,8 +17,8 @@ function add_bundle() {
     local package_name=$1 img=$2 prev_version=$3
     local version bundle_name
     
-    version=$(echo "$img" | sed -E 's/.*:v?([0-9]+\.[0-9]+\.[0-9]+)$/\1/')
-    bundle_name="${package_name}.v${version}"
+    version=$(echo "$img" | cut -d':' -f2)
+    bundle_name="${package_name}.${version}"
 
     $YQ -i e "
         select(.schema == \"olm.template.basic\").entries += [{
@@ -32,7 +32,7 @@ function add_bundle() {
             select(.schema == \"olm.template.basic\").entries[] |=
                 select(.schema == \"olm.channel\" and .name == \"fast\").entries += [{
                     \"name\": \"$bundle_name\",
-                    \"replaces\": \"$package_name.v$prev_version\"
+                    \"replaces\": \"$package_name.$prev_version\"
                 }]
         " "$CATALOG_TEMPLATE"
     else
