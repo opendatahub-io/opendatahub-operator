@@ -21,3 +21,14 @@ commonLabels:
 resources:
   - binding_admin_roles.yaml
   - batch-user-rolebinding.yaml
+
+patches:
+  # NOTE: it's necessary to specify the prefixed role name because this manifest doesn't manage the role, preventing
+  # kustomize from adjusting the name automatically
+  - patch: |-
+      kind: ClusterRoleBinding
+      apiVersion: rbac.authorization.k8s.io/v1
+      metadata:
+        name: batch-user-rolebinding
+      roleRef:
+        name: kueue-batch-user-role
