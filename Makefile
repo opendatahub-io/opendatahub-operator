@@ -354,7 +354,7 @@ ifeq (,$(shell command -v opm 2>/dev/null))
 	set -e ;\
 	mkdir -p $(dir $(OPM)) ;\
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.23.0/$${OS}-$${ARCH}-opm ;\
+	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.55.0/$${OS}-$${ARCH}-opm ;\
 	chmod +x $(OPM) ;\
 	}
 else
@@ -377,24 +377,24 @@ endif
 .PHONY: catalog-clean
 catalog-clean: ## Clean up catalog files and Dockerfile
 	rm -rf catalog
-	rm -f catalog.Dockerfile
 	
 .PHONY: catalog-prepare
-catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel.
+catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel. It requires BUNDLE_IMG exists before running the target"
 	mkdir -p catalog
 	cp config/catalog/fbc-basic-template.yaml catalog/fbc-basic-template.yaml
-	./hack/update-catalog-template.sh catalog/fbc-basic-template.yaml $(BUNDLE_IMGS) $(YQ)
+	./hack/update-catalog-template.sh catalog/fbc-basic-template.yaml $(BUNDLE_IMGS)
 	$(OPM) alpha render-template basic \
 		--migrate-level=bundle-object-to-csv-metadata \
 		-o yaml \
 		catalog/fbc-basic-template.yaml > catalog/operator.yaml
 	$(OPM) validate catalog
+	rm -f catalog/fbc-basic-template.yaml
 
-# Build a catalog image by adding bundle images to an empty catalog using the operator package manager tool, 'opm'.
-# This recipe invokes 'opm' in 'semver' bundle add mode. For more information on add modes, see:
-# https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
+# Build a catalog image using the operator package manager tool 'opm'.
+# This recipe uses 'opm alpha render-template basic' to generate a catalog from a template.
+# The template defines bundle images and channel relationships in a declarative way.
 .PHONY: catalog-build
-catalog-build: catalog-prepare ## Build a catalog image (the bundle image must have been pushed first).
+catalog-build: catalog-prepare
 	$(IMAGE_BUILDER) build --no-cache --load -f Dockerfiles/catalog.Dockerfile -t $(CATALOG_IMG) .
 
 # Push the catalog image.

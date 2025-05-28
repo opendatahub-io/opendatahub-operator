@@ -262,9 +262,9 @@ e.g `make image-build USE_LOCAL=true"`
   - Processes the template using `hack/update-catalog-template.sh` to generate `catalog/operator.yaml`
   - Validates the generated catalog structure
 
-  **Important Note**: For upgrade paths, it is the responsibility of the user to provide the list of bundles in ascending order. For example:
+  **Important Note**: Users must provide the old version bundle images as a comma-separated list, in ascending order, to generate an upgradeable catalog image. For example:
   ```commandline
-  make catalog-build catalog-push -e CATALOG_IMG=quay.io/<username>/opendatahub-operator-index:<tag> \
+  make catalog-build catalog-push -e CATALOG_IMG=quay.io/<username>/opendatahub-operator-index:<target_version> \
     BUNDLE_IMGS=quay.io/<username>/opendatahub-operator-bundle:v2.26.0,\
     quay.io/<username>/opendatahub-operator-bundle:v2.27.0,\
     quay.io/<username>/opendatahub-operator-bundle:v2.28.0
@@ -272,7 +272,7 @@ e.g `make image-build USE_LOCAL=true"`
 
   This creates the following upgrade path:
   ```
-  v2.26.0 -> v2.27.0 -> v2.28.0
+  v2.26.0 -> v2.27.0 -> v2.28.0 -> target_version
   ```
 
   For more details on the File-Based Catalog format, see the [FBC documentation](https://olm.operatorframework.io/docs/reference/file-based-catalogs/).
@@ -280,7 +280,7 @@ e.g `make image-build USE_LOCAL=true"`
 - Build Catalog Image:
 
   ```commandline
-  make catalog-build catalog-push -e CATALOG_IMG=quay.io/<username>/opendatahub-operator-index:<tag> BUNDLE_IMGS=<list-of-comma-separated-bundle-images>
+  make catalog-build catalog-push -e CATALOG_IMG=quay.io/<username>/opendatahub-operator-index:<target_version> BUNDLE_IMGS=<list-of-comma-separated-bundle-images>
   ```
   
 ### Test with customized manifests
