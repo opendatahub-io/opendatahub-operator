@@ -60,6 +60,7 @@ endif
 
 ## Tool Binaries
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
+SKOPEO ?= $(LOCALBIN)/skopeo
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
@@ -70,6 +71,7 @@ YQ ?= $(LOCALBIN)/yq
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.4.3
+SKOPEO_VERSION ?= v1.17.0
 CONTROLLER_TOOLS_VERSION ?= v0.16.1
 OPERATOR_SDK_VERSION ?= v1.39.2
 GOLANGCI_LINT_VERSION ?= v2.1.2
@@ -246,10 +248,10 @@ prepare: manifests kustomize manager-kustomization
 
 # phony target for the case of changing IMG variable
 .PHONY: manager-kustomization
-manager-kustomization: config/manager/kustomization.yaml.in
+manager-kustomization: skopeo config/manager/kustomization.yaml.in
 	cd config/manager \
 		&& cp -f kustomization.yaml.in kustomization.yaml \
-		&& $(KUSTOMIZE) edit set image controller=$(IMG)
+		&& $(KUSTOMIZE) edit set image controller=$$(skopeo inspect --retry-times=10 --no-tags docker://$(IMG) | jq -r '"\(.Name)@\(.Digest)"')
 
 .PHONY: install
 install: prepare ## Install CRDs into the K8s cluster specified in ~/.kube/config.
@@ -278,6 +280,11 @@ KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/k
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
 $(KUSTOMIZE): $(LOCALBIN)
 	$(call go-install-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v5,$(KUSTOMIZE_VERSION))
+
+.PHONY: skopeo
+skopeo: $(SKOPEO) ## Download skopeo locally if necessary.
+$(SKOPEO): $(LOCALBIN)
+	$(call go-install-tool,$(SKOPEO),github.com/containers/skopeo/cmd/skopeo,$(SKOPEO_VERSION),-tags="exclude_graphdriver_btrfs containers_image_openpgp")
 
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
@@ -449,13 +456,14 @@ clean: $(GOLANGCI_LINT)
 # $1 - target path with name of binary (ideally with version)
 # $2 - package url which can be installed
 # $3 - specific version of package
+# $4 - additional arguments `-tags="xyz"`
 define go-install-tool
 @[ -f "$(1)-$(3)" ] || { \
 set -e; \
 package=$(2)@$(3) ;\
 echo "Downloading $${package}" ;\
 rm -f $(1) || true ;\
-GOBIN=$(LOCALBIN) go install $${package} ;\
+GOBIN=$(LOCALBIN) go install $(4) $${package};\
 mv $(1) $(1)-$(3) ;\
 } ;\
 ln -sf $(1)-$(3) $(1)
