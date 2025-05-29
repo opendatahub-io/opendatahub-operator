@@ -72,8 +72,8 @@ import (
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
+	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
+	dsciwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/shared"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -367,8 +367,8 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// Register all webhooks using the shared helper
 	if err := shared.RegisterAllWebhooks(
 		mgr,
-		datasciencecluster.RegisterWebhooks,
-		dscinitialization.RegisterWebhooks,
+		dscwebhook.RegisterWebhooks,
+		dsciwebhook.RegisterWebhooks,
 	); err != nil {
 		setupLog.Error(err, "unable to register webhooks")
 		os.Exit(1)
