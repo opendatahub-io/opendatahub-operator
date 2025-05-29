@@ -96,10 +96,7 @@ func configureClusterQueueViewerRoleAction(ctx context.Context, rr *odhtypes.Rec
 	var cr rbacv1.ClusterRole
 	cr.Name = ClusterQueueViewerRoleName
 	if err := c.Get(ctx, client.ObjectKeyFromObject(&cr), &cr); err != nil {
-		if client.IgnoreNotFound(err) != nil {
-			return err
-		}
-		return nil
+		return client.IgnoreNotFound(err)
 	}
 	l := cr.GetLabels()
 	if l == nil {
