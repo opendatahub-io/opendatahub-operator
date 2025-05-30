@@ -335,7 +335,7 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 
 .PHONY: bundle-build
 bundle-build: bundle
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile -t $(BUNDLE_IMG) .
+	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile --platform $(PLATFORM) -t $(BUNDLE_IMG) .
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
@@ -390,7 +390,7 @@ catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles t
 	$(OPM) alpha render-template basic \
 		--migrate-level=bundle-object-to-csv-metadata \
 		-o yaml \
-		catalog/fbc-basic-template.yaml > catalog/operator.yaml
+		catalog/fbc-basic-template.yaml > catalog/catalog.yaml
 	$(OPM) validate catalog
 	rm -f catalog/fbc-basic-template.yaml
 
@@ -399,7 +399,7 @@ catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles t
 # The template defines bundle images and channel relationships in a declarative way.
 .PHONY: catalog-build
 catalog-build: catalog-prepare
-	$(IMAGE_BUILDER) build --no-cache --load -f Dockerfiles/catalog.Dockerfile -t $(CATALOG_IMG) .
+	$(IMAGE_BUILDER) build --no-cache --load -f Dockerfiles/catalog.Dockerfile --platform $(PLATFORM) -t $(CATALOG_IMG) .
 
 # Push the catalog image.
 .PHONY: catalog-push

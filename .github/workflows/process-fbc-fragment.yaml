@@ -1,0 +1,72 @@
+name: FBC Processor
+run-name: FBC Processor
+on:
+  workflow_dispatch:
+    branches:
+      - 'odh-*'
+
+
+permissions:
+  contents: write
+
+env:
+  GITHUB_ORG: opendatahub-io
+
+jobs:
+  process-fbc:
+    if: ${{ github.ref_name != 'main' }}
+    runs-on: ubuntu-latest
+    container:
+      image: quay.io/rhoai/rhoai-task-toolset:latest
+      options: --privileged
+    steps:
+      - name: Get Current branch name
+        shell: bash
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        id: get_branch
+      - name: Git checkout current branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.get_branch.outputs.branch }}
+          path: ${{ steps.get_branch.outputs.branch }}
+
+      - name: Generate FBC Fragment
+        id: generate-fbc-fragment
+        run: |
+          BRANCH_NAME=${{ steps.get_branch.outputs.branch }}
+          QUAY_IMG=quay.io/opendatahub/opendatahub-operator-bundle
+          cd $BRANCH_NAME
+          sed -i '/# Ignore catalog related files/d' .gitignore
+          sed -i '/catalog\//d' .gitignore
+          CURRENT_VERSION=${BRANCH_NAME#odh-}
+          MAJOR=$(echo "$CURRENT_VERSION" | cut -d '.' -f 1)
+          MINOR=$(echo "$CURRENT_VERSION" | cut -d '.' -f 2)
+          PATCH=$(echo "$CURRENT_VERSION" | cut -d '.' -f 3)
+          if [ "$PATCH" -eq 0 ]; then
+            if [ "$MINOR" -eq 0 ]; then
+              PREV_MAJOR=$((MAJOR - 1))
+              PREV_MINOR=9
+              PREV_PATCH=0
+              PREV_VERSION="$PREV_MAJOR.$PREV_MINOR.$PREV_PATCH"
+            else
+              PREV_PATCH=0
+              PREV_MINOR=$((MINOR - 1))
+              PREV_VERSION="$MAJOR.$PREV_MINOR.$PREV_PATCH"
+            fi
+          else
+            PREV_PATCH=$((PATCH - 1))
+            PREV_VERSION="$MAJOR.$MINOR.$PREV_PATCH"
+          fi
+          make catalog-prepare -e BUNDLE_IMGS=${QUAY_IMG}:v${PREV_VERSION},${QUAY_IMG}:v${CURRENT_VERSION}
+
+      - name: Push latest FBC artifacts
+        if: ${{ steps.check-if-pcc-cache-valid.outputs.PCC_CACHE_VALID == 'NO' }}
+        uses: actions-js/push@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.get_branch.outputs.branch }}
+          message: "Regenerated the catalog.yaml"
+          repository: ${{ env.GITHUB_ORG }}/opendatahub-operator
+          directory: ${{ steps.get_branch.outputs.branch }}
+          author_name: Openshift-AI DevOps
+          author_email: openshift-ai-devops@redhat.com
