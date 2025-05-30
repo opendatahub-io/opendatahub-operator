@@ -122,7 +122,7 @@ metadata:
       "feastoperators.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.27.0
+  name: opendatahub-operator.v2.29.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
