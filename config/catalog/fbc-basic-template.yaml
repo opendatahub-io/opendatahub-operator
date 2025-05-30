@@ -1,0 +1,9 @@
+schema: olm.template.basic
+entries:
+  - schema: olm.package
+    name: opendatahub-operator
+    defaultChannel: fast
+  - schema: olm.channel
+    package: opendatahub-operator
+    name: fast
+    entries: []
