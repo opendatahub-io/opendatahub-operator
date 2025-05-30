@@ -551,6 +551,32 @@ rules:
   verbs:
   - get
 - apiGroups:
+  - infrastructure.opendatahub.io
+  resources:
+  - hardwareprofiles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.opendatahub.io
+  resources:
+  - hardwareprofiles/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infrastructure.opendatahub.io
+  resources:
+  - hardwareprofiles/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - integreatly.org
   resources:
   - rhmis

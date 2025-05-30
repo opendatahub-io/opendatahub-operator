@@ -4,6 +4,7 @@
 - [components.platform.opendatahub.io/v1alpha1](#componentsplatformopendatahubiov1alpha1)
 - [datasciencecluster.opendatahub.io/v1](#datascienceclusteropendatahubiov1)
 - [dscinitialization.opendatahub.io/v1](#dscinitializationopendatahubiov1)
+- [infrastructure.opendatahub.io/v1alpha1](#infrastructureopendatahubiov1alpha1)
 - [services.platform.opendatahub.io/v1alpha1](#servicesplatformopendatahubiov1alpha1)
 
 
@@ -2523,6 +2524,114 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | managementState indicates whether and how the operator should manage customized CA bundle | Removed | Enum: [Managed Removed Unmanaged] <br /> |
 | `customCABundle` _string_ | A custom CA bundle that will be available for  all  components in the<br />Data Science Cluster(DSC). This bundle will be stored in odh-trusted-ca-bundle<br />ConfigMap .data.odh-ca-bundle.crt . |  |  |
+
+
+
+## infrastructure.opendatahub.io/v1alpha1
+
+Package v1alpha1 contains API Schema definitions for the infrastructure v1alpha1 API group.
+
+### Resource Types
+- [HardwareProfile](#hardwareprofile)
+- [HardwareProfileList](#hardwareprofilelist)
+
+
+
+#### HardwareIdentifier
+
+
+
+
+
+
+
+_Appears in:_
+- [HardwareProfileSpec](#hardwareprofilespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `displayName` _string_ | The display name of identifier. |  |  |
+| `identifier` _string_ | The resource identifier of the hardware device. |  |  |
+| `minCount` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#intorstring-intstr-util)_ | The minimum count can be an integer or a string. |  |  |
+| `maxCount` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#intorstring-intstr-util)_ | The maximum count can be an integer or a string. |  |  |
+| `defaultCount` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#intorstring-intstr-util)_ | The default count can be an integer or a string. |  |  |
+| `resourceType` _string_ | The type of identifier. could be "CPU", "Memory", or "Accelerator". Leave it undefined for the other types. |  | Enum: [CPU Memory Accelerator] <br /> |
+
+
+#### HardwareProfile
+
+
+
+HardwareProfile is the Schema for the hardwareprofiles API.
+
+
+
+_Appears in:_
+- [HardwareProfileList](#hardwareprofilelist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `infrastructure.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `HardwareProfile` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[HardwareProfileSpec](#hardwareprofilespec)_ |  |  |  |
+| `status` _[HardwareProfileStatus](#hardwareprofilestatus)_ |  |  |  |
+
+
+#### HardwareProfileList
+
+
+
+HardwareProfileList contains a list of HardwareProfile.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `infrastructure.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `HardwareProfileList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[HardwareProfile](#hardwareprofile) array_ |  |  |  |
+
+
+#### HardwareProfileSpec
+
+
+
+HardwareProfileSpec defines the desired state of HardwareProfile.
+
+
+
+_Appears in:_
+- [HardwareProfile](#hardwareprofile)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `displayName` _string_ | The display name of the hardware profile. |  |  |
+| `enabled` _boolean_ | Indicates whether the hardware profile is available for new resources. |  |  |
+| `description` _string_ | A short description of the hardware profile. |  |  |
+| `identifiers` _[HardwareIdentifier](#hardwareidentifier) array_ | The array of identifiers |  |  |
+| `nodeSelector` _object (keys:string, values:string)_ | The node selector available. |  |  |
+| `tolerations` _[Toleration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#toleration-v1-core) array_ | Any number of Kubernetes toleration values that are added to resources when created or updated to this hardware profile. |  |  |
+
+
+#### HardwareProfileStatus
+
+
+
+HardwareProfileStatus defines the observed state of HardwareProfile.
+
+
+
+_Appears in:_
+- [HardwareProfile](#hardwareprofile)
+
 
 
 
