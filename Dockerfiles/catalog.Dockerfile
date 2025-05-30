@@ -7,7 +7,7 @@ FROM quay.io/operator-framework/opm:latest
 ENTRYPOINT ["/bin/opm"]
 CMD ["serve", "/configs", "--cache-dir=/tmp/cache"]
 # Copy declarative config root into image at /configs and pre-populate serve cache
-ADD odh-operator /configs/odh-operator
+ADD catalog /configs/odh-operator
 RUN ["/bin/opm", "serve", "/configs", "--cache-dir=/tmp/cache", "--cache-only"]
 
 # Set DC-specific label for the location of the DC root directory

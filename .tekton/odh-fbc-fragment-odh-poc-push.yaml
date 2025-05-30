@@ -28,9 +28,9 @@ spec:
     value:
     - linux/x86_64
   - name: dockerfile
-    value: Dockerfile
+    value: Dockerfiles/catalog.Dockerfile
   - name: path-context
-    value: catalog/v4.19
+    value: .
   pipelineSpec:
     description: |
       This pipeline is ideal for building and verifying [file-based catalogs](https://konflux-ci.dev/docs/end-to-end/building-olm/#building-the-file-based-catalog).
