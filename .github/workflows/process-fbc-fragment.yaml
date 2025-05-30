@@ -20,26 +20,6 @@ jobs:
       image: quay.io/rhoai/rhoai-task-toolset:latest
       options: --privileged
     steps:
-      - name: Install dependencies
-        run: |
-          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-          arch="$(uname -m | sed 's/x86_64/amd64/')"
-          yq_version="v4.44.3"
-          yq_filename="yq-$yq_version"
-          echo "-> Downloading yq" >&2
-          curl -sSfLo "$yq_filename" "https://github.com/mikefarah/yq/releases/download/$yq_version/yq_${os}_${arch}"
-          chmod +x $yq_filename
-          ln -s $yq_filename yq
-          cp $yq_filename /usr/local/bin/yq
-  
-          opm_version="v1.47.0"
-          opm_filename="opm-$opm_version"
-          echo "-> Downloading opm" >&2
-          curl -sSfLo "$opm_filename" "https://github.com/operator-framework/operator-registry/releases/download/$opm_version/$os-$arch-opm"
-          chmod +x "$opm_filename"
-          ln -fs "$opm_filename" opm
-          cp "$opm_filename" /usr/local/bin/opm
-
       - name: Get Current branch name
         shell: bash
         run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
@@ -54,8 +34,30 @@ jobs:
         id: generate-fbc-fragment
         run: |
           BRANCH_NAME=${{ steps.get_branch.outputs.branch }}
-          # add the code to generate the catalog.yaml using the make script
-          # .......
+          QUAY_IMG=quay.io/opendatahub/opendatahub-operator-bundle
+          cd $BRANCH_NAME
+          sed -i '/# Ignore catalog related files/d' .gitignore
+          sed -i '/catalog\//d' .gitignore
+          CURRENT_VERSION=${BRANCH_NAME#odh-}
+          MAJOR=$(echo "$CURRENT_VERSION" | cut -d '.' -f 1)
+          MINOR=$(echo "$CURRENT_VERSION" | cut -d '.' -f 2)
+          PATCH=$(echo "$CURRENT_VERSION" | cut -d '.' -f 3)
+          if [ "$PATCH" -eq 0 ]; then
+            if [ "$MINOR" -eq 0 ]; then
+              PREV_MAJOR=$((MAJOR - 1))
+              PREV_MINOR=9
+              PREV_PATCH=0
+              PREV_VERSION="$PREV_MAJOR.$PREV_MINOR.$PREV_PATCH"
+            else
+              PREV_PATCH=0
+              PREV_MINOR=$((MINOR - 1))
+              PREV_VERSION="$MAJOR.$PREV_MINOR.$PREV_PATCH"
+            fi
+          else
+            PREV_PATCH=$((PATCH - 1))
+            PREV_VERSION="$MAJOR.$MINOR.$PREV_PATCH"
+          fi
+          make catalog-prepare -e BUNDLE_IMGS=${QUAY_IMG}:v${PREV_VERSION},${QUAY_IMG}:v${CURRENT_VERSION}
 
       - name: Push latest FBC artifacts
         if: ${{ steps.check-if-pcc-cache-valid.outputs.PCC_CACHE_VALID == 'NO' }}
