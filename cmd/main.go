@@ -74,6 +74,7 @@ import (
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
+	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/shared"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -377,6 +378,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		mgr,
 		datasciencecluster.RegisterWebhooks,
 		dscinitialization.RegisterWebhooks,
+		kueuewebhook.RegisterWebhooks,
 	); err != nil {
 		setupLog.Error(err, "unable to register webhooks")
 		os.Exit(1)
