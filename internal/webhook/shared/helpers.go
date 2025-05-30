@@ -111,20 +111,3 @@ func ValidateDupCreation(ctx context.Context, cli client.Client, req *admission.
 	return DenyCountGtZero(ctx, cli, resourceGVK,
 		fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
 }
-
-// RegisterAllWebhooks registers multiple webhook setup functions with the given manager.
-//
-// Parameters:
-//   - mgr: The controller-runtime manager to register webhooks with.
-//   - regs: Variadic list of functions that each register webhooks with the manager.
-//
-// Returns:
-//   - error: The first error encountered during registration, or nil if all succeed.
-func RegisterAllWebhooks(mgr ctrl.Manager, regs ...func(ctrl.Manager) error) error {
-	for _, reg := range regs {
-		if err := reg(mgr); err != nil {
-			return err
-		}
-	}
-	return nil
-}
