@@ -26,12 +26,18 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 const DefaultCertificateSecretName = "knative-serving-cert"
+
+var (
+	imageParamMap = map[string]string{
+		"oauth-proxy": "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
+	}
+)
 
 //go:embed resources
 var resourcesFS embed.FS
@@ -53,7 +59,7 @@ var isRequiredOperators = predicate.Funcs{
 
 func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
-		Path:       deploy.DefaultManifestPath,
+		Path:       odhdeploy.DefaultManifestPath,
 		ContextDir: componentName,
 		SourcePath: sourcePath,
 	}
