@@ -1,10 +1,13 @@
 package envt
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
@@ -12,6 +15,8 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -19,18 +24,101 @@ import (
 
 type OptionFn func(in *EnvT)
 
+// RegisterWebhooksFn is a function that registers webhooks with a manager.
+type RegisterWebhooksFn func(manager.Manager) error
+
+// createManager sets up and configures the controller-runtime manager.
+func (et *EnvT) createManager() error {
+	// Prepare manager options, using any custom options provided by the user.
+	mgrOpts := manager.Options{}
+	if et.managerOpts != nil {
+		mgrOpts = *et.managerOpts
+	}
+
+	// Ensure the manager uses the correct scheme for all registered types.
+	if mgrOpts.Scheme == nil {
+		mgrOpts.Scheme = et.s
+	}
+
+	// After envtest is started, retrieve the webhook server options (host, port, cert dir)
+	// that were dynamically allocated. These must be used to configure the manager's webhook server.
+	webhookInstallOptions := &et.Env.WebhookInstallOptions
+
+	// If the manager's WebhookServer is not already set, create one using the
+	// host, port, and cert dir from envtest. This ensures the webhook server
+	// is reachable by the test client and uses the correct certificates.
+	if mgrOpts.WebhookServer == nil {
+		mgrOpts.WebhookServer = ctrlwebhook.NewServer(ctrlwebhook.Options{
+			Port:    webhookInstallOptions.LocalServingPort,
+			Host:    webhookInstallOptions.LocalServingHost,
+			CertDir: webhookInstallOptions.LocalServingCertDir,
+			TLSOpts: []func(*tls.Config){func(config *tls.Config) { config.MinVersion = tls.VersionTLS12 }},
+		})
+	}
+
+	// Disable the metrics endpoint for tests unless explicitly set, to avoid port conflicts
+	// and unnecessary metrics serving during test runs.
+	if mgrOpts.Metrics.BindAddress == "" {
+		mgrOpts.Metrics.BindAddress = "0"
+		mgrOpts.Metrics.CertDir = webhookInstallOptions.LocalServingCertDir
+	}
+
+	// Now create the controller-runtime manager with the correct options.
+	// This manager will use the webhook server configured above, ensuring that
+	// webhooks are reachable and use the correct certificates for the test environment.
+	mgr, err := manager.New(et.cfg, mgrOpts)
+	if err != nil {
+		return fmt.Errorf("failed to create manager: %w", err)
+	}
+	et.mgr = mgr
+	for _, reg := range et.registerWebhooks {
+		if err := reg(mgr); err != nil {
+			return fmt.Errorf("failed to register webhooks: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// WithScheme sets a custom runtime.Scheme for the test environment.
+// Use this to register additional types or override the default scheme.
 func WithScheme(value *runtime.Scheme) OptionFn {
 	return func(in *EnvT) {
 		in.s = value
 	}
 }
 
+// WithProjectRoot sets the project root directory for the test environment.
+// Useful for customizing where CRDs and webhook configs are loaded from.
 func WithProjectRoot(elem ...string) OptionFn {
 	return func(in *EnvT) {
 		in.root = filepath.Join(elem...)
 	}
 }
 
+// WithManager enables creation of a controller-runtime manager in the test environment.
+// Optionally accepts a manager.Options struct for custom configuration.
+// If not provided, sensible defaults are used for testing.
+func WithManager(opts ...manager.Options) OptionFn {
+	return func(in *EnvT) {
+		in.withManager = true
+		if len(opts) > 0 {
+			in.managerOpts = &opts[0]
+		}
+	}
+}
+
+// WithRegisterWebhooks registers one or more webhook setup functions to be called on the manager.
+// Each function should register webhooks with the provided manager.
+func WithRegisterWebhooks(funcs ...RegisterWebhooksFn) OptionFn {
+	return func(in *EnvT) {
+		in.registerWebhooks = append(in.registerWebhooks, funcs...)
+	}
+}
+
+// New creates and configures a new EnvT test environment.
+// Applies all provided OptionFn options, sets up CRDs, webhooks, and the envtest environment.
+// Returns the configured EnvT, or an error if setup fails.
 func New(opts ...OptionFn) (*EnvT, error) {
 	result := EnvT{}
 
@@ -43,7 +131,6 @@ func New(opts ...OptionFn) (*EnvT, error) {
 		if err != nil {
 			return nil, errors.New("unable to create default scheme")
 		}
-
 		result.s = s
 	}
 
@@ -52,11 +139,10 @@ func New(opts ...OptionFn) (*EnvT, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unable to determine project root: %w", err)
 		}
-
 		result.root = root
 	}
 
-	result.e = envtest.Environment{
+	result.Env = envtest.Environment{
 		CRDInstallOptions: envtest.CRDInstallOptions{
 			Scheme: result.s,
 			Paths: []string{
@@ -67,14 +153,24 @@ func New(opts ...OptionFn) (*EnvT, error) {
 		},
 	}
 
-	cfg, err := result.e.Start()
+	// If webhooks are registered, configure the webhook server
+	if len(result.registerWebhooks) > 0 {
+		result.Env.WebhookInstallOptions = envtest.WebhookInstallOptions{
+			Paths: []string{
+				filepath.Join(result.root, "config", "webhook"),
+			},
+		}
+	}
+
+	// Start the envtest environment.
+	cfg, err := result.Env.Start()
 	if err != nil {
 		return nil, fmt.Errorf("unable to start envtest: %w", err)
 	}
 
 	envTestClient, err := client.New(cfg, client.Options{Scheme: result.s})
 	if err != nil {
-		return nil, fmt.Errorf("unable to creaste envtest client: %w", err)
+		return nil, fmt.Errorf("unable to create envtest client: %w", err)
 	}
 	discoveryCli, err := discovery.NewDiscoveryClientForConfig(cfg)
 	if err != nil {
@@ -90,47 +186,70 @@ func New(opts ...OptionFn) (*EnvT, error) {
 	result.discoveryClient = discoveryCli
 	result.dynamicClient = dynamicCli
 
+	// Create the manager if requested or if webhooks are registered
+	needManager := result.withManager || len(result.registerWebhooks) > 0
+	if needManager {
+		if err := result.createManager(); err != nil {
+			return nil, err
+		}
+	}
+
 	return &result, nil
 }
 
 type EnvT struct {
-	root            string
-	s               *runtime.Scheme
-	e               envtest.Environment
-	cfg             *rest.Config
-	cli             client.Client
-	discoveryClient discovery.DiscoveryInterface
-	dynamicClient   dynamic.Interface
+	root             string
+	withManager      bool
+	managerOpts      *manager.Options
+	registerWebhooks []RegisterWebhooksFn
+	s                *runtime.Scheme
+	Env              envtest.Environment
+	cfg              *rest.Config
+	cli              client.Client
+	discoveryClient  discovery.DiscoveryInterface
+	dynamicClient    dynamic.Interface
+	mgr              manager.Manager
 }
 
+// Scheme returns the runtime.Scheme used by the test environment.
 func (et *EnvT) Scheme() *runtime.Scheme {
 	return et.s
 }
 
+// Config returns the Kubernetes REST config for the test environment.
 func (et *EnvT) Config() *rest.Config {
 	return et.cfg
 }
 
+// Client returns the controller-runtime client for the test environment.
 func (et *EnvT) Client() client.Client {
 	return et.cli
 }
 
+// DiscoveryClient returns the Kubernetes discovery client for the test environment.
 func (et *EnvT) DiscoveryClient() discovery.DiscoveryInterface {
 	return et.discoveryClient
 }
 
+// DynamicClient returns the dynamic client for the test environment.
 func (et *EnvT) DynamicClient() dynamic.Interface {
 	return et.dynamicClient
 }
 
+// Stop stops the envtest environment.
+// Note: If a manager was started, its context should be cancelled before calling Stop().
 func (et *EnvT) Stop() error {
-	return et.e.Stop()
+	// If et.mgr != nil, ensure its context is cancelled elsewhere before calling this.
+	return et.Env.Stop()
 }
 
+// ProjectRoot returns the root directory of the project as used by the test environment.
 func (et *EnvT) ProjectRoot() string {
 	return et.root
 }
 
+// ReadFile reads a file from the project root, joining all provided path elements.
+// Returns the file contents or an error if reading fails.
 func (et *EnvT) ReadFile(elem ...string) ([]byte, error) {
 	fp := filepath.Join(et.root, filepath.Join(elem...))
 
@@ -140,4 +259,38 @@ func (et *EnvT) ReadFile(elem ...string) ([]byte, error) {
 	}
 
 	return content, nil
+}
+
+// Manager returns the controller-runtime manager for the test environment, if one was created.
+func (et *EnvT) Manager() manager.Manager { //nolint:ireturn
+	return et.mgr
+}
+
+// WaitForWebhookServer waits until the webhook server managed by this EnvT is ready by dialing the port using TLS.
+//
+// Parameters:
+//   - timeout: The maximum duration to wait for the server to become ready.
+//
+// Returns:
+//   - error: If the server is not ready within the timeout or a connection error occurs.
+func (et *EnvT) WaitForWebhookServer(timeout time.Duration) error {
+	host := et.Env.WebhookInstallOptions.LocalServingHost
+	port := et.Env.WebhookInstallOptions.LocalServingPort
+	if host == "" || port == 0 {
+		return fmt.Errorf("webhook server host/port not set (host=%q, port=%d)", host, port)
+	}
+	addrPort := fmt.Sprintf("%s:%d", host, port)
+	dialer := &net.Dialer{Timeout: time.Second}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		conn, err := tls.DialWithDialer(dialer, "tcp", addrPort, &tls.Config{
+			InsecureSkipVerify: true, // #nosec G402
+			MinVersion:         tls.VersionTLS12,
+		})
+		if err == nil {
+			return conn.Close()
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("webhook server not ready after %s", timeout)
 }
