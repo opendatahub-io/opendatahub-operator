@@ -20,6 +20,7 @@ resources:
 - bases/services.platform.opendatahub.io_monitorings.yaml
 - bases/services.platform.opendatahub.io_auths.yaml
 - bases/components.platform.opendatahub.io_feastoperators.yaml
+- bases/infrastructure.opendatahub.io_hardwareprofiles.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 # patches:
