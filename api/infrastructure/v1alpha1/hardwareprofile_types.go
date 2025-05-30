@@ -1,0 +1,102 @@
+/*
+Copyright 2023.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package v1alpha1
+
+import (
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
+)
+
+// HardwareProfileSpec defines the desired state of HardwareProfile.
+type HardwareProfileSpec struct {
+	// The display name of the hardware profile.
+	DisplayName string `json:"displayName"`
+
+	// Indicates whether the hardware profile is available for new resources.
+	Enabled bool `json:"enabled"`
+
+	// A short description of the hardware profile.
+	// +optional
+	Description string `json:"description,omitempty"`
+
+	// The array of identifiers
+	// +optional
+	Identifiers []HardwareIdentifier `json:"identifiers,omitempty"`
+
+	// The node selector available.
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// Any number of Kubernetes toleration values that are added to resources when created or updated to this hardware profile.
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+}
+
+type HardwareIdentifier struct {
+	// The display name of identifier.
+	DisplayName string `json:"displayName"`
+
+	// The resource identifier of the hardware device.
+	Identifier string `json:"identifier"`
+
+	// The minimum count can be an integer or a string.
+	MinCount intstr.IntOrString `json:"minCount"`
+
+	// The maximum count can be an integer or a string.
+	// +optional
+	MaxCount *intstr.IntOrString `json:"maxCount,omitempty"`
+
+	// The default count can be an integer or a string.
+	DefaultCount intstr.IntOrString `json:"defaultCount"`
+
+	// The type of identifier. could be "CPU", "Memory", or "Accelerator". Leave it undefined for the other types.
+	// +optional
+	// +kubebuilder:validation:Enum=CPU;Memory;Accelerator
+	ResourceType string `json:"resourceType,omitempty"`
+}
+
+// HardwareProfileStatus defines the observed state of HardwareProfile.
+type HardwareProfileStatus struct {
+	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+	// Important: Run "make" to regenerate code after modifying this file
+}
+
+// +kubebuilder:object:root=true
+//+kubebuilder:subresource:status
+
+// HardwareProfile is the Schema for the hardwareprofiles API.
+type HardwareProfile struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   HardwareProfileSpec   `json:"spec"`
+	Status HardwareProfileStatus `json:"status,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// HardwareProfileList contains a list of HardwareProfile.
+type HardwareProfileList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []HardwareProfile `json:"items"`
+}
+
+func init() {
+	SchemeBuilder.Register(&HardwareProfile{}, &HardwareProfileList{})
+}
