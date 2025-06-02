@@ -173,7 +173,7 @@ func (m *DSCDefaulter) SetupWithManager(mgr ctrl.Manager) {
 }
 
 // Implement admission.CustomDefaulter interface.
-// It currently only sets defaults for modelregiestry in datascienceclusters.
+// It currently only sets defaults for modelregiestry and workbenches in datascienceclusters.
 func (m *DSCDefaulter) Default(_ context.Context, obj runtime.Object) error {
 	// TODO: add debug logging, log := logf.FromContext(ctx).WithName(m.Name)
 	dsc, isDSC := obj.(*dscv1.DataScienceCluster)
@@ -185,6 +185,12 @@ func (m *DSCDefaulter) Default(_ context.Context, obj runtime.Object) error {
 	if dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
 		if dsc.Spec.Components.ModelRegistry.RegistriesNamespace == "" {
 			dsc.Spec.Components.ModelRegistry.RegistriesNamespace = modelregistryctrl.DefaultModelRegistriesNamespace
+		}
+	}
+	// set default workbenchNamespace to "rhods-notebooks" if it is not "rhods-notebooks" or ""
+	if dsc.Spec.Components.Workbenches.ManagementState == operatorv1.Managed {
+		if dsc.Spec.Components.Workbenches.WorkbenchNamespace != "rhods-notebooks" && dsc.Spec.Components.Workbenches.WorkbenchNamespace != "" {
+			dsc.Spec.Components.Workbenches.WorkbenchNamespace = "rhods-notebooks"
 		}
 	}
 	return nil
