@@ -4,19 +4,12 @@ on:
   workflow_dispatch:
     branches:
       - 'odh-2.*'
-
-
 permissions:
   contents: write
-
-
 jobs:
   process-fbc:
     if: ${{ github.ref_name != 'main' }}
     runs-on: ubuntu-latest
-    container:
-      image: quay.io/rhoai/rhoai-task-toolset:latest
-      options: --privileged
     steps:
       - name: Get Current branch name
         shell: bash
@@ -61,6 +54,7 @@ jobs:
         uses: actions-js/push@master
         with:
           branch: ${{ steps.get_branch.outputs.branch }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           message: "Regenerated the catalog.yaml"
           directory: ${{ steps.get_branch.outputs.branch }}
           author_name: OpenShift AI Platform Team
