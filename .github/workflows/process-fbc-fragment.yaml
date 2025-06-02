@@ -3,14 +3,12 @@ run-name: FBC Processor
 on:
   workflow_dispatch:
     branches:
-      - 'odh-*'
+      - 'odh-2.*'
 
 
 permissions:
   contents: write
 
-env:
-  GITHUB_ORG: opendatahub-io
 
 jobs:
   process-fbc:
@@ -60,13 +58,10 @@ jobs:
           make catalog-prepare -e BUNDLE_IMGS=${QUAY_IMG}:v${PREV_VERSION},${QUAY_IMG}:v${CURRENT_VERSION}
 
       - name: Push latest FBC artifacts
-        if: ${{ steps.check-if-pcc-cache-valid.outputs.PCC_CACHE_VALID == 'NO' }}
         uses: actions-js/push@master
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: ${{ steps.get_branch.outputs.branch }}
           message: "Regenerated the catalog.yaml"
-          repository: ${{ env.GITHUB_ORG }}/opendatahub-operator
           directory: ${{ steps.get_branch.outputs.branch }}
-          author_name: Openshift-AI DevOps
-          author_email: openshift-ai-devops@redhat.com
+          author_name: OpenShift AI Platform Team
+          author_email: openshift-ai-platform@redhat.com
