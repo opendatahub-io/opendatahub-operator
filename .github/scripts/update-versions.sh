@@ -2,6 +2,8 @@
 
 set -euo
 
+NEW_VERSION=$1
+
 CURRENT_VERSION=$(cat Makefile | grep -w "VERSION ?=" | cut -d ' ' -f 3)
 CSV_FILE=config/manifests/bases/opendatahub-operator.clusterserviceversion.yaml
 sed -i -e "s/^VERSION ?=.*/VERSION ?= $NEW_VERSION/g" Makefile
