@@ -95,6 +95,18 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
+	// TODO: remove this once we have proper solution for config workbenchNamespace
+	workbenchNamespace := dsc.Spec.Components.Workbenches.WorkbenchNamespace
+	if workbenchNamespace != "" && workbenchNamespace != "rhods-notebooks" {
+		rr.Conditions.MarkFalse(
+			ReadyConditionType,
+			conditions.WithReason(status.ErrorReason),
+			conditions.WithMessage(status.WorkbenchNamespaceErrorMessage),
+			conditions.WithSeverity(common.ConditionSeverityError),
+		)
+		return metav1.ConditionFalse, nil
+	}
+
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
 		dsc.Status.InstalledComponents[LegacyComponentName] = true

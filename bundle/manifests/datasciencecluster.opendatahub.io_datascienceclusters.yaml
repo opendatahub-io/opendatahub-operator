@@ -717,14 +717,14 @@ spec:
                         type: string
                       workbenchNamespace:
                         default: rhods-notebooks
-                        description: Namespace for workbenches to be installed, configurable
-                          only once when workbenches are enabled, defaults to "rhods-notebooks"
+                        description: Namespace for workbenches to be installed, defaults
+                          to "rhods-notebooks" (not configurable).
                         maxLength: 63
                         pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                         type: string
                         x-kubernetes-validations:
-                        - message: WorkbenchNamespace is immutable
-                          rule: self == oldSelf
+                        - message: WorkbenchNamespace must be empty or 'rhods-notebooks'
+                          rule: self == '' || self == 'rhods-notebooks'
                     type: object
                 type: object
             type: object
