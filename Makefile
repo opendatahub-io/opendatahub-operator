@@ -124,6 +124,12 @@ ALERT_SEVERITY = critical
 OPERATOR_MAKE_ENV_FILE = local.mk
 -include $(OPERATOR_MAKE_ENV_FILE)
 
+# Check OS for sed compatibility
+ifeq ($(shell uname), Darwin)
+  SED_INPLACE = sed -i ''
+else
+  SED_INPLACE = sed -i
+endif
 
 .PHONY: default
 default: manifests generate lint unit-test build
@@ -328,10 +334,10 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	mv bundle.Dockerfile Dockerfiles/
 	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
-		
+	
 	# Remove the entries as they are no longer required by FBC
-	sed -i '' '/operators.operatorframework.io.bundle.channels.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile
-	sed -i '' '/operators.operatorframework.io.bundle.channel.default.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile
+	$(SED_INPLACE) '/operators.operatorframework.io.bundle.channels.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile
+	$(SED_INPLACE) '/operators.operatorframework.io.bundle.channel.default.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile
 
 .PHONY: bundle-build
 bundle-build: bundle
