@@ -18,6 +18,7 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
@@ -58,8 +59,13 @@ func init() { //nolint:gochecknoinits
 	cr.Add(&componentHandler{})
 }
 
-// Init for set images.
+// Init to set oauth image.
 func (s *componentHandler) Init(platform common.Platform) error {
+	mp := kserveManifestInfo(kserveManifestSourcePath)
+
+	if err := odhdeploy.ApplyParams(mp.String(), imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", mp, err)
+	}
 	return nil
 }
 
