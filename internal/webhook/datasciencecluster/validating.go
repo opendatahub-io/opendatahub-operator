@@ -23,7 +23,7 @@ import (
 // Validator implements webhook.AdmissionHandler for DataScienceCluster validation webhooks.
 // It enforces singleton creation rules for DataScienceCluster resources and always allows their deletion.
 type Validator struct {
-	Client  client.Client
+	Client  client.Reader
 	Decoder admission.Decoder
 	Name    string
 }

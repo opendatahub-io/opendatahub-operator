@@ -43,14 +43,14 @@ func NewLogConstructor(name string) func(logr.Logger, *admission.Request) logr.L
 //
 // Parameters:
 //   - ctx: Context for the API call.
-//   - cli: The controller-runtime client to use for listing objects.
+//   - cli: The controller-runtime reader to use for listing objects.
 //   - gvk: The GroupVersionKind of the objects to count.
 //   - opts: Optional client.ListOption arguments for filtering, pagination, etc.
 //
 // Returns:
 //   - int: The number of objects found.
 //   - error: Any error encountered during the list operation.
-func CountObjects(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, opts ...client.ListOption) (int, error) {
+func CountObjects(ctx context.Context, cli client.Reader, gvk schema.GroupVersionKind, opts ...client.ListOption) (int, error) {
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(gvk)
 
@@ -65,13 +65,13 @@ func CountObjects(ctx context.Context, cli client.Client, gvk schema.GroupVersio
 //
 // Parameters:
 //   - ctx: Context for the API call.
-//   - cli: The controller-runtime client to use for listing objects.
+//   - cli: The controller-runtime reader to use for listing objects.
 //   - gvk: The GroupVersionKind to check for existing objects.
 //   - msg: The denial message to return if objects are found.
 //
 // Returns:
 //   - admission.Response: Denied if objects exist, Allowed otherwise, or Errored on failure.
-func DenyCountGtZero(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, msg string) admission.Response {
+func DenyCountGtZero(ctx context.Context, cli client.Reader, gvk schema.GroupVersionKind, msg string) admission.Response {
 	count, err := CountObjects(ctx, cli, gvk)
 	if err != nil {
 		logf.FromContext(ctx).Error(err, "error listing objects")
@@ -89,13 +89,13 @@ func DenyCountGtZero(ctx context.Context, cli client.Client, gvk schema.GroupVer
 //
 // Parameters:
 //   - ctx: Context for the API call (logger is extracted from here).
-//   - cli: The controller-runtime client to use for listing objects.
+//   - cli: The controller-runtime reader to use for listing objects.
 //   - req: The admission request being processed.
 //   - expectedKind: The expected Kind string for validation.
 //
 // Returns:
 //   - admission.Response: Errored if kind does not match, Denied if duplicate exists, Allowed otherwise.
-func ValidateDupCreation(ctx context.Context, cli client.Client, req *admission.Request, expectedKind string) admission.Response {
+func ValidateDupCreation(ctx context.Context, cli client.Reader, req *admission.Request, expectedKind string) admission.Response {
 	if req.Kind.Kind != expectedKind {
 		err := fmt.Errorf("unexpected kind: %s", req.Kind.Kind)
 		logf.FromContext(ctx).Error(err, "got wrong kind")

@@ -23,7 +23,7 @@ import (
 // Validator implements webhook.AdmissionHandler for DSCInitialization validation webhooks.
 // It enforces singleton creation and deletion rules for DSCInitialization resources.
 type Validator struct {
-	Client  client.Client
+	Client  client.Reader
 	Decoder admission.Decoder
 	Name    string
 }

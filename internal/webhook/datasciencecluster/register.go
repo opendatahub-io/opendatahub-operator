@@ -10,7 +10,7 @@ import (
 func RegisterWebhooks(mgr ctrl.Manager) error {
 	// Register the validating webhook
 	if err := (&Validator{
-		Client: mgr.GetClient(),
+		Client: mgr.GetAPIReader(),
 		Name:   "datasciencecluster-validating",
 	}).SetupWithManager(mgr); err != nil {
 		return err
