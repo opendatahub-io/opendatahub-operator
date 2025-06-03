@@ -24,6 +24,7 @@ var (
 	imageParamMap = map[string]string{
 		"trustyaiServiceImage":  "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_IMAGE",
 		"trustyaiOperatorImage": "RELATED_IMAGE_ODH_TRUSTYAI_SERVICE_OPERATOR_IMAGE",
+		"oauthProxyImage":       "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
 	}
 
 	overlaysSourcePaths = map[common.Platform]string{
