@@ -33,6 +33,7 @@ and configure these applications.
   - [Component Integration](#component-integration)
   - [Troubleshooting](#troubleshooting)
   - [Upgrade testing](#upgrade-testing)
+  - [Release Workflow Guide](#release-workflow-guide)
 
 ## Usage
 
@@ -253,6 +254,35 @@ e.g `make image-build USE_LOCAL=true"`
   ```commandline
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE --decompression-image quay.io/project-codeflare/busybox:1.36
   ```
+  
+- Understanding Catalog Generation:
+  
+  The operator uses File-Based Catalog (FBC) format for OLM integration. The `make catalog-build` command internally runs `catalog-prepare` which:
+  - Uses the basic template from `config/catalog/fbc-basic-template.yaml`
+  - Processes the template using `hack/update-catalog-template.sh` to generate `catalog/operator.yaml`
+  - Validates the generated catalog structure
+
+  **Important Note**: Users must provide the old version bundle images as a comma-separated list, in ascending order, to generate an upgradeable catalog image. For example:
+  ```commandline
+  make catalog-build catalog-push -e CATALOG_IMG=quay.io/<username>/opendatahub-operator-index:<target_version> \
+    BUNDLE_IMGS=quay.io/<username>/opendatahub-operator-bundle:v2.26.0,\
+    quay.io/<username>/opendatahub-operator-bundle:v2.27.0,\
+    quay.io/<username>/opendatahub-operator-bundle:v2.28.0
+  ```
+
+  This creates the following upgrade path:
+  ```
+  v2.26.0 -> v2.27.0 -> v2.28.0 -> target_version
+  ```
+
+  For more details on the File-Based Catalog format, see the [FBC documentation](https://olm.operatorframework.io/docs/reference/file-based-catalogs/).
+
+- Build Catalog Image:
+
+  ```commandline
+  make catalog-build catalog-push -e CATALOG_IMG=quay.io/<username>/opendatahub-operator-index:<target_version> BUNDLE_IMGS=<list-of-comma-separated-bundle-images>
+  ```
+  
 ### Test with customized manifests
 
 There are 2 ways to test your changes with modification:
@@ -517,3 +547,7 @@ Please refer to [troubleshooting documentation](docs/troubleshooting.md)
 ### Upgrade testing
 
 Please refer to [upgrade testing documentation](docs/upgrade-testing.md)
+
+### Release Workflow Guide
+
+Please refer to [release workflow documentation](docs/release-workflow-guide.md)

@@ -24,4 +24,3 @@ sed -i -e "s|containerImage.*|containerImage: quay.io/opendatahub/opendatahub-op
 sed -i -e "s|createdAt.*|createdAt: \"$(date +"%Y-%-m-%dT00:00:00Z")\"|g" $CSV_FILE
 sed -i -e "s|name: opendatahub-operator.v.*|name: opendatahub-operator.v$NEW_VERSION|g" $CSV_FILE
 sed -i -e "s|version: $CURRENT_VERSION.*|version: $NEW_VERSION|g" $CSV_FILE
-sed -i -e "s|replaces:.*|replaces: \'opendatahub-operator.$OLD_VERSION\'|g" $CSV_FILE

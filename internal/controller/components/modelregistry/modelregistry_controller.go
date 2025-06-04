@@ -32,6 +32,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/observability"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
@@ -46,6 +47,7 @@ import (
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.ModelRegistry{}).
+		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&rbacv1.Role{}).
@@ -74,8 +76,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		// This component adds a ServiceMeshMember resource to the registries
 		// namespaces that may not be known when the controller is started, hence
-		// it should be watched dynamically
-		WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic()).
+		// it should be watched dynamically if SMM CR exists
+		WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic(isServiceMeshEnabled)).
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(customizeManifests).
@@ -89,6 +91,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
+		WithAction(observability.NewAction()).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
@@ -102,7 +105,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// contributing to the controller readiness status
 		WithConditions(conditionTypes...).
 		Build(ctx)
-
 	if err != nil {
 		return fmt.Errorf("could not create the model registry controller: %w", err)
 	}

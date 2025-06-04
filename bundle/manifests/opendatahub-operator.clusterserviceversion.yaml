@@ -110,8 +110,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.29.0
-    createdAt: "2025-05-20T09:33:54Z"
-    olm.skipRange: '>=1.0.0 <2.29.0'
+    createdAt: "2025-05-26T09:48:40Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -801,6 +800,18 @@ spec:
           - patch
           - watch
         - apiGroups:
+          - keda.sh
+          resources:
+          - triggerauthentications
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
           - machinelearning.seldon.io
           resources:
           - seldondeployments
@@ -832,6 +843,15 @@ spec:
           - patch
           - update
           - use
+          - watch
+        - apiGroups:
+          - metrics.k8s.io
+          resources:
+          - nodes
+          - pods
+          verbs:
+          - get
+          - list
           - watch
         - apiGroups:
           - modelregistry.opendatahub.io
@@ -1379,7 +1399,7 @@ spec:
     containerPort: 443
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
-    generateName: mutate.operator.opendatahub.io
+    generateName: datasciencecluster-defaulter.opendatahub.io
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -1393,16 +1413,34 @@ spec:
     sideEffects: None
     targetPort: 9443
     type: MutatingAdmissionWebhook
-    webhookPath: /mutate-opendatahub-io-v1
+    webhookPath: /mutate-datasciencecluster
   - admissionReviewVersions:
     - v1
     containerPort: 443
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
-    generateName: operator.opendatahub.io
+    generateName: datasciencecluster-validator.opendatahub.io
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      resources:
+      - datascienceclusters
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-datasciencecluster
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: dscinitialization-validator.opendatahub.io
+    rules:
+    - apiGroups:
       - dscinitialization.opendatahub.io
       apiVersions:
       - v1
@@ -1410,9 +1448,8 @@ spec:
       - CREATE
       - DELETE
       resources:
-      - datascienceclusters
       - dscinitializations
     sideEffects: None
     targetPort: 9443
     type: ValidatingAdmissionWebhook
-    webhookPath: /validate-opendatahub-io-v1
+    webhookPath: /validate-dscinitialization

@@ -72,7 +72,8 @@ import (
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
+	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
+	dsciwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
@@ -148,6 +149,48 @@ func initServices(_ context.Context, p common.Platform) error {
 	})
 }
 
+// Create a config struct with viper's mapstructure.
+type OperatorConfig struct {
+	MetricsAddr         string `mapstructure:"metrics-bind-address"`
+	HealthProbeAddr     string `mapstructure:"health-probe-bind-address"`
+	LeaderElection      bool   `mapstructure:"leader-elect"`
+	MonitoringNamespace string `mapstructure:"dsc-monitoring-namespace"`
+	LogMode             string `mapstructure:"log-mode"`
+	PprofAddr           string `mapstructure:"pprof-bind-address"`
+
+	// Zap logging configuration
+	ZapDevel        bool   `mapstructure:"zap-devel"`
+	ZapEncoder      string `mapstructure:"zap-encoder"`
+	ZapLogLevel     string `mapstructure:"zap-log-level"`
+	ZapStacktrace   string `mapstructure:"zap-stacktrace-level"`
+	ZapTimeEncoding string `mapstructure:"zap-time-encoding"`
+}
+
+func LoadConfig() (*OperatorConfig, error) {
+	var operatorConfig OperatorConfig
+	if err := viper.Unmarshal(&operatorConfig); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal operator manager config: %w", err)
+	}
+	return &operatorConfig, nil
+}
+
+// RegisterAllWebhooks registers multiple webhook setup functions with the given manager.
+//
+// Parameters:
+//   - mgr: The controller-runtime manager to register webhooks with.
+//   - regs: Variadic list of functions that each register webhooks with the manager.
+//
+// Returns:
+//   - error: The first error encountered during registration, or nil if all succeed.
+func RegisterAllWebhooks(mgr ctrl.Manager, regs ...func(ctrl.Manager) error) error {
+	for _, reg := range regs {
+		if err := reg(mgr); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func main() { //nolint:funlen,maintidx,gocyclo
 	// Viper settings
 	viper.SetEnvPrefix("ODH_MANAGER")
@@ -167,19 +210,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	// Get configs
-	metricsAddr := viper.GetString("metrics-bind-address")
-	enableLeaderElection := viper.GetBool("leader-elect")
-	probeAddr := viper.GetString("health-probe-bind-address")
-	monitoringNamespace := viper.GetString("dsc-monitoring-namespace")
-	logMode := viper.GetString("log-mode")
-	pprofAddr := viper.GetString("pprof-bind-address")
-
-	zapDevel := viper.GetBool("zap-devel")
-	zapEncoder := viper.GetString("zap-encoder")
-	zapLogLevel := viper.GetString("zap-log-level")
-	zapStacktrace := viper.GetString("zap-stacktrace-level")
-	zapTimeEncoding := viper.GetString("zap-time-encoding")
+	oconfig, err := LoadConfig()
+	if err != nil {
+		fmt.Printf("Error loading configuration: %s", err.Error())
+		os.Exit(1)
+	}
 
 	// After getting the zap related configs an ad hoc flag set is created so the zap BindFlags mechanism can be reused
 	zapFlagSet := flags.NewZapFlagSet()
@@ -187,13 +222,13 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	opts := zap.Options{}
 	opts.BindFlags(zapFlagSet)
 
-	err := flags.ParseZapFlags(zapFlagSet, zapDevel, zapEncoder, zapLogLevel, zapStacktrace, zapTimeEncoding)
+	err = flags.ParseZapFlags(zapFlagSet, oconfig.ZapDevel, oconfig.ZapEncoder, oconfig.ZapLogLevel, oconfig.ZapStacktrace, oconfig.ZapTimeEncoding)
 	if err != nil {
 		fmt.Printf("Error in parsing zap flags: %s", err.Error())
 		os.Exit(1)
 	}
 
-	ctrl.SetLogger(logger.NewLogger(logMode, &opts))
+	ctrl.SetLogger(logger.NewLogger(oconfig.LogMode, &opts))
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()
@@ -302,15 +337,15 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme:  scheme,
-		Metrics: ctrlmetrics.Options{BindAddress: metricsAddr},
+		Metrics: ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr},
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port: 9443,
 			// TLSOpts: , // TODO: it was not set in the old code
 		}),
-		PprofBindAddress:       pprofAddr,
-		HealthProbeBindAddress: probeAddr,
+		PprofBindAddress:       oconfig.PprofAddr,
+		HealthProbeBindAddress: oconfig.HealthProbeAddr,
 		Cache:                  cacheOptions,
-		LeaderElection:         enableLeaderElection,
+		LeaderElection:         oconfig.LeaderElection,
 		LeaderElectionID:       "07ed84f7.opendatahub.io",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
@@ -345,7 +380,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	webhook.Init(mgr)
+	// Register all webhooks using the helper
+	if err := registerAllWebhooks(mgr); err != nil {
+		setupLog.Error(err, "unable to register webhooks")
+		os.Exit(1)
+	}
 
 	if err = (&dscictrl.DSCInitializationReconciler{
 		Client:   mgr.GetClient(),
@@ -379,7 +418,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Info("DSCI auto creation is disabled")
 	} else {
 		var createDefaultDSCIFunc manager.RunnableFunc = func(ctx context.Context) error {
-			err := upgrade.CreateDefaultDSCI(ctx, setupClient, platform, monitoringNamespace)
+			err := upgrade.CreateDefaultDSCI(ctx, setupClient, platform, oconfig.MonitoringNamespace)
 			if err != nil {
 				setupLog.Error(err, "unable to create initial setup for the operator")
 			}
@@ -451,13 +490,30 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 }
 
+// registerAllWebhooks registers all webhook setup functions with the given manager.
+// Returns the first error encountered during registration, or nil if all succeed.
+func registerAllWebhooks(mgr ctrl.Manager) error {
+	webhookRegistrations := []func(ctrl.Manager) error{
+		dscwebhook.RegisterWebhooks,
+		dsciwebhook.RegisterWebhooks,
+	}
+	for _, reg := range webhookRegistrations {
+		if err := reg(mgr); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func getCommonCache(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
 	namespaceConfigs := map[string]cache.Config{}
-	// newtowkrpolicy need operator namespace
+
+	// networkpolicy need operator namespace
 	operatorNs, err := cluster.GetOperatorNamespace()
 	if err != nil {
-		return namespaceConfigs, err
+		return nil, err
 	}
+
 	namespaceConfigs[operatorNs] = cache.Config{}
 
 	if platform == cluster.ManagedRhoai {
@@ -465,61 +521,54 @@ func getCommonCache(ctx context.Context, cli client.Client, platform common.Plat
 		namespaceConfigs["redhat-ods-applications"] = cache.Config{}
 		namespaceConfigs[cluster.NamespaceConsoleLink] = cache.Config{}
 		return namespaceConfigs, nil
-	}
-	cNamespaceList := &corev1.NamespaceList{}
-	labelSelector := client.MatchingLabels{
-		labels.CustomizedAppNamespace: labels.True,
-	}
-	if err := cli.List(ctx, cNamespaceList, labelSelector); err != nil {
-		return map[string]cache.Config{}, err
-	}
-
-	switch len(cNamespaceList.Items) {
-	case 0:
-		if platform == cluster.SelfManagedRhoai {
-			namespaceConfigs["redhat-ods-applications"] = cache.Config{}
-			namespaceConfigs["redhat-ods-monitoring"] = cache.Config{} // since we still create monitoring namespace for self-managed
-			return namespaceConfigs, nil
+	} else {
+		// get the managed application's namespaces
+		cNamespaceList := &corev1.NamespaceList{}
+		labelSelector := client.MatchingLabels{
+			labels.CustomizedAppNamespace: labels.True,
 		}
-		namespaceConfigs["opendatahub"] = cache.Config{}
-		return namespaceConfigs, nil
-	case 1:
-		namespaceConfigs[cNamespaceList.Items[0].Name] = cache.Config{}
-		namespaceConfigs["redhat-ods-monitoring"] = cache.Config{} // since we still create monitoring namespace for self-managed
-	default:
-		return map[string]cache.Config{}, errors.New("only support max. one namespace with label: opendatahub.io/application-namespace: true")
+		if err := cli.List(ctx, cNamespaceList, labelSelector); err != nil {
+			return nil, err
+		}
+
+		switch len(cNamespaceList.Items) {
+		case 0:
+			if platform == cluster.SelfManagedRhoai {
+				namespaceConfigs["redhat-ods-applications"] = cache.Config{}
+			} else {
+				namespaceConfigs["opendatahub"] = cache.Config{}
+			}
+			return namespaceConfigs, nil
+		case 1:
+			namespaceConfigs[cNamespaceList.Items[0].Name] = cache.Config{}
+			return namespaceConfigs, nil
+		default:
+			return nil, errors.New("only support max. one namespace with label: opendatahub.io/application-namespace: true")
+		}
 	}
-	return namespaceConfigs, nil
 }
 
 func createSecretCacheConfig(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs := map[string]cache.Config{
-		"istio-system":      {}, // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
-		"openshift-ingress": {},
-	}
-
-	c, err := getCommonCache(ctx, cli, platform)
+	namespaceConfigs, err := getCommonCache(ctx, cli, platform)
 	if err != nil {
 		return nil, err
 	}
-	for n := range c {
-		namespaceConfigs[n] = cache.Config{}
-	}
+
+	namespaceConfigs["istio-system"] = cache.Config{} // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
+	namespaceConfigs["openshift-ingress"] = cache.Config{}
+
 	return namespaceConfigs, nil
 }
 
 func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs := map[string]cache.Config{
-		"istio-system": {}, // for serivcemonitor: data-science-smcp-pilot-monitor
-	}
-
-	c, err := getCommonCache(ctx, cli, platform)
+	namespaceConfigs, err := getCommonCache(ctx, cli, platform)
 	if err != nil {
 		return nil, err
 	}
-	for n := range c {
-		namespaceConfigs[n] = cache.Config{}
-	}
+
+	namespaceConfigs["istio-system"] = cache.Config{}        // for serivcemonitor: data-science-smcp-pilot-monitor
+	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
+
 	return namespaceConfigs, nil
 }
 

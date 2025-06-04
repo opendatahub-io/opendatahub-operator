@@ -65,6 +65,7 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
+GINKGO ?= $(LOCALBIN)/ginkgo
 YQ ?= $(LOCALBIN)/yq
 
 ## Tool Versions
@@ -78,6 +79,9 @@ ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -
 #ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.20)
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 CRD_REF_DOCS_VERSION = 0.1.0
+# Add to tool versions section
+GINKGO_VERSION ?= v2.22.0
+
 
 PLATFORM ?= linux/amd64
 
@@ -195,6 +199,11 @@ CLEANFILES += opt/manifests/*
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
+
+.PHONY: ginkgo
+ginkgo: $(GINKGO)
+$(GINKGO): $(LOCALBIN)
+	$(call go-install-tool,$(GINKGO),github.com/onsi/ginkgo/v2/ginkgo,$(GINKGO_VERSION))
 
 ##@ Build
 
@@ -319,6 +328,10 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	mv bundle.Dockerfile Dockerfiles/
 	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
+		
+	# Remove the entries as they are no longer required by FBC
+	sed -i '' '/operators.operatorframework.io.bundle.channels.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile
+	sed -i '' '/operators.operatorframework.io.bundle.channel.default.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile
 
 .PHONY: bundle-build
 bundle-build: bundle
@@ -345,7 +358,7 @@ ifeq (,$(shell command -v opm 2>/dev/null))
 	set -e ;\
 	mkdir -p $(dir $(OPM)) ;\
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.23.0/$${OS}-$${ARCH}-opm ;\
+	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.55.0/$${OS}-$${ARCH}-opm ;\
 	chmod +x $(OPM) ;\
 	}
 else
@@ -365,12 +378,28 @@ ifneq ($(origin CATALOG_BASE_IMG), undefined)
 FROM_INDEX_OPT := --from-index $(CATALOG_BASE_IMG)
 endif
 
-# Build a catalog image by adding bundle images to an empty catalog using the operator package manager tool, 'opm'.
-# This recipe invokes 'opm' in 'semver' bundle add mode. For more information on add modes, see:
-# https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
+.PHONY: catalog-clean
+catalog-clean: ## Clean up catalog files and Dockerfile
+	rm -rf catalog
+	
+.PHONY: catalog-prepare
+catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel. It requires BUNDLE_IMG exists before running the target"
+	mkdir -p catalog
+	cp config/catalog/fbc-basic-template.yaml catalog/fbc-basic-template.yaml
+	./hack/update-catalog-template.sh catalog/fbc-basic-template.yaml $(BUNDLE_IMGS)
+	$(OPM) alpha render-template basic \
+		--migrate-level=bundle-object-to-csv-metadata \
+		-o yaml \
+		catalog/fbc-basic-template.yaml > catalog/operator.yaml
+	$(OPM) validate catalog
+	rm -f catalog/fbc-basic-template.yaml
+
+# Build a catalog image using the operator package manager tool 'opm'.
+# This recipe uses 'opm alpha render-template basic' to generate a catalog from a template.
+# The template defines bundle images and channel relationships in a declarative way.
 .PHONY: catalog-build
-catalog-build: opm ## Build a catalog image.
-	$(OPM) index add --container-tool $(IMAGE_BUILDER) --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+catalog-build: catalog-prepare
+	$(IMAGE_BUILDER) build --no-cache --load -f Dockerfiles/catalog.Dockerfile -t $(CATALOG_IMG) .
 
 # Push the catalog image.
 .PHONY: catalog-push
@@ -402,8 +431,8 @@ $(ENVTEST): $(LOCALBIN)
 test: unit-test e2e-test
 
 .PHONY: unit-test
-unit-test: envtest
-	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(TEST_SRC) -v  -coverprofile cover.out
+unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
+	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" ${GINKGO} -r -v --timeout=15m --procs=4 --cover --coverprofile=cover.out $(TEST_SRC)
 CLEANFILES += cover.out
 
 $(PROMETHEUS_TEST_DIR)/%.rules.yaml: $(PROMETHEUS_TEST_DIR)/%.unit-tests.yaml $(PROMETHEUS_CONFIG_YAML) $(YQ)
