@@ -51,7 +51,7 @@ func dscManagementTestSuite(t *testing.T) {
 
 	// Define test cases.
 	testCases := []TestCase{
-		{"Ensure Service Mesh and Serverless operators are installed", dscTestCtx.ValidateOperatorsInstallation},
+		{"Ensure Service Mesh , Serverless and Observability operators are installed", dscTestCtx.ValidateOperatorsInstallation},
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
 		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
@@ -93,6 +93,7 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		{nn: types.NamespacedName{Name: serviceMeshOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
 		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: serverlessOperatorNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
+		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
 	}
 
 	// Create and run test cases in parallel.
