@@ -349,4 +349,10 @@ var (
 		Version: networkingv1.SchemeGroupVersion.Version,
 		Kind:    "NetworkPolicy",
 	}
+
+	MonitoringStack = schema.GroupVersionKind{
+		Group:   "monitoring.rhobs",
+		Version: "v1alpha1",
+		Kind:    "MonitoringStack",
+	}
 )

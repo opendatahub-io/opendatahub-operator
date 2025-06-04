@@ -35,7 +35,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		monitoringStackName = "odh-monitoringstack"
 	}
 
-	fmt.Println(mon.Spec.Namespace)
 	return map[string]any{
 		"Monitoring":          mon.Spec,
 		"MonitoringStackName": monitoringStackName,
