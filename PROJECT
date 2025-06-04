@@ -147,4 +147,12 @@ resources:
   kind: Auth
   path: github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: opendatahub.io
+  group: infrastructure
+  kind: HardwareProfile
+  path: github.com/opendatahub-io/opendatahub-operator/api/infrastructure/v1alpha1
+  version: v1alpha1
 version: "3"
