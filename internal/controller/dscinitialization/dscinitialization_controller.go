@@ -218,6 +218,10 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				if err = r.configureSegmentIO(ctx, instance); err != nil {
 					return reconcile.Result{}, err
 				}
+
+				if err = r.newMonitoringCR(ctx, instance); err != nil {
+					return ctrl.Result{}, err
+				}
 			}
 		case cluster.ManagedRhoai:
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
@@ -241,6 +245,9 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		default:
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
+				if err = r.newMonitoringCR(ctx, instance); err != nil {
+					return ctrl.Result{}, err
+				}
 			}
 		}
 
@@ -408,6 +415,10 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 				Namespace: dsci.Spec.Monitoring.Namespace,
 			},
 		},
+	}
+
+	if dsci.Spec.Monitoring.Metrics != nil {
+		defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
 	}
 
 	if err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme()); err != nil {
