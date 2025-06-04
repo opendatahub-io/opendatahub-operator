@@ -1,0 +1,27 @@
+apiVersion: monitoring.rhobs/v1alpha1
+kind: MonitoringStack
+metadata:
+  name: {{ .MonitoringStackName }}
+  namespace: {{ .Monitoring.Namespace }}
+spec:
+  alertmanagerConfig:
+    disabled: false
+  logLevel: debug
+  prometheusConfig:
+    externalLabels:
+      platform.opendatahub.io/part-of: monitoring
+    enableOtlpHttpReceiver: true
+    persistentVolumeClaim:
+      resources:
+        requests: 
+          storage: {{ .Monitoring.Metrics.Storage.Size}}Gi
+    replicas: 2
+  resourceSelector: {}
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  retention: 1d
