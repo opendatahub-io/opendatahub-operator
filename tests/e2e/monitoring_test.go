@@ -143,7 +143,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsWhenSet(t *testing.T) {
 
 	tc.g.Expect(len(ms)).
 		To(Equal(1),
-			"Expected exactly one resource of kind '%s', but found '%d'.", len(ms))
+			"Expected exactly one resource of kind '%s', but found '%d'.", gvk.MonitoringStack, len(ms))
 }
 
 func getMonitoringObject(tc *MonitoringTestCtx, metrics bool) serviceApi.Monitoring {
