@@ -252,7 +252,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return reconcile.Result{}, errServiceMesh
 		}
 		// Create Auth
-		if err = r.createAuth(ctx, instance); err != nil {
+		if err = r.createAuth(ctx, platform); err != nil {
 			log.Info("failed to create Auth")
 			return ctrl.Result{}, err
 		}
