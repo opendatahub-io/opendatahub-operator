@@ -2,11 +2,13 @@ package monitoring
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -72,4 +74,21 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 			return fmt.Errorf("unsuported management state %s", ms)
 		}
 	})
+}
+
+func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	mon, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+	if mon.Spec.Metrics != nil {
+		template := []odhtypes.TemplateInfo{
+			{
+				FS:   resourcesFS,
+				Path: MonitoringStackTemplate,
+			},
+		}
+		rr.Templates = append(rr.Templates, template...)
+	}
+	return nil
 }

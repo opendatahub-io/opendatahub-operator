@@ -28,8 +28,8 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -54,10 +54,6 @@ func (h *serviceHandler) GetName() string {
 }
 
 func (h *serviceHandler) GetManagementState(platform common.Platform) operatorv1.ManagementState {
-	if platform != cluster.ManagedRhoai {
-		return operatorv1.Unmanaged
-	}
-
 	return operatorv1.Managed
 }
 
@@ -87,6 +83,11 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		)).
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).
+		WithAction(createMonitoringStack).
+		WithAction(template.NewAction(
+			template.WithCache(),
+			template.WithDataFn(getTemplateData),
+		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).

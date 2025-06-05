@@ -24,7 +24,7 @@ import (
 const (
 	MonitoringServiceName = "monitoring"
 	// MonitoringInstanceName the name of the Dashboard instance singleton.
-	// value should match whats set in the XValidation below
+	// value should match what is set in the XValidation below
 	MonitoringInstanceName = "default-monitoring"
 	MonitoringKind         = "Monitoring"
 )
@@ -36,6 +36,8 @@ var _ common.PlatformObject = (*Monitoring)(nil)
 type MonitoringSpec struct {
 	// monitoring spec exposed to DSCI api
 	MonitoringCommonSpec `json:",inline"`
+	// metrics collection
+	*Metrics `json:"metrics,omitempty"`
 	// monitoring spec exposed only to internal api
 }
 
@@ -81,6 +83,14 @@ type MonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Monitoring `json:"items"`
+}
+
+type Metrics struct {
+	Storage MetricsStorage `json:"storage,omitempty"`
+}
+
+type MetricsStorage struct {
+	Size int `json:"size,omitempty"`
 }
 
 func (m *Monitoring) GetDevFlags() *common.DevFlags {
