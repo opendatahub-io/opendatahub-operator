@@ -92,7 +92,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.KserveInstanceName)),
 			reconciler.WithPredicates(predicate.And(
-				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
+				component.ForLabel(labels.ODH.Component(componentName), labels.True),
 				predicate.Funcs{
 					UpdateFunc: func(event event.UpdateEvent) bool {
 						// The KServe and ModelMesh are shipping the same CRDs as part of their manifests
@@ -148,8 +148,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			//
 			// Additional labels/annotations MUST be added by the deploy action
 			// so they would affect only objects metadata without side effects
-			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
+			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
 		WithAction(customizeKserveConfigMap).
 		WithAction(deploy.NewAction(

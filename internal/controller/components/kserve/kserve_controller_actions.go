@@ -116,7 +116,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	kSourcePath := kserveManifestSourcePath
 
 	for _, subcomponent := range df.Manifests {
-		if !strings.Contains(subcomponent.URI, componentName) && !strings.Contains(subcomponent.URI, LegacyComponentName) {
+		if !strings.Contains(subcomponent.URI, componentName) {
 			continue
 		}
 
