@@ -48,7 +48,7 @@ tests:
             exp_annotations:
               message: "High error budget burn for codeflare-operator (current value: 3)."
               summary: CodeFlare Operator Probe Success 5m and 1h Burn Rate high
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-availability.md'
+              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-probe-success-burn-rate.md'
 
   - interval: 1m
     input_series:
