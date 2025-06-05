@@ -81,7 +81,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	dsc.Status.InstalledComponents[ComponentName] = false
 	dsc.Status.Components.LlamaStackOperator.ManagementState = s.GetManagementState(dsc)
-	dsc.Status.Components.LlamaStackOperator.DeepCopy().LlamaStackOperatorCommonStatus = nil
+	dsc.Status.Components.LlamaStackOperator.LlamaStackOperatorCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
