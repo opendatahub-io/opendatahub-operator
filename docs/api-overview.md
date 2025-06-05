@@ -2617,8 +2617,7 @@ _Appears in:_
 | `enabled` _boolean_ | Indicates whether the hardware profile is available for new resources. |  |  |
 | `description` _string_ | A short description of the hardware profile. |  |  |
 | `identifiers` _[HardwareIdentifier](#hardwareidentifier) array_ | The array of identifiers |  |  |
-| `nodeSelector` _object (keys:string, values:string)_ | The node selector available. |  |  |
-| `tolerations` _[Toleration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#toleration-v1-core) array_ | Any number of Kubernetes toleration values that are added to resources when created or updated to this hardware profile. |  |  |
+| `scheduling` _[SchedulingSpec](#schedulingspec)_ | SchedulingSpec specifies how workloads using this hardware profile should be scheduled. |  |  |
 
 
 #### HardwareProfileStatus
@@ -2632,6 +2631,76 @@ HardwareProfileStatus defines the observed state of HardwareProfile.
 _Appears in:_
 - [HardwareProfile](#hardwareprofile)
 
+
+
+#### KueueSchedulingSpec
+
+
+
+KueueSchedulingSpec defines queue-based scheduling configuration.
+
+
+
+_Appears in:_
+- [SchedulingSpec](#schedulingspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `localQueueName` _string_ | LocalQueueName specifies the name of the local queue to use for workload scheduling.<br />When specified, workloads using this hardware profile will be submitted to the<br />specified queue and the queue's configuration will determine the actual node<br />placement and tolerations. |  | MinLength: 1 <br />Required: \{\} <br /> |
+
+
+#### NodeSchedulingSpec
+
+
+
+NodeSchedulingSpec defines direct node scheduling configuration.
+
+
+
+_Appears in:_
+- [SchedulingSpec](#schedulingspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `nodeSelector` _object (keys:string, values:string)_ | NodeSelector specifies the node selector to use for direct node scheduling.<br />Workloads will be scheduled only on nodes that match all the specified labels. |  |  |
+| `tolerations` _[Toleration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#toleration-v1-core) array_ | Tolerations specifies the tolerations to apply to workloads for direct node scheduling.<br />These tolerations allow workloads to be scheduled on nodes with matching taints. |  |  |
+
+
+#### SchedulingSpec
+
+
+
+SchedulingSpec allows for specifying either kueue-based scheduling or direct node scheduling.
+CEL Rule 1: If schedulingType is "Queue", the 'kueue' field (with a non-empty localQueueName) must be set, and the 'node' field must not be set.
+CEL Rule 2: If schedulingType is "Node", the 'node' field must be set, and the 'kueue' field must not be set.
+
+
+
+_Appears in:_
+- [HardwareProfileSpec](#hardwareprofilespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _[SchedulingType](#schedulingtype)_ | SchedulingType is the scheduling method discriminator.<br />Users must set this value to indicate which scheduling method to use.<br />The value of this field should match exactly one configured scheduling method.<br />Valid values are "Queue" and "Node". |  | Enum: [Queue Node] <br />Required: \{\} <br /> |
+| `kueue` _[KueueSchedulingSpec](#kueueschedulingspec)_ | Kueue specifies queue-based scheduling configuration.<br />This field is only valid when schedulingType is "Queue". |  |  |
+| `node` _[NodeSchedulingSpec](#nodeschedulingspec)_ | node specifies direct node scheduling configuration.<br />This field is only valid when schedulingType is "Node". |  |  |
+
+
+#### SchedulingType
+
+_Underlying type:_ _string_
+
+SchedulingType defines the scheduling method for the hardware profile.
+
+
+
+_Appears in:_
+- [SchedulingSpec](#schedulingspec)
+
+| Field | Description |
+| --- | --- |
+| `Queue` | QueueScheduling indicates that workloads should be scheduled through a queue.<br /> |
+| `Node` | NodeScheduling indicates that workloads should be scheduled directly to nodes.<br /> |
 
 
 
