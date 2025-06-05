@@ -2463,6 +2463,38 @@ _Appears in:_
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
+#### Metrics
+
+
+
+
+
+
+
+_Appears in:_
+- [MonitoringSpec](#monitoringspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `storage` _[MetricsStorage](#metricsstorage)_ |  |  |  |
+
+
+#### MetricsStorage
+
+
+
+
+
+
+
+_Appears in:_
+- [Metrics](#metrics)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `size` _integer_ |  |  |  |
+
+
 #### Monitoring
 
 
@@ -2536,6 +2568,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 
 
 #### MonitoringStatus
