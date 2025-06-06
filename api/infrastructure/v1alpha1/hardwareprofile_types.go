@@ -22,6 +22,17 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+// SchedulingType defines the scheduling method for the hardware profile.
+type SchedulingType string
+
+const (
+	// QueueScheduling indicates that workloads should be scheduled through a queue.
+	QueueScheduling SchedulingType = "Queue"
+
+	// NodeScheduling indicates that workloads should be scheduled directly to nodes.
+	NodeScheduling SchedulingType = "Node"
+)
+
 // HardwareProfileSpec defines the desired state of HardwareProfile.
 type HardwareProfileSpec struct {
 	// The display name of the hardware profile.
@@ -38,13 +49,9 @@ type HardwareProfileSpec struct {
 	// +optional
 	Identifiers []HardwareIdentifier `json:"identifiers,omitempty"`
 
-	// The node selector available.
+	// SchedulingSpec specifies how workloads using this hardware profile should be scheduled.
 	// +optional
-	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
-
-	// Any number of Kubernetes toleration values that are added to resources when created or updated to this hardware profile.
-	// +optional
-	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+	SchedulingSpec *SchedulingSpec `json:"scheduling,omitempty"`
 }
 
 type HardwareIdentifier struct {
@@ -68,6 +75,55 @@ type HardwareIdentifier struct {
 	// +optional
 	// +kubebuilder:validation:Enum=CPU;Memory;Accelerator
 	ResourceType string `json:"resourceType,omitempty"`
+}
+
+// SchedulingSpec allows for specifying either kueue-based scheduling or direct node scheduling.
+// CEL Rule 1: If schedulingType is "Queue", the 'kueue' field (with a non-empty localQueueName) must be set, and the 'node' field must not be set.
+// +kubebuilder:validation:XValidation:rule="self.type == 'Queue' ? (has(self.kueue) && has(self.kueue.localQueueName) && !has(self.node)) : true",message="When schedulingType is 'Queue', the 'kueue.localQueueName' field must be specified and non-empty, and the 'node' field must not be set"
+// CEL Rule 2: If schedulingType is "Node", the 'node' field must be set, and the 'kueue' field must not be set.
+// +kubebuilder:validation:XValidation:rule="self.type == 'Node' ? (has(self.node) && !has(self.kueue)) : true",message="When schedulingType is 'Node', the 'node' field must be set, and the 'kueue' field must not be set"
+type SchedulingSpec struct {
+	// SchedulingType is the scheduling method discriminator.
+	// Users must set this value to indicate which scheduling method to use.
+	// The value of this field should match exactly one configured scheduling method.
+	// Valid values are "Queue" and "Node".
+	// +kubebuilder:validation:Enum="Queue";"Node"
+	// +kubebuilder:validation:Required
+	SchedulingType SchedulingType `json:"type"`
+
+	// Kueue specifies queue-based scheduling configuration.
+	// This field is only valid when schedulingType is "Queue".
+	// +optional
+	Kueue *KueueSchedulingSpec `json:"kueue,omitempty"`
+
+	// node specifies direct node scheduling configuration.
+	// This field is only valid when schedulingType is "Node".
+	// +optional
+	Node *NodeSchedulingSpec `json:"node,omitempty"`
+}
+
+// KueueSchedulingSpec defines queue-based scheduling configuration.
+type KueueSchedulingSpec struct {
+	// LocalQueueName specifies the name of the local queue to use for workload scheduling.
+	// When specified, workloads using this hardware profile will be submitted to the
+	// specified queue and the queue's configuration will determine the actual node
+	// placement and tolerations.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	LocalQueueName string `json:"localQueueName"`
+}
+
+// NodeSchedulingSpec defines direct node scheduling configuration.
+type NodeSchedulingSpec struct {
+	// NodeSelector specifies the node selector to use for direct node scheduling.
+	// Workloads will be scheduled only on nodes that match all the specified labels.
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// Tolerations specifies the tolerations to apply to workloads for direct node scheduling.
+	// These tolerations allow workloads to be scheduled on nodes with matching taints.
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 // HardwareProfileStatus defines the observed state of HardwareProfile.
