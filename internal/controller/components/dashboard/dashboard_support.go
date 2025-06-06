@@ -29,12 +29,6 @@ const (
 )
 
 var (
-	adminGroups = map[common.Platform]string{
-		cluster.SelfManagedRhoai: "rhods-admins",
-		cluster.ManagedRhoai:     "dedicated-admins",
-		cluster.OpenDataHub:      "odh-admins",
-	}
-
 	sectionTitle = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "OpenShift Self Managed Services",
 		cluster.ManagedRhoai:     "OpenShift Managed Services",
@@ -77,7 +71,6 @@ func computeKustomizeVariable(ctx context.Context, cli client.Client, platform c
 	}
 
 	return map[string]string{
-		"admin_groups":  adminGroups[platform],
 		"dashboard-url": baseConsoleURL[platform] + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
 		"section-title": sectionTitle[platform],
 	}, nil
@@ -92,8 +85,4 @@ func computeComponentName() string {
 	}
 
 	return name
-}
-
-func GetAdminGroup() string {
-	return adminGroups[cluster.GetRelease().Name]
 }
