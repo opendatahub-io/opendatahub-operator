@@ -244,6 +244,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 
+		// handle changes to ServiceMesh section of DSCI spec
+		if err := r.handleServiceMesh(ctx, instance); err != nil {
+			log.Error(err, "failed to handle change to ServiceMesh spec in DSCI")
+			return ctrl.Result{}, err
+		}
+
 		// Create Auth
 		if err = r.createAuth(ctx, platform); err != nil {
 			log.Info("failed to create Auth")
@@ -310,6 +316,8 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			&routev1.Route{},
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.PersistentVolumeClaim{},
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&serviceApi.ServiceMesh{},
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Watches(
 			&dscv1.DataScienceCluster{},
