@@ -111,6 +111,103 @@ The following illustration shows the three stages of downstream branches:
 5. Older branches (e.g., `rhoai-2.19`) represent previously released versions and are maintained through z-stream (micro) releases, which accept only critical fixes.
 6. These frozen/z-stream fixes are typically cherry-picked manually from the `main` branch to the appropriate branches.
 
+## ODH Release Process(community)
+
+The Open Data Hub (ODH) follows a **3-week release cycle**. This document outlines the standard steps involved in preparing and executing an ODH release.
+
+> Remember to notify this [slack channel](https://odh-io.slack.com/archives/C05RJFT0DT5) regarding any updates/issues regarding the release.
+
+### Tracker issue
+
+At the **beginning of the week (Monday)** following the release cycle, each team must:
+
+- Post a **comment** on the tracker issue (created for every release).
+- The comment must include:
+  - **Component name**
+  - **Branch**
+  - **Tag details**
+
+> **Note**: The comment format must comply with the expected structure to be parsed by the release automation tools(Mentioned in the tracker issue).
+
+The **actual release** occurs on the **following Tuesday**.
+
+### Release Automation
+
+A set of workflows/tasks using **GitHub Actions (GHA)** and **Konflux Pipelines** assists in automating the release process:
+
+#### 1. Triggering `release-staging` Workflow
+
+In the operator repository:
+
+- Trigger the [`release-staging`](.github/workflows/release-staging.yaml) GHA workflow by providing:
+  - **Tracker issue URL** eg: https://github.com/opendatahub-io/opendatahub-community/issues/176
+  - **Release version** eg: 2.30.0(Strictly semver)
+
+This workflow:
+
+- Reads the tracker issue
+- Generates a **pull request targeting the `main` branch**
+  - Updates to maifests with version and other details
+  - Adds a comment regarding the tracker issue url and version
+- Pushes a commit to the `odh-x.y.z` **release branch**, including:
+  - Changes to `get_all_manifests.sh`
+  - Updates to manifests with version and other details.
+
+### Chained Workflows
+
+#### `odh-konflux-central`: `odh-konflux-release-onboarder`
+
+This workflow is triggered by the release-staging workflow and it:
+
+- Creates a PR to the **release branch**
+- Adds the **Tekton files** required for the Konflux build process
+
+#### Konflux Build
+
+Once the above PR is merged, the Konflux pipeline starts and:
+
+- **Builds the operator image**
+- **Builds the operator bundle**
+
+> The initial bundle build will fail as there will be no catalog.yaml present, the next step will take care of the failure by generating the catalog and retriggering the catalog build.
+
+#### `opendatahub`: [`fbc-processor`](https://github.com/opendatahub-io/opendatahub/blob/main/.github/workflows/fbc-processor.yaml)
+
+Triggered at the end of the operator bundle pipeline:
+
+- Generates `catalog.yaml` required for the catalog build
+- Pushes commit to the **release branch**
+- Initiates a Konflux build to create the **catalog image**
+
+### QE Sign-Off
+
+The **Quality Engineering (QE)** team performs:
+
+- A set of **ODS-CI tests** using the catalog image generated from the above step
+- Once QE provides **final sign-off**, the release can proceed
+
+### Final Release Steps
+
+The release is done in **two parts**:
+
+#### 1. GitHub Pre-release
+
+- Use a [GHA workflow](https://github.com/opendatahub-io/opendatahub-operator/blob/main/.github/workflows/release.yaml) to trigger a **GitHub release**. This is done automatically when the PR to the main branch is merged.
+- This generates changelogs and sets the release in **pre-release** state
+
+#### 2. OperatorHub Release
+
+- Create a PR to the [`community-operators-prod`](https://github.com/redhat-openshift-ecosystem/community-operators-prod) repository with updated manifests ([example PR](https://github.com/redhat-openshift-ecosystem/community-operators-prod/pull/6646))
+- Once merged:
+  - Set the GitHub release to **final (latest) state**
+
+### Tracker Closure
+
+- Update and **close the tracker issue** with:
+  - Link to the merged PR in `community-operators-prod` ([example comment](https://github.com/opendatahub-io/opendatahub-community/issues/175))
+
+ **ODH Release Process is now complete.**
+
 ## Summary
 
 * The overall process involves **four branches** across two repos.
