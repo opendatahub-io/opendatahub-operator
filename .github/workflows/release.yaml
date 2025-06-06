@@ -3,13 +3,14 @@ on:
   pull_request:
     types:
       - closed
+    branches:
+      - main
 permissions:
-  checks: read
   pull-requests: write
   contents: write
 jobs:
   gh-release:
-    if: github.event.pull_request.merged && startsWith(github.event.pull_request.title, 'ODH Release') && endsWith(github.event.pull_request.title, 'Version Update')
+    if: github.event.pull_request.merged && github.event.pull_request.head.ref == 'odh-release/version-update' && startsWith(github.event.pull_request.title, 'Update version to')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

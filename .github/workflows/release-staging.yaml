@@ -1,0 +1,96 @@
+name: "ODH Release - Staging Pipeline"
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        description: The version to update(https://semver.org/).
+        required: true
+      tracker-url:
+        type: string
+        description: The URL to tracker issue(https://github.com/opendatahub-io/opendatahub-community/issues).
+        required: true
+env:
+  VERSION: ${{ github.event.inputs.version }}
+  TRACKER_URL: ${{ github.event.inputs.tracker-url }}
+jobs:
+  update-main-and-release-branch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Validate semver
+      run: ./.github/scripts/validate-semver.sh v${{ env.VERSION }}
+      
+    - name: Update version for main
+      uses: ./.github/actions/update-release-version
+      with:
+        version: ${{ env.VERSION }}
+        
+    - name: Create PR to main
+      uses: peter-evans/create-pull-request@v6
+      id: cpr
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "Update version to ${{ env.VERSION }}"
+        branch: odh-release/version-update
+        delete-branch: true
+        title: "Update version to ${{ env.VERSION }}"
+        reviewers: "zdtsw"
+        base: main
+
+    - name: Comment version and tracker issue url in the pr
+      uses: thollander/actions-comment-pull-request@v2
+      with:
+        message: |
+          #Release#
+          version=${{ env.VERSION }}
+          tracker-url=${{ env.TRACKER_URL }}
+          :exclamation: DO NOT EDIT THIS COMMENT :exclamation:
+        pr_number: ${{ steps.cpr.outputs.pull-request-number }}
+
+    - name: Checkout release branch
+      run: |
+        git fetch origin
+        git checkout odh-${{ env.VERSION }}
+
+    - name: Update version for release branch
+      uses: ./.github/actions/update-release-version
+      with:
+        version: ${{ env.VERSION }}
+
+    - name: Update manifest branches
+      uses: ./.github/actions/update-manifest-branches
+        
+    - name: Push changes to release branch
+      uses: actions-js/push@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: odh-${{ env.VERSION }}
+        message: "ODH Release ${{ env.VERSION }}: Update release branch"
+
+    - name: Generate GitHub App Token
+      id: generate-token
+      uses: tibdex/github-app-token@v2
+      with:
+        app_id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
+        private_key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
+
+    - name: Trigger ODH Konflux Release Onboarder
+      uses: lasith-kg/dispatch-workflow@v2.0.0
+      with:
+        dispatch-method: workflow_dispatch
+        workflow: odh-konflux-release-onboarder.yml
+        repo: odh-konflux-central
+        owner: opendatahub-io
+        ref: main
+        token: ${{ steps.generate-token.outputs.token }}
+        workflow-inputs: |
+          {
+            "component": "opendatahub-operator",
+            "release_branch": "odh-${{ env.VERSION }}",
+            "version": "v${{ env.VERSION }}"
+          }
