@@ -16,6 +16,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 )
@@ -132,6 +133,32 @@ func NewDSC(name, namespace string, opts ...func(*dscv1.DataScienceCluster)) *ds
 		opt(dsc)
 	}
 	return dsc
+}
+
+// NewHWP creates a HardwareProfile object with the given name and namespace for use in tests.
+//
+// Parameters:
+//   - name: The name of the HardwareProfile object.
+//   - namespace: The namespace for the object.
+//   - opts: Optional functional options to mutate the object.
+//
+// Returns:
+//   - *hwpv1alpha1.HardwareProfile: The constructed HardwareProfile object.
+func NewHWP(name, namespace string, opts ...func(profile *hwpv1alpha1.HardwareProfile)) *hwpv1alpha1.HardwareProfile {
+	hwp := &hwpv1alpha1.HardwareProfile{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       gvk.HardwareProfile.Kind,
+			APIVersion: gvk.HardwareProfile.Version,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	for _, opt := range opts {
+		opt(hwp)
+	}
+	return hwp
 }
 
 // NewAdmissionRequest constructs an admission.Request for a given object, operation, kind (as schema.GroupVersionKind), and resource.
