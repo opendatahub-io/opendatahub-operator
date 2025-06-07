@@ -718,7 +718,7 @@ spec:
                       workbenchNamespace:
                         default: rhods-notebooks
                         description: Namespace for workbenches to be installed, defaults
-                          to "rhods-notebooks" (not configurable).
+                          to "rhods-notebooks" (not configurable)
                         maxLength: 63
                         pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                         type: string

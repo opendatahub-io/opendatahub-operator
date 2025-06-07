@@ -90,7 +90,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 	// Get Deadmansnitch secret
 	deadmansnitchSecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-deadmanssnitch", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
-		log.Error(err, "error getting deadmansnitch secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
+		log.Error(err, "error getting deadmansnitch secret", "namespace", dsciInit.Spec.Monitoring.Namespace)
 		return err
 	}
 	// log.Info("Success: got deadmansnitch secret")
@@ -98,7 +98,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 	// Get PagerDuty Secret
 	pagerDutySecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-pagerduty", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
-		log.Error(err, "error getting pagerduty secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
+		log.Error(err, "error getting pagerduty secret", "namespace", dsciInit.Spec.Monitoring.Namespace)
 		return err
 	}
 	// log.Info("Success: got pagerduty secret")
@@ -106,7 +106,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 	// Get Smtp Secret
 	smtpSecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-smtp", dsciInit.Spec.Monitoring.Namespace)
 	if err != nil {
-		log.Error(err, "error getting smtp secret from namespace "+dsciInit.Spec.Monitoring.Namespace)
+		log.Error(err, "error getting smtp secret", "namespace", dsciInit.Spec.Monitoring.Namespace)
 		return err
 	}
 	// log.Info("Success: got smtp secret")
@@ -455,7 +455,7 @@ func (r *DSCInitializationReconciler) configureSegmentIO(ctx context.Context, ds
 				dsciInit.Spec.ApplicationsNamespace,
 				"segment-io",
 				dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
-				log.Error(err, "error to deploy manifests under "+segmentPath)
+				log.Error(err, "error to deploy manifests", "path", segmentPath)
 				return err
 			}
 		}
@@ -489,7 +489,7 @@ func (r *DSCInitializationReconciler) configureCommonMonitoring(ctx context.Cont
 		"",
 		"monitoring-base",
 		dsciInit.Spec.Monitoring.ManagementState == operatorv1.Managed); err != nil {
-		log.Error(err, "error to deploy manifests under "+monitoringBasePath)
+		log.Error(err, "error to deploy manifests", "path", monitoringBasePath)
 		return err
 	}
 	return nil
