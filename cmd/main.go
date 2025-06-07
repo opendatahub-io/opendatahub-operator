@@ -72,8 +72,7 @@ import (
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
-	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
-	dsciwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
@@ -173,23 +172,6 @@ func LoadConfig() (*OperatorConfig, error) {
 		return nil, fmt.Errorf("failed to unmarshal operator manager config: %w", err)
 	}
 	return &operatorConfig, nil
-}
-
-// RegisterAllWebhooks registers multiple webhook setup functions with the given manager.
-//
-// Parameters:
-//   - mgr: The controller-runtime manager to register webhooks with.
-//   - regs: Variadic list of functions that each register webhooks with the manager.
-//
-// Returns:
-//   - error: The first error encountered during registration, or nil if all succeed.
-func RegisterAllWebhooks(mgr ctrl.Manager, regs ...func(ctrl.Manager) error) error {
-	for _, reg := range regs {
-		if err := reg(mgr); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func main() { //nolint:funlen,maintidx,gocyclo
@@ -382,7 +364,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// Register all webhooks using the helper
-	if err := registerAllWebhooks(mgr); err != nil {
+	if err := webhook.RegisterAllWebhooks(mgr); err != nil {
 		setupLog.Error(err, "unable to register webhooks")
 		os.Exit(1)
 	}
@@ -489,21 +471,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-}
-
-// registerAllWebhooks registers all webhook setup functions with the given manager.
-// Returns the first error encountered during registration, or nil if all succeed.
-func registerAllWebhooks(mgr ctrl.Manager) error {
-	webhookRegistrations := []func(ctrl.Manager) error{
-		dscwebhook.RegisterWebhooks,
-		dsciwebhook.RegisterWebhooks,
-	}
-	for _, reg := range webhookRegistrations {
-		if err := reg(mgr); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func getCommonCache(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
