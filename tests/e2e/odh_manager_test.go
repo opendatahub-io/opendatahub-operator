@@ -66,6 +66,7 @@ func (tc *OperatorTestCtx) ValidateOwnedCRDs(t *testing.T) {
 		{"ModelMeshServing CRD", "modelmeshservings.components.platform.opendatahub.io"},
 		{"ModelController CRD", "modelcontrollers.components.platform.opendatahub.io"},
 		{"Monitoring CRD", "monitorings.services.platform.opendatahub.io"},
+		{"LlamaStackOperator CRD", "llamastackoperators.components.platform.opendatahub.io"},
 	}
 
 	for _, testCase := range crdsTestCases {

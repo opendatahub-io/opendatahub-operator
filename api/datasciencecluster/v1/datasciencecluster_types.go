@@ -70,6 +70,9 @@ type Components struct {
 
 	// Feast Operator component configuration.
 	FeastOperator componentApi.DSCFeastOperator `json:"feastoperator,omitempty"`
+
+	// LlamaStack Operator component configuration.
+	LlamaStackOperator componentApi.DSCLlamaStackOperator `json:"llamastackoperator,omitempty"`
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
@@ -109,6 +112,9 @@ type ComponentsStatus struct {
 
 	// Feast Operator component status.
 	FeastOperator componentApi.DSCFeastOperatorStatus `json:"feastoperator,omitempty"`
+
+	// LlamaStack Operator component status.
+	LlamaStackOperator componentApi.DSCLlamaStackOperatorStatus `json:"llamastackoperator,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.

@@ -391,6 +391,8 @@ spec:
       managementState: Managed
     feastoperator:
       managementState: Managed
+    llamastackoperator:
+      managementState: Removed
 ```
 
 2. Enable only Dashboard and Workbenches

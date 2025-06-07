@@ -124,6 +124,7 @@ var (
 			componentApi.ModelMeshServingComponentName:     modelMeshServingTestSuite,
 			componentApi.ModelControllerComponentName:      modelControllerTestSuite,
 			componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
+			componentApi.LlamaStackOperatorComponentName:   llamastackOperatorTestSuite,
 		},
 	}
 

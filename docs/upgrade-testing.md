@@ -151,6 +151,8 @@ spec:
       managementState: Managed
     feastoperator:
       managementState: Managed
+    llamastackoperator:
+      managementState: Managed
       
 EOF
 ```

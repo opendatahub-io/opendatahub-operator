@@ -27,6 +27,7 @@ var componentRules = map[string]string{
 	componentApi.ModelRegistryComponentName:        "model-registry-operator",
 	componentApi.ModelControllerComponentName:      "odh-model-controller",
 	componentApi.FeastOperatorComponentName:        "feastoperator",
+	// componentApi.LlamaStackOperatorComponentName:        "llamastackoperator",  enable this when we are on TP
 }
 
 // initialize handles all pre-deployment configurations.

@@ -191,6 +191,7 @@ rules:
   - feastoperators
   - kserves
   - kueues
+  - llamastackoperators
   - modelcontrollers
   - modelmeshservings
   - modelregistries
@@ -214,6 +215,7 @@ rules:
   - feastoperators/finalizers
   - kserves/finalizers
   - kueues/finalizers
+  - llamastackoperators/finalizers
   - modelcontrollers/finalizers
   - modelmeshservings/finalizers
   - modelregistries/finalizers
@@ -232,6 +234,7 @@ rules:
   - feastoperators/status
   - kserves/status
   - kueues/status
+  - llamastackoperators/status
   - modelcontrollers/status
   - modelmeshservings/status
   - modelregistries/status
