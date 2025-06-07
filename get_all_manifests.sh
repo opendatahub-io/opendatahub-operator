@@ -21,7 +21,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main:config"
     ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating:config"
     ["feastoperator"]="opendatahub-io:feast:stable:infra/feast-operator/config"
-    ["llamastackoperator"]="csams:llama-stack-k8s-operator:odh-rhoai-overlays:config"
+    ["llamastackoperator"]="zdtsw-forking:llama-stack-k8s-operator:rebase_PR_5:config"
 )
 
 # Allow overwriting repo using flags component=repo
