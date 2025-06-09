@@ -82,6 +82,7 @@ type MonitoringStatus struct {
 	URL string `json:"url,omitempty"`
 }
 
+// Traces enables and defines the configuration for traces collection
 type Traces struct {
 	Storage TracesStorage `json:"storage"`
 }
