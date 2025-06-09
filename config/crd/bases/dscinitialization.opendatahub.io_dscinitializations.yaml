@@ -147,6 +147,8 @@ spec:
                     x-kubernetes-validations:
                     - message: MonitoringNamespace is immutable
                       rule: self == oldSelf
+                  traces:
+                    type: object
                 type: object
               serviceMesh:
                 description: |-
