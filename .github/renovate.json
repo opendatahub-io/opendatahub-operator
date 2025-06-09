@@ -2,16 +2,16 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended"],
     "branchPrefix": "renovate/",
-    "baseBranches": ["main", "rhoai-2.8", "rhoai-2.16", "rhoai-2.19",  "rhoai-2.21"],
+    "baseBranches": ["main", "rhoai-2.8", "rhoai-2.16", "rhoai-2.19",  "rhoai-2.21",  "rhoai-2.22"],
     "ignoreTests": true,
     "automergeType": "pr",
     "automerge": true,
     "prHourlyLimit": 0,
-    "enabledManagers": ["dockerfile", "tekton"],
+    "enabledManagers": ["dockerfile", "tekton", "rpm"],
     "packageRules": [
       {
         "matchManagers": ["dockerfile"],
-        "matchBaseBranches": ["main", "rhoai-2.8", "rhoai-2.16", "rhoai-2.19", "rhoai-2.21"],
+        "matchBaseBranches": ["main", "rhoai-2.8", "rhoai-2.16", "rhoai-2.19", "rhoai-2.21",  "rhoai-2.22"],
         "matchUpdateTypes": ["digest"],
         "matchFileNames": ["*Dockerfile.konflux*"],
         "enabled": true,
@@ -36,6 +36,21 @@
           "/^quay.io/redhat-appstudio-tekton-catalog//",
           "/^quay.io/konflux-ci/tekton-catalog//"
         ]
+      },
+      {
+        "matchManagers": ["rpm"],
+        "matchBaseBranches": ["main", "rhoai-2.8", "rhoai-2.16", "rhoai-2.19", "rhoai-2.22"],
+        "groupName": "RPM Updates",
+        "commitMessageTopic": "RPM updates",
+        "enabled": true,
+        "schedule": ["at any time"],
+        "branchPrefix": "renovate/rpm/",
+       "semanticCommits": "enabled"
+      },
+      {
+        "matchManagers": ["rpm"],
+        "matchBaseBranches": ["rhoai-2.21"],
+        "enabled": false
       }
     ],
     "dockerfile": {
@@ -100,5 +115,9 @@
           ]
         }
       ]
+    },
+    "rpm": {
+      "enabled": true,   
+      "schedule": ["at any time"]
     }
   }
