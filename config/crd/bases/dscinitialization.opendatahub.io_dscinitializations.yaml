@@ -189,6 +189,46 @@ spec:
                     x-kubernetes-validations:
                     - message: MonitoringNamespace is immutable
                       rule: self == oldSelf
+                  traces:
+                    description: Traces enables and defines the configuration for
+                      traces collection
+                    properties:
+                      storage:
+                        description: TracesStorage defines the storage configuration
+                          for tracing.
+                        properties:
+                          backend:
+                            default: pv
+                            description: |-
+                              Backend defines the storage backend type.
+                              Valid values are "pv", "s3", and "gcs".
+                            enum:
+                            - pv
+                            - s3
+                            - gcs
+                            type: string
+                          secret:
+                            description: |-
+                              Secret specifies the secret name for storage credentials.
+                              This field is required when the backend is not "pv".
+                            type: string
+                          size:
+                            description: |-
+                              Size specifies the size of the storage.
+                              This field is optional.
+                            type: string
+                        required:
+                        - backend
+                        type: object
+                        x-kubernetes-validations:
+                        - message: When backend is not 'pv', the 'secret' field must
+                            be specified and non-empty
+                          rule: 'self.backend != ''pv'' ? has(self.secret) : true'
+                        - message: Size is not supported when backend is not 'pv'
+                          rule: 'self.backend != ''pv'' ? !has(self.size) : true'
+                    required:
+                    - storage
+                    type: object
                 type: object
               serviceMesh:
                 description: |-

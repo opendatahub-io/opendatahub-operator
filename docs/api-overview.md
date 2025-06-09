@@ -2785,3 +2785,39 @@ _Appears in:_
 | `url` _string_ |  |  |  |
 
 
+#### Traces
+
+
+
+Traces enables and defines the configuration for traces collection
+
+
+
+_Appears in:_
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
+- [MonitoringSpec](#monitoringspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `storage` _[TracesStorage](#tracesstorage)_ |  |  |  |
+
+
+#### TracesStorage
+
+
+
+TracesStorage defines the storage configuration for tracing.
+
+
+
+_Appears in:_
+- [Traces](#traces)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `backend` _string_ | Backend defines the storage backend type.<br />Valid values are "pv", "s3", and "gcs". | pv | Enum: [pv s3 gcs] <br /> |
+| `size` _string_ | Size specifies the size of the storage.<br />This field is optional. |  |  |
+| `secret` _string_ | Secret specifies the secret name for storage credentials.<br />This field is required when the backend is not "pv". |  |  |
+
+
