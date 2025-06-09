@@ -52,6 +52,8 @@ spec:
           spec:
             description: MonitoringSpec defines the desired state of Monitoring
             properties:
+              metrics:
+                type: object
               namespace:
                 default: opendatahub
                 description: |-
@@ -63,6 +65,8 @@ spec:
                 x-kubernetes-validations:
                 - message: MonitoringNamespace is immutable
                   rule: self == oldSelf
+              traces:
+                type: object
             type: object
           status:
             description: MonitoringStatus defines the observed state of Monitoring
