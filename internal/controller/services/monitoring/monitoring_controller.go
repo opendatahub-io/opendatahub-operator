@@ -106,6 +106,13 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(
 				handlers.ToNamed(serviceApi.MonitoringInstanceName)),
 		).
+		WithAction(func(_ context.Context, rr *types.ReconciliationRequest) error {
+			m, ok := rr.Instance.(*serviceApi.Monitoring)
+			if !ok {
+				return errors.New("instance is not of type *services.Monitoring")
+			}
+			return addMonitoringCapability(ctx, rr, m)
+		}).
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).
 		WithAction(createMonitoringStack).
