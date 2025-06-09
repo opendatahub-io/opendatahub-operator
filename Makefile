@@ -25,29 +25,12 @@ DEFAULT_MANIFESTS_PATH ?= opt/manifests
 CGO_ENABLED ?= 1
 USE_LOCAL = false
 
-CHANNELS="fast"
-# CHANNELS define the bundle channels used in the bundle.
-# Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
-# To re-generate a bundle for other specific channels without changing the standard setup, you can:
-# - use the CHANNELS as arg of the bundle target (e.g make bundle CHANNELS=candidate,fast,stable)
-# - use environment variables to overwrite this value (e.g export CHANNELS="candidate,fast,stable")
-ifneq ($(origin CHANNELS), undefined)
-BUNDLE_CHANNELS := --channels=$(CHANNELS)
-endif
+# BUNDLE_CHANNELS defines the bundle channel used in the bundle
+BUNDLE_CHANNELS := --channels=fast
 
-DEFAULT_CHANNEL="fast"
-# DEFAULT_CHANNEL defines the default channel used in the bundle.
-# Add a new line here if you would like to change its default config. (E.g DEFAULT_CHANNEL = "stable")
-# To re-generate a bundle for any other default channel without changing the default setup, you can:
-# - use the DEFAULT_CHANNEL as arg of the bundle target (e.g make bundle DEFAULT_CHANNEL=stable)
-# - use environment variables to overwrite this value (e.g export DEFAULT_CHANNEL="stable")
-ifneq ($(origin DEFAULT_CHANNEL), undefined)
-BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
-endif
-
-BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
-BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
+BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_CHANNELS)
+
 # USE_IMAGE_DIGESTS defines if images are resolved via tags or digests
 # You can enable this value if you would like to use SHA Based Digests
 # To enable set flag to true
@@ -123,7 +106,6 @@ ALERT_SEVERITY = critical
 # from the defaults specified in this file
 OPERATOR_MAKE_ENV_FILE = local.mk
 -include $(OPERATOR_MAKE_ENV_FILE)
-
 
 .PHONY: default
 default: manifests generate lint unit-test build
@@ -328,14 +310,10 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	mv bundle.Dockerfile Dockerfiles/
 	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
-		
-	# Remove the entries as they are no longer required by FBC
-	sed -i '' '/operators.operatorframework.io.bundle.channels.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile
-	sed -i '' '/operators.operatorframework.io.bundle.channel.default.v1/d' bundle/metadata/annotations.yaml Dockerfiles/bundle.Dockerfile
 
 .PHONY: bundle-build
 bundle-build: bundle
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile -t $(BUNDLE_IMG) .
+	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile --platform $(PLATFORM) -t $(BUNDLE_IMG) .
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
@@ -390,7 +368,7 @@ catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles t
 	$(OPM) alpha render-template basic \
 		--migrate-level=bundle-object-to-csv-metadata \
 		-o yaml \
-		catalog/fbc-basic-template.yaml > catalog/operator.yaml
+		catalog/fbc-basic-template.yaml > catalog/catalog.yaml
 	$(OPM) validate catalog
 	rm -f catalog/fbc-basic-template.yaml
 
@@ -399,7 +377,7 @@ catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles t
 # The template defines bundle images and channel relationships in a declarative way.
 .PHONY: catalog-build
 catalog-build: catalog-prepare
-	$(IMAGE_BUILDER) build --no-cache --load -f Dockerfiles/catalog.Dockerfile -t $(CATALOG_IMG) .
+	$(IMAGE_BUILDER) build --no-cache --load -f Dockerfiles/catalog.Dockerfile --platform $(PLATFORM) -t $(CATALOG_IMG) .
 
 # Push the catalog image.
 .PHONY: catalog-push
