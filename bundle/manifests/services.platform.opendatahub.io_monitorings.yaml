@@ -52,6 +52,15 @@ spec:
           spec:
             description: MonitoringSpec defines the desired state of Monitoring
             properties:
+              metrics:
+                description: metrics collection
+                properties:
+                  storage:
+                    properties:
+                      size:
+                        type: integer
+                    type: object
+                type: object
               namespace:
                 default: opendatahub
                 description: |-
