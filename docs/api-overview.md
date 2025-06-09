@@ -2792,7 +2792,7 @@ _Appears in:_
 
 
 
-
+Traces enables and defines the configuration for traces collection
 
 
 
