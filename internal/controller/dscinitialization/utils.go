@@ -168,7 +168,7 @@ func ReconcileDefaultNetworkPolicy(
 		// Get operator namepsace
 		operatorNs, err := cluster.GetOperatorNamespace()
 		if err != nil {
-			log.Error(err, "error getting operator namespace for networkplicy creation")
+			log.Error(err, "error getting operator namespace for networkpolicy creation")
 			return err
 		}
 		// Deploy networkpolicy for operator namespace
