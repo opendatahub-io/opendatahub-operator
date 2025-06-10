@@ -79,6 +79,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			deploy.WithCache(),
 		)).
 		WithAction(deployments.NewAction()).
+		WithAction(updateStatus).
 		// must be the final action
 		WithAction(gc.NewAction()).
 		// declares the list of additional, controller specific conditions that are
