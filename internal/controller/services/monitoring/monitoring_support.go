@@ -27,7 +27,7 @@ func addMonitoringCapability(ctx context.Context, rr *types.ReconciliationReques
 	capability := monitoringCapability(rr, monitoring, initialCondition)
 
 	// Retry logic in case of Feature tracker update error
-	for i := 0; i < 5; i++ {
+	for range [5]int{} {
 		err := capability.Apply(ctx, rr.Client)
 		if err == nil {
 			return nil
