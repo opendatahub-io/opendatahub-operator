@@ -75,6 +75,8 @@ type MetricsResources struct {
 	MemoryRequest resource.Quantity `json:"memoryrequest,omitempty"`
 }
 
+// Traces enables and defines the configuration for traces collection
+// +kubebuilder:validation:Description="Enables traces collection"
 type Traces struct{}
 
 // MonitoringStatus defines the observed state of Monitoring

@@ -96,6 +96,8 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: serverlessOperatorNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
 		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: openTelemetryOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
+		{nn: types.NamespacedName{Name: tempoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
 	}
 
 	// Create and run test cases in parallel.

@@ -106,12 +106,13 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(
 				handlers.ToNamed(serviceApi.MonitoringInstanceName)),
 		).
-		WithAction(func(_ context.Context, rr *types.ReconciliationRequest) error {
-			m, ok := rr.Instance.(*serviceApi.Monitoring)
-			if !ok {
-				return errors.New("instance is not of type *services.Monitoring")
+		WithAction(func(ctx context.Context, rr *types.ReconciliationRequest) error {
+			// Skip if monitoring is not managed
+			if rr.DSCI.Spec.Monitoring.ManagementState == operatorv1.Unmanaged {
+				return nil
 			}
-			return addMonitoringCapability(ctx, rr, m)
+
+			return addMonitoringCapability(ctx, rr)
 		}).
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).
