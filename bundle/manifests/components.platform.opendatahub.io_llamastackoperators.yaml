@@ -4,14 +4,14 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.1
   creationTimestamp: null
-  name: workbenches.components.platform.opendatahub.io
+  name: llamastackoperators.components.platform.opendatahub.io
 spec:
   group: components.platform.opendatahub.io
   names:
-    kind: Workbenches
-    listKind: WorkbenchesList
-    plural: workbenches
-    singular: workbenches
+    kind: LlamaStackOperator
+    listKind: LlamaStackOperatorList
+    plural: llamastackoperators
+    singular: llamastackoperator
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -26,7 +26,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Workbenches is the Schema for the workbenches API
+        description: LlamaStackOperator is the Schema for the LlamaStackOperator API
         properties:
           apiVersion:
             description: |-
@@ -46,7 +46,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: WorkbenchesSpec defines the desired state of Workbenches
+            description: LlamaStackOperatorSpec defines the desired state of LlamaStackOperator
             properties:
               devFlags:
                 description: Add developer fields
@@ -74,19 +74,9 @@ spec:
                       type: object
                     type: array
                 type: object
-              workbenchNamespace:
-                default: rhods-notebooks
-                description: Namespace for workbenches to be installed, defaults to
-                  "rhods-notebooks" (not configurable)
-                maxLength: 63
-                pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
-                type: string
-                x-kubernetes-validations:
-                - message: WorkbenchNamespace must be empty or 'rhods-notebooks'
-                  rule: self == '' || self == 'rhods-notebooks'
             type: object
           status:
-            description: WorkbenchesStatus defines the observed state of Workbenches
+            description: LlamaStackOperatorStatus defines the observed state of LlamaStackOperator
             properties:
               conditions:
                 items:
@@ -168,13 +158,11 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
-              workbenchNamespace:
-                type: string
             type: object
         type: object
         x-kubernetes-validations:
-        - message: Workbenches name must be default-workbenches
-          rule: self.metadata.name == 'default-workbenches'
+        - message: LlamaStackOperator name must be default-llamastackoperator
+          rule: self.metadata.name == 'default-llamastackoperator'
     served: true
     storage: true
     subresources:
