@@ -15,7 +15,9 @@ const (
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
-	LegacyComponentName = "kueue"
+	LegacyComponentName        = "kueue"
+	ClusterQueueViewerRoleName = "kueue-clusterqueue-viewer-role"
+	KueueBatchUserLabel        = "rbac.kueue.x-k8s.io/batch-user"
 )
 
 var (
@@ -36,10 +38,18 @@ func manifestsPath() odhtypes.ManifestInfo {
 	}
 }
 
-func extramanifestsPath() odhtypes.ManifestInfo {
+func kueueConfigManifestsPath() odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: ComponentName,
-		SourcePath: "rhoai/ocp-4.17-addons",
+		ContextDir: "kueue-configs",
+		SourcePath: "",
+	}
+}
+
+func kueueConfigExtraManifestsPath() odhtypes.ManifestInfo {
+	return odhtypes.ManifestInfo{
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: "kueue-configs",
+		SourcePath: "ocp-4.17-addons",
 	}
 }

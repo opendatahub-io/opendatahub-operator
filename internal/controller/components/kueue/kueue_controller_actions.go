@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	rbacv1 "k8s.io/api/rbac/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -38,12 +41,13 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = append(rr.Manifests, manifestsPath())
+	rr.Manifests = append(rr.Manifests, kueueConfigManifestsPath())
 	return nil
 }
 
 func extraInitialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Add specific manifests if OCP is greater or equal 4.17.
-	rr.Manifests = append(rr.Manifests, extramanifestsPath())
+	rr.Manifests = append(rr.Manifests, kueueConfigExtraManifestsPath())
 	return nil
 }
 
@@ -84,4 +88,23 @@ func customizeResources(_ context.Context, rr *odhtypes.ReconciliationRequest) e
 		}
 	}
 	return nil
+}
+
+func configureClusterQueueViewerRoleAction(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	c := rr.Client
+	var cr rbacv1.ClusterRole
+	cr.Name = ClusterQueueViewerRoleName
+	if err := c.Get(ctx, client.ObjectKeyFromObject(&cr), &cr); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	l := cr.GetLabels()
+	if l == nil {
+		l = map[string]string{}
+		cr.SetLabels(l)
+	}
+	if l[KueueBatchUserLabel] == "true" {
+		return nil
+	}
+	l[KueueBatchUserLabel] = "true"
+	return c.Update(ctx, &cr)
 }
