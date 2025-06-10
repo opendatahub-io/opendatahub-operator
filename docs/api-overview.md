@@ -2647,6 +2647,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `localQueueName` _string_ | LocalQueueName specifies the name of the local queue to use for workload scheduling.<br />When specified, workloads using this hardware profile will be submitted to the<br />specified queue and the queue's configuration will determine the actual node<br />placement and tolerations. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `priorityClass` _string_ | PriorityClass specifies the name of the WorkloadPriorityClass associated with the HardwareProfile. |  |  |
 
 
 #### NodeSchedulingSpec
