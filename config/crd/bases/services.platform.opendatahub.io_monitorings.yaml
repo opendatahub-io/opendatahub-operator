@@ -53,6 +53,8 @@ spec:
             description: MonitoringSpec defines the desired state of Monitoring
             properties:
               metrics:
+                description: Metrics enables and defines the configuration for metrics
+                  collection
                 type: object
               namespace:
                 default: opendatahub
@@ -66,6 +68,8 @@ spec:
                 - message: MonitoringNamespace is immutable
                   rule: self == oldSelf
               traces:
+                description: Traces enables and defines the configuration for traces
+                  collection
                 type: object
             type: object
           status:

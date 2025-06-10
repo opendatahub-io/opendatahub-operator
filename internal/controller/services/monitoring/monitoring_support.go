@@ -3,6 +3,8 @@ package monitoring
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -27,9 +29,17 @@ func addMonitoringCapability(ctx context.Context, rr *types.ReconciliationReques
 	capability := monitoringCapability(rr, monitoring, initialCondition)
 
 	// Retry logic in case of Feature tracker update error
-	for i := 0; i < 5; i++ {
-		err := capability.Apply(ctx, rr.Client)
-		if err == nil {
+	var lastErr error
+	retryIntervals := []int{1, 2, 4, 8, 16}
+
+	for i, interval := range retryIntervals {
+		// Check if context is cancelled
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		lastErr = capability.Apply(ctx, rr.Client)
+		if lastErr == nil {
 			return nil
 		}
 
@@ -38,11 +48,20 @@ func addMonitoringCapability(ctx context.Context, rr *types.ReconciliationReques
 			log.Error(err, "failed to get latest monitoring resource")
 			return err
 		}
-		monitoring = latestMonitoring
-		capability = monitoringCapability(rr, monitoring, initialCondition)
+
+		capability = monitoringCapability(rr, latestMonitoring, initialCondition)
+
+		// Add exponential backoff delay (except for last iteration)
+		if i < len(retryIntervals)-1 {
+			select {
+			case <-time.After(time.Duration(interval) * time.Second):
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
 	}
 
-	return errors.New("failed to add monitoring capability")
+	return fmt.Errorf("failed to add monitoring capability after 5 retries, last error: %w", lastErr)
 }
 
 func monitoringCapability(rr *types.ReconciliationRequest, monitoring *serviceApi.Monitoring, initialCondition *common.Condition) *feature.HandlerWithReporter[*serviceApi.Monitoring] { //nolint:lll // Reason: generics are long
@@ -78,19 +97,17 @@ func addMonitoringPreconditions(rr *types.ReconciliationRequest) feature.Feature
 	return func(registry feature.FeaturesRegistry) error {
 		metrics := rr.DSCI.Spec.Monitoring.Metrics
 		traces := rr.DSCI.Spec.Monitoring.Traces
-		monitoringFeature := feature.Define("observability")
-
-		preconditions := monitoringFeature.PreConditions(
-			feature.EnsureOperatorIsInstalled("opentelemetry-operator"),
+		monitoringFeature := feature.Define("observability").PreConditions(
+			feature.EnsureOperatorIsInstalled("opentelemetry-product"),
 		)
 
-		if metrics != (serviceApi.MetricsSpec{}) {
-			preconditions = preconditions.PreConditions(
+		if metrics != nil {
+			monitoringFeature = monitoringFeature.PreConditions(
 				feature.EnsureOperatorIsInstalled("cluster-observability-operator"),
 			)
 		}
-		if traces != (serviceApi.TracesSpec{}) {
-			preconditions = preconditions.PreConditions(
+		if traces != nil {
+			monitoringFeature = monitoringFeature.PreConditions(
 				feature.EnsureOperatorIsInstalled("tempo-product"),
 			)
 		}
@@ -98,7 +115,6 @@ func addMonitoringPreconditions(rr *types.ReconciliationRequest) feature.Feature
 		// Register the feature with the preconditions
 		return registry.Add(
 			monitoringFeature,
-			preconditions,
 		)
 	}
 }

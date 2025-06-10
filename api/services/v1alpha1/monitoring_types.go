@@ -39,9 +39,13 @@ type MonitoringSpec struct {
 	// monitoring spec exposed only to internal api
 }
 
-type MetricsSpec struct{}
+// Metrics enables and defines the configuration for metrics collection
+// +kubebuilder:validation:Description="Enables metrics collection"
+type Metrics struct{}
 
-type TracesSpec struct{}
+// Traces enables and defines the configuration for traces collection
+// +kubebuilder:validation:Description="Enables traces collection"
+type Traces struct{}
 
 // MonitoringStatus defines the observed state of Monitoring
 type MonitoringStatus struct {
@@ -75,9 +79,9 @@ type MonitoringCommonSpec struct {
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="MonitoringNamespace is immutable"
-	Namespace string      `json:"namespace,omitempty"`
-	Metrics   MetricsSpec `json:"metrics,omitempty"`
-	Traces    TracesSpec  `json:"traces,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+	*Metrics  `json:"metrics,omitempty"`
+	*Traces   `json:"traces,omitempty"`
 }
 
 //+kubebuilder:object:root=true
