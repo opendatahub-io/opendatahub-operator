@@ -124,11 +124,9 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 
 func checkDSCI(ctx context.Context, rr *odhtypes.ReconciliationRequest) (bool, *dsciv1.DSCInitialization, error) {
 	dsci, err := cluster.GetDSCI(ctx, rr.Client)
-	// DSCI not found
 	if err != nil && k8serr.IsNotFound(err) {
 		return false, nil, nil
 	}
-	// DSCI found but error
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to get DataScienceClusterInitialization instance: %w", err)
 	}

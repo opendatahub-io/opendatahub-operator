@@ -96,6 +96,8 @@ spec:
                 - message: MonitoringNamespace is immutable
                   rule: self == oldSelf
               traces:
+                description: Traces enables and defines the configuration for traces
+                  collection
                 type: object
             type: object
           status:

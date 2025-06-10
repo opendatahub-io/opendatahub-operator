@@ -40,6 +40,7 @@ type MonitoringSpec struct {
 }
 
 // Metrics defines the desired state of metrics for the monitoring service
+// +kubebuilder:validation:Description="Enables metrics collection"
 type Metrics struct {
 	Storage   MetricsStorage   `json:"storage,omitempty"`
 	Resources MetricsResources `json:"resources,omitempty"`
@@ -65,6 +66,8 @@ type MetricsResources struct {
 	MemoryRequest string `json:"memoryrequest,omitempty"`
 }
 
+// Traces enables and defines the configuration for traces collection
+// +kubebuilder:validation:Description="Enables traces collection"
 type Traces struct{}
 
 // MonitoringStatus defines the observed state of Monitoring

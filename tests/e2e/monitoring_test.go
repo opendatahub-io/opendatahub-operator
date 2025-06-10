@@ -34,6 +34,20 @@ func monitoringTestSuite(t *testing.T) {
 		TestContext: tc,
 	}
 
+	// Ensure required operator subscriptions exist for monitoring validation
+	tc.EnsureSubscriptionExistsOrCreate(types.NamespacedName{
+		Name:      "opentelemetry-product",
+		Namespace: tc.OperatorNamespace,
+	})
+	tc.EnsureSubscriptionExistsOrCreate(types.NamespacedName{
+		Name:      "cluster-observability-operator",
+		Namespace: tc.OperatorNamespace,
+	})
+	tc.EnsureSubscriptionExistsOrCreate(types.NamespacedName{
+		Name:      "tempo-product",
+		Namespace: tc.OperatorNamespace,
+	})
+
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed)),
