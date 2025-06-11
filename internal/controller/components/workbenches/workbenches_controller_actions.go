@@ -113,3 +113,13 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 	}
 	return nil
 }
+
+func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	workbench, ok := rr.Instance.(*componentApi.Workbenches)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Workbenches", rr.Instance)
+	}
+	workbench.Status.WorkbenchNamespace = workbench.Spec.WorkbenchNamespace
+
+	return nil
+}
