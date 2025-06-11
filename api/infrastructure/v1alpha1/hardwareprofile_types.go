@@ -111,6 +111,10 @@ type KueueSchedulingSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	LocalQueueName string `json:"localQueueName"`
+
+	// PriorityClass specifies the name of the WorkloadPriorityClass associated with the HardwareProfile.
+	// +optional
+	PriorityClass string `json:"priorityClass,omitempty"`
 }
 
 // NodeSchedulingSpec defines direct node scheduling configuration.

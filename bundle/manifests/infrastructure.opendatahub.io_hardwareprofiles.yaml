@@ -109,6 +109,10 @@ spec:
                           placement and tolerations.
                         minLength: 1
                         type: string
+                      priorityClass:
+                        description: PriorityClass specifies the name of the WorkloadPriorityClass
+                          associated with the HardwareProfile.
+                        type: string
                     required:
                     - localQueueName
                     type: object
