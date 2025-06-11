@@ -39,16 +39,6 @@ spec:
           spec:
             description: HardwareProfileSpec defines the desired state of HardwareProfile.
             properties:
-              description:
-                description: A short description of the hardware profile.
-                type: string
-              displayName:
-                description: The display name of the hardware profile.
-                type: string
-              enabled:
-                description: Indicates whether the hardware profile is available for
-                  new resources.
-                type: boolean
               identifiers:
                 description: The array of identifiers
                 items:
@@ -193,9 +183,6 @@ spec:
                     set, and the 'kueue' field must not be set
                   rule: 'self.type == ''Node'' ? (has(self.node) && !has(self.kueue))
                     : true'
-            required:
-            - displayName
-            - enabled
             type: object
           status:
             description: HardwareProfileStatus defines the observed state of HardwareProfile.
