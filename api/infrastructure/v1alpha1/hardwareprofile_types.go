@@ -35,16 +35,6 @@ const (
 
 // HardwareProfileSpec defines the desired state of HardwareProfile.
 type HardwareProfileSpec struct {
-	// The display name of the hardware profile.
-	DisplayName string `json:"displayName"`
-
-	// Indicates whether the hardware profile is available for new resources.
-	Enabled bool `json:"enabled"`
-
-	// A short description of the hardware profile.
-	// +optional
-	Description string `json:"description,omitempty"`
-
 	// The array of identifiers
 	// +optional
 	Identifiers []HardwareIdentifier `json:"identifiers,omitempty"`

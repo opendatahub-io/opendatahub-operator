@@ -2613,9 +2613,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `displayName` _string_ | The display name of the hardware profile. |  |  |
-| `enabled` _boolean_ | Indicates whether the hardware profile is available for new resources. |  |  |
-| `description` _string_ | A short description of the hardware profile. |  |  |
 | `identifiers` _[HardwareIdentifier](#hardwareidentifier) array_ | The array of identifiers |  |  |
 | `scheduling` _[SchedulingSpec](#schedulingspec)_ | SchedulingSpec specifies how workloads using this hardware profile should be scheduled. |  |  |
 
