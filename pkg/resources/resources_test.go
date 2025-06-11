@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/onsi/gomega/gstruct"
@@ -15,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -23,8 +25,11 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/gomega"
@@ -308,4 +313,70 @@ func TestObjectFromUnstructured(t *testing.T) {
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err.Error()).To(ContainSubstring("unable to create object for GVK"))
 	})
+}
+
+func TestHasCRD(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	crdGVK := schema.GroupVersionKind{Group: "example.com", Version: "v1alpha1", Kind: "Foo"}
+	crdOtherVer := "v2alpha1"
+
+	s, err := scheme.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+	s.AddKnownTypeWithName(crdGVK, &unstructured.Unstructured{})
+
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: strings.ToLower(crdGVK.Kind) + "s." + crdGVK.Group,
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: crdGVK.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Plural:   strings.ToLower(crdGVK.Kind) + "s",
+				Singular: strings.ToLower(crdGVK.Kind),
+				Kind:     crdGVK.Kind,
+			},
+			Scope: apiextensionsv1.NamespaceScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    crdGVK.Version,
+				Served:  true,
+				Storage: true,
+			}},
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{crdGVK.Version},
+		},
+	}
+
+	cli, err := fakeclient.New(
+		fakeclient.WithScheme(s),
+		fakeclient.WithObjects(crd),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// HasCRD positive
+	hasCRD, err := cluster.HasCRD(ctx, cli, crdGVK)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(hasCRD).To(BeTrue())
+
+	// HasCRD negative
+	hasCRD, err = cluster.HasCRD(ctx, cli, schema.GroupVersionKind{
+		Group:   crdGVK.Group,
+		Version: crdOtherVer,
+		Kind:    crdGVK.Kind,
+	})
+
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(hasCRD).To(BeFalse())
+
+	// HasCRDWithVersion positive
+	hasCRD, err = cluster.HasCRDWithVersion(ctx, cli, crdGVK.GroupKind(), crdGVK.Version)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(hasCRD).To(BeTrue())
+
+	// HasCRDWithVersion negative
+	hasCRD, err = cluster.HasCRDWithVersion(ctx, cli, crdGVK.GroupKind(), crdOtherVer)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(hasCRD).To(BeFalse())
 }
