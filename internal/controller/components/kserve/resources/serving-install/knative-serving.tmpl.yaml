@@ -1,7 +1,7 @@
 apiVersion: operator.knative.dev/v1beta1
 kind: KnativeServing
 metadata:
-  name: {{ .Serving.Name }}
+  name: { { .Serving.Name } }
   namespace: knative-serving
   annotations:
     serverless.openshift.io/default-enable-http2: "true"
@@ -22,7 +22,7 @@ spec:
         - container: controller
           envVars:
             - name: ENABLE_SECRET_INFORMER_FILTERING_BY_CERT_UID
-              value: 'true'
+              value: "true"
   ingress:
     istio:
       enabled: true
@@ -35,5 +35,6 @@ spec:
       kubernetes.podspec-tolerations: enabled
       kubernetes.podspec-persistent-volume-write: enabled
       kubernetes.podspec-persistent-volume-claim: enabled
+      kubernetes.podspec-schedulername: enabled
     istio:
       local-gateway.knative-serving.knative-local-gateway: "knative-local-gateway.{{ .ControlPlane.Namespace }}.svc.cluster.local"
