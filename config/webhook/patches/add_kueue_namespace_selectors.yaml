@@ -1,0 +1,25 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validating-webhook-configuration
+webhooks:
+  - name: job-kueuelabels-validator.opendatahub.io
+    namespaceSelector:
+      matchLabels:
+        kueue.opendatahub.io/enabled: "true"
+  - name: jobset-kueuelabels-validator.opendatahub.io
+    namespaceSelector:
+      matchLabels:
+        kueue.opendatahub.io/enabled: "true"
+  - name: kserve-kueuelabels-validator.opendatahub.io
+    namespaceSelector:
+      matchLabels:
+        kueue.opendatahub.io/enabled: "true"
+  - name: kubeflow-kueuelabels-validator.opendatahub.io
+    namespaceSelector:
+      matchLabels:
+        kueue.opendatahub.io/enabled: "true"
+  - name: ray-kueuelabels-validator.opendatahub.io
+    namespaceSelector:
+      matchLabels:
+        kueue.opendatahub.io/enabled: "true"
