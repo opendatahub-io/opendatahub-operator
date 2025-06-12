@@ -149,6 +149,11 @@ spec:
       kind: Kueue
       name: kueues.components.platform.opendatahub.io
       version: v1alpha1
+    - description: LlamaStackOperator is the Schema for the LlamaStackOperator API
+      displayName: Llama Stack Operator
+      kind: LlamaStackOperator
+      name: llamastackoperators.components.platform.opendatahub.io
+      version: v1alpha1
     - description: ModelMeshServing is the Schema for the modelmeshservings API
       displayName: Model Mesh Serving
       kind: ModelMeshServing
@@ -230,9 +235,10 @@ spec:
   - Data Science
   - Feast
   - featurestore
+  - llamastack
   links:
   - name: Red Hat OpenShift AI
-    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.16.0
+    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.22.0
   maintainers:
   - email: managed-open-data-hub@redhat.com
     name: Red Hat Openshift AI

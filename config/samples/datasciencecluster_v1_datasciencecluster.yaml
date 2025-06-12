@@ -48,3 +48,5 @@ spec:
       registriesNamespace: "rhoai-model-registries"
     feastoperator:
       managementState: "Removed"
+    llamastackoperator:
+      managementState: "Removed"

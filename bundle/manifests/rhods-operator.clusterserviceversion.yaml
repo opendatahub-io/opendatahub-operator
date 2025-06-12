@@ -49,6 +49,9 @@ metadata:
               "kueue": {
                 "managementState": "Managed"
               },
+              "llamastackoperator": {
+                "managementState": "Removed"
+              },
               "modelmeshserving": {
                 "managementState": "Managed"
               },
@@ -109,7 +112,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-05-29T11:37:42Z"
+    createdAt: "2025-06-11T09:08:22Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -201,7 +204,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
-  name: rhods-operator.v2.21.0
+  name: rhods-operator.v2.22.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -255,6 +258,11 @@ spec:
       displayName: Kueue
       kind: Kueue
       name: kueues.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: LlamaStackOperator is the Schema for the LlamaStackOperator API
+      displayName: Llama Stack Operator
+      kind: LlamaStackOperator
+      name: llamastackoperators.components.platform.opendatahub.io
       version: v1alpha1
     - kind: ModelController
       name: modelcontrollers.components.platform.opendatahub.io
@@ -513,6 +521,7 @@ spec:
           - feastoperators
           - kserves
           - kueues
+          - llamastackoperators
           - modelcontrollers
           - modelmeshservings
           - modelregistries
@@ -536,6 +545,7 @@ spec:
           - feastoperators/finalizers
           - kserves/finalizers
           - kueues/finalizers
+          - llamastackoperators/finalizers
           - modelcontrollers/finalizers
           - modelmeshservings/finalizers
           - modelregistries/finalizers
@@ -554,6 +564,7 @@ spec:
           - feastoperators/status
           - kserves/status
           - kueues/status
+          - llamastackoperators/status
           - modelcontrollers/status
           - modelmeshservings/status
           - modelregistries/status
@@ -1445,9 +1456,10 @@ spec:
   - Data Science
   - Feast
   - featurestore
+  - llamastack
   links:
   - name: Red Hat OpenShift AI
-    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.16.0
+    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.22.0
   maintainers:
   - email: managed-open-data-hub@redhat.com
     name: Red Hat Openshift AI
@@ -1455,7 +1467,7 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.21.0
+  version: 2.22.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
