@@ -7,3 +7,9 @@ commonAnnotations:
 
 configurations:
 - kustomizeconfig.yaml
+
+patches: # Or patchesStrategicMerge: depending on your Kubebuilder version/preference
+  - path: patches/add_kueue_namespace_selectors.yaml
+    target:
+      kind: ValidatingWebhookConfiguration
+      name: validating-webhook-configuration
