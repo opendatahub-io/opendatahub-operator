@@ -92,7 +92,7 @@ func TestAnnotationChanged(t *testing.T) {
 }
 
 func TestDSCIServiceMeshCondition(t *testing.T) {
-	g := NewWithT(t)
+	t.Parallel()
 
 	tests := []struct {
 		name     string
@@ -214,31 +214,32 @@ func TestDSCIServiceMeshCondition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
 			e := event.UpdateEvent{
 				ObjectOld: tt.oldObj,
 				ObjectNew: tt.newObj,
 			}
-			result := resources.DSCIServiceMeshCondition.Update(e)
-			g.Expect(result).To(Equal(tt.expected))
+			g.Expect(resources.DSCIServiceMeshCondition.UpdateFunc(e)).To(Equal(tt.expected))
 		})
 	}
 
 	// Test Create, Delete, and Generic events
 	t.Run("Create event returns false", func(t *testing.T) {
+		g := NewWithT(t)
 		e := event.CreateEvent{}
-		result := resources.DSCIServiceMeshCondition.Create(e)
-		g.Expect(result).To(BeFalse())
+		g.Expect(resources.DSCIServiceMeshCondition.CreateFunc(e)).To(BeFalse())
 	})
 
 	t.Run("Delete event returns false", func(t *testing.T) {
+		g := NewWithT(t)
 		e := event.DeleteEvent{}
-		result := resources.DSCIServiceMeshCondition.Delete(e)
-		g.Expect(result).To(BeFalse())
+		g.Expect(resources.DSCIServiceMeshCondition.DeleteFunc(e)).To(BeFalse())
 	})
 
 	t.Run("Generic event returns false", func(t *testing.T) {
+		g := NewWithT(t)
 		e := event.GenericEvent{}
-		result := resources.DSCIServiceMeshCondition.Generic(e)
-		g.Expect(result).To(BeFalse())
+		g.Expect(resources.DSCIServiceMeshCondition.GenericFunc(e)).To(BeFalse())
 	})
 }
