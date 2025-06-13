@@ -104,6 +104,8 @@ spec:
                     - Removed
                     pattern: ^(Managed|Unmanaged|Force|Removed)$
                     type: string
+                  metrics:
+                    type: object
                   namespace:
                     default: opendatahub
                     description: |-
@@ -115,6 +117,8 @@ spec:
                     x-kubernetes-validations:
                     - message: MonitoringNamespace is immutable
                       rule: self == oldSelf
+                  traces:
+                    type: object
                 type: object
               serviceMesh:
                 description: |-
