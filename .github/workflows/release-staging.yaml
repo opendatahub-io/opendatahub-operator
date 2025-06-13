@@ -1,0 +1,129 @@
+name: "ODH Release - Staging Pipeline"
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        description: The version to update(https://semver.org/).
+        required: true
+      tracker-url:
+        type: string
+        description: The URL to tracker issue(https://github.com/opendatahub-io/opendatahub-community/issues/<issue-number>).
+        required: true
+env:
+  VERSION: ${{ github.event.inputs.version }}
+  TRACKER_URL: ${{ github.event.inputs.tracker-url }}
+jobs:
+  stage-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Validate tracker URL
+      run: |
+        if ! echo "${{ env.TRACKER_URL }}" | grep -qE '^https://github\.com/opendatahub-io/opendatahub-community/issues/'; then
+          echo "Error: Invalid tracker URL format. Expected format: https://github.com/opendatahub-io/opendatahub-community/issues/<issue-number>"
+          exit 1
+        fi
+
+    - name: Extract issue number
+      run: |
+        ISSUE_NUMBER=$(echo "${{ env.TRACKER_URL }}" | grep -oE '[0-9]+$')
+        echo "ISSUE_NUMBER=$ISSUE_NUMBER" >> $GITHUB_ENV
+
+    - name: Validate semver
+      run: ./.github/scripts/validate-semver.sh v${{ env.VERSION }}
+
+    - name: Create release branch
+      uses: peterjgrainger/action-create-branch@v2.4.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        branch: odh-${{ env.VERSION }}
+        sha: ${{ github.sha }}
+
+    - name: Update versions in relevant files
+      run: ./.github/scripts/update-versions.sh ${{ env.VERSION }}
+
+    - name: Run make manifests & bundle
+      run: make manifests bundle
+
+    - name: Clean up bundle files
+      run: |
+        sed -i -e "s|image: quay.io/opendatahub/opendatahub-operator:latest.*|image: REPLACE_IMAGE:latest|g" bundle/manifests/opendatahub-operator.clusterserviceversion.yaml
+        rm -f ./config/manager/kustomization.yaml
+
+    - name: Update branches in get_all_manifest.sh
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const script = require('./.github/scripts/get-release-branches.js')
+          script({github, core})
+
+    - name: Update versions
+      shell: bash
+      run: ./.github/scripts/update-manifests-tags.sh
+
+    - name: Push changes to release branch
+      uses: actions-js/push@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: odh-${{ env.VERSION }}
+        message: "ODH Release ${{ env.VERSION }}: Update release branch"
+
+    - name: Create and push tag
+      run: |
+        git tag -a v${{ env.VERSION }} -m "ODH Release ${{ env.VERSION }}"
+        git push origin v${{ env.VERSION }}
+
+
+    - name: Generate GitHub App Token
+      id: generate-token
+      uses: tibdex/github-app-token@v2
+      with:
+        app_id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
+        private_key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
+
+    - name: Comment on Tracker Issue
+      uses: peter-evans/create-or-update-comment@v3
+      with:
+        token: ${{ steps.generate-token.outputs.token }}
+        repository: opendatahub-io/opendatahub-community
+        issue-number: ${{ env.ISSUE_NUMBER }}
+        body: |
+          #Release#
+          opendatahub-operator | https://github.com/opendatahub-io/opendatahub-operator/tree/odh-${{ env.VERSION }} | https://github.com/opendatahub-io/opendatahub-operator/releases/tag/v${{ env.VERSION }}
+
+    - name: Get component release notes
+      id: release-notes
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const script = require('./.github/scripts/get-component-release-notes.js')
+          await script({github, core, context})
+
+    - name: Create GH release
+      uses: softprops/action-gh-release@v2
+      with:
+        body: ${{ steps.release-notes.outputs.release-notes-body }}
+        tag_name: v${{ env.VERSION }}
+        prerelease: true
+        
+    - name: Trigger ODH Konflux Release Onboarder
+      uses: lasith-kg/dispatch-workflow@v2.0.0
+      with:
+        dispatch-method: workflow_dispatch
+        workflow: odh-konflux-release-onboarder.yml
+        repo: odh-konflux-central
+        owner: opendatahub-io
+        ref: main
+        token: ${{ steps.generate-token.outputs.token }}
+        workflow-inputs: |
+          {
+            "component": "opendatahub-operator",
+            "release_branch": "odh-${{ env.VERSION }}",
+            "version": "v${{ env.VERSION }}"
+          }
