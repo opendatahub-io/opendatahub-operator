@@ -64,9 +64,17 @@ jobs:
         sed -i -e "s|image: quay.io/opendatahub/opendatahub-operator:latest.*|image: REPLACE_IMAGE:latest|g" bundle/manifests/opendatahub-operator.clusterserviceversion.yaml
         rm -f ./config/manager/kustomization.yaml
 
-    - name: Update manifest branches
-      uses: ./.github/actions/update-manifest-branches
-        
+    - name: Update branches in get_all_manifest.sh
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const script = require('./.github/scripts/get-release-branches.js')
+          script({github, core})
+
+    - name: Update versions
+      shell: bash
+      run: ./.github/scripts/update-manifests-tags.sh
+
     - name: Push changes to release branch
       uses: actions-js/push@master
       with:
