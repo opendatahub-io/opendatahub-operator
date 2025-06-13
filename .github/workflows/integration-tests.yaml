@@ -1,0 +1,67 @@
+name: Integration tests
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '.github/**'
+      - '**.md'
+      - 'Makefile'
+      - 'OWNERS'
+      - 'OWNERS_ALIASES'
+      - 'PROJECT'
+
+env:
+  IMAGE_TAG_BASE: quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator
+  TAG: pr-${{ github.event.number }}
+jobs:
+  create-catalog-image:
+    name: Build and push catalog image
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_BUILDER: podman
+    steps:
+      - name: Quay.io login
+        uses: redhat-actions/podman-login@v1
+        env:
+          QUAY_ID: ${{ secrets.QUAY_ID }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        with:
+          registry: quay.io
+          username: ${{ env.QUAY_ID }}
+          password: ${{ env.QUAY_TOKEN }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Create operator image
+        env:
+          IMG: ${{ env.IMAGE_TAG_BASE }}:${{ env.TAG }}
+        run:
+          make image
+      
+      - name: Get latest release version
+        env:
+          OPERATOR_REPOSITORY_NAME: opendatahub-io/opendatahub-operator
+        run: |
+          version_tag=$(curl -s https://api.github.com/repos/${OPERATOR_REPOSITORY_NAME}/releases/latest | jq -r .tag_name)-${{ env.TAG }}
+          echo "VERSION_TAG=$version_tag" >> $GITHUB_ENV
+
+      - name: Create bundle image
+        env:
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:${VERSION_TAG}
+        run: |
+          make bundle-build
+          make bundle-push
+
+      - name: Create catalog image
+        env:
+          CATALOG_IMG: ${{ env.IMAGE_TAG_BASE }}-catalog:${VERSION_TAG}
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:${VERSION_TAG}
+        run: |
+          make catalog-build 
+          make catalog-push
