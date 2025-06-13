@@ -148,6 +148,31 @@ func initServices(_ context.Context, p common.Platform) error {
 	})
 }
 
+// Create a config struct with viper's mapstructure.
+type OperatorConfig struct {
+	MetricsAddr         string `mapstructure:"metrics-bind-address"`
+	HealthProbeAddr     string `mapstructure:"health-probe-bind-address"`
+	LeaderElection      bool   `mapstructure:"leader-elect"`
+	MonitoringNamespace string `mapstructure:"dsc-monitoring-namespace"`
+	LogMode             string `mapstructure:"log-mode"`
+	PprofAddr           string `mapstructure:"pprof-bind-address"`
+
+	// Zap logging configuration
+	ZapDevel        bool   `mapstructure:"zap-devel"`
+	ZapEncoder      string `mapstructure:"zap-encoder"`
+	ZapLogLevel     string `mapstructure:"zap-log-level"`
+	ZapStacktrace   string `mapstructure:"zap-stacktrace-level"`
+	ZapTimeEncoding string `mapstructure:"zap-time-encoding"`
+}
+
+func LoadConfig() (*OperatorConfig, error) {
+	var config OperatorConfig
+	if err := viper.Unmarshal(&config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal operator manager config: %w", err)
+	}
+	return &config, nil
+}
+
 func main() { //nolint:funlen,maintidx,gocyclo
 	// Viper settings
 	viper.SetEnvPrefix("ODH_MANAGER")
@@ -167,19 +192,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		os.Exit(1)
 	}
 
-	// Get configs
-	metricsAddr := viper.GetString("metrics-bind-address")
-	enableLeaderElection := viper.GetBool("leader-elect")
-	probeAddr := viper.GetString("health-probe-bind-address")
-	monitoringNamespace := viper.GetString("dsc-monitoring-namespace")
-	logMode := viper.GetString("log-mode")
-	pprofAddr := viper.GetString("pprof-bind-address")
-
-	zapDevel := viper.GetBool("zap-devel")
-	zapEncoder := viper.GetString("zap-encoder")
-	zapLogLevel := viper.GetString("zap-log-level")
-	zapStacktrace := viper.GetString("zap-stacktrace-level")
-	zapTimeEncoding := viper.GetString("zap-time-encoding")
+	oconfig, err := LoadConfig()
+	if err != nil {
+		fmt.Printf("Error loading configuration: %s", err.Error())
+		os.Exit(1)
+	}
 
 	// After getting the zap related configs an ad hoc flag set is created so the zap BindFlags mechanism can be reused
 	zapFlagSet := flags.NewZapFlagSet()
@@ -187,13 +204,13 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	opts := zap.Options{}
 	opts.BindFlags(zapFlagSet)
 
-	err := flags.ParseZapFlags(zapFlagSet, zapDevel, zapEncoder, zapLogLevel, zapStacktrace, zapTimeEncoding)
+	err = flags.ParseZapFlags(zapFlagSet, oconfig.ZapDevel, oconfig.ZapEncoder, oconfig.ZapLogLevel, oconfig.ZapStacktrace, oconfig.ZapTimeEncoding)
 	if err != nil {
 		fmt.Printf("Error in parsing zap flags: %s", err.Error())
 		os.Exit(1)
 	}
 
-	ctrl.SetLogger(logger.NewLogger(logMode, &opts))
+	ctrl.SetLogger(logger.NewLogger(oconfig.LogMode, &opts))
 
 	// root context
 	ctx := ctrl.SetupSignalHandler()
@@ -302,15 +319,15 @@ func main() { //nolint:funlen,maintidx,gocyclo
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{ // single pod does not need to have LeaderElection
 		Scheme:  scheme,
-		Metrics: ctrlmetrics.Options{BindAddress: metricsAddr},
+		Metrics: ctrlmetrics.Options{BindAddress: oconfig.MetricsAddr},
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
 			Port: 9443,
 			// TLSOpts: , // TODO: it was not set in the old code
 		}),
-		PprofBindAddress:       pprofAddr,
-		HealthProbeBindAddress: probeAddr,
+		PprofBindAddress:       oconfig.PprofAddr,
+		HealthProbeBindAddress: oconfig.HealthProbeAddr,
 		Cache:                  cacheOptions,
-		LeaderElection:         enableLeaderElection,
+		LeaderElection:         oconfig.LeaderElection,
 		LeaderElectionID:       "07ed84f7.opendatahub.io",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
@@ -379,7 +396,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Info("DSCI auto creation is disabled")
 	} else {
 		var createDefaultDSCIFunc manager.RunnableFunc = func(ctx context.Context) error {
-			err := upgrade.CreateDefaultDSCI(ctx, setupClient, platform, monitoringNamespace)
+			err := upgrade.CreateDefaultDSCI(ctx, setupClient, platform, oconfig.MonitoringNamespace)
 			if err != nil {
 				setupLog.Error(err, "unable to create initial setup for the operator")
 			}
