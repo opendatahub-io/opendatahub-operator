@@ -7,6 +7,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 
 	. "github.com/onsi/gomega"
@@ -86,4 +89,156 @@ func TestAnnotationChanged(t *testing.T) {
 			g.Expect(got).To(Equal(tt.want))
 		})
 	}
+}
+
+func TestDSCIServiceMeshCondition(t *testing.T) {
+	g := NewWithT(t)
+
+	tests := []struct {
+		name     string
+		oldObj   *dsciv1.DSCInitialization
+		newObj   *dsciv1.DSCInitialization
+		expected bool
+	}{
+		{
+			name: "when new condition is added (length changed)",
+			oldObj: &dsciv1.DSCInitialization{
+				Status: dsciv1.DSCInitializationStatus{
+					Conditions: []common.Condition{},
+				},
+			},
+			newObj: &dsciv1.DSCInitialization{
+				Status: dsciv1.DSCInitializationStatus{
+					Conditions: []common.Condition{
+						{
+							Type:   status.CapabilityServiceMesh,
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "when old condition is removed(length changed)",
+			oldObj: &dsciv1.DSCInitialization{
+				Status: dsciv1.DSCInitializationStatus{
+					Conditions: []common.Condition{
+						{
+							Type:   status.CapabilityServiceMesh,
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			newObj: &dsciv1.DSCInitialization{
+				Status: dsciv1.DSCInitializationStatus{
+					Conditions: []common.Condition{},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "when condition status changes(SMCP to ready)",
+			oldObj: &dsciv1.DSCInitialization{
+				Status: dsciv1.DSCInitializationStatus{
+					Conditions: []common.Condition{
+						{
+							Type:   status.CapabilityServiceMesh,
+							Status: metav1.ConditionFalse,
+						},
+					},
+				},
+			},
+			newObj: &dsciv1.DSCInitialization{
+				Status: dsciv1.DSCInitializationStatus{
+					Conditions: []common.Condition{
+						{
+							Type:   status.CapabilityServiceMesh,
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "when condition status remains the same",
+			oldObj: &dsciv1.DSCInitialization{
+				Status: dsciv1.DSCInitializationStatus{
+					Conditions: []common.Condition{
+						{
+							Type:   status.CapabilityServiceMesh,
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			newObj: &dsciv1.DSCInitialization{
+				Status: dsciv1.DSCInitializationStatus{
+					Conditions: []common.Condition{
+						{
+							Type:   status.CapabilityServiceMesh,
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "when other condition changes",
+			oldObj: &dsciv1.DSCInitialization{
+				Status: dsciv1.DSCInitializationStatus{
+					Conditions: []common.Condition{
+						{
+							Type:   status.CapabilityServiceMeshAuthorization,
+							Status: metav1.ConditionFalse,
+						},
+					},
+				},
+			},
+			newObj: &dsciv1.DSCInitialization{
+				Status: dsciv1.DSCInitializationStatus{
+					Conditions: []common.Condition{
+						{
+							Type:   status.CapabilityServiceMeshAuthorization,
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := event.UpdateEvent{
+				ObjectOld: tt.oldObj,
+				ObjectNew: tt.newObj,
+			}
+			result := resources.DSCIServiceMeshCondition.Update(e)
+			g.Expect(result).To(Equal(tt.expected))
+		})
+	}
+
+	// Test Create, Delete, and Generic events
+	t.Run("Create event returns false", func(t *testing.T) {
+		e := event.CreateEvent{}
+		result := resources.DSCIServiceMeshCondition.Create(e)
+		g.Expect(result).To(BeFalse())
+	})
+
+	t.Run("Delete event returns false", func(t *testing.T) {
+		e := event.DeleteEvent{}
+		result := resources.DSCIServiceMeshCondition.Delete(e)
+		g.Expect(result).To(BeFalse())
+	})
+
+	t.Run("Generic event returns false", func(t *testing.T) {
+		e := event.GenericEvent{}
+		result := resources.DSCIServiceMeshCondition.Generic(e)
+		g.Expect(result).To(BeFalse())
+	})
 }
