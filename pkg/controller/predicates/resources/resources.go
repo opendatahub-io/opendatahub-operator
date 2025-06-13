@@ -10,6 +10,8 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -156,4 +158,35 @@ func AnnotationChanged(name string) predicate.Funcs {
 			return resources.GetAnnotation(e.ObjectNew, name) != resources.GetAnnotation(e.ObjectOld, name)
 		},
 	}
+}
+
+var DSCIServiceMeshCondition = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		oldObj, ok := e.ObjectOld.(*dsciv1.DSCInitialization)
+		if !ok {
+			return false
+		}
+		newObj, ok := e.ObjectNew.(*dsciv1.DSCInitialization)
+		if !ok {
+			return false
+		}
+
+		oldMeshCondition := conditions.FindStatusCondition(&oldObj.Status, status.CapabilityServiceMesh)
+		newMeshCondition := conditions.FindStatusCondition(&newObj.Status, status.CapabilityServiceMesh)
+
+		if oldMeshCondition == nil || newMeshCondition == nil {
+			return oldMeshCondition != newMeshCondition
+		}
+
+		return oldMeshCondition.Status != newMeshCondition.Status
+	},
+	CreateFunc: func(e event.CreateEvent) bool {
+		return false
+	},
+	DeleteFunc: func(e event.DeleteEvent) bool {
+		return false
+	},
+	GenericFunc: func(e event.GenericEvent) bool {
+		return false
+	},
 }
