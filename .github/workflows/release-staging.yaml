@@ -8,13 +8,13 @@ on:
         required: true
       tracker-url:
         type: string
-        description: The URL to tracker issue(https://github.com/opendatahub-io/opendatahub-community/issues).
+        description: The URL to tracker issue(https://github.com/opendatahub-io/opendatahub-community/issues/<issue-number>).
         required: true
 env:
   VERSION: ${{ github.event.inputs.version }}
   TRACKER_URL: ${{ github.event.inputs.tracker-url }}
 jobs:
-  update-main-and-release-branch:
+  stage-release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -22,45 +22,47 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Validate tracker URL
+      run: |
+        if ! echo "${{ env.TRACKER_URL }}" | grep -qE '^https://github\.com/opendatahub-io/opendatahub-community/issues/'; then
+          echo "Error: Invalid tracker URL format. Expected format: https://github.com/opendatahub-io/opendatahub-community/issues/<issue-number>"
+          exit 1
+        fi
+
+    - name: Extract issue number
+      run: |
+        ISSUE_NUMBER=$(echo "${{ env.TRACKER_URL }}" | grep -oE '[0-9]+$')
+        echo "ISSUE_NUMBER=$ISSUE_NUMBER" >> $GITHUB_ENV
+
     - name: Validate semver
       run: ./.github/scripts/validate-semver.sh v${{ env.VERSION }}
-      
-    - name: Update version for main
-      uses: ./.github/actions/update-release-version
-      with:
-        version: ${{ env.VERSION }}
-        
-    - name: Create PR to main
-      uses: peter-evans/create-pull-request@v6
-      id: cpr
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        commit-message: "Update version to ${{ env.VERSION }}"
-        branch: odh-release/version-update
-        delete-branch: true
-        title: "Update version to ${{ env.VERSION }}"
-        reviewers: "zdtsw"
-        base: main
 
-    - name: Comment version and tracker issue url in the pr
-      uses: thollander/actions-comment-pull-request@v2
-      with:
-        message: |
-          #Release#
-          version=${{ env.VERSION }}
-          tracker-url=${{ env.TRACKER_URL }}
-          :exclamation: DO NOT EDIT THIS COMMENT :exclamation:
-        pr_number: ${{ steps.cpr.outputs.pull-request-number }}
+    - uses: fregante/setup-git-user@v2
 
-    - name: Checkout release branch
+    - name: Create release branch
       run: |
-        git fetch origin
-        git checkout odh-${{ env.VERSION }}
+        # Check if branch exists remotely - handle the case if we are retriggering the release workflow after a failure in the middle
+        if git ls-remote --heads origin odh-${{ env.VERSION }} | grep -q "odh-${{ env.VERSION }}"; then
+          echo "Branch odh-${{ env.VERSION }} already exists, checking it out"
+          git fetch origin odh-${{ env.VERSION }}
+          git checkout odh-${{ env.VERSION }}
+          git pull origin odh-${{ env.VERSION }}
+        else
+          echo "Creating new branch odh-${{ env.VERSION }}"
+          git checkout -b odh-${{ env.VERSION }} origin/main
+          git push -u origin odh-${{ env.VERSION }}
+        fi
 
-    - name: Update version for release branch
-      uses: ./.github/actions/update-release-version
-      with:
-        version: ${{ env.VERSION }}
+    - name: Update versions in relevant files
+      run: ./.github/scripts/update-versions.sh ${{ env.VERSION }}
+
+    - name: Run make manifests & bundle
+      run: make manifests bundle
+
+    - name: Clean up bundle files
+      run: |
+        sed -i -e "s|image: quay.io/opendatahub/opendatahub-operator:latest.*|image: REPLACE_IMAGE:latest|g" bundle/manifests/opendatahub-operator.clusterserviceversion.yaml
+        rm -f ./config/manager/kustomization.yaml
 
     - name: Update manifest branches
       uses: ./.github/actions/update-manifest-branches
@@ -72,6 +74,12 @@ jobs:
         branch: odh-${{ env.VERSION }}
         message: "ODH Release ${{ env.VERSION }}: Update release branch"
 
+    - name: Create and push tag
+      run: |
+        git tag -a v${{ env.VERSION }} -m "ODH Release ${{ env.VERSION }}"
+        git push origin v${{ env.VERSION }}
+
+
     - name: Generate GitHub App Token
       id: generate-token
       uses: tibdex/github-app-token@v2
@@ -79,6 +87,31 @@ jobs:
         app_id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
         private_key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
 
+    - name: Comment on Tracker Issue
+      uses: peter-evans/create-or-update-comment@v3
+      with:
+        token: ${{ steps.generate-token.outputs.token }}
+        repository: opendatahub-io/opendatahub-community
+        issue-number: ${{ env.ISSUE_NUMBER }}
+        body: |
+          #Release#
+          opendatahub-operator| https://github.com/opendatahub-io/opendatahub-operator/tree/odh-${{ env.VERSION }}| https://github.com/opendatahub-io/opendatahub-operator/releases/tag/v${{ env.VERSION }}
+
+    - name: Get component release notes
+      id: release-notes
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const script = require('./.github/scripts/get-component-release-notes.js')
+          await script({github, core, context})
+
+    - name: Create GH release
+      uses: softprops/action-gh-release@v2
+      with:
+        body: ${{ steps.release-notes.outputs.release-notes-body }}
+        tag_name: v${{ env.VERSION }}
+        prerelease: true
+        
     - name: Trigger ODH Konflux Release Onboarder
       uses: lasith-kg/dispatch-workflow@v2.0.0
       with:
