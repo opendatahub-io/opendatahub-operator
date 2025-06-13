@@ -87,9 +87,10 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	}
 
 	// Check if the CapabilityServiceMesh condition is not true, Serverless require ServiceMesh to be ready before creating SMM
-	if !conditions.IsStatusConditionPresentAndEqual(&rr.DSCI.Status, status.CapabilityServiceMesh, metav1.ConditionTrue) {
+	if !conditions.IsStatusConditionTrue(&rr.DSCI.Status, status.CapabilityServiceMesh) {
 		rr.Conditions.MarkFalse(
 			status.ConditionServingAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
 			conditions.WithReason(status.ServiceMeshNotReadyReason),
 			conditions.WithMessage(status.ServiceMeshNotReadyMessage),
 		)
