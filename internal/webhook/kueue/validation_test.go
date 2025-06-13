@@ -16,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
@@ -46,7 +45,7 @@ func newFakeClientWithObjects(sch *runtime.Scheme, nsLabels map[string]string, k
 		Status: dscv1.DataScienceClusterStatus{
 			Components: dscv1.ComponentsStatus{
 				Kueue: componentApi.DSCKueueStatus{
-					ManagementSpec: common.ManagementSpec{
+					KueueManagementSpec: componentApi.KueueManagementSpec{
 						ManagementState: kueueState,
 					},
 				},

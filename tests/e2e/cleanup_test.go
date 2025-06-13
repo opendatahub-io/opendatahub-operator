@@ -37,13 +37,13 @@ func cleanupListResources(t *testing.T, tc *TestContext, kind schema.GroupVersio
 	}
 }
 
-// uninstallOperator delete an operator install subscription for the stable channel if exists
-func uninstallOperator(t *testing.T, tc *TestContext, operatorName string, operatorNamespace string) {
+// uninstallOperator delete an operator install subscription for the stable channel if exists.
+func uninstallOperator(t *testing.T, tc *TestContext, operatorName string, operatorNamespace string) { //nolint:thelper
 	uninstallOperatorWithChannel(t, tc, operatorName, operatorNamespace, defaultOperatorChannel)
 }
 
-// uninstallOperatorWithChannel delete an operator install subscription to a specific channel if exists
-func uninstallOperatorWithChannel(t *testing.T, tc *TestContext, operatorName string, operatorNamespace string, channel string) {
+// uninstallOperatorWithChannel delete an operator install subscription to a specific channel if exists.
+func uninstallOperatorWithChannel(t *testing.T, tc *TestContext, operatorName string, operatorNamespace string, channel string) { //nolint:thelper,unparam
 	if found, err := tc.CheckOperatorExists(operatorName); found && err == nil {
 		t.Logf("Deleting %s", operatorName)
 		namespacedName := types.NamespacedName{Name: operatorName, Namespace: operatorNamespace}
@@ -60,7 +60,8 @@ func uninstallOperatorWithChannel(t *testing.T, tc *TestContext, operatorName st
 				tc.DeleteResource(WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Name: csv, Namespace: kueueOcpOperatorSubscription.GetNamespace()}))
 			}
 
-			tc.DeleteResource(WithMinimalObject(gvk.Subscription, types.NamespacedName{Name: kueueOcpOperatorSubscription.GetName(), Namespace: kueueOcpOperatorSubscription.GetNamespace()}))
+			tc.DeleteResource(
+				WithMinimalObject(gvk.Subscription, types.NamespacedName{Name: kueueOcpOperatorSubscription.GetName(), Namespace: kueueOcpOperatorSubscription.GetNamespace()}))
 		}
 		t.Logf("Deleted %s", operatorName)
 	}

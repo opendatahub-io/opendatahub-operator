@@ -87,7 +87,7 @@ func provisionComponents(_ context.Context, rr *odhtype.ReconciliationRequest) e
 
 	err := cr.ForEach(func(component cr.ComponentHandler) error {
 		ms := component.GetManagementState(instance)
-		if ms != operatorv1.Managed {
+		if ms != operatorv1.Managed && ms != operatorv1.Unmanaged {
 			return nil
 		}
 

@@ -19,7 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
@@ -131,7 +130,9 @@ func createDSCWithStatus(ctx context.Context, g *WithT, c client.Client, state o
 	dsc.Status = dscv1.DataScienceClusterStatus{
 		Components: dscv1.ComponentsStatus{
 			Kueue: componentApi.DSCKueueStatus{
-				ManagementSpec: common.ManagementSpec{ManagementState: state},
+				KueueManagementSpec: componentApi.KueueManagementSpec{
+					ManagementState: state,
+				},
 			},
 		},
 	}

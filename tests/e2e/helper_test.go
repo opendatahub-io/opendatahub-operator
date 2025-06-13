@@ -212,7 +212,7 @@ func CreateDSC(name string) *dscv1.DataScienceCluster {
 					},
 				},
 				Kueue: componentApi.DSCKueue{
-					ManagementSpec: common.ManagementSpec{
+					KueueManagementSpec: componentApi.KueueManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},

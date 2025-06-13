@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
@@ -17,11 +19,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-const (
-	MultiKueueCRDMessage = "Kueue CRDs MultiKueueConfig v1alpha1 and/or MultiKueueCluster v1alpha1 exist, please remove them to proceed"
-)
-
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	kueueCRInstance, ok := rr.Instance.(*componentApi.Kueue)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kueue)", rr.Instance)
+	}
+
 	rConfig, err := cluster.HasCRD(ctx, rr.Client, gvk.MultiKueueConfigV1Alpha1)
 	if err != nil {
 		return odherrors.NewStopError("failed to check %s CRDs version: %w", gvk.MultiKueueConfigV1Alpha1, err)
@@ -33,14 +36,42 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	}
 
 	if rConfig || rCluster {
-		return odherrors.NewStopError(MultiKueueCRDMessage)
+		return odherrors.NewStopError(status.MultiKueueCRDMessage)
+	}
+
+	switch kueueCRInstance.Spec.ManagementState {
+	case operatorv1.Managed:
+		if found, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator); err != nil || found {
+			if err != nil {
+				return odherrors.NewStopErrorW(err)
+			}
+
+			return odherrors.NewStopErrorW(ErrKueueOperatorAlreadyInstalled)
+		}
+	case operatorv1.Unmanaged:
+		if found, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator); err != nil || !found {
+			if err != nil {
+				return odherrors.NewStopErrorW(err)
+			}
+
+			return odherrors.NewStopErrorW(ErrKueueOperatorNotInstalled)
+		}
+	default:
+		return nil
 	}
 
 	return nil
 }
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	rr.Manifests = append(rr.Manifests, manifestsPath())
+	kueueCRInstance, ok := rr.Instance.(*componentApi.Kueue)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kueue)", rr.Instance)
+	}
+
+	if kueueCRInstance.Spec.ManagementState == operatorv1.Managed {
+		rr.Manifests = append(rr.Manifests, manifestsPath())
+	}
 	rr.Manifests = append(rr.Manifests, kueueConfigManifestsPath())
 	return nil
 }

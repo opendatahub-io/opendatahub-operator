@@ -1,16 +1,16 @@
 package e2e_test
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
+	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
@@ -52,6 +53,9 @@ func kueueTestSuite(t *testing.T) {
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate pre check", componentCtx.ValidateKueuePreCheck},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate component managed error with ocp kueue-operator installed", componentCtx.ValidateKueueManagedWhitOcpKueueOperator},
+		{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWhitoutOcpKueueOperator},
+		{"Validate component managed to unmanaged transition", componentCtx.ValidateKueueManagedToUnmanagedTransition},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
@@ -161,6 +165,140 @@ func (tc *KueueTestCtx) ValidateKueuePreCheck(t *testing.T) {
 	)
 }
 
+// ValidateComponentEnabled ensures that if the component is in Managed state and ocp kueue operator is installed, then its status is "Not Ready".
+func (tc *KueueTestCtx) ValidateKueueManagedWhitOcpKueueOperator(t *testing.T) {
+	t.Helper()
+
+	namespacedName := types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}
+	// Install ocp kueue-operator
+	tc.EnsureOperatorInstalledWithChannel(namespacedName, false, kueueOcpOperatorChannel)
+
+	componentName := strings.ToLower(tc.GVK.Kind)
+	state := operatorv1.Managed
+
+	// State must be Managed, Ready condition must be false because ocp kueue-operator is installed
+	conditions := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, state),
+
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
+	)
+	// Update the management state of the component in the DataScienceCluster.
+	tc.ConsistentlyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(conditions...)),
+	)
+
+	// Uninstall Kueue operator
+	uninstallOperator(t, tc.TestContext, kueueOpName, kueueOcpOperatorNamespace)
+}
+
+// ValidateKueueUnmanagedWhitoutOcpKueueOperator ensures that if the component is in Unmanaged state and ocp kueue operator is not installed, then its status is "Not Ready".
+func (tc *KueueTestCtx) ValidateKueueUnmanagedWhitoutOcpKueueOperator(t *testing.T) {
+	t.Helper()
+
+	componentName := strings.ToLower(tc.GVK.Kind)
+	state := operatorv1.Unmanaged
+
+	// State must be Managed, Ready condition must be false because ocp kueue-operator is installed
+	conditions := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, state),
+
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
+	)
+	// Update the management state of the component in the DataScienceCluster.
+	tc.ConsistentlyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(conditions...)),
+	)
+}
+
+// ValidateComponentEnabled ensures that if the component is in Managed state and ocp kueue operator is installed, then its status is "Not Ready".
+func (tc *KueueTestCtx) ValidateKueueManagedToUnmanagedTransition(t *testing.T) {
+	t.Helper()
+
+	componentName := strings.ToLower(tc.GVK.Kind)
+	state := operatorv1.Managed
+
+	// State must be Managed, Ready condition must be false because ocp kueue-operator is installed
+	conditions := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, state),
+
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+	}
+
+	// Update the management state of the component in the DataScienceCluster.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
+		WithCondition(And(conditions...)),
+	)
+
+	nextState := operatorv1.Unmanaged
+	nextConditions := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, nextState),
+
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
+	}
+
+	// Update the management state of the component in the DataScienceCluster.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, nextState)),
+		WithCondition(And(nextConditions...)),
+	)
+
+	// Ensure embedded kueue operator is not running
+	tc.EnsureResourceDoesNotExist(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+	)
+
+	namespacedName := types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}
+	// Install ocp kueue-operator
+	tc.EnsureOperatorInstalledWithChannel(namespacedName, false, kueueOcpOperatorChannel)
+
+	finalConditions := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, nextState),
+
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(finalConditions...)),
+	)
+
+	// Uninstall Kueue operator
+	uninstallOperator(t, tc.TestContext, kueueOpName, kueueOcpOperatorNamespace)
+}
+
 // deleteAndValidateCRD deletes a given CRD and ensures it no longer exists.
 func (tc *KueueTestCtx) deleteAndValidateCRD(crdName string) {
 	// Delete the CRD
@@ -177,41 +315,9 @@ func (tc *KueueTestCtx) deleteAndValidateCRD(crdName string) {
 
 // createMockCRD creates a mock CRD for a given group, version, kind, and namespace.
 func (tc *KueueTestCtx) createMockCRD(gvk schema.GroupVersionKind, namespace string) {
-	crd := mockCRDCreation(gvk.Group, gvk.Version, strings.ToLower(gvk.Kind), namespace)
+	crd := mocks.NewMockCRD(gvk.Group, gvk.Version, strings.ToLower(gvk.Kind), namespace)
 
 	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(crd))
-}
-
-// mockCRDCreation generates a mock CRD with the specified parameters.
-func mockCRDCreation(group, version, kind, componentName string) *apiextv1.CustomResourceDefinition {
-	return &apiextv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: strings.ToLower(fmt.Sprintf("%ss.%s", kind, group)),
-			Labels: map[string]string{
-				labels.ODH.Component(componentName): labels.True,
-			},
-		},
-		Spec: apiextv1.CustomResourceDefinitionSpec{
-			Group: group,
-			Names: apiextv1.CustomResourceDefinitionNames{
-				Kind:   kind,
-				Plural: strings.ToLower(kind) + "s",
-			},
-			Scope: apiextv1.ClusterScoped,
-			Versions: []apiextv1.CustomResourceDefinitionVersion{
-				{
-					Name:    version,
-					Served:  true,
-					Storage: true,
-					Schema: &apiextv1.CustomResourceValidation{
-						OpenAPIV3Schema: &apiextv1.JSONSchemaProps{
-							Type: "object",
-						},
-					},
-				},
-			},
-		},
-	}
 }
 
 // getClusterVersion retrieves and parses the cluster version.

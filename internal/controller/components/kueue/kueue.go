@@ -15,10 +15,20 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+)
+
+const (
+	kueueOperator = "kueue-operator"
+)
+
+var (
+	ErrKueueOperatorAlreadyInstalled = odherrors.NewStopError(status.KueueOperatorAlreadyInstalledMessage)
+	ErrKueueOperatorNotInstalled     = odherrors.NewStopError(status.KueueOperatorNotInstalledMessage)
 )
 
 type componentHandler struct{}
@@ -32,10 +42,11 @@ func (s *componentHandler) GetName() string {
 }
 
 func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	if dsc.Spec.Components.Kueue.ManagementState == operatorv1.Managed {
+	state := dsc.Spec.Components.Kueue.ManagementState
+	if state == operatorv1.Unmanaged || state == operatorv1.Managed {
 		return operatorv1.Managed
 	}
-	return operatorv1.Removed
+	return state
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
@@ -47,11 +58,12 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 		ObjectMeta: metav1.ObjectMeta{
 			Name: componentApi.KueueInstanceName,
 			Annotations: map[string]string{
-				annotations.ManagementStateAnnotation: string(s.GetManagementState(dsc)),
+				annotations.ManagementStateAnnotation: string(dsc.Spec.Components.Kueue.ManagementState),
 			},
 		},
 		Spec: componentApi.KueueSpec{
-			KueueCommonSpec: dsc.Spec.Components.Kueue.KueueCommonSpec,
+			KueueManagementSpec: dsc.Spec.Components.Kueue.KueueManagementSpec,
+			KueueCommonSpec:     dsc.Spec.Components.Kueue.KueueCommonSpec,
 		},
 	}
 }
@@ -86,7 +98,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	switch s.GetManagementState(dsc) {
-	case operatorv1.Managed:
+	case operatorv1.Managed, operatorv1.Unmanaged:
 		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.Kueue.KueueCommonStatus = c.Status.KueueCommonStatus.DeepCopy()
 
