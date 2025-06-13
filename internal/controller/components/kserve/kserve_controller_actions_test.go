@@ -223,9 +223,17 @@ func TestCheckPreConditions_ServiceMeshManaged_AllOperator(t *testing.T) {
 	ks := componentApi.Kserve{}
 	ks.Spec.Serving.ManagementState = operatorv1.Managed
 
+	// Set ServiceMesh condition to True since we're testing operator checks
 	dsci := dsciv1.DSCInitialization{}
 	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Managed,
+	}
+	dsci.Status.Conditions = []common.Condition{
+		{
+			Type:   status.CapabilityServiceMesh,
+			Status: metav1.ConditionTrue,
+			Reason: "ServiceMeshReady",
+		},
 	}
 
 	rr := types.ReconciliationRequest{
@@ -252,6 +260,9 @@ func TestCheckPreConditions_ServiceMeshConditionNotTrue(t *testing.T) {
 		fakeclient.WithObjects(
 			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
 				Name: serviceMeshOperator,
+			}},
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serverlessOperator,
 			}},
 		),
 	)

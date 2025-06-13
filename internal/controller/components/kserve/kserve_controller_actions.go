@@ -58,16 +58,6 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return ErrServiceMeshNotConfigured
 	}
 
-	// Check if the CapabilityServiceMesh condition is not true, Serverless require ServiceMesh to be ready before creating SMM
-	if !conditions.IsStatusConditionPresentAndEqual(&rr.DSCI.Status, status.CapabilityServiceMesh, metav1.ConditionTrue) {
-		rr.Conditions.MarkFalse(
-			status.ConditionServingAvailable,
-			conditions.WithReason(status.ServiceMeshNotReadyReason),
-			conditions.WithMessage(status.ServiceMeshNotReadyMessage),
-		)
-		return ErrServiceMeshNotReady
-	}
-
 	var operatorsErr error
 
 	if found, err := cluster.OperatorExists(ctx, rr.Client, serviceMeshOperator); err != nil || !found {
@@ -94,6 +84,16 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		)
 
 		return odherrors.NewStopErrorW(operatorsErr)
+	}
+
+	// Check if the CapabilityServiceMesh condition is not true, Serverless require ServiceMesh to be ready before creating SMM
+	if !conditions.IsStatusConditionPresentAndEqual(&rr.DSCI.Status, status.CapabilityServiceMesh, metav1.ConditionTrue) {
+		rr.Conditions.MarkFalse(
+			status.ConditionServingAvailable,
+			conditions.WithReason(status.ServiceMeshNotReadyReason),
+			conditions.WithMessage(status.ServiceMeshNotReadyMessage),
+		)
+		return ErrServiceMeshNotReady
 	}
 
 	rr.Conditions.MarkTrue(status.ConditionServingAvailable)
