@@ -24,6 +24,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	kueueOcpOperatorNamespace = "openshift-kueue-operator" // Namespace for the Kueue Operator
+	kueueOcpOperatorChannel   = "stable-v0.1"
+)
+
 type KueueTestCtx struct {
 	*ComponentTestCtx
 }
@@ -121,7 +126,7 @@ func (tc *KueueTestCtx) ValidateKueuePreCheck(t *testing.T) {
 	tc.createMockCRD(gvk.MultiKueueConfigV1Alpha1, "kueue")
 
 	// Update DataScienceCluster to Managed state and check readiness condition
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed)),
 		WithCondition(
@@ -174,7 +179,7 @@ func (tc *KueueTestCtx) deleteAndValidateCRD(crdName string) {
 func (tc *KueueTestCtx) createMockCRD(gvk schema.GroupVersionKind, namespace string) {
 	crd := mockCRDCreation(gvk.Group, gvk.Version, strings.ToLower(gvk.Kind), namespace)
 
-	tc.EnsureResourceCreatedOrUpdated(WithObjectToCreate(crd))
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(crd))
 }
 
 // mockCRDCreation generates a mock CRD with the specified parameters.

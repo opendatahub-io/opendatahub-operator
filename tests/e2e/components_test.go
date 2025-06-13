@@ -176,7 +176,7 @@ func (tc *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 			}
 
 			// Update the deployment's replica count
-			tc.EnsureResourceCreatedOrUpdated(
+			tc.EventuallyResourceCreatedOrUpdated(
 				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&d)),
 				WithMutateFunc(testf.Transform(`.spec.replicas = %d`, expectedReplica)),
 				WithCondition(jq.Match(`.spec.replicas == %d`, expectedReplica)),
@@ -288,7 +288,7 @@ func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceClusterWhitKind(sta
 	}
 
 	// Update the management state of the component in the DataScienceCluster.
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
 		WithCondition(And(conditions...)),

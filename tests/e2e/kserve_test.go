@@ -105,7 +105,7 @@ func (tc *KserveTestCtx) ValidateServingEnabled(t *testing.T) {
 	t.Helper()
 
 	// Ensure the DataScienceCluster exists and the component's conditions are met
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
 			testf.TransformPipeline(
@@ -277,7 +277,7 @@ func (tc *KserveTestCtx) createDummyFeatureTrackers() {
 		ft := &featuresv1.FeatureTracker{}
 		ft.SetName(name)
 
-		tc.EnsureResourceCreatedOrUpdated(
+		tc.EventuallyResourceCreatedOrUpdated(
 			WithMinimalObject(gvk.FeatureTracker, types.NamespacedName{Name: name}),
 			WithMutateFunc(func(obj *unstructured.Unstructured) error {
 				if err := controllerutil.SetOwnerReference(dsc, obj, tc.Client().Scheme()); err != nil {
@@ -326,7 +326,7 @@ func (tc *KserveTestCtx) cleanExistingKnativeServing(t *testing.T) {
 
 // updateKserveDeploymentAndServingState updates the Kserve deployment mode and serving state.
 func (tc *KserveTestCtx) updateKserveDeploymentAndServingState(mode componentApi.DefaultDeploymentMode, state operatorv1.ManagementState) {
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
 			testf.TransformPipeline(
@@ -342,7 +342,7 @@ func (tc *KserveTestCtx) updateKserveDeploymentAndServingState(mode componentApi
 
 // updateKserveServingState updates the state of the serving component in Kserve.
 func (tc *KserveTestCtx) updateKserveServingState(state operatorv1.ManagementState) {
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), state)),
 		WithCustomErrorMsg("Updating serving managementState"),

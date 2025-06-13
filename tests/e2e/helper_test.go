@@ -29,9 +29,11 @@ const (
 	knativeServingNamespace = "knative-serving" // Namespace for Knative Serving components
 
 	// Operators constants.
+	defaultOperatorChannel       = "stable"              // The default channel to install/check operators
 	serviceMeshOpName            = "servicemeshoperator" // Name of the Service Mesh Operator
 	serverlessOpName             = "serverless-operator" // Name of the Serverless Operator
 	authorinoOpName              = "authorino-operator"  // Name of the Serverless Operator
+	kueueOpName                  = "kueue-operator"      // Name of the Kueue Operator
 	serviceMeshControlPlane      = "data-science-smcp"   // Service Mesh control plane name
 	serviceMeshNamespace         = "istio-system"        // Namespace for Istio Service Mesh control plane
 	serviceMeshMetricsCollection = "Istio"               // Metrics collection for Service Mesh (e.g., Istio)
