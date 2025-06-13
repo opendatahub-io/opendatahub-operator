@@ -37,21 +37,13 @@ jobs:
     - name: Validate semver
       run: ./.github/scripts/validate-semver.sh v${{ env.VERSION }}
 
-    - uses: fregante/setup-git-user@v2
-
     - name: Create release branch
-      run: |
-        # Check if branch exists remotely - handle the case if we are retriggering the release workflow after a failure in the middle
-        if git ls-remote --heads origin odh-${{ env.VERSION }} | grep -q "odh-${{ env.VERSION }}"; then
-          echo "Branch odh-${{ env.VERSION }} already exists, checking it out"
-          git fetch origin odh-${{ env.VERSION }}
-          git checkout odh-${{ env.VERSION }}
-          git pull origin odh-${{ env.VERSION }}
-        else
-          echo "Creating new branch odh-${{ env.VERSION }}"
-          git checkout -b odh-${{ env.VERSION }} origin/main
-          git push -u origin odh-${{ env.VERSION }}
-        fi
+      uses: peterjgrainger/action-create-branch@v2.4.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        branch: odh-${{ env.VERSION }}
+        sha: ${{ github.sha }}
 
     - name: Update versions in relevant files
       run: ./.github/scripts/update-versions.sh ${{ env.VERSION }}
@@ -103,7 +95,7 @@ jobs:
         issue-number: ${{ env.ISSUE_NUMBER }}
         body: |
           #Release#
-          opendatahub-operator| https://github.com/opendatahub-io/opendatahub-operator/tree/odh-${{ env.VERSION }}| https://github.com/opendatahub-io/opendatahub-operator/releases/tag/v${{ env.VERSION }}
+          opendatahub-operator | https://github.com/opendatahub-io/opendatahub-operator/tree/odh-${{ env.VERSION }} | https://github.com/opendatahub-io/opendatahub-operator/releases/tag/v${{ env.VERSION }}
 
     - name: Get component release notes
       id: release-notes
