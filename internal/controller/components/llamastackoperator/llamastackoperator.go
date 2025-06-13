@@ -1,4 +1,4 @@
-package kserve
+package llamastackoperator
 
 import (
 	"context"
@@ -15,42 +15,10 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
-)
-
-const (
-	componentName            = componentApi.KserveComponentName
-	authorinoOperator        = "authorino-operator"
-	serviceMeshOperator      = "servicemeshoperator"
-	serverlessOperator       = "serverless-operator"
-	kserveConfigMapName      = "inferenceservice-config"
-	kserveManifestSourcePath = "overlays/odh"
-
-	// LegacyComponentName is the name of the component that is assigned to deployments
-	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
-	// deployment to the new component name, so keep it around till we figure out a solution.
-	LegacyComponentName = "kserve"
-
-	ReadyConditionType = componentApi.KserveKind + status.ReadySuffix
-)
-
-var (
-	conditionTypes = []string{
-		status.ConditionServingAvailable,
-		status.ConditionDeploymentsAvailable,
-	}
-)
-
-var (
-	ErrServiceMeshNotConfigured        = odherrors.NewStopError(status.ServiceMeshNeedConfiguredMessage)
-	ErrServiceMeshMemberAPINotFound    = odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
-	ErrServiceMeshOperatorNotInstalled = odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
-	ErrServerlessOperatorNotInstalled  = odherrors.NewStopError(status.ServerlessOperatorNotInstalledMessage)
-	ErrServerlessUnsupportedCertType   = odherrors.NewStopError(status.ServerlessUnsupportedCertMessage)
 )
 
 type componentHandler struct{}
@@ -59,51 +27,48 @@ func init() { //nolint:gochecknoinits
 	cr.Add(&componentHandler{})
 }
 
-// Init to set oauth image.
-func (s *componentHandler) Init(platform common.Platform) error {
-	mp := kserveManifestInfo(kserveManifestSourcePath)
-
-	if err := odhdeploy.ApplyParams(mp.String(), imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", mp, err)
-	}
-	return nil
-}
-
 func (s *componentHandler) GetName() string {
-	return componentName
+	return componentApi.LlamaStackOperatorComponentName
 }
 
 func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	if dsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed {
+	if dsc.Spec.Components.LlamaStackOperator.ManagementState == operatorv1.Managed {
 		return operatorv1.Managed
 	}
 	return operatorv1.Removed
 }
 
-// for DSC to get compoment Kserve's CR.
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
-	return &componentApi.Kserve{
+	return &componentApi.LlamaStackOperator{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       componentApi.KserveKind,
+			Kind:       componentApi.LlamaStackOperatorKind,
 			APIVersion: componentApi.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.KserveInstanceName,
+			Name: componentApi.LlamaStackOperatorInstanceName,
 			Annotations: map[string]string{
 				annotations.ManagementStateAnnotation: string(s.GetManagementState(dsc)),
 			},
 		},
-		Spec: componentApi.KserveSpec{
-			KserveCommonSpec: dsc.Spec.Components.Kserve.KserveCommonSpec,
+		Spec: componentApi.LlamaStackOperatorSpec{
+			LlamaStackOperatorCommonSpec: dsc.Spec.Components.LlamaStackOperator.LlamaStackOperatorCommonSpec,
 		},
 	}
+}
+
+func (s *componentHandler) Init(p common.Platform) error {
+	if err := odhdeploy.ApplyParams(manifestPath(p).String(), imageParamMap); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", manifestPath(p), err)
+	}
+
+	return nil
 }
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
 
-	c := componentApi.Kserve{}
-	c.Name = componentApi.KserveInstanceName
+	c := componentApi.LlamaStackOperator{}
+	c.Name = componentApi.LlamaStackOperatorInstanceName
 
 	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&c), &c); err != nil && !k8serr.IsNotFound(err) {
 		return cs, nil
@@ -114,16 +79,16 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
-	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.Kserve.ManagementState = s.GetManagementState(dsc)
-	dsc.Status.Components.Kserve.KserveCommonStatus = nil
+	dsc.Status.InstalledComponents[ComponentName] = false
+	dsc.Status.Components.LlamaStackOperator.ManagementState = s.GetManagementState(dsc)
+	dsc.Status.Components.LlamaStackOperator.LlamaStackOperatorCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
-		dsc.Status.InstalledComponents[LegacyComponentName] = true
-		dsc.Status.Components.Kserve.KserveCommonStatus = c.Status.KserveCommonStatus.DeepCopy()
+		dsc.Status.InstalledComponents[ComponentName] = true
+		dsc.Status.Components.LlamaStackOperator.LlamaStackOperatorCommonStatus = c.Status.LlamaStackOperatorCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
 			rr.Conditions.MarkFrom(ReadyConditionType, *rc)

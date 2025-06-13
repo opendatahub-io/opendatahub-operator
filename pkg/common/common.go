@@ -57,11 +57,22 @@ func MatchLineInFile(fileName string, replacements map[string]string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
-	newContent := string(fileContent)
-	for matchPattern, NewValue := range replacements {
-		re := regexp.MustCompile(matchPattern + `(.*)`)
-		newContent = re.ReplaceAllString(newContent, NewValue)
+
+	// Pre-compile all regex patterns to avoid compilation in loop
+	compiledRegexes := make(map[*regexp.Regexp]string, len(replacements))
+	for matchPattern, newValue := range replacements {
+		re, err := regexp.Compile(matchPattern + `(.*)`)
+		if err != nil {
+			return fmt.Errorf("failed to compile regex pattern %q: %w", matchPattern, err)
+		}
+		compiledRegexes[re] = newValue
 	}
+
+	newContent := string(fileContent)
+	for re, newValue := range compiledRegexes {
+		newContent = re.ReplaceAllString(newContent, newValue)
+	}
+
 	err = os.WriteFile(fileName, []byte(newContent), 0)
 	if err != nil {
 		return fmt.Errorf("failed to write to file: %w", err)

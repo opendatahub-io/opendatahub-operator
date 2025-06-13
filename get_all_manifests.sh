@@ -6,21 +6,22 @@ GITHUB_URL="https://github.com"
 # COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
 # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
 declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-2.21:manifests"
-    ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.21:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.21:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-2.21:manifests"
-    ["modelmeshserving"]="red-hat-data-services:modelmesh-serving:rhoai-2.21:config"
-    ["kserve"]="red-hat-data-services:kserve:rhoai-2.21:config"
-    ["kueue"]="red-hat-data-services:kueue:rhoai-2.21:config"
-    ["codeflare"]="red-hat-data-services:codeflare-operator:rhoai-2.21:config"
-    ["ray"]="red-hat-data-services:kuberay:rhoai-2.21:ray-operator/config"
-    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-2.21:config"
-    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-2.21:config"
-    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-2.21:manifests"
-    ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-2.21:config"
-    ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-2.21:config"
-    ["feastoperator"]="red-hat-data-services:feast:rhoai-2.21:infra/feast-operator/config"
+    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-2.22:manifests"
+    ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.22:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.22:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-2.22:manifests"
+    ["modelmeshserving"]="red-hat-data-services:modelmesh-serving:rhoai-2.22:config"
+    ["kserve"]="red-hat-data-services:kserve:rhoai-2.22:config"
+    ["kueue"]="red-hat-data-services:kueue:rhoai-2.22:config"
+    ["codeflare"]="red-hat-data-services:codeflare-operator:rhoai-2.22:config"
+    ["ray"]="red-hat-data-services:kuberay:rhoai-2.22:ray-operator/config"
+    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-2.22:config"
+    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-2.22:config"
+    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-2.22:manifests"
+    ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-2.22:config"
+    ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-2.22:config"
+    ["feastoperator"]="red-hat-data-services:feast:rhoai-2.22:infra/feast-operator/config"
+    ["llamastackoperator"]="red-hat-data-services:llama-stack-k8s-operator:rhoai-2.22:config"
 )
 
 # Allow overwriting repo using flags component=repo
@@ -69,10 +70,11 @@ function git_fetch_ref()
     popd &>/dev/null
 }
 
-
-for key in "${!COMPONENT_MANIFESTS[@]}"; do
-    echo -e "\033[32mCloning repo \033[33m${key}\033[32m:\033[0m ${COMPONENT_MANIFESTS[$key]}"
-    IFS=':' read -r -a repo_info <<< "${COMPONENT_MANIFESTS[$key]}"
+download_manifest() {
+    local key=$1
+    local repo_info=$2
+    echo -e "\033[32mCloning repo \033[33m${key}\033[32m:\033[0m ${repo_info}"
+    IFS=':' read -r -a repo_info <<< "${repo_info}"
 
     repo_org="${repo_info[0]}"
     repo_name="${repo_info[1]}"
@@ -87,5 +89,22 @@ for key in "${!COMPONENT_MANIFESTS[@]}"; do
 
     mkdir -p ./opt/manifests/${target_path}
     cp -rf ${repo_dir}/${source_path}/* ./opt/manifests/${target_path}
+}
 
+# Track background job PIDs +declare -a pids=()
+# Use parallel processing
+for key in "${!COMPONENT_MANIFESTS[@]}"; do
+    download_manifest "$key" "${COMPONENT_MANIFESTS[$key]}" &
+    pids+=($!)
 done
+# Wait and check exit codes
+failed=0
+for pid in "${pids[@]}"; do
+    if ! wait "$pid"; then
+        failed=1
+    fi
+done
+if [ $failed -eq 1 ]; then
+    echo "One or more downloads failed"
+    exit 1
+fi
