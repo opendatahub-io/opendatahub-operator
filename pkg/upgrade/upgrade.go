@@ -395,7 +395,7 @@ func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) e
 	err := c.List(ctx, list, client.InNamespace(res.Namespace))
 	if err != nil {
 		if errors.Is(err, &meta.NoKindMatchError{}) {
-			log.Info("CRD not found, will not delete " + res.Gvk.String())
+			log.Info("CRD not found, will not delete", "gvk", res.Gvk.String())
 			return nil
 		}
 		return fmt.Errorf("failed to list %s: %w", res.Gvk.Kind, err)
@@ -417,7 +417,7 @@ func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) e
 				if err != nil {
 					return fmt.Errorf("failed to delete %s %s/%s: %w", res.Gvk.Kind, res.Namespace, item.GetName(), err)
 				}
-				log.Info("Deleted object " + item.GetName() + " " + res.Gvk.String() + "in namespace" + res.Namespace)
+				log.Info("Deleted object", "name", item.GetName(), "gvk", res.Gvk.String(), "namespace", res.Namespace)
 			}
 		}
 	}
@@ -437,16 +437,16 @@ func deleteDeprecatedResources(ctx context.Context, cli client.Client, namespace
 		item := items.Index(i).Addr().Interface().(client.Object) //nolint:errcheck,forcetypeassert
 		for _, name := range resourceList {
 			if name == item.GetName() {
-				log.Info("Attempting to delete " + item.GetName() + " in namespace " + namespace)
+				log.Info("Attempting to delete", "name", item.GetName(), "namespace", namespace)
 				err := cli.Delete(ctx, item)
 				if err != nil {
 					if k8serr.IsNotFound(err) {
-						log.Info("Could not find " + item.GetName() + " in namespace " + namespace)
+						log.Info("Could not find", "name", item.GetName(), "namespace", namespace)
 					} else {
 						multiErr = multierror.Append(multiErr, err)
 					}
 				}
-				log.Info("Successfully deleted " + item.GetName())
+				log.Info("Successfully deleted", "name", item.GetName())
 			}
 		}
 	}
@@ -521,7 +521,7 @@ func updateODCBiasMetrics(ctx context.Context, cli client.Client, instanceName s
 	// "from version" as oldRelease, if return "0.0.0" meaning running on 2.10- release/dummy CI build
 	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip disableBiasMetrics to false (even the field did not exist)
 	if oldRelease.Version.Minor < 14 {
-		log.Info("Upgrade force BiasMetrics to false in " + instanceName + " CR due to old release < 2.14.0")
+		log.Info("Upgrade force BiasMetrics to false due to old release < 2.14.0", "instance", instanceName)
 		// flip TrustyAI BiasMetrics to false (.spec.dashboardConfig.disableBiasMetrics)
 		disableBiasMetricsValue := []byte(`{"spec": {"dashboardConfig": {"disableBiasMetrics": false}}}`)
 		if err := cli.Patch(ctx, odhObject, client.RawPatch(types.MergePatchType, disableBiasMetricsValue)); err != nil {
@@ -538,7 +538,7 @@ func updateODCModelRegistry(ctx context.Context, cli client.Client, instanceName
 	// "from version" as oldRelease, if return "0.0.0" meaning running on 2.10- release/dummy CI build
 	// if oldRelease is lower than 2.14.0(e.g 2.13.x-a), flip disableModelRegistry to false (even the field did not exist)
 	if oldRelease.Version.Minor < 14 {
-		log.Info("Upgrade force ModelRegistry to false in " + instanceName + " CR due to old release < 2.14.0")
+		log.Info("Upgrade force ModelRegistry to false due to old release < 2.14.0", "instance", instanceName)
 		disableModelRegistryValue := []byte(`{"spec": {"dashboardConfig": {"disableModelRegistry": false}}}`)
 		if err := cli.Patch(ctx, odhObject, client.RawPatch(types.MergePatchType, disableModelRegistryValue)); err != nil {
 			return fmt.Errorf("error enable ModelRegistry in CR %s : %w", instanceName, err)
@@ -660,15 +660,15 @@ func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease co
 		for _, delObj := range deleteObjs {
 			if gErr := cli.Get(ctx, types.NamespacedName{Name: delObj.name, Namespace: applicationNS}, delObj.obj); gErr != nil {
 				if !k8serr.IsNotFound(gErr) {
-					log.V(1).Error(gErr, fmt.Sprintf("failed to get NIM %s %s", delObj.desc, delObj.name))
+					log.V(1).Error(gErr, "failed to get NIM", "desc", delObj.desc, "name", delObj.name)
 					errs = multierror.Append(errs, gErr)
 				}
 			} else {
 				if dErr := cli.Delete(ctx, delObj.obj); dErr != nil {
-					log.Error(dErr, fmt.Sprintf("failed to remove NIM %s %s", delObj.desc, delObj.name))
+					log.Error(dErr, "failed to remove NIM", "desc", delObj.desc, "name", delObj.name)
 					errs = multierror.Append(errs, dErr)
 				} else {
-					log.Info(fmt.Sprintf("removed NIM %s successfully", delObj.desc))
+					log.Info("removed NIM successfully", "desc", delObj.desc)
 				}
 			}
 		}
