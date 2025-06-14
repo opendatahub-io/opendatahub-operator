@@ -4,4 +4,7 @@ package webhook
 
 import ctrl "sigs.k8s.io/controller-runtime"
 
-func Init(mgr ctrl.Manager) {}
+// RegisterWebhooks is a no-op stub for builds without webhooks.
+func RegisterAllWebhooks(mgr ctrl.Manager) error {
+	return nil
+}
