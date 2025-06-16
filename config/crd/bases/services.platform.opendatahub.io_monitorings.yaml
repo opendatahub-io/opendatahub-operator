@@ -60,15 +60,19 @@ spec:
                       requests and limits for the monitoring service
                     properties:
                       cpulimit:
+                        default: "500"
                         description: CPU limit for the monitoring service
                         type: string
                       cpurequest:
+                        default: "100"
                         description: CPU request for the monitoring service
                         type: string
                       memorylimit:
+                        default: "512"
                         description: Memory limit for the monitoring service
                         type: string
                       memoryrequest:
+                        default: "256"
                         description: Memory request for the monitoring service
                         type: string
                     type: object
@@ -77,9 +81,11 @@ spec:
                       for the monitoring service
                     properties:
                       retention:
+                        default: 1
                         description: Retention of the storage in days
                         type: integer
                       size:
+                        default: 5
                         description: Size of the storage in Gi
                         type: integer
                     type: object
@@ -95,6 +101,44 @@ spec:
                 x-kubernetes-validations:
                 - message: MonitoringNamespace is immutable
                   rule: self == oldSelf
+              traces:
+                properties:
+                  storage:
+                    description: TracesStorage defines the storage configuration for
+                      tracing.
+                    properties:
+                      backend:
+                        default: pv
+                        description: |-
+                          Backend defines the storage backend type.
+                          Valid values are "pv", "s3", and "gcs".
+                        enum:
+                        - pv
+                        - s3
+                        - gcs
+                        type: string
+                      secret:
+                        description: |-
+                          Secret specifies the secret name for storage credentials.
+                          This field is required when the backend is not "pv".
+                        type: string
+                      size:
+                        description: |-
+                          Size specifies the size of the storage.
+                          This field is optional.
+                        type: string
+                    required:
+                    - backend
+                    type: object
+                    x-kubernetes-validations:
+                    - message: When backend is not 'pv', the 'secret' field must be
+                        specified and non-empty
+                      rule: 'self.backend != ''pv'' ? has(self.secret) : true'
+                    - message: Size is not supported when backend is not 'pv'
+                      rule: 'self.backend != ''pv'' ? !has(self.size) : true'
+                required:
+                - storage
+                type: object
             type: object
           status:
             description: MonitoringStatus defines the observed state of Monitoring

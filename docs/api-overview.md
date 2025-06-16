@@ -2631,6 +2631,7 @@ _Appears in:_
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
+| `traces` _[Traces](#traces)_ |  |  |  |
 
 
 #### Metrics
@@ -2665,10 +2666,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `cpulimit` _string_ | CPU limit for the monitoring service |  |  |
-| `memorylimit` _string_ | Memory limit for the monitoring service |  |  |
-| `cpurequest` _string_ | CPU request for the monitoring service |  |  |
-| `memoryrequest` _string_ | Memory request for the monitoring service |  |  |
+| `cpulimit` _string_ | CPU limit for the monitoring service | 500 |  |
+| `memorylimit` _string_ | Memory limit for the monitoring service | 512 |  |
+| `cpurequest` _string_ | CPU request for the monitoring service | 100 |  |
+| `memoryrequest` _string_ | Memory request for the monitoring service | 256 |  |
 
 
 #### MetricsStorage
@@ -2684,8 +2685,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `size` _integer_ | Size of the storage in Gi |  |  |
-| `retention` _integer_ | Retention of the storage in days |  |  |
+| `size` _integer_ | Size of the storage in Gi | 5 |  |
+| `retention` _integer_ | Retention of the storage in days | 1 |  |
 
 
 #### Monitoring
@@ -2726,6 +2727,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
+| `traces` _[Traces](#traces)_ |  |  |  |
 
 
 #### MonitoringList
@@ -2763,6 +2765,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
+| `traces` _[Traces](#traces)_ |  |  |  |
 
 
 #### MonitoringStatus
@@ -2782,5 +2785,41 @@ _Appears in:_
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `url` _string_ |  |  |  |
+
+
+#### Traces
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
+- [MonitoringSpec](#monitoringspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `storage` _[TracesStorage](#tracesstorage)_ |  |  |  |
+
+
+#### TracesStorage
+
+
+
+TracesStorage defines the storage configuration for tracing.
+
+
+
+_Appears in:_
+- [Traces](#traces)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `backend` _string_ | Backend defines the storage backend type.<br />Valid values are "pv", "s3", and "gcs". | pv | Enum: [pv s3 gcs] <br /> |
+| `size` _string_ | Size specifies the size of the storage.<br />This field is optional. |  |  |
+| `secret` _string_ | Secret specifies the secret name for storage credentials.<br />This field is required when the backend is not "pv". |  |  |
 
 

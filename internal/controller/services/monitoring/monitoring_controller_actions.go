@@ -7,6 +7,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
@@ -89,7 +90,7 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 			// add
 			return updatePrometheusConfig(ctx, true, componentRules[ch.GetName()])
 		default:
-			return fmt.Errorf("unsuported management state %s", ms)
+			return fmt.Errorf("unsupported management state %s", ms)
 		}
 	})
 }
@@ -107,7 +108,8 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 
 	msExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack)
 	if !msExists {
-		return errors.New("MonitoringStack CRD not found")
+		// CRD not available, skip monitoring stack deployment (this is expected when monitoring operator is not installed)
+		return nil
 	}
 	if monitoring.Spec.Metrics != nil {
 		template := []odhtypes.TemplateInfo{
@@ -134,4 +136,57 @@ func checkDSCI(ctx context.Context, rr *odhtypes.ReconciliationRequest) (bool, *
 	}
 
 	return true, dsci, nil
+}
+
+// deployTempo creates Tempo resources based on the Monitoring CR configuration.
+func deployTempo(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	// Read traces configuration directly from Monitoring CR
+	if monitoring.Spec.Traces == nil {
+		// No traces configuration - GC action will clean up any existing Tempo resources
+		return nil
+	}
+
+	traces := monitoring.Spec.Traces
+
+	var requiredCRD schema.GroupVersionKind
+	if traces.Storage.Backend == "pv" {
+		requiredCRD = gvk.TempoMonolithic
+	} else {
+		requiredCRD = gvk.TempoStack
+	}
+
+	crdExists, err := cluster.HasCRD(ctx, rr.Client, requiredCRD)
+	if !crdExists {
+		// CRD not available, skip tempo deployment (this is expected when tempo operator is not installed)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD exists: %w", err)
+	}
+
+	// Add the appropriate template based on backend type
+	if traces.Storage.Backend == "pv" {
+		template := []odhtypes.TemplateInfo{
+			{
+				FS:   resourcesFS,
+				Path: TempoMonolithicTemplate,
+			},
+		}
+		rr.Templates = append(rr.Templates, template...)
+	} else {
+		template := []odhtypes.TemplateInfo{
+			{
+				FS:   resourcesFS,
+				Path: TempoStackTemplate,
+			},
+		}
+		rr.Templates = append(rr.Templates, template...)
+	}
+
+	return nil
 }
