@@ -8,6 +8,7 @@ import (
 	authwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/auth"
 	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
 	dsciwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
+	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 )
 
 // RegisterAllWebhooks registers all webhook setup functions with the given manager.
@@ -16,6 +17,7 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 	webhookRegistrations := []func(ctrl.Manager) error{
 		dscwebhook.RegisterWebhooks,
 		dsciwebhook.RegisterWebhooks,
+		kueuewebhook.RegisterWebhooks,
 		authwebhook.RegisterWebhooks,
 	}
 	for _, reg := range webhookRegistrations {
