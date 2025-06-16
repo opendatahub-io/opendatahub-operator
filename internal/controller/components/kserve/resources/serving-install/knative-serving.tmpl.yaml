@@ -35,5 +35,6 @@ spec:
       kubernetes.podspec-tolerations: enabled
       kubernetes.podspec-persistent-volume-write: enabled
       kubernetes.podspec-persistent-volume-claim: enabled
+      kubernetes.podspec-schedulername: enabled
     istio:
       local-gateway.knative-serving.knative-local-gateway: "knative-local-gateway.{{ .ControlPlane.Namespace }}.svc.cluster.local"
