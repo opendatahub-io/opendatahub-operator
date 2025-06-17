@@ -146,10 +146,12 @@ const (
 )
 
 const (
-	DataSciencePipelinesDoesntOwnArgoCRDReason = "DataSciencePipelinesDoesntOwnArgoCRD"
+	DataSciencePipelinesDoesntOwnArgoCRDReason        = "DataSciencePipelinesDoesntOwnArgoCRD"
+	DataSciencePipelinesArgoWorkflowsNotManagedReason = "DataSciencePipelinesArgoWorkflowsNotManaged"
 
 	DataSciencePipelinesDoesntOwnArgoCRDMessage = "Failed upgrade: workflows.argoproj.io CRD already exists but not deployed by this operator " +
 		"remove existing Argo workflows or set `spec.components.datasciencepipelines.managementState` to Removed to proceed"
+	DataSciencePipelinesArgoWorkflowsNotManagedMessage = "Argo Workflows controllers are not managed by this operator"
 )
 
 // For Kueue MultiKueue CRD.
