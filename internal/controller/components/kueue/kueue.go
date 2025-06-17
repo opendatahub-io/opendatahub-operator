@@ -41,14 +41,6 @@ func (s *componentHandler) GetName() string {
 	return componentApi.KueueComponentName
 }
 
-func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	state := dsc.Spec.Components.Kueue.ManagementState
-	if state == operatorv1.Unmanaged || state == operatorv1.Managed {
-		return operatorv1.Managed
-	}
-	return state
-}
-
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
 	return &componentApi.Kueue{
 		TypeMeta: metav1.TypeMeta{
@@ -76,6 +68,17 @@ func (s *componentHandler) Init(platform common.Platform) error {
 	return nil
 }
 
+func (s *componentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool {
+	switch dsc.Spec.Components.Kueue.ManagementState {
+	case operatorv1.Managed:
+		return true
+	case operatorv1.Unmanaged:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
 
@@ -92,13 +95,12 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.Kueue.ManagementState = s.GetManagementState(dsc)
+	dsc.Status.Components.Kueue.ManagementState = dsc.Spec.Components.Kueue.ManagementState
 	dsc.Status.Components.Kueue.KueueCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
-	switch s.GetManagementState(dsc) {
-	case operatorv1.Managed, operatorv1.Unmanaged:
+	if s.IsEnabled(dsc) {
 		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.Kueue.KueueCommonStatus = c.Status.KueueCommonStatus.DeepCopy()
 
@@ -108,17 +110,13 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		} else {
 			cs = metav1.ConditionFalse
 		}
-
-	case operatorv1.Removed:
+	} else {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
-			conditions.WithReason(string(operatorv1.Removed)),
-			conditions.WithMessage("Component ManagementState is set to %s", operatorv1.Removed),
+			conditions.WithReason(string(dsc.Spec.Components.Kueue.ManagementState)),
+			conditions.WithMessage("Component ManagementState is set to %s", dsc.Spec.Components.Kueue.ManagementState),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
-
-	default:
-		return cs, fmt.Errorf("unknown state %s ", s.GetManagementState(dsc))
 	}
 
 	return cs, nil

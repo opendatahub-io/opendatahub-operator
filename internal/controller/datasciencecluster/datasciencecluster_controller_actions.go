@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -86,8 +85,7 @@ func provisionComponents(_ context.Context, rr *odhtype.ReconciliationRequest) e
 	rr.Generated = true
 
 	err := cr.ForEach(func(component cr.ComponentHandler) error {
-		ms := component.GetManagementState(instance)
-		if ms != operatorv1.Managed && ms != operatorv1.Unmanaged {
+		if !component.IsEnabled(instance) {
 			return nil
 		}
 

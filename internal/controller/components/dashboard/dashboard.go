@@ -31,13 +31,6 @@ func (s *componentHandler) GetName() string {
 	return componentApi.DashboardComponentName
 }
 
-func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	if dsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed {
-		return operatorv1.Managed
-	}
-	return operatorv1.Removed
-}
-
 func (s *componentHandler) Init(platform common.Platform) error {
 	mi := defaultManifestInfo(platform)
 
@@ -57,13 +50,17 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 		ObjectMeta: metav1.ObjectMeta{
 			Name: componentApi.DashboardInstanceName,
 			Annotations: map[string]string{
-				annotations.ManagementStateAnnotation: string(s.GetManagementState(dsc)),
+				annotations.ManagementStateAnnotation: string(dsc.Spec.Components.Dashboard.ManagementState),
 			},
 		},
 		Spec: componentApi.DashboardSpec{
 			DashboardCommonSpec: dsc.Spec.Components.Dashboard.DashboardCommonSpec,
 		},
 	}
+}
+
+func (s *componentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool {
+	return dsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
 }
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
@@ -82,13 +79,12 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	dsc.Status.InstalledComponents[LegacyComponentNameUpstream] = false
-	dsc.Status.Components.Dashboard.ManagementState = s.GetManagementState(dsc)
+	dsc.Status.Components.Dashboard.ManagementState = dsc.Spec.Components.Dashboard.ManagementState
 	dsc.Status.Components.Dashboard.DashboardCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
-	switch s.GetManagementState(dsc) {
-	case operatorv1.Managed:
+	if s.IsEnabled(dsc) {
 		dsc.Status.InstalledComponents[LegacyComponentNameUpstream] = true
 		dsc.Status.Components.Dashboard.DashboardCommonStatus = c.Status.DashboardCommonStatus.DeepCopy()
 
@@ -98,17 +94,13 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		} else {
 			cs = metav1.ConditionFalse
 		}
-
-	case operatorv1.Removed:
+	} else {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
-			conditions.WithReason(string(operatorv1.Removed)),
-			conditions.WithMessage("Component ManagementState is set to %s", operatorv1.Removed),
+			conditions.WithReason(string(dsc.Spec.Components.Dashboard.ManagementState)),
+			conditions.WithMessage("Component ManagementState is set to %s", dsc.Spec.Components.Dashboard.ManagementState),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
-
-	default:
-		return cs, fmt.Errorf("unknown state %s ", s.GetManagementState(dsc))
 	}
 
 	return cs, nil
