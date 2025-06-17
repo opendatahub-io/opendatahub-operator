@@ -1,0 +1,84 @@
+name: Integration tests - build images
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '.github/**'
+      - '**.md'
+      - 'Makefile'
+      - 'OWNERS'
+      - 'OWNERS_ALIASES'
+      - 'PROJECT'
+
+env:
+  IMAGE_TAG_BASE: quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator
+  PR_NUMBER: ${{ github.event.number }}
+  TAG: pr-${{ github.event.number }}
+jobs:
+  validate-and-build:
+    name: Validate user and build images
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_BUILDER: podman
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: '0'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Get latest release version
+        env:
+          OPERATOR_REPOSITORY_NAME: opendatahub-io/opendatahub-operator
+        run: |
+          version_tag=$(curl -s https://api.github.com/repos/${OPERATOR_REPOSITORY_NAME}/releases/latest | jq -r .tag_name)
+          echo "VERSION_TAG=${version_tag:1}-${{ env.TAG }}" >> $GITHUB_ENV
+
+      - name: Build operator image
+        env:
+          IMG: ${{ env.IMAGE_TAG_BASE }}:v${VERSION_TAG}
+        run:
+          make image-build IMG=${{ env.IMG }} -e CGO_ENABLED=0
+
+      - name: Build bundle image
+        env:
+          IMG_TAG: v${VERSION_TAG}
+          VERSION: ${VERSION_TAG}
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${VERSION_TAG}
+        run:
+          make bundle-build IMG_TAG=${{ env.IMG_TAG }} VERSION=${{ env.VERSION }} BUNDLE_IMG=${{ env.BUNDLE_IMG }}
+
+      - name: Podman save
+        env:
+          IMG: ${{ env.IMAGE_TAG_BASE }}:v${VERSION_TAG}
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${VERSION_TAG}
+        run:
+          podman save --output operator_images ${{ env.IMG }} ${{ env.BUNDLE_IMG }}
+
+      - name: Upload images as artifact
+        id: operator-images-artifact-upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: operator-images
+          path: |
+            ./operator_images
+          retention-days: 1
+
+      - name: Save tag variables
+        run: |
+          echo $VERSION_TAG >> tag_vars.txt
+          echo $TAG >> tag_vars.txt
+
+      - name: Upload tag variables as artifact
+        id: tag-vars-artifact-upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: tag-vars
+          path: |
+            ./tag_vars.txt
+          retention-days: 1
