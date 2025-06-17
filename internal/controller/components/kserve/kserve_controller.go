@@ -113,7 +113,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Watches(
 			&dsciv1.DSCInitialization{},
 			reconciler.WithEventHandler(handlers.ToNamed(componentApi.KserveInstanceName)),
-			reconciler.WithPredicates(predicate.Or(generation.New(), resources.DSCIReadiness)),
+			reconciler.WithPredicates(predicate.Or(generation.New(), resources.DSCIReadiness, resources.DSCIServiceMeshCondition)),
 		).
 		WatchesGVK(
 			gvk.OperatorCondition,
