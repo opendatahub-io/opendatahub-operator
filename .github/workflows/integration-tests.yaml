@@ -1,6 +1,6 @@
 name: Integration tests
 on:
-  pull_request:
+  pull_request_target:
     paths-ignore:
       - 'docs/**'
       - '.github/**'
@@ -20,6 +20,19 @@ jobs:
     env:
       IMAGE_BUILDER: podman
     steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify PR author and fork repo
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          FORK_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        shell: bash
+        run: |
+          set -e
+          python ./.github/scripts/verify_pr_author.py
+
       - name: Quay.io login
         uses: redhat-actions/podman-login@v1
         env:
@@ -29,9 +42,6 @@ jobs:
           registry: quay.io
           username: ${{ env.QUAY_ID }}
           password: ${{ env.QUAY_TOKEN }}
-
-      - name: Checkout
-        uses: actions/checkout@v4
 
       - name: Setup Go
         uses: actions/setup-go@v5
