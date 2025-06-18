@@ -19,7 +19,9 @@ package datasciencepipelines
 import (
 	"context"
 	"fmt"
+	"path"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -33,6 +35,22 @@ import (
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines)", rr.Instance)
+	}
+
+	awfSpec := dsp.Spec.ArgoWorkflowsControllers
+
+	if awfSpec != nil && awfSpec.ManagementState == operatorv1.Removed {
+		rr.Conditions.MarkTrue(status.ConditionArgoWorkflowAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithReason(status.DataSciencePipelinesArgoWorkflowsNotManagedReason),
+			conditions.WithMessage(status.DataSciencePipelinesArgoWorkflowsNotManagedMessage),
+		)
+		return nil
+	}
+
 	rr.Conditions.MarkTrue(status.ConditionArgoWorkflowAvailable)
 
 	crd, err := cluster.GetCRD(ctx, rr.Client, ArgoWorkflowCRD)
@@ -97,6 +115,26 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 			rr.Manifests[0].ContextDir = ComponentName
 			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
 		}
+	}
+
+	return nil
+}
+
+func argoWorkflowsControllersOptions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines)", rr.Instance)
+	}
+
+	extraParams, err := getExtraParams(dsp)
+	if err != nil {
+		return fmt.Errorf("failed to get extra params: %w", err)
+	}
+
+	paramsPath := path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
+
+	if err := odhdeploy.ApplyParams(paramsPath, imageParamMap, extraParams); err != nil {
+		return fmt.Errorf("failed to update params.env: %w", err)
 	}
 
 	return nil

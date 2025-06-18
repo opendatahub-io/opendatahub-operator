@@ -2,6 +2,7 @@ package datasciencepipelines
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -40,13 +41,40 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 	return operatorv1.Removed
 }
 
-func (s *componentHandler) Init(_ common.Platform) error {
+func getExtraParams(dsp *componentApi.DataSciencePipelines) (map[string]string, error) {
+	var awfSpec *componentApi.ArgoWorkflowsControllersSpec
+
+	if dsp != nil && dsp.Spec.ArgoWorkflowsControllers != nil {
+		awfSpec = dsp.Spec.ArgoWorkflowsControllers
+	} else {
+		awfSpec = &componentApi.ArgoWorkflowsControllersSpec{
+			ManagementState: operatorv1.Managed,
+		}
+	}
+
+	awfSpecJSON, err := json.Marshal(awfSpec)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal spec.argoWorkflowsControllers: %w", err)
+	}
+
 	release := cluster.GetRelease()
 	clusterInfo := cluster.GetClusterInfo()
+
 	extraParams := map[string]string{
-		platformVersionParamsKey: release.Version.String(),
-		fipsEnabledParamsKey:     strconv.FormatBool(clusterInfo.FipsEnabled),
+		platformVersionParamsKey:          release.Version.String(),
+		fipsEnabledParamsKey:              strconv.FormatBool(clusterInfo.FipsEnabled),
+		argoWorkflowsControllersParamsKey: string(awfSpecJSON),
 	}
+
+	return extraParams, nil
+}
+
+func (s *componentHandler) Init(_ common.Platform) error {
+	extraParams, err := getExtraParams(nil)
+	if err != nil {
+		return fmt.Errorf("failed to get extra params: %w", err)
+	}
+
 	if err := deploy.ApplyParams(paramsPath, imageParamMap, extraParams); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", paramsPath, err)
 	}

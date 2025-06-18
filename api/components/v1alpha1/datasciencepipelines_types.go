@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -52,8 +53,25 @@ type DataSciencePipelinesSpec struct {
 	DataSciencePipelinesCommonSpec `json:",inline"`
 }
 
+type ArgoWorkflowsControllersSpec struct {
+	// Set to one of the following values:
+	//
+	// - "Managed" : the operator is actively managing the bundled Argo Workflows controllers.
+	//               It will only upgrade the Argo Workflows controllers if it is safe to do so. This is the default
+	//               behavior.
+	//
+	// - "Removed" : the operator is not managing the bundled Argo Workflows controllers and will not install it.
+	//               If it is installed, the operator will remove it but will not remove other Argo Workflows
+	//               installations.
+	//
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Managed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+}
+
 type DataSciencePipelinesCommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
+	common.DevFlagsSpec      `json:",inline"`
+	ArgoWorkflowsControllers *ArgoWorkflowsControllersSpec `json:"argoWorkflowsControllers,omitempty"`
 }
 
 // DataSciencePipelinesCommonStatus defines the shared observed state of DataSciencePipelines
