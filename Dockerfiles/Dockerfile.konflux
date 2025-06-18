@@ -34,9 +34,12 @@ COPY config/monitoring/ /opt/manifests/monitoring/
 # Copy ods-configs
 COPY config/osd-configs/ /opt/manifests/osd-configs/
 
+# Clean up unwanted directories and files from manifests
+RUN rm -rf /opt/manifests/*/e2e /opt/manifests/*/scorecard /opt/manifests/*/test /opt/manifests/*/samples /opt/manifests/*/example-* \
+    && find /opt/manifests -name "README.md" -delete
 
-# Build
-RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOEXPERIMENT=strictfipsruntime go build -a -tags strictfipsruntime -o manager cmd/main.go
+# Build stripe out debug info to minimize binary size
+RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOEXPERIMENT=strictfipsruntime go build -a -ldflags="-s -w" -o manager cmd/main.go
 
 ################################################################################
 FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:f172b3082a3d1bbe789a1057f03883c1113243564f01cd3020e27548b911d3f8
