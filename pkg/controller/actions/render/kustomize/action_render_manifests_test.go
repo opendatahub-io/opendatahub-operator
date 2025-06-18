@@ -116,6 +116,7 @@ func TestRenderResourcesAction(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := kustomize.NewAction(
+		kustomize.WithCache(false),
 		kustomize.WithLabel("component.opendatahub.io/name", "foo"),
 		kustomize.WithLabel("platform.opendatahub.io/namespace", ns),
 		kustomize.WithAnnotation("platform.opendatahub.io/release", "1.2.3"),
@@ -126,27 +127,37 @@ func TestRenderResourcesAction(t *testing.T) {
 		),
 	)
 
-	rr := types.ReconciliationRequest{
-		Client:    cl,
-		Instance:  &componentApi.Dashboard{},
-		DSCI:      &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
-		Release:   common.Release{Name: cluster.OpenDataHub},
-		Manifests: []types.ManifestInfo{{Path: id}},
+	render.RenderedResourcesTotal.Reset()
+
+	// run the renderer in a loop to ensure the cache is off, and the
+	// manifests are re-rendered on each iteration
+	for i := 1; i < 3; i++ {
+		rr := types.ReconciliationRequest{
+			Client:    cl,
+			Instance:  &componentApi.Dashboard{},
+			DSCI:      &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+			Release:   common.Release{Name: cluster.OpenDataHub},
+			Manifests: []types.ManifestInfo{{Path: id}},
+		}
+
+		err = action(ctx, &rr)
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(rr.Generated).Should(BeTrue())
+		g.Expect(rr.Resources).Should(And(
+			HaveLen(4),
+			HaveEach(And(
+				jq.Match(`.metadata.namespace == "%s"`, ns),
+				jq.Match(`.metadata.labels."component.opendatahub.io/name" == "%s"`, "foo"),
+				jq.Match(`.metadata.labels."platform.opendatahub.io/namespace" == "%s"`, ns),
+				jq.Match(`.metadata.annotations."platform.opendatahub.io/release" == "%s"`, "1.2.3"),
+				jq.Match(`.metadata.annotations."platform.opendatahub.io/type" == "%s"`, "managed"),
+			)),
+		))
+
+		rc := testutil.ToFloat64(render.RenderedResourcesTotal)
+		g.Expect(rc).Should(BeNumerically("==", 4*i))
 	}
-
-	err = action(ctx, &rr)
-
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(rr.Resources).Should(And(
-		HaveLen(4),
-		HaveEach(And(
-			jq.Match(`.metadata.namespace == "%s"`, ns),
-			jq.Match(`.metadata.labels."component.opendatahub.io/name" == "%s"`, "foo"),
-			jq.Match(`.metadata.labels."platform.opendatahub.io/namespace" == "%s"`, ns),
-			jq.Match(`.metadata.annotations."platform.opendatahub.io/release" == "%s"`, "1.2.3"),
-			jq.Match(`.metadata.annotations."platform.opendatahub.io/type" == "%s"`, "managed"),
-		)),
-	))
 }
 
 const testRenderResourcesWithCacheKustomization = `
@@ -192,7 +203,6 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := kustomize.NewAction(
-		kustomize.WithCache(),
 		kustomize.WithLabel(labels.PlatformPartOf, "foo"),
 		kustomize.WithLabel("platform.opendatahub.io/namespace", ns),
 		kustomize.WithAnnotation("platform.opendatahub.io/release", "1.2.3"),
@@ -239,10 +249,13 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 		switch i {
 		case 0:
 			g.Expect(rc).Should(BeNumerically("==", 1))
+			g.Expect(rr.Generated).Should(BeTrue())
 		case 1:
 			g.Expect(rc).Should(BeNumerically("==", 2))
+			g.Expect(rr.Generated).Should(BeTrue())
 		case 2:
 			g.Expect(rc).Should(BeNumerically("==", 2))
+			g.Expect(rr.Generated).Should(BeFalse())
 		}
 	}
 }
