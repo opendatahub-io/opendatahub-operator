@@ -100,7 +100,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(setKustomizedParams).
 		WithAction(configureDependencies).
 		WithAction(kustomize.NewAction(
-			kustomize.WithCache(),
 			// Those are the default labels added by the legacy deploy method
 			// and should be preserved as the original plugin were affecting
 			// deployment selectors that are immutable once created, so it won't
@@ -113,9 +112,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
 		WithAction(customizeResources).
-		WithAction(deploy.NewAction(
-			deploy.WithCache(),
-		)).
+		WithAction(deploy.NewAction()).
 		WithAction(deployments.NewAction()).
 		WithAction(reconcileHardwareProfiles).
 		WithAction(updateStatus).
