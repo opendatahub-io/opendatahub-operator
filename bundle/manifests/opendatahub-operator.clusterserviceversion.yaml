@@ -1315,7 +1315,7 @@ spec:
           name: opendatahub-operator
         name: opendatahub-operator-controller-manager
         spec:
-          replicas: 1
+          replicas: 3
           selector:
             matchLabels:
               control-plane: controller-manager
