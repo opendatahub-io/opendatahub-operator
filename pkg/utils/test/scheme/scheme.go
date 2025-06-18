@@ -35,7 +35,6 @@ var (
 		oauthv1.AddToScheme,
 		ofapiv2.AddToScheme,
 		coordinationv1.AddToScheme,
-		apiextensionsv1.AddToScheme,
 		serviceApi.AddToScheme,
 		admissionv1.AddToScheme,
 	}
