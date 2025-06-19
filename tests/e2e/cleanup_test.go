@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,6 +34,36 @@ func cleanupListResources(t *testing.T, tc *TestContext, kind schema.GroupVersio
 		for _, res := range list {
 			cleanupResource(t, tc, kind, types.NamespacedName{Name: res.GetName()}, label)
 		}
+	}
+}
+
+// uninstallOperator delete an operator install subscription for the stable channel if exists.
+func uninstallOperator(t *testing.T, tc *TestContext, operatorName string, operatorNamespace string) { //nolint:thelper
+	uninstallOperatorWithChannel(t, tc, operatorName, operatorNamespace, defaultOperatorChannel)
+}
+
+// uninstallOperatorWithChannel delete an operator install subscription to a specific channel if exists.
+func uninstallOperatorWithChannel(t *testing.T, tc *TestContext, operatorName string, operatorNamespace string, channel string) { //nolint:thelper,unparam
+	if found, err := tc.CheckOperatorExists(operatorName); found && err == nil {
+		t.Logf("Deleting %s", operatorName)
+		namespacedName := types.NamespacedName{Name: operatorName, Namespace: operatorNamespace}
+		ro := tc.NewResourceOptions(WithMinimalObject(gvk.Subscription, namespacedName))
+		kueueOcpOperatorSubscription, _ := tc.ensureResourceExistsOrNil(ro)
+
+		if kueueOcpOperatorSubscription != nil {
+			csv, found, err := unstructured.NestedString(kueueOcpOperatorSubscription.UnstructuredContent(), "status", "currentCSV")
+			if !found || err != nil {
+				t.Logf("subscription %v for kueue operator found, .status.currentCSV expected to be present: %v with no error, Error: %v", kueueOcpOperatorSubscription, csv, err)
+				tc.DeleteResource(WithMinimalObject(gvk.Subscription, namespacedName))
+			} else {
+				tc.DeleteResource(WithMinimalObject(gvk.Subscription, namespacedName))
+				tc.DeleteResource(WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Name: csv, Namespace: kueueOcpOperatorSubscription.GetNamespace()}))
+			}
+
+			tc.DeleteResource(
+				WithMinimalObject(gvk.Subscription, types.NamespacedName{Name: kueueOcpOperatorSubscription.GetName(), Namespace: kueueOcpOperatorSubscription.GetNamespace()}))
+		}
+		t.Logf("Deleted %s", operatorName)
 	}
 }
 
@@ -66,4 +97,7 @@ func CleanupDefaultResources(t *testing.T) {
 		Name:      serviceApi.AuthInstanceName,
 		Namespace: tc.AppsNamespace,
 	}, "AuthConfig")
+
+	// Uninstall ocp kueue operator if present
+	uninstallOperatorWithChannel(t, tc, kueueOpName, kueueOcpOperatorNamespace, kueueOcpOperatorChannel)
 }

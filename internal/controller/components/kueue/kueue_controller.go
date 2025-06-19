@@ -18,8 +18,10 @@ package kueue
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/blang/semver/v4"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -30,7 +32,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -39,10 +43,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -103,6 +109,16 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			deploy.WithCache(),
 		)).
 		WithAction(deployments.NewAction()).
+		WithAction(func(ctx context.Context, rr *types.ReconciliationRequest) error {
+			kueueCRInstance, ok := rr.Instance.(*componentApi.Kueue)
+			if !ok {
+				return fmt.Errorf("resource instance %v is not a componentApi.Kueue)", rr.Instance)
+			}
+			if kueueCRInstance.Spec.KueueManagementSpec.ManagementState == operatorv1.Unmanaged {
+				rr.Conditions.MarkFalse(status.ConditionDeploymentsAvailable, conditions.WithSeverity(common.ConditionSeverityInfo))
+			}
+			return nil
+		}).
 		WithAction(configureClusterQueueViewerRoleAction).
 		// must be the final action
 		WithAction(gc.NewAction()).

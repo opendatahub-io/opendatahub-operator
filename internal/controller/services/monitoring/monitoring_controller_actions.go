@@ -74,11 +74,7 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
 		ci := ch.NewCRObject(dsc)
-		ms := ch.GetManagementState(dsc) // check for modelcontroller with dependency is done in its GetManagementState()
-		switch ms {
-		case operatorv1.Removed: // remove
-			return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
-		case operatorv1.Managed:
+		if ch.IsEnabled(dsc) {
 			ready, err := isComponentReady(ctx, rr.Client, ci)
 			if err != nil {
 				return fmt.Errorf("failed to get component status %w", err)
@@ -88,8 +84,8 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 			}
 			// add
 			return updatePrometheusConfig(ctx, true, componentRules[ch.GetName()])
-		default:
-			return fmt.Errorf("unsuported management state %s", ms)
+		} else {
+			return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
 		}
 	})
 }

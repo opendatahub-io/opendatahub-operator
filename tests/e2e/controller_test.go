@@ -297,7 +297,7 @@ func TestMain(m *testing.M) {
 	viper.SetDefault("mediumEventuallyTimeout", "7m")         // Medium timeout: for readiness checks (e.g., ClusterServiceVersion, DataScienceCluster).
 	viper.SetDefault("longEventuallyTimeout", "10m")          // Long timeout: for more complex readiness (e.g., DSCInitialization, KServe).
 	viper.SetDefault("defaultEventuallyPollInterval", "2s")   // Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.
-	viper.SetDefault("defaultConsistentlyTimeout", "10s")     // Duration used for Consistently; overrides Gomega's default of 2 seconds.
+	viper.SetDefault("defaultConsistentlyTimeout", "20s")     // Duration used for Consistently; overrides Gomega's default of 2 seconds.
 	viper.SetDefault("defaultConsistentlyPollInterval", "2s") // Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.
 
 	// Flags
