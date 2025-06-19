@@ -39,6 +39,10 @@ type MonitoringSpec struct {
 	// monitoring spec exposed only to internal api
 }
 
+type MetricsSpec struct{}
+
+type TracesSpec struct{}
+
 // MonitoringStatus defines the observed state of Monitoring
 type MonitoringStatus struct {
 	common.Status `json:",inline"`
@@ -71,7 +75,9 @@ type MonitoringCommonSpec struct {
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="MonitoringNamespace is immutable"
-	Namespace string `json:"namespace,omitempty"`
+	Namespace string      `json:"namespace,omitempty"`
+	Metrics   MetricsSpec `json:"metrics,omitempty"`
+	Traces    TracesSpec  `json:"traces,omitempty"`
 }
 
 //+kubebuilder:object:root=true
