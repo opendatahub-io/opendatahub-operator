@@ -70,7 +70,7 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 			// add
 			return updatePrometheusConfig(ctx, true, componentRules[ch.GetName()])
 		default:
-			return fmt.Errorf("unsuported management state %s", ms)
+			return fmt.Errorf("unsupported management state %s", ms)
 		}
 	})
 }

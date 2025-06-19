@@ -22,6 +22,9 @@ import (
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -30,6 +33,7 @@ import (
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -85,15 +89,137 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 				return m.Spec.Namespace, nil
 			}),
 		)).
+		WithAction(func(_ context.Context, rr *types.ReconciliationRequest) error {
+			m, ok := rr.Instance.(*serviceApi.Monitoring)
+			if !ok {
+				return errors.New("instance is not of type *services.Monitoring")
+			}
+			return deployTempo(ctx, rr, rr.DSCI.Spec.Monitoring.Traces, m.Spec.Namespace)
+		}).
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
+		WithAction(gc.NewAction(
+			gc.WithDeletePropagationPolicy(metav1.DeletePropagationForeground),
+		)).
 		Build(ctx)
 
 	if err != nil {
 		return fmt.Errorf("could not create the monitoring controller: %w", err)
+	}
+
+	return nil
+}
+
+func deployTempo(ctx context.Context, rr *types.ReconciliationRequest, tracingSpec *serviceApi.TracesSpec, namespace string) error {
+	if tracingSpec == nil {
+		// Ensure Tempo instance is absent
+		return removeTempoInstance(ctx, rr, namespace)
+	}
+
+	if tracingSpec.Storage.Backend == "pv" {
+		return deployTempoMonolithic(rr, tracingSpec, namespace)
+	}
+	return deployTempoStack(rr, tracingSpec, namespace)
+}
+
+func deployTempoMonolithic(rr *types.ReconciliationRequest, tracingSpec *serviceApi.TracesSpec, namespace string) error {
+	storage := map[string]interface{}{
+		"backend": tracingSpec.Storage.Backend,
+	}
+
+	if tracingSpec.Storage.Size != "" {
+		storage["size"] = tracingSpec.Storage.Size
+	}
+
+	tempo := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "tempo.grafana.com/v1alpha1",
+			"kind":       "TempoMonolithic",
+			"metadata": map[string]interface{}{
+				"name":      "tempo",
+				"namespace": namespace,
+			},
+			"spec": map[string]interface{}{
+				"multitenancy": map[string]interface{}{
+					"enabled": true, // Required for OpenShift
+				},
+				"storage": map[string]interface{}{
+					"traces": storage,
+				},
+			},
+		},
+	}
+
+	if err := rr.AddResources(tempo); err != nil {
+		return errors.New("failed to deploy TempoMonolithic")
+	}
+	return nil
+}
+
+func deployTempoStack(rr *types.ReconciliationRequest, tracingSpec *serviceApi.TracesSpec, namespace string) error {
+	tempo := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "tempo.grafana.com/v1alpha1",
+			"kind":       "TempoStack",
+			"metadata": map[string]interface{}{
+				"name":      "tempo",
+				"namespace": namespace,
+			},
+			"spec": map[string]interface{}{
+				"tenants": map[string]interface{}{
+					"mode": "openshift",
+				},
+				"storage": map[string]interface{}{
+					"secret": map[string]interface{}{
+						"name": tracingSpec.Storage.Secret,
+						"type": tracingSpec.Storage.Backend,
+					},
+				},
+				"template": map[string]interface{}{
+					"gateway": map[string]interface{}{
+						"enabled": true, // Required for OpenShift mode
+					},
+				},
+			},
+		},
+	}
+
+	if err := rr.AddResources(tempo); err != nil {
+		return errors.New("failed to deploy TempoStack")
+	}
+	return nil
+}
+
+func removeTempoInstance(ctx context.Context, rr *types.ReconciliationRequest, namespace string) error {
+	// Delete TempoMonolithic if exists
+	mono := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "tempo.grafana.com/v1alpha1",
+			"kind":       "TempoMonolithic",
+		},
+	}
+	mono.SetName("tempo")
+	mono.SetNamespace(namespace)
+
+	if err := rr.Client.Delete(ctx, mono); err != nil && !k8serr.IsNotFound(err) {
+		return errors.New("failed to delete TempoMonolithic")
+	}
+
+	// Delete TempoStack if exists
+	stack := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "tempo.grafana.com/v1alpha1",
+			"kind":       "TempoStack",
+		},
+	}
+	stack.SetName("tempo")
+	stack.SetNamespace(namespace)
+
+	if err := rr.Client.Delete(ctx, stack); err != nil && !k8serr.IsNotFound(err) {
+		return errors.New("failed to delete TempoStack")
 	}
 
 	return nil
