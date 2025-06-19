@@ -241,6 +241,9 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="operator.knative.dev",resources=knativeservings,verbs=*
 // +kubebuilder:rbac:groups="operator.knative.dev",resources=knativeservings/finalizers,verbs=update;patch;get
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
+/* KEDA (CMA) InferenceService autoscaling */
+// +kubebuilder:rbac:groups=keda.sh,resources=triggerauthentications,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=metrics.k8s.io,resources=pods;nodes,verbs=get;list;watch
 
 // WB
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=workbenches,verbs=get;list;watch;create;update;patch;delete
