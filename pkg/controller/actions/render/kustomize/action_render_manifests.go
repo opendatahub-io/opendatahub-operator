@@ -18,7 +18,8 @@ const rendererEngine = "kustomize"
 // further processing. The Action can eventually cache the results in memory to avoid doing
 // a full manifest rendering when not needed.
 type Action struct {
-	resourcecacher.ResourceCacher
+	cacher resourcecacher.ResourceCacher
+	cache  bool
 
 	keOpts []kustomize.EngineOptsFn
 	ke     *kustomize.Engine
@@ -62,17 +63,17 @@ func WithManifestsOptions(values ...kustomize.EngineOptsFn) ActionOpts {
 	}
 }
 
-func WithCache() ActionOpts {
+func WithCache(enabled bool) ActionOpts {
 	return func(action *Action) {
-		action.SetKeyFn(types.Hash)
+		action.cache = enabled
 	}
 }
 
 func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
-	return a.Render(ctx, rr, a.render)
+	return a.cacher.Render(ctx, rr, a.render)
 }
 
-func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (resources.UnstructuredList, error) {
+func (a *Action) render(_ context.Context, rr *types.ReconciliationRequest) (resources.UnstructuredList, error) {
 	result := make(resources.UnstructuredList, 0)
 
 	for i := range rr.Manifests {
@@ -93,11 +94,16 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (r
 
 func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{
-		ResourceCacher: resourcecacher.NewResourceCacher(rendererEngine),
+		cacher: resourcecacher.NewResourceCacher(rendererEngine),
+		cache:  true,
 	}
 
 	for _, opt := range opts {
 		opt(&action)
+	}
+
+	if action.cache {
+		action.cacher.SetKeyFn(types.Hash)
 	}
 
 	action.ke = kustomize.NewEngine(action.keOpts...)

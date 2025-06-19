@@ -129,7 +129,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(releases.NewAction()).
 		WithAction(addTemplateFiles).
 		WithAction(template.NewAction(
-			template.WithCache(),
 			template.WithDataFn(getTemplateData),
 		)).
 
@@ -140,7 +139,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(removeOwnershipFromUnmanagedResources).
 		WithAction(cleanUpTemplatedResources).
 		WithAction(kustomize.NewAction(
-			kustomize.WithCache(),
 			// These are the default labels added by the legacy deploy method
 			// and should be preserved as the original plugin were affecting
 			// deployment selectors that are immutable once created, so it won't

@@ -37,42 +37,54 @@ func TestRenderTemplate(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := template.NewAction()
+	action := template.NewAction(
+		template.WithCache(false),
+	)
 
-	rr := types.ReconciliationRequest{
-		Client: cl,
-		Instance: &componentApi.Dashboard{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: ns,
+	render.RenderedResourcesTotal.Reset()
+
+	// run the renderer in a loop to ensure the cache is off, and the
+	// manifests are re-rendered on each iteration
+	for i := 1; i < 3; i++ {
+		rr := types.ReconciliationRequest{
+			Client: cl,
+			Instance: &componentApi.Dashboard{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: ns,
+				},
 			},
-		},
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
-				ApplicationsNamespace: ns,
-				ServiceMesh: &infrav1.ServiceMeshSpec{
-					ControlPlane: infrav1.ControlPlaneSpec{
-						Name:      xid.New().String(),
-						Namespace: xid.New().String(),
+			DSCI: &dsciv1.DSCInitialization{
+				Spec: dsciv1.DSCInitializationSpec{
+					ApplicationsNamespace: ns,
+					ServiceMesh: &infrav1.ServiceMeshSpec{
+						ControlPlane: infrav1.ControlPlaneSpec{
+							Name:      xid.New().String(),
+							Namespace: xid.New().String(),
+						},
 					},
 				},
 			},
-		},
-		Release:   common.Release{Name: cluster.OpenDataHub},
-		Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm.tmpl.yaml"}},
+			Release:   common.Release{Name: cluster.OpenDataHub},
+			Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm.tmpl.yaml"}},
+		}
+
+		err = action(ctx, &rr)
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(rr.Generated).Should(BeTrue())
+		g.Expect(rr.Resources).Should(And(
+			HaveLen(1),
+			HaveEach(And(
+				jq.Match(`.metadata.namespace == "%s"`, ns),
+				jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, rr.DSCI.Spec.ServiceMesh.ControlPlane.Namespace),
+				jq.Match(`.spec.controlPlaneRef.name == "%s"`, rr.DSCI.Spec.ServiceMesh.ControlPlane.Name),
+				jq.Match(`.metadata.annotations."instance-name" == "%s"`, rr.Instance.GetName()),
+			)),
+		))
+
+		rc := testutil.ToFloat64(render.RenderedResourcesTotal)
+		g.Expect(rc).Should(BeNumerically("==", i))
 	}
-
-	err = action(ctx, &rr)
-
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(rr.Resources).Should(And(
-		HaveLen(1),
-		HaveEach(And(
-			jq.Match(`.metadata.namespace == "%s"`, ns),
-			jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, rr.DSCI.Spec.ServiceMesh.ControlPlane.Namespace),
-			jq.Match(`.spec.controlPlaneRef.name == "%s"`, rr.DSCI.Spec.ServiceMesh.ControlPlane.Name),
-			jq.Match(`.metadata.annotations."instance-name" == "%s"`, rr.Instance.GetName()),
-		)),
-	))
 }
 
 func TestRenderTemplateWithData(t *testing.T) {
@@ -87,6 +99,7 @@ func TestRenderTemplateWithData(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := template.NewAction(
+		template.WithCache(false),
 		template.WithData(map[string]any{
 			"ID": id,
 			"SMM": map[string]any{
@@ -153,6 +166,7 @@ func TestRenderTemplateWithDataErr(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := template.NewAction(
+		template.WithCache(false),
 		template.WithDataFn(func(_ context.Context, rr *types.ReconciliationRequest) (map[string]any, error) {
 			return map[string]any{}, errors.New("compute-data-error")
 		}),
@@ -184,9 +198,7 @@ func TestRenderTemplateWithCache(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := template.NewAction(
-		template.WithCache(),
-	)
+	action := template.NewAction()
 
 	render.RenderedResourcesTotal.Reset()
 
@@ -239,10 +251,13 @@ func TestRenderTemplateWithCache(t *testing.T) {
 		switch i {
 		case 0:
 			g.Expect(rc).Should(BeNumerically("==", 1))
+			g.Expect(rr.Generated).Should(BeTrue())
 		case 1:
 			g.Expect(rc).Should(BeNumerically("==", 2))
+			g.Expect(rr.Generated).Should(BeTrue())
 		case 2:
 			g.Expect(rc).Should(BeNumerically("==", 2))
+			g.Expect(rr.Generated).Should(BeFalse())
 		}
 	}
 }
@@ -257,7 +272,9 @@ func TestRenderTemplateWithGlob(t *testing.T) {
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	action := template.NewAction()
+	action := template.NewAction(
+		template.WithCache(false),
+	)
 
 	rrRef := types.ReconciliationRequest{
 		Client: cl,
@@ -324,6 +341,7 @@ func TestRenderTemplateWithCustomInfo(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := template.NewAction(
+		template.WithCache(false),
 		template.WithLabel("label-foo", "foo-label"),
 		template.WithLabels(map[string]string{"labels-foo": "foo-labels"}),
 		template.WithLabel("label-override", "foo-override"),

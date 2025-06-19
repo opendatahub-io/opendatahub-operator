@@ -396,7 +396,6 @@ func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	err = template.NewAction(
-		template.WithCache(),
 		template.WithDataFn(getTemplateData),
 	)(ctx, &rrHeaded)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -458,7 +457,6 @@ func TestCleanUpTemplatedResources_withoutAuthorino(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	err = template.NewAction(
-		template.WithCache(),
 		template.WithDataFn(getTemplateData),
 	)(ctx, &rrHeaded)
 	g.Expect(err).ShouldNot(HaveOccurred())
