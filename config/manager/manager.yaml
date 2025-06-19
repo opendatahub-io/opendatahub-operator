@@ -16,7 +16,7 @@ spec:
   selector:
     matchLabels:
       name: rhods-operator
-  replicas: 1
+  replicas: 3
   template:
     metadata:
       annotations:

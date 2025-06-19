@@ -39,7 +39,7 @@ func (tc *OperatorTestCtx) testODHDeployment(t *testing.T) {
 
 	// Verify if the operator deployment is created
 	controllerDeployment := "rhods-operator"
-	tc.EnsureDeploymentReady(types.NamespacedName{Namespace: tc.OperatorNamespace, Name: controllerDeployment}, 1)
+	tc.EnsureDeploymentReady(types.NamespacedName{Namespace: tc.OperatorNamespace, Name: controllerDeployment}, 3)
 }
 
 // ValidateOwnedCRDs validates if the owned CRDs are properly created and available.
