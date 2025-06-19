@@ -78,7 +78,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
-	dsc.Status.InstalledComponents[LegacyComponentName] = false
+	dsc.Status.InstalledComponents[ComponentName] = false
 	dsc.Status.Components.TrainingOperator.ManagementState = s.GetManagementState(dsc)
 	dsc.Status.Components.TrainingOperator.TrainingOperatorCommonStatus = nil
 
@@ -86,7 +86,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	switch s.GetManagementState(dsc) {
 	case operatorv1.Managed:
-		dsc.Status.InstalledComponents[LegacyComponentName] = true
+		dsc.Status.InstalledComponents[ComponentName] = true
 		dsc.Status.Components.TrainingOperator.TrainingOperatorCommonStatus = c.Status.TrainingOperatorCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
