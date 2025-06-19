@@ -189,7 +189,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				Kueue: componentApi.DSCKueue{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+					KueueManagementSpec: componentApi.KueueManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				TrustyAI: componentApi.DSCTrustyAI{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},

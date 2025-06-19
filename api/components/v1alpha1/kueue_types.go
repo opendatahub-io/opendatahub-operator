@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -51,7 +52,8 @@ type Kueue struct {
 
 // KueueSpec defines the desired state of Kueue
 type KueueSpec struct {
-	KueueCommonSpec `json:",inline"`
+	KueueManagementSpec `json:",inline"`
+	KueueCommonSpec     `json:",inline"`
 }
 
 type KueueCommonSpec struct {
@@ -103,15 +105,34 @@ func (c *Kueue) SetReleaseStatus(releases []common.ComponentRelease) {
 	c.Status.Releases = releases
 }
 
+// KueueManagementSpec struct defines the component's management configuration.
+// +kubebuilder:object:generate=true
+type KueueManagementSpec struct {
+	// Set to one of the following values:
+	//
+	// - "Managed"   : the operator is actively managing the component and trying to keep it active.
+	//                 It will only upgrade the component if it is safe to do so
+	//
+	//
+	// - "Unmanaged" : the operator is actively managing the component and trying to keep it active.
+	//                 It will only upgrade the component if it is safe to do so
+	//
+	// - "Removed"   : the operator is actively managing the component and will not install it,
+	//                 or if it is installed, the operator will try to remove it
+	//
+	// +kubebuilder:validation:Enum=Managed;Unmanaged;Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+}
+
 // DSCKueue contains all the configuration exposed in DSC instance for Kueue component
 type DSCKueue struct {
-	common.ManagementSpec `json:",inline"`
+	KueueManagementSpec `json:",inline"`
 	// configuration fields common across components
 	KueueCommonSpec `json:",inline"`
 }
 
 // DSCKueueStatus contains the observed state of the Kueue exposed in the DSC instance
 type DSCKueueStatus struct {
-	common.ManagementSpec `json:",inline"`
-	*KueueCommonStatus    `json:",inline"`
+	KueueManagementSpec `json:",inline"`
+	*KueueCommonStatus  `json:",inline"`
 }

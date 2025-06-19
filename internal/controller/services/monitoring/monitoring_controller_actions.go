@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
-
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -54,11 +52,7 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
 		ci := ch.NewCRObject(dsc)
-		ms := ch.GetManagementState(dsc) // check for modelcontroller with dependency is done in its GetManagementState()
-		switch ms {
-		case operatorv1.Removed: // remove
-			return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
-		case operatorv1.Managed:
+		if ch.IsEnabled(dsc) {
 			ready, err := isComponentReady(ctx, rr.Client, ci)
 			if err != nil {
 				return fmt.Errorf("failed to get component status %w", err)
@@ -68,8 +62,8 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 			}
 			// add
 			return updatePrometheusConfig(ctx, true, componentRules[ch.GetName()])
-		default:
-			return fmt.Errorf("unsuported management state %s", ms)
+		} else {
+			return updatePrometheusConfig(ctx, false, componentRules[ch.GetName()])
 		}
 	})
 }

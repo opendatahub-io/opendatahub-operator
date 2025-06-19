@@ -178,7 +178,7 @@ func (tc *AuthControllerTestCtx) ValidateAddingGroups(t *testing.T) {
 	testAllowedGroup := "aTestAllowedGroup"
 
 	// Update the Auth CR with new admin and allowed groups.
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 		WithMutateFunc(
 			testf.Transform(
@@ -215,7 +215,7 @@ func (tc *AuthControllerTestCtx) ValidateRemovingGroups(t *testing.T) {
 	}
 
 	// Update the Auth CR to set only the expected admin group.
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.adminGroups = ["%s"]`, expectedGroup)),
 		WithCustomErrorMsg("Failed to create or update Auth resource '%s' with admin group '%s'", serviceApi.AuthInstanceName, expectedGroup),

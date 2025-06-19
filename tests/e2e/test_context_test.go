@@ -215,16 +215,16 @@ func (tc *TestContext) EnsureResourceExistsConsistently(opts ...ResourceOpts) *u
 	return u
 }
 
-// EnsureResourceCreatedOrUpdated ensures that a given Kubernetes resource exists.
+// EventuallyResourceCreatedOrUpdated ensures that a given Kubernetes resource exists.
 // If the resource is missing, it will be created; if it already exists, it will be updated
-// using the provided mutation function.
+// using the provided mutation function. Conditions in ResourceOpts are evaluated with eventually.
 //
 // Parameters:
 //   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
 //
 // Returns:
 //   - *unstructured.Unstructured: The existing or newly created (updated) resource object.
-func (tc *TestContext) EnsureResourceCreatedOrUpdated(opts ...ResourceOpts) *unstructured.Unstructured {
+func (tc *TestContext) EventuallyResourceCreatedOrUpdated(opts ...ResourceOpts) *unstructured.Unstructured {
 	// Create a ResourceOptions object based on the provided opts.
 	ro := tc.NewResourceOptions(opts...)
 
@@ -233,8 +233,30 @@ func (tc *TestContext) EnsureResourceCreatedOrUpdated(opts ...ResourceOpts) *uns
 		ro.Condition = Succeed()
 	}
 
-	// Apply the resource using ensureResourceApplied.
-	return ensureResourceApplied(ro, tc.g.CreateOrUpdate)
+	// Apply the resource using eventuallyResourceApplied.
+	return eventuallyResourceApplied(ro, tc.g.CreateOrUpdate)
+}
+
+// EventuallyResourceCreatedOrUpdated ensures that a given Kubernetes resource exists.
+// If the resource is missing, it will be created; if it already exists, it will be updated
+// using the provided mutation function. Conditions in ResourceOpts are evaluated with consistently.
+//
+// Parameters:
+//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
+//
+// Returns:
+//   - *unstructured.Unstructured: The existing or newly created (updated) resource object.
+func (tc *TestContext) ConsistentlyResourceCreatedOrUpdated(opts ...ResourceOpts) *unstructured.Unstructured {
+	// Create a ResourceOptions object based on the provided opts.
+	ro := tc.NewResourceOptions(opts...)
+
+	// Default the condition to Succeed() if it's not provided.
+	if ro.Condition == nil {
+		ro.Condition = Succeed()
+	}
+
+	// Apply the resource using eventuallyResourceApplied.
+	return consistentlyResourceApplied(ro, tc.g.CreateOrUpdate)
 }
 
 // EnsureResourceCreatedOrPatched ensures that a given Kubernetes resource exists.
@@ -255,8 +277,8 @@ func (tc *TestContext) EnsureResourceCreatedOrPatched(opts ...ResourceOpts) *uns
 		ro.Condition = Succeed()
 	}
 
-	// Apply the resource using ensureResourceApplied
-	return ensureResourceApplied(ro, tc.g.CreateOrPatch)
+	// Apply the resource using eventuallyResourceApplied
+	return eventuallyResourceApplied(ro, tc.g.CreateOrPatch)
 }
 
 // EnsureResourceDoesNotExist performs a one-time check to verify that a resource does not exist in the cluster.
@@ -363,9 +385,32 @@ func (tc *TestContext) EnsureResourcesGone(opts ...ResourceOpts) {
 	}).Should(Succeed())
 }
 
+// FetchSubscription get a subscription if exists.
+//
+// Parameters:
+//   - nn (types.NamespacedName): The namespace and name of the Subscription.
+//
+// Returns:
+//   - *unstructured.Unstructured: The existing subscription or nil.
+func (tc *TestContext) GetSubscription(nn types.NamespacedName, channelName string) *unstructured.Unstructured {
+	// Construct a resource identifier.
+	resourceID := resources.FormatNamespacedName(nn)
+
+	// Create the subscription object using the necessary values (adapt as needed)
+	sub := tc.createSubscription(nn, channelName)
+
+	// Ensure the Subscription exists or create it if missing
+	return tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(sub),
+		WithMutateFunc(testf.TransformSpecToUnstructured(sub.Spec)),
+		WithCondition(jq.Match(`.status | has("installPlanRef")`)),
+		WithCustomErrorMsg("Failed to ensure Subscription '%s' exists", resourceID),
+	)
+}
+
 // EnsureSubscriptionExistsOrCreate ensures that the specified Subscription exists.
 // If the Subscription is missing, it will be created; if it already exists, no action is taken.
-// This function reuses the `EnsureResourceCreatedOrUpdated` logic to guarantee that the Subscription
+// This function reuses the `EventuallyResourceCreatedOrUpdated` logic to guarantee that the Subscription
 // exists or is created.
 //
 // Parameters:
@@ -373,15 +418,15 @@ func (tc *TestContext) EnsureResourcesGone(opts ...ResourceOpts) {
 //
 // Returns:
 //   - *unstructured.Unstructured: The existing or newly created Subscription object.
-func (tc *TestContext) EnsureSubscriptionExistsOrCreate(nn types.NamespacedName) *unstructured.Unstructured {
+func (tc *TestContext) EnsureSubscriptionExistsOrCreate(nn types.NamespacedName, channelName string) *unstructured.Unstructured {
 	// Construct a resource identifier.
 	resourceID := resources.FormatNamespacedName(nn)
 
 	// Create the subscription object using the necessary values (adapt as needed)
-	sub := tc.createSubscription(nn)
+	sub := tc.createSubscription(nn, channelName)
 
 	// Ensure the Subscription exists or create it if missing
-	return tc.EnsureResourceCreatedOrUpdated(
+	return tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(sub),
 		WithMutateFunc(testf.TransformSpecToUnstructured(sub.Spec)),
 		WithCondition(jq.Match(`.status | has("installPlanRef")`)),
@@ -578,25 +623,29 @@ func (tc *TestContext) EnsureResourceIsUnique(obj client.Object, args ...any) {
 //   - nn (types.NamespacedName): The namespace and name of the operator being installed.
 //   - skipOperatorGroupCreation (bool): If true, skips the creation or update of the operator group.
 func (tc *TestContext) EnsureOperatorInstalled(nn types.NamespacedName, skipOperatorGroupCreation bool) {
+	tc.EnsureOperatorInstalledWithChannel(nn, skipOperatorGroupCreation, defaultOperatorChannel)
+}
+
+func (tc *TestContext) EnsureOperatorInstalledWithChannel(nn types.NamespacedName, skipOperatorGroupCreation bool, channelName string) {
 	// Construct a resource identifier.
 	resourceID := resources.FormatNamespacedName(nn)
 
 	// Ensure the operator's namespace is created.
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nn.Namespace}),
 		WithCustomErrorMsg("Failed to create or update namespace '%s'", nn.Namespace),
 	)
 
 	// Ensure the operator group is created or updated only if necessary.
 	if !skipOperatorGroupCreation {
-		tc.EnsureResourceCreatedOrUpdated(
+		tc.EventuallyResourceCreatedOrUpdated(
 			WithMinimalObject(gvk.OperatorGroup, nn),
 			WithCustomErrorMsg("Failed to create or update operator group '%s'", resourceID),
 		)
 	}
 
 	// Retrieve the InstallPlan
-	plan := tc.FetchInstallPlan(nn)
+	plan := tc.FetchInstallPlan(nn, channelName)
 
 	// in CI InstallPlan is in Manual mode
 	if !plan.Spec.Approved {
@@ -658,9 +707,9 @@ func (tc *TestContext) DeleteResource(opts ...ResourceOpts) {
 //
 // Returns:
 //   - string: The name of the InstallPlan associated with the Subscription.
-func (tc *TestContext) FetchInstallPlanName(nn types.NamespacedName) string {
+func (tc *TestContext) FetchInstallPlanName(nn types.NamespacedName, channelName string) string {
 	// Ensure the subscription exists or is created
-	u := tc.EnsureSubscriptionExistsOrCreate(nn)
+	u := tc.EnsureSubscriptionExistsOrCreate(nn, channelName)
 
 	// Convert the Unstructured object to Subscription and assert no error
 	sub := &ofapi.Subscription{}
@@ -679,9 +728,9 @@ func (tc *TestContext) FetchInstallPlanName(nn types.NamespacedName) string {
 //
 // Returns:
 //   - *ofapi.InstallPlan: The InstallPlan associated with the Subscription.
-func (tc *TestContext) FetchInstallPlan(nn types.NamespacedName) *ofapi.InstallPlan {
+func (tc *TestContext) FetchInstallPlan(nn types.NamespacedName, channelName string) *ofapi.InstallPlan {
 	// Retrieve the InstallPlan name using getInstallPlanName (ensuring Subscription exists if necessary)
-	planName := tc.FetchInstallPlanName(nn)
+	planName := tc.FetchInstallPlanName(nn, channelName)
 
 	// Ensure the InstallPlan exists and retrieve the object.
 	installPlan := &ofapi.InstallPlan{}
@@ -864,6 +913,11 @@ func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 		)
 }
 
+// Check if an operator with name starting with operatorNamePrefix exists.
+func (tc *TestContext) CheckOperatorExists(operatorNamePrefix string) (bool, error) {
+	return cluster.OperatorExists(tc.Context(), tc.Client(), operatorNamePrefix)
+}
+
 // convertToResource converts an Unstructured object to the specified resource type.
 // It asserts that no error occurs during the conversion.
 //
@@ -873,7 +927,7 @@ func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 func (tc *TestContext) convertToResource(u *unstructured.Unstructured, obj client.Object) {
 	// Convert Unstructured object to the given resource object
 	err := resources.ObjectFromUnstructured(tc.Scheme(), u, obj)
-	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed converting %T from Unstructured.Object: %v", obj, u.Object)
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed converting %T from Unstructured.Object: %v", obj, u)
 }
 
 // ensureResourceExistsOrNil retrieves a Kubernetes resource, retrying until it is found or the timeout expires.
@@ -940,8 +994,8 @@ func (tc *TestContext) ensureResourcesDoNotExist(g Gomega, ro *ResourceOptions) 
 }
 
 // createSubscription creates a Subscription object.
-func (tc *TestContext) createSubscription(nn types.NamespacedName) *ofapi.Subscription {
-	return &ofapi.Subscription{
+func (tc *TestContext) createSubscription(nn types.NamespacedName, channelName string) *ofapi.Subscription {
+	subscription := &ofapi.Subscription{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       ofapi.SubscriptionKind,
 			APIVersion: ofapi.SubscriptionCRDAPIVersion,
@@ -953,11 +1007,13 @@ func (tc *TestContext) createSubscription(nn types.NamespacedName) *ofapi.Subscr
 		Spec: &ofapi.SubscriptionSpec{
 			CatalogSource:          "redhat-operators",
 			CatalogSourceNamespace: "openshift-marketplace",
-			Channel:                "stable",
+			Channel:                channelName,
 			Package:                nn.Name,
 			InstallPlanApproval:    ofapi.ApprovalAutomatic,
 		},
 	}
+
+	return subscription
 }
 
 // createInstallPlan creates an InstallPlan object.

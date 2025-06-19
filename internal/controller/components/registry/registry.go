@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/hashicorp/go-multierror"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -17,10 +16,7 @@ import (
 // Every method should accept ctx since it contains the logger.
 type ComponentHandler interface {
 	Init(platform common.Platform) error
-	// GetName and GetManagementState sound like pretty much the same across
-	// all components, but I could not find a way to avoid it
 	GetName() string
-	GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState
 	// NewCRObject constructs components specific Custom Resource
 	// e.g. Dashboard in datasciencecluster.opendatahub.io group
 	// It returns interface, but it simplifies DSC reconciler code a lot
@@ -28,6 +24,8 @@ type ComponentHandler interface {
 	NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error
 	// UpdateDSCStatus updates the component specific status part of the DSC
 	UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error)
+	// IsEnabled returns whether the component should be deployed/is active
+	IsEnabled(dsc *dscv1.DataScienceCluster) bool
 }
 
 // Registry is a struct that maintains a list of registered ComponentHandlers.
@@ -55,6 +53,17 @@ func (r *Registry) ForEach(f func(ch ComponentHandler) error) error {
 	return errs.ErrorOrNil()
 }
 
+// IsComponentEnabled checks if a component with the given name is enabled in the DataScienceCluster.
+// Returns false if the component is not found.
+func (r *Registry) IsComponentEnabled(componentName string, dsc *dscv1.DataScienceCluster) bool {
+	for _, ch := range r.handlers {
+		if ch.GetName() == componentName {
+			return ch.IsEnabled(dsc)
+		}
+	}
+	return false
+}
+
 func Add(ch ComponentHandler) {
 	r.Add(ch)
 }
@@ -67,6 +76,8 @@ func DefaultRegistry() *Registry {
 	return r
 }
 
-func IsManaged(ch ComponentHandler, dsc *dscv1.DataScienceCluster) bool {
-	return ch.GetManagementState(dsc) == operatorv1.Managed
+// IsComponentEnabled checks if a component with the given name is enabled in the DataScienceCluster
+// using the default registry. Returns false if the component is not found.
+func IsComponentEnabled(componentName string, dsc *dscv1.DataScienceCluster) bool {
+	return r.IsComponentEnabled(componentName, dsc)
 }
