@@ -23,6 +23,7 @@ import (
 	"os"
 	"strings"
 
+	authorinov1beta1 "github.com/kuadrant/authorino-operator/api/v1beta1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
 	configv1 "github.com/openshift/api/config/v1"
@@ -135,6 +136,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(consolev1.AddToScheme(scheme))
 	utilruntime.Must(securityv1.Install(scheme))
 	utilruntime.Must(templatev1.Install(scheme))
+	utilruntime.Must(authorinov1beta1.AddToScheme(scheme))
 }
 
 func initComponents(_ context.Context, p common.Platform) error {
@@ -351,6 +353,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 					&corev1.Pod{},
 					&userv1.Group{},
 					&ofapiv1alpha1.CatalogSource{},
+					// &authorinov1beta1.Authorino{}, // TODO fix, this cache ignore for Authorino does not work
 				},
 				// Set it to true so the cache-backed client reads unstructured objects
 				// or lists from the cache instead of a live lookup.
@@ -536,6 +539,8 @@ func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platfor
 
 	namespaceConfigs["istio-system"] = cache.Config{}        // for serivcemonitor: data-science-smcp-pilot-monitor
 	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
+
+	namespaceConfigs["opendatahub-auth-provider"] = cache.Config{} // TODO remove eventually, temporary workaround for get opendatahub-auth-provider/authorino get from cache failure
 
 	return namespaceConfigs, nil
 }
