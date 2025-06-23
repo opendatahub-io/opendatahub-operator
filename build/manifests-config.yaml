@@ -1,4 +1,10 @@
-map:
+map:map:
+  llama-stack-k8s-operator:
+    git.url: https://github.com/red-hat-data-services/llama-stack-k8s-operator
+    git.commit: github.ref_name
+    src: config
+    dest: llamastackoperator
+    ref_type: branch
   notebooks:
     git.url: https://github.com/red-hat-data-services/notebooks
     git.commit: github.ref_name
@@ -50,6 +56,3 @@ map:
   odh-feast-operator:
     src: infra/feast-operator/config
     dest: feastoperator
-  llama-stack-k8s-operator:
-    src: config
-    dest: llamastackoperator
