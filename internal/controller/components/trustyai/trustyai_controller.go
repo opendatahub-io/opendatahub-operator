@@ -57,7 +57,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.TrustyAIInstanceName)),
 			reconciler.WithPredicates(predicate.Or(
-				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True), // if TrustyAI CR is changed
+				component.ForLabel(labels.ODH.Component(ComponentName), labels.True), // if TrustyAI CR is changed
 				predicate.Funcs{ // OR if ISVC from kserve or model-mesh is created
 					CreateFunc: func(e event.CreateEvent) bool {
 						return e.Object.GetName() == "inferenceservices.serving.kserve.io" &&
@@ -72,8 +72,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(releases.NewAction()).
 		WithAction(kustomize.NewAction(
 			kustomize.WithCache(),
-			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
+			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, ComponentName),
 		)).
 		WithAction(observability.NewAction()).
 		WithAction(deploy.NewAction(
