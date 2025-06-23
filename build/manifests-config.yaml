@@ -50,3 +50,6 @@ map:
   odh-feast-operator:
     src: infra/feast-operator/config
     dest: feastoperator
+  llama-stack-k8s-operator:
+    src: config
+    dest: llamastackoperator
