@@ -390,6 +390,7 @@ rules:
   - dashboard.opendatahub.io
   resources:
   - acceleratorprofiles
+  - hardwareprofiles
   - odhapplications
   - odhdocuments
   verbs:
@@ -400,6 +401,22 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - dashboard.opendatahub.io
+  - infrastructure.opendatahub.io
+  resources:
+  - hardwareprofiles/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - dashboard.opendatahub.io
+  - infrastructure.opendatahub.io
+  resources:
+  - hardwareprofiles/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - datasciencecluster.opendatahub.io
   resources:
@@ -559,20 +576,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - infrastructure.opendatahub.io
-  resources:
-  - hardwareprofiles/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - infrastructure.opendatahub.io
-  resources:
-  - hardwareprofiles/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - integreatly.org
   resources:

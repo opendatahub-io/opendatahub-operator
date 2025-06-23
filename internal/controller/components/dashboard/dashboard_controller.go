@@ -87,6 +87,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.Dynamic(),
 			reconciler.WithPredicates(resources.Deleted()),
 		).
+		WatchesGVK(gvk.DashboardHardwareProfile, reconciler.Dynamic()).
+		WithAction(migrateHardwareProfiles).
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(setKustomizedParams).
