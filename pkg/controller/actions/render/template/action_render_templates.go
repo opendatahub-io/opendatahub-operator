@@ -27,7 +27,8 @@ const (
 // further processing. The Action can eventually cache the results in memory to avoid doing
 // a full manifest rendering when not needed.
 type Action struct {
-	resourcecacher.ResourceCacher
+	cacher resourcecacher.ResourceCacher
+	cache  bool
 
 	data   map[string]any
 	dataFn []func(context.Context, *types.ReconciliationRequest) (map[string]any, error)
@@ -38,9 +39,9 @@ type Action struct {
 
 type ActionOpts func(*Action)
 
-func WithCache() ActionOpts {
+func WithCache(enabled bool) ActionOpts {
 	return func(action *Action) {
-		action.SetKeyFn(types.Hash)
+		action.cache = enabled
 	}
 }
 
@@ -83,7 +84,7 @@ func WithAnnotations(values map[string]string) ActionOpts {
 }
 
 func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
-	return a.Render(ctx, rr, a.render)
+	return a.cacher.Render(ctx, rr, a.render)
 }
 
 func (a *Action) decode(decoder runtime.Decoder, data []byte, info types.TemplateInfo) ([]unstructured.Unstructured, error) {
@@ -153,14 +154,19 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (r
 
 func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{
-		data:           make(map[string]any),
-		ResourceCacher: resourcecacher.NewResourceCacher(rendererEngine),
-		labels:         make(map[string]string),
-		annotations:    make(map[string]string),
+		data:        make(map[string]any),
+		cacher:      resourcecacher.NewResourceCacher(rendererEngine),
+		cache:       true,
+		labels:      make(map[string]string),
+		annotations: make(map[string]string),
 	}
 
 	for _, opt := range opts {
 		opt(&action)
+	}
+
+	if action.cache {
+		action.cacher.SetKeyFn(types.Hash)
 	}
 
 	return action.run
