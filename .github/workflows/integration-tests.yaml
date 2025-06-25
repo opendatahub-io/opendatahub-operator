@@ -1,12 +1,12 @@
 name: Integration tests
-on:
-  pull_request_target:
-    paths:
-      - 'bundle/**'
-      - 'config/**'
-      - 'internal/**'
-      - 'pkg/**'
-      - 'cmd/main.go'
+on: {}
+#  pull_request_target:
+#    paths:
+#      - 'bundle/**'
+#      - 'config/**'
+#      - 'internal/**'
+#      - 'pkg/**'
+#      - 'cmd/main.go'
 
 permissions: {}
 
@@ -47,7 +47,7 @@ jobs:
         if: needs.get-merge-commit.outputs.mergedSha
         with:
           go-version-file: go.mod
-      
+
       - name: Get latest release version
         if: needs.get-merge-commit.outputs.mergedSha
         env:
