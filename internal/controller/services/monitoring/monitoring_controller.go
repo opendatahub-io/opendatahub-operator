@@ -102,6 +102,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).
 		WithAction(createMonitoringStack).
+		WithAction(createOpenTelemetryCollector).
 		WithAction(template.NewAction(
 			template.WithCache(true),
 			template.WithDataFn(getTemplateData),
@@ -114,6 +115,5 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	if err != nil {
 		return fmt.Errorf("could not create the monitoring controller: %w", err)
 	}
-
 	return nil
 }
