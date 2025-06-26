@@ -47,6 +47,7 @@ var (
 
 var (
 	ErrServiceMeshNotConfigured        = odherrors.NewStopError(status.ServiceMeshNeedConfiguredMessage)
+	ErrServiceMeshNotReady             = odherrors.NewStopError(status.ServiceMeshNotReadyMessage)
 	ErrServiceMeshMemberAPINotFound    = odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
 	ErrServiceMeshOperatorNotInstalled = odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
 	ErrServerlessOperatorNotInstalled  = odherrors.NewStopError(status.ServerlessOperatorNotInstalledMessage)

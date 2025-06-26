@@ -131,8 +131,10 @@ const (
 
 const (
 	ServiceMeshNotConfiguredReason   = "ServiceMeshNotConfigured"
+	ServiceMeshNotReadyReason        = "ServiceMeshNotReady"
 	ServiceMeshNeedConfiguredMessage = "ServiceMesh needs to be set to 'Managed' in DSCI CR"
 	ServiceMeshNotConfiguredMessage  = "ServiceMesh is not configured in DSCI CR"
+	ServiceMeshNotReadyMessage       = "ServiceMesh is not ready"
 
 	ServiceMeshOperatorNotInstalledReason  = "ServiceMeshOperatorNotInstalled"
 	ServiceMeshOperatorNotInstalledMessage = "ServiceMesh operator must be installed for this component's configuration"
