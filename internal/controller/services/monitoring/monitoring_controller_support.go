@@ -21,12 +21,18 @@ const (
 	MonitoringStackTemplate = "resources/monitoring-stack.tmpl.yaml"
 	TempoMonolithicTemplate = "resources/tempo-monolithic.tmpl.yaml"
 	TempoStackTemplate      = "resources/tempo-stack.tmpl.yaml"
+	MSName                           = "data-science-monitoringstack"
+	OpenTelemetryCollectorTemplate   = "resources/opentelemetry-collector.tmpl.yaml"
+	CollectorServiceMonitorsTemplate = "resources/collector-servicemonitors.tmpl.yaml"
+	CollectorRBACTemplate            = "resources/collector-rbac.tmpl.yaml"
+	PrometheusRouteTemplate          = "resources/prometheus-route.tmpl.yaml"
+	PrometheusPipelineName           = "odh-prometheus-collector"
 )
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
-		return nil, errors.New("instance is not of type *services.Monitoring")
+		return nil, errors.New("instance is not of type services.Monitoring")
 	}
 
 	templateData := map[string]any{

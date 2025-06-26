@@ -102,6 +102,7 @@ const (
 	ConditionServingAvailable              = "ServingAvailable"
 	ConditionMonitoringStackAvailable      = "MonitoringStackAvailable"
 	ConditionTempoAvailable                = "TempoAvailable"
+	ConditionOpenTelemetryCollectorAvailable        = "OpenTelemetryCollectorCRDAvailable"
 )
 
 const (
@@ -176,6 +177,10 @@ const (
 	MonitoringStackOperatorMissingMessage = "ClusterObservability operator must be installed for metrics configuration"
 	TempoOperatorMissingReason            = "TempoOperatorMissing"
 	TempoOperatorMissingMessage           = "Tempo operator must be installed for traces configuration"
+	OpenTelemetryCollectorCRDNotFoundReason   = "OpenTelemetryCollector CRD Not Found"
+	OpenTelemetryCollectorCRDNotFoundMessage  = "OpenTelemetryCollector CRD not found. Dependent operator missing."
+	OpenTelemetryCollectorCRDAvailableReason  = "OpenTelemetryCollector CRD Found"
+	OpenTelemetryCollectorCRDAvailableMessage = "OpenTelemetryCollector CRD found"
 
 	MetricsNotConfiguredReason  = "MetricsNotConfigured"
 	MetricsNotConfiguredMessage = "Metrics not configured in DSCI CR"

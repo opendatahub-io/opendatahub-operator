@@ -59,6 +59,7 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 		return nil
 	}
 
+	// Map component names to their rule prefixes
 	dsc, err := cluster.GetDSC(ctx, rr.Client)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
@@ -113,6 +114,57 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 			{
 				FS:   resourcesFS,
 				Path: MonitoringStackTemplate,
+			},
+			{
+				FS:   resourcesFS,
+				Path: PrometheusRouteTemplate,
+			},
+		}
+
+		rr.Templates = append(rr.Templates, template...)
+
+		return nil
+	}
+
+	return nil
+}
+
+func createOpenTelemetryCollector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	otcExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.OpenTelemetryCollector)
+	if !otcExists {
+		rr.Conditions.MarkFalse(
+			status.ConditionOpenTelemetryCollectorAvailable,
+			conditions.WithReason(status.OpenTelemetryCollectorCRDNotFoundReason),
+			conditions.WithMessage(status.OpenTelemetryCollectorCRDNotFoundMessage),
+		)
+		return nil
+	}
+
+	// Mark OpenTelemetryCollector CRD as available when CRD exists
+	rr.Conditions.MarkTrue(
+		status.ConditionOpenTelemetryCollectorAvailable,
+		conditions.WithReason(status.OpenTelemetryCollectorCRDAvailableReason),
+		conditions.WithMessage(status.OpenTelemetryCollectorCRDAvailableMessage),
+	)
+
+	mon, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if mon.Spec.Metrics != nil {
+		template := []odhtypes.TemplateInfo{
+			{
+				FS:   resourcesFS,
+				Path: OpenTelemetryCollectorTemplate,
+			},
+			{
+				FS:   resourcesFS,
+				Path: CollectorRBACTemplate,
+			},
+			{
+				FS:   resourcesFS,
+				Path: CollectorServiceMonitorsTemplate,
 			},
 		}
 		rr.Templates = append(rr.Templates, template...)
