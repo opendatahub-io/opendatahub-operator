@@ -64,6 +64,10 @@ func (s *componentHandler) Init(p common.Platform) error {
 	return nil
 }
 
+func (s *componentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool {
+	return dsc.Spec.Components.LlamaStackOperator.ManagementState == operatorv1.Managed
+}
+
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
 
