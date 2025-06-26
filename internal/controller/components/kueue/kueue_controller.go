@@ -34,6 +34,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -95,6 +96,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			),
 			reconciler.WithPredicates(resources.CreatedOrUpdatedName(ClusterQueueViewerRoleName), predicate.LabelChangedPredicate{}),
 		).
+		Watches(&serviceApi.Auth{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KueueInstanceName),
+			),
+		).
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(devFlags).
@@ -105,6 +111,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		WithAction(observability.NewAction()).
 		WithAction(customizeResources).
+		WithAction(manageKueueAdminRoleBinding).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).

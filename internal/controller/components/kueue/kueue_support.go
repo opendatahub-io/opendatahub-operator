@@ -1,11 +1,16 @@
 package kueue
 
 import (
+	"embed"
+
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
+
+//go:embed resources
+var resourcesFS embed.FS
 
 const (
 	ComponentName = componentApi.KueueComponentName
@@ -15,9 +20,11 @@ const (
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
-	LegacyComponentName        = "kueue"
-	ClusterQueueViewerRoleName = "kueue-clusterqueue-viewer-role"
-	KueueBatchUserLabel        = "rbac.kueue.x-k8s.io/batch-user"
+	LegacyComponentName           = "kueue"
+	ClusterQueueViewerRoleName    = "kueue-clusterqueue-viewer-role"
+	KueueBatchUserLabel           = "rbac.kueue.x-k8s.io/batch-user"
+	KueueAdminRoleBindingTemplate = "kueue-admin-rolebinding.tmpl.yaml"
+	KueueAdminRoleBindingName     = "kueue-admin-rolebinding"
 )
 
 var (
