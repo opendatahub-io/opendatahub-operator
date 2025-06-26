@@ -6,9 +6,13 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -73,6 +77,13 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 		rr.Manifests = append(rr.Manifests, manifestsPath())
 	}
 	rr.Manifests = append(rr.Manifests, kueueConfigManifestsPath())
+
+	// Add template for kueue admin role binding
+	rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
+		FS:   resourcesFS,
+		Path: KueueAdminRoleBindingTemplate,
+	})
+
 	return nil
 }
 
@@ -138,4 +149,60 @@ func configureClusterQueueViewerRoleAction(ctx context.Context, rr *odhtypes.Rec
 	}
 	l[KueueBatchUserLabel] = "true"
 	return c.Update(ctx, &cr)
+}
+
+func manageKueueAdminRoleBinding(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	// Get the Auth CR to access admin groups
+	authCR := &serviceApi.Auth{}
+	err := rr.Client.Get(ctx, client.ObjectKey{Name: serviceApi.AuthInstanceName}, authCR)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			log.Info("Auth CR not found, skipping kueue admin role binding creation")
+			return nil
+		}
+		return fmt.Errorf("failed to get Auth CR: %w", err)
+	}
+
+	// Filter admin groups (exclude system:authenticated and empty strings)
+	// This is needed for upgrade scenarios where Auth CRs might contain invalid groups
+	// from before the webhook was implemented
+	var validAdminGroups []string
+	for _, group := range authCR.Spec.AdminGroups {
+		if group != "system:authenticated" && group != "" {
+			validAdminGroups = append(validAdminGroups, group)
+		}
+	}
+
+	// Create subjects for the role binding
+	subjects := []rbacv1.Subject{}
+	for _, group := range validAdminGroups {
+		subjects = append(subjects, rbacv1.Subject{
+			Kind:     "Group",
+			APIGroup: "rbac.authorization.k8s.io",
+			Name:     group,
+		})
+	}
+
+	// Create the ClusterRoleBinding
+	crb := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: KueueAdminRoleBindingName,
+		},
+		Subjects: subjects,
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     "kueue-batch-admin-role",
+		},
+	}
+
+	err = rr.AddResources(crb)
+	if err != nil {
+		return fmt.Errorf("error creating kueue admin ClusterRoleBinding: %w", err)
+	}
+
+	log.Info("Successfully managed kueue admin role binding", "adminGroups", validAdminGroups)
+	return nil
 }

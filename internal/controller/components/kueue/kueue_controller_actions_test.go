@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -336,4 +337,194 @@ func TestInitializeAction_Unmanaged(t *testing.T) {
 	err = initialize(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(rr.Manifests).Should(ConsistOf(kueueConfigManifestsPath()))
+}
+
+func TestManageKueueAdminRoleBinding_AuthCRNotFound(t *testing.T) {
+	ctx := context.Background()
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	kueue := componentApi.Kueue{}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &kueue,
+		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+	}
+
+	err = manageKueueAdminRoleBinding(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify no ClusterRoleBinding was created
+	g.Expect(rr.Resources).Should(BeEmpty())
+}
+
+func TestManageKueueAdminRoleBinding_WithValidAdminGroups(t *testing.T) {
+	ctx := context.Background()
+	g := NewWithT(t)
+
+	authCR := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.AuthInstanceName,
+		},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups: []string{"rhods-admins", "odh-admins", "custom-admin-group"},
+		},
+	}
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(authCR))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	kueue := componentApi.Kueue{}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &kueue,
+		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+	}
+
+	err = manageKueueAdminRoleBinding(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify ClusterRoleBinding was created with correct properties
+	g.Expect(rr.Resources).Should(HaveLen(1))
+
+	g.Expect(rr.Resources[0]).Should(And(
+		jq.Match(`.metadata.name == "%s"`, KueueAdminRoleBindingName),
+		jq.Match(`.kind == "ClusterRoleBinding"`),
+		jq.Match(`.apiVersion == "rbac.authorization.k8s.io/v1"`),
+		jq.Match(`.roleRef.name == "kueue-batch-admin-role"`),
+		jq.Match(`.roleRef.kind == "ClusterRole"`),
+		jq.Match(`.roleRef.apiGroup == "rbac.authorization.k8s.io"`),
+		jq.Match(`.subjects | length == 3`),
+		jq.Match(`.subjects[0].kind == "Group"`),
+		jq.Match(`.subjects[0].apiGroup == "rbac.authorization.k8s.io"`),
+		jq.Match(`.subjects[1].kind == "Group"`),
+		jq.Match(`.subjects[1].apiGroup == "rbac.authorization.k8s.io"`),
+		jq.Match(`.subjects[2].kind == "Group"`),
+		jq.Match(`.subjects[2].apiGroup == "rbac.authorization.k8s.io"`),
+		jq.Match(`[.subjects[].name] | sort == ["custom-admin-group", "odh-admins", "rhods-admins"]`),
+	))
+}
+
+func TestManageKueueAdminRoleBinding_WithFilteredAdminGroups(t *testing.T) {
+	ctx := context.Background()
+	g := NewWithT(t)
+
+	// Simulate upgrade scenario where Auth CR might contain invalid groups
+	authCR := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.AuthInstanceName,
+		},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups: []string{"rhods-admins", "system:authenticated", "", "valid-group"},
+		},
+	}
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(authCR))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	kueue := componentApi.Kueue{}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &kueue,
+		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+	}
+
+	err = manageKueueAdminRoleBinding(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify ClusterRoleBinding was created with filtered groups (invalid groups excluded)
+	g.Expect(rr.Resources).Should(HaveLen(1))
+
+	g.Expect(rr.Resources[0]).Should(And(
+		jq.Match(`.metadata.name == "%s"`, KueueAdminRoleBindingName),
+		jq.Match(`.kind == "ClusterRoleBinding"`),
+		jq.Match(`.apiVersion == "rbac.authorization.k8s.io/v1"`),
+		jq.Match(`.roleRef.name == "kueue-batch-admin-role"`),
+		jq.Match(`.subjects | length == 2`),
+		jq.Match(`[.subjects[].name] | sort == ["rhods-admins", "valid-group"]`),
+	))
+}
+
+func TestManageKueueAdminRoleBinding_WithOnlyInvalidAdminGroups(t *testing.T) {
+	ctx := context.Background()
+	g := NewWithT(t)
+
+	// Simulate upgrade scenario where Auth CR contains only invalid groups
+	authCR := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.AuthInstanceName,
+		},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups: []string{"system:authenticated", ""},
+		},
+	}
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(authCR))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	kueue := componentApi.Kueue{}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &kueue,
+		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+	}
+
+	err = manageKueueAdminRoleBinding(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify ClusterRoleBinding was created but with no subjects (all groups filtered out)
+	g.Expect(rr.Resources).Should(HaveLen(1))
+
+	g.Expect(rr.Resources[0]).Should(And(
+		jq.Match(`.metadata.name == "%s"`, KueueAdminRoleBindingName),
+		jq.Match(`.kind == "ClusterRoleBinding"`),
+		jq.Match(`.apiVersion == "rbac.authorization.k8s.io/v1"`),
+		jq.Match(`.roleRef.name == "kueue-batch-admin-role"`),
+		jq.Match(`.subjects | length == 0`),
+	))
+}
+
+func TestManageKueueAdminRoleBinding_WithEmptyAdminGroups(t *testing.T) {
+	ctx := context.Background()
+	g := NewWithT(t)
+
+	authCR := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.AuthInstanceName,
+		},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups: []string{},
+		},
+	}
+
+	cli, err := fakeclient.New(fakeclient.WithObjects(authCR))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	kueue := componentApi.Kueue{}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &kueue,
+		Conditions: conditions.NewManager(&kueue, status.ConditionTypeReady),
+	}
+
+	err = manageKueueAdminRoleBinding(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify ClusterRoleBinding was created but with no subjects
+	g.Expect(rr.Resources).Should(HaveLen(1))
+
+	g.Expect(rr.Resources[0]).Should(And(
+		jq.Match(`.metadata.name == "%s"`, KueueAdminRoleBindingName),
+		jq.Match(`.kind == "ClusterRoleBinding"`),
+		jq.Match(`.apiVersion == "rbac.authorization.k8s.io/v1"`),
+		jq.Match(`.roleRef.name == "kueue-batch-admin-role"`),
+		jq.Match(`.subjects | length == 0`),
+	))
 }

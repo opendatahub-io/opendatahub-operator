@@ -19,7 +19,6 @@ commonLabels:
   app.kubernetes.io/component: controller
 
 resources:
-  - binding_admin_roles.yaml
   - batch-user-rolebinding.yaml
 
 patches:
