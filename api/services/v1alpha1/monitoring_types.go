@@ -75,6 +75,7 @@ type MetricsResources struct {
 	MemoryRequest resource.Quantity `json:"memoryrequest,omitempty"`
 }
 
+
 // MonitoringStatus defines the observed state of Monitoring
 type MonitoringStatus struct {
 	common.Status `json:",inline"`

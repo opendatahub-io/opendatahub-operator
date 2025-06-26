@@ -2,7 +2,7 @@ apiVersion: opentelemetry.io/v1beta1
 kind: OpenTelemetryCollector
 metadata:
   name: data-science-collector
-  namespace: {{ .Namespace }}
+  namespace: {{ .Namespace}}
 spec:
   mode: deployment
   config:

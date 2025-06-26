@@ -32,7 +32,7 @@ const (
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
-		return nil, errors.New("instance is not of type *services.Monitoring")
+		return nil, errors.New("instance is not of type services.Monitoring")
 	}
 
 	templateData := map[string]any{
