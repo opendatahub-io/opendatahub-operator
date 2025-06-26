@@ -219,6 +219,12 @@ var (
 		Kind:    componentApi.KserveKind,
 	}
 
+	LlamaStackOperator = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.LlamaStackOperatorKind,
+	}
+
 	Kueue = schema.GroupVersionKind{
 		Group:   componentApi.GroupVersion.Group,
 		Version: componentApi.GroupVersion.Version,
