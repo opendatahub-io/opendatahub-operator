@@ -78,12 +78,6 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	}
 	rr.Manifests = append(rr.Manifests, kueueConfigManifestsPath())
 
-	// Add template for kueue admin role binding
-	rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
-		FS:   resourcesFS,
-		Path: KueueAdminRoleBindingTemplate,
-	})
-
 	return nil
 }
 
