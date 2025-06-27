@@ -403,6 +403,16 @@ spec:
                   kueue:
                     description: Kueue component configuration.
                     properties:
+                      defaultClusterQueueName:
+                        default: default-cluster-queue
+                        description: Configures the automatically created cluster
+                          queue name.
+                        type: string
+                      defaultLocalQueueName:
+                        default: default
+                        description: Configures the automatically created, in the
+                          managed namespaces, local queue name.
+                        type: string
                       devFlags:
                         description: Add developer fields
                         properties:

@@ -52,8 +52,9 @@ type Kueue struct {
 
 // KueueSpec defines the desired state of Kueue
 type KueueSpec struct {
-	KueueManagementSpec `json:",inline"`
-	KueueCommonSpec     `json:",inline"`
+	KueueManagementSpec   `json:",inline"`
+	KueueCommonSpec       `json:",inline"`
+	KueueDefaultQueueSpec `json:",inline"`
 }
 
 type KueueCommonSpec struct {
@@ -124,11 +125,22 @@ type KueueManagementSpec struct {
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
+// +kubebuilder:object:generate=true
+type KueueDefaultQueueSpec struct {
+	// Configures the automatically created, in the managed namespaces, local queue name.
+	// +kubebuilder:default=default
+	DefaultLocalQueueName string `json:"defaultLocalQueueName,omitempty"`
+	// Configures the automatically created cluster queue name.
+	// +kubebuilder:default=default-cluster-queue
+	DefaultClusterQueueName string `json:"defaultClusterQueueName,omitempty"`
+}
+
 // DSCKueue contains all the configuration exposed in DSC instance for Kueue component
 type DSCKueue struct {
 	KueueManagementSpec `json:",inline"`
 	// configuration fields common across components
-	KueueCommonSpec `json:",inline"`
+	KueueCommonSpec       `json:",inline"`
+	KueueDefaultQueueSpec `json:",inline"`
 }
 
 // DSCKueueStatus contains the observed state of the Kueue exposed in the DSC instance

@@ -35,6 +35,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/observability"
@@ -68,18 +69,51 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
+		WatchesGVK(gvk.LocalQueue,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KueueInstanceName),
+			),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.LocalQueue))).
+		WatchesGVK(gvk.ClusterQueue,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KueueInstanceName),
+			),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ClusterQueue))).
+		WatchesGVK(gvk.KueueConfigV1,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KueueInstanceName),
+			),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.KueueConfigV1))).
+		WatchesGVK(gvk.OperatorCondition,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KueueInstanceName),
+			),
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamePrefixed(kueueOperator))).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.KueueInstanceName)),
-			reconciler.WithPredicates(
-				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
+			reconciler.WithPredicates(predicate.Or(
+				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
+				resources.CreatedOrUpdatedOrDeletedNamed(kueueCRDname),
+			)),
 		).
 		Watches(&rbacv1.ClusterRole{},
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.KueueInstanceName),
 			),
 			reconciler.WithPredicates(resources.CreatedOrUpdatedName(ClusterQueueViewerRoleName), predicate.LabelChangedPredicate{}),
+		).
+		Watches(&corev1.Namespace{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KueueInstanceName),
+			),
+			reconciler.WithPredicates(
+				predicate.And(
+					predicate.LabelChangedPredicate{},
+					predicate.Or(component.ForLabel(KueueManagedAnnotationKey, "true"), component.ForLabel(KueueManagedAnnotationKey, "true")),
+				),
+			),
 		).
 		Watches(&serviceApi.Auth{},
 			reconciler.WithEventHandler(
@@ -95,6 +129,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
 		WithAction(observability.NewAction()).
+		WithAction(manageDefaultKueueResourcesAction).
 		WithAction(manageKueueAdminRoleBinding).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
