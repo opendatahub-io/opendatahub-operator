@@ -20,11 +20,6 @@ const (
 )
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
-	dsci, err := cluster.GetDSCI(ctx, rr.Client)
-	if err != nil {
-		return nil, errors.New("failed to get DataScienceCluster instance: " + err.Error())
-	}
-
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return nil, errors.New("instance is not of type *services.Monitoring")
@@ -69,6 +64,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"StorageSize":         defaultIfZero(metrics.Storage.Size, 5),
 		"StorageRetention":    defaultIfZero(metrics.Storage.Retention, 1),
 		"MonitoringStackName": monitoringStackName,
-		"Namespace":           dsci.Spec.Monitoring.Namespace,
+		"Namespace":           monitoring.Spec.Namespace,
 	}, nil
 }
