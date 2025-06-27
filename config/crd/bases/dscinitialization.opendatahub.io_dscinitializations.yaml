@@ -104,6 +104,38 @@ spec:
                     - Removed
                     pattern: ^(Managed|Unmanaged|Force|Removed)$
                     type: string
+                  metrics:
+                    description: metrics collection
+                    properties:
+                      resources:
+                        description: MetricsResources defines the desired state of
+                          resource requests and limits for the monitoring service
+                        properties:
+                          cpulimit:
+                            description: CPU limit for the monitoring service
+                            type: string
+                          cpurequest:
+                            description: CPU request for the monitoring service
+                            type: string
+                          memorylimit:
+                            description: Memory limit for the monitoring service
+                            type: string
+                          memoryrequest:
+                            description: Memory request for the monitoring service
+                            type: string
+                        type: object
+                      storage:
+                        description: MetricsStorage defines the desired state of storage
+                          for the monitoring service
+                        properties:
+                          retention:
+                            description: Retention of the storage in days
+                            type: integer
+                          size:
+                            description: Size of the storage in Gi
+                            type: integer
+                        type: object
+                    type: object
                   namespace:
                     default: opendatahub
                     description: |-

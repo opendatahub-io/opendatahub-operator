@@ -23,7 +23,7 @@ import (
 
 const (
 	MonitoringServiceName = "monitoring"
-	// MonitoringInstanceName the name of the Dashboard instance singleton.
+	// MonitoringInstanceName the name of the Monitoring instance singleton.
 	// value should match whats set in the XValidation below
 	MonitoringInstanceName = "default-monitoring"
 	MonitoringKind         = "Monitoring"
@@ -37,6 +37,32 @@ type MonitoringSpec struct {
 	// monitoring spec exposed to DSCI api
 	MonitoringCommonSpec `json:",inline"`
 	// monitoring spec exposed only to internal api
+}
+
+// Metrics defines the desired state of metrics for the monitoring service
+type Metrics struct {
+	Storage   MetricsStorage   `json:"storage,omitempty"`
+	Resources MetricsResources `json:"resources,omitempty"`
+}
+
+// MetricsStorage defines the desired state of storage for the monitoring service
+type MetricsStorage struct {
+	// Size of the storage in Gi
+	Size int `json:"size,omitempty"`
+	// Retention of the storage in days
+	Retention int `json:"retention,omitempty"`
+}
+
+// MetricsResources defines the desired state of resource requests and limits for the monitoring service
+type MetricsResources struct {
+	// CPU limit for the monitoring service
+	CPULimit string `json:"cpulimit,omitempty"`
+	// Memory limit for the monitoring service
+	MemoryLimit string `json:"memorylimit,omitempty"`
+	// CPU request for the monitoring service
+	CPURequest string `json:"cpurequest,omitempty"`
+	// Memory request for the monitoring service
+	MemoryRequest string `json:"memoryrequest,omitempty"`
 }
 
 // MonitoringStatus defines the observed state of Monitoring
@@ -72,6 +98,8 @@ type MonitoringCommonSpec struct {
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="MonitoringNamespace is immutable"
 	Namespace string `json:"namespace,omitempty"`
+	// metrics collection
+	Metrics *Metrics `json:"metrics,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -113,7 +113,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.30.0
-    createdAt: "2025-06-25T11:32:03Z"
+    createdAt: "2025-06-27T13:34:05Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -937,6 +937,32 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - monitoring.rhobs
+          resources:
+          - monitoringstacks
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - monitoring.rhobs
+          resources:
+          - monitoringstacks/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - monitoring.rhobs
+          resources:
+          - monitoringstacks/status
+          verbs:
+          - get
+          - patch
+          - update
         - apiGroups:
           - networking.istio.io
           resources:

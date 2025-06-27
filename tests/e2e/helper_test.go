@@ -36,6 +36,8 @@ const (
 	serviceMeshNamespace         = "istio-system"        // Namespace for Istio Service Mesh control plane
 	serviceMeshMetricsCollection = "Istio"               // Metrics collection for Service Mesh (e.g., Istio)
 	serviceMeshMemberName        = "default"
+	observabilityOpName          = "cluster-observability-operator"           // Name of the Cluster Observability Operator
+	observabilityOpNamespace     = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
 )
 
 // Configuration and Miscellaneous Constants.

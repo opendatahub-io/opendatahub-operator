@@ -22,14 +22,17 @@ import (
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -53,12 +56,18 @@ func (h *serviceHandler) GetName() string {
 	return ServiceName
 }
 
-func (h *serviceHandler) GetManagementState(platform common.Platform) operatorv1.ManagementState {
-	if platform != cluster.ManagedRhoai {
-		return operatorv1.Unmanaged
+func (h *serviceHandler) GetManagementState(platform common.Platform, dsci *dsciv1.DSCInitialization) operatorv1.ManagementState {
+	// If DSCI exists, use its monitoring configuration
+	if dsci != nil {
+		return dsci.Spec.Monitoring.ManagementState
 	}
 
-	return operatorv1.Managed
+	// Fallback to platform-based logic if DSCI is not available
+	if platform == cluster.ManagedRhoai {
+		return operatorv1.Managed
+	}
+
+	return operatorv1.Unmanaged
 }
 
 func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
@@ -85,8 +94,18 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 				return m.Spec.Namespace, nil
 			}),
 		)).
+		Watches(
+			&extv1.CustomResourceDefinition{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(serviceApi.MonitoringInstanceName)),
+		).
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).
+		WithAction(createMonitoringStack).
+		WithAction(template.NewAction(
+			template.WithCache(true),
+			template.WithDataFn(getTemplateData),
+		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
