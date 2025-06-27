@@ -83,6 +83,12 @@ type ResourceOptions struct {
 	// WaitForDeletion determines whether to wait for the resource to be fully deleted from the cluster.
 	// If true, the DeleteResource function will block until the resource is confirmed to be gone.
 	WaitForDeletion bool
+
+	// Webhook validation fields for testing
+	// InvalidValue holds the description of the invalid value being tested in webhook validation
+	InvalidValue string
+	// FieldName holds the name of the field being validated by the webhook
+	FieldName string
 }
 
 // ResourceOpts is a function type used to configure options for the ResourceOptions object.
@@ -238,9 +244,25 @@ func WithConsistentlyDuration(value time.Duration) ResourceOpts {
 	}
 }
 
-// WithConsistentlyPollingInterval sets the default polling interval for Consistently assertions.
+// WithConsistentlyPollingInterval creates a ResourceOpts function that sets the polling interval for Consistently assertions.
 func WithConsistentlyPollingInterval(value time.Duration) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.tc.g.SetDefaultConsistentlyPollingInterval(value)
+	}
+}
+
+// WithInvalidValue creates a ResourceOpts function that sets the invalid value description for webhook validation tests.
+// This is used for better error messages in webhook validation tests.
+func WithInvalidValue(description string) ResourceOpts {
+	return func(ro *ResourceOptions) {
+		ro.InvalidValue = description
+	}
+}
+
+// WithFieldName creates a ResourceOpts function that sets the field name being validated by the webhook.
+// This is used for better error messages and validation in webhook tests.
+func WithFieldName(fieldName string) ResourceOpts {
+	return func(ro *ResourceOptions) {
+		ro.FieldName = fieldName
 	}
 }
