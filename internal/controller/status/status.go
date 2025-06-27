@@ -142,7 +142,6 @@ const (
 	ServerlessOperatorNotInstalledMessage = "Serverless operator must be installed for this component's configuration"
 
 	ServerlessUnsupportedCertMessage = "Serverless certificate type is not supported"
-	WorkbenchNamespaceErrorMessage   = "DSC must have workbenchNamespace set to empty '' or 'rhods-notebooks'"
 )
 
 const (
