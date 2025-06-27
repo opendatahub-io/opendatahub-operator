@@ -112,7 +112,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-06-13T12:11:43Z"
+    createdAt: "2025-06-26T07:55:31Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -165,6 +165,9 @@ metadata:
                 "name": "knative-serving"
               }
             },
+            "llamastackoperator": {
+                "managementState": "Removed"
+            },
             "kueue": {
               "managementState": "Managed"
             },
@@ -205,7 +208,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
-  name: rhods-operator.v2.22.0
+  name: rhods-operator.v2.23.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1460,7 +1463,7 @@ spec:
   - llamastack
   links:
   - name: Red Hat OpenShift AI
-    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.22.0
+    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.23.0
   maintainers:
   - email: managed-open-data-hub@redhat.com
     name: Red Hat Openshift AI
@@ -1468,7 +1471,7 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.22.0
+  version: 2.23.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
