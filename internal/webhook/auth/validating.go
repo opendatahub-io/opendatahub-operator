@@ -87,6 +87,13 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 		return admission.Errored(http.StatusInternalServerError, errors.New("webhook decoder not initialized"))
 	}
 
+	// Validate that we're processing the correct Kind
+	if req.Kind.Kind != gvk.Auth.Kind {
+		err := fmt.Errorf("unexpected kind: %s", req.Kind.Kind)
+		log.Error(err, "got wrong kind")
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
 	var resp admission.Response
 
 	switch req.Operation {
