@@ -17,6 +17,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 )
@@ -133,6 +134,38 @@ func NewDSC(name, namespace string, opts ...func(*dscv1.DataScienceCluster)) *ds
 		opt(dsc)
 	}
 	return dsc
+}
+
+// NewAuth creates an Auth object with the given name, namespace, and groups for use in tests.
+//
+// Parameters:
+//   - name: The name of the Auth object.
+//   - namespace: The namespace for the object.
+//   - adminGroups: The admin groups for the Auth resource.
+//   - allowedGroups: The allowed groups for the Auth resource.
+//   - opts: Optional functional options to mutate the object.
+//
+// Returns:
+//   - *serviceApi.Auth: The constructed Auth object.
+func NewAuth(name, namespace string, adminGroups, allowedGroups []string, opts ...func(*serviceApi.Auth)) *serviceApi.Auth {
+	auth := &serviceApi.Auth{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       gvk.Auth.Kind,
+			APIVersion: serviceApi.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups:   adminGroups,
+			AllowedGroups: allowedGroups,
+		},
+	}
+	for _, opt := range opts {
+		opt(auth)
+	}
+	return auth
 }
 
 // NewHWP creates a HardwareProfile object with the given name and namespace for use in tests.

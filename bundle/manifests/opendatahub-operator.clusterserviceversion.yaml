@@ -1329,6 +1329,26 @@ spec:
                 control-plane: controller-manager
                 name: opendatahub-operator
             spec:
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                    - matchExpressions:
+                      - key: kubernetes.io/os
+                        operator: In
+                        values:
+                        - linux
+                podAntiAffinity:
+                  preferredDuringSchedulingIgnoredDuringExecution:
+                  - podAffinityTerm:
+                      labelSelector:
+                        matchExpressions:
+                        - key: name
+                          operator: In
+                          values:
+                          - opendatahub-operator
+                      topologyKey: kubernetes.io/hostname
+                    weight: 100
               containers:
               - args:
                 - --health-probe-bind-address=:8081
@@ -1437,6 +1457,26 @@ spec:
       component: opendatahub-operator
   version: 2.29.0
   webhookdefinitions:
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: auth-validator.opendatahub.io
+    rules:
+    - apiGroups:
+      - services.platform.opendatahub.io
+      apiVersions:
+      - v1alpha1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - auths
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-auth
   - admissionReviewVersions:
     - v1
     containerPort: 443

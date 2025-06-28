@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -600,7 +601,7 @@ func (tc *TestContext) EnsureResourceIsUnique(obj client.Object, args ...any) {
 
 		// Check if the error is a Kubernetes StatusError and was denied by an admission webhook
 		// Ensure the failure is due to uniqueness constraints (Forbidden error)
-		g.Expect(errors.IsForbidden(err)).To(BeTrue(),
+		g.Expect(k8serr.IsForbidden(err)).To(BeTrue(),
 			defaultErrorMessageIfNone(
 				"Expected failure due to uniqueness constraint (Forbidden), but got: %v",
 				[]any{err},
@@ -918,6 +919,71 @@ func (tc *TestContext) CheckOperatorExists(operatorNamePrefix string) (bool, err
 	return cluster.OperatorExists(tc.Context(), tc.Client(), operatorNamePrefix)
 }
 
+// EnsureWebhookBlocksOperation verifies that webhook validation blocks a specific operation.
+//
+// This is the core generic function that handles webhook validation testing for any operation.
+// It expects the operation to fail with a Forbidden error from the webhook and validates
+// that the error message contains expected patterns.
+//
+// Parameters:
+//   - operation (func() error): The operation function that should be blocked by the webhook.
+//   - operationType (string): A descriptive name for the operation type (e.g., "creation", "update").
+//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior.
+func (tc *TestContext) EnsureWebhookBlocksOperation(operation func() error, operationType string, opts ...ResourceOpts) {
+	// Create a ResourceOptions object based on the provided opts.
+	ro := tc.NewResourceOptions(opts...)
+
+	tc.g.Eventually(func(g Gomega) {
+		// Execute the operation that should be blocked
+		err := operation()
+
+		// Expect the operation to fail
+		g.Expect(err).To(HaveOccurred(),
+			defaultErrorMessageIfNone(
+				"Expected %s of %s resource to fail due to webhook validation",
+				[]any{operationType, ro.GVK.Kind},
+				ro.CustomErrorArgs,
+			)...)
+
+		// Validate that it's a webhook validation error, not an infrastructure issue
+		tc.validateWebhookError(g, err, operationType, ro)
+	}).Should(Succeed(), defaultErrorMessageIfNone(
+		"Failed to validate webhook blocking behavior for %s of %s resource",
+		[]any{operationType, ro.GVK.Kind},
+		ro.CustomErrorArgs,
+	)...)
+}
+
+// EnsureWebhookBlocksResourceCreation verifies that webhook validation blocks creation of resources with invalid values.
+//
+// This function attempts to create a resource and expects the operation to fail with a BadRequest error from the webhook.
+// It validates that the error message contains expected content such as field names and invalid values.
+//
+// Parameters:
+//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
+func (tc *TestContext) EnsureWebhookBlocksResourceCreation(opts ...ResourceOpts) {
+	tc.EnsureWebhookBlocksOperation(func() error {
+		ro := tc.NewResourceOptions(opts...)
+		_, err := tc.g.Create(ro.Obj, ro.NN).Get()
+		return err
+	}, "creation", opts...)
+}
+
+// EnsureWebhookBlocksResourceUpdate verifies that webhook validation blocks updates to resources with invalid values.
+//
+// This function attempts to update a resource using the provided mutation function and expects the operation to fail
+// with a Forbidden error from the webhook. It validates that the error message contains expected invalid values.
+//
+// Parameters:
+//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
+func (tc *TestContext) EnsureWebhookBlocksResourceUpdate(opts ...ResourceOpts) {
+	tc.EnsureWebhookBlocksOperation(func() error {
+		ro := tc.NewResourceOptions(opts...)
+		_, err := tc.g.Update(ro.GVK, ro.NN, ro.MutateFunc).Get()
+		return err
+	}, "update", opts...)
+}
+
 // convertToResource converts an Unstructured object to the specified resource type.
 // It asserts that no error occurs during the conversion.
 //
@@ -1032,5 +1098,50 @@ func (tc *TestContext) createInstallPlan(name string, ns string, csvNames []stri
 			Approval:                   ofapi.ApprovalAutomatic,
 			ClusterServiceVersionNames: csvNames,
 		},
+	}
+}
+
+// validateWebhookError validates that an error is a proper webhook validation error.
+//
+// This helper function checks that the error is a Forbidden (HTTP 403) error from webhook
+// validation and validates that the error message contains expected patterns.
+//
+// Parameters:
+//   - g (Gomega): The Gomega assertion wrapper.
+//   - err (error): The error to validate.
+//   - operationType (string): A descriptive name for the operation type.
+//   - ro (*ResourceOptions): Resource options containing validation criteria.
+func (tc *TestContext) validateWebhookError(g Gomega, err error, operationType string, ro *ResourceOptions) {
+	// Expect the error to be a Forbidden (HTTP 403) from the webhook validation
+	g.Expect(k8serr.IsForbidden(err)).To(BeTrue(),
+		defaultErrorMessageIfNone(
+			"Expected Forbidden error from webhook validation for %s, got: %v",
+			[]any{operationType, err},
+			ro.CustomErrorArgs,
+		)...)
+
+	// Validate error message content
+	errorMsg := err.Error()
+
+	// Field name validation if provided
+	if ro.FieldName != "" {
+		g.Expect(errorMsg).To(Or(
+			ContainSubstring(ro.FieldName),
+			ContainSubstring(strings.ToLower(ro.FieldName)),
+		), defaultErrorMessageIfNone(
+			"Expected error message to reference field '%s' for %s, got: %s",
+			[]any{ro.FieldName, operationType, errorMsg},
+			ro.CustomErrorArgs,
+		)...)
+	}
+
+	// Invalid value validation if provided
+	if ro.InvalidValue != "" {
+		g.Expect(errorMsg).To(ContainSubstring(ro.InvalidValue),
+			defaultErrorMessageIfNone(
+				"Expected error message to contain invalid value '%s' for %s, got: %s",
+				[]any{ro.InvalidValue, operationType, errorMsg},
+				ro.CustomErrorArgs,
+			)...)
 	}
 }
