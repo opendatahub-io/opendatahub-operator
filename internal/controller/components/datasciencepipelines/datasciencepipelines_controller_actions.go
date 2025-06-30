@@ -18,8 +18,11 @@ package datasciencepipelines
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"path"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -33,11 +36,30 @@ import (
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines)", rr.Instance)
+	}
+
+	awfSpec := dsp.Spec.ArgoWorkflowsControllers
+	awfRemoved := awfSpec != nil && awfSpec.ManagementState == operatorv1.Removed
+
 	rr.Conditions.MarkTrue(status.ConditionArgoWorkflowAvailable)
 
 	crd, err := cluster.GetCRD(ctx, rr.Client, ArgoWorkflowCRD)
 	switch {
 	case k8serr.IsNotFound(err):
+		if awfRemoved {
+			rr.Conditions.MarkFalse(
+				status.ConditionArgoWorkflowAvailable,
+				conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+				conditions.WithReason(status.DataSciencePipelinesArgoWorkflowsCRDMissingReason),
+				conditions.WithMessage(status.DataSciencePipelinesArgoWorkflowsCRDMissingMessage),
+			)
+
+			return ErrArgoWorkflowCRDMissing
+		}
+
 		return nil
 	case err != nil:
 		err = odherr.NewStopError("failed to check for existing %s CRD: %w", ArgoWorkflowCRD, err)
@@ -49,6 +71,16 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		)
 
 		return err
+	}
+
+	if awfRemoved {
+		rr.Conditions.MarkTrue(status.ConditionArgoWorkflowAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithReason(status.DataSciencePipelinesArgoWorkflowsNotManagedReason),
+			conditions.WithMessage(status.DataSciencePipelinesArgoWorkflowsNotManagedMessage),
+		)
+
+		return nil
 	}
 
 	// Verify if existing workflow is deployed by ODH with label
@@ -97,6 +129,38 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 			rr.Manifests[0].ContextDir = ComponentName
 			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
 		}
+	}
+
+	return nil
+}
+
+func argoWorkflowsControllersOptions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	dsp, ok := rr.Instance.(*componentApi.DataSciencePipelines)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.DataSciencePipelines)", rr.Instance)
+	}
+
+	awfSpec := dsp.Spec.ArgoWorkflowsControllers
+
+	if awfSpec == nil {
+		awfSpec = &componentApi.ArgoWorkflowsControllersSpec{
+			ManagementState: operatorv1.Managed,
+		}
+	}
+
+	awfSpecJSON, err := json.Marshal(awfSpec)
+	if err != nil {
+		return fmt.Errorf("failed to marshal spec.argoWorkflowsControllers: %w", err)
+	}
+
+	extraParams := map[string]string{
+		argoWorkflowsControllersParamsKey: string(awfSpecJSON),
+	}
+
+	paramsPath := path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
+
+	if err := odhdeploy.ApplyParams(paramsPath, imageParamMap, extraParams); err != nil {
+		return fmt.Errorf("failed to update params.env: %w", err)
 	}
 
 	return nil
