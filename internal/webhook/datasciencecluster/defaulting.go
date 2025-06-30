@@ -20,8 +20,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/shared"
 )
 
-//+kubebuilder:webhook:path=/mutate-datasciencecluster,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=datasciencecluster-defaulter.opendatahub.io,admissionReviewVersions=v1
-//nolint:lll
+const (
+	// MutateDatascienceClusterPath is the path for the DataScienceCluster mutating webhook.
+	MutateDatascienceClusterPath = "/mutate-datasciencecluster"
+)
 
 // Defaulter implements webhook.CustomDefaulter for DataScienceCluster resources.
 // It sets default values for fields in the DataScienceCluster CR, such as ModelRegistry.RegistriesNamespace.
@@ -43,7 +45,7 @@ var _ webhook.CustomDefaulter = &Defaulter{}
 func (d *Defaulter) SetupWithManager(mgr ctrl.Manager) error {
 	mutateWebhook := admission.WithCustomDefaulter(mgr.GetScheme(), &dscv1.DataScienceCluster{}, d)
 	mutateWebhook.LogConstructor = shared.NewLogConstructor(d.Name)
-	mgr.GetWebhookServer().Register("/mutate-datasciencecluster", mutateWebhook)
+	mgr.GetWebhookServer().Register(MutateDatascienceClusterPath, mutateWebhook)
 	// No error to return currently, but return nil for future extensibility
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 
@@ -37,8 +39,8 @@ var (
 
 	kueueQueueNameLabelKey     = kueuewebhook.KueueQueueNameLabelKey
 	localQueueName             = "default"
-	kueueManagedLabelKey       = kueuewebhook.KueueManagedLabelKey
-	kueueLegacyManagedLabelKey = kueuewebhook.KueueLegacyManagedLabelKey
+	KueueManagedLabelKey       = "kueue.openshift.io/managed"
+	KueueLegacyManagedLabelKey = "kueue-managed"
 	missingLabelError          = `Kueue label validation failed: missing required label "` + kueueQueueNameLabelKey + `"`
 )
 
@@ -67,7 +69,17 @@ func mockNotebookCRD() *apiextensionsv1.CustomResourceDefinition {
 	}
 }
 
-// SetupEnvAndClientWithNotebook boots the envtest environment with webhook support.
+// SetupEnvAndClientWithNotebook sets up the environment and client with a mock Notebook CRD.
+// Parameters:
+//   - t: The testing.T object for error reporting.
+//   - registerWebhooks: The list of webhook registration functions to register.
+//   - timeout: The timeout duration for the environment setup.
+//
+// Returns:
+//   - context.Context: The context for the test environment.
+//   - *envt.EnvT: The environment wrapper instance.
+//   - func(): A function to clean up the environment.
+//   - client.Client: The client for the test environment.
 func SetupEnvAndClientWithNotebook(
 	t *testing.T,
 	registerWebhooks []envt.RegisterWebhooksFn,
@@ -90,6 +102,9 @@ func SetupEnvAndClientWithNotebook(
 	if err != nil && !k8serr.IsAlreadyExists(err) {
 		t.Fatalf("failed to create mock Notebook CRD: %v", err)
 	}
+
+	// Create webhook configuration
+	envtestutil.SetupWebhookConfigurations(t, env, ctx)
 
 	mgrCtx, mgrCancel := context.WithCancel(ctx)
 	errChan := make(chan error, 1)
@@ -123,6 +138,14 @@ func SetupEnvAndClientWithNotebook(
 	return ctx, env, teardown, env.Client()
 }
 
+// createDSCWithStatus creates a DataScienceCluster with the given management state.
+// Parameters:
+//   - ctx: The context for the API call.
+//   - g: The Gomega test context.
+//   - c: The client for the test environment.
+//   - state: The management state for the DataScienceCluster.
+//
+// Returns: None.
 func createDSCWithStatus(ctx context.Context, g *WithT, c client.Client, state operatorv1.ManagementState) {
 	dsc := &dscv1.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default"}}
 	g.Expect(c.Create(ctx, dsc)).To(Succeed())
@@ -139,6 +162,13 @@ func createDSCWithStatus(ctx context.Context, g *WithT, c client.Client, state o
 	g.Expect(c.Status().Update(ctx, dsc)).To(Succeed())
 }
 
+// newTestNamespace creates a new test namespace with the given name and labels.
+// Parameters:
+//   - name: The name of the namespace.
+//   - labels: The labels for the namespace.
+//
+// Returns:
+//   - *corev1.Namespace: The new namespace.
 func newTestNamespace(name string, labels map[string]string) *corev1.Namespace {
 	return &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -148,6 +178,15 @@ func newTestNamespace(name string, labels map[string]string) *corev1.Namespace {
 	}
 }
 
+// newTestWorkload creates a new test workload with the given name, namespace, GVK, and labels.
+// Parameters:
+//   - name: The name of the workload.
+//   - namespace: The namespace of the workload.
+//   - gvk: The GroupVersionKind of the workload.
+//   - labels: The labels for the workload.
+//
+// Returns:
+//   - *unstructured.Unstructured: The new workload.
 func newTestWorkload(name, namespace string, gvk schema.GroupVersionKind, labels map[string]string) *unstructured.Unstructured {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
@@ -171,14 +210,14 @@ func TestKueueWebhook_Integration(t *testing.T) {
 		{
 			name:           "Kueue disabled in DSC - should allow",
 			kueueState:     operatorv1.Removed,
-			nsLabels:       map[string]string{kueueManagedLabelKey: "true"},
+			nsLabels:       map[string]string{KueueManagedLabelKey: "true"},
 			workloadLabels: map[string]string{},
 			expectAllowed:  true,
 		},
 		{
 			name:              "Kueue enabled, ns enabled, missing workload label - should deny",
 			kueueState:        operatorv1.Managed,
-			nsLabels:          map[string]string{kueueManagedLabelKey: "true"},
+			nsLabels:          map[string]string{KueueManagedLabelKey: "true"},
 			workloadLabels:    map[string]string{},
 			expectAllowed:     false,
 			expectDeniedError: missingLabelError,
@@ -186,7 +225,7 @@ func TestKueueWebhook_Integration(t *testing.T) {
 		{
 			name:           "Kueue enabled, ns enabled, valid workload label - should allow",
 			kueueState:     operatorv1.Managed,
-			nsLabels:       map[string]string{kueueManagedLabelKey: "true"},
+			nsLabels:       map[string]string{KueueManagedLabelKey: "true"},
 			workloadLabels: map[string]string{kueueQueueNameLabelKey: localQueueName},
 			expectAllowed:  true,
 		},
@@ -200,7 +239,7 @@ func TestKueueWebhook_Integration(t *testing.T) {
 		{
 			name:           "Kueue enabled, ns enabled with legacy label, valid workload label - should allow",
 			kueueState:     operatorv1.Managed,
-			nsLabels:       map[string]string{kueueLegacyManagedLabelKey: "true"},
+			nsLabels:       map[string]string{KueueLegacyManagedLabelKey: "true"},
 			workloadLabels: map[string]string{kueueQueueNameLabelKey: localQueueName},
 			expectAllowed:  true,
 		},
@@ -240,4 +279,7 @@ func TestKueueWebhook_Integration(t *testing.T) {
 			}
 		})
 	}
+
+	os.Unsetenv("ENVTEST_WEBHOOK_LOCAL_PORT")
+	os.Unsetenv("ENVTEST_WEBHOOK_LOCAL_CERT_DIR")
 }

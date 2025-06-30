@@ -17,8 +17,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
-//+kubebuilder:webhook:path=/validate-datasciencecluster,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create,versions=v1,name=datasciencecluster-validator.opendatahub.io,admissionReviewVersions=v1
-//nolint:lll
+const (
+	// ValidateDatascienceClusterPath is the path for the DataScienceCluster validating webhook.
+	ValidateDatascienceClusterPath = "/validate-datasciencecluster"
+)
 
 // Validator implements webhook.AdmissionHandler for DataScienceCluster validation webhooks.
 // It enforces singleton creation rules for DataScienceCluster resources and always allows their deletion.
@@ -52,7 +54,7 @@ func (v *Validator) InjectDecoder(d admission.Decoder) error {
 //   - error: Always nil (for future extensibility).
 func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 	hookServer := mgr.GetWebhookServer()
-	hookServer.Register("/validate-datasciencecluster", &webhook.Admission{
+	hookServer.Register(ValidateDatascienceClusterPath, &webhook.Admission{
 		Handler:        v,
 		LogConstructor: shared.NewLogConstructor(v.Name),
 	})

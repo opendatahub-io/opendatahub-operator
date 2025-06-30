@@ -17,8 +17,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
-//+kubebuilder:webhook:path=/validate-dscinitialization,mutating=false,failurePolicy=fail,sideEffects=None,groups=dscinitialization.opendatahub.io,resources=dscinitializations,verbs=create;delete,versions=v1,name=dscinitialization-validator.opendatahub.io,admissionReviewVersions=v1
-//nolint:lll
+const (
+	// ValidateDscinitializationPath is the path for the DSCInitialization validating webhook.
+	ValidateDscinitializationPath = "/validate-dscinitialization"
+)
 
 // Validator implements webhook.AdmissionHandler for DSCInitialization validation webhooks.
 // It enforces singleton creation and deletion rules for DSCInitialization resources.
@@ -52,7 +54,7 @@ func (v *Validator) InjectDecoder(d admission.Decoder) error {
 //   - error: Always nil (for future extensibility).
 func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 	hookServer := mgr.GetWebhookServer()
-	hookServer.Register("/validate-dscinitialization", &webhook.Admission{
+	hookServer.Register(ValidateDscinitializationPath, &webhook.Admission{
 		Handler:        v,
 		LogConstructor: shared.NewLogConstructor(v.Name),
 	})

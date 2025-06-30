@@ -21,8 +21,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
-//+kubebuilder:webhook:path=/validate-auth,mutating=false,failurePolicy=fail,sideEffects=None,groups=services.platform.opendatahub.io,resources=auths,verbs=create;update,versions=v1alpha1,name=auth-validator.opendatahub.io,admissionReviewVersions=v1
-//nolint:lll
+const (
+	// ValidateAuthPath is the path for the Auth validating webhook.
+	ValidateAuthPath = "/validate-auth"
+)
 
 // Constants for invalid group values that should be rejected.
 const (
@@ -62,7 +64,7 @@ func (v *Validator) InjectDecoder(d admission.Decoder) error {
 //   - error: Always nil (for future extensibility).
 func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 	hookServer := mgr.GetWebhookServer()
-	hookServer.Register("/validate-auth", &webhook.Admission{
+	hookServer.Register(ValidateAuthPath, &webhook.Admission{
 		Handler:        v,
 		LogConstructor: shared.NewLogConstructor(v.Name),
 	})
