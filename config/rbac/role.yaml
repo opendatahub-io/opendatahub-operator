@@ -28,8 +28,6 @@ rules:
   - admissionregistration.k8s.io
   resources:
   - mutatingwebhookconfigurations
-  - validatingadmissionpolicies
-  - validatingadmissionpolicybindings
   - validatingwebhookconfigurations
   verbs:
   - create
