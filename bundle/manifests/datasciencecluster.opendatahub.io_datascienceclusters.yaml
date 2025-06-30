@@ -784,13 +784,14 @@ spec:
                       workbenchNamespace:
                         default: rhods-notebooks
                         description: Namespace for workbenches to be installed, defaults
-                          to "rhods-notebooks" (not configurable)
+                          to "rhods-notebooks" configurable once when component is
+                          enabled.
                         maxLength: 63
                         pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                         type: string
                         x-kubernetes-validations:
-                        - message: WorkbenchNamespace must be empty or 'rhods-notebooks'
-                          rule: self == '' || self == 'rhods-notebooks'
+                        - message: WorkbenchNamespace is immutable
+                          rule: self == oldSelf
                     type: object
                 type: object
             type: object
