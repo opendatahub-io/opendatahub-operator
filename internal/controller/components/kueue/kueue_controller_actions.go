@@ -19,8 +19,6 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -112,17 +110,6 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		}
 	}
 
-	return nil
-}
-
-func customizeResources(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	for i := range rr.Resources {
-		if rr.Resources[i].GroupVersionKind() == gvk.ValidatingAdmissionPolicyBinding {
-			// admin can update this resource
-			resources.SetAnnotation(&rr.Resources[i], annotations.ManagedByODHOperator, "false")
-			break // fast exist function
-		}
-	}
 	return nil
 }
 
