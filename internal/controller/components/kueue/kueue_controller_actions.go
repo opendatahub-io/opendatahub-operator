@@ -79,12 +79,6 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-func extraInitialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Add specific manifests if OCP is greater or equal 4.17.
-	rr.Manifests = append(rr.Manifests, kueueConfigExtraManifestsPath())
-	return nil
-}
-
 func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	kueue, ok := rr.Instance.(*componentApi.Kueue)
 	if !ok {

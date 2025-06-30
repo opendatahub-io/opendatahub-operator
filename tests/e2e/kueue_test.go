@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blang/semver/v4"
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
@@ -292,13 +291,4 @@ func (tc *KueueTestCtx) createMockCRD(gvk schema.GroupVersionKind, namespace str
 	crd := mocks.NewMockCRD(gvk.Group, gvk.Version, strings.ToLower(gvk.Kind), namespace)
 
 	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(crd))
-}
-
-// getClusterVersion retrieves and parses the cluster version.
-func (tc *ComponentTestCtx) getClusterVersion() semver.Version {
-	cv := tc.FetchClusterVersion()
-	v, err := semver.ParseTolerant(cv.Status.History[0].Version)
-	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to get cluster version")
-
-	return v
 }

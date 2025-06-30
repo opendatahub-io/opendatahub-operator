@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/blang/semver/v4"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -36,7 +35,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/observability"
@@ -54,11 +52,6 @@ import (
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &componentApi.Kueue{})
-
-	if cluster.GetClusterInfo().Version.GTE(semver.MustParse("4.17.0")) {
-		// add OCP 4.17.0 specific manifests
-		b = b.WithAction(extraInitialize)
-	}
 
 	// customized Owns() for Component with new predicates
 	b.Owns(&corev1.ConfigMap{}).
