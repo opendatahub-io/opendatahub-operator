@@ -103,7 +103,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(updatePrometheusConfigMap).
 		WithAction(createMonitoringStack).
 		WithAction(template.NewAction(
-			template.WithCache(true),
+			template.WithCache(),
 			template.WithDataFn(getTemplateData),
 		)).
 		WithAction(deploy.NewAction(

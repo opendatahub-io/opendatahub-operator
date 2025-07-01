@@ -2629,7 +2629,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | redhat-ods-monitoring | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 
 
@@ -2725,6 +2725,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | redhat-ods-monitoring | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 
 
 #### MonitoringList
@@ -2761,6 +2762,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | redhat-ods-monitoring | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 
 
 #### MonitoringStatus
