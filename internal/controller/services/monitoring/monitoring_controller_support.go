@@ -33,6 +33,9 @@ const (
 	opentelemetryOperator            = "opentelemetry-product"
 	clusterObservabilityOperator     = "cluster-observability-operator"
 	tempoOperator                    = "tempo-product"
+	InstrumentationTemplate          = "resources/instrumentation.tmpl.yaml"
+	InstrumentationName              = "data-science-instrumentation"
+	DefaultSamplerType               = "traceidratio"
 )
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
@@ -48,30 +51,58 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["Traces"] = monitoring.Spec.Traces != nil
 	templateData["Metrics"] = monitoring.Spec.Metrics != nil
 
-	// Add metrics data if metrics are configured
-	if monitoring.Spec.Metrics != nil {
-		metrics := monitoring.Spec.Metrics
-
-		var cpuLimit, memoryLimit, cpuRequest, memoryRequest string
+	// Add metrics-related data if metrics are configured
+	if metrics := monitoring.Spec.Metrics; metrics != nil {
+		// Handle Resources fields - provide defaults if Resources is nil
 		if metrics.Resources != nil {
-			cpuLimit = metrics.Resources.CPULimit.String()
-			memoryLimit = metrics.Resources.MemoryLimit.String()
-			cpuRequest = metrics.Resources.CPURequest.String()
-			memoryRequest = metrics.Resources.MemoryRequest.String()
-		} else { // here need to match default value set in API
-			cpuLimit = "500m"
-			memoryLimit = "512Mi"
-			cpuRequest = "100m"
-			memoryRequest = "256Mi"
+			cpuLimit := metrics.Resources.CPULimit.String()
+			if cpuLimit == "" || cpuLimit == "0" {
+				cpuLimit = "500m"
+			}
+			templateData["CPULimit"] = cpuLimit
+
+			memoryLimit := metrics.Resources.MemoryLimit.String()
+			if memoryLimit == "" || memoryLimit == "0" {
+				memoryLimit = "512Mi"
+			}
+			templateData["MemoryLimit"] = memoryLimit
+
+			cpuRequest := metrics.Resources.CPURequest.String()
+			if cpuRequest == "" || cpuRequest == "0" {
+				cpuRequest = "100m"
+			}
+			templateData["CPURequest"] = cpuRequest
+
+			memoryRequest := metrics.Resources.MemoryRequest.String()
+			if memoryRequest == "" || memoryRequest == "0" {
+				memoryRequest = "256Mi"
+			}
+			templateData["MemoryRequest"] = memoryRequest
+		} else {
+			// Use defaults when Resources is nil
+			templateData["CPULimit"] = "500m"
+			templateData["MemoryLimit"] = "512Mi"
+			templateData["CPURequest"] = "100m"
+			templateData["MemoryRequest"] = "256Mi"
 		}
 
-		var storageSize, storageRetention string
+		// Handle Storage fields - provide defaults if Storage is nil
 		if metrics.Storage != nil {
-			storageSize = metrics.Storage.Size.String()
-			storageRetention = metrics.Storage.Retention
-		} else { // here need to match default value set in API
-			storageSize = "5Gi"
-			storageRetention = "1d"
+			storageSize := metrics.Storage.Size.String()
+			if storageSize == "" || storageSize == "0" {
+				storageSize = "5Gi"
+			}
+			templateData["StorageSize"] = storageSize
+
+			retention := metrics.Storage.Retention
+			if retention == "" {
+				retention = "1d"
+			}
+			templateData["StorageRetention"] = retention
+		} else {
+			// Use defaults when Storage is nil
+			templateData["StorageSize"] = "5Gi"
+			templateData["StorageRetention"] = "1d"
 		}
 
 		// only when either storage or resources is set, we take replicas into account
@@ -81,23 +112,23 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		if (metrics.Storage != nil || metrics.Resources != nil) && metrics.Replicas != 0 {
 			replicas = metrics.Replicas
 		}
-
-		templateData["CPULimit"] = cpuLimit
-		templateData["MemoryLimit"] = memoryLimit
-		templateData["CPURequest"] = cpuRequest
-		templateData["MemoryRequest"] = memoryRequest
-		templateData["StorageSize"] = storageSize
-		templateData["StorageRetention"] = storageRetention
 		templateData["Replicas"] = strconv.Itoa(int(replicas))
 		templateData["PromPipelineName"] = PrometheusPipelineName
 	}
 
-	// Add traces data if traces are configured
-	if monitoring.Spec.Traces != nil {
-		traces := monitoring.Spec.Traces.Storage
-		templateData["Backend"] = traces.Backend
-		templateData["Secret"] = traces.Secret
-		templateData["Size"] = traces.Size
+	// Add traces-related data if traces are configured
+	if traces := monitoring.Spec.Traces; traces != nil {
+		templateData["InstrumentationName"] = InstrumentationName
+		templateData["OtlpEndpoint"] = fmt.Sprintf("http://data-science-collector.%s.svc.cluster.local:4317", monitoring.Spec.Namespace)
+		templateData["SampleRatio"] = traces.SampleRatio
+		templateData["SamplerType"] = DefaultSamplerType
+
+		// Add tempo-related data from traces.Storage fields (Storage is a struct, not a pointer)
+		if traces.Storage.Backend != "" {
+			templateData["Backend"] = traces.Storage.Backend
+			templateData["Secret"] = traces.Storage.Secret
+			templateData["Size"] = traces.Storage.Size
+		}
 	}
 
 	return templateData, nil
@@ -128,12 +159,8 @@ func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationReq
 
 func checkOperatorSubscription(ctx context.Context, cli client.Client, operatorName string) error {
 	if found, err := cluster.SubscriptionExists(ctx, cli, operatorName); !found || err != nil {
-		if err != nil {
-			return fmt.Errorf("failed to find the pre-requisite operator subscription %q,"+
-				" please ensure operator is installed: %w", operatorName, err)
-		}
 		return fmt.Errorf("failed to find the pre-requisite operator subscription %q,"+
-			" please ensure operator is installed", operatorName)
+			" please ensure operator is installed: %w", operatorName, err)
 	}
 	return nil
 }
