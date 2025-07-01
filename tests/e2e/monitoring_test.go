@@ -34,7 +34,7 @@ func monitoringTestSuite(t *testing.T) {
 		TestContext: tc,
 	}
 
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed)),
 	)
@@ -99,7 +99,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsWhenSet(t *testing.T) {
 
 	monitoringStackName := getMonitoringStackName(dsci)
 
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: 5, retention: 1}, resources: {cpurequest: "250", memoryrequest: "350"}}`)),
 	)
