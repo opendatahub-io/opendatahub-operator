@@ -52,6 +52,14 @@ spec:
           spec:
             description: MonitoringSpec defines the desired state of Monitoring
             properties:
+              managementState:
+                default: Managed
+                enum:
+                - Managed
+                - Unmanaged
+                - Removed
+                pattern: ^(Managed|Unmanaged|Force|Removed)$
+                type: string
               metrics:
                 description: metrics collection
                 properties:
@@ -137,6 +145,17 @@ spec:
                 x-kubernetes-validations:
                 - message: MonitoringNamespace is immutable
                   rule: self == oldSelf
+              traces:
+                description: Tracing configuration for OpenTelemetry instrumentation
+                properties:
+                  sampleRatio:
+                    default: "0.1"
+                    description: |-
+                      SampleRatio determines the sampling rate for traces
+                      Value should be between 0.0 (no sampling) and 1.0 (sample all traces)
+                    pattern: ^(0(\.[0-9]+)?|1(\.0+)?)$
+                    type: string
+                type: object
             type: object
           status:
             description: MonitoringStatus defines the observed state of Monitoring

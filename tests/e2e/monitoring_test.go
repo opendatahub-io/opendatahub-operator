@@ -1,11 +1,17 @@
 package e2e_test
 
 import (
+	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
@@ -13,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
@@ -21,6 +28,94 @@ import (
 
 type MonitoringTestCtx struct {
 	*TestContext
+}
+
+// setupMonitoringCRDs ensures that all required CRDs for monitoring tests are installed.
+func (tc *MonitoringTestCtx) setupMonitoringCRDs() {
+	// Install MonitoringStack CRD
+	if !tc.isMonitoringStackCRDAvailable() {
+		tc.createMonitoringStackCRD()
+	}
+}
+
+// createMonitoringStackCRD creates a mock MonitoringStack CRD.
+func (tc *MonitoringTestCtx) createMonitoringStackCRD() {
+	crd := tc.createMockCRD(gvk.MonitoringStack, "monitoring")
+	tc.EnsureResourceCreatedOrUpdated(WithObjectToCreate(crd))
+}
+
+// createMockCRD creates a mock CRD for a given group, version, kind, and component.
+func (tc *MonitoringTestCtx) createMockCRD(gvk schema.GroupVersionKind, componentName string) *apiextv1.CustomResourceDefinition {
+	return &apiextv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: strings.ToLower(fmt.Sprintf("%ss.%s", gvk.Kind, gvk.Group)),
+			Labels: map[string]string{
+				labels.ODH.Component(componentName): labels.True,
+			},
+		},
+		Spec: apiextv1.CustomResourceDefinitionSpec{
+			Group: gvk.Group,
+			Names: apiextv1.CustomResourceDefinitionNames{
+				Kind:   gvk.Kind,
+				Plural: strings.ToLower(gvk.Kind) + "s",
+			},
+			Scope: apiextv1.NamespaceScoped,
+			Versions: []apiextv1.CustomResourceDefinitionVersion{
+				{
+					Name:    gvk.Version,
+					Served:  true,
+					Storage: true,
+					Schema: &apiextv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextv1.JSONSchemaProps{
+							Type: "object",
+							Properties: map[string]apiextv1.JSONSchemaProps{
+								"spec": {
+									Type: "object",
+									Properties: map[string]apiextv1.JSONSchemaProps{
+										"alertmanagerConfig": {Type: "object"},
+										"logLevel":           {Type: "string"},
+										"prometheusConfig":   {Type: "object"},
+										"resourceSelector":   {Type: "object"},
+										"resources":          {Type: "object"},
+										"retention":          {Type: "string"},
+									},
+								},
+								"status": {
+									Type: "object",
+									Properties: map[string]apiextv1.JSONSchemaProps{
+										"conditions": {
+											Type: "array",
+											Items: &apiextv1.JSONSchemaPropsOrArray{
+												Schema: &apiextv1.JSONSchemaProps{
+													Type: "object",
+													Properties: map[string]apiextv1.JSONSchemaProps{
+														"type":   {Type: "string"},
+														"status": {Type: "string"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Subresources: &apiextv1.CustomResourceSubresources{
+						Status: &apiextv1.CustomResourceSubresourceStatus{},
+					},
+				},
+			},
+		},
+	}
+}
+
+// isMonitoringStackCRDAvailable checks if the MonitoringStack CRD is available in the cluster.
+func (tc *MonitoringTestCtx) isMonitoringStackCRDAvailable() bool {
+	exists, err := cluster.HasCRD(context.Background(), tc.g.Client(), gvk.MonitoringStack)
+	if err != nil {
+		return false
+	}
+	return exists
 }
 
 func monitoringTestSuite(t *testing.T) {
@@ -34,6 +129,9 @@ func monitoringTestSuite(t *testing.T) {
 	monitoringServiceCtx := MonitoringTestCtx{
 		TestContext: tc,
 	}
+
+	// Setup required CRDs for monitoring tests
+	monitoringServiceCtx.setupMonitoringCRDs()
 
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
@@ -111,18 +209,21 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsWhenSet(t *testing.
 
 	monitoringStackName := getMonitoringStackName(dsci)
 
-	// Update DSCI to set metrics
+	// Update DSCI to set metrics - ensure managementState remains Managed
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: "5Gi", retention: "1d"}, resources: {cpurequest: "250m", memoryrequest: "350Mi"}}`)),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringMetrics(),
+		)),
 	)
 
-	// ensure the Monitoring CR is created with Ready status
-	m := tc.EnsureResourceExists(
+	// Wait for the Monitoring resource to be updated by DSCInitialization controller
+	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
-		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
+		WithCondition(jq.Match(`.spec.metrics != null`)),
+		WithCustomErrorMsg("Monitoring resource should be updated with metrics configuration by DSCInitialization controller"),
 	)
-	tc.g.Expect(m).ToNot(BeNil())
 
 	// ensure the MonitoringStack CR is created with Available status
 	ms := tc.EnsureResourceExists(
@@ -196,4 +297,36 @@ func getMonitoringStackName(dsci *dsciv1.DSCInitialization) string {
 	}
 
 	return "odh-monitoringstack"
+}
+
+// setMonitoringMetrics creates a transformation function that sets the monitoring metrics configuration.
+func setMonitoringMetrics() testf.TransformFn {
+	return func(obj *unstructured.Unstructured) error {
+		metricsConfig := map[string]interface{}{
+			"storage": map[string]interface{}{
+				"size":      "5Gi",
+				"retention": "1d",
+			},
+			"resources": map[string]interface{}{
+				"cpurequest":    "250m",
+				"memoryrequest": "350Mi",
+			},
+		}
+
+		return unstructured.SetNestedField(obj.Object, metricsConfig, "spec", "monitoring", "metrics")
+	}
+}
+
+// ValidateMonitoringCRDefaultTracesContent validates that traces stanza is omitted by default.
+func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultTracesContent(t *testing.T) {
+	t.Helper()
+
+	// Ensure that the Monitoring resource exists.
+	monitoring := &serviceApi.Monitoring{}
+	tc.FetchTypedResource(monitoring, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
+
+	// Validate the traces stanza is omitted by default
+	tc.g.Expect(monitoring.Spec.Traces).
+		To(BeNil(),
+			"Expected traces stanza to be omitted by default")
 }

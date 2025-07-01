@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	operatorv1 "github.com/openshift/api/operator/v1"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +37,9 @@ var _ common.PlatformObject = (*Monitoring)(nil)
 
 // MonitoringSpec defines the desired state of Monitoring
 type MonitoringSpec struct {
+	// +kubebuilder:default=Managed
+	// +kubebuilder:validation:Enum=Managed;Unmanaged;Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 	// monitoring spec exposed to DSCI api
 	MonitoringCommonSpec `json:",inline"`
 	// monitoring spec exposed only to internal api
@@ -110,6 +115,18 @@ type MonitoringCommonSpec struct {
 	Namespace string `json:"namespace,omitempty"`
 	// metrics collection
 	Metrics *Metrics `json:"metrics,omitempty"`
+
+	// Tracing configuration for OpenTelemetry instrumentation
+	// +optional
+	Traces *Traces `json:"traces,omitempty"`
+}
+
+type Traces struct {
+	// SampleRatio determines the sampling rate for traces
+	// Value should be between 0.0 (no sampling) and 1.0 (sample all traces)
+	// +kubebuilder:default="0.1"
+	// +kubebuilder:validation:Pattern="^(0(\\.[0-9]+)?|1(\\.0+)?)$"
+	SampleRatio string `json:"sampleRatio,omitempty"`
 }
 
 //+kubebuilder:object:root=true

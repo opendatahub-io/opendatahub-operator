@@ -33,6 +33,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
@@ -57,13 +58,9 @@ func (h *serviceHandler) GetName() string {
 	return ServiceName
 }
 
-func (h *serviceHandler) GetManagementState(platform common.Platform, dsci *dsciv1.DSCInitialization) operatorv1.ManagementState {
-	// If DSCI exists, use its monitoring configuration
-	if dsci != nil {
-		return dsci.Spec.Monitoring.ManagementState
-	}
-
-	// Fallback to platform-based logic if DSCI is not available
+func (h *serviceHandler) GetManagementState(platform common.Platform, _ *dsciv1.DSCInitialization) operatorv1.ManagementState {
+	// For monitoring service, the management state is determined by the Monitoring CR itself
+	// This function is only used for backwards compatibility with the service registry
 	if platform == cluster.ManagedRhoai {
 		return operatorv1.Managed
 	}
@@ -109,12 +106,14 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).
 		WithAction(createMonitoringStack).
+		WithAction(handleInstrumentationCR).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
+		WithAction(gc.NewAction()).
 		Build(ctx)
 
 	if err != nil {
