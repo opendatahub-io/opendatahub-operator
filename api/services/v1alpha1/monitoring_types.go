@@ -36,10 +36,6 @@ var _ common.PlatformObject = (*Monitoring)(nil)
 type MonitoringSpec struct {
 	// monitoring spec exposed to DSCI api
 	MonitoringCommonSpec `json:",inline"`
-	// metrics collection
-	*Metrics `json:"metrics,omitempty"`
-	// traces collection
-	*Traces `json:"traces,omitempty"`
 	// monitoring spec exposed only to internal api
 }
 

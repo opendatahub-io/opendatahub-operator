@@ -2766,8 +2766,6 @@ _Appears in:_
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | traces collection |  |  |
-| `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
-| `traces` _[Traces](#traces)_ | traces collection |  |  |
 
 
 #### MonitoringStatus
