@@ -24,7 +24,7 @@ var (
 
 	// TODO: double check if downsteam is using this as placeholder.
 	imageParamMap = map[string]string{
-		"RELATED_IMAGE_ODH_LLAMASTACK_OPERATOR": "RELATED_IMAGE_ODH_LLAMASTACK_OPERATOR",
+		"RELATED_IMAGE_ODH_LLAMASTACK_OPERATOR": "RELATED_IMAGE_ODH_LLAMA_STACK_K8S_OPERATOR_IMAGE",
 	}
 
 	conditionTypes = []string{
