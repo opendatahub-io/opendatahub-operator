@@ -714,6 +714,32 @@ rules:
   - update
   - watch
 - apiGroups:
+  - monitoring.rhobs
+  resources:
+  - monitoringstacks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - monitoringstacks/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - monitoring.rhobs
+  resources:
+  - monitoringstacks/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - networking.istio.io
   resources:
   - envoyfilters
