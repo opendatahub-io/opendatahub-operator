@@ -15,3 +15,7 @@ env | while IFS="=" read varname value; do
     component=${component//_/-}
     update_tags $(basename $component) $value
 done
+
+# This ensures the release uses the midstream repository which has the incubation branch(used for release)
+echo "Updating trustyai repository reference..."
+sed -i 's|trustyai-explainability:|opendatahub-io:|g' get_all_manifests.sh
