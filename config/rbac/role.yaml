@@ -775,6 +775,7 @@ rules:
 - apiGroups:
   - opentelemetry.io
   resources:
+  - instrumentations
   - opentelemetrycollectors
   verbs:
   - create
@@ -787,12 +788,14 @@ rules:
 - apiGroups:
   - opentelemetry.io
   resources:
+  - instrumentations/finalizers
   - opentelemetrycollectors/finalizers
   verbs:
   - update
 - apiGroups:
   - opentelemetry.io
   resources:
+  - instrumentations/status
   - opentelemetrycollectors/status
   verbs:
   - get

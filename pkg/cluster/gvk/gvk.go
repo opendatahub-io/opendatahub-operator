@@ -392,4 +392,10 @@ var (
 		Version: "v1beta1",
 		Kind:    "OpenTelemetryCollector",
 	}
+
+	Instrumentation = schema.GroupVersionKind{
+		Group:   "opentelemetry.io",
+		Version: "v1alpha1",
+		Kind:    "Instrumentation",
+	}
 )

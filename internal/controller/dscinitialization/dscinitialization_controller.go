@@ -449,6 +449,8 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 			defaultMonitoring.Spec.Metrics = nil // explictliy set to nil, same as not set but for better readability
 		}
 	}
+	defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
+	defaultMonitoring.Spec.ManagementState = dsci.Spec.Monitoring.ManagementState
 
 	defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
 

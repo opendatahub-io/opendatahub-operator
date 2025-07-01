@@ -64,11 +64,6 @@ func (h *serviceHandler) GetManagementState(platform common.Platform, dsci *dsci
 		return operatorv1.Managed
 	}
 
-	// If DSCI exists, use its monitoring configuration
-	if dsci != nil {
-		return dsci.Spec.Monitoring.ManagementState
-	}
-
 	return operatorv1.Unmanaged
 }
 
@@ -89,6 +84,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.MonitoringStack, reconciler.Dynamic(ifGVKInstalled(gvk.MonitoringStack))).
 		OwnsGVK(gvk.TempoMonolithic, reconciler.Dynamic(ifGVKInstalled(gvk.TempoMonolithic))).
 		OwnsGVK(gvk.TempoStack, reconciler.Dynamic(ifGVKInstalled(gvk.TempoStack))).
+		OwnsGVK(gvk.Instrumentation, reconciler.Dynamic(ifGVKInstalled(gvk.Instrumentation))).
 		// operands - watched
 		//
 		// By default the Watches functions adds:
@@ -118,6 +114,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(createMonitoringStack).
 		WithAction(deployTempo).
 		WithAction(createOpenTelemetryCollector).
+		WithAction(handleInstrumentationCR).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
