@@ -1,14 +1,9 @@
-name: Integration tests
-on: {}
-#  pull_request_target:
-#    paths:
-#      - 'bundle/**'
-#      - 'config/**'
-#      - 'internal/**'
-#      - 'pkg/**'
-#      - 'cmd/main.go'
+name: Build Catalog FBC and run Integration tests
+on:
+  pull_request_target:
+    types: [labeled]
 
-permissions: {}
+permissions: { }
 
 env:
   IMAGE_TAG_BASE: quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator
@@ -20,6 +15,7 @@ jobs:
 
   create-catalog-image:
     name: Build/push catalog image
+    # add this condition to the jenkins job step -> if: ${{ github.event.label.name == 'run-integration-tests' }}
     runs-on: ubuntu-latest
     needs: get-merge-commit
     env:
