@@ -7,9 +7,10 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -52,6 +53,17 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 // only when DSC has component as Managed and component CR is in "Ready" state, we add rules to Prom Rules.
 // all other cases, we do not change Prom rules for component.
 func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// Get the monitoring instance
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *serviceApi.Monitoring")
+	}
+
+	// If monitoring is unmanaged or the release is not managed, we don't need to update the prometheus configmap
+	if monitoring.Spec.ManagementState == operatorv1.Unmanaged || rr.Release.Name != cluster.ManagedRhoai {
+		return nil
+	}
+
 	// Map component names to their rule prefixes
 	dsc, err := cluster.GetDSC(ctx, rr.Client)
 	// If the DSC doesn't exist, we don't need to update the prometheus configmap
@@ -60,16 +72,6 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	}
 	if err != nil {
 		return fmt.Errorf("failed to get DataScienceCluster instance: %w", err)
-	}
-
-	ok, dsci, _ := checkDSCI(ctx, rr)
-	if !ok {
-		return nil
-	}
-
-	// If monitoring is unmanaged or the release is not managed, we don't need to update the prometheus configmap
-	if dsci.Spec.Monitoring.ManagementState == operatorv1.Unmanaged || rr.Release.Name != cluster.ManagedRhoai {
-		return nil
 	}
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
@@ -95,43 +97,108 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 }
 
 func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	ok, _, _ := checkDSCI(ctx, rr)
-	if !ok {
-		return nil
-	}
-
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	// Only create monitoring stack if monitoring is managed and has metrics config
+	if monitoring.Spec.ManagementState != operatorv1.Managed || monitoring.Spec.Metrics == nil {
+		return nil
 	}
 
 	msExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack)
 	if !msExists {
 		return errors.New("MonitoringStack CRD not found")
 	}
-	if monitoring.Spec.Metrics != nil {
-		template := []odhtypes.TemplateInfo{
-			{
-				FS:   resourcesFS,
-				Path: MonitoringStackTemplate,
-			},
-		}
-		rr.Templates = append(rr.Templates, template...)
+
+	template := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: MonitoringStackTemplate,
+		},
 	}
+	rr.Templates = append(rr.Templates, template...)
 
 	return nil
 }
 
-func checkDSCI(ctx context.Context, rr *odhtypes.ReconciliationRequest) (bool, *dsciv1.DSCInitialization, error) {
-	dsci, err := cluster.GetDSCI(ctx, rr.Client)
-	// DSCI not found
-	if err != nil && k8serr.IsNotFound(err) {
-		return false, nil, nil
-	}
-	// DSCI found but error
-	if err != nil {
-		return false, nil, fmt.Errorf("failed to get DataScienceClusterInitialization instance: %w", err)
+// handleInstrumentationCR manages OpenTelemetry Instrumentation CRs using server-side apply.
+func handleInstrumentationCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *serviceApi.Monitoring")
 	}
 
-	return true, dsci, nil
+	dsci, err := cluster.GetDSCI(ctx, rr.Client)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get DSCInitialization instance: %w", err)
+	}
+
+	instrumentationName := "opendatahub-instrumentation"
+	instrumentationNamespace := monitoring.Spec.Namespace
+
+	existingInstrumentation := &unstructured.Unstructured{}
+	existingInstrumentation.SetGroupVersionKind(gvk.Instrumentation)
+	existingInstrumentation.SetName(instrumentationName)
+	existingInstrumentation.SetNamespace(instrumentationNamespace)
+
+	existingErr := rr.Client.Get(ctx, client.ObjectKeyFromObject(existingInstrumentation), existingInstrumentation)
+	if existingErr != nil && !k8serr.IsNotFound(existingErr) {
+		return fmt.Errorf("failed to get existing instrumentation: %w", existingErr)
+	}
+	instrumentationExists := existingErr == nil
+
+	switch dsci.Spec.Monitoring.ManagementState {
+	case operatorv1.Managed:
+		// Only create instrumentation CR if monitoring is managed and has traces config
+		if monitoring.Spec.ManagementState != operatorv1.Managed || monitoring.Spec.Traces == nil {
+			// If traces are not configured but instrumentation exists, remove it
+			if instrumentationExists {
+				if err := rr.Client.Delete(ctx, existingInstrumentation); err != nil && !k8serr.IsNotFound(err) {
+					return fmt.Errorf("failed to delete instrumentation CR: %w", err)
+				}
+			}
+			return nil
+		}
+
+		sampleRatio := *monitoring.Spec.SampleRatio
+
+		instrumentation := &unstructured.Unstructured{}
+		instrumentation.SetGroupVersionKind(gvk.Instrumentation)
+		instrumentation.SetName(instrumentationName)
+		instrumentation.SetNamespace(instrumentationNamespace)
+
+		otlpEndpoint := fmt.Sprintf("http://otel-collector.%s.svc.cluster.local:4317", instrumentationNamespace)
+
+		spec := map[string]interface{}{
+			"exporter": map[string]interface{}{
+				"endpoint": otlpEndpoint,
+			},
+			"sampler": map[string]interface{}{
+				"type":     "traceidratio",
+				"argument": sampleRatio,
+			},
+		}
+
+		if err := unstructured.SetNestedMap(instrumentation.Object, spec, "spec"); err != nil {
+			return fmt.Errorf("failed to set instrumentation spec: %w", err)
+		}
+
+		return rr.AddResources(instrumentation)
+
+	case operatorv1.Unmanaged:
+		if instrumentationExists {
+			if err := rr.Client.Delete(ctx, existingInstrumentation); err != nil && !k8serr.IsNotFound(err) {
+				return fmt.Errorf("failed to delete instrumentation CR: %w", err)
+			}
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("unsupported monitoring management state: %s", dsci.Spec.Monitoring.ManagementState)
+	}
 }

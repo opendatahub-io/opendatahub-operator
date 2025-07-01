@@ -2631,6 +2631,7 @@ _Appears in:_
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
+| `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 
 
 #### Metrics
@@ -2726,6 +2727,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
+| `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 
 
 #### MonitoringList
@@ -2761,8 +2763,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ |  | Managed | Enum: [Managed Unmanaged Removed] <br /> |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
+| `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 
 
 #### MonitoringStatus
@@ -2782,5 +2786,23 @@ _Appears in:_
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `url` _string_ |  |  |  |
+
+
+#### Traces
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
+- [MonitoringSpec](#monitoringspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `sampleRatio` _string_ | SampleRatio determines the sampling rate for traces<br />Value should be between 0.0 (no sampling) and 1.0 (sample all traces) | 0.1 | Pattern: `^(0(\.[0-9]+)?\|1(\.0+)?)$` <br /> |
 
 
