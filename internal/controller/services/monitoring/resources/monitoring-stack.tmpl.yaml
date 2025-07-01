@@ -1,0 +1,25 @@
+apiVersion: monitoring.rhobs/v1alpha1
+kind: MonitoringStack
+metadata:
+  name: {{ .MonitoringStackName }}
+  namespace: {{ .Namespace }}
+spec:
+  alertmanagerConfig:
+    disabled: false
+  logLevel: debug
+  prometheusConfig:
+    enableOtlpHttpReceiver: true
+    persistentVolumeClaim:
+      resources:
+        requests: 
+          storage: {{ .StorageSize }}Gi
+    replicas: 2
+  resourceSelector: {}
+  resources:
+    limits:
+      cpu: {{ .CPULimit }}m
+      memory: {{ .MemoryLimit }}Mi
+    requests:
+      cpu: {{ .CPURequest }}m
+      memory: {{ .MemoryRequest }}Mi
+  retention: {{ .StorageRetention }}d

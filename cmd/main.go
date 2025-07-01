@@ -554,19 +554,13 @@ func CreateComponentReconcilers(ctx context.Context, mgr manager.Manager) error 
 }
 
 func CreateServiceReconcilers(ctx context.Context, mgr manager.Manager) error {
-	rel := cluster.GetRelease()
-	l := logf.FromContext(ctx)
+	log := logf.FromContext(ctx)
 
 	return sr.ForEach(func(sh sr.ServiceHandler) error {
-		if sh.GetManagementState(rel.Name) != operatorv1.Managed {
-			return nil
-		}
-
-		l.Info("creating reconciler", "type", "service", "name", sh.GetName())
+		log.Info("creating reconciler", "type", "service", "name", sh.GetName())
 		if err := sh.NewReconciler(ctx, mgr); err != nil {
 			return fmt.Errorf("error creating %s service reconciler: %w", sh.GetName(), err)
 		}
-
 		return nil
 	})
 }
