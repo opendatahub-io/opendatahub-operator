@@ -561,6 +561,18 @@ rules:
   - patch
   - watch
 - apiGroups:
+  - keda.sh
+  resources:
+  - triggerauthentications
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - machinelearning.seldon.io
   resources:
   - seldondeployments
@@ -592,6 +604,15 @@ rules:
   - patch
   - update
   - use
+  - watch
+- apiGroups:
+  - metrics.k8s.io
+  resources:
+  - nodes
+  - pods
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - modelregistry.opendatahub.io
