@@ -27,9 +27,9 @@ spec:
   - name: dockerfile
     value: Dockerfiles/bundle.Dockerfile
   - name: rebuild
+    value: true
   - name: target_branch
     value: '{{target_branch}}'
-    value: true
   pipelineSpec:
     description: |
       This pipeline is ideal for building container images from a Containerfile while maintaining trust after pipeline customization.
@@ -151,6 +151,7 @@ spec:
       description: Image tag expiration time, time values could be something like
         1h, 2d, 3w for hours, days, and weeks, respectively.
       name: image-expires-after
+      type: string
     - default: "false"
       description: Build a source image.
       name: build-source-image
