@@ -49,12 +49,7 @@ jobs:
       run: ./.github/scripts/update-versions.sh ${{ env.VERSION }}
 
     - name: Run make manifests & bundle
-      run: make manifests bundle
-
-    - name: Clean up bundle files
-      run: |
-        sed -i -e "s|image: quay.io/opendatahub/opendatahub-operator:latest.*|image: REPLACE_IMAGE:latest|g" bundle/manifests/opendatahub-operator.clusterserviceversion.yaml
-        rm -f ./config/manager/kustomization.yaml
+      run: make manifests bundle IMG_TAG=v${{ env.VERSION }}
 
     - name: Update branches in get_all_manifest.sh
       uses: actions/github-script@v7
