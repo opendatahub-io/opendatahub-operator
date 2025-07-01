@@ -44,6 +44,24 @@ Package v1 contains API Schema definitions for the components v1 API group
 
 
 
+#### ArgoWorkflowsControllersSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCDataSciencePipelines](#dscdatasciencepipelines)
+- [DataSciencePipelinesCommonSpec](#datasciencepipelinescommonspec)
+- [DataSciencePipelinesSpec](#datasciencepipelinesspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the bundled Argo Workflows controllers.<br />              It will only upgrade the Argo Workflows controllers if it is safe to do so. This is the default<br />              behavior.<br /><br />- "Removed" : the operator is not managing the bundled Argo Workflows controllers and will not install it.<br />              If it is installed, the operator will remove it but will not remove other Argo Workflows<br />              installations. | Managed | Enum: [Managed Removed] <br /> |
+
+
 #### CodeFlare
 
 
@@ -236,6 +254,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `argoWorkflowsControllers` _[ArgoWorkflowsControllersSpec](#argoworkflowscontrollersspec)_ |  |  |  |
 
 
 #### DSCDataSciencePipelinesStatus
@@ -738,6 +757,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `argoWorkflowsControllers` _[ArgoWorkflowsControllersSpec](#argoworkflowscontrollersspec)_ |  |  |  |
 
 
 #### DataSciencePipelinesCommonStatus
@@ -791,6 +811,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `argoWorkflowsControllers` _[ArgoWorkflowsControllersSpec](#argoworkflowscontrollersspec)_ |  |  |  |
 
 
 #### DataSciencePipelinesStatus
@@ -2804,6 +2825,62 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
+
+
+#### Metrics
+
+
+
+Metrics defines the desired state of metrics for the monitoring service
+
+
+
+_Appears in:_
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
+- [MonitoringSpec](#monitoringspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `storage` _[MetricsStorage](#metricsstorage)_ |  |  |  |
+| `resources` _[MetricsResources](#metricsresources)_ |  |  |  |
+
+
+#### MetricsResources
+
+
+
+MetricsResources defines the desired state of resource requests and limits for the monitoring service
+
+
+
+_Appears in:_
+- [Metrics](#metrics)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `cpulimit` _string_ | CPU limit for the monitoring service |  |  |
+| `memorylimit` _string_ | Memory limit for the monitoring service |  |  |
+| `cpurequest` _string_ | CPU request for the monitoring service |  |  |
+| `memoryrequest` _string_ | Memory request for the monitoring service |  |  |
+
+
+#### MetricsStorage
+
+
+
+MetricsStorage defines the desired state of storage for the monitoring service
+
+
+
+_Appears in:_
+- [Metrics](#metrics)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `size` _integer_ | Size of the storage in Gi |  |  |
+| `retention` _integer_ | Retention of the storage in days |  |  |
 
 
 #### Monitoring
@@ -2843,6 +2920,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 
 
 #### MonitoringList
@@ -2879,6 +2957,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 
 
 #### MonitoringStatus
