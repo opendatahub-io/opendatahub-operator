@@ -58,8 +58,8 @@ spec:
             - k8s.pod.name
             - service.namespace
       {{ if .Traces }}
-        resourcedetection:
-          detectors: [openshift]
+      resourcedetection:
+        detectors: [openshift]
       {{ end }}
     exporters:
       prometheus:
@@ -67,10 +67,10 @@ spec:
         resource_to_telemetry_conversion:
           enabled: true # by default resource attributes are dropped
       {{ if .Traces }}
-        otlp:
-          endpoint: "tempo-<example>-distributor:4317" 
-          tls:
-            insecure: true
+      otlp:
+        endpoint: "tempo-<example>-distributor:4317" 
+        tls:
+          insecure: true
       {{ end }}
     service: 
       pipelines:
