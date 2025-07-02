@@ -494,6 +494,7 @@ func TestManageKueueAdminRoleBinding_WithEmptyAdminGroups(t *testing.T) {
 	ctx := context.Background()
 	g := NewWithT(t)
 
+	// Create Auth CR with empty admin groups
 	authCR := &serviceApi.Auth{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: serviceApi.AuthInstanceName,
@@ -503,7 +504,9 @@ func TestManageKueueAdminRoleBinding_WithEmptyAdminGroups(t *testing.T) {
 		},
 	}
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(authCR))
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(authCR),
+	)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	kueue := componentApi.Kueue{}
@@ -517,10 +520,11 @@ func TestManageKueueAdminRoleBinding_WithEmptyAdminGroups(t *testing.T) {
 	err = manageKueueAdminRoleBinding(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	// Verify ClusterRoleBinding was created but with no subjects
-	g.Expect(rr.Resources).Should(HaveLen(1))
+	// Verify that a ClusterRoleBinding was created with no subjects
+	resources := rr.Resources
+	g.Expect(resources).To(HaveLen(1))
 
-	g.Expect(rr.Resources[0]).Should(And(
+	g.Expect(resources[0]).Should(And(
 		jq.Match(`.metadata.name == "%s"`, KueueAdminRoleBindingName),
 		jq.Match(`.kind == "ClusterRoleBinding"`),
 		jq.Match(`.apiVersion == "rbac.authorization.k8s.io/v1"`),

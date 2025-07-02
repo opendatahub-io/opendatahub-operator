@@ -19,8 +19,6 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -81,12 +79,6 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-func extraInitialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Add specific manifests if OCP is greater or equal 4.17.
-	rr.Manifests = append(rr.Manifests, kueueConfigExtraManifestsPath())
-	return nil
-}
-
 func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	kueue, ok := rr.Instance.(*componentApi.Kueue)
 	if !ok {
@@ -112,17 +104,6 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		}
 	}
 
-	return nil
-}
-
-func customizeResources(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	for i := range rr.Resources {
-		if rr.Resources[i].GroupVersionKind() == gvk.ValidatingAdmissionPolicyBinding {
-			// admin can update this resource
-			resources.SetAnnotation(&rr.Resources[i], annotations.ManagedByODHOperator, "false")
-			break // fast exist function
-		}
-	}
 	return nil
 }
 

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/blang/semver/v4"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -36,8 +35,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/observability"
@@ -55,18 +52,6 @@ import (
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	b := reconciler.ReconcilerFor(mgr, &componentApi.Kueue{})
-
-	if cluster.GetClusterInfo().Version.GTE(semver.MustParse("4.17.0")) {
-		// "own" VAP, because we want it has owner so when kueue is removed it gets cleaned.
-		b = b.OwnsGVK(gvk.ValidatingAdmissionPolicy)
-
-		// "watch" VAPB, because we want it to be configurable by user, and it can be left behind
-		// when kueue is removed
-		b = b.WatchesGVK(gvk.ValidatingAdmissionPolicyBinding)
-
-		// add OCP 4.17.0 specific menifests
-		b = b.WithAction(extraInitialize)
-	}
 
 	// customized Owns() for Component with new predicates
 	b.Owns(&corev1.ConfigMap{}).
@@ -110,7 +95,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
 		WithAction(observability.NewAction()).
-		WithAction(customizeResources).
 		WithAction(manageKueueAdminRoleBinding).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),

@@ -4,11 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blang/semver/v4"
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -49,50 +47,17 @@ func kueueTestSuite(t *testing.T) {
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
-		{"Validate Kueue Dynamically create VAP and VAPB", componentCtx.ValidateKueueVAPReady},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate pre check", componentCtx.ValidateKueuePreCheck},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate component managed error with ocp kueue-operator installed", componentCtx.ValidateKueueManagedWhitOcpKueueOperator},
-		{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWhitoutOcpKueueOperator},
+		{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
 		{"Validate component managed to unmanaged transition", componentCtx.ValidateKueueManagedToUnmanagedTransition},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
-}
-
-// ValidateKueueVAPReady ensures that Validating Admission Policies (VAP) and Bindings (VAPB) are properly configured.
-func (tc *KueueTestCtx) ValidateKueueVAPReady(t *testing.T) {
-	t.Helper()
-
-	v := tc.getClusterVersion()
-
-	if v.GTE(semver.MustParse("4.17.0")) {
-		// Validate that VAP exists and has correct owner references.
-		tc.EnsureResourceExists(
-			WithMinimalObject(gvk.ValidatingAdmissionPolicy, types.NamespacedName{Name: "kueue-validating-admission-policy"}),
-			WithCondition(jq.Match(`.metadata.ownerReferences[0].name == "%s"`, componentApi.KueueInstanceName)),
-		)
-
-		// Validate that VAPB exists and has no owner references.
-		tc.EnsureResourceExists(
-			WithMinimalObject(gvk.ValidatingAdmissionPolicyBinding, types.NamespacedName{Name: "kueue-validating-admission-policy-binding"}),
-			WithCondition(jq.Match(`.metadata.ownerReferences | length == 0`)),
-		)
-	} else {
-		// Ensure that VAP and VAPB do not exist.
-		tc.EnsureResourceDoesNotExist(
-			WithMinimalObject(gvk.ValidatingAdmissionPolicy, types.NamespacedName{Name: "kueue-validating-admission-policy"}),
-			WithExpectedErr(&meta.NoKindMatchError{}),
-		)
-
-		tc.EnsureResourceDoesNotExist(
-			WithMinimalObject(gvk.ValidatingAdmissionPolicyBinding, types.NamespacedName{Name: "kueue-validating-admission-policy-binding"}),
-			WithExpectedErr(&meta.NoKindMatchError{}),
-		)
-	}
 }
 
 // ValidateCRDReinstated ensures that required CRDs are reinstated if deleted.
@@ -203,8 +168,8 @@ func (tc *KueueTestCtx) ValidateKueueManagedWhitOcpKueueOperator(t *testing.T) {
 	uninstallOperator(t, tc.TestContext, kueueOpName, kueueOcpOperatorNamespace)
 }
 
-// ValidateKueueUnmanagedWhitoutOcpKueueOperator ensures that if the component is in Unmanaged state and ocp kueue operator is not installed, then its status is "Not Ready".
-func (tc *KueueTestCtx) ValidateKueueUnmanagedWhitoutOcpKueueOperator(t *testing.T) {
+// ValidateKueueUnmanagedWithoutOcpKueueOperator ensures that if the component is in Unmanaged state and ocp kueue operator is not installed, then its status is "Not Ready".
+func (tc *KueueTestCtx) ValidateKueueUnmanagedWithoutOcpKueueOperator(t *testing.T) {
 	t.Helper()
 
 	componentName := strings.ToLower(tc.GVK.Kind)
@@ -326,13 +291,4 @@ func (tc *KueueTestCtx) createMockCRD(gvk schema.GroupVersionKind, namespace str
 	crd := mocks.NewMockCRD(gvk.Group, gvk.Version, strings.ToLower(gvk.Kind), namespace)
 
 	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(crd))
-}
-
-// getClusterVersion retrieves and parses the cluster version.
-func (tc *ComponentTestCtx) getClusterVersion() semver.Version {
-	cv := tc.FetchClusterVersion()
-	v, err := semver.ParseTolerant(cv.Status.History[0].Version)
-	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to get cluster version")
-
-	return v
 }
