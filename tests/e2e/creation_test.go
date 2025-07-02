@@ -58,6 +58,7 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Validate Knative resource", dscTestCtx.ValidateKnativeSpecInDSC},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
+		{"Validate Observability operators are installed", dscTestCtx.ValidateObservabilityOperatorsInstallation},
 	}
 
 	// Append webhook-specific tests.
@@ -109,6 +110,32 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	}
 
 	RunTestCases(t, testCases, WithParallel())
+}
+
+func (tc *DSCTestCtx) ValidateObservabilityOperatorsInstallation(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Define operators to be installed.
+	operators := []struct {
+		nn                types.NamespacedName
+		skipOperatorGroup bool
+	}{
+		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: dsci.Spec.Monitoring.Namespace}, skipOperatorGroup: true},
+	}
+
+	// Create and run test cases in parallel.
+	testCases := make([]TestCase, len(operators))
+	for i, op := range operators {
+		testCases[i] = TestCase{
+			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
+			testFn: func(t *testing.T) {
+				t.Helper()
+				tc.EnsureOperatorInstalled(op.nn, op.skipOperatorGroup)
+			},
+		}
+	}
 }
 
 // ValidateDSCICreation validates the creation of a DSCInitialization.

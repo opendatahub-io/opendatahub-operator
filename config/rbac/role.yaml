@@ -780,6 +780,32 @@ rules:
   - update
   - watch
 - apiGroups:
+  - opentelemetry.io
+  resources:
+  - opentelemetrycollector/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - opentelemetry.io
+  resources:
+  - opentelemetrycollectors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - opentelemetry.io
+  resources:
+  - opentelemetrycollectors/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - operator.authorino.kuadrant.io
   resources:
   - authorinos

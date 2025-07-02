@@ -65,6 +65,9 @@ type MetricsResources struct {
 	MemoryRequest string `json:"memoryrequest,omitempty"`
 }
 
+// Traces defines the desired state of traces for the monitoring service
+type Traces struct{}
+
 // MonitoringStatus defines the observed state of Monitoring
 type MonitoringStatus struct {
 	common.Status `json:",inline"`
@@ -100,6 +103,8 @@ type MonitoringCommonSpec struct {
 	Namespace string `json:"namespace,omitempty"`
 	// metrics collection
 	Metrics *Metrics `json:"metrics,omitempty"`
+	// traces collection
+	Traces *Traces `json:"traces,omitempty"`
 }
 
 //+kubebuilder:object:root=true
