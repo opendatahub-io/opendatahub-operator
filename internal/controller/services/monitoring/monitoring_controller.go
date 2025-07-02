@@ -81,8 +81,11 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		//   for to objects that have the label components.platform.opendatahub.io/part-of
 		// or services.platform.opendatahub.io/part-of set to the current owner
 		//
-		Watches(&dscv1.DataScienceCluster{}, reconciler.WithEventHandler(handlers.ToNamed(serviceApi.MonitoringInstanceName)),
-			reconciler.WithPredicates(resources.DSCComponentUpdatePredicate)).
+		Watches(
+			&dscv1.DataScienceCluster{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.MonitoringInstanceName)),
+			reconciler.WithPredicates(resources.DSCComponentUpdatePredicate),
+		).
 		// actions
 		WithAction(deployments.NewAction(
 			deployments.InNamespaceFn(func(_ context.Context, rr *types.ReconciliationRequest) (string, error) {
@@ -103,7 +106,6 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(updatePrometheusConfigMap).
 		WithAction(createMonitoringStack).
 		WithAction(template.NewAction(
-			template.WithCache(true),
 			template.WithDataFn(getTemplateData),
 		)).
 		WithAction(deploy.NewAction(

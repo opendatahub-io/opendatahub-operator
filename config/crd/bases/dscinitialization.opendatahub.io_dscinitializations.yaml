@@ -108,32 +108,38 @@ spec:
                     description: metrics collection
                     properties:
                       resources:
-                        description: MetricsResources defines the desired state of
-                          resource requests and limits for the monitoring service
+                        description: MetricsResources defines the resource requests
+                          and limits for the monitoring service
                         properties:
                           cpulimit:
-                            description: CPU limit for the monitoring service
+                            description: CPULimit specifies the maximum CPU allocation
+                              (e.g., "500m", "2")
                             type: string
                           cpurequest:
-                            description: CPU request for the monitoring service
+                            description: CPURequest specifies the minimum CPU allocation
+                              (e.g., "100m", "0.5")
                             type: string
                           memorylimit:
-                            description: Memory limit for the monitoring service
+                            description: MemoryLimit specifies the maximum memory
+                              allocation (e.g., "1Gi", "512Mi")
                             type: string
                           memoryrequest:
-                            description: Memory request for the monitoring service
+                            description: MemoryRequest specifies the minimum memory
+                              allocation (e.g., "256Mi", "1Gi")
                             type: string
                         type: object
                       storage:
-                        description: MetricsStorage defines the desired state of storage
+                        description: MetricsStorage defines the storage configuration
                           for the monitoring service
                         properties:
                           retention:
-                            description: Retention of the storage in days
-                            type: integer
+                            description: Retention specifies how long metrics data
+                              should be retained (e.g., "1d", "2w")
+                            type: string
                           size:
-                            description: Size of the storage in Gi
-                            type: integer
+                            description: Size specifies the storage size for the MonitoringStack
+                              (e.g, "5Gi", "10Mi")
+                            type: string
                         type: object
                     type: object
                   namespace:

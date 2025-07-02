@@ -45,23 +45,23 @@ type Metrics struct {
 	Resources MetricsResources `json:"resources,omitempty"`
 }
 
-// MetricsStorage defines the desired state of storage for the monitoring service
+// MetricsStorage defines the storage configuration for the monitoring service
 type MetricsStorage struct {
-	// Size of the storage in Gi
-	Size int `json:"size,omitempty"`
-	// Retention of the storage in days
-	Retention int `json:"retention,omitempty"`
+	// Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi")
+	Size string `json:"size,omitempty"`
+	// Retention specifies how long metrics data should be retained (e.g., "1d", "2w")
+	Retention string `json:"retention,omitempty"`
 }
 
-// MetricsResources defines the desired state of resource requests and limits for the monitoring service
+// MetricsResources defines the resource requests and limits for the monitoring service
 type MetricsResources struct {
-	// CPU limit for the monitoring service
+	// CPULimit specifies the maximum CPU allocation (e.g., "500m", "2")
 	CPULimit string `json:"cpulimit,omitempty"`
-	// Memory limit for the monitoring service
+	// MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi")
 	MemoryLimit string `json:"memorylimit,omitempty"`
-	// CPU request for the monitoring service
+	// CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5")
 	CPURequest string `json:"cpurequest,omitempty"`
-	// Memory request for the monitoring service
+	// MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi")
 	MemoryRequest string `json:"memoryrequest,omitempty"`
 }
 

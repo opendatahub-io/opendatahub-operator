@@ -101,7 +101,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsWhenSet(t *testing.T) {
 
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: 5, retention: 1}, resources: {cpurequest: "250", memoryrequest: "350"}}`)),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: 5Gi, retention: 1d}, resources: {cpurequest: "250m", memoryrequest: "350Mi"}}`)),
 	)
 
 	ms := tc.EnsureResourceExists(
@@ -160,8 +160,6 @@ func getMonitoringStackName(dsci *dsciv1.DSCInitialization) string {
 		return "rhoai-monitoringstack"
 	case cluster.SelfManagedRhoai:
 		return "rhoai-monitoringstack"
-	case cluster.OpenDataHub:
-		return "odh-monitoringstack"
 	}
 
 	return "odh-monitoringstack"

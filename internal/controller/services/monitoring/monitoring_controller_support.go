@@ -26,7 +26,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	if monitoring.Spec.Metrics == nil {
-		return nil, errors.New("monitoring metrics are not set")
+		return nil, nil
 	}
 
 	var monitoringStackName string
@@ -35,8 +35,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		monitoringStackName = ManagedStackName
 	case cluster.SelfManagedRhoai:
 		monitoringStackName = ManagedStackName
-	case cluster.OpenDataHub:
-		monitoringStackName = OpenDataHubStackName
 	default:
 		monitoringStackName = OpenDataHubStackName
 	}
@@ -48,21 +46,14 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		return value
 	}
 
-	defaultIfZero := func(value, defaultVal int) int {
-		if value == 0 {
-			return defaultVal
-		}
-		return value
-	}
-
 	metrics := monitoring.Spec.Metrics
 	return map[string]any{
-		"CPULimit":            defaultIfEmpty(metrics.Resources.CPULimit, "500"),
-		"MemoryLimit":         defaultIfEmpty(metrics.Resources.MemoryLimit, "512"),
-		"CPURequest":          defaultIfEmpty(metrics.Resources.CPURequest, "100"),
-		"MemoryRequest":       defaultIfEmpty(metrics.Resources.MemoryRequest, "256"),
-		"StorageSize":         defaultIfZero(metrics.Storage.Size, 5),
-		"StorageRetention":    defaultIfZero(metrics.Storage.Retention, 1),
+		"CPULimit":            defaultIfEmpty(metrics.Resources.CPULimit, "500m"),
+		"MemoryLimit":         defaultIfEmpty(metrics.Resources.MemoryLimit, "512Mi"),
+		"CPURequest":          defaultIfEmpty(metrics.Resources.CPURequest, "100m"),
+		"MemoryRequest":       defaultIfEmpty(metrics.Resources.MemoryRequest, "256Mi"),
+		"StorageSize":         defaultIfEmpty(metrics.Storage.Size, "5Gi"),
+		"StorageRetention":    defaultIfEmpty(metrics.Storage.Retention, "1d"),
 		"MonitoringStackName": monitoringStackName,
 		"Namespace":           monitoring.Spec.Namespace,
 	}, nil
