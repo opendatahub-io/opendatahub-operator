@@ -4,7 +4,6 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -319,18 +318,6 @@ var (
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,
 		Kind:    serviceApi.AuthKind,
-	}
-
-	ValidatingAdmissionPolicy = schema.GroupVersionKind{
-		Group:   admissionregistrationv1.SchemeGroupVersion.Group,
-		Version: admissionregistrationv1.SchemeGroupVersion.Version,
-		Kind:    "ValidatingAdmissionPolicy",
-	}
-
-	ValidatingAdmissionPolicyBinding = schema.GroupVersionKind{
-		Group:   admissionregistrationv1.SchemeGroupVersion.Group,
-		Version: admissionregistrationv1.SchemeGroupVersion.Version,
-		Kind:    "ValidatingAdmissionPolicyBinding",
 	}
 
 	MultiKueueConfigV1Alpha1 = schema.GroupVersionKind{

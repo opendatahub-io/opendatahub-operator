@@ -46,11 +46,3 @@ func kueueConfigManifestsPath() odhtypes.ManifestInfo {
 		SourcePath: "",
 	}
 }
-
-func kueueConfigExtraManifestsPath() odhtypes.ManifestInfo {
-	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: "kueue-configs",
-		SourcePath: "ocp-4.17-addons",
-	}
-}

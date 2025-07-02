@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	templatev1 "github.com/openshift/api/template/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -372,6 +373,8 @@ func CleanupExistingResource(ctx context.Context,
 	multiErr = multierror.Append(multiErr, cleanupNimIntegration(ctx, cli, oldReleaseVersion, d.Spec.ApplicationsNamespace))
 	// cleanup model controller legacy deployment
 	multiErr = multierror.Append(multiErr, cleanupModelControllerLegacyDeployment(ctx, cli, d.Spec.ApplicationsNamespace))
+	// cleanup deprecated kueue ValidatingAdmissionPolicyBinding
+	multiErr = multierror.Append(multiErr, cleanupDeprecatedKueueVAPB(ctx, cli))
 
 	return multiErr.ErrorOrNil()
 }
@@ -722,6 +725,35 @@ func cleanupModelControllerLegacyDeployment(ctx context.Context, cli client.Clie
 	}
 
 	l.Info("legacy deployment deleted", "name", d.Name, "namespace", d.Namespace)
+
+	return nil
+}
+
+// cleanupDeprecatedKueueVAPB removes the deprecated ValidatingAdmissionPolicyBinding
+// that was used in previous versions of Kueue but is no longer needed.
+// TODO: Remove this cleanup function in a future release when upgrading from versions
+// that contained ValidatingAdmissionPolicyBinding resources (< v2.29.0) is no longer supported.
+// This cleanup is only needed for upgrade scenarios from versions that included VAP manifests
+// in config/kueue-configs/ocp-4.17-addons/ directory.
+func cleanupDeprecatedKueueVAPB(ctx context.Context, cli client.Client) error {
+	log := logf.FromContext(ctx)
+
+	// Use the proper ValidatingAdmissionPolicyBinding struct instead of unstructured
+	vapb := &admissionregistrationv1.ValidatingAdmissionPolicyBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "kueue-validating-admission-policy-binding",
+		},
+	}
+
+	// Attempt to delete the resource
+	err := cli.Delete(ctx, vapb)
+	if client.IgnoreNotFound(err) != nil {
+		return fmt.Errorf("failed to delete deprecated ValidatingAdmissionPolicyBinding: %w", err)
+	}
+
+	if err == nil {
+		log.Info("Successfully deleted deprecated ValidatingAdmissionPolicyBinding")
+	}
 
 	return nil
 }
