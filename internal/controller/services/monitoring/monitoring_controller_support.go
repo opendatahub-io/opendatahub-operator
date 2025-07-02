@@ -6,7 +6,6 @@ import (
 	"errors"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -18,12 +17,9 @@ const (
 	OpenTelemetryCollectorTemplate = "resources/opentelemetry-collector.tmpl.yaml"
 	CollectorRBACTemplate          = "resources/collector-rbac.tmpl.yaml"
 	PrometheusRouteTemplate        = "resources/prometheus-route.tmpl.yaml"
-	ManagedStackName               = "rhoai-monitoringstack"
-	OpenDataHubStackName           = "odh-monitoringstack"
-	OpendatahubPipelineName        = "odh-prometheus-collector"
-	ManagedPipelineName            = "rhoai-prometheus-collector"
-	OpendatahubCollectorName       = "odh-collector"
-	ManagedCollectorName           = "rhoai-collector"
+	MonitoringStackName            = "monitoringstack"
+	PrometheusPipelineName         = "odh-prometheus-collector"
+	CollectorName                  = "otel"
 )
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
@@ -34,28 +30,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	if monitoring.Spec.Metrics == nil {
 		return nil, errors.New("monitoring metrics are not set")
-	}
-
-	var monitoringStackName string
-	var promPipelineName string
-	var otcName string
-	switch rr.Release.Name {
-	case cluster.ManagedRhoai:
-		monitoringStackName = ManagedStackName
-		promPipelineName = ManagedPipelineName
-		otcName = ManagedCollectorName
-	case cluster.SelfManagedRhoai:
-		monitoringStackName = ManagedStackName
-		promPipelineName = ManagedPipelineName
-		otcName = ManagedCollectorName
-	case cluster.OpenDataHub:
-		monitoringStackName = OpenDataHubStackName
-		promPipelineName = OpendatahubPipelineName
-		otcName = OpendatahubCollectorName
-	default:
-		monitoringStackName = OpenDataHubStackName
-		promPipelineName = OpendatahubPipelineName
-		otcName = OpendatahubCollectorName
 	}
 
 	defaultIfEmpty := func(value, defaultVal string) string {
@@ -83,10 +57,10 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"MemoryRequest":              defaultIfEmpty(metrics.Resources.MemoryRequest, "256"),
 		"StorageSize":                defaultIfZero(metrics.Storage.Size, 5),
 		"StorageRetention":           defaultIfZero(metrics.Storage.Retention, 1),
-		"MonitoringStackName":        monitoringStackName,
+		"MonitoringStackName":        MonitoringStackName,
 		"Namespace":                  monitoring.Spec.Namespace,
-		"PromPipelineName":           promPipelineName,
-		"OpenTelemetryCollectorName": otcName,
+		"PromPipelineName":           PrometheusPipelineName,
+		"OpenTelemetryCollectorName": CollectorName,
 		"Traces":                     tracesEnabled,
 	}, nil
 }
