@@ -20,6 +20,9 @@ spec:
           - key: monitoring.opendatahub.io/scrape
             operator: 'true'
   config:
+    extensions:
+      bearertokenauth:
+        filename: "/var/run/secrets/kubernetes.io/serviceaccount/token"
     receivers:
       prometheus:
         config:
@@ -32,19 +35,10 @@ spec:
                 - source_labels: [__meta_kubernetes_pod_label_monitoring_opendatahub_io_scrape]
                   action: keep
                   regex: true
-      {{ if .Traces }}
-      jaeger:
-        protocols:
-          grpc: {}
-          thrift_binary: {}
-          thrift_compact: {}
-          thrift_http: {}
-      opencensus:
       otlp:
         protocols:
           grpc: {}
           http: {}
-      {{ end }}
     processors:
       memory_limiter:
         check_interval: 1s
@@ -52,35 +46,35 @@ spec:
         limit_mib: 4000
       batch:
         send_batch_size: 10000
-      k8sattributes:
-        extract:
-          metadata:
-            - k8s.pod.name
-            - service.namespace
-      {{ if .Traces }}
+      k8sattributes: {}
       resourcedetection:
         detectors: [openshift]
-      {{ end }}
     exporters:
       prometheus:
         endpoint: 0.0.0.0:8889
         resource_to_telemetry_conversion:
           enabled: true # by default resource attributes are dropped
       {{ if .Traces }}
-      otlp:
-        endpoint: "tempo-<example>-distributor:4317" 
+      otlp/odh-tempo:
+        endpoint: tempo-tempo-gateway.redhat-ods-monitoring.svc:4317
         tls:
-          insecure: true
+          ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+        auth:
+          authenticator: bearertokenauth
+        headers:
+          # must be set to the tenant name from tempo CR
+          X-Scope-OrgID: redhat-ods-monitoring
       {{ end }}
-    service: 
+    service:
+      extensions: [bearertokenauth]
       pipelines:
       {{ if .Traces }}
         traces:
-          receivers: [jaeger, opencensus, otlp, zipkin]
+          receivers: [otlp]
           processors: [memory_limiter, k8sattributes, resourcedetection, batch]
-          exporters: [otlp]
+          exporters: [otlp/odh-tempo]
       {{ end }}
         metrics:
-          receivers: [prometheus]
-          processors: [memory_limiter, batch, k8sattributes]
+          receivers: [prometheus, otlp]
+          processors: [memory_limiter, k8sattributes, resourcedetection, batch]
           exporters: [prometheus]
