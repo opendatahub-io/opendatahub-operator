@@ -1,7 +1,14 @@
 name: Build Catalog FBC and run Integration tests
 on:
   pull_request_target:
-    types: [labeled]
+    paths:
+      - 'bundle/**'
+      - 'cmd/**'
+      - 'config/**'
+      - 'Dockerfiles/**'
+      - 'internal/**'
+      - 'pkg/**'
+      - 'cmd/main.go'git
 
 permissions: { }
 
