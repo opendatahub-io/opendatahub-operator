@@ -108,6 +108,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsWhenSet(t *testing.T) {
 		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, "Available", "True")),
 	)
+
 	tc.g.Expect(ms).ToNot(BeNil())
 }
 
@@ -151,19 +152,6 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsConfiguration(t *testing
 	tc.g.Expect(err).ToNot(HaveOccurred())
 	tc.g.Expect(found).To(BeTrue())
 	tc.g.Expect(memoryLimit).To(Equal("512Mi"))
-}
-
-func getMonitoringStackName(dsci *dsciv1.DSCInitialization) string {
-	switch dsci.Status.Release.Name {
-	case cluster.ManagedRhoai:
-		return "rhoai-monitoringstack"
-	case cluster.SelfManagedRhoai:
-		return "rhoai-monitoringstack"
-	case cluster.OpenDataHub:
-		return "odh-monitoringstack"
-	}
-
-	return "odh-monitoringstack"
 }
 
 func getMonitoringStackName(dsci *dsciv1.DSCInitialization) string {

@@ -67,7 +67,7 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 		return nil
 	}
 
-    // If monitoring is unmanaged or the release is not managed, we don't need to update the prometheus configmap
+	// If monitoring is unmanaged or the release is not managed, we don't need to update the prometheus configmap
 	if dsci.Spec.Monitoring.ManagementState == operatorv1.Unmanaged || rr.Release.Name != cluster.ManagedRhoai {
 		return nil
 	}

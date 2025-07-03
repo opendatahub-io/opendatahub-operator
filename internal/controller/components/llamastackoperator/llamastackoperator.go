@@ -92,14 +92,14 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		} else {
 			cs = metav1.ConditionFalse
 		}
-        } else {
+	} else {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
 			conditions.WithReason(string(operatorv1.Removed)),
 			conditions.WithMessage("Component ManagementState is set to %s", operatorv1.Removed),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
-        }
+	}
 
 	return cs, nil
 }

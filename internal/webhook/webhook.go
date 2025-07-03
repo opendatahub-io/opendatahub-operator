@@ -19,7 +19,6 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 		dsciwebhook.RegisterWebhooks,
 		authwebhook.RegisterWebhooks,
 		kueuewebhook.RegisterWebhooks,
-		authwebhook.RegisterWebhooks,
 	}
 	for _, reg := range webhookRegistrations {
 		if err := reg(mgr); err != nil {
