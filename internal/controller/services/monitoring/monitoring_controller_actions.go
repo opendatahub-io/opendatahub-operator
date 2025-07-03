@@ -110,7 +110,7 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return fmt.Errorf("failed to retrieve DSCInitialization instance: %w", err)
 	}
 
-	if monitoring.Spec.Metrics != nil {
+	if monitoring.Spec.Metrics != nil && (monitoring.Spec.Metrics.Resources != nil || monitoring.Spec.Metrics.Storage != nil) {
 		if msExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack); !msExists {
 			return errors.New("MonitoringStack CRD not found")
 		}

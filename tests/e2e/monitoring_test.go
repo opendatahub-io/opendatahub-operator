@@ -44,21 +44,20 @@ func monitoringTestSuite(t *testing.T) {
 	// Define test cases.
 	testCases := []TestCase{
 		{"Auto creation of Monitoring CR", monitoringServiceCtx.ValidateMonitoringCRCreation},
-		{"Test Monitoring CR content", monitoringServiceCtx.ValidateMonitoringCRDefaultContent},
-		{"Test Metrics Defaults", monitoringServiceCtx.ValidateMonitoringCrMetricsDefaults},
-		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringCrMetricsWhenSet},
-		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringCrMetricsConfiguration},
+		{"Test Monitoring CR content default value", monitoringServiceCtx.ValidateMonitoringCRDefaultContent},
+		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringStackCRMetricsWhenSet},
+		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringCRMetricsConfiguration},
 	}
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
 }
 
-// ValidateMonitoringCRCreation ensures that exactly one Monitoring CR exists.
+// ValidateMonitoringCRCreation ensures that exactly one Monitoring CR exists and status to Ready.
 func (tc *MonitoringTestCtx) ValidateMonitoringCRCreation(t *testing.T) {
 	t.Helper()
 
-	tc.EnsureResourceExists(
+	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
 		WithCondition(
 			And(
@@ -73,7 +72,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRCreation(t *testing.T) {
 	)
 }
 
-// ValidateMonitoringCRDefaultContent validates the default content of the Monitoring CR.
+// ValidateMonitoringCRDefaultContent validates when no "metrics" is set in DSCI.
 func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultContent(t *testing.T) {
 	t.Helper()
 
@@ -89,13 +88,6 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultContent(t *testing.T) {
 		To(Equal(dsci.Spec.Monitoring.Namespace),
 			"Monitoring CR's namespace mismatch: Expected namespace '%v' as per DSCInitialization, but found '%v' in Monitoring CR.",
 			dsci.Spec.Monitoring.Namespace, monitoring.Spec.Namespace)
-}
-
-func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsDefaults(t *testing.T) {
-	t.Helper()
-
-	monitoring := &serviceApi.Monitoring{}
-	tc.FetchTypedResource(monitoring, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
 
 	comp := serviceApi.MonitoringSpec{
 		MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{Namespace: "opendatahub", Metrics: nil},
@@ -106,16 +98,17 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsDefaults(t *testing.T) {
 			"Expected metrics stanza to be omitted by default")
 }
 
-func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsWhenSet(t *testing.T) {
+func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsWhenSet(t *testing.T) {
 	t.Helper()
 
 	dsci := tc.FetchDSCInitialization()
 
 	monitoringStackName := getMonitoringStackName(dsci)
 
+	// Update DSCI to set metrics
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: 5Gi, retention: 1d}, resources: {cpurequest: "250m", memoryrequest: "350Mi"}}`)),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: "5Gi", retention: "1d"}, resources: {cpurequest: "250m", memoryrequest: "350Mi"}}`)),
 	)
 
 	ms := tc.EnsureResourceExists(
@@ -126,11 +119,11 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsWhenSet(t *testing.T) {
 	tc.g.Expect(ms).ToNot(BeNil())
 }
 
-func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsConfiguration(t *testing.T) {
+func (tc *MonitoringTestCtx) ValidateMonitoringCRMetricsConfiguration(t *testing.T) {
 	t.Helper()
 
-	monitoring := &serviceApi.Monitoring{}
-	tc.FetchTypedResource(monitoring, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
+	// monitoring := &serviceApi.Monitoring{}
+	// tc.FetchTypedResource(monitoring, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
 
 	dsci := tc.FetchDSCInitialization()
 	monitoringStackName := getMonitoringStackName(dsci)
@@ -144,6 +137,11 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsConfiguration(t *testing
 	tc.g.Expect(err).ToNot(HaveOccurred())
 	tc.g.Expect(found).To(BeTrue())
 	tc.g.Expect(storageSize).To(Equal("5Gi"))
+
+	storageRetention, found, err := unstructured.NestedString(ms[0].Object, "spec", "retention")
+	tc.g.Expect(err).ToNot(HaveOccurred())
+	tc.g.Expect(found).To(BeTrue())
+	tc.g.Expect(storageRetention).To(Equal("1d"))
 
 	// Validate the resources are set to the correct values
 	cpuRequest, found, err := unstructured.NestedString(ms[0].Object, "spec", "resources", "requests", "cpu")
@@ -166,6 +164,17 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsConfiguration(t *testing
 	tc.g.Expect(err).ToNot(HaveOccurred())
 	tc.g.Expect(found).To(BeTrue())
 	tc.g.Expect(memoryLimit).To(Equal("512Mi"))
+
+	// check owenr references for the MonitoringStack
+	ownerRefs, found, err := unstructured.NestedSlice(ms[0].Object, "metadata", "ownerReferences")
+	tc.g.Expect(err).ToNot(HaveOccurred())
+	tc.g.Expect(found).To(BeTrue())
+	tc.g.Expect(ownerRefs).To(HaveLen(1))
+
+	ownerRef, found := ownerRefs[0].(map[string]interface{})
+	tc.g.Expect(found).To(BeTrue(), "Expected owner reference to be a map[string]interface{}")
+	tc.g.Expect(ownerRef["kind"]).To(Equal(gvk.Monitoring.Kind))
+	tc.g.Expect(ownerRef["name"]).To(Equal("default-monitoring"))
 }
 
 func getMonitoringStackName(dsci *dsciv1.DSCInitialization) string {

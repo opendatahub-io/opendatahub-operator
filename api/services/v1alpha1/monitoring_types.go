@@ -41,8 +41,8 @@ type MonitoringSpec struct {
 
 // Metrics defines the desired state of metrics for the monitoring service
 type Metrics struct {
-	Storage   MetricsStorage   `json:"storage,omitempty"`
-	Resources MetricsResources `json:"resources,omitempty"`
+	Storage   *MetricsStorage   `json:"storage,omitempty"`
+	Resources *MetricsResources `json:"resources,omitempty"`
 }
 
 // MetricsStorage defines the storage configuration for the monitoring service

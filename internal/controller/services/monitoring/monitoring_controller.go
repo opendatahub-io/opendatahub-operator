@@ -31,6 +31,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
@@ -72,6 +73,9 @@ func (h *serviceHandler) GetManagementState(platform common.Platform, dsci *dsci
 
 func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.Monitoring{}).
+		// operands - owned dynmically depends on external operators are installed for monitoring
+		// TODO: add more here later when enable other operator
+		OwnsGVK(gvk.MonitoringStack, reconciler.Dynamic(ifGVKInstalled(gvk.MonitoringStack))).
 		// operands - watched
 		//
 		// By default the Watches functions adds:
