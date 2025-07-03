@@ -34,11 +34,16 @@ module.exports = ({ github, core }) => {
                             idx = splitArr.indexOf("tree")
                         }
                         const branchName = splitArr.slice(idx + 1).join("/")
+                        const repoOrg = splitArr[3]
+
                         if (componentName.trim() === "workbenches/notebook-controller") {
                             core.exportVariable("component_spec_odh-notebook-controller".toLowerCase(), branchName);
                             core.exportVariable("component_spec_kf-notebook-controller".toLowerCase(), branchName);
+                            core.exportVariable("component_org_odh-notebook-controller".toLowerCase(), repoOrg);
+                            core.exportVariable("component_org_kf-notebook-controller".toLowerCase(), repoOrg);
                         } else {
                             core.exportVariable("component_spec_" + componentName.trim().toLowerCase(), branchName);
+                            core.exportVariable("component_org_" + componentName.trim().toLowerCase(), repoOrg);
                         }
                     }
                 })
