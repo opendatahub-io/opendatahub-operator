@@ -8,7 +8,6 @@ import (
 	"github.com/onsi/gomega"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	admissionv1 "k8s.io/api/admission/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,21 +22,12 @@ import (
 )
 
 const (
-	testNamespace        = "test-ns"
-	nsLabelManaged       = kueuewebhook.KueueManagedLabelKey
-	legacyNsLabelManaged = kueuewebhook.KueueLegacyManagedLabelKey
-	objLabelQueueName    = kueuewebhook.KueueQueueNameLabelKey
-	validQueueName       = "queue"
+	testNamespace     = "test-ns"
+	objLabelQueueName = kueuewebhook.KueueQueueNameLabelKey
+	validQueueName    = "queue"
 )
 
-func newFakeClientWithObjects(sch *runtime.Scheme, nsLabels map[string]string, kueueState operatorv1.ManagementState) *fake.ClientBuilder {
-	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   testNamespace,
-			Labels: nsLabels,
-		},
-	}
-
+func newFakeClientWithObjects(sch *runtime.Scheme, kueueState operatorv1.ManagementState) *fake.ClientBuilder {
 	dsc := &dscv1.DataScienceCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default",
@@ -53,7 +43,7 @@ func newFakeClientWithObjects(sch *runtime.Scheme, nsLabels map[string]string, k
 		},
 	}
 
-	return fake.NewClientBuilder().WithScheme(sch).WithRuntimeObjects(ns, dsc)
+	return fake.NewClientBuilder().WithScheme(sch).WithRuntimeObjects(dsc)
 }
 
 func createWorkload(gvk schema.GroupVersionKind, ns string, labels map[string]string) *unstructured.Unstructured {
@@ -105,39 +95,20 @@ func TestKueueWebhookHandler(t *testing.T) {
 	testCases := []struct {
 		name          string
 		operation     admissionv1.Operation
-		nsLabels      map[string]string
 		kueueState    operatorv1.ManagementState
 		objLabels     map[string]string
 		expectAllow   bool
 		expectMessage string
 	}{
 		{
-			name: "Kueue not enabled, skip validation",
-			nsLabels: map[string]string{
-				nsLabelManaged: "true",
-			},
-			kueueState: operatorv1.Removed,
-			objLabels: map[string]string{
-				nsLabelManaged: "true",
-			},
+			name:          "Kueue not enabled, skip validation",
+			kueueState:    operatorv1.Removed,
 			expectAllow:   true,
 			expectMessage: "Kueue is not enabled in DSC, skipping Kueue label validation",
 			operation:     admissionv1.Create,
 		},
 		{
-			name:          "Namespace not labeled, skip validation",
-			nsLabels:      map[string]string{},
-			kueueState:    operatorv1.Managed,
-			objLabels:     map[string]string{nsLabelManaged: "true"},
-			expectAllow:   true,
-			expectMessage: "Namespace \"test-ns\" is not labeled for Kueue (\"kueue.openshift.io/managed\"), skipping Kueue label validation",
-			operation:     admissionv1.Create,
-		},
-		{
-			name: "Missing Kueue label",
-			nsLabels: map[string]string{
-				nsLabelManaged: "true",
-			},
+			name:          "Missing Kueue label",
 			kueueState:    operatorv1.Managed,
 			objLabels:     map[string]string{},
 			expectAllow:   false,
@@ -145,10 +116,7 @@ func TestKueueWebhookHandler(t *testing.T) {
 			operation:     admissionv1.Create,
 		},
 		{
-			name: "Empty Kueue label value",
-			nsLabels: map[string]string{
-				nsLabelManaged: "true",
-			},
+			name:       "Empty Kueue label value",
 			kueueState: operatorv1.Managed,
 			objLabels: map[string]string{
 				objLabelQueueName: "",
@@ -158,10 +126,7 @@ func TestKueueWebhookHandler(t *testing.T) {
 			operation:     admissionv1.Create,
 		},
 		{
-			name: "Valid Kueue label",
-			nsLabels: map[string]string{
-				nsLabelManaged: "true",
-			},
+			name:       "Valid Kueue label",
 			kueueState: operatorv1.Managed,
 			objLabels: map[string]string{
 				objLabelQueueName: validQueueName,
@@ -171,10 +136,7 @@ func TestKueueWebhookHandler(t *testing.T) {
 			operation:     admissionv1.Create,
 		},
 		{
-			name: "Valid Kueue label with other extra labels",
-			nsLabels: map[string]string{
-				nsLabelManaged: "true",
-			},
+			name:       "Valid Kueue label with other extra labels",
 			kueueState: operatorv1.Managed,
 			objLabels: map[string]string{
 				objLabelQueueName:           validQueueName,
@@ -185,10 +147,7 @@ func TestKueueWebhookHandler(t *testing.T) {
 			operation:     admissionv1.Create,
 		},
 		{
-			name: "Incorrect Kueue label key",
-			nsLabels: map[string]string{
-				nsLabelManaged: "true",
-			},
+			name:       "Incorrect Kueue label key",
 			kueueState: operatorv1.Managed,
 			objLabels: map[string]string{
 				"kueue.x-k8s.io/queue-naem": validQueueName,
@@ -198,34 +157,7 @@ func TestKueueWebhookHandler(t *testing.T) {
 			operation:     admissionv1.Create,
 		},
 		{
-			name:       "Queue label present but namespace not labeled",
-			nsLabels:   map[string]string{},
-			kueueState: operatorv1.Managed,
-			objLabels: map[string]string{
-				objLabelQueueName: validQueueName,
-			},
-			expectAllow:   true,
-			expectMessage: "Namespace \"test-ns\" is not labeled for Kueue (\"kueue.openshift.io/managed\"), skipping Kueue label validation",
-			operation:     admissionv1.Create,
-		},
-		{
-			name: "Namespace is Kueue-enabled with legacy label",
-			nsLabels: map[string]string{
-				legacyNsLabelManaged: "true",
-			},
-			kueueState: operatorv1.Managed,
-			objLabels: map[string]string{
-				objLabelQueueName: validQueueName,
-			},
-			expectAllow:   true,
-			expectMessage: "Kueue label validation passed for \"$Kind\" in namespace \"test-ns\"",
-			operation:     admissionv1.Create,
-		},
-		{
-			name: "Kueue unmanaged state treated as enabled - success",
-			nsLabels: map[string]string{
-				nsLabelManaged: "true",
-			},
+			name:       "Kueue unmanaged state treated as enabled - success",
 			kueueState: operatorv1.Unmanaged,
 			objLabels: map[string]string{
 				objLabelQueueName: validQueueName,
@@ -241,7 +173,7 @@ func TestKueueWebhookHandler(t *testing.T) {
 			t.Run(tc.name+"_"+gvk.Kind, func(t *testing.T) {
 				t.Parallel()
 
-				cli := newFakeClientWithObjects(sch, tc.nsLabels, tc.kueueState).Build()
+				cli := newFakeClientWithObjects(sch, tc.kueueState).Build()
 				workload := createWorkload(gvk, testNamespace, tc.objLabels)
 				req := createAdmissionRequest(t, tc.operation, workload, testNamespace, gvk)
 

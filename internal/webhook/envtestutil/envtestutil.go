@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
 	admissionv1 "k8s.io/api/admission/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -18,6 +21,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 )
@@ -49,6 +53,10 @@ func SetupEnvAndClient(
 	if err != nil {
 		t.Fatalf("failed to start envtest: %v", err)
 	}
+
+	// Create webhook configuration
+	// Uncomment this when code based on webhook wants to create webhook configurations
+	// SetupWebhookConfigurations(t, env, ctx)
 
 	mgrCtx, mgrCancel := context.WithCancel(ctx)
 	errChan := make(chan error, 1)
@@ -237,4 +245,33 @@ func NewAdmissionRequest(
 			Object:   runtime.RawExtension{Raw: raw},
 		},
 	}
+}
+
+// SetupWebhookConfigurations creates and configures webhook configurations for the given environment.
+// Parameters:
+//   - t: The testing.T object for error reporting.
+//   - env: The envtest environment wrapper instance.
+//   - ctx: The context for the test environment.
+//
+// Returns:
+//   - None.
+func SetupWebhookConfigurations(t *testing.T, env *envt.EnvT, ctx context.Context) {
+	t.Helper()
+
+	// Set env for webhook to work
+	//nolint:usetesting
+	os.Setenv("ENVTEST_WEBHOOK_LOCAL_PORT", strconv.Itoa(env.Env.WebhookInstallOptions.LocalServingPort))
+	//nolint:usetesting
+	os.Setenv("ENVTEST_WEBHOOK_LOCAL_CERT_DIR", env.Env.WebhookInstallOptions.LocalServingCertDir)
+
+	vwc := webhook.DesiredValidatingWebhookConfiguration("kueue-webhook-test")
+	if err := env.Client().Create(ctx, vwc); err != nil && !k8serr.IsAlreadyExists(err) {
+		t.Fatalf("failed to create webhook configuration: %v", err)
+	}
+
+	// [MUTATING]: Uncomment this to enable mutating webhooks
+	/*mwc := webhook.DesiredMutatingWebhookConfiguration("kueue-webhook-test")
+	if err := env.Client().Create(ctx, mwc); err != nil && !k8serr.IsAlreadyExists(err) {
+		t.Fatalf("failed to create webhook configuration: %v", err)
+	}*/
 }
