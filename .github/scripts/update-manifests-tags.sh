@@ -6,16 +6,28 @@ update_tags(){
     sed -i -r "/\"(.*\/)*$1\"/s|([^:]*):([^:]*):[^:]*:(.*)|\1:\2:$2:\3|" get_all_manifests.sh
 }
 
-prefix=component_spec_
+update_org(){
+    sed -i -r "/\"(.*\/)*$1\"/s|=\"([^:]*):([^:]*):([^:]*):(.*)\"|=\"$2:\2:\3:\4\"|" get_all_manifests.sh
+}
 
-echo
+spec_prefix=component_spec_
+org_prefix=component_org_
+
+echo "Updating component branches/tags..."
 env | while IFS="=" read varname value; do
-    [[ $varname =~ "${prefix}" ]] || continue
-    component=${varname#${prefix}}
+    [[ $varname =~ $spec_prefix ]] || continue
+    component=${varname#${spec_prefix}}
     component=${component//_/-}
-    update_tags $(basename $component) $value
+    echo "  Updating branch/tag for $(basename "$component") to: $value"
+    update_tags "$(basename "$component")" "$value"
 done
 
-# This ensures the release uses the midstream repository which has the incubation branch(used for release)
-echo "Updating trustyai repository reference..."
-sed -i 's|trustyai-explainability:|opendatahub-io:|g' get_all_manifests.sh
+echo "Updating component repository organizations..."
+env | while IFS="=" read varname value; do
+    [[ $varname =~ $org_prefix ]] || continue
+    component=${varname#${org_prefix}}
+    component=${component//_/-}
+    echo "  Updating organization for $(basename "$component") to: $value"
+    update_org "$(basename "$component")" "$value"
+done
+
