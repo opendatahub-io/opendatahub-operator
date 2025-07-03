@@ -20,6 +20,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/shared"
 )
 
+//+kubebuilder:webhook:path=/mutate-datasciencecluster,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=datasciencecluster-defaulter.opendatahub.io,admissionReviewVersions=v1
+//nolint:lll
+
 const (
 	// MutateDatascienceClusterPath is the path for the DataScienceCluster mutating webhook.
 	MutateDatascienceClusterPath = "/mutate-datasciencecluster"

@@ -16,9 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	authwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/auth"
-	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
-	dsciwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	gvk "github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -36,23 +33,19 @@ import (
 // - datasciencecluster.opendatahub.io/v1: datascienceclusters
 
 const (
-	// Webhook service and configuration names.
-	WebhookServiceName                 = "opendatahub-operator-webhook-service"
-	MutatingWebhookConfigurationName   = "opendatahub-operator-mutating-webhook-configuration"
-	ValidatingWebhookConfigurationName = "opendatahub-operator-validating-webhook-configuration"
+	// MutatingWebhookConfigurationName   = "opendatahub-operator-mutating-webhook-configuration-managed".
+	WebhookServiceName = "opendatahub-operator-webhook-service"
+	// Different name from OLM's validating webhook configuration name to avoid confusion.
+	ValidatingWebhookConfigurationName = "opendatahub-operator-validating-webhook-configuration-managed"
 	AdmissionReviewVersion             = "v1"
 	WebhookManagerName                 = "WebhookManager"
 )
 
 const (
 	// Webhook names.
-	DatascienceclusterDefaulterName  = "datasciencecluster-defaulter.opendatahub.io"
-	DatascienceclusterValidatorName  = "datasciencecluster-validator.opendatahub.io"
-	DscinitializationValidatorName   = "dscinitialization-validator.opendatahub.io"
 	KserveKueuelabelsValidatorName   = "kserve-kueuelabels-validator.opendatahub.io"
 	KubeflowKueuelabelsValidatorName = "kubeflow-kueuelabels-validator.opendatahub.io"
 	RayKueuelabelsValidatorName      = "ray-kueuelabels-validator.opendatahub.io"
-	AuthValidatorName                = "auth-validator.opendatahub.io"
 )
 
 const (
@@ -152,7 +145,8 @@ func newValidatingWebhook(
 //
 // Returns:
 //   - admissionregistrationv1.MutatingWebhook: The MutatingWebhook object
-func newMutatingWebhook(
+// [MUTATING]: Uncomment this to enable mutating webhooks
+/*func newMutatingWebhook(
 	name string,
 	namespace string,
 	path string,
@@ -168,7 +162,7 @@ func newMutatingWebhook(
 		Rules:                   rules,
 		SideEffects:             &sideEffects,
 	}
-}
+}*/
 
 // DesiredMutatingWebhookConfiguration defines the desired state of the MutatingWebhookConfiguration.
 //
@@ -177,7 +171,8 @@ func newMutatingWebhook(
 //
 // Returns:
 //   - *admissionregistrationv1.MutatingWebhookConfiguration: The MutatingWebhookConfiguration object
-func DesiredMutatingWebhookConfiguration(namespace string) *admissionregistrationv1.MutatingWebhookConfiguration {
+// [MUTATING]: Uncomment this to enable mutating webhooks
+/*func DesiredMutatingWebhookConfiguration(namespace string) *admissionregistrationv1.MutatingWebhookConfiguration {
 	return &admissionregistrationv1.MutatingWebhookConfiguration{
 		// TypeMeta is required for the SSA
 		TypeMeta: metav1.TypeMeta{
@@ -208,7 +203,7 @@ func DesiredMutatingWebhookConfiguration(namespace string) *admissionregistratio
 			),
 		},
 	}
-}
+}*/
 
 // getDesiredKueueValidatingWebhooks defines the Kueue-related validating webhooks.
 // This implements the OR logic for namespace selection by creating multiple webhook entries explicitly.
@@ -308,56 +303,7 @@ func DesiredValidatingWebhookConfiguration(namespace string) *admissionregistrat
 				InjectCabundleAnnotation: "true",
 			},
 		},
-		Webhooks: []admissionregistrationv1.ValidatingWebhook{
-			newValidatingWebhook(
-				DatascienceclusterValidatorName,
-				namespace,
-				dscwebhook.ValidateDatascienceClusterPath,
-				[]admissionregistrationv1.RuleWithOperations{
-					{
-						Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
-						Rule: admissionregistrationv1.Rule{
-							APIGroups:   []string{gvk.DataScienceCluster.Group},
-							APIVersions: []string{gvk.DataScienceCluster.Version},
-							Resources:   []string{"datascienceclusters"},
-						},
-					},
-				},
-				nil,
-			),
-			newValidatingWebhook(
-				DscinitializationValidatorName,
-				namespace,
-				dsciwebhook.ValidateDscinitializationPath,
-				[]admissionregistrationv1.RuleWithOperations{
-					{
-						Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Delete},
-						Rule: admissionregistrationv1.Rule{
-							APIGroups:   []string{gvk.DSCInitialization.Group},
-							APIVersions: []string{gvk.DSCInitialization.Version},
-							Resources:   []string{"dscinitializations"},
-						},
-					},
-				},
-				nil,
-			),
-			newValidatingWebhook(
-				AuthValidatorName,
-				namespace,
-				authwebhook.ValidateAuthPath,
-				[]admissionregistrationv1.RuleWithOperations{
-					{
-						Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Update},
-						Rule: admissionregistrationv1.Rule{
-							APIGroups:   []string{gvk.Auth.Group},
-							APIVersions: []string{gvk.Auth.Version},
-							Resources:   []string{"auths"},
-						},
-					},
-				},
-				nil,
-			),
-		},
+		Webhooks: []admissionregistrationv1.ValidatingWebhook{},
 	}
 
 	vwc.Webhooks = append(vwc.Webhooks, getDesiredKueueValidatingWebhooks(namespace, KueueManagedLabelKey, "")...)
@@ -388,15 +334,17 @@ func ReconcileWebhooks(ctx context.Context, c client.Client, scheme *runtime.Sch
 	}
 
 	// 1. Define desired MutatingWebhookConfiguration and ValidatingWebhookConfiguration
-	mutatingWebhookConfig := DesiredMutatingWebhookConfiguration(operatorNs)
+	// [MUTATING]: Uncomment this to enable mutating webhooks
+	// mutatingWebhookConfig := DesiredMutatingWebhookConfiguration(operatorNs)
 	validatingWebhookConfig := DesiredValidatingWebhookConfiguration(operatorNs)
 
 	// Set owner references to the owner object (e.g., DSCInitialization instance)
 	// Kubernetes will delete these webhooks when the owner object is deleted.
-	if err := controllerutil.SetOwnerReference(owner, mutatingWebhookConfig, scheme); err != nil {
+	// [MUTATING]: Uncomment this to enable mutating webhooks
+	/*if err := controllerutil.SetOwnerReference(owner, mutatingWebhookConfig, scheme); err != nil {
 		log.Error(err, "Failed to set owner reference for MutatingWebhookConfiguration")
 		return err
-	}
+	}*/
 	if err := controllerutil.SetOwnerReference(owner, validatingWebhookConfig, scheme); err != nil {
 		log.Error(err, "Failed to set owner reference for ValidatingWebhookConfiguration")
 		return err
@@ -409,12 +357,13 @@ func ReconcileWebhooks(ctx context.Context, c client.Client, scheme *runtime.Sch
 
 	// 2. SSA: Create the MutatingWebhookConfiguration
 	// Important: For SSA, you should pass a desired object without ResourceVersion or ManagedFields
-	mutatingWebhookConfig.SetResourceVersion("")
+	// [MUTATING]: Uncomment this to enable mutating webhooks
+	/*mutatingWebhookConfig.SetResourceVersion("")
 	mutatingWebhookConfig.SetManagedFields(nil)
 	if err := c.Patch(ctx, mutatingWebhookConfig, client.Apply, applyOpts...); err != nil {
 		log.Error(err, "Failed to apply MutatingWebhookConfiguration via SSA")
 		return err
-	}
+	}*/
 
 	// 3. SSA: Create the ValidatingWebhookConfiguration
 	// Important: For SSA, you should pass a desired object without ResourceVersion or ManagedFields

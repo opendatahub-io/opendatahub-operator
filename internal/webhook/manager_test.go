@@ -61,12 +61,13 @@ func Test_ReconcileWebhooks_CreatesConfigs(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 
 	// Fetch the MutatingWebhookConfiguration
-	mwc := &admissionregistrationv1.MutatingWebhookConfiguration{}
+	// [MUTATING]: Uncomment this to enable mutating webhooks
+	/*mwc := &admissionregistrationv1.MutatingWebhookConfiguration{}
 	g.Expect(fakeClient.Get(
 		ctx,
 		types.NamespacedName{Name: webhook.MutatingWebhookConfigurationName},
 		mwc,
-	)).To(Succeed())
+	)).To(Succeed())*/
 
 	// Fetch the ValidatingWebhookConfiguration
 	vwc := &admissionregistrationv1.ValidatingWebhookConfiguration{}
@@ -77,7 +78,9 @@ func Test_ReconcileWebhooks_CreatesConfigs(t *testing.T) {
 	)).To(Succeed())
 
 	// Both configs must have the inject‑cabundle annotation
-	for _, wc := range []metav1.Object{mwc, vwc} {
+	// [MUTATING]: Uncomment this to enable mutating webhooks
+	// for _, wc := range []metav1.Object{mwc, vwc} {
+	for _, wc := range []metav1.Object{vwc} {
 		g.Expect(wc.GetAnnotations()).To(HaveKeyWithValue(
 			webhook.InjectCabundleAnnotation, "true",
 		))
@@ -92,25 +95,25 @@ func Test_ReconcileWebhooks_CreatesConfigs(t *testing.T) {
 		Controller:         nil,
 		BlockOwnerDeletion: nil,
 	}
-	for _, wc := range []metav1.Object{mwc, vwc} {
+	// [MUTATING]: Uncomment this to enable mutating webhooks
+	// for _, wc := range []metav1.Object{mwc, vwc} {
+	for _, wc := range []metav1.Object{vwc} {
 		g.Expect(wc.GetOwnerReferences()).To(ContainElement(expectedOwnerRef))
 	}
 
 	// Check that the mutating config contains exactly our defaulter webhook
-	mutatingNames := []string{}
+	// [MUTATING]: Uncomment this to enable mutating webhooks
+	/*mutatingNames := []string{}
 	for _, wh := range mwc.Webhooks {
 		mutatingNames = append(mutatingNames, wh.Name)
 	}
 	sort.Strings(mutatingNames)
 	g.Expect(mutatingNames).To(Equal([]string{
 		webhook.DatascienceclusterDefaulterName,
-	}))
+	}))*/
 
 	// ßCheck that the validating config contains exactly the expected names
 	expectedValidating := []string{
-		webhook.DatascienceclusterValidatorName,
-		webhook.DscinitializationValidatorName,
-		webhook.AuthValidatorName,
 		webhook.KserveKueuelabelsValidatorName,
 		webhook.KubeflowKueuelabelsValidatorName,
 		webhook.RayKueuelabelsValidatorName,

@@ -373,13 +373,14 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			&serviceApi.Auth{},
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
-		Watches(
+		// [MUTATING]: Uncomment this to enable mutating webhooks
+		/*Watches(
 			&admissionregistrationv1.MutatingWebhookConfiguration{},
 			handler.EnqueueRequestsFromMapFunc(r.dsciWebhookWatchFunc),
 			builder.WithPredicates(
 				namePredicate(webhook.MutatingWebhookConfigurationName),
 			),
-		).
+		).*/
 		Watches(
 			&admissionregistrationv1.ValidatingWebhookConfiguration{},
 			handler.EnqueueRequestsFromMapFunc(r.dsciWebhookWatchFunc),

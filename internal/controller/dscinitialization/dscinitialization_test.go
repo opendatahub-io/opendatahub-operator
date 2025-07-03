@@ -104,9 +104,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			}, timeout, interval).Should(BeTrue(), "Expected ValidatingWebhookConfiguration to be present")
 
 			expectedWebhooks := []string{
-				webhook.AuthValidatorName,
-				webhook.DatascienceclusterValidatorName,
-				webhook.DscinitializationValidatorName,
 				webhook.KserveKueuelabelsValidatorName,
 				webhook.KubeflowKueuelabelsValidatorName,
 				webhook.RayKueuelabelsValidatorName,
@@ -129,7 +126,8 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(reflect.DeepEqual(foundWebhooks, expectedWebhooks)).To(BeTrue())
 		})
 
-		It("Should create mutating webhook configuration with expected validators", func(ctx context.Context) {
+		// [MUTATING]: Uncomment this to enable mutating webhooks
+		/*It("Should create mutating webhook configuration with expected validators", func(ctx context.Context) {
 			vwc := &admissionregistrationv1.MutatingWebhookConfiguration{}
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{
@@ -154,7 +152,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			fmt.Println("expectedWebhooks", expectedWebhooks)
 
 			Expect(reflect.DeepEqual(foundWebhooks, expectedWebhooks)).To(BeTrue())
-		})
+		})*/
 	})
 
 	Context("Monitoring Resource", func() {

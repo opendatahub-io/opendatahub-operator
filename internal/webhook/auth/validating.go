@@ -21,6 +21,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
+//+kubebuilder:webhook:path=/validate-auth,mutating=false,failurePolicy=fail,sideEffects=None,groups=services.platform.opendatahub.io,resources=auths,verbs=create;update,versions=v1alpha1,name=auth-validator.opendatahub.io,admissionReviewVersions=v1
+//nolint:lll
+
 const (
 	// ValidateAuthPath is the path for the Auth validating webhook.
 	ValidateAuthPath = "/validate-auth"

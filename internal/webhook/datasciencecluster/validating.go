@@ -17,6 +17,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
+//+kubebuilder:webhook:path=/validate-datasciencecluster,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create,versions=v1,name=datasciencecluster-validator.opendatahub.io,admissionReviewVersions=v1
+//nolint:lll
+
 const (
 	// ValidateDatascienceClusterPath is the path for the DataScienceCluster validating webhook.
 	ValidateDatascienceClusterPath = "/validate-datasciencecluster"

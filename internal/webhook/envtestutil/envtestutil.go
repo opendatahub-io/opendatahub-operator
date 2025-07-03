@@ -55,7 +55,8 @@ func SetupEnvAndClient(
 	}
 
 	// Create webhook configuration
-	SetupWebhookConfigurations(t, env, ctx)
+	// Uncomment this when code based on webhook wants to create webhook configurations
+	// SetupWebhookConfigurations(t, env, ctx)
 
 	mgrCtx, mgrCancel := context.WithCancel(ctx)
 	errChan := make(chan error, 1)
@@ -267,9 +268,10 @@ func SetupWebhookConfigurations(t *testing.T, env *envt.EnvT, ctx context.Contex
 	if err := env.Client().Create(ctx, vwc); err != nil && !k8serr.IsAlreadyExists(err) {
 		t.Fatalf("failed to create webhook configuration: %v", err)
 	}
-	mwc := webhook.DesiredMutatingWebhookConfiguration("kueue-webhook-test")
 
+	// [MUTATING]: Uncomment this to enable mutating webhooks
+	/*mwc := webhook.DesiredMutatingWebhookConfiguration("kueue-webhook-test")
 	if err := env.Client().Create(ctx, mwc); err != nil && !k8serr.IsAlreadyExists(err) {
 		t.Fatalf("failed to create webhook configuration: %v", err)
-	}
+	}*/
 }

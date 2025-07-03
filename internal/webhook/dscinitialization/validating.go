@@ -17,6 +17,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
+//+kubebuilder:webhook:path=/validate-dscinitialization,mutating=false,failurePolicy=fail,sideEffects=None,groups=dscinitialization.opendatahub.io,resources=dscinitializations,verbs=create;delete,versions=v1,name=dscinitialization-validator.opendatahub.io,admissionReviewVersions=v1
+//nolint:lll
+
 const (
 	// ValidateDscinitializationPath is the path for the DSCInitialization validating webhook.
 	ValidateDscinitializationPath = "/validate-dscinitialization"
