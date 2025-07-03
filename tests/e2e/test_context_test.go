@@ -919,41 +919,6 @@ func (tc *TestContext) CheckOperatorExists(operatorNamePrefix string) (bool, err
 	return cluster.OperatorExists(tc.Context(), tc.Client(), operatorNamePrefix)
 }
 
-// EnsureWebhookBlocksOperation verifies that webhook validation blocks a specific operation.
-//
-// This is the core generic function that handles webhook validation testing for any operation.
-// It expects the operation to fail with a Forbidden error from the webhook and validates
-// that the error message contains expected patterns.
-//
-// Parameters:
-//   - operation (func() error): The operation function that should be blocked by the webhook.
-//   - operationType (string): A descriptive name for the operation type (e.g., "creation", "update").
-//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior.
-func (tc *TestContext) EnsureWebhookBlocksOperation(operation func() error, operationType string, opts ...ResourceOpts) {
-	// Create a ResourceOptions object based on the provided opts.
-	ro := tc.NewResourceOptions(opts...)
-
-	tc.g.Eventually(func(g Gomega) {
-		// Execute the operation that should be blocked
-		err := operation()
-
-		// Expect the operation to fail
-		g.Expect(err).To(HaveOccurred(),
-			defaultErrorMessageIfNone(
-				"Expected %s of %s resource to fail due to webhook validation",
-				[]any{operationType, ro.GVK.Kind},
-				ro.CustomErrorArgs,
-			)...)
-
-		// Validate that it's a webhook validation error, not an infrastructure issue
-		tc.validateWebhookError(g, err, operationType, ro)
-	}).Should(Succeed(), defaultErrorMessageIfNone(
-		"Failed to validate webhook blocking behavior for %s of %s resource",
-		[]any{operationType, ro.GVK.Kind},
-		ro.CustomErrorArgs,
-	)...)
-}
-
 // EnsureWebhookBlocksResourceCreation verifies that webhook validation blocks creation of resources with invalid values.
 //
 // This function attempts to create a resource and expects the operation to fail with a BadRequest error from the webhook.
@@ -988,8 +953,34 @@ func (tc *TestContext) EnsureWebhookBlocksResourceUpdate(opts ...ResourceOpts) {
 // It asserts that no error occurs during the conversion.
 //
 // Parameters:
-//   - u (*unstructured.Unstructured): The Unstructured object to convert.
-//   - obj (T): A pointer to the target resource object to which the Unstructured object will be converted.
+//   - operation (func() error): The operation function that should be blocked by the webhook.
+//   - operationType (string): A descriptive name for the operation type (e.g., "creation", "update").
+//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior.
+func (tc *TestContext) EnsureWebhookBlocksOperation(operation func() error, operationType string, opts ...ResourceOpts) {
+	// Create a ResourceOptions object based on the provided opts.
+	ro := tc.NewResourceOptions(opts...)
+
+	tc.g.Eventually(func(g Gomega) {
+		// Execute the operation that should be blocked
+		err := operation()
+
+		// Expect the operation to fail
+		g.Expect(err).To(HaveOccurred(),
+			defaultErrorMessageIfNone(
+				"Expected %s of %s resource to fail due to webhook validation",
+				[]any{operationType, ro.GVK.Kind},
+				ro.CustomErrorArgs,
+			)...)
+
+		// Validate that it's a webhook validation error, not an infrastructure issue
+		tc.validateWebhookError(g, err, operationType, ro)
+	}).Should(Succeed(), defaultErrorMessageIfNone(
+		"Failed to validate webhook blocking behavior for %s of %s resource",
+		[]any{operationType, ro.GVK.Kind},
+		ro.CustomErrorArgs,
+	)...)
+}
+
 func (tc *TestContext) convertToResource(u *unstructured.Unstructured, obj client.Object) {
 	// Convert Unstructured object to the given resource object
 	err := resources.ObjectFromUnstructured(tc.Scheme(), u, obj)

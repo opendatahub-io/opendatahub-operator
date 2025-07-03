@@ -97,7 +97,7 @@ func NewDSCI(name, namespace string, opts ...func(*dsciv1.DSCInitialization)) *d
 	dsci := &dsciv1.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       gvk.DSCInitialization.Kind,
-			APIVersion: gvk.DSCInitialization.Version,
+			APIVersion: dsciv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -123,7 +123,7 @@ func NewDSC(name, namespace string, opts ...func(*dscv1.DataScienceCluster)) *ds
 	dsc := &dscv1.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       gvk.DataScienceCluster.Kind,
-			APIVersion: gvk.DataScienceCluster.Version,
+			APIVersion: dscv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,

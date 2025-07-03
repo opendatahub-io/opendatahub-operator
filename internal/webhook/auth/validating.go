@@ -114,6 +114,13 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 func (v *Validator) validateAuthGroups(ctx context.Context, req admission.Request) admission.Response {
 	log := logf.FromContext(ctx)
 
+	// Validate that we're processing the correct Kind
+	if req.Kind.Kind != gvk.Auth.Kind {
+		err := fmt.Errorf("unexpected kind: %s", req.Kind.Kind)
+		log.Error(err, "got wrong kind")
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
 	// Decode the Auth object
 	auth := &serviceApi.Auth{}
 	if err := v.Decoder.Decode(req, auth); err != nil {

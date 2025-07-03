@@ -58,6 +58,9 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	if err != nil && k8serr.IsNotFound(err) {
 		return nil
 	}
+	if err != nil {
+		return fmt.Errorf("failed to get DataScienceCluster instance: %w", err)
+	}
 
 	ok, dsci, _ := checkDSCI(ctx, rr)
 	if !ok {

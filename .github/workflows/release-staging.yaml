@@ -49,7 +49,7 @@ jobs:
       run: ./.github/scripts/update-versions.sh ${{ env.VERSION }}
 
     - name: Run make manifests & bundle
-      run: make manifests bundle
+      run: make manifests bundle IMG_TAG=v${{ env.VERSION }}
 
     - name: Clean up bundle files
       run: |

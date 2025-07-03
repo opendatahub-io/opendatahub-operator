@@ -315,7 +315,6 @@ func (tc *AuthControllerTestCtx) ValidateWebhookBlocksInvalidGroupsOnCreation(t 
 		})
 	}
 
-	// Recreate a valid Auth resource for subsequent tests
 	validAuth := envtestutil.NewAuth("auth", "", []string{"valid-admin-group"}, []string{"system:authenticated"})
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(validAuth),
