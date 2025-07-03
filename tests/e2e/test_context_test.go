@@ -914,49 +914,9 @@ func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 		)
 }
 
-// EnsureWebhookBlocksOperation verifies that webhook validation blocks a specific operation.
-//
-// This is the core generic function that handles webhook validation testing for any operation.
-// It expects the operation to fail with a Forbidden error from the webhook and validates
-// that the error message contains expected patterns.
 // Check if an operator with name starting with operatorNamePrefix exists.
 func (tc *TestContext) CheckOperatorExists(operatorNamePrefix string) (bool, error) {
 	return cluster.OperatorExists(tc.Context(), tc.Client(), operatorNamePrefix)
-}
-
-// EnsureWebhookBlocksOperation verifies that webhook validation blocks a specific operation.
-//
-// This is the core generic function that handles webhook validation testing for any operation.
-// It expects the operation to fail with a Forbidden error from the webhook and validates
-// that the error message contains expected patterns.
-//
-// Parameters:
-//   - operation (func() error): The operation function that should be blocked by the webhook.
-//   - operationType (string): A descriptive name for the operation type (e.g., "creation", "update").
-//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior.
-func (tc *TestContext) EnsureWebhookBlocksOperation(operation func() error, operationType string, opts ...ResourceOpts) {
-	// Create a ResourceOptions object based on the provided opts.
-	ro := tc.NewResourceOptions(opts...)
-
-	tc.g.Eventually(func(g Gomega) {
-		// Execute the operation that should be blocked
-		err := operation()
-
-		// Expect the operation to fail
-		g.Expect(err).To(HaveOccurred(),
-			defaultErrorMessageIfNone(
-				"Expected %s of %s resource to fail due to webhook validation",
-				[]any{operationType, ro.GVK.Kind},
-				ro.CustomErrorArgs,
-			)...)
-
-		// Validate that it's a webhook validation error, not an infrastructure issue
-		tc.validateWebhookError(g, err, operationType, ro)
-	}).Should(Succeed(), defaultErrorMessageIfNone(
-		"Failed to validate webhook blocking behavior for %s of %s resource",
-		[]any{operationType, ro.GVK.Kind},
-		ro.CustomErrorArgs,
-	)...)
 }
 
 // EnsureWebhookBlocksResourceCreation verifies that webhook validation blocks creation of resources with invalid values.
@@ -1019,36 +979,6 @@ func (tc *TestContext) EnsureWebhookBlocksOperation(operation func() error, oper
 		[]any{operationType, ro.GVK.Kind},
 		ro.CustomErrorArgs,
 	)...)
-}
-
-// EnsureWebhookBlocksResourceCreation verifies that webhook validation blocks creation of resources with invalid values.
-//
-// This function attempts to create a resource and expects the operation to fail with a BadRequest error from the webhook.
-// It validates that the error message contains expected content such as field names and invalid values.
-//
-// Parameters:
-//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
-func (tc *TestContext) EnsureWebhookBlocksResourceCreation(opts ...ResourceOpts) {
-	tc.EnsureWebhookBlocksOperation(func() error {
-		ro := tc.NewResourceOptions(opts...)
-		_, err := tc.g.Create(ro.Obj, ro.NN).Get()
-		return err
-	}, "creation", opts...)
-}
-
-// EnsureWebhookBlocksResourceUpdate verifies that webhook validation blocks updates to resources with invalid values.
-//
-// This function attempts to update a resource using the provided mutation function and expects the operation to fail
-// with a Forbidden error from the webhook. It validates that the error message contains expected invalid values.
-//
-// Parameters:
-//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
-func (tc *TestContext) EnsureWebhookBlocksResourceUpdate(opts ...ResourceOpts) {
-	tc.EnsureWebhookBlocksOperation(func() error {
-		ro := tc.NewResourceOptions(opts...)
-		_, err := tc.g.Update(ro.GVK, ro.NN, ro.MutateFunc).Get()
-		return err
-	}, "update", opts...)
 }
 
 func (tc *TestContext) convertToResource(u *unstructured.Unstructured, obj client.Object) {

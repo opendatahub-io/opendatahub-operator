@@ -75,25 +75,3 @@ func (tc *DataSciencePipelinesTestCtx) ValidateArgoWorkflowsControllersOptions(t
 		),
 	)
 }
-
-// ValidateArgoWorkflowsControllersOptions ensures the DataSciencePipelines component is ready if the
-// argoWorkflowsControllersSpec options are set to "Removed".
-func (tc *DataSciencePipelinesTestCtx) ValidateArgoWorkflowsControllersOptions(t *testing.T) {
-	t.Helper()
-
-	tc.EnsureResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(
-			func(obj *unstructured.Unstructured) error {
-				err := unstructured.SetNestedField(obj.Object, string(operatorv1.Managed), "spec", "components", "datasciencepipelines", "managementState")
-				if err != nil {
-					return err
-				}
-
-				return unstructured.SetNestedField(obj.Object, string(operatorv1.Removed), "spec", "components", "datasciencepipelines", "argoWorkflowsControllers", "managementState")
-			}),
-		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "DataSciencePipelinesReady") | .status == "True"`),
-		),
-	)
-}

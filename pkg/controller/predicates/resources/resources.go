@@ -161,6 +161,17 @@ func AnnotationChanged(name string) predicate.Funcs {
 	}
 }
 
+func CreatedOrUpdatedName(name string) predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.TypedCreateEvent[client.Object]) bool {
+			return e.Object.GetName() == name
+		},
+		UpdateFunc: func(e event.TypedUpdateEvent[client.Object]) bool {
+			return e.ObjectNew.GetName() == name
+		},
+	}
+}
+
 var DSCIServiceMeshCondition = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		oldObj, ok := e.ObjectOld.(*dsciv1.DSCInitialization)
@@ -190,15 +201,4 @@ var DSCIServiceMeshCondition = predicate.Funcs{
 	GenericFunc: func(e event.GenericEvent) bool {
 		return false
 	},
-}
-
-func CreatedOrUpdatedName(name string) predicate.Predicate {
-	return predicate.Funcs{
-		CreateFunc: func(e event.TypedCreateEvent[client.Object]) bool {
-			return e.Object.GetName() == name
-		},
-		UpdateFunc: func(e event.TypedUpdateEvent[client.Object]) bool {
-			return e.ObjectNew.GetName() == name
-		},
-	}
 }

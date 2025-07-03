@@ -58,19 +58,6 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	if err != nil && k8serr.IsNotFound(err) {
 		return nil
 	}
-
-	ok, dsci, _ := checkDSCI(ctx, rr)
-	if !ok {
-		return nil
-	}
-
-	// If monitoring is unmanaged or the release is not managed, we don't need to update the prometheus configmap
-	if dsci.Spec.Monitoring.ManagementState == operatorv1.Unmanaged || rr.Release.Name != cluster.ManagedRhoai {
-		return nil
-	// If the DSC doesn't exist, we don't need to update the prometheus configmap
-	if err != nil && k8serr.IsNotFound(err) {
-		return nil
-	}
 	if err != nil {
 		return fmt.Errorf("failed to get DataScienceCluster instance: %w", err)
 	}
@@ -80,7 +67,7 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 		return nil
 	}
 
-	// If monitoring is unmanaged or the release is not managed, we don't need to update the prometheus configmap
+    // If monitoring is unmanaged or the release is not managed, we don't need to update the prometheus configmap
 	if dsci.Spec.Monitoring.ManagementState == operatorv1.Unmanaged || rr.Release.Name != cluster.ManagedRhoai {
 		return nil
 	}

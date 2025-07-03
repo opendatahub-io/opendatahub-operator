@@ -34,7 +34,7 @@ func monitoringTestSuite(t *testing.T) {
 		TestContext: tc,
 	}
 
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed)),
 	)
@@ -99,7 +99,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsWhenSet(t *testing.T) {
 
 	monitoringStackName := getMonitoringStackName(dsci)
 
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: 5, retention: 1}, resources: {cpurequest: "250", memoryrequest: "350"}}`)),
 	)
@@ -108,7 +108,6 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsWhenSet(t *testing.T) {
 		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, "Available", "True")),
 	)
-
 	tc.g.Expect(ms).ToNot(BeNil())
 }
 
@@ -165,68 +164,6 @@ func getMonitoringStackName(dsci *dsciv1.DSCInitialization) string {
 	}
 
 	return "odh-monitoringstack"
-}
-
-func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsWhenSet(t *testing.T) {
-	t.Helper()
-
-	dsci := tc.FetchDSCInitialization()
-
-	monitoringStackName := getMonitoringStackName(dsci)
-
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: 5, retention: 1}, resources: {cpurequest: "250", memoryrequest: "350"}}`)),
-	)
-
-	ms := tc.EnsureResourceExists(
-		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
-		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, "Available", "True")),
-	)
-
-	tc.g.Expect(ms).ToNot(BeNil())
-}
-
-func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsConfiguration(t *testing.T) {
-	t.Helper()
-
-	monitoring := &serviceApi.Monitoring{}
-	tc.FetchTypedResource(monitoring, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
-
-	dsci := tc.FetchDSCInitialization()
-	monitoringStackName := getMonitoringStackName(dsci)
-
-	ms := tc.FetchResources(
-		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName}),
-	)
-
-	// Validate the storage size is set to 5Gi
-	storageSize, found, err := unstructured.NestedString(ms[0].Object, "spec", "prometheusConfig", "persistentVolumeClaim", "resources", "requests", "storage")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(storageSize).To(Equal("5Gi"))
-
-	// Validate the resources are set to the correct values
-	cpuRequest, found, err := unstructured.NestedString(ms[0].Object, "spec", "resources", "requests", "cpu")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(cpuRequest).To(Equal("250m"))
-
-	memoryRequest, found, err := unstructured.NestedString(ms[0].Object, "spec", "resources", "requests", "memory")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(memoryRequest).To(Equal("350Mi"))
-
-	// Validate the resources defaults are set to the correct values
-	cpuLimit, found, err := unstructured.NestedString(ms[0].Object, "spec", "resources", "limits", "cpu")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(cpuLimit).To(Equal("500m"))
-
-	memoryLimit, found, err := unstructured.NestedString(ms[0].Object, "spec", "resources", "limits", "memory")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(memoryLimit).To(Equal("512Mi"))
 }
 
 func getMonitoringStackName(dsci *dsciv1.DSCInitialization) string {
