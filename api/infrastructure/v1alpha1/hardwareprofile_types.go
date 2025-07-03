@@ -150,3 +150,30 @@ type HardwareProfileList struct {
 func init() {
 	SchemeBuilder.Register(&HardwareProfile{}, &HardwareProfileList{})
 }
+
+// +kubebuilder:object:root=true
+
+// DashboardHardwareProfile represents the dashboard.opendatahub.io HardwareProfile CRD. This will be a temporary struct until the migration is complete
+type DashboardHardwareProfile struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	Spec              DashboardHardwareProfileSpec `json:"spec"`
+}
+
+type DashboardHardwareProfileSpec struct {
+	DisplayName  string               `json:"displayName"`
+	Enabled      bool                 `json:"enabled"`
+	Description  string               `json:"description,omitempty"`
+	Tolerations  []corev1.Toleration  `json:"tolerations,omitempty"`
+	Identifiers  []HardwareIdentifier `json:"identifiers,omitempty"`
+	NodeSelector map[string]string    `json:"nodeSelector,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// DashboardHardwareProfileList contains a list of DashboardHardwareProfile.
+type DashboardHardwareProfileList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []DashboardHardwareProfile `json:"items"`
+}
