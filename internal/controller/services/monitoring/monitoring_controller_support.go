@@ -58,7 +58,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	var storageSize, storageRetention string
 	if metrics.Storage != nil {
-		storageSize = metrics.Storage.Size
+		storageSize = metrics.Storage.Size.String()
 		storageRetention = metrics.Storage.Retention
 	} else { // here need to match default value set in API
 		storageSize = "5Gi"

@@ -46,7 +46,7 @@ func monitoringTestSuite(t *testing.T) {
 		{"Auto creation of Monitoring CR", monitoringServiceCtx.ValidateMonitoringCRCreation},
 		{"Test Monitoring CR content default value", monitoringServiceCtx.ValidateMonitoringCRDefaultContent},
 		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringStackCRMetricsWhenSet},
-		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringCRMetricsConfiguration},
+		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsConfiguration},
 	}
 
 	// Run the test suite.
@@ -111,15 +111,22 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsWhenSet(t *testing.
 		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: "5Gi", retention: "1d"}, resources: {cpurequest: "250m", memoryrequest: "350Mi"}}`)),
 	)
 
+	// ensure the Monitoring CR is created with Ready status
+	m := tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
+	)
+	tc.g.Expect(m).ToNot(BeNil())
+
+	// ensure the MonitoringStack CR is created with Available status
 	ms := tc.EnsureResourceExists(
 		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
-		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, "Available", "True")),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeAvailable, metav1.ConditionTrue)),
 	)
-
 	tc.g.Expect(ms).ToNot(BeNil())
 }
 
-func (tc *MonitoringTestCtx) ValidateMonitoringCRMetricsConfiguration(t *testing.T) {
+func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *testing.T) {
 	t.Helper()
 
 	// monitoring := &serviceApi.Monitoring{}

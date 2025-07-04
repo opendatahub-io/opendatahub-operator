@@ -158,10 +158,14 @@ spec:
                               should be retained (e.g., "1d", "2w")
                             type: string
                           size:
+                            anyOf:
+                            - type: integer
+                            - type: string
                             default: 5Gi
                             description: Size specifies the storage size for the MonitoringStack
                               (e.g, "5Gi", "10Mi")
-                            type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
                         type: object
                     type: object
                   namespace:

@@ -50,7 +50,7 @@ type Metrics struct {
 type MetricsStorage struct {
 	// Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi")
 	// +kubebuilder:default="5Gi"
-	Size string `json:"size,omitempty"`
+	Size resource.Quantity `json:"size,omitempty"`
 	// Retention specifies how long metrics data should be retained (e.g., "1d", "2w")
 	// +kubebuilder:default="1d"
 	Retention string `json:"retention,omitempty"`
