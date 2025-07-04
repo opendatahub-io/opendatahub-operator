@@ -13,6 +13,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
@@ -283,10 +284,36 @@ func createDSCI(enableMonitoring operatorv1.ManagementState, enableTrustedCABund
 				ManagementSpec: common.ManagementSpec{ManagementState: enableMonitoring},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 					Namespace: monitoringNS,
+					Metrics: &serviceApi.Metrics{
+						Storage: serviceApi.MetricsStorage{
+							Size:      5,
+							Retention: 1,
+						},
+						Resources: serviceApi.MetricsResources{
+							CPULimit:      "500",
+							MemoryLimit:   "512",
+							CPURequest:    "100",
+							MemoryRequest: "256",
+						},
+					},
+					Traces: &serviceApi.Traces{
+						Storage: serviceApi.TracesStorage{
+							Backend: "pv",
+							Size:    "1Gi",
+						},
+					},
 				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: enableTrustedCABundle,
+			},
+			ServiceMesh: &infrav1.ServiceMeshSpec{
+				ManagementState: operatorv1.Managed,
+				ControlPlane: infrav1.ControlPlaneSpec{
+					Name:              "data-science-smcp",
+					Namespace:         "istio-system",
+					MetricsCollection: "Istio",
+				},
 			},
 		},
 	}
@@ -308,10 +335,36 @@ func createCustomizedDSCI(appNS string) *dsciv1.DSCInitialization {
 				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 					Namespace: monitoringNamespace,
+					Metrics: &serviceApi.Metrics{
+						Storage: serviceApi.MetricsStorage{
+							Size:      5,
+							Retention: 1,
+						},
+						Resources: serviceApi.MetricsResources{
+							CPULimit:      "500",
+							MemoryLimit:   "512",
+							CPURequest:    "100",
+							MemoryRequest: "256",
+						},
+					},
+					Traces: &serviceApi.Traces{
+						Storage: serviceApi.TracesStorage{
+							Backend: "pv",
+							Size:    "1Gi",
+						},
+					},
 				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
+			},
+			ServiceMesh: &infrav1.ServiceMeshSpec{
+				ManagementState: operatorv1.Managed,
+				ControlPlane: infrav1.ControlPlaneSpec{
+					Name:              "data-science-smcp",
+					Namespace:         "istio-system",
+					MetricsCollection: "Istio",
+				},
 			},
 		},
 	}

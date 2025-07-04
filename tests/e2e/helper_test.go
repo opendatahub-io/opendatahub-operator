@@ -133,6 +133,24 @@ func CreateDSCI(name, appNamespace string) *dsciv1.DSCInitialization {
 				},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 					Namespace: appNamespace,
+					Metrics: &serviceApi.Metrics{
+						Storage: serviceApi.MetricsStorage{
+							Size:      5,
+							Retention: 1,
+						},
+						Resources: serviceApi.MetricsResources{
+							CPULimit:      "500",
+							MemoryLimit:   "512",
+							CPURequest:    "100",
+							MemoryRequest: "256",
+						},
+					},
+					Traces: &serviceApi.Traces{
+						Storage: serviceApi.TracesStorage{
+							Backend: "pv",
+							Size:    "1Gi",
+						},
+					},
 				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{

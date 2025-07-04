@@ -48,20 +48,26 @@ type Metrics struct {
 // MetricsStorage defines the desired state of storage for the monitoring service
 type MetricsStorage struct {
 	// Size of the storage in Gi
+	// +kubebuilder:default:=5
 	Size int `json:"size,omitempty"`
 	// Retention of the storage in days
+	// +kubebuilder:default:=1
 	Retention int `json:"retention,omitempty"`
 }
 
 // MetricsResources defines the desired state of resource requests and limits for the monitoring service
 type MetricsResources struct {
 	// CPU limit for the monitoring service
+	// +kubebuilder:default:="500"
 	CPULimit string `json:"cpulimit,omitempty"`
 	// Memory limit for the monitoring service
+	// +kubebuilder:default:="512"
 	MemoryLimit string `json:"memorylimit,omitempty"`
 	// CPU request for the monitoring service
+	// +kubebuilder:default:="100"
 	CPURequest string `json:"cpurequest,omitempty"`
 	// Memory request for the monitoring service
+	// +kubebuilder:default:="256"
 	MemoryRequest string `json:"memoryrequest,omitempty"`
 }
 
@@ -70,6 +76,31 @@ type MonitoringStatus struct {
 	common.Status `json:",inline"`
 
 	URL string `json:"url,omitempty"`
+}
+
+type Traces struct {
+	Storage TracesStorage `json:"storage"`
+}
+
+// TracesStorage defines the storage configuration for tracing.
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? has(self.secret) : true",message="When backend is not 'pv', the 'secret' field must be specified and non-empty"
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? !has(self.size) : true",message="Size is not supported when backend is not 'pv'"
+type TracesStorage struct {
+	// Backend defines the storage backend type.
+	// Valid values are "pv", "s3", and "gcs".
+	// +kubebuilder:validation:Enum="pv";"s3";"gcs"
+	// +kubebuilder:default:="pv"
+	Backend string `json:"backend"`
+
+	// Size specifies the size of the storage.
+	// This field is optional.
+	// +optional
+	Size string `json:"size,omitempty"`
+
+	// Secret specifies the secret name for storage credentials.
+	// This field is required when the backend is not "pv".
+	// +optional
+	Secret string `json:"secret,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -100,6 +131,7 @@ type MonitoringCommonSpec struct {
 	Namespace string `json:"namespace,omitempty"`
 	// metrics collection
 	Metrics *Metrics `json:"metrics,omitempty"`
+	Traces  *Traces  `json:"traces,omitempty"`
 }
 
 //+kubebuilder:object:root=true

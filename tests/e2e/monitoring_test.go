@@ -46,6 +46,9 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Metrics Defaults", monitoringServiceCtx.ValidateMonitoringCrMetricsDefaults},
 		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringCrMetricsWhenSet},
 		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringCrMetricsConfiguration},
+		{"Test Tempo deployment with PV backend", monitoringServiceCtx.ValidateTempoMonolithicDeployment},
+		{"Test Tempo deployment with S3 backend", monitoringServiceCtx.ValidateTempoStackDeployment},
+		{"Test Tempo cleanup when traces disabled", monitoringServiceCtx.ValidateTempoCleanup},
 	}
 
 	// Run the test suite.
@@ -165,4 +168,138 @@ func getMonitoringStackName(dsci *dsciv1.DSCInitialization) string {
 	}
 
 	return "odh-monitoringstack"
+}
+
+// ValidateTempoMonolithicDeployment validates that TempoMonolithic is deployed when traces use PV backend.
+func (tc *MonitoringTestCtx) ValidateTempoMonolithicDeployment(t *testing.T) {
+	t.Helper()
+
+	// Enable traces with PV backend in DSCInitialization
+	tc.updateDSCIWithTraces(&serviceApi.Traces{
+		Storage: serviceApi.TracesStorage{
+			Backend: "pv",
+			Size:    "10Gi",
+		},
+	})
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.TempoMonolithic, types.NamespacedName{
+			Name:      "tempo",
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(jq.Match(`.spec.multitenancy.enabled == true`)),
+		WithCondition(jq.Match(`.spec.storage.traces.backend == "pv"`)),
+		WithCondition(jq.Match(`.spec.storage.traces.size == "10Gi"`)),
+		WithCustomErrorMsg("TempoMonolithic should be deployed when traces use PV backend"),
+	)
+
+	// Ensure TempoStack is NOT deployed
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.TempoStack, types.NamespacedName{
+			Name:      "tempo",
+			Namespace: tc.AppsNamespace,
+		}),
+	)
+}
+
+// ValidateTempoStackDeployment validates that TempoStack is deployed when traces use S3 backend.
+func (tc *MonitoringTestCtx) ValidateTempoStackDeployment(t *testing.T) {
+	t.Helper()
+
+	// Enable traces with S3 backend in DSCInitialization
+	tc.updateDSCIWithTraces(&serviceApi.Traces{
+		Storage: serviceApi.TracesStorage{
+			Backend: "s3",
+			Secret:  "tempo-s3-secret",
+		},
+	})
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.TempoStack, types.NamespacedName{
+			Name:      "tempo",
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(jq.Match(`.spec.tenants.mode == "openshift"`)),
+		WithCondition(jq.Match(`.spec.storage.secret.name == "tempo-s3-secret"`)),
+		WithCondition(jq.Match(`.spec.storage.secret.type == "s3"`)),
+		WithCondition(jq.Match(`.spec.template.gateway.enabled == true`)),
+		WithCustomErrorMsg("TempoStack should be deployed when traces use S3 backend"),
+	)
+
+	// Ensure TempoMonolithic is NOT deployed
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.TempoMonolithic, types.NamespacedName{
+			Name:      "tempo",
+			Namespace: tc.AppsNamespace,
+		}),
+	)
+}
+
+// ValidateTempoCleanup validates that Tempo instances are removed when traces are disabled.
+func (tc *MonitoringTestCtx) ValidateTempoCleanup(t *testing.T) {
+	t.Helper()
+
+	tc.updateDSCIWithTraces(&serviceApi.Traces{
+		Storage: serviceApi.TracesStorage{
+			Backend: "pv",
+			Size:    "5Gi",
+		},
+	})
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.TempoMonolithic, types.NamespacedName{
+			Name:      "tempo",
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCustomErrorMsg("TempoMonolithic should be deployed before testing cleanup"),
+	)
+
+	// disable traces
+	tc.updateDSCIWithTraces(nil)
+
+	// Verify that TempoMonolithic is eventually cleaned up by GC action
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.TempoMonolithic, types.NamespacedName{
+			Name:      "tempo",
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCustomErrorMsg("TempoMonolithic should be cleaned up when traces are disabled"),
+	)
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.TempoStack, types.NamespacedName{
+			Name:      "tempo",
+			Namespace: tc.AppsNamespace,
+		}),
+	)
+}
+
+// updateDSCIWithTraces updates the DSCInitialization with the specified traces configuration.
+func (tc *MonitoringTestCtx) updateDSCIWithTraces(traces *serviceApi.Traces) {
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			if traces == nil {
+				return unstructured.SetNestedMap(obj.Object, nil, "spec", "monitoring", "traces")
+			}
+
+			storageMap := map[string]interface{}{
+				"backend": traces.Storage.Backend,
+			}
+
+			if traces.Storage.Size != "" {
+				storageMap["size"] = traces.Storage.Size
+			}
+
+			if traces.Storage.Secret != "" {
+				storageMap["secret"] = traces.Storage.Secret
+			}
+
+			tracesMap := map[string]interface{}{
+				"storage": storageMap,
+			}
+
+			return unstructured.SetNestedMap(obj.Object, tracesMap, "spec", "monitoring", "traces")
+		}),
+	)
 }
