@@ -8,6 +8,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	"github.com/rs/xid"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -639,7 +641,12 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 				Build()
 
 			rr := &types.ReconciliationRequest{
-				Instance:  kueue,
+				Instance: kueue,
+				DSCI: &dsciv1.DSCInitialization{
+					Spec: dsciv1.DSCInitializationSpec{
+						ApplicationsNamespace: xid.New().String(),
+					},
+				},
 				Client:    client,
 				Resources: []unstructured.Unstructured{}, // Initialize empty resources
 			}
@@ -668,7 +675,6 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 			if test.expectKueueConfigResource {
 				g.Expect(kueueConfig).ToNot(BeNil())
 				g.Expect(kueueConfig.GetName()).To(Equal(kueueConfigName))
-				g.Expect(kueueConfig.GetNamespace()).To(Equal(kueueOperatorNamespace))
 			}
 
 			g.Expect(clusterQueue).ToNot(BeNil())

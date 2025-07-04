@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -115,9 +116,11 @@ func cleanupKueueTestResources(t *testing.T, tc *TestContext) {
 	// Delete kueue local queue if present
 	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: kueueTestManagedNamespace}, gvk.LocalQueue, true)
 	// Delete kueue cluster config if present
-	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueDefaultOperatorConfigName}, gvk.KueueConfigV1, false)
+	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueue.KueueConfigCRName}, gvk.KueueConfigV1, false)
 	// Delete test managed namespace if present
 	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueTestManagedNamespace}, gvk.Namespace, false)
+	// Delete embedded Kueue configmap
+	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace}, gvk.ConfigMap, true)
 
 	// Uninstall ocp kueue operator if present
 	uninstallOperatorWithChannel(t, tc, types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, kueueOcpOperatorChannel)
