@@ -337,7 +337,7 @@ spec:
         memoryrequest: 256Mi
       storage:
         retention: 1d
-        size: 1Gi
+        size: 5Gi
   serviceMesh:
     controlPlane:
       metricsCollection: Istio

@@ -2665,10 +2665,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `cpulimit` _string_ | CPULimit specifies the maximum CPU allocation (e.g., "500m", "2") |  |  |
-| `memorylimit` _string_ | MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi") |  |  |
-| `cpurequest` _string_ | CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5") |  |  |
-| `memoryrequest` _string_ | MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi") |  |  |
+| `cpulimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPULimit specifies the maximum CPU allocation (e.g., "500m", "2") | 500m |  |
+| `memorylimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi") | 512Mi |  |
+| `cpurequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5") | 100m |  |
+| `memoryrequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi") | 256Mi |  |
 
 
 #### MetricsStorage
@@ -2684,8 +2684,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `size` _string_ | Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi") |  |  |
-| `retention` _string_ | Retention specifies how long metrics data should be retained (e.g., "1d", "2w") |  |  |
+| `size` _string_ | Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi") | 5Gi |  |
+| `retention` _string_ | Retention specifies how long metrics data should be retained (e.g., "1d", "2w") | 1d |  |
 
 
 #### Monitoring

@@ -51,15 +51,6 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 // only when DSC has component as Managed and component CR is in "Ready" state, we add rules to Prom Rules.
 // all other cases, we do not change Prom rules for component.
 func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	_, err := cluster.GetDSCI(ctx, rr.Client)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			// If no DSCI exists, we dont have DSC exists
-			return nil
-		}
-		return fmt.Errorf("failed to retrieve DSCInitialization instance: %w", err)
-	}
-
 	// Skip update prom config: if cluster is NOT ManagedRhoai
 	if rr.Release.Name != cluster.ManagedRhoai {
 		return nil
@@ -100,14 +91,6 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
-	}
-
-	_, err := cluster.GetDSCI(ctx, rr.Client)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil
-		}
-		return fmt.Errorf("failed to retrieve DSCInitialization instance: %w", err)
 	}
 
 	if monitoring.Spec.Metrics != nil && (monitoring.Spec.Metrics.Resources != nil || monitoring.Spec.Metrics.Storage != nil) {

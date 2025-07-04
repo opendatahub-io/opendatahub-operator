@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -48,21 +49,27 @@ type Metrics struct {
 // MetricsStorage defines the storage configuration for the monitoring service
 type MetricsStorage struct {
 	// Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi")
+	// +kubebuilder:default="5Gi"
 	Size string `json:"size,omitempty"`
 	// Retention specifies how long metrics data should be retained (e.g., "1d", "2w")
+	// +kubebuilder:default="1d"
 	Retention string `json:"retention,omitempty"`
 }
 
 // MetricsResources defines the resource requests and limits for the monitoring service
 type MetricsResources struct {
 	// CPULimit specifies the maximum CPU allocation (e.g., "500m", "2")
-	CPULimit string `json:"cpulimit,omitempty"`
+	// +kubebuilder:default="500m"
+	CPULimit resource.Quantity `json:"cpulimit,omitempty"`
 	// MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi")
-	MemoryLimit string `json:"memorylimit,omitempty"`
+	// +kubebuilder:default="512Mi"
+	MemoryLimit resource.Quantity `json:"memorylimit,omitempty"`
 	// CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5")
-	CPURequest string `json:"cpurequest,omitempty"`
+	// +kubebuilder:default="100m"
+	CPURequest resource.Quantity `json:"cpurequest,omitempty"`
 	// MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi")
-	MemoryRequest string `json:"memoryrequest,omitempty"`
+	// +kubebuilder:default="256Mi"
+	MemoryRequest resource.Quantity `json:"memoryrequest,omitempty"`
 }
 
 // MonitoringStatus defines the observed state of Monitoring

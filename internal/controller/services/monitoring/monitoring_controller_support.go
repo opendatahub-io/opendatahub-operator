@@ -41,23 +41,15 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	default:
 		monitoringStackName = OpenDataHubStackName
 	}
-
-	defaultIfEmpty := func(value, defaultVal string) string {
-		if value == "" {
-			return defaultVal
-		}
-		return value
-	}
+	metrics := monitoring.Spec.Metrics
 
 	var cpuLimit, memoryLimit, cpuRequest, memoryRequest string
-	metrics := monitoring.Spec.Metrics
 	if metrics.Resources != nil {
-		cpuLimit = defaultIfEmpty(metrics.Resources.CPULimit, "500m")
-		memoryLimit = defaultIfEmpty(metrics.Resources.MemoryLimit, "512Mi")
-		cpuRequest = defaultIfEmpty(metrics.Resources.CPURequest, "100m")
-		memoryRequest = defaultIfEmpty(metrics.Resources.MemoryRequest, "256Mi")
-	} else {
-		// No resources configured, use all defaults
+		cpuLimit = metrics.Resources.CPULimit.String()
+		memoryLimit = metrics.Resources.MemoryLimit.String()
+		cpuRequest = metrics.Resources.CPURequest.String()
+		memoryRequest = metrics.Resources.MemoryRequest.String()
+	} else { // here need to match default value set in API
 		cpuLimit = "500m"
 		memoryLimit = "512Mi"
 		cpuRequest = "100m"
@@ -66,10 +58,9 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	var storageSize, storageRetention string
 	if metrics.Storage != nil {
-		storageSize = defaultIfEmpty(metrics.Storage.Size, "5Gi")
-		storageRetention = defaultIfEmpty(metrics.Storage.Retention, "1d")
-	} else {
-		// No storage configured, use all defaults
+		storageSize = metrics.Storage.Size
+		storageRetention = metrics.Storage.Retention
+	} else { // here need to match default value set in API
 		storageSize = "5Gi"
 		storageRetention = "1d"
 	}

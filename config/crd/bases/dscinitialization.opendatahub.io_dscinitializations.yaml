@@ -112,31 +112,53 @@ spec:
                           and limits for the monitoring service
                         properties:
                           cpulimit:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            default: 500m
                             description: CPULimit specifies the maximum CPU allocation
                               (e.g., "500m", "2")
-                            type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
                           cpurequest:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            default: 100m
                             description: CPURequest specifies the minimum CPU allocation
                               (e.g., "100m", "0.5")
-                            type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
                           memorylimit:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            default: 512Mi
                             description: MemoryLimit specifies the maximum memory
                               allocation (e.g., "1Gi", "512Mi")
-                            type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
                           memoryrequest:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            default: 256Mi
                             description: MemoryRequest specifies the minimum memory
                               allocation (e.g., "256Mi", "1Gi")
-                            type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
                         type: object
                       storage:
                         description: MetricsStorage defines the storage configuration
                           for the monitoring service
                         properties:
                           retention:
+                            default: 1d
                             description: Retention specifies how long metrics data
                               should be retained (e.g., "1d", "2w")
                             type: string
                           size:
+                            default: 5Gi
                             description: Size specifies the storage size for the MonitoringStack
                               (e.g, "5Gi", "10Mi")
                             type: string
