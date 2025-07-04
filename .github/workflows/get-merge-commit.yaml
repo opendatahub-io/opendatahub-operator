@@ -7,7 +7,7 @@ on:
         description: "The merge commit SHA"
         value: ${{ jobs.resolve-merge-commit.outputs.mergedSha }}
 
-permissions: {}
+permissions: { }
 
 jobs:
   resolve-merge-commit:
