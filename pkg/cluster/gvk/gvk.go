@@ -338,6 +338,12 @@ var (
 		Kind:    "InferenceService",
 	}
 
+	Notebook = schema.GroupVersionKind{
+		Group:   "kubeflow.org",
+		Version: "v1",
+		Kind:    "Notebook",
+	}
+
 	OperatorCondition = schema.GroupVersionKind{
 		Group:   "operators.coreos.com",
 		Version: "v2",
