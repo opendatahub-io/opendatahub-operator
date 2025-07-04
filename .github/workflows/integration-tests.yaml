@@ -2,6 +2,14 @@ name: Build Catalog FBC and run Integration tests
 on:
   pull_request_target:
     types: [labeled]
+    paths:
+      - 'bundle/**'
+      - 'cmd/**'
+      - 'config/**'
+      - 'Dockerfiles/**'
+      - 'internal/**'
+      - 'pkg/**'
+      - 'cmd/main.go'
 
 permissions: { }
 
@@ -12,12 +20,13 @@ jobs:
   get-merge-commit:
     name: Get merge commit
     uses: ./.github/workflows/get-merge-commit.yaml
+    if: ${{ github.event.label.name == 'run-integration-tests' }}
 
   create-catalog-image:
     name: Build/push catalog image
-    # add this condition to the jenkins job step -> if: ${{ github.event.label.name == 'run-integration-tests' }}
     runs-on: ubuntu-latest
     needs: get-merge-commit
+    if: ${{ github.event.label.name == 'run-integration-tests' }}
     env:
       IMAGE_BUILDER: podman
     steps:
@@ -49,7 +58,16 @@ jobs:
         env:
           OPERATOR_REPOSITORY_NAME: opendatahub-io/opendatahub-operator
         run: |
-          version_tag=$(curl -s https://api.github.com/repos/${OPERATOR_REPOSITORY_NAME}/releases/latest | jq -r .tag_name)-${{ env.PR_NUMBER }}
+          raw_version_tag=$(curl -s https://api.github.com/repos/${OPERATOR_REPOSITORY_NAME}/releases/latest | jq -r .tag_name)
+          
+          if [ -z "$raw_version_tag" ] || [ "$raw_version_tag" == "null" ]; then
+            echo "Failed to retrieve a valid release tag from ${{ env.OPERATOR_REPOSITORY_NAME }}, API call failed. Please re-run the action if possible."
+            exit 1
+          fi
+          echo "Latest ODH version '${raw_version_tag}' obtained successfully."
+          
+          version_tag=$raw_version_tag-${{ env.PR_NUMBER }}
+          echo "Proceeding to use version tag '${version_tag}' in the operator and bundle image builds."
           echo "VERSION_TAG=${version_tag:1}" >> $GITHUB_ENV
 
       - name: Create operator image
@@ -80,3 +98,10 @@ jobs:
           echo "version tag: ${VERSION_TAG}"
           make catalog-build 
           make catalog-push
+
+      - name: Report image build success and give further instructions
+        if: needs.get-merge-commit.outputs.mergedSha
+        run: |
+          echo "Catalog image built and pushed successfully!"
+          echo "** Please await GitHub Bot to comment '/test-integration' on the PR. **"
+          echo "This comment will trigger the integration test run."
