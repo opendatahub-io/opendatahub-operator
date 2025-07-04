@@ -30,6 +30,20 @@ import (
 
 const DefaultWebhookTimeout = 30 * time.Second
 
+// =============================================================================
+// Type Definitions
+// =============================================================================
+
+// ObjectOption is a functional option for configuring client objects during creation.
+type ObjectOption func(client.Object)
+
+// CRDSetupOption is a functional option for configuring the test environment setup with CRDs.
+type CRDSetupOption func(ctx context.Context, t *testing.T, env *envt.EnvT) error
+
+// =============================================================================
+// Environment Setup Functions
+// =============================================================================
+
 // SetupEnvAndClient sets up an envtest environment for integration tests.
 // Parameters:
 //   - t: The testing.T object for logging and fatal errors.
@@ -90,47 +104,92 @@ func SetupEnvAndClient(
 	return ctx, env, teardown
 }
 
-// SetupEnvAndClientWithNotebook boots the envtest environment with webhook support and Notebook CRD.
-// This is a specialized version of SetupEnvAndClient that includes Notebook CRD registration.
+// SetupEnvAndClientWithCRDs boots the envtest environment with webhook support and specified CRDs.
+// This is a flexible version of SetupEnvAndClient that includes CRD registration based on the options specified.
 //
 // Parameters:
 //   - t: The testing.T object for logging and fatal errors.
 //   - registerWebhooks: Functions to register webhooks with the manager.
 //   - timeout: The maximum duration to wait for the server to become ready.
+//   - opts: Setup options to configure which CRDs to register.
 //
 // Returns:
 //   - context.Context: The context for the test environment.
 //   - *envt.EnvT: The envtest environment wrapper instance.
 //   - func(): A teardown function to clean up resources after the test.
-func SetupEnvAndClientWithNotebook(
+func SetupEnvAndClientWithCRDs(
 	t *testing.T,
 	registerWebhooks []envt.RegisterWebhooksFn,
 	timeout time.Duration,
+	opts ...CRDSetupOption,
 ) (context.Context, *envt.EnvT, func()) {
 	t.Helper()
 
 	// Use the standard envtestutil setup
 	ctx, env, teardown := SetupEnvAndClient(t, registerWebhooks, timeout)
 
-	// Add Notebook-specific setup
-	// Register Notebook types
-	env.Scheme().AddKnownTypeWithName(gvk.Notebook, &unstructured.Unstructured{})
-	env.Scheme().AddKnownTypeWithName(gvk.Notebook.GroupVersion().WithKind("NotebookList"), &unstructured.UnstructuredList{})
-
-	// Register HardwareProfile types
+	// Register HardwareProfile types (always needed for hardware profile webhook tests)
 	if err := hwpv1alpha1.AddToScheme(env.Scheme()); err != nil {
 		t.Fatalf("failed to add HardwareProfile types to scheme: %v", err)
 	}
 
-	// Create Notebook CRD
-	extClient, _ := apiextensionsclientset.NewForConfig(env.Config())
-	_, err := extClient.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, MockNotebookCRD(), metav1.CreateOptions{})
-	if err != nil && !k8serr.IsAlreadyExists(err) {
-		t.Fatalf("failed to create mock Notebook CRD: %v", err)
+	// Apply each option (each option handles its own CRD setup)
+	for _, opt := range opts {
+		if err := opt(ctx, t, env); err != nil {
+			t.Fatalf("failed to apply setup option: %v", err)
+		}
 	}
 
 	return ctx, env, teardown
 }
+
+// =============================================================================
+// CRD Setup Options
+// =============================================================================
+
+// WithNotebook enables Notebook CRD registration in the test environment.
+func WithNotebook() CRDSetupOption {
+	return func(ctx context.Context, t *testing.T, env *envt.EnvT) error {
+		t.Helper()
+
+		// Register Notebook types
+		env.Scheme().AddKnownTypeWithName(gvk.Notebook, &unstructured.Unstructured{})
+		env.Scheme().AddKnownTypeWithName(gvk.Notebook.GroupVersion().WithKind("NotebookList"), &unstructured.UnstructuredList{})
+
+		// Create Notebook CRD
+		extClient, _ := apiextensionsclientset.NewForConfig(env.Config())
+		_, err := extClient.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, MockNotebookCRD(), metav1.CreateOptions{})
+		if err != nil && !k8serr.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create mock Notebook CRD: %w", err)
+		}
+
+		return nil
+	}
+}
+
+// WithInferenceService enables InferenceService CRD registration in the test environment.
+func WithInferenceService() CRDSetupOption {
+	return func(ctx context.Context, t *testing.T, env *envt.EnvT) error {
+		t.Helper()
+
+		// Register InferenceService types
+		env.Scheme().AddKnownTypeWithName(gvk.InferenceServices, &unstructured.Unstructured{})
+		env.Scheme().AddKnownTypeWithName(gvk.InferenceServices.GroupVersion().WithKind("InferenceServiceList"), &unstructured.UnstructuredList{})
+
+		// Create InferenceService CRD
+		extClient, _ := apiextensionsclientset.NewForConfig(env.Config())
+		_, err := extClient.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, MockInferenceServiceCRD(), metav1.CreateOptions{})
+		if err != nil && !k8serr.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create mock InferenceService CRD: %w", err)
+		}
+
+		return nil
+	}
+}
+
+// =============================================================================
+// Object Creation Functions
+// =============================================================================
 
 // NewDSCI creates a DSCInitialization object with the given name and namespace for use in tests.
 //
@@ -272,7 +331,7 @@ func NewNamespace(name string, labels map[string]string, opts ...func(*corev1.Na
 //
 // Returns:
 //   - client.Object: The constructed Notebook object as an unstructured object.
-func NewNotebook(name, namespace string, opts ...func(client.Object)) client.Object {
+func NewNotebook(name, namespace string, opts ...ObjectOption) client.Object {
 	notebook := resources.GvkToUnstructured(gvk.Notebook)
 	notebook.SetName(name)
 	notebook.SetNamespace(namespace)
@@ -294,60 +353,49 @@ func NewNotebook(name, namespace string, opts ...func(client.Object)) client.Obj
 	return notebook
 }
 
-// NewAdmissionRequest constructs an admission.Request for a given object, operation, kind (as schema.GroupVersionKind), and resource.
-// It fails the test if marshalling the object fails.
+// NewInferenceService creates an InferenceService object with the given name and namespace for use in tests.
 //
 // Parameters:
-//   - t: The testing.T object for error reporting.
-//   - op: The admissionv1.Operation (e.g., Create, Delete).
-//   - obj: The client.Object to include in the request.
-//   - kind: The schema.GroupVersionKind of the object.
-//   - resource: The metav1.GroupVersionResource for the request.
+//   - name: The name of the InferenceService object.
+//   - namespace: The namespace for the object.
 //
 // Returns:
-//   - admission.Request: The constructed admission request for use in tests.
-func NewAdmissionRequest(
-	t *testing.T,
-	op admissionv1.Operation,
-	obj client.Object,
-	kind schema.GroupVersionKind,
-	resource metav1.GroupVersionResource,
-) admission.Request {
-	t.Helper()
+//   - client.Object: The constructed InferenceService object as an unstructured object.
+func NewInferenceService(name, namespace string, opts ...ObjectOption) client.Object {
+	inferenceService := resources.GvkToUnstructured(gvk.InferenceServices)
+	inferenceService.SetName(name)
+	inferenceService.SetNamespace(namespace)
 
-	raw, err := json.Marshal(obj)
-	if err != nil {
-		t.Fatalf("failed to marshal object: %v", err)
-	}
-	metaObj, ok := obj.(metav1.Object)
-	if !ok {
-		t.Fatalf("object does not implement metav1.Object")
-	}
-	return admission.Request{
-		AdmissionRequest: admissionv1.AdmissionRequest{
-			Operation: op,
-			Namespace: metaObj.GetNamespace(),
-			Name:      metaObj.GetName(),
-			Kind: metav1.GroupVersionKind{
-				Group:   kind.Group,
-				Version: kind.Version,
-				Kind:    kind.Kind,
-			},
-			Resource: resource,
-			Object:   runtime.RawExtension{Raw: raw},
+	// Set basic spec structure needed for webhook testing
+	containers := []interface{}{
+		map[string]interface{}{
+			"name":  "kserve-container",
+			"image": "kserve/model-server:latest",
 		},
 	}
+	if err := unstructured.SetNestedSlice(inferenceService.Object, containers, "spec", "predictor", "podSpec", "containers"); err != nil {
+		panic(fmt.Sprintf("failed to set inference service containers: %v", err))
+	}
+
+	for _, opt := range opts {
+		opt(inferenceService)
+	}
+	return inferenceService
 }
 
+// =============================================================================
+// Object Configuration Options
+// =============================================================================
+
 // WithLabels sets labels on the object.
-func WithLabels(labels map[string]string) func(client.Object) {
+func WithLabels(labels map[string]string) ObjectOption {
 	return func(obj client.Object) {
 		obj.SetLabels(labels)
 	}
 }
 
 // WithHardwareProfile adds a hardware profile annotation to the object.
-func WithHardwareProfile(profileName string) func(client.Object) {
+func WithHardwareProfile(profileName string) ObjectOption {
 	return func(obj client.Object) {
 		annotations := obj.GetAnnotations()
 		if annotations == nil {
@@ -359,7 +407,7 @@ func WithHardwareProfile(profileName string) func(client.Object) {
 }
 
 // WithHardwareProfileNamespace adds a hardware profile namespace annotation to the object.
-func WithHardwareProfileNamespace(namespace string) func(client.Object) {
+func WithHardwareProfileNamespace(namespace string) ObjectOption {
 	return func(obj client.Object) {
 		annotations := obj.GetAnnotations()
 		if annotations == nil {
@@ -371,7 +419,7 @@ func WithHardwareProfileNamespace(namespace string) func(client.Object) {
 }
 
 // WithAnnotation adds an annotation to the object.
-func WithAnnotation(key, value string) func(client.Object) {
+func WithAnnotation(key, value string) ObjectOption {
 	return func(obj client.Object) {
 		annotations := obj.GetAnnotations()
 		if annotations == nil {
@@ -382,7 +430,52 @@ func WithAnnotation(key, value string) func(client.Object) {
 	}
 }
 
-// MockNotebookCRD creates a fake Notebook CRD to allow webhook testing.
+// =============================================================================
+// Webhook Helper Functions
+// =============================================================================
+
+// NewAdmissionRequest creates an admission request for testing webhooks.
+//
+// Parameters:
+//   - t: The testing.T object for logging and fatal errors.
+//   - op: The operation type (Create, Update, Delete).
+//   - obj: The object to include in the request.
+//   - kind: The GroupVersionKind of the object.
+//   - resource: The GroupVersionResource of the object.
+//
+// Returns:
+//   - admission.Request: The constructed admission request.
+func NewAdmissionRequest(
+	t *testing.T,
+	op admissionv1.Operation,
+	obj client.Object,
+	kind schema.GroupVersionKind,
+	resource metav1.GroupVersionResource,
+) admission.Request {
+	t.Helper()
+
+	objBytes, err := json.Marshal(obj)
+	if err != nil {
+		t.Fatalf("failed to marshal object: %v", err)
+	}
+
+	return admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Kind:      metav1.GroupVersionKind{Group: kind.Group, Version: kind.Version, Kind: kind.Kind},
+			Resource:  resource,
+			Namespace: obj.GetNamespace(),
+			Operation: op,
+			Object:    runtime.RawExtension{Raw: objBytes},
+		},
+	}
+}
+
+// =============================================================================
+// Mock CRD Functions
+// =============================================================================
+
+// MockNotebookCRD creates a mock Notebook CRD for testing.
 func MockNotebookCRD() *apiextensionsv1.CustomResourceDefinition {
 	preserveUnknownFields := true
 
@@ -399,6 +492,38 @@ func MockNotebookCRD() *apiextensionsv1.CustomResourceDefinition {
 			Scope: "Namespaced",
 			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
 				Name:    "v1",
+				Served:  true,
+				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+						Type: "object",
+						// This allows any structure
+						XPreserveUnknownFields: &preserveUnknownFields,
+					},
+				},
+			}},
+		},
+	}
+}
+
+// MockInferenceServiceCRD creates a mock InferenceService CRD for testing.
+func MockInferenceServiceCRD() *apiextensionsv1.CustomResourceDefinition {
+	preserveUnknownFields := true
+
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "inferenceservices.serving.kserve.io",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "serving.kserve.io",
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Plural:   "inferenceservices",
+				Singular: "inferenceservice",
+				Kind:     "InferenceService",
+			},
+			Scope: "Namespaced",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    "v1beta1",
 				Served:  true,
 				Storage: true,
 				Schema: &apiextensionsv1.CustomResourceValidation{

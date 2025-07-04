@@ -10,7 +10,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/rs/xid"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
@@ -28,21 +27,6 @@ var (
 	kueueLegacyManagedLabelKey = kueuewebhook.KueueLegacyManagedLabelKey
 	missingLabelError          = `Kueue label validation failed: missing required label "` + kueueQueueNameLabelKey + `"`
 )
-
-// registerWebhooksWithManualDecoder registers webhooks using the new envtestutil pattern.
-// This is needed because envtest doesn't automatically handle decoder injection like a real cluster does.
-func registerWebhooksWithManualDecoder(mgr manager.Manager) error {
-	// Use WithHandlers to pass multiple handlers - the function will automatically
-	// detect which handlers need decoder injection (Kueue webhook doesn't need it)
-	return envtestutil.RegisterWebhooksWithManualDecoder(mgr,
-		envtestutil.WithHandlers(
-			&kueuewebhook.Validator{
-				Client: mgr.GetAPIReader(),
-				Name:   "kueue-validating",
-			},
-		),
-	)
-}
 
 func TestKueueWebhook_Integration(t *testing.T) {
 	t.Parallel()
@@ -98,13 +82,14 @@ func TestKueueWebhook_Integration(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
 
-			ctx, env, teardown := envtestutil.SetupEnvAndClientWithNotebook(
+			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
 				t,
 				[]envt.RegisterWebhooksFn{
-					registerWebhooksWithManualDecoder,
+					envtestutil.RegisterHardwareProfileAndKueueWebhooks,
 					dscwebhook.RegisterWebhooks,
 				},
 				20*time.Second,
+				envtestutil.WithNotebook(),
 			)
 			t.Cleanup(teardown)
 			k8sClient := env.Client()

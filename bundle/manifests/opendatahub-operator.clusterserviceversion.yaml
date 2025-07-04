@@ -1609,6 +1609,26 @@ spec:
     containerPort: 443
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
+    generateName: hardwareprofile-injector.opendatahub.io
+    rules:
+    - apiGroups:
+      - kubeflow.org
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - notebooks
+    sideEffects: None
+    targetPort: 9443
+    type: MutatingAdmissionWebhook
+    webhookPath: /mutate-kubeflow-notebook
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
     generateName: kserve-kueuelabels-validator.opendatahub.io
     rules:
     - apiGroups:
