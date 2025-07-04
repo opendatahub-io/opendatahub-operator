@@ -951,6 +951,11 @@ func (tc *TestContext) EnsureWebhookBlocksResourceUpdate(opts ...ResourceOpts) {
 
 // convertToResource converts an Unstructured object to the specified resource type.
 // It asserts that no error occurs during the conversion.
+// EnsureWebhookBlocksOperation verifies that webhook validation blocks a specific operation.
+//
+// This is the core generic function that handles webhook validation testing for any operation.
+// It expects the operation to fail with a Forbidden error from the webhook and validates
+// that the error message contains expected patterns.
 //
 // Parameters:
 //   - operation (func() error): The operation function that should be blocked by the webhook.
