@@ -12,14 +12,14 @@ spec:
     persistentVolumeClaim:
       resources:
         requests: 
-          storage: {{ .StorageSize }}Gi
+          storage: {{ .StorageSize }}
     replicas: 2
   resourceSelector: {}
   resources:
     limits:
-      cpu: {{ .CPULimit }}m
-      memory: {{ .MemoryLimit }}Mi
+      cpu: {{ .CPULimit }}
+      memory: {{ .MemoryLimit }}
     requests:
-      cpu: {{ .CPURequest }}m
-      memory: {{ .MemoryRequest }}Mi
-  retention: {{ .StorageRetention }}d
+      cpu: {{ .CPURequest }}
+      memory: {{ .MemoryRequest }}
+  retention: {{ .StorageRetention }}
