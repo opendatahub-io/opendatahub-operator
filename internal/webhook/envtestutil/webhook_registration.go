@@ -4,6 +4,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 )
 
@@ -26,6 +27,16 @@ func RegisterHardwareProfileAndKueueWebhooks(mgr manager.Manager) error {
 		Name:    "kueue-validating",
 	}
 	if err := kueueValidator.SetupWithManager(mgr); err != nil {
+		return err
+	}
+
+	// Register Hardware Profile webhook
+	hardwareProfileInjector := &hardwareprofilewebhook.Injector{
+		Client:  mgr.GetAPIReader(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
+		Name:    "hardwareprofile-injector",
+	}
+	if err := hardwareProfileInjector.SetupWithManager(mgr); err != nil {
 		return err
 	}
 

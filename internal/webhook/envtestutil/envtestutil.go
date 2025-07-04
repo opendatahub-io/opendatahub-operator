@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
@@ -33,6 +34,12 @@ import (
 
 const DefaultWebhookTimeout = 30 * time.Second
 
+// defaultCRDInstallOptions provides consistent configuration for waiting on CRD establishment.
+var defaultCRDInstallOptions = envtest.CRDInstallOptions{
+	PollInterval: 100 * time.Millisecond,
+	MaxTime:      30 * time.Second,
+}
+
 // =============================================================================
 // Type Definitions
 // =============================================================================
@@ -42,6 +49,30 @@ type ObjectOption func(client.Object)
 
 // CRDSetupOption is a functional option for configuring the test environment setup with CRDs.
 type CRDSetupOption func(ctx context.Context, t *testing.T, env *envt.EnvT) error
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+// createAndWaitForCRD creates a CRD and waits for it to be established.
+// This helper eliminates code duplication between different CRD setup functions.
+func createAndWaitForCRD(ctx context.Context, env *envt.EnvT, crd *apiextensionsv1.CustomResourceDefinition) error {
+	extClient, _ := apiextensionsclientset.NewForConfig(env.Config())
+	createdCRD, err := extClient.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, crd, metav1.CreateOptions{})
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create CRD %s: %w", crd.Name, err)
+	}
+
+	// Wait for the CRD to be established (ready for use)
+	if err == nil { // Only wait if we just created it
+		err = envtest.WaitForCRDs(env.Config(), []*apiextensionsv1.CustomResourceDefinition{createdCRD}, defaultCRDInstallOptions)
+		if err != nil {
+			return fmt.Errorf("failed to wait for CRD %s to be established: %w", crd.Name, err)
+		}
+	}
+
+	return nil
+}
 
 // =============================================================================
 // Environment Setup Functions
@@ -136,9 +167,6 @@ func SetupEnvAndClientWithCRDs(
 		t.Fatalf("failed to add HardwareProfile types to scheme: %v", err)
 	}
 
-	// Create webhook configuration
-	SetupWebhookConfigurations(t, env, ctx)
-
 	// Apply each option (each option handles its own CRD setup)
 	for _, opt := range opts {
 		if err := opt(ctx, t, env); err != nil {
@@ -163,10 +191,9 @@ func WithNotebook() CRDSetupOption {
 		env.Scheme().AddKnownTypeWithName(gvk.Notebook.GroupVersion().WithKind("NotebookList"), &unstructured.UnstructuredList{})
 
 		// Create Notebook CRD
-		extClient, _ := apiextensionsclientset.NewForConfig(env.Config())
-		_, err := extClient.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, MockNotebookCRD(), metav1.CreateOptions{})
-		if err != nil && !k8serr.IsAlreadyExists(err) {
-			return fmt.Errorf("failed to create mock Notebook CRD: %w", err)
+		crd := MockNotebookCRD()
+		if err := createAndWaitForCRD(ctx, env, crd); err != nil {
+			return fmt.Errorf("failed to create and wait for Notebook CRD: %w", err)
 		}
 
 		return nil
@@ -183,10 +210,9 @@ func WithInferenceService() CRDSetupOption {
 		env.Scheme().AddKnownTypeWithName(gvk.InferenceServices.GroupVersion().WithKind("InferenceServiceList"), &unstructured.UnstructuredList{})
 
 		// Create InferenceService CRD
-		extClient, _ := apiextensionsclientset.NewForConfig(env.Config())
-		_, err := extClient.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, MockInferenceServiceCRD(), metav1.CreateOptions{})
-		if err != nil && !k8serr.IsAlreadyExists(err) {
-			return fmt.Errorf("failed to create mock InferenceService CRD: %w", err)
+		crd := MockInferenceServiceCRD()
+		if err := createAndWaitForCRD(ctx, env, crd); err != nil {
+			return fmt.Errorf("failed to create and wait for InferenceService CRD: %w", err)
 		}
 
 		return nil

@@ -8,15 +8,19 @@ import (
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -50,7 +54,7 @@ func kueueTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
-	// Define test cases.
+	// Define core test cases
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
@@ -64,8 +68,20 @@ func kueueTestSuite(t *testing.T) {
 		{"Validate component managed to removed to unmanaged transition with config migration", componentCtx.ValidateKueueManagedToRemovedToUnmanagedTransition(true)},
 		{"Validate component managed to removed to unmanaged transition without config migration", componentCtx.ValidateKueueManagedToRemovedToUnmanagedTransition(false)},
 		{"Validate component unmanaged to managed transition", componentCtx.ValidateKueueUnmanagedToManagedTransition},
-		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
+
+	// Add webhook tests if enabled
+	if testOpts.webhookTest {
+		testCases = append(testCases,
+			TestCase{"Validate hardware profile webhook blocks workload with non-existent profile", componentCtx.ValidateHardwareProfileWebhookBlocksNonExistentProfile},
+			TestCase{"Validate hardware profile webhook allows workload with valid profile", componentCtx.ValidateHardwareProfileWebhookAllowsValidProfile},
+			TestCase{"Validate hardware profile webhook injects resources correctly", componentCtx.ValidateHardwareProfileWebhookResourceInjection},
+			TestCase{"Validate hardware profile webhook injects node scheduling correctly", componentCtx.ValidateHardwareProfileWebhookNodeScheduling},
+		)
+	}
+
+	// Always run component disable test last
+	testCases = append(testCases, TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled})
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
@@ -628,9 +644,224 @@ func (tc *KueueTestCtx) setComponentManagementState(componentName string, state 
 }
 
 func createTestManagedNamespace(tc *KueueTestCtx) {
-	// Create a test namespace with Kueue management annotation
+	// Create test managed namespace
+	testManagedNamespace := &unstructured.Unstructured{}
+	testManagedNamespace.SetGroupVersionKind(gvk.Namespace)
+	testManagedNamespace.SetName(kueueTestManagedNamespace)
+	testManagedNamespace.SetLabels(map[string]string{
+		kueue.KueueManagedLabelKey: "true",
+	})
+
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: kueueTestManagedNamespace}),
-		WithMutateFunc(testf.Transform(`.metadata.labels["kueue.openshift.io/managed"] = "true"`)),
+		WithObjectToCreate(testManagedNamespace),
+		WithCustomErrorMsg("Failed to create test managed namespace"),
+	)
+}
+
+// Hardware Profile Webhook Test Methods
+
+// ValidateHardwareProfileWebhookBlocksNonExistentProfile validates that the webhook blocks workloads with non-existent hardware profiles.
+func (tc *KueueTestCtx) ValidateHardwareProfileWebhookBlocksNonExistentProfile(t *testing.T) {
+	t.Helper()
+
+	// Create a test namespace for hardware profile testing
+	testNamespace := "hardware-profile-webhook-test"
+	namespace := &unstructured.Unstructured{}
+	namespace.SetGroupVersionKind(gvk.Namespace)
+	namespace.SetName(testNamespace)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(namespace),
+		WithCustomErrorMsg("Failed to create test namespace for hardware profile webhook testing"),
+	)
+
+	// Create notebook with non-existent hardware profile - should be blocked
+	invalidNotebook := envtestutil.NewNotebook("notebook-invalid-profile", testNamespace,
+		envtestutil.WithHardwareProfile("non-existent-profile"))
+
+	tc.EnsureWebhookBlocksResourceCreation(
+		WithObjectToCreate(invalidNotebook),
+		WithInvalidValue("non-existent-profile"),
+		WithCustomErrorMsg("Expected notebook with non-existent hardware profile to be blocked by webhook"),
+	)
+}
+
+// ValidateHardwareProfileWebhookAllowsValidProfile validates that the webhook allows workloads with valid hardware profiles.
+func (tc *KueueTestCtx) ValidateHardwareProfileWebhookAllowsValidProfile(t *testing.T) {
+	t.Helper()
+
+	// Create a test namespace for hardware profile testing
+	testNamespace := "hardware-profile-webhook-valid"
+	namespace := &unstructured.Unstructured{}
+	namespace.SetGroupVersionKind(gvk.Namespace)
+	namespace.SetName(testNamespace)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(namespace),
+		WithCustomErrorMsg("Failed to create test namespace for valid hardware profile testing"),
+	)
+
+	// Create a basic hardware profile
+	hwp := &infrav1alpha1.HardwareProfile{}
+	hwp.SetName("basic-profile")
+	hwp.SetNamespace(testNamespace)
+	hwp.Spec = infrav1alpha1.HardwareProfileSpec{
+		Identifiers: []infrav1alpha1.HardwareIdentifier{
+			{
+				DisplayName:  "CPU",
+				Identifier:   "cpu",
+				MinCount:     intstr.FromInt32(1),
+				DefaultCount: intstr.FromInt32(2),
+				ResourceType: "CPU",
+			},
+		},
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(hwp),
+		WithCustomErrorMsg("Failed to create basic hardware profile"),
+	)
+
+	// Create notebook with valid hardware profile - should be allowed
+	validNotebook := envtestutil.NewNotebook("notebook-valid-profile", testNamespace,
+		envtestutil.WithHardwareProfile("basic-profile"))
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(validNotebook),
+		WithCustomErrorMsg("Expected notebook with valid hardware profile to be allowed"),
+	)
+}
+
+// ValidateHardwareProfileWebhookResourceInjection validates that the webhook correctly injects resource requirements.
+func (tc *KueueTestCtx) ValidateHardwareProfileWebhookResourceInjection(t *testing.T) {
+	t.Helper()
+
+	// Create a test namespace for resource injection testing
+	testNamespace := "hardware-profile-resource-injection"
+	namespace := &unstructured.Unstructured{}
+	namespace.SetGroupVersionKind(gvk.Namespace)
+	namespace.SetName(testNamespace)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(namespace),
+		WithCustomErrorMsg("Failed to create test namespace for resource injection testing"),
+	)
+
+	// Create a hardware profile with resource requirements
+	hwp := &infrav1alpha1.HardwareProfile{}
+	hwp.SetName("resource-profile")
+	hwp.SetNamespace(testNamespace)
+	hwp.Spec = infrav1alpha1.HardwareProfileSpec{
+		Identifiers: []infrav1alpha1.HardwareIdentifier{
+			{
+				DisplayName:  "CPU",
+				Identifier:   "cpu",
+				MinCount:     intstr.FromInt32(2),
+				DefaultCount: intstr.FromInt32(2),
+				ResourceType: "CPU",
+			},
+			{
+				DisplayName:  "Memory",
+				Identifier:   "memory",
+				MinCount:     intstr.FromString("4Gi"),
+				DefaultCount: intstr.FromString("4Gi"),
+				ResourceType: "Memory",
+			},
+			{
+				DisplayName:  "GPU",
+				Identifier:   "nvidia.com/gpu",
+				MinCount:     intstr.FromInt32(1),
+				DefaultCount: intstr.FromInt32(1),
+				ResourceType: "Accelerator",
+			},
+		},
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(hwp),
+		WithCustomErrorMsg("Failed to create hardware profile with resources"),
+	)
+
+	// Create notebook that should get resource injection
+	notebook := envtestutil.NewNotebook("notebook-resource-injection", testNamespace,
+		envtestutil.WithHardwareProfile("resource-profile"))
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(notebook),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.containers[0].resources.requests.cpu == "2"`),
+			jq.Match(`.spec.template.spec.containers[0].resources.requests.memory == "4Gi"`),
+			jq.Match(`.spec.template.spec.containers[0].resources.requests["nvidia.com/gpu"] == "1"`),
+		)),
+		WithCustomErrorMsg("Failed to validate resource injection in notebook"),
+	)
+}
+
+// ValidateHardwareProfileWebhookNodeScheduling validates that the webhook correctly injects node scheduling configuration.
+func (tc *KueueTestCtx) ValidateHardwareProfileWebhookNodeScheduling(t *testing.T) {
+	t.Helper()
+
+	// Create a test namespace for node scheduling testing
+	testNamespace := "hardware-profile-node-scheduling"
+	namespace := &unstructured.Unstructured{}
+	namespace.SetGroupVersionKind(gvk.Namespace)
+	namespace.SetName(testNamespace)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(namespace),
+		WithCustomErrorMsg("Failed to create test namespace for node scheduling testing"),
+	)
+
+	// Create a hardware profile with node scheduling configuration
+	hwp := &infrav1alpha1.HardwareProfile{}
+	hwp.SetName("node-scheduling-profile")
+	hwp.SetNamespace(testNamespace)
+	hwp.Spec = infrav1alpha1.HardwareProfileSpec{
+		Identifiers: []infrav1alpha1.HardwareIdentifier{
+			{
+				DisplayName:  "GPU",
+				Identifier:   "nvidia.com/gpu",
+				MinCount:     intstr.FromInt32(1),
+				DefaultCount: intstr.FromInt32(1),
+				ResourceType: "Accelerator",
+			},
+		},
+		SchedulingSpec: &infrav1alpha1.SchedulingSpec{
+			SchedulingType: infrav1alpha1.NodeScheduling,
+			Node: &infrav1alpha1.NodeSchedulingSpec{
+				NodeSelector: map[string]string{
+					"accelerator": "nvidia-tesla-v100",
+					"zone":        "us-west1-a",
+				},
+				Tolerations: []corev1.Toleration{
+					{
+						Key:      "nvidia.com/gpu",
+						Operator: corev1.TolerationOpExists,
+						Effect:   corev1.TaintEffectNoSchedule,
+					},
+				},
+			},
+		},
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(hwp),
+		WithCustomErrorMsg("Failed to create hardware profile with node scheduling"),
+	)
+
+	// Create notebook that should get node scheduling injection
+	notebook := envtestutil.NewNotebook("notebook-node-scheduling", testNamespace,
+		envtestutil.WithHardwareProfile("node-scheduling-profile"))
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(notebook),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.nodeSelector.accelerator == "nvidia-tesla-v100"`),
+			jq.Match(`.spec.template.spec.nodeSelector.zone == "us-west1-a"`),
+			jq.Match(`.spec.template.spec.tolerations[0].key == "nvidia.com/gpu"`),
+			jq.Match(`.spec.template.spec.tolerations[0].operator == "Exists"`),
+			jq.Match(`.spec.template.spec.tolerations[0].effect == "NoSchedule"`),
+		)),
+		WithCustomErrorMsg("Failed to validate node scheduling injection in notebook"),
 	)
 }

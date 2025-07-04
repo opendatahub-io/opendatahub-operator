@@ -85,7 +85,7 @@ func DenyCountGtZero(ctx context.Context, cli client.Reader, gvk schema.GroupVer
 	return admission.Allowed("")
 }
 
-// ValidateDupCreation denies creation if another instance of the same kind already exists (singleton enforcement).
+// ValidateSingletonCreation denies creation if another instance of the same kind already exists (singleton enforcement).
 //
 // Parameters:
 //   - ctx: Context for the API call (logger is extracted from here).
@@ -95,7 +95,7 @@ func DenyCountGtZero(ctx context.Context, cli client.Reader, gvk schema.GroupVer
 //
 // Returns:
 //   - admission.Response: Errored if kind does not match, Denied if duplicate exists, Allowed otherwise.
-func ValidateDupCreation(ctx context.Context, cli client.Reader, req *admission.Request, expectedKind string) admission.Response {
+func ValidateSingletonCreation(ctx context.Context, cli client.Reader, req *admission.Request, expectedKind string) admission.Response {
 	if req.Kind.Kind != expectedKind {
 		err := fmt.Errorf("unexpected kind: %s", req.Kind.Kind)
 		logf.FromContext(ctx).Error(err, "got wrong kind")

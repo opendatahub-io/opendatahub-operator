@@ -97,6 +97,10 @@ func TestKueueWebhook_Integration(t *testing.T) {
 				20*time.Second,
 				envtestutil.WithNotebook(),
 			)
+
+			// Create webhook configuration
+			envtestutil.SetupWebhookConfigurations(t, env, ctx)
+
 			t.Cleanup(teardown)
 			k8sClient := env.Client()
 
