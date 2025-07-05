@@ -3,14 +3,17 @@ package kueue
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -531,4 +534,158 @@ func TestManageKueueAdminRoleBinding_WithEmptyAdminGroups(t *testing.T) {
 		jq.Match(`.roleRef.name == "kueue-batch-admin-role"`),
 		jq.Match(`.subjects | length == 0`),
 	))
+}
+
+func TestManageDefaultKueueResourcesAction_NotKueueInstance(t *testing.T) {
+	g := NewWithT(t)
+
+	rr := &types.ReconciliationRequest{
+		Instance: &componentApi.Dashboard{}, // Wrong type
+	}
+
+	err := manageDefaultKueueResourcesAction(context.Background(), rr)
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("is not a componentApi.Kueue"))
+}
+
+func TestManageDefaultKueueResourcesAction_RemovedState(t *testing.T) {
+	g := NewWithT(t)
+
+	kueue := &componentApi.Kueue{
+		Spec: componentApi.KueueSpec{
+			KueueManagementSpec: componentApi.KueueManagementSpec{
+				ManagementState: operatorv1.Removed,
+			},
+		},
+	}
+
+	rr := &types.ReconciliationRequest{
+		Instance: kueue,
+	}
+
+	err := manageDefaultKueueResourcesAction(context.Background(), rr)
+	g.Expect(err).ToNot(HaveOccurred())
+}
+
+func TestDefaultKueueResourcesAction(t *testing.T) {
+	defaultClusterQueueName := "defaultClusterQueueName"
+	defaultLocalQueueName := "defaultLocalQueueName"
+	kueueConfigName := "cluster"
+
+	// Create a managed namespace
+	managedNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-managed-ns",
+			Labels: map[string]string{
+				KueueManagedAnnotationKey: "true",
+			},
+		},
+	}
+
+	// Create a legacy managed namespace
+	legacyManagedNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-legacy-managed-ns",
+			Labels: map[string]string{
+				KueueLegacyManagedAnnotationKey: "true",
+			},
+		},
+	}
+
+	// Create both annotation managed namespace
+	bothManagedNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-both-managed-ns",
+			Labels: map[string]string{
+				KueueManagedAnnotationKey:       "true",
+				KueueLegacyManagedAnnotationKey: "true",
+			},
+		},
+	}
+
+	// And an unmanaged one
+	unmanagedNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-unmanaged-ns",
+		},
+	}
+
+	var tests = []struct {
+		name                      string
+		managedState              operatorv1.ManagementState
+		totalResourceCount        int
+		expectKueueConfigResource bool
+	}{
+		{"managed", operatorv1.Managed, 4, false},
+		{"unmanaged", operatorv1.Unmanaged, 5, true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			g := NewWithT(t)
+			kueue := &componentApi.Kueue{
+				Spec: componentApi.KueueSpec{
+					KueueManagementSpec: componentApi.KueueManagementSpec{
+						ManagementState: test.managedState,
+					},
+					KueueDefaultQueueSpec: componentApi.KueueDefaultQueueSpec{
+						DefaultLocalQueueName:   defaultLocalQueueName,
+						DefaultClusterQueueName: defaultClusterQueueName,
+					},
+				},
+			}
+
+			client := fake.NewClientBuilder().
+				WithRuntimeObjects(managedNamespace, legacyManagedNamespace, bothManagedNamespace, unmanagedNamespace).
+				Build()
+
+			rr := &types.ReconciliationRequest{
+				Instance:  kueue,
+				Client:    client,
+				Resources: []unstructured.Unstructured{}, // Initialize empty resources
+			}
+
+			err := manageDefaultKueueResourcesAction(context.Background(), rr)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Should have added ClusterQueue and LocalQueue resources
+			g.Expect(rr.Resources).To(HaveLen(test.totalResourceCount))
+
+			// Verify ClusterQueue was added
+			var clusterQueue *unstructured.Unstructured
+			var localQueues []*unstructured.Unstructured
+			var kueueConfig *unstructured.Unstructured
+			for i := range rr.Resources {
+				switch rr.Resources[i].GetKind() {
+				case gvk.ClusterQueue.Kind:
+					clusterQueue = &rr.Resources[i]
+				case gvk.LocalQueue.Kind:
+					localQueues = append(localQueues, &rr.Resources[i])
+				case gvk.KueueConfigV1.Kind:
+					kueueConfig = &rr.Resources[i]
+				}
+			}
+
+			if test.expectKueueConfigResource {
+				g.Expect(kueueConfig).ToNot(BeNil())
+				g.Expect(kueueConfig.GetName()).To(Equal(kueueConfigName))
+				g.Expect(kueueConfig.GetNamespace()).To(Equal(kueueOperatorNamespace))
+			}
+
+			g.Expect(clusterQueue).ToNot(BeNil())
+			g.Expect(clusterQueue.GetName()).To(Equal(defaultClusterQueueName))
+			g.Expect(clusterQueue.GetNamespace()).To(BeEmpty()) // ClusterQueue is cluster-scoped
+
+			g.Expect(localQueues).To(HaveLen(3))
+			namespacesNames := []string{}
+			for _, lc := range localQueues {
+				g.Expect(lc).ToNot(BeNil())
+				g.Expect(lc.GetName()).To(Equal(defaultLocalQueueName))
+				namespacesNames = append(namespacesNames, lc.GetNamespace())
+			}
+			g.Expect(namespacesNames).To(HaveLen(3))
+			g.Expect(slices.Contains(namespacesNames, "test-managed-ns")).Should(BeTrue())
+			g.Expect(slices.Contains(namespacesNames, "test-legacy-managed-ns")).Should(BeTrue())
+			g.Expect(slices.Contains(namespacesNames, "test-both-managed-ns")).Should(BeTrue())
+		})
+	}
 }
