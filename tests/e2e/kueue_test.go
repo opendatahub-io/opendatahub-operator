@@ -422,12 +422,17 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 
 		if migrateConfig {
 			// Validate that Kueue's ConfigMap still exists
-			tc.EnsureResourceExists(
-				WithMinimalObject(gvk.ConfigMap, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace}),
+			tc.g.Get(
+				gvk.ConfigMap, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace},
+			).Eventually().ShouldNot(
+				BeNil(),
 			)
 		} else {
-			tc.EnsureResourceDoesNotExist(
-				WithMinimalObject(gvk.ConfigMap, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace}),
+			// Validate that Kueue's ConfigMap is gone
+			tc.g.Get(
+				gvk.ConfigMap, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace},
+			).Eventually().Should(
+				BeNil(),
 			)
 		}
 
@@ -593,7 +598,7 @@ func (tc *KueueTestCtx) setManagedAnnotation(gvk schema.GroupVersionKind, name t
 		ownerReferencesCount = 1
 	}
 
-	cm, err := tc.g.Update(gvk, name,
+	_, err := tc.g.Update(gvk, name,
 		func(obj *unstructured.Unstructured) error {
 			resources.SetAnnotation(obj, annotations.ManagedByODHOperator, strconv.FormatBool(managed))
 			return nil
@@ -602,7 +607,7 @@ func (tc *KueueTestCtx) setManagedAnnotation(gvk schema.GroupVersionKind, name t
 
 	tc.g.Expect(err).ShouldNot(HaveOccurred())
 
-	tc.g.Expect(cm).Should(And(
+	tc.g.Get(gvk, name).Eventually().Should(And(
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.ManagedByODHOperator, strconv.FormatBool(managed)),
 		jq.Match(`.metadata.ownerReferences | length == %d`, ownerReferencesCount),
 	))
