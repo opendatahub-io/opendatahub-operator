@@ -404,7 +404,7 @@ spec:
                     description: Kueue component configuration.
                     properties:
                       defaultClusterQueueName:
-                        default: default-cluster-queue
+                        default: default
                         description: Configures the automatically created cluster
                           queue name.
                         type: string
