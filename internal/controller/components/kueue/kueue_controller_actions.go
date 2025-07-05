@@ -195,7 +195,11 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 
 	// In Unmanaged case create the default ocp kueue configuration.
 	if kueueCRInstance.Spec.ManagementState == operatorv1.Unmanaged {
-		defaultKueueConfig := createKueueConfigurationCluster(kueueOperatorNamespace)
+		defaultKueueConfig, err := createKueueConfigurationCR(ctx, rr)
+		if err != nil {
+			return err
+		}
+
 		rr.Resources = append(rr.Resources, *defaultKueueConfig)
 	}
 

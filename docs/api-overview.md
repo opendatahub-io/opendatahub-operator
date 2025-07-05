@@ -359,7 +359,7 @@ _Appears in:_
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
-| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default-cluster-queue |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
 
 
 #### DSCKueueStatus
@@ -1160,7 +1160,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
-| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default-cluster-queue |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
 
 
 #### KueueList
@@ -1217,7 +1217,7 @@ _Appears in:_
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
-| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default-cluster-queue |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
 
 
 #### KueueStatus

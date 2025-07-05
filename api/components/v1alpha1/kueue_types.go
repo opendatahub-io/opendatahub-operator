@@ -131,7 +131,7 @@ type KueueDefaultQueueSpec struct {
 	// +kubebuilder:default=default
 	DefaultLocalQueueName string `json:"defaultLocalQueueName,omitempty"`
 	// Configures the automatically created cluster queue name.
-	// +kubebuilder:default=default-cluster-queue
+	// +kubebuilder:default=default
 	DefaultClusterQueueName string `json:"defaultClusterQueueName,omitempty"`
 }
 

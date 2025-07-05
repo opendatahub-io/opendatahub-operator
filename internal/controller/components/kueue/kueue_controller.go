@@ -44,6 +44,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -52,10 +53,8 @@ import (
 )
 
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	b := reconciler.ReconcilerFor(mgr, &componentApi.Kueue{})
-
-	// customized Owns() for Component with new predicates
-	b.Owns(&corev1.ConfigMap{}).
+	b := reconciler.ReconcilerFor(mgr, &componentApi.Kueue{}).
+		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
 		Owns(&rbacv1.ClusterRoleBinding{}).
 		Owns(&rbacv1.ClusterRole{}).
@@ -69,6 +68,14 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
+		Watches(
+			&corev1.ConfigMap{},
+			reconciler.WithPredicates(
+				predicates.DefaultPredicate,
+				component.ForLabel(labels.PlatformPartOf, componentApi.KueueComponentName),
+				resources.CreatedOrUpdatedOrDeletedNamed(KueueConfigMapName),
+			),
+		).
 		WatchesGVK(gvk.LocalQueue,
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.KueueInstanceName),
