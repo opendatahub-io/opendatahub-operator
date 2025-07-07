@@ -115,7 +115,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsConfiguration(t *testing
 	t.Helper()
 
 	m := &serviceApi.Monitoring{}
-	tc.FetchTypedResource(m, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-m"}))
+	tc.FetchTypedResource(m, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
 
 	ms := tc.FetchResources(
 		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoring.MonitoringStackName}),
