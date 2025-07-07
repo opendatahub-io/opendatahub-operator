@@ -332,6 +332,24 @@ var (
 		Kind:    "MultiKueueCluster",
 	}
 
+	KueueConfigV1 = schema.GroupVersionKind{
+		Group:   "kueue.openshift.io",
+		Version: "v1",
+		Kind:    "Kueue",
+	}
+
+	LocalQueue = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta1",
+		Kind:    "LocalQueue",
+	}
+
+	ClusterQueue = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta1",
+		Kind:    "ClusterQueue",
+	}
+
 	InferenceServices = schema.GroupVersionKind{
 		Group:   "serving.kserve.io",
 		Version: "v1beta1",

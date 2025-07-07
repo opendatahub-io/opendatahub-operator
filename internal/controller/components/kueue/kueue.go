@@ -23,7 +23,9 @@ import (
 )
 
 const (
-	kueueOperator = "kueue-operator"
+	kueueOperator          = "kueue-operator"
+	kueueOperatorNamespace = "openshift-kueue-operator"
+	kueueCRDname           = "kueues.kueue.openshift.io"
 )
 
 var (
@@ -54,8 +56,9 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 			},
 		},
 		Spec: componentApi.KueueSpec{
-			KueueManagementSpec: dsc.Spec.Components.Kueue.KueueManagementSpec,
-			KueueCommonSpec:     dsc.Spec.Components.Kueue.KueueCommonSpec,
+			KueueManagementSpec:   dsc.Spec.Components.Kueue.KueueManagementSpec,
+			KueueCommonSpec:       dsc.Spec.Components.Kueue.KueueCommonSpec,
+			KueueDefaultQueueSpec: dsc.Spec.Components.Kueue.KueueDefaultQueueSpec,
 		},
 	}
 }

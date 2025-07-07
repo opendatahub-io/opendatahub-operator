@@ -181,3 +181,44 @@ func manageKueueAdminRoleBinding(ctx context.Context, rr *odhtypes.Reconciliatio
 	log.Info("Successfully managed kueue admin role binding", "adminGroups", validAdminGroups)
 	return nil
 }
+
+func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	kueueCRInstance, ok := rr.Instance.(*componentApi.Kueue)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kueue)", rr.Instance)
+	}
+
+	// Only proceed if Kueue is in Managed or Unmanaged state.
+	if kueueCRInstance.Spec.ManagementState != operatorv1.Managed && kueueCRInstance.Spec.ManagementState != operatorv1.Unmanaged {
+		return nil
+	}
+
+	// In Unmanaged case create the default ocp kueue configuration.
+	if kueueCRInstance.Spec.ManagementState == operatorv1.Unmanaged {
+		defaultKueueConfig := createKueueConfigurationCluster(kueueOperatorNamespace)
+		rr.Resources = append(rr.Resources, *defaultKueueConfig)
+	}
+
+	// Generate default ClusterQueue.
+	clusterQueue := createDefaultClusterQueue(kueueCRInstance.Spec.DefaultClusterQueueName)
+	rr.Resources = append(rr.Resources, *clusterQueue)
+
+	// Get all managed namespaces (i.e. the one opterd in with the addition of the proper labels).
+	managedNamespaces, err := getManagedNamespaces(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to get managed namespaces: %w", err)
+	}
+	// Update managed namespaces with missing labels
+	err = fixAnnotationsOfManagedNamespaces(ctx, rr.Client, managedNamespaces)
+	if err != nil {
+		return fmt.Errorf("failed to add missing labels to managed namespaces: %v with error: %w", managedNamespaces, err)
+	}
+
+	// Generate LocalQueues for managed namespaces.
+	for _, ns := range managedNamespaces {
+		localQueue := createDefaultLocalQueue(kueueCRInstance.Spec.DefaultLocalQueueName, kueueCRInstance.Spec.DefaultClusterQueueName, ns.Name)
+		rr.Resources = append(rr.Resources, *localQueue)
+	}
+
+	return nil
+}

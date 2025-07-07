@@ -2,6 +2,7 @@ package resources
 
 import (
 	"reflect"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -168,6 +169,30 @@ func CreatedOrUpdatedName(name string) predicate.Predicate {
 		},
 		UpdateFunc: func(e event.TypedUpdateEvent[client.Object]) bool {
 			return e.ObjectNew.GetName() == name
+		},
+	}
+}
+
+func CreatedOrUpdatedOrDeletedNamed(name string) predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.TypedCreateEvent[client.Object]) bool {
+			return e.Object.GetName() == name
+		},
+		UpdateFunc: func(e event.TypedUpdateEvent[client.Object]) bool { return e.ObjectNew.GetName() == name },
+		DeleteFunc: func(e event.TypedDeleteEvent[client.Object]) bool { return e.Object.GetName() == name },
+	}
+}
+
+func CreatedOrUpdatedOrDeletedNamePrefixed(namePrefix string) predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.TypedCreateEvent[client.Object]) bool {
+			return strings.HasPrefix(e.Object.GetName(), namePrefix)
+		},
+		UpdateFunc: func(e event.TypedUpdateEvent[client.Object]) bool {
+			return strings.HasPrefix(e.ObjectNew.GetName(), namePrefix)
+		},
+		DeleteFunc: func(e event.TypedDeleteEvent[client.Object]) bool {
+			return strings.HasPrefix(e.Object.GetName(), namePrefix)
 		},
 	}
 }

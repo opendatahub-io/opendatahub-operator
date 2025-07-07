@@ -599,6 +599,48 @@ rules:
   - update
   - watch
 - apiGroups:
+  - kueue.openshift.io
+  resources:
+  - kueues
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kueue.openshift.io
+  resources:
+  - kueues/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - kueue.x-k8s.io
+  resources:
+  - clusterqueues
+  - localqueues
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - kueue.x-k8s.io
+  resources:
+  - clusterqueues/status
+  - localqueues/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - machinelearning.seldon.io
   resources:
   - seldondeployments

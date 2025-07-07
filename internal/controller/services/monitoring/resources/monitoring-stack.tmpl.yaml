@@ -13,7 +13,8 @@ spec:
       resources:
         requests: 
           storage: {{ .StorageSize }}Gi
-    replicas: 2
+    #TODO: change to a reasonable default value once https://issues.redhat.com/browse/RHOAIENG-28845 is resolved
+    replicas: 1
   resourceSelector: {}
   resources:
     limits:
