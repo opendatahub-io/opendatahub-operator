@@ -6,6 +6,7 @@ import (
 	"maps"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -34,6 +35,10 @@ const (
 	// Kueue managed namespace annotation keys.
 	KueueManagedAnnotationKey       = "kueue.openshift.io/managed"
 	KueueLegacyManagedAnnotationKey = "kueue-managed"
+
+	KueueConfigCRName   = "cluster"
+	KueueConfigMapName  = "kueue-manager-config"
+	KueueConfigMapEntry = "controller_manager_config.yaml"
 
 	NSListLimit = 500
 )
@@ -132,7 +137,9 @@ func fixAnnotationsOfManagedNamespaces(ctx context.Context, c client.Client, nam
 		})
 
 		if err := c.Update(ctx, &ns); err != nil {
-			return client.IgnoreNotFound(err)
+			if !k8serr.IsNotFound(err) {
+				return err
+			}
 		}
 	}
 	return nil
@@ -177,34 +184,4 @@ func createDefaultLocalQueue(name string, clusterQueueName string, namespace str
 	}
 
 	return localQueue
-}
-
-func createKueueConfigurationCluster(namespace string) *unstructured.Unstructured {
-	kueueConfig := &unstructured.Unstructured{}
-
-	kueueConfig.Object = map[string]interface{}{
-		"apiVersion": gvk.KueueConfigV1.GroupVersion().String(),
-		"kind":       gvk.KueueConfigV1.Kind,
-		"metadata": map[string]interface{}{
-			"name":      "cluster",
-			"namespace": namespace,
-			"annotations": map[string]interface{}{
-				annotations.ManagedByODHOperator: "false",
-			},
-		},
-		"spec": map[string]interface{}{
-			"config": map[string]interface{}{
-				"integrations": map[string]interface{}{
-					"frameworks": []interface{}{
-						"RayJob",
-						"RayCluster",
-						"PyTorchJob",
-						"Pod",
-						"Deployment",
-					},
-				},
-			},
-		},
-	}
-	return kueueConfig
 }
