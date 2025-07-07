@@ -150,6 +150,7 @@ spec:
                   traces:
                     description: traces collection
                     type: object
+                    x-kubernetes-preserve-unknown-fields: true
                 type: object
               serviceMesh:
                 description: |-

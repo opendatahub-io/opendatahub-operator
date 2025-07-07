@@ -66,6 +66,7 @@ type MetricsResources struct {
 }
 
 // Traces defines the desired state of traces for the monitoring service
+// +kubebuilder:pruning:PreserveUnknownFields
 type Traces struct{}
 
 // MonitoringStatus defines the observed state of Monitoring
