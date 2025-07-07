@@ -8,9 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -46,6 +45,8 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Metrics Defaults", monitoringServiceCtx.ValidateMonitoringCrMetricsDefaults},
 		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringCrMetricsWhenSet},
 		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringCrMetricsConfiguration},
+		{"Test OpenTelemetry Collector Deployment", monitoringServiceCtx.ValidateOpenTelemetryCollectorDeployment},
+		{"Test OpenTelemetry Collector Traces Configuration", monitoringServiceCtx.ValidateOpenTelemetryCollectorTracesConfiguration},
 	}
 
 	// Run the test suite.
@@ -97,15 +98,13 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsWhenSet(t *testing.T) {
 
 	dsci := tc.FetchDSCInitialization()
 
-	monitoringStackName := getMonitoringStackName(dsci)
-
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: 5, retention: 1}, resources: {cpurequest: "250", memoryrequest: "350"}}`)),
 	)
 
 	ms := tc.EnsureResourceExists(
-		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoring.MonitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, "Available", "True")),
 	)
 
@@ -115,14 +114,11 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsWhenSet(t *testing.T) {
 func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsConfiguration(t *testing.T) {
 	t.Helper()
 
-	monitoring := &serviceApi.Monitoring{}
-	tc.FetchTypedResource(monitoring, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
-
-	dsci := tc.FetchDSCInitialization()
-	monitoringStackName := getMonitoringStackName(dsci)
+	m := &serviceApi.Monitoring{}
+	tc.FetchTypedResource(m, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
 
 	ms := tc.FetchResources(
-		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName}),
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoring.MonitoringStackName}),
 	)
 
 	// Validate the storage size is set to 5Gi
@@ -154,15 +150,28 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCrMetricsConfiguration(t *testing
 	tc.g.Expect(memoryLimit).To(Equal("512Mi"))
 }
 
-func getMonitoringStackName(dsci *dsciv1.DSCInitialization) string {
-	switch dsci.Status.Release.Name {
-	case cluster.ManagedRhoai:
-		return "rhoai-monitoringstack"
-	case cluster.SelfManagedRhoai:
-		return "rhoai-monitoringstack"
-	case cluster.OpenDataHub:
-		return "odh-monitoringstack"
-	}
+func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorDeployment(t *testing.T) {
+	t.Helper()
 
-	return "odh-monitoringstack"
+	dsci := tc.FetchDSCInitialization()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: monitoring.CollectorName, Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorTracesConfiguration(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = %s`, `{}`)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: monitoring.CollectorName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(jq.Match(`.spec.config.service.pipelines | has("traces")`)),
+	)
 }

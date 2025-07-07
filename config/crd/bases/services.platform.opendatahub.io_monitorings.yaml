@@ -95,6 +95,10 @@ spec:
                 x-kubernetes-validations:
                 - message: MonitoringNamespace is immutable
                   rule: self == oldSelf
+              traces:
+                description: traces collection
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
             type: object
           status:
             description: MonitoringStatus defines the observed state of Monitoring

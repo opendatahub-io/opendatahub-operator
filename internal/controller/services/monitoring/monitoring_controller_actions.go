@@ -52,6 +52,10 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 // only when DSC has component as Managed and component CR is in "Ready" state, we add rules to Prom Rules.
 // all other cases, we do not change Prom rules for component.
 func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr.Release.Name != cluster.ManagedRhoai {
+		return nil
+	}
+
 	// Map component names to their rule prefixes
 	dsc, err := cluster.GetDSC(ctx, rr.Client)
 	// If the DSC doesn't exist, we don't need to update the prometheus configmap
@@ -95,6 +99,7 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 }
 
 func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// If DSCI is not found, we don't need to create the monitoring stack
 	ok, _, _ := checkDSCI(ctx, rr)
 	if !ok {
 		return nil
@@ -109,11 +114,51 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 	if !msExists {
 		return errors.New("MonitoringStack CRD not found")
 	}
+
 	if monitoring.Spec.Metrics != nil {
-		template := []odhtypes.TemplateInfo{
+		templates := []odhtypes.TemplateInfo{
 			{
 				FS:   resourcesFS,
 				Path: MonitoringStackTemplate,
+			},
+			{
+				FS:   resourcesFS,
+				Path: PrometheusRouteTemplate,
+			},
+		}
+
+		rr.Templates = append(rr.Templates, templates...)
+	}
+
+	return nil
+}
+
+func createOpenTelemetryCollector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	otcExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.OpenTelemetryCollector)
+	if !otcExists {
+		return errors.New("OpentelemetryCollector CRD not found")
+	}
+
+	// If DSCI is not found, we don't need to create the OpenTelemetry Collector
+	ok, _, _ := checkDSCI(ctx, rr)
+	if !ok {
+		return nil
+	}
+
+	mon, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if mon.Spec.Metrics != nil {
+		template := []odhtypes.TemplateInfo{
+			{
+				FS:   resourcesFS,
+				Path: OpenTelemetryCollectorTemplate,
+			},
+			{
+				FS:   resourcesFS,
+				Path: CollectorRBACTemplate,
 			},
 		}
 		rr.Templates = append(rr.Templates, template...)
