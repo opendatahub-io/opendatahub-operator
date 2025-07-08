@@ -23,6 +23,7 @@ const (
 	InstrumentationTemplate = "resources/instrumentation.tmpl.yaml"
 	ManagedStackName        = "rhoai-monitoringstack"
 	OpenDataHubStackName    = "odh-monitoringstack"
+	InstrumentationName     = "opendatahub-instrumentation"
 )
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
@@ -59,12 +60,30 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {
-		templateData["CPULimit"] = defaultIfEmpty(metrics.Resources.CPULimit.String(), "500m")
-		templateData["MemoryLimit"] = defaultIfEmpty(metrics.Resources.MemoryLimit.String(), "512Mi")
-		templateData["CPURequest"] = defaultIfEmpty(metrics.Resources.CPURequest.String(), "100m")
-		templateData["MemoryRequest"] = defaultIfEmpty(metrics.Resources.MemoryRequest.String(), "256Mi")
-		templateData["StorageSize"] = defaultIfEmpty(metrics.Storage.Size.String(), "5Gi")
-		templateData["StorageRetention"] = defaultIfEmpty(metrics.Storage.Retention, "1d")
+		// Handle Resources fields - provide defaults if Resources is nil
+		if metrics.Resources != nil {
+			templateData["CPULimit"] = defaultIfEmpty(metrics.Resources.CPULimit.String(), "500m")
+			templateData["MemoryLimit"] = defaultIfEmpty(metrics.Resources.MemoryLimit.String(), "512Mi")
+			templateData["CPURequest"] = defaultIfEmpty(metrics.Resources.CPURequest.String(), "100m")
+			templateData["MemoryRequest"] = defaultIfEmpty(metrics.Resources.MemoryRequest.String(), "256Mi")
+		} else {
+			// Use defaults when Resources is nil
+			templateData["CPULimit"] = "500m"
+			templateData["MemoryLimit"] = "512Mi"
+			templateData["CPURequest"] = "100m"
+			templateData["MemoryRequest"] = "256Mi"
+		}
+
+		// Handle Storage fields - provide defaults if Storage is nil
+		if metrics.Storage != nil {
+			templateData["StorageSize"] = defaultIfEmpty(metrics.Storage.Size.String(), "5Gi")
+			templateData["StorageRetention"] = defaultIfEmpty(metrics.Storage.Retention, "1d")
+		} else {
+			// Use defaults when Storage is nil
+			templateData["StorageSize"] = "5Gi"
+			templateData["StorageRetention"] = "1d"
+		}
+
 		templateData["MonitoringStackName"] = monitoringStackName
 
 		// only when either storage or resources is set, we take replicas into account
@@ -79,7 +98,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	// Add traces-related data if traces are configured
 	if traces := monitoring.Spec.Traces; traces != nil {
-		templateData["InstrumentationName"] = "opendatahub-instrumentation"
+		templateData["InstrumentationName"] = InstrumentationName
 		templateData["OtlpEndpoint"] = fmt.Sprintf("http://otel-collector.%s.svc.cluster.local:4317", monitoring.Spec.Namespace)
 		sampleRatio := "0.1"
 		if traces.SampleRatio != "" {

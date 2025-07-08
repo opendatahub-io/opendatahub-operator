@@ -73,6 +73,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		// operands - owned dynmically depends on external operators are installed for monitoring
 		// TODO: add more here later when enable other operator
 		OwnsGVK(gvk.MonitoringStack, reconciler.Dynamic(ifGVKInstalled(gvk.MonitoringStack))).
+		OwnsGVK(gvk.Instrumentation, reconciler.Dynamic(ifGVKInstalled(gvk.Instrumentation))).
 		// operands - watched
 		//
 		// By default the Watches functions adds:

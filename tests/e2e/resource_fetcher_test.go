@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	. "github.com/onsi/gomega"
 )
@@ -58,8 +59,19 @@ func fetchResources(ro *ResourceOptions) ([]unstructured.Unstructured, error) {
 	var fetchErr error
 
 	ro.tc.g.Eventually(func(g Gomega) {
+		// Create list options, defaulting to ro.ListOptions if provided
+		listOptions := ro.ListOptions
+		if listOptions == nil {
+			listOptions = &client.ListOptions{}
+		}
+
+		// If a namespace is specified in ro.NN, use it for filtering
+		if ro.NN.Namespace != "" {
+			listOptions.Namespace = ro.NN.Namespace
+		}
+
 		// Attempt to retrieve the list of resources
-		resourcesList, fetchErr = ro.tc.g.List(ro.GVK, ro.ListOptions).Get()
+		resourcesList, fetchErr = ro.tc.g.List(ro.GVK, listOptions).Get()
 
 		// Check if ExpectedErr is provided and match it if encountered
 		if ro.ExpectedErr != nil && fetchErr != nil {

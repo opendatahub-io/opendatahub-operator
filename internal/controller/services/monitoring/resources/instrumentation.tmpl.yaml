@@ -7,5 +7,5 @@ spec:
   exporter:
     endpoint: {{ .OtlpEndpoint }}
   sampler:
-    type: probabilistic
-    argument: {{ .SampleRatio }}
+    type: traceidratio
+    argument: "{{ .SampleRatio }}"

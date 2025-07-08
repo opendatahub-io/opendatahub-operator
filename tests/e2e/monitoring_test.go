@@ -26,6 +26,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	instrumentationName = "opendatahub-instrumentation"
+)
+
 type MonitoringTestCtx struct {
 	*TestContext
 }
@@ -36,11 +40,22 @@ func (tc *MonitoringTestCtx) setupMonitoringCRDs() {
 	if !tc.isMonitoringStackCRDAvailable() {
 		tc.createMonitoringStackCRD()
 	}
+
+	// Install Instrumentation CRD
+	if !tc.isInstrumentationCRDAvailable() {
+		tc.createInstrumentationCRD()
+	}
 }
 
 // createMonitoringStackCRD creates a mock MonitoringStack CRD.
 func (tc *MonitoringTestCtx) createMonitoringStackCRD() {
 	crd := tc.createMockCRD(gvk.MonitoringStack, "monitoring")
+	tc.EnsureResourceCreatedOrUpdated(WithObjectToCreate(crd))
+}
+
+// createInstrumentationCRD creates a mock Instrumentation CRD.
+func (tc *MonitoringTestCtx) createInstrumentationCRD() {
+	crd := tc.createMockInstrumentationCRD(gvk.Instrumentation, "monitoring")
 	tc.EnsureResourceCreatedOrUpdated(WithObjectToCreate(crd))
 }
 
@@ -109,9 +124,102 @@ func (tc *MonitoringTestCtx) createMockCRD(gvk schema.GroupVersionKind, componen
 	}
 }
 
+// createMockInstrumentationCRD creates a mock Instrumentation CRD for OpenTelemetry.
+func (tc *MonitoringTestCtx) createMockInstrumentationCRD(gvk schema.GroupVersionKind, componentName string) *apiextv1.CustomResourceDefinition {
+	return &apiextv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: strings.ToLower(fmt.Sprintf("%ss.%s", gvk.Kind, gvk.Group)),
+			Labels: map[string]string{
+				labels.ODH.Component(componentName): labels.True,
+			},
+		},
+		Spec: apiextv1.CustomResourceDefinitionSpec{
+			Group: gvk.Group,
+			Names: apiextv1.CustomResourceDefinitionNames{
+				Kind:   gvk.Kind,
+				Plural: strings.ToLower(gvk.Kind) + "s",
+			},
+			Scope: apiextv1.NamespaceScoped,
+			Versions: []apiextv1.CustomResourceDefinitionVersion{
+				{
+					Name:    gvk.Version,
+					Served:  true,
+					Storage: true,
+					Schema: &apiextv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextv1.JSONSchemaProps{
+							Type: "object",
+							Properties: map[string]apiextv1.JSONSchemaProps{
+								"spec": {
+									Type: "object",
+									Properties: map[string]apiextv1.JSONSchemaProps{
+										"exporter": {
+											Type: "object",
+											Properties: map[string]apiextv1.JSONSchemaProps{
+												"endpoint": {Type: "string"},
+											},
+										},
+										"sampler": {
+											Type: "object",
+											Properties: map[string]apiextv1.JSONSchemaProps{
+												"type": {
+													Type: "string",
+													Enum: []apiextv1.JSON{
+														{Raw: []byte(`"always_on"`)},
+														{Raw: []byte(`"always_off"`)},
+														{Raw: []byte(`"traceidratio"`)},
+														{Raw: []byte(`"parentbased_always_on"`)},
+														{Raw: []byte(`"parentbased_always_off"`)},
+														{Raw: []byte(`"parentbased_traceidratio"`)},
+														{Raw: []byte(`"jaeger_remote"`)},
+														{Raw: []byte(`"xray"`)},
+													},
+												},
+												"argument": {Type: "string"},
+											},
+										},
+									},
+								},
+								"status": {
+									Type: "object",
+									Properties: map[string]apiextv1.JSONSchemaProps{
+										"conditions": {
+											Type: "array",
+											Items: &apiextv1.JSONSchemaPropsOrArray{
+												Schema: &apiextv1.JSONSchemaProps{
+													Type: "object",
+													Properties: map[string]apiextv1.JSONSchemaProps{
+														"type":   {Type: "string"},
+														"status": {Type: "string"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Subresources: &apiextv1.CustomResourceSubresources{
+						Status: &apiextv1.CustomResourceSubresourceStatus{},
+					},
+				},
+			},
+		},
+	}
+}
+
 // isMonitoringStackCRDAvailable checks if the MonitoringStack CRD is available in the cluster.
 func (tc *MonitoringTestCtx) isMonitoringStackCRDAvailable() bool {
 	exists, err := cluster.HasCRD(context.Background(), tc.g.Client(), gvk.MonitoringStack)
+	if err != nil {
+		return false
+	}
+	return exists
+}
+
+// isInstrumentationCRDAvailable checks if the Instrumentation CRD is available in the cluster.
+func (tc *MonitoringTestCtx) isInstrumentationCRDAvailable() bool {
+	exists, err := cluster.HasCRD(context.Background(), tc.g.Client(), gvk.Instrumentation)
 	if err != nil {
 		return false
 	}
@@ -145,6 +253,9 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringStackCRMetricsWhenSet},
 		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsConfiguration},
 		{"Test Metrics Replicas Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsReplicasUpdate},
+		{"Test Traces default configuration", monitoringServiceCtx.ValidateMonitoringCRDefaultTracesContent},
+		{"Test Traces Instrumentation CR Creation", monitoringServiceCtx.ValidateInstrumentationCRTracesWhenSet},
+		{"Test Traces Instrumentation CR Configuration", monitoringServiceCtx.ValidateInstrumentationCRTracesConfiguration},
 	}
 
 	// Run the test suite.
@@ -329,4 +440,95 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultTracesContent(t *testing
 	tc.g.Expect(monitoring.Spec.Traces).
 		To(BeNil(),
 			"Expected traces stanza to be omitted by default")
+}
+
+// ValidateInstrumentationCRTracesWhenSet validates that Instrumentation CR is created when traces are configured.
+func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesWhenSet(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Update DSCI to set traces - ensure managementState remains Managed
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringTraces(),
+		)),
+	)
+
+	// Wait for the Monitoring resource to be updated by DSCInitialization controller
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.spec.traces != null`)),
+		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
+	)
+
+	// Ensure the Instrumentation CR is created
+	instrumentation := tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: instrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCustomErrorMsg("Instrumentation CR should be created when traces are configured"),
+	)
+	tc.g.Expect(instrumentation).ToNot(BeNil())
+}
+
+// ValidateInstrumentationCRTracesConfiguration validates the content of the Instrumentation CR.
+func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesConfiguration(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Wait for the Instrumentation CR to be created and stabilized by the OpenTelemetry operator
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: instrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(And(
+			jq.Match(`.spec != null`),
+			jq.Match(`.metadata.generation >= 1`),
+		)),
+		WithCustomErrorMsg("Instrumentation CR should be created and have a valid spec"),
+	)
+
+	// Fetch the Instrumentation CR and validate its content with Eventually for stability
+	expectedEndpoint := fmt.Sprintf("http://otel-collector.%s.svc.cluster.local:4317", dsci.Spec.Monitoring.Namespace)
+
+	tc.g.Eventually(func(g Gomega) {
+		instrumentation := tc.FetchResources(
+			WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: instrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		)
+		g.Expect(instrumentation).To(HaveLen(1))
+
+		// Validate the exporter endpoint is set correctly
+		endpoint, found, err := unstructured.NestedString(instrumentation[0].Object, "spec", "exporter", "endpoint")
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(found).To(BeTrue(), "Expected 'spec.exporter.endpoint' field to be found in Instrumentation CR")
+		g.Expect(endpoint).To(Equal(expectedEndpoint))
+
+		// Validate the sampler configuration
+		samplerType, found, err := unstructured.NestedString(instrumentation[0].Object, "spec", "sampler", "type")
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(found).To(BeTrue(), "Expected 'spec.sampler.type' field to be found in Instrumentation CR")
+		g.Expect(samplerType).To(Equal("traceidratio"))
+
+		samplerArgument, found, err := unstructured.NestedString(instrumentation[0].Object, "spec", "sampler", "argument")
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(found).To(BeTrue(), "Expected 'spec.sampler.argument' field to be found in Instrumentation CR")
+		g.Expect(samplerArgument).To(Equal("0.1"))
+	}).Should(Succeed(), "Instrumentation CR should have the expected configuration")
+
+	// Fetch again for owner reference validation
+	instrumentation := tc.FetchResources(
+		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: instrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+	tc.g.Expect(instrumentation).To(HaveLen(1))
+}
+
+// setMonitoringTraces creates a transformation function that sets the monitoring traces configuration.
+func setMonitoringTraces() testf.TransformFn {
+	return func(obj *unstructured.Unstructured) error {
+		tracesConfig := map[string]interface{}{
+			"sampleRatio": "0.1",
+		}
+
+		return unstructured.SetNestedField(obj.Object, tracesConfig, "spec", "monitoring", "traces")
+	}
 }

@@ -120,24 +120,6 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 		rr.Templates = append(rr.Templates, template...)
 	}
 
-	// Only create monitoring stack if monitoring is managed and has metrics config
-	if monitoring.Spec.ManagementState != operatorv1.Managed || monitoring.Spec.Metrics == nil {
-		return nil
-	}
-
-	msExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack)
-	if !msExists {
-		return errors.New("MonitoringStack CRD not found")
-	}
-
-	template := []odhtypes.TemplateInfo{
-		{
-			FS:   resourcesFS,
-			Path: MonitoringStackTemplate,
-		},
-	}
-	rr.Templates = append(rr.Templates, template...)
-
 	return nil
 }
 
@@ -148,39 +130,32 @@ func handleInstrumentationCR(ctx context.Context, rr *odhtypes.ReconciliationReq
 		return errors.New("instance is not of type *serviceApi.Monitoring")
 	}
 
-	instrumentationName := "opendatahub-instrumentation"
-	instrumentationNamespace := monitoring.Spec.Namespace
-
-	existingInstrumentation := &unstructured.Unstructured{}
-	existingInstrumentation.SetGroupVersionKind(gvk.Instrumentation)
-	existingInstrumentation.SetName(instrumentationName)
-	existingInstrumentation.SetNamespace(instrumentationNamespace)
-
-	existingErr := rr.Client.Get(ctx, client.ObjectKeyFromObject(existingInstrumentation), existingInstrumentation)
-	var instrumentationExists bool
-	switch {
-	case existingErr == nil:
-		instrumentationExists = true
-	case k8serr.IsNotFound(existingErr):
-		instrumentationExists = false
-	default:
-		return fmt.Errorf("failed to get existing instrumentation: %w", existingErr)
-	}
-
 	switch monitoring.Spec.ManagementState {
 	case operatorv1.Managed:
-		// Only create instrumentation CR if monitoring is managed and has traces config
-		if monitoring.Spec.ManagementState != operatorv1.Managed || monitoring.Spec.Traces == nil {
-			// If traces are not configured but instrumentation exists, remove it
-			if instrumentationExists {
+		// Only create instrumentation CR if traces are configured
+		if monitoring.Spec.Traces == nil {
+			// If traces are not configured, we should check if instrumentation exists and remove it
+			instrumentationName := InstrumentationName
+			instrumentationNamespace := monitoring.Spec.Namespace
+
+			existingInstrumentation := &unstructured.Unstructured{}
+			existingInstrumentation.SetGroupVersionKind(gvk.Instrumentation)
+			existingInstrumentation.SetName(instrumentationName)
+			existingInstrumentation.SetNamespace(instrumentationNamespace)
+
+			existingErr := rr.Client.Get(ctx, client.ObjectKeyFromObject(existingInstrumentation), existingInstrumentation)
+			if existingErr == nil {
+				// Instrumentation exists, remove it
 				if err := rr.Client.Delete(ctx, existingInstrumentation); err != nil && !k8serr.IsNotFound(err) {
 					return fmt.Errorf("failed to delete instrumentation CR: %w", err)
 				}
+			} else if !k8serr.IsNotFound(existingErr) {
+				return fmt.Errorf("failed to get existing instrumentation: %w", existingErr)
 			}
 			return nil
 		}
 
-		// Check if Instrumentation CRD exists before creating the template
+		// Traces are configured, check if Instrumentation CRD exists before creating the template
 		instrumentationCRDExists, err := cluster.HasCRD(ctx, rr.Client, gvk.Instrumentation)
 		if err != nil {
 			return fmt.Errorf("failed to check if Instrumentation CRD exists: %w", err)
@@ -201,22 +176,46 @@ func handleInstrumentationCR(ctx context.Context, rr *odhtypes.ReconciliationReq
 		return nil
 
 	case operatorv1.Unmanaged:
-		if instrumentationExists {
+		// For unmanaged state, check if instrumentation exists and remove it
+		instrumentationName := InstrumentationName
+		instrumentationNamespace := monitoring.Spec.Namespace
+
+		existingInstrumentation := &unstructured.Unstructured{}
+		existingInstrumentation.SetGroupVersionKind(gvk.Instrumentation)
+		existingInstrumentation.SetName(instrumentationName)
+		existingInstrumentation.SetNamespace(instrumentationNamespace)
+
+		existingErr := rr.Client.Get(ctx, client.ObjectKeyFromObject(existingInstrumentation), existingInstrumentation)
+		if existingErr == nil {
 			if err := rr.Client.Delete(ctx, existingInstrumentation); err != nil && !k8serr.IsNotFound(err) {
 				return fmt.Errorf("failed to delete instrumentation CR: %w", err)
 			}
+		} else if !k8serr.IsNotFound(existingErr) {
+			return fmt.Errorf("failed to get existing instrumentation: %w", existingErr)
 		}
 		return nil
 
 	case operatorv1.Removed:
-		if instrumentationExists {
+		// For removed state, check if instrumentation exists and remove it
+		instrumentationName := InstrumentationName
+		instrumentationNamespace := monitoring.Spec.Namespace
+
+		existingInstrumentation := &unstructured.Unstructured{}
+		existingInstrumentation.SetGroupVersionKind(gvk.Instrumentation)
+		existingInstrumentation.SetName(instrumentationName)
+		existingInstrumentation.SetNamespace(instrumentationNamespace)
+
+		existingErr := rr.Client.Get(ctx, client.ObjectKeyFromObject(existingInstrumentation), existingInstrumentation)
+		if existingErr == nil {
 			if err := rr.Client.Delete(ctx, existingInstrumentation); err != nil && !k8serr.IsNotFound(err) {
 				return fmt.Errorf("failed to delete instrumentation CR: %w", err)
 			}
+		} else if !k8serr.IsNotFound(existingErr) {
+			return fmt.Errorf("failed to get existing instrumentation: %w", existingErr)
 		}
 		return nil
 
 	default:
-		return fmt.Errorf("unsupported monitoring management state: %s", rr.DSCI.Spec.Monitoring.ManagementState)
+		return fmt.Errorf("unsupported monitoring management state: %s", monitoring.Spec.ManagementState)
 	}
 }
