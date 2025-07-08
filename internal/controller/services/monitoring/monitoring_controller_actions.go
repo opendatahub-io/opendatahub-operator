@@ -9,7 +9,6 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -52,24 +51,18 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 // only when DSC has component as Managed and component CR is in "Ready" state, we add rules to Prom Rules.
 // all other cases, we do not change Prom rules for component.
 func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Map component names to their rule prefixes
+	// Skip update prom config: if cluster is NOT ManagedRhoai
+	if rr.Release.Name != cluster.ManagedRhoai {
+		return nil
+	}
+
 	dsc, err := cluster.GetDSC(ctx, rr.Client)
-	// If the DSC doesn't exist, we don't need to update the prometheus configmap
-	if err != nil && k8serr.IsNotFound(err) {
-		return nil
-	}
 	if err != nil {
-		return fmt.Errorf("failed to get DataScienceCluster instance: %w", err)
-	}
-
-	ok, dsci, _ := checkDSCI(ctx, rr)
-	if !ok {
-		return nil
-	}
-
-	// If monitoring is unmanaged or the release is not managed, we don't need to update the prometheus configmap
-	if dsci.Spec.Monitoring.ManagementState == operatorv1.Unmanaged || rr.Release.Name != cluster.ManagedRhoai {
-		return nil
+		if k8serr.IsNotFound(err) {
+			// DSC doesn't exist, skip prometheus configmap update
+			return nil
+		}
+		return fmt.Errorf("failed to retrieve DataScienceCluster: %w", err)
 	}
 
 	return cr.ForEach(func(ch cr.ComponentHandler) error {
@@ -95,21 +88,15 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 }
 
 func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	ok, _, _ := checkDSCI(ctx, rr)
-	if !ok {
-		return nil
-	}
-
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
 	}
 
-	msExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack)
-	if !msExists {
-		return errors.New("MonitoringStack CRD not found")
-	}
-	if monitoring.Spec.Metrics != nil {
+	if monitoring.Spec.Metrics != nil && (monitoring.Spec.Metrics.Resources != nil || monitoring.Spec.Metrics.Storage != nil) {
+		if msExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack); !msExists {
+			return errors.New("MonitoringStack CRD not found")
+		}
 		template := []odhtypes.TemplateInfo{
 			{
 				FS:   resourcesFS,
@@ -120,18 +107,4 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 	}
 
 	return nil
-}
-
-func checkDSCI(ctx context.Context, rr *odhtypes.ReconciliationRequest) (bool, *dsciv1.DSCInitialization, error) {
-	dsci, err := cluster.GetDSCI(ctx, rr.Client)
-	// DSCI not found
-	if err != nil && k8serr.IsNotFound(err) {
-		return false, nil, nil
-	}
-	// DSCI found but error
-	if err != nil {
-		return false, nil, fmt.Errorf("failed to get DataScienceClusterInitialization instance: %w", err)
-	}
-
-	return true, dsci, nil
 }
