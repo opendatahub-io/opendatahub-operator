@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"strconv"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -65,6 +66,13 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		storageRetention = "1d"
 	}
 
+	var replicas int32
+	if metrics.Replicas == 0 { // zero-value
+		replicas = 2
+	} else {
+		replicas = metrics.Replicas
+	}
+
 	return map[string]any{
 		"CPULimit":            cpuLimit,
 		"MemoryLimit":         memoryLimit,
@@ -74,6 +82,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"StorageRetention":    storageRetention,
 		"MonitoringStackName": monitoringStackName,
 		"Namespace":           monitoring.Spec.Namespace,
+		"Replicas":            strconv.Itoa(int(replicas)),
 	}, nil
 }
 

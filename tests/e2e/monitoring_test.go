@@ -172,6 +172,11 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *te
 	tc.g.Expect(found).To(BeTrue())
 	tc.g.Expect(memoryLimit).To(Equal("512Mi"))
 
+	replicas, found, err := unstructured.NestedString(ms[0].Object, "spec", "prometheusConfig", "replicas")
+	tc.g.Expect(err).ToNot(HaveOccurred())
+	tc.g.Expect(found).To(BeTrue())
+	tc.g.Expect(replicas).To(Equal("2"))
+
 	// check owenr references for the MonitoringStack
 	ownerRefs, found, err := unstructured.NestedSlice(ms[0].Object, "metadata", "ownerReferences")
 	tc.g.Expect(err).ToNot(HaveOccurred())

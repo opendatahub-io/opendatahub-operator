@@ -44,6 +44,8 @@ type MonitoringSpec struct {
 type Metrics struct {
 	Storage   *MetricsStorage   `json:"storage,omitempty"`
 	Resources *MetricsResources `json:"resources,omitempty"`
+	// Replicas specifies the number of replicas in monitoringstack , default is 2
+	Replicas int32 `json:"replicas,omitempty"`
 }
 
 // MetricsStorage defines the storage configuration for the monitoring service
