@@ -107,6 +107,11 @@ spec:
                   metrics:
                     description: metrics collection
                     properties:
+                      replicas:
+                        description: Replicas specifies the number of replicas in
+                          monitoringstack , default is 2
+                        format: int32
+                        type: integer
                       resources:
                         description: MetricsResources defines the resource requests
                           and limits for the monitoring service

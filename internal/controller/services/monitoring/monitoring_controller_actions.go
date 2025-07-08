@@ -93,7 +93,7 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return errors.New("instance is not of type *services.Monitoring")
 	}
 
-	if monitoring.Spec.Metrics != nil && (monitoring.Spec.Metrics.Resources != nil || monitoring.Spec.Metrics.Storage != nil) {
+	if monitoring.Spec.Metrics != nil && (monitoring.Spec.Metrics.Resources != nil || monitoring.Spec.Metrics.Storage != nil || monitoring.Spec.Metrics.Replicas != 0) {
 		if msExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack); !msExists {
 			return errors.New("MonitoringStack CRD not found")
 		}
