@@ -2873,7 +2873,7 @@ _Appears in:_
 
 
 
-MetricsResources defines the desired state of resource requests and limits for the monitoring service
+MetricsResources defines the resource requests and limits for the monitoring service
 
 
 
@@ -2882,17 +2882,17 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `cpulimit` _string_ | CPU limit for the monitoring service |  |  |
-| `memorylimit` _string_ | Memory limit for the monitoring service |  |  |
-| `cpurequest` _string_ | CPU request for the monitoring service |  |  |
-| `memoryrequest` _string_ | Memory request for the monitoring service |  |  |
+| `cpulimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPULimit specifies the maximum CPU allocation (e.g., "500m", "2") | 500m |  |
+| `memorylimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi") | 512Mi |  |
+| `cpurequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5") | 100m |  |
+| `memoryrequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi") | 256Mi |  |
 
 
 #### MetricsStorage
 
 
 
-MetricsStorage defines the desired state of storage for the monitoring service
+MetricsStorage defines the storage configuration for the monitoring service
 
 
 
@@ -2901,8 +2901,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `size` _integer_ | Size of the storage in Gi |  |  |
-| `retention` _integer_ | Retention of the storage in days |  |  |
+| `size` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi") | 5Gi |  |
+| `retention` _string_ | Retention specifies how long metrics data should be retained (e.g., "1d", "2w") | 1d |  |
 
 
 #### Monitoring
