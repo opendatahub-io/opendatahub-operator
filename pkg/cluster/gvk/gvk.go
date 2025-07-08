@@ -344,6 +344,18 @@ var (
 		Kind:    "InferenceService",
 	}
 
+	LLMInferenceServiceConfigV1Alpha1 = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha1",
+		Kind:    "LLMInferenceServiceConfig",
+	}
+
+	LLMInferenceServiceV1Alpha1 = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha1",
+		Kind:    "LLMInferenceService",
+	}
+
 	OperatorCondition = schema.GroupVersionKind{
 		Group:   "operators.coreos.com",
 		Version: "v2",

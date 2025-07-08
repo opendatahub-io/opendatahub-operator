@@ -976,6 +976,8 @@ rules:
   - inferencegraphs
   - inferenceservices
   - inferenceservices/finalizers
+  - llminferenceserviceconfigs
+  - llminferenceservices
   - predictors
   - servingruntimes/finalizers
   - trainedmodels
@@ -1003,6 +1005,10 @@ rules:
 - apiGroups:
   - serving.kserve.io
   resources:
+  - llminferenceserviceconfigs/finalizers
+  - llminferenceserviceconfigs/status
+  - llminferenceservices/finalizers
+  - llminferenceservices/status
   - predictors/finalizers
   - servingruntimes/status
   verbs:
