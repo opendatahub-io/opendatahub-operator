@@ -217,7 +217,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		switch platform {
 		case cluster.SelfManagedRhoai:
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				log.Info("Monitoring enabled, won't apply changes", "cluster", "Self-Managed RHODS Mode")
+				log.Info("Monitoring enabled", "cluster", "Self-Managed Mode")
 				if err = r.configureSegmentIO(ctx, instance); err != nil {
 					return reconcile.Result{}, err
 				}
@@ -247,7 +247,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		default:
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
-				log.Info("Monitoring enabled, won't apply changes", "cluster", "ODH Mode")
+				log.Info("Monitoring enabled", "cluster", "ODH Mode")
 				if err = r.newMonitoringCR(ctx, instance); err != nil {
 					return ctrl.Result{}, err
 				}

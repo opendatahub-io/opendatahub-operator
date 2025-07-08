@@ -5,6 +5,9 @@ import (
 	"embed"
 	"errors"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	ctrl "sigs.k8s.io/controller-runtime"
+
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -26,7 +29,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	if monitoring.Spec.Metrics == nil {
-		return nil, errors.New("monitoring metrics are not set")
+		return nil, nil
 	}
 
 	var monitoringStackName string
@@ -35,35 +38,52 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		monitoringStackName = ManagedStackName
 	case cluster.SelfManagedRhoai:
 		monitoringStackName = ManagedStackName
-	case cluster.OpenDataHub:
-		monitoringStackName = OpenDataHubStackName
 	default:
 		monitoringStackName = OpenDataHubStackName
 	}
-
-	defaultIfEmpty := func(value, defaultVal string) string {
-		if value == "" {
-			return defaultVal
-		}
-		return value
-	}
-
-	defaultIfZero := func(value, defaultVal int) int {
-		if value == 0 {
-			return defaultVal
-		}
-		return value
-	}
-
 	metrics := monitoring.Spec.Metrics
+
+	var cpuLimit, memoryLimit, cpuRequest, memoryRequest string
+	if metrics.Resources != nil {
+		cpuLimit = metrics.Resources.CPULimit.String()
+		memoryLimit = metrics.Resources.MemoryLimit.String()
+		cpuRequest = metrics.Resources.CPURequest.String()
+		memoryRequest = metrics.Resources.MemoryRequest.String()
+	} else { // here need to match default value set in API
+		cpuLimit = "500m"
+		memoryLimit = "512Mi"
+		cpuRequest = "100m"
+		memoryRequest = "256Mi"
+	}
+
+	var storageSize, storageRetention string
+	if metrics.Storage != nil {
+		storageSize = metrics.Storage.Size.String()
+		storageRetention = metrics.Storage.Retention
+	} else { // here need to match default value set in API
+		storageSize = "5Gi"
+		storageRetention = "1d"
+	}
+
 	return map[string]any{
-		"CPULimit":            defaultIfEmpty(metrics.Resources.CPULimit, "500"),
-		"MemoryLimit":         defaultIfEmpty(metrics.Resources.MemoryLimit, "512"),
-		"CPURequest":          defaultIfEmpty(metrics.Resources.CPURequest, "100"),
-		"MemoryRequest":       defaultIfEmpty(metrics.Resources.MemoryRequest, "256"),
-		"StorageSize":         defaultIfZero(metrics.Storage.Size, 5),
-		"StorageRetention":    defaultIfZero(metrics.Storage.Retention, 1),
+		"CPULimit":            cpuLimit,
+		"MemoryLimit":         memoryLimit,
+		"CPURequest":          cpuRequest,
+		"MemoryRequest":       memoryRequest,
+		"StorageSize":         storageSize,
+		"StorageRetention":    storageRetention,
 		"MonitoringStackName": monitoringStackName,
 		"Namespace":           monitoring.Spec.Namespace,
 	}, nil
+}
+
+func ifGVKInstalled(kvg schema.GroupVersionKind) func(context.Context, *odhtypes.ReconciliationRequest) bool {
+	return func(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
+		hasCRD, err := cluster.HasCRD(ctx, rr.Client, kvg)
+		if err != nil {
+			ctrl.Log.Error(err, "error checking if CRD installed", "GVK", kvg)
+			return false
+		}
+		return hasCRD
+	}
 }
