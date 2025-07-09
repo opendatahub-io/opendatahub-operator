@@ -69,8 +69,8 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 			ModelRegistryARules    string `yaml:"model-registry-operator-alerting.rules"`
 			FeastOperatorRRules    string `yaml:"feastoperator-recording.rules"`
 			FeastOperatorARules    string `yaml:"feastoperator-alerting.rules"`
-			// LLSRRules    string `yaml:"llamastackoperator-recording.rules"`   enable these when we are on TP
-			// LLSARules    string `yaml:"llamastackoperator-alerting.rules"`
+			LLSRRules              string `yaml:"llama-stack-k8s-operator-recording.rules"`
+			LLSARules              string `yaml:"llama-stack-k8s-operator-alerting.rules"`
 		} `yaml:"data"`
 	}
 
