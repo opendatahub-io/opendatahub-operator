@@ -148,7 +148,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *te
 			// Validate memory limit defaults to 512Mi
 			jq.Match(`.spec.resources.limits.memory == "%s"`, "512Mi"),
 			// Validate replicas is set to 2
-			jq.Match(`.spec.prometheusConfig.replicas == "%d"`, 2),
+			jq.Match(`.spec.prometheusConfig.replicas == %d`, 2),
 			// Validate owner references
 			jq.Match(`.metadata.ownerReferences | length == 1`),
 			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Monitoring.Kind),
