@@ -66,12 +66,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		storageRetention = "1d"
 	}
 
-	var replicas int32
-	if metrics.Replicas == 0 { // zero-value
-		replicas = 2
-	} else {
-		replicas = metrics.Replicas
-	}
+	replicas := metrics.Replicas // take whatever value user set in DSCI, including 0, or if not set then default to 2
 
 	return map[string]any{
 		"CPULimit":            cpuLimit,
