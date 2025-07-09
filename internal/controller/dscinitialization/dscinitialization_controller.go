@@ -440,7 +440,7 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		},
 	}
 
-	// Use CreateOrUpdate to handle both init creatino and later DSCI update
+	// Use CreateOrUpdate to handle both init creation and later DSCI update
 	_, err := ctrl.CreateOrUpdate(ctx, r.Client, defaultMonitoring, func() error {
 		defaultMonitoring.Spec.Metrics = &serviceApi.Metrics{}
 

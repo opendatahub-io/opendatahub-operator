@@ -223,9 +223,7 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform
 	log := logf.FromContext(ctx)
 	defaultDsciSpec := &dsciv1.DSCInitializationSpec{
 		Monitoring: serviceApi.DSCIMonitoring{
-			MonitoringManagementSpec: serviceApi.MonitoringManagementSpec{
-				ManagementState: operatorv1.Managed,
-			},
+			ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 				Namespace: monNamespace,
 				Metrics:   &serviceApi.Metrics{},

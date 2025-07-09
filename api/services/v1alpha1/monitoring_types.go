@@ -18,7 +18,6 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -39,24 +38,6 @@ type MonitoringSpec struct {
 	// monitoring spec exposed to DSCI api
 	MonitoringCommonSpec `json:",inline"`
 	// monitoring spec exposed only to internal api
-	MonitoringManagementSpec `json:",inline"`
-}
-
-type MonitoringManagementSpec struct {
-	// Set to one of the following values:
-	//
-	// - "Managed"   : the operator is actively managing the component and trying to keep it active.
-	//                 It will only upgrade the component if it is safe to do so
-	//
-	//
-	// - "Unmanaged" : the operator is actively managing the component and trying to keep it active.
-	//                 It will only upgrade the component if it is safe to do so
-	//
-	// - "Removed"   : the operator is actively managing the component and will not install it,
-	//                 or if it is installed, the operator will try to remove it
-	//
-	// +kubebuilder:validation:Enum=Managed;Unmanaged;Removed
-	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
 // Metrics defines the desired state of metrics for the monitoring service
@@ -161,7 +142,8 @@ func init() {
 }
 
 type DSCIMonitoring struct {
+	// configuration fields common across services
+	common.ManagementSpec `json:",inline"`
 	// monitoring specific fields
-	MonitoringCommonSpec     `json:",inline"`
-	MonitoringManagementSpec `json:",inline"`
+	MonitoringCommonSpec `json:",inline"`
 }
