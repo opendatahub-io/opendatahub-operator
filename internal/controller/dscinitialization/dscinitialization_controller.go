@@ -222,6 +222,11 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				if err = r.newMonitoringCR(ctx, instance); err != nil {
 					return ctrl.Result{}, err
 				}
+			} else {
+				log.Info("Monitoring disabled", "cluster", "Self-Managed Mode")
+				if err := r.deleteMonitoringCR(ctx); err != nil {
+					return reconcile.Result{}, err
+				}
 			}
 		case cluster.ManagedRhoai:
 			osdConfigsPath := filepath.Join(deploy.DefaultManifestPath, "osd-configs")
@@ -242,11 +247,16 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			if err = r.configureCommonMonitoring(ctx, instance); err != nil {
 				return reconcile.Result{}, err
 			}
-		default:
+		default: // TODO: see if this can be conbimed with self-managed case
 			if instance.Spec.Monitoring.ManagementState == operatorv1.Managed {
 				log.Info("Monitoring enabled", "cluster", "ODH Mode")
 				if err = r.newMonitoringCR(ctx, instance); err != nil {
 					return ctrl.Result{}, err
+				}
+			} else {
+				log.Info("Monitoring disabled", "cluster", "ODH Mode")
+				if err := r.deleteMonitoringCR(ctx); err != nil {
+					return reconcile.Result{}, err
 				}
 			}
 		}
@@ -395,6 +405,20 @@ func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a c
 		log.Info("Found no Auth instance in cluster, reconciling to recreate")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "auth"}}}
+	}
+
+	return nil
+}
+
+func (r *DSCInitializationReconciler) deleteMonitoringCR(ctx context.Context) error {
+	defaultMonitoring := &serviceApi.Monitoring{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.MonitoringInstanceName,
+		},
+	}
+	err := r.Client.Delete(ctx, defaultMonitoring)
+	if err != nil && !k8serr.IsNotFound(err) {
+		return err
 	}
 
 	return nil

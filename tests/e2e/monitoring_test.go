@@ -45,6 +45,7 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringStackCRMetricsWhenSet},
 		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsConfiguration},
 		{"Test Metrics Replicas Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsReplicasUpdate},
+		{"Test Monitoring CR Deletion", monitoringServiceCtx.ValidateMonitoringCRDeleted},
 	}
 
 	// Run the test suite.
@@ -179,4 +180,15 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsReplicasUpdate(t *t
 		)),
 		WithCustomErrorMsg("MonitoringStack '%s' configuration validation failed", "data-science-monitoringstack"),
 	)
+}
+
+func (tc *MonitoringTestCtx) ValidateMonitoringCRDeleted(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, "Removed")),
+	)
+
+	tc.EnsureResourcesGone(WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
 }

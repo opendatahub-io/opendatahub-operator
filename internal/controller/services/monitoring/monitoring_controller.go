@@ -58,14 +58,14 @@ func (h *serviceHandler) GetName() string {
 }
 
 func (h *serviceHandler) GetManagementState(platform common.Platform, dsci *dsciv1.DSCInitialization) operatorv1.ManagementState {
+	// Managed cluster must have monitoring enabled even user manually turn it off
+	if platform == cluster.ManagedRhoai {
+		return operatorv1.Managed
+	}
+
 	// If DSCI exists, use its monitoring configuration
 	if dsci != nil {
 		return dsci.Spec.Monitoring.ManagementState
-	}
-
-	// Fallback to platform-based logic if DSCI is not available
-	if platform == cluster.ManagedRhoai {
-		return operatorv1.Managed
 	}
 
 	return operatorv1.Unmanaged

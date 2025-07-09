@@ -11,7 +11,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -280,7 +279,9 @@ func createDSCI(enableMonitoring operatorv1.ManagementState, enableTrustedCABund
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: applicationNamespace,
 			Monitoring: serviceApi.DSCIMonitoring{
-				ManagementSpec: common.ManagementSpec{ManagementState: enableMonitoring},
+				MonitoringManagementSpec: serviceApi.MonitoringManagementSpec{
+					ManagementState: enableMonitoring,
+				},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 					Namespace: monitoringNS,
 				},
@@ -305,7 +306,9 @@ func createCustomizedDSCI(appNS string) *dsciv1.DSCInitialization {
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: appNS,
 			Monitoring: serviceApi.DSCIMonitoring{
-				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+				MonitoringManagementSpec: serviceApi.MonitoringManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 					Namespace: monitoringNamespace,
 				},
