@@ -128,7 +128,7 @@ func CreateDSCI(name, appNamespace string) *dsciv1.DSCInitialization {
 		Spec: dsciv1.DSCInitializationSpec{
 			ApplicationsNamespace: appNamespace,
 			Monitoring: serviceApi.DSCIMonitoring{
-				MonitoringManagementSpec: serviceApi.MonitoringManagementSpec{
+				ManagementSpec: common.ManagementSpec{
 					ManagementState: operatorv1.Removed, // keep rhoai branch to Managed so we can test it
 				},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
