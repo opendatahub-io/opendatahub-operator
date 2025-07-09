@@ -51,7 +51,6 @@ import (
 	rp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
@@ -441,27 +440,24 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		},
 	}
 
-	if dsci.Spec.Monitoring.Metrics != nil {
-		defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
-	}
+	// Use CreateOrUpdate to handle both init creatino and later DSCI update
+	_, err := ctrl.CreateOrUpdate(ctx, r.Client, defaultMonitoring, func() error {
+		defaultMonitoring.Spec.Metrics = &serviceApi.Metrics{}
 
-	if err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme()); err != nil {
-		return err
-	}
+		// when DSCI has .spec.monitoring.metrics with values, copy them over
+		// if DSCI does not have values: set to {} or not set, keep empty Metrics{}
+		if dsci.Spec.Monitoring.Metrics != nil {
+			if dsci.Spec.Monitoring.Metrics.Storage != nil {
+				defaultMonitoring.Spec.Metrics.Storage = dsci.Spec.Monitoring.Metrics.Storage
+			}
+			if dsci.Spec.Monitoring.Metrics.Resources != nil {
+				defaultMonitoring.Spec.Metrics.Resources = dsci.Spec.Monitoring.Metrics.Resources
+			}
+		}
 
-	// for generic case if we need to support configable monitoring namespace
-	// set filed manager to DSCI
-	err := resources.Apply(
-		ctx,
-		r.Client,
-		defaultMonitoring,
-		client.FieldOwner(fieldManager),
-		client.ForceOwnership,
-	)
+		// Ensure owner reference is set
+		return controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme())
+	})
 
-	if err != nil && !k8serr.IsAlreadyExists(err) {
-		return err
-	}
-
-	return nil
+	return err
 }

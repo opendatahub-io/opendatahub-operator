@@ -29,6 +29,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	if monitoring.Spec.Metrics == nil {
+		// ensure MontiroingStack CR either not to create or should be GC from previous run
 		return nil, nil
 	}
 

@@ -45,6 +45,7 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringStackCRMetricsWhenSet},
 		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsConfiguration},
 		{"Test Metrics Replicas Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsReplicasUpdate},
+		{"Test MonitoringStack CR Deletion", monitoringServiceCtx.ValidateMonitoringStackCRDeleted},
 		{"Test Monitoring CR Deletion", monitoringServiceCtx.ValidateMonitoringCRDeleted},
 	}
 
@@ -182,13 +183,43 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsReplicasUpdate(t *t
 	)
 }
 
+func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+	monitoringStackName := getMonitoringStackName(dsci)
+
+	// Verify MonitoringStack CR is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+
+	// Set metrics to empty object
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{}`)),
+	)
+
+	// Verify MonitoringStack CR is deleted by gc
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+
+	// Ensure Monitoring CR is still present
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+	)
+}
+
 func (tc *MonitoringTestCtx) ValidateMonitoringCRDeleted(t *testing.T) {
 	t.Helper()
 
+	// Set Monitroing to be removed
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, "Removed")),
 	)
 
+	// Ensure Monitoring CR is removed because of ownerreference
 	tc.EnsureResourcesGone(WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
 }
