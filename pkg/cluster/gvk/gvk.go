@@ -356,6 +356,12 @@ var (
 		Kind:    "InferenceService",
 	}
 
+	Notebook = schema.GroupVersionKind{
+		Group:   "kubeflow.org",
+		Version: "v1",
+		Kind:    "Notebook",
+	}
+
 	OperatorCondition = schema.GroupVersionKind{
 		Group:   "operators.coreos.com",
 		Version: "v2",
@@ -372,5 +378,23 @@ var (
 		Group:   "monitoring.rhobs",
 		Version: "v1alpha1",
 		Kind:    "MonitoringStack",
+	}
+
+	PyTorchJob = schema.GroupVersionKind{
+		Group:   "kubeflow.org",
+		Version: "v1",
+		Kind:    "PyTorchJob",
+	}
+
+	RayJob = schema.GroupVersionKind{
+		Group:   "ray.io",
+		Version: "v1alpha1",
+		Kind:    "RayJob",
+	}
+
+	RayCluster = schema.GroupVersionKind{
+		Group:   "ray.io",
+		Version: "v1alpha1",
+		Kind:    "RayCluster",
 	}
 )
