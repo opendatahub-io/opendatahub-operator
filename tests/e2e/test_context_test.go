@@ -211,7 +211,7 @@ func (tc *TestContext) EnsureResourceExistsConsistently(opts ...ResourceOpts) *u
 			// Apply the provided condition matcher to the resource.
 			applyMatchers(g, ro.ResourceID, ro.GVK, u, nil, ro.Condition, ro.CustomErrorArgs)
 		}
-	})
+	}).Should(Succeed())
 
 	return u
 }
