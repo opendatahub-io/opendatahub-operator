@@ -6,7 +6,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
@@ -129,64 +128,34 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsWhenSet(t *testing.
 func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *testing.T) {
 	t.Helper()
 
-	// monitoring := &serviceApi.Monitoring{}
-	// tc.FetchTypedResource(monitoring, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
-
 	dsci := tc.FetchDSCInitialization()
 	monitoringStackName := getMonitoringStackName(dsci)
 
-	ms := tc.FetchResources(
-		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName}),
+	// Use EnsureResourceExists with jq matchers for cleaner validation
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(And(
+			// Validate storage size is set to 5Gi
+			jq.Match(`.spec.prometheusConfig.persistentVolumeClaim.resources.requests.storage == "%s"`, "5Gi"),
+			// Validate storage retention is set to 1d
+			jq.Match(`.spec.retention == "%s"`, "1d"),
+			// Validate CPU request is set to 250m
+			jq.Match(`.spec.resources.requests.cpu == "%s"`, "250m"),
+			// Validate memory request is set to 350Mi
+			jq.Match(`.spec.resources.requests.memory == "%s"`, "350Mi"),
+			// Validate CPU limit defaults to 500m
+			jq.Match(`.spec.resources.limits.cpu == "%s"`, "500m"),
+			// Validate memory limit defaults to 512Mi
+			jq.Match(`.spec.resources.limits.memory == "%s"`, "512Mi"),
+			// Validate replicas is set to 2
+			jq.Match(`.spec.prometheusConfig.replicas == "%d"`, 2),
+			// Validate owner references
+			jq.Match(`.metadata.ownerReferences | length == 1`),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Monitoring.Kind),
+			jq.Match(`.metadata.ownerReferences[0].name == "%s"`, "default-monitoring"),
+		)),
+		WithCustomErrorMsg("MonitoringStack '%s' configuration validation failed", monitoringStackName),
 	)
-
-	// Validate the storage size is set to 5Gi
-	storageSize, found, err := unstructured.NestedString(ms[0].Object, "spec", "prometheusConfig", "persistentVolumeClaim", "resources", "requests", "storage")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(storageSize).To(Equal("5Gi"))
-
-	storageRetention, found, err := unstructured.NestedString(ms[0].Object, "spec", "retention")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(storageRetention).To(Equal("1d"))
-
-	// Validate the resources are set to the correct values
-	cpuRequest, found, err := unstructured.NestedString(ms[0].Object, "spec", "resources", "requests", "cpu")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(cpuRequest).To(Equal("250m"))
-
-	memoryRequest, found, err := unstructured.NestedString(ms[0].Object, "spec", "resources", "requests", "memory")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(memoryRequest).To(Equal("350Mi"))
-
-	// Validate the resources defaults are set to the correct values
-	cpuLimit, found, err := unstructured.NestedString(ms[0].Object, "spec", "resources", "limits", "cpu")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(cpuLimit).To(Equal("500m"))
-
-	memoryLimit, found, err := unstructured.NestedString(ms[0].Object, "spec", "resources", "limits", "memory")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(memoryLimit).To(Equal("512Mi"))
-
-	replicas, found, err := unstructured.NestedInt64(ms[0].Object, "spec", "prometheusConfig", "replicas")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(replicas).To(Equal(int32(2)))
-
-	// check owenr references for the MonitoringStack
-	ownerRefs, found, err := unstructured.NestedSlice(ms[0].Object, "metadata", "ownerReferences")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(ownerRefs).To(HaveLen(1))
-
-	ownerRef, found := ownerRefs[0].(map[string]interface{})
-	tc.g.Expect(found).To(BeTrue(), "Expected owner reference to be a map[string]interface{}")
-	tc.g.Expect(ownerRef["kind"]).To(Equal(gvk.Monitoring.Kind))
-	tc.g.Expect(ownerRef["name"]).To(Equal("default-monitoring"))
 }
 
 func getMonitoringStackName(dsci *dsciv1.DSCInitialization) string {
