@@ -300,6 +300,15 @@ spec:
   monitoring:
     managementState: Managed
     namespace: opendatahub
+    metrics:
+      resources:
+        cpulimit: 500m
+        cpurequest: 100m
+        memorylimit: 512Mi
+        memoryrequest: 256Mi
+      storage:
+        retention: 1d
+        size: 5Gi
   serviceMesh:
     controlPlane:
       metricsCollection: Istio
