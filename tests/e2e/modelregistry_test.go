@@ -40,6 +40,11 @@ func modelRegistryTestSuite(t *testing.T) {
 		{"Validate cert should be created from default DSCI when servicmesh is Managed", componentCtx.ValidateModelRegistryCert},
 		{"Validate SMM only created if servicemesh is Managed", componentCtx.ValidateSMM},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
