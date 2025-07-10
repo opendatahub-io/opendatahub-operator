@@ -12,15 +12,14 @@ spec:
     persistentVolumeClaim:
       resources:
         requests: 
-          storage: {{ .StorageSize }}Gi
-    #TODO: change to a reasonable default value once https://issues.redhat.com/browse/RHOAIENG-28845 is resolved
-    replicas: 1
+          storage: {{ .StorageSize }}
+    replicas: {{ .Replicas }}
   resourceSelector: {}
   resources:
     limits:
-      cpu: {{ .CPULimit }}m
-      memory: {{ .MemoryLimit }}Mi
+      cpu: {{ .CPULimit }}
+      memory: {{ .MemoryLimit }}
     requests:
-      cpu: {{ .CPURequest }}m
-      memory: {{ .MemoryRequest }}Mi
-  retention: {{ .StorageRetention }}d
+      cpu: {{ .CPURequest }}
+      memory: {{ .MemoryRequest }}
+  retention: {{ .StorageRetention }}

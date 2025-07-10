@@ -107,35 +107,77 @@ spec:
                   metrics:
                     description: metrics collection
                     properties:
+                      replicas:
+                        description: Replicas specifies the number of replicas in
+                          monitoringstack, default is 2 if not set
+                        format: int32
+                        type: integer
                       resources:
-                        description: MetricsResources defines the desired state of
-                          resource requests and limits for the monitoring service
+                        description: MetricsResources defines the resource requests
+                          and limits for the monitoring service
                         properties:
                           cpulimit:
-                            description: CPU limit for the monitoring service
-                            type: string
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            default: 500m
+                            description: CPULimit specifies the maximum CPU allocation
+                              (e.g., "500m", "2")
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
                           cpurequest:
-                            description: CPU request for the monitoring service
-                            type: string
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            default: 100m
+                            description: CPURequest specifies the minimum CPU allocation
+                              (e.g., "100m", "0.5")
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
                           memorylimit:
-                            description: Memory limit for the monitoring service
-                            type: string
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            default: 512Mi
+                            description: MemoryLimit specifies the maximum memory
+                              allocation (e.g., "1Gi", "512Mi")
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
                           memoryrequest:
-                            description: Memory request for the monitoring service
-                            type: string
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            default: 256Mi
+                            description: MemoryRequest specifies the minimum memory
+                              allocation (e.g., "256Mi", "1Gi")
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
                         type: object
                       storage:
-                        description: MetricsStorage defines the desired state of storage
+                        description: MetricsStorage defines the storage configuration
                           for the monitoring service
                         properties:
                           retention:
-                            description: Retention of the storage in days
-                            type: integer
+                            default: 1d
+                            description: Retention specifies how long metrics data
+                              should be retained (e.g., "1d", "2w")
+                            type: string
                           size:
-                            description: Size of the storage in Gi
-                            type: integer
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            default: 5Gi
+                            description: Size specifies the storage size for the MonitoringStack
+                              (e.g, "5Gi", "10Mi")
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
                         type: object
                     type: object
+                    x-kubernetes-validations:
+                    - message: Replicas can only be set to non-zero value when either
+                        Storage or Resources is configured
+                      rule: '!(self.storage == null && self.resources == null) ||
+                        !has(self.replicas) || self.replicas == 0'
                   namespace:
                     default: opendatahub
                     description: |-

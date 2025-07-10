@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -40,29 +41,38 @@ type MonitoringSpec struct {
 }
 
 // Metrics defines the desired state of metrics for the monitoring service
+// +kubebuilder:validation:XValidation:rule="!(self.storage == null && self.resources == null) || !has(self.replicas) || self.replicas == 0",message="Replicas can only be set to non-zero value when either Storage or Resources is configured"
 type Metrics struct {
-	Storage   MetricsStorage   `json:"storage,omitempty"`
-	Resources MetricsResources `json:"resources,omitempty"`
+	Storage   *MetricsStorage   `json:"storage,omitempty"`
+	Resources *MetricsResources `json:"resources,omitempty"`
+	// Replicas specifies the number of replicas in monitoringstack, default is 2 if not set
+	Replicas int32 `json:"replicas,omitempty"`
 }
 
-// MetricsStorage defines the desired state of storage for the monitoring service
+// MetricsStorage defines the storage configuration for the monitoring service
 type MetricsStorage struct {
-	// Size of the storage in Gi
-	Size int `json:"size,omitempty"`
-	// Retention of the storage in days
-	Retention int `json:"retention,omitempty"`
+	// Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi")
+	// +kubebuilder:default="5Gi"
+	Size resource.Quantity `json:"size,omitempty"`
+	// Retention specifies how long metrics data should be retained (e.g., "1d", "2w")
+	// +kubebuilder:default="1d"
+	Retention string `json:"retention,omitempty"`
 }
 
-// MetricsResources defines the desired state of resource requests and limits for the monitoring service
+// MetricsResources defines the resource requests and limits for the monitoring service
 type MetricsResources struct {
-	// CPU limit for the monitoring service
-	CPULimit string `json:"cpulimit,omitempty"`
-	// Memory limit for the monitoring service
-	MemoryLimit string `json:"memorylimit,omitempty"`
-	// CPU request for the monitoring service
-	CPURequest string `json:"cpurequest,omitempty"`
-	// Memory request for the monitoring service
-	MemoryRequest string `json:"memoryrequest,omitempty"`
+	// CPULimit specifies the maximum CPU allocation (e.g., "500m", "2")
+	// +kubebuilder:default="500m"
+	CPULimit resource.Quantity `json:"cpulimit,omitempty"`
+	// MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi")
+	// +kubebuilder:default="512Mi"
+	MemoryLimit resource.Quantity `json:"memorylimit,omitempty"`
+	// CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5")
+	// +kubebuilder:default="100m"
+	CPURequest resource.Quantity `json:"cpurequest,omitempty"`
+	// MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi")
+	// +kubebuilder:default="256Mi"
+	MemoryRequest resource.Quantity `json:"memoryrequest,omitempty"`
 }
 
 // MonitoringStatus defines the observed state of Monitoring
