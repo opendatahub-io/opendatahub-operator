@@ -51,6 +51,7 @@ import (
 	rp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
 
@@ -439,14 +440,27 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 			},
 		},
 	}
-	_, err := ctrl.CreateOrUpdate(ctx, r.Client, defaultMonitoring, func() error {
-		if dsci.Spec.Monitoring.Metrics != nil {
-			defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
-		} else {
-			defaultMonitoring.Spec.Metrics = nil
-		}
-		return controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme())
-	})
 
-	return err
+	if dsci.Spec.Monitoring.Metrics != nil {
+		if dsci.Spec.Monitoring.Metrics.Storage != nil || dsci.Spec.Monitoring.Metrics.Resources != nil {
+			defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
+		}
+	}
+
+	if err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme()); err != nil {
+		return err
+	}
+
+	err := resources.Apply(
+		ctx,
+		r.Client,
+		defaultMonitoring,
+		client.FieldOwner(fieldManager),
+		client.ForceOwnership,
+	)
+
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return err
+	}
+	return nil
 }
