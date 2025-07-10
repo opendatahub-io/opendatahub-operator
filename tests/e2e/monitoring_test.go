@@ -173,7 +173,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsReplicasUpdate(t *t
 	monitoringStackName := getMonitoringStackName(dsci)
 
 	// Update DSCI to set replicas to 1 (must include either storage or resources due to CEL validation rule)
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: "5Gi", retention: "1d"}, replicas: 1}`)),
 	)
