@@ -1,0 +1,80 @@
+rule_files:
+  - llama-stack-k8s-operator-alerting.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate5m{instance="llama-stack-k8s-operator-controller-manager"}
+        values: "0x60"
+      - series: probe_success:burnrate1h{instance="llama-stack-k8s-operator-controller-manager"}
+        values: "0x60"
+      - series: probe_success:burnrate30m{instance="llama-stack-k8s-operator-controller-manager"}
+        values: "0x60"
+      - series: probe_success:burnrate6h{instance="llama-stack-k8s-operator-controller-manager"}
+        values: "0x60"
+      - series: probe_success:burnrate2h{instance="llama-stack-k8s-operator-controller-manager"}
+        values: "0x60"
+      - series: probe_success:burnrate1d{instance="llama-stack-k8s-operator-controller-manager"}
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: Llama Stack K8s Operator Probe Success Burn Rate
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate5m{instance="llama-stack-k8s-operator-controller-manager"}
+        values: "1+1x60"
+      - series: probe_success:burnrate1h{instance="llama-stack-k8s-operator-controller-manager"}
+        values: "1+1x60"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: Llama Stack K8s Operator Probe Success Burn Rate
+        exp_alerts:
+          - exp_labels:
+              alertname: Llama Stack K8s Operator Probe Success Burn Rate
+              instance: "llama-stack-k8s-operator-controller-manager"
+              severity: warning
+            exp_annotations:
+              summary: "Llama Stack K8s Operator Probe Success Burn Rate"
+              message: "High error budget burn for llama-stack-k8s-operator-controller-manager (current value: 3)."
+              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Llama-Stack/rhoai-llama-stack-k8s-operator-probe-success-burn-rate.md"
+
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate30m{instance="llama-stack-k8s-operator-controller-manager"}
+        values: "1+1x60"
+      - series: probe_success:burnrate6h{instance="llama-stack-k8s-operator-controller-manager"}
+        values: "1+1x60"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: Llama Stack K8s Operator Probe Success Burn Rate
+        exp_alerts:
+          - exp_labels:
+              alertname: Llama Stack K8s Operator Probe Success Burn Rate
+              instance: "llama-stack-k8s-operator-controller-manager"
+              severity: warning
+            exp_annotations:
+              summary: "Llama Stack K8s Operator Probe Success Burn Rate"
+              message: "High error budget burn for llama-stack-k8s-operator-controller-manager (current value: 16)."
+              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Llama-Stack/rhoai-llama-stack-k8s-operator-probe-success-burn-rate.md"
+  - interval: 1m
+    input_series:
+      - series: probe_success:burnrate2h{instance="llama-stack-k8s-operator-controller-manager"}
+        values: "1+1x60"
+      - series: probe_success:burnrate1d{instance="llama-stack-k8s-operator-controller-manager"}
+        values: "1+1x60"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: Llama Stack K8s Operator Probe Success Burn Rate
+        exp_alerts:
+          - exp_labels:
+              alertname: Llama Stack K8s Operator Probe Success Burn Rate
+              instance: "llama-stack-k8s-operator-controller-manager"
+              severity: warning
+            exp_annotations:
+              summary: "Llama Stack K8s Operator Probe Success Burn Rate"
+              message: "High error budget burn for llama-stack-k8s-operator-controller-manager (current value: 61)."
+              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Llama-Stack/rhoai-llama-stack-k8s-operator-probe-success-burn-rate.md"
