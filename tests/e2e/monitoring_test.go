@@ -90,9 +90,9 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultContent(t *testing.T) {
 			dsci.Spec.Monitoring.Namespace, monitoring.Spec.Namespace)
 
 	comp := serviceApi.MonitoringSpec{
-		MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{Namespace: "opendatahub", Metrics: nil},
+		MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{Namespace: "opendatahub", Metrics: &serviceApi.Metrics{}},
 	}
-	// Validate the metrics stanza is omitted by default
+	// Validate the metrics stanza is set to empty object by default
 	tc.g.Expect(monitoring.Spec.Metrics).
 		To(Equal(comp.Metrics),
 			"Expected metrics stanza to be omitted by default")
