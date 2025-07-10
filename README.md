@@ -330,6 +330,7 @@ spec:
     managementState: Managed
     namespace: opendatahub
     metrics:
+      replicas: 2
       resources:
         cpulimit: 500m
         cpurequest: 100m

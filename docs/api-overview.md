@@ -2867,6 +2867,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `storage` _[MetricsStorage](#metricsstorage)_ |  |  |  |
 | `resources` _[MetricsResources](#metricsresources)_ |  |  |  |
+| `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack, default is 2 if not set |  |  |
 
 
 #### MetricsResources

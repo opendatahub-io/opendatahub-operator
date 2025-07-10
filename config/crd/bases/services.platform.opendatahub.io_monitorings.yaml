@@ -55,6 +55,11 @@ spec:
               metrics:
                 description: metrics collection
                 properties:
+                  replicas:
+                    description: Replicas specifies the number of replicas in monitoringstack,
+                      default is 2 if not set
+                    format: int32
+                    type: integer
                   resources:
                     description: MetricsResources defines the resource requests and
                       limits for the monitoring service
@@ -116,6 +121,11 @@ spec:
                         x-kubernetes-int-or-string: true
                     type: object
                 type: object
+                x-kubernetes-validations:
+                - message: Replicas can only be set to non-zero value when either
+                    Storage or Resources is configured
+                  rule: '!(self.storage == null && self.resources == null) || !has(self.replicas)
+                    || self.replicas == 0'
               namespace:
                 default: opendatahub
                 description: |-
