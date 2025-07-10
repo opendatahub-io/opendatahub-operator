@@ -440,19 +440,16 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		},
 	}
 
-	// Use CreateOrUpdate to handle both init creation and later DSCI update
+	// Use CreateOrUpdate to handle both init creation and later DSCI update from has value to metrics:{}
 	_, err := ctrl.CreateOrUpdate(ctx, r.Client, defaultMonitoring, func() error {
-		defaultMonitoring.Spec.Metrics = &serviceApi.Metrics{}
-
-		// when DSCI has .spec.monitoring.metrics with values, copy them over
-		// if DSCI does not have values: set to {} or not set, keep empty Metrics{}
+		// Only create Metrics object when DSCI has metrics configuration (not nil)
+		// This prevents creating empty Metrics{} when DSCI has no metrics
+		// If DSCI.Spec.Monitoring.Metrics is nil, set defaultMonitoring.Spec.Metrics as nil
 		if dsci.Spec.Monitoring.Metrics != nil {
-			if dsci.Spec.Monitoring.Metrics.Storage != nil {
-				defaultMonitoring.Spec.Metrics.Storage = dsci.Spec.Monitoring.Metrics.Storage
-			}
-			if dsci.Spec.Monitoring.Metrics.Resources != nil {
-				defaultMonitoring.Spec.Metrics.Resources = dsci.Spec.Monitoring.Metrics.Resources
-			}
+			defaultMonitoring.Spec.Metrics = &serviceApi.Metrics{}
+			defaultMonitoring.Spec.Metrics.Storage = dsci.Spec.Monitoring.Metrics.Storage
+			defaultMonitoring.Spec.Metrics.Resources = dsci.Spec.Monitoring.Metrics.Resources
+			defaultMonitoring.Spec.Metrics.Replicas = dsci.Spec.Monitoring.Metrics.Replicas
 		}
 
 		// Ensure owner reference is set
