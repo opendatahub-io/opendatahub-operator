@@ -91,15 +91,11 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultContent(t *testing.T) {
 			"Monitoring CR's namespace mismatch: Expected namespace '%v' as per DSCInitialization, but found '%v' in Monitoring CR.",
 			dsci.Spec.Monitoring.Namespace, monitoring.Spec.Namespace)
 
-	comp := serviceApi.MonitoringSpec{
-		MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{Namespace: "opendatahub", Metrics: &serviceApi.Metrics{}},
-	}
-	// Validate the metrics stanza is set to empty object by default
+	// Validate metrics is nil when not set in DSCI
 	tc.g.Expect(monitoring.Spec.Metrics).
-		To(Equal(comp.Metrics),
-			"Expected metrics stanza to be omitted by default")
+		To(BeNil(), "Expected metrics to be nil when not set in DSCI")
 
-	// Validate MontoringStack CR is not created
+	// Validate MonitoringStack CR is not created
 	monitoringStackName := getMonitoringStackName(dsci)
 	tc.EnsureResourcesGone(
 		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
