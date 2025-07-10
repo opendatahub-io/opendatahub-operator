@@ -41,10 +41,11 @@ type MonitoringSpec struct {
 }
 
 // Metrics defines the desired state of metrics for the monitoring service
+// +kubebuilder:validation:XValidation:rule="!(self.storage == null && self.resources == null) || !has(self.replicas) || self.replicas == 0",message="Replicas can only be set to non-zero value when either Storage or Resources is configured"
 type Metrics struct {
 	Storage   *MetricsStorage   `json:"storage,omitempty"`
 	Resources *MetricsResources `json:"resources,omitempty"`
-	// Replicas specifies the number of replicas in monitoringstack , default is 2
+	// Replicas specifies the number of replicas in monitoringstack, default is 2 if not set
 	Replicas int32 `json:"replicas,omitempty"`
 }
 

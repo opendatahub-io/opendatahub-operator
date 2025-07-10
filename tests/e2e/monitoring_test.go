@@ -46,6 +46,7 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Monitoring CR content default value", monitoringServiceCtx.ValidateMonitoringCRDefaultContent},
 		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringStackCRMetricsWhenSet},
 		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsConfiguration},
+		{"Test Metrics Replicas Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsReplicasUpdate},
 	}
 
 	// Run the test suite.
@@ -95,6 +96,12 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultContent(t *testing.T) {
 	tc.g.Expect(monitoring.Spec.Metrics).
 		To(Equal(comp.Metrics),
 			"Expected metrics stanza to be omitted by default")
+
+	// Validate MontoringStack CR is not created
+	monitoringStackName := getMonitoringStackName(dsci)
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
 }
 
 func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsWhenSet(t *testing.T) {
@@ -147,7 +154,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *te
 			jq.Match(`.spec.resources.limits.cpu == "%s"`, "500m"),
 			// Validate memory limit defaults to 512Mi
 			jq.Match(`.spec.resources.limits.memory == "%s"`, "512Mi"),
-			// Validate replicas is set to 2
+			// Validate replicas is set to 2 when it was not specified in DSCI
 			jq.Match(`.spec.prometheusConfig.replicas == %d`, 2),
 			// Validate owner references
 			jq.Match(`.metadata.ownerReferences | length == 1`),
@@ -158,11 +165,33 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *te
 	)
 }
 
+func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsReplicasUpdate(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	monitoringStackName := getMonitoringStackName(dsci)
+
+	// Update DSCI to set replicas to 1 (must include either storage or resources due to CEL validation rule)
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: "5Gi", retention: "1d"}, replicas: 1}`)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(And(
+			// Validate storage size is still the same value
+			jq.Match(`.spec.prometheusConfig.persistentVolumeClaim.resources.requests.storage == "%s"`, "5Gi"),
+			// Validate replicas is set to 1 when it is updated in DSCI
+			jq.Match(`.spec.prometheusConfig.replicas == %d`, 1),
+		)),
+		WithCustomErrorMsg("MonitoringStack '%s' configuration validation failed", monitoringStackName),
+	)
+}
+
 func getMonitoringStackName(dsci *dsciv1.DSCInitialization) string {
 	switch dsci.Status.Release.Name {
-	case cluster.ManagedRhoai:
-		return "rhoai-monitoringstack"
-	case cluster.SelfManagedRhoai:
+	case cluster.ManagedRhoai, cluster.SelfManagedRhoai:
 		return "rhoai-monitoringstack"
 	}
 

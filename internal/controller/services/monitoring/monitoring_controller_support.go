@@ -45,6 +45,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	metrics := monitoring.Spec.Metrics
 
 	var cpuLimit, memoryLimit, cpuRequest, memoryRequest string
+
 	if metrics.Resources != nil {
 		cpuLimit = metrics.Resources.CPULimit.String()
 		memoryLimit = metrics.Resources.MemoryLimit.String()
@@ -66,7 +67,13 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		storageRetention = "1d"
 	}
 
-	replicas := metrics.Replicas // take whatever value user set in DSCI, including 0, or if not set then default to 2
+	// only when either storage or resources is set, we take replicas into account
+	// - if user did not set it / zero-value "0", we use default value of 2
+	// - if user set it to Y, we pass Y to template
+	var replicas int32 = 2 // default value to match monitoringstack CRD's default
+	if (metrics.Storage != nil || metrics.Resources != nil) && metrics.Replicas != 0 {
+		replicas = metrics.Replicas
+	}
 
 	return map[string]any{
 		"CPULimit":            cpuLimit,
