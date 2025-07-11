@@ -205,6 +205,10 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
 	)
+
+	monitoring := &serviceApi.Monitoring{}
+	tc.FetchTypedResource(monitoring, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
+	tc.g.Expect(monitoring.Spec.Metrics).To(BeNil(), "Expected 'metrics' not in Monitoring CR")
 }
 
 func (tc *MonitoringTestCtx) ValidateMonitoringCRDeleted(t *testing.T) {
