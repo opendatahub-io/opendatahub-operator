@@ -8,6 +8,7 @@ spec:
   observability:
     metrics:
       enableMetrics: true
+  {{ if .Metrics }}
   targetAllocator:
     prometheusCR:
       podMonitorSelector:
@@ -19,11 +20,13 @@ spec:
         matchExpressions:
           - key: monitoring.opendatahub.io/scrape
             operator: 'true'
+  {{ end }}
   config:
     extensions:
       bearertokenauth:
         filename: "/var/run/secrets/kubernetes.io/serviceaccount/token"
     receivers:
+      {{ if .Metrics }}
       prometheus:
         config:
           scrape_configs:
@@ -35,6 +38,7 @@ spec:
                 - source_labels: [__meta_kubernetes_pod_label_monitoring_opendatahub_io_scrape]
                   action: keep
                   regex: true
+      {{ end }}
       otlp:
         protocols:
           grpc: {}
@@ -50,10 +54,12 @@ spec:
       resourcedetection:
         detectors: [openshift]
     exporters:
+      {{ if .Metrics }}
       prometheus:
         endpoint: 0.0.0.0:8889
         resource_to_telemetry_conversion:
           enabled: true # by default resource attributes are dropped
+      {{ end }}
       {{ if .Traces }}
       otlp/odh-tempo:
         endpoint: tempo-tempo-gateway.redhat-ods-monitoring.svc:4317
@@ -74,7 +80,9 @@ spec:
           processors: [memory_limiter, k8sattributes, resourcedetection, batch]
           exporters: [otlp/odh-tempo]
       {{ end }}
+      {{ if .Metrics }}
         metrics:
           receivers: [prometheus, otlp]
           processors: [memory_limiter, k8sattributes, resourcedetection, batch]
           exporters: [prometheus]
+      {{ end }}

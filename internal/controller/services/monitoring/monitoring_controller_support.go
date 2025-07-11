@@ -59,6 +59,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	metrics := monitoring.Spec.Metrics
 	// Handle nil traces pointer
 	tracesEnabled := monitoring.Spec.Traces != nil
+	metricsEnabled := monitoring.Spec.Metrics != nil
 
 	return map[string]any{
 		"CPULimit":                   defaultIfEmpty(metrics.Resources.CPULimit, "500"),
@@ -72,5 +73,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"PromPipelineName":           PrometheusPipelineName,
 		"OpenTelemetryCollectorName": CollectorName,
 		"Traces":                     tracesEnabled,
+		"Metrics":                    metricsEnabled,
 	}, nil
 }
