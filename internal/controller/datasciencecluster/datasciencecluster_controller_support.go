@@ -45,7 +45,7 @@ func computeComponentsStatus(
 			return err
 		}
 
-		if !cr.IsManaged(component, instance) {
+		if !component.IsEnabled(instance) {
 			return nil
 		}
 

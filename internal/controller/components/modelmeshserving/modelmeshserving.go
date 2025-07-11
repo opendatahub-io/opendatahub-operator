@@ -31,13 +31,6 @@ func (s *componentHandler) GetName() string {
 	return componentApi.ModelMeshServingComponentName
 }
 
-func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	if dsc.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed {
-		return operatorv1.Managed
-	}
-	return operatorv1.Removed
-}
-
 func (s *componentHandler) Init(_ common.Platform) error {
 	// Update image parameters
 	if err := odhdeploy.ApplyParams(manifestsPath().String(), imageParamMap); err != nil {
@@ -57,13 +50,17 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 		ObjectMeta: metav1.ObjectMeta{
 			Name: componentApi.ModelMeshServingInstanceName,
 			Annotations: map[string]string{
-				annotations.ManagementStateAnnotation: string(s.GetManagementState(dsc)),
+				annotations.ManagementStateAnnotation: string(dsc.Spec.Components.ModelMeshServing.ManagementState),
 			},
 		},
 		Spec: componentApi.ModelMeshServingSpec{
 			ModelMeshServingCommonSpec: dsc.Spec.Components.ModelMeshServing.ModelMeshServingCommonSpec,
 		},
 	}
+}
+
+func (s *componentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool {
+	return dsc.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed
 }
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
@@ -82,13 +79,12 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.ModelMeshServing.ManagementState = s.GetManagementState(dsc)
+	dsc.Status.Components.ModelMeshServing.ManagementState = dsc.Spec.Components.ModelMeshServing.ManagementState
 	dsc.Status.Components.ModelMeshServing.ModelMeshServingCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
-	switch s.GetManagementState(dsc) {
-	case operatorv1.Managed:
+	if s.IsEnabled(dsc) {
 		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.ModelMeshServing.ModelMeshServingCommonStatus = c.Status.ModelMeshServingCommonStatus.DeepCopy()
 
@@ -98,17 +94,13 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		} else {
 			cs = metav1.ConditionFalse
 		}
-
-	case operatorv1.Removed:
+	} else {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
-			conditions.WithReason(string(operatorv1.Removed)),
-			conditions.WithMessage("Component ManagementState is set to %s", operatorv1.Removed),
+			conditions.WithReason(string(dsc.Spec.Components.ModelMeshServing.ManagementState)),
+			conditions.WithMessage("Component ManagementState is set to %s", dsc.Spec.Components.ModelMeshServing.ManagementState),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
-
-	default:
-		return cs, fmt.Errorf("unknown state %s ", s.GetManagementState(dsc))
 	}
 
 	return cs, nil

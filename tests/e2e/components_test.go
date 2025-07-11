@@ -176,7 +176,7 @@ func (tc *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 			}
 
 			// Update the deployment's replica count
-			tc.EnsureResourceCreatedOrUpdated(
+			tc.EventuallyResourceCreatedOrUpdated(
 				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&d)),
 				WithMutateFunc(testf.Transform(`.spec.replicas = %d`, expectedReplica)),
 				WithCondition(jq.Match(`.spec.replicas == %d`, expectedReplica)),
@@ -255,13 +255,13 @@ func (tc *ComponentTestCtx) ValidateComponentCondition(gvk schema.GroupVersionKi
 }
 
 // UpdateComponentStateInDataScienceCluster updates the management state of a specified component in the DataScienceCluster.
-func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceCluster(state operatorv1.ManagementState, kind ...string) {
-	componentKind := tc.GVK.Kind
-	if len(kind) > 0 {
-		componentKind = kind[0]
-	}
+func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceCluster(state operatorv1.ManagementState) {
+	tc.UpdateComponentStateInDataScienceClusterWhitKind(state, tc.GVK.Kind)
+}
 
-	componentName := strings.ToLower(componentKind)
+// UpdateComponentStateInDataScienceClusterWhitKind updates the management state of a specified component kind in the DataScienceCluster.
+func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceClusterWhitKind(state operatorv1.ManagementState, kind string) {
+	componentName := strings.ToLower(kind)
 	readyCondition := metav1.ConditionFalse
 	if state == operatorv1.Managed {
 		readyCondition = metav1.ConditionTrue
@@ -273,7 +273,7 @@ func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceCluster(state opera
 		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, state),
 
 		// Validate the "Ready" condition for the component
-		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, componentKind, readyCondition),
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, kind, readyCondition),
 	}
 
 	// If the state is "Managed", add additional checks for provisioning and components readiness.
@@ -288,7 +288,7 @@ func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceCluster(state opera
 	}
 
 	// Update the management state of the component in the DataScienceCluster.
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
 		WithCondition(And(conditions...)),

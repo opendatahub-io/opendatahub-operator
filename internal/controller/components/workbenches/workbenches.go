@@ -31,13 +31,6 @@ func (s *componentHandler) GetName() string {
 	return componentApi.WorkbenchesComponentName
 }
 
-func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) operatorv1.ManagementState {
-	if dsc.Spec.Components.Workbenches.ManagementState == operatorv1.Managed {
-		return operatorv1.Managed
-	}
-	return operatorv1.Removed
-}
-
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
 	return &componentApi.Workbenches{
 		TypeMeta: metav1.TypeMeta{
@@ -47,7 +40,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 		ObjectMeta: metav1.ObjectMeta{
 			Name: componentApi.WorkbenchesInstanceName,
 			Annotations: map[string]string{
-				annotations.ManagementStateAnnotation: string(s.GetManagementState(dsc)),
+				annotations.ManagementStateAnnotation: string(dsc.Spec.Components.Workbenches.ManagementState),
 			},
 		},
 		Spec: componentApi.WorkbenchesSpec{
@@ -74,6 +67,10 @@ func (s *componentHandler) Init(platform common.Platform) error {
 	return nil
 }
 
+func (s *componentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool {
+	return dsc.Spec.Components.Workbenches.ManagementState == operatorv1.Managed
+}
+
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
 
@@ -90,13 +87,12 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	}
 
 	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.Workbenches.ManagementState = s.GetManagementState(dsc)
+	dsc.Status.Components.Workbenches.ManagementState = dsc.Spec.Components.Workbenches.ManagementState
 	dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
-	switch s.GetManagementState(dsc) {
-	case operatorv1.Managed:
+	if s.IsEnabled(dsc) {
 		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = c.Status.WorkbenchesCommonStatus.DeepCopy()
 
@@ -106,17 +102,13 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		} else {
 			cs = metav1.ConditionFalse
 		}
-
-	case operatorv1.Removed:
+	} else {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
-			conditions.WithReason(string(operatorv1.Removed)),
-			conditions.WithMessage("Component ManagementState is set to %s", operatorv1.Removed),
+			conditions.WithReason(string(dsc.Spec.Components.Workbenches.ManagementState)),
+			conditions.WithMessage("Component ManagementState is set to %s", dsc.Spec.Components.Workbenches.ManagementState),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
-
-	default:
-		return cs, fmt.Errorf("unknown state %s ", s.GetManagementState(dsc))
 	}
 
 	return cs, nil

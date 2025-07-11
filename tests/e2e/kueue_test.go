@@ -1,27 +1,39 @@
 package e2e_test
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/blang/semver/v4"
+	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
+)
+
+const (
+	kueueOcpOperatorNamespace    = "openshift-kueue-operator" // Namespace for the Kueue Operator
+	kueueOcpOperatorChannel      = "stable-v0.2"
+	kueueTestManagedNamespace    = "test-kueue-managed-ns"
+	kueueDefaultClusterQueueName = "default"
+	kueueDefaultLocalQueueName   = "default"
 )
 
 type KueueTestCtx struct {
@@ -43,47 +55,20 @@ func kueueTestSuite(t *testing.T) {
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
-		{"Validate Kueue Dynamically create VAP and VAPB", componentCtx.ValidateKueueVAPReady},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate pre check", componentCtx.ValidateKueuePreCheck},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate component managed error with ocp kueue-operator installed", componentCtx.ValidateKueueManagedWhitOcpKueueOperator},
+		{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
+		{"Validate component managed to unmanaged transition", componentCtx.ValidateKueueManagedToUnmanagedTransition},
+		{"Validate component managed to removed to unmanaged transition with config migration", componentCtx.ValidateKueueManagedToRemovedToUnmanagedTransition(true)},
+		{"Validate component managed to removed to unmanaged transition without config migration", componentCtx.ValidateKueueManagedToRemovedToUnmanagedTransition(false)},
+		{"Validate component unmanaged to managed transition", componentCtx.ValidateKueueUnmanagedToManagedTransition},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
-}
-
-// ValidateKueueVAPReady ensures that Validating Admission Policies (VAP) and Bindings (VAPB) are properly configured.
-func (tc *KueueTestCtx) ValidateKueueVAPReady(t *testing.T) {
-	t.Helper()
-
-	v := tc.getClusterVersion()
-
-	if v.GTE(semver.MustParse("4.17.0")) {
-		// Validate that VAP exists and has correct owner references.
-		tc.EnsureResourceExists(
-			WithMinimalObject(gvk.ValidatingAdmissionPolicy, types.NamespacedName{Name: "kueue-validating-admission-policy"}),
-			WithCondition(jq.Match(`.metadata.ownerReferences[0].name == "%s"`, componentApi.KueueInstanceName)),
-		)
-
-		// Validate that VAPB exists and has no owner references.
-		tc.EnsureResourceExists(
-			WithMinimalObject(gvk.ValidatingAdmissionPolicyBinding, types.NamespacedName{Name: "kueue-validating-admission-policy-binding"}),
-			WithCondition(jq.Match(`.metadata.ownerReferences | length == 0`)),
-		)
-	} else {
-		// Ensure that VAP and VAPB do not exist.
-		tc.EnsureResourceDoesNotExist(
-			WithMinimalObject(gvk.ValidatingAdmissionPolicy, types.NamespacedName{Name: "kueue-validating-admission-policy"}),
-			WithExpectedErr(&meta.NoKindMatchError{}),
-		)
-
-		tc.EnsureResourceDoesNotExist(
-			WithMinimalObject(gvk.ValidatingAdmissionPolicyBinding, types.NamespacedName{Name: "kueue-validating-admission-policy-binding"}),
-			WithExpectedErr(&meta.NoKindMatchError{}),
-		)
-	}
 }
 
 // ValidateCRDReinstated ensures that required CRDs are reinstated if deleted.
@@ -121,7 +106,7 @@ func (tc *KueueTestCtx) ValidateKueuePreCheck(t *testing.T) {
 	tc.createMockCRD(gvk.MultiKueueConfigV1Alpha1, "kueue")
 
 	// Update DataScienceCluster to Managed state and check readiness condition
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed)),
 		WithCondition(
@@ -156,6 +141,435 @@ func (tc *KueueTestCtx) ValidateKueuePreCheck(t *testing.T) {
 	)
 }
 
+// ValidateComponentEnabled ensures that if the component is in Managed state and ocp kueue operator is installed, then its status is "Not Ready".
+func (tc *KueueTestCtx) ValidateKueueManagedWhitOcpKueueOperator(t *testing.T) {
+	t.Helper()
+
+	componentName := strings.ToLower(tc.GVK.Kind)
+
+	// since the test may be executed on a non-clean state, let clean it up
+	// so first set the component as removed ...
+	tc.setComponentManagementState(componentName, operatorv1.Removed)
+
+	// ... and then cleanup tests resources
+	cleanupKueueTestResources(t, tc.TestContext)
+
+	namespacedName := types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}
+	// Install ocp kueue-operator
+	tc.EnsureOperatorInstalledWithChannel(namespacedName, false, kueueOcpOperatorChannel)
+
+	state := operatorv1.Managed
+
+	// State must be Managed, Ready condition must be false because ocp kueue-operator is installed
+	conditions := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, state),
+
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
+	)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(conditions...)),
+	)
+	tc.ConsistentlyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(conditions...)),
+	)
+
+	// Due to the conflict with OCP Kueue operator, default Kueue resources should NOT be created
+	// Validate that ClusterQueue does not exist
+	tc.EnsureResourceDoesNotExist(
+		WithMinimalObject(gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName}),
+	)
+
+	// Validate that Kueue configuration does not exist
+	tc.EnsureResourceDoesNotExist(
+		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueConfigCRName}),
+	)
+}
+
+// ValidateKueueUnmanagedWithoutOcpKueueOperator ensures that if the component is in Unmanaged state and ocp kueue operator is not installed, then its status is "Not Ready".
+func (tc *KueueTestCtx) ValidateKueueUnmanagedWithoutOcpKueueOperator(t *testing.T) {
+	t.Helper()
+
+	componentName := strings.ToLower(tc.GVK.Kind)
+
+	// since the test may be executed on a non-clean state, let clean it up
+	// so first set the component as removed ...
+	tc.setComponentManagementState(componentName, operatorv1.Removed)
+
+	// ... and then cleanup tests resources
+	cleanupKueueTestResources(t, tc.TestContext)
+
+	stateUnmanaged := operatorv1.Unmanaged
+
+	// State must be Managed, Ready condition must be false because ocp kueue-operator is installed
+	conditionsNotReady := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateUnmanaged),
+
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged)),
+		WithCondition(And(conditionsNotReady...)),
+	)
+	tc.ConsistentlyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(conditionsNotReady...)),
+	)
+}
+
+// ValidateComponentEnabled ensures the transition between Managed and Unmanaged state happens as expected.
+func (tc *KueueTestCtx) ValidateKueueManagedToUnmanagedTransition(t *testing.T) {
+	t.Helper()
+
+	componentName := strings.ToLower(tc.GVK.Kind)
+
+	// since the test may be executed on a non-clean state, let clean it up
+	// so first set the component as removed ...
+	tc.setComponentManagementState(componentName, operatorv1.Removed)
+
+	// ... and then cleanup tests resources
+	cleanupKueueTestResources(t, tc.TestContext)
+
+	// Create a test namespace with Kueue management annotation
+	createTestManagedNamespace(tc)
+
+	// MANAGED
+	stateManaged := operatorv1.Managed
+	conditionsManagedReady := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateManaged),
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+	}
+
+	// Update the management state of the component in the DataScienceCluster.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateManaged)),
+		WithCondition(And(conditionsManagedReady...)),
+	)
+
+	// During Managed state, validate that default Kueue resources are created
+	// Validate that ClusterQueue exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName, Namespace: metav1.NamespaceAll}),
+	)
+
+	// Validate that LocalQueue exists for the managed namespace
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.LocalQueue, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: kueueTestManagedNamespace}),
+	)
+
+	// before changing the embedded Kueue management state, ensure the related configuration
+	// ConfigMap is left on the cluster, so it can be taken into account to create the default
+	// Kueue CR for the OpenShift Kueue Operator
+	tc.setManagedAnnotation(
+		gvk.ConfigMap,
+		types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace},
+		false,
+	)
+
+	// UNMANAGED
+	stateUnmanaged := operatorv1.Unmanaged
+	conditionsUnmanagedNotReady := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateUnmanaged),
+
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
+	}
+
+	// Update the management state of the component in the DataScienceCluster.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged)),
+		WithCondition(And(conditionsUnmanagedNotReady...)),
+	)
+
+	// Validate that Kueue's ConfigMap still exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace}),
+	)
+
+	// Ensure embedded kueue operator is not running
+	tc.EnsureResourceDoesNotExist(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+	)
+
+	// During Unmanaged state, resources should still exist since our action creates them for both states
+	// Validate that ClusterQueue still exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName, Namespace: metav1.NamespaceAll}),
+	)
+
+	// Validate that LocalQueue still exists for the managed namespace
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.LocalQueue, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: kueueTestManagedNamespace}),
+	)
+
+	// Install ocp kueue-operator
+	tc.EnsureOperatorInstalledWithChannel(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, false, kueueOcpOperatorChannel)
+
+	conditionsUnmanagedReady := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateUnmanaged),
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(conditionsUnmanagedReady...)),
+	)
+
+	// Validate that Kueue configuration is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueConfigCRName}),
+		// check that the Kueue CR contains information that are not set by default, but
+		// can only be taken from the embedded Kueue ConfigMap
+		WithCondition(jq.Match(`.spec.config.integrations.frameworks | contains(["XGBoostJob"])`)),
+	)
+}
+
+// ValidateKueueManagedToRemovedToUnmanagedTransition ensures the transition from Managed to Removed and then to Unmanaged state happens as expected.
+func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migrateConfig bool) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		componentName := strings.ToLower(tc.GVK.Kind)
+
+		// since the test may be executed on a non-clean state, let clean it up
+		// so first set the component as removed ...
+		tc.setComponentManagementState(componentName, operatorv1.Removed)
+
+		// ... and then cleanup tests resources
+		cleanupKueueTestResources(t, tc.TestContext)
+
+		// Create a test namespace with Kueue management annotation
+		createTestManagedNamespace(tc)
+
+		// MANAGED
+		stateManaged := operatorv1.Managed
+		conditionsManaged := []gTypes.GomegaMatcher{
+			// Validate that the component's management state is updated correctly
+			jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateManaged),
+			// Validate the "Ready" condition for the component
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+		}
+
+		// Update the management state of the component in the DataScienceCluster to Managed.
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateManaged)),
+			WithCondition(And(conditionsManaged...)),
+		)
+
+		// During Managed state, validate that default Kueue resources are created
+		ensureClusterAndLocalQueueExist(tc)
+
+		if migrateConfig {
+			// before changing the embedded Kueue management state, ensure the related configuration
+			// ConfigMap is left on the cluster, so it can be taken into account to create the default
+			// Kueue CR for the OpenShift Kueue Operator
+			tc.setManagedAnnotation(
+				gvk.ConfigMap,
+				types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace},
+				false,
+			)
+		}
+
+		// REMOVED
+		stateRemoved := operatorv1.Removed
+		conditionsRemoved := []gTypes.GomegaMatcher{
+			// Validate that the component's management state is updated correctly
+			jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateRemoved),
+			// Validate the "Ready" condition for the component
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .reason == "%s"`, tc.GVK.Kind, stateRemoved),
+		}
+
+		// Update the management state of the component in the DataScienceCluster to Removed.
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateRemoved)),
+			WithCondition(And(conditionsRemoved...)),
+		)
+
+		// During Removed state, validate that default Kueue resources are left untouched.
+		ensureClusterAndLocalQueueExist(tc)
+
+		if migrateConfig {
+			// Validate that Kueue's ConfigMap still exists
+			tc.g.Get(
+				gvk.ConfigMap, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace},
+			).Eventually().ShouldNot(
+				BeNil(),
+			)
+		} else {
+			// Validate that Kueue's ConfigMap is gone
+			tc.g.Get(
+				gvk.ConfigMap, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace},
+			).Eventually().Should(
+				BeNil(),
+			)
+		}
+
+		// UNMANAGED
+		// Install ocp kueue-operator
+		tc.EnsureOperatorInstalledWithChannel(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, false, kueueOcpOperatorChannel)
+		stateUnmanaged := operatorv1.Unmanaged
+		conditionsUnmanaged := []gTypes.GomegaMatcher{
+			// Validate that the component's management state is updated correctly
+			jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateUnmanaged),
+			// Validate the "Ready" condition for the component
+			jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+		}
+
+		// Update the management state of the component in the DataScienceCluster.
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged)),
+			WithCondition(And(conditionsUnmanaged...)),
+		)
+
+		// During Unmanaged state, resources should still exist since our action creates them for both states
+		ensureClusterAndLocalQueueExist(tc)
+
+		opts := []ResourceOpts{
+			WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueConfigCRName}),
+		}
+
+		if migrateConfig {
+			// check that the Kueue CR contains information that are not set by default, but
+			// can only be taken from the embedded Kueue ConfigMap
+			opts = append(opts, WithCondition(jq.Match(`.spec.config.integrations.frameworks | contains(["XGBoostJob"])`)))
+		} else {
+			// check that the Kueue CR contains only default information
+			opts = append(opts, WithCondition(jq.Match(`.spec.config.integrations.frameworks | contains(["XGBoostJob"]) | not`)))
+		}
+
+		// Validate that Kueue configuration is created
+		tc.EnsureResourceExists(opts...)
+	}
+}
+
+// ValidateKueueUnmanagedToManagedTransition ensures the transition from Unmanaged to Managed state happens as expected.
+func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) {
+	t.Helper()
+
+	componentName := strings.ToLower(tc.GVK.Kind)
+
+	// since the test may be executed on a non-clean state, let clean it up
+	// so first set the component as removed ...
+	tc.setComponentManagementState(componentName, operatorv1.Removed)
+
+	// ... and then cleanup tests resources
+	cleanupKueueTestResources(t, tc.TestContext)
+
+	// Create a test namespace with Kueue management annotation
+	createTestManagedNamespace(tc)
+
+	// UNMANAGED
+	// Install ocp kueue-operator
+	tc.EnsureOperatorInstalledWithChannel(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, false, kueueOcpOperatorChannel)
+	stateUnmanaged := operatorv1.Unmanaged
+	conditionsUnmanaged := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateUnmanaged),
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+	}
+
+	// Update the management state of the component in the DataScienceCluster.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged)),
+		WithCondition(And(conditionsUnmanaged...)),
+	)
+
+	// During Unmanaged state, resources should still exist since our action creates them for both states
+	ensureClusterAndLocalQueueExist(tc)
+
+	// Validate that Kueue configuration is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueConfigCRName}),
+	)
+
+	// MANAGED
+	stateManaged := operatorv1.Managed
+	conditionsManagedNotReady := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateManaged),
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
+	}
+
+	// Update the management state of the component in the DataScienceCluster to Managed.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateManaged)),
+		WithCondition(And(conditionsManagedNotReady...)),
+	)
+
+	// Uninstall ocp kueue-operator
+	uninstallOperatorWithChannel(t, tc.TestContext, types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, kueueOcpOperatorChannel)
+
+	conditionsManagedReady := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, stateManaged),
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(conditionsManagedReady...)),
+	)
+
+	// Validate default resources are still there
+	ensureClusterAndLocalQueueExist(tc)
+
+	// Validate that Kueue configuration is still there
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueConfigCRName}),
+	)
+
+	// Remove Kueue test resources
+	cleanupKueueTestResources(t, tc.TestContext)
+}
+
+func ensureClusterAndLocalQueueExist(tc *KueueTestCtx) {
+	// Validate that ClusterQueue still exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName, Namespace: metav1.NamespaceAll}),
+	)
+
+	// Validate that LocalQueue still exists for the managed namespace
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.LocalQueue, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: kueueTestManagedNamespace}),
+	)
+}
+
 // deleteAndValidateCRD deletes a given CRD and ensures it no longer exists.
 func (tc *KueueTestCtx) deleteAndValidateCRD(crdName string) {
 	// Delete the CRD
@@ -166,54 +580,57 @@ func (tc *KueueTestCtx) deleteAndValidateCRD(crdName string) {
 			&client.DeleteOptions{
 				PropagationPolicy: &propagationPolicy,
 			}),
-		WithWaitForDeletion(true),
 	)
 }
 
-// createMockCRD creates a mock CRD for a given group, version, kind, and namespace.
-func (tc *KueueTestCtx) createMockCRD(gvk schema.GroupVersionKind, namespace string) {
-	crd := mockCRDCreation(gvk.Group, gvk.Version, strings.ToLower(gvk.Kind), namespace)
+// createMockCRD creates a mock CRD for a given group, version, kind, and componentName.
+func (tc *KueueTestCtx) createMockCRD(gvk schema.GroupVersionKind, componentName string) {
+	crd := mocks.NewMockCRD(gvk.Group, gvk.Version, strings.ToLower(gvk.Kind), componentName)
 
-	tc.EnsureResourceCreatedOrUpdated(WithObjectToCreate(crd))
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(crd))
 }
 
-// mockCRDCreation generates a mock CRD with the specified parameters.
-func mockCRDCreation(group, version, kind, componentName string) *apiextv1.CustomResourceDefinition {
-	return &apiextv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: strings.ToLower(fmt.Sprintf("%ss.%s", kind, group)),
-			Labels: map[string]string{
-				labels.ODH.Component(componentName): labels.True,
-			},
-		},
-		Spec: apiextv1.CustomResourceDefinitionSpec{
-			Group: group,
-			Names: apiextv1.CustomResourceDefinitionNames{
-				Kind:   kind,
-				Plural: strings.ToLower(kind) + "s",
-			},
-			Scope: apiextv1.ClusterScoped,
-			Versions: []apiextv1.CustomResourceDefinitionVersion{
-				{
-					Name:    version,
-					Served:  true,
-					Storage: true,
-					Schema: &apiextv1.CustomResourceValidation{
-						OpenAPIV3Schema: &apiextv1.JSONSchemaProps{
-							Type: "object",
-						},
-					},
-				},
-			},
-		},
+func (tc *KueueTestCtx) setManagedAnnotation(gvk schema.GroupVersionKind, name types.NamespacedName, managed bool) {
+	ownerReferencesCount := 0
+	if managed {
+		ownerReferencesCount = 1
 	}
+
+	_, err := tc.g.Update(gvk, name,
+		func(obj *unstructured.Unstructured) error {
+			resources.SetAnnotation(obj, annotations.ManagedByODHOperator, strconv.FormatBool(managed))
+			return nil
+		},
+	).Get()
+
+	tc.g.Expect(err).ShouldNot(HaveOccurred())
+
+	tc.g.Get(gvk, name).Eventually().Should(And(
+		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.ManagedByODHOperator, strconv.FormatBool(managed)),
+		jq.Match(`.metadata.ownerReferences | length == %d`, ownerReferencesCount),
+	))
 }
 
-// getClusterVersion retrieves and parses the cluster version.
-func (tc *ComponentTestCtx) getClusterVersion() semver.Version {
-	cv := tc.FetchClusterVersion()
-	v, err := semver.ParseTolerant(cv.Status.History[0].Version)
-	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to get cluster version")
+func (tc *KueueTestCtx) setComponentManagementState(componentName string, state operatorv1.ManagementState) {
+	conditionsRemoved := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, state),
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .reason == "%s"`, tc.GVK.Kind, state),
+	}
 
-	return v
+	// Update the management state of the component in the DataScienceCluster to Removed.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
+		WithCondition(And(conditionsRemoved...)),
+	)
+}
+
+func createTestManagedNamespace(tc *KueueTestCtx) {
+	// Create a test namespace with Kueue management annotation
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: kueueTestManagedNamespace}),
+		WithMutateFunc(testf.Transform(`.metadata.labels["kueue.openshift.io/managed"] = "true"`)),
+	)
 }

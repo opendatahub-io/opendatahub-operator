@@ -94,7 +94,7 @@ func (tc *TrustyAITestCtx) SetKserveState(state operatorv1.ManagementState, shou
 	nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
 
 	// Update the Kserve component state in DataScienceCluster.
-	tc.UpdateComponentStateInDataScienceCluster(state, gvk.Kserve.Kind)
+	tc.UpdateComponentStateInDataScienceClusterWhitKind(state, gvk.Kserve.Kind)
 
 	// Verify if Kserve should exist or be removed.
 	if shouldExist {

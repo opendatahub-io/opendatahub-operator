@@ -180,8 +180,8 @@ func isFailureExpected(condition gTypes.GomegaMatcher) bool {
 	return false
 }
 
-// ensureResourceApplied is a common function for handling create/patch and create/update operations.
-// It applies a given resource and ensures it meets the expected condition.
+// eventuallyResourceApplied is a common function for handling create/patch and create/update operations.
+// It applies a given resource and ensures it eventually meets the expected condition.
 //
 // Parameters:
 //   - ro: The ResourceOptions object that contains all the configuration for the resource, condition, and mutation function.
@@ -189,7 +189,7 @@ func isFailureExpected(condition gTypes.GomegaMatcher) bool {
 //
 // Returns:
 //   - *unstructured.Unstructured: The applied resource if it meets the expected condition.
-func ensureResourceApplied(
+func eventuallyResourceApplied(
 	ro *ResourceOptions,
 	applyResourceFn func(obj *unstructured.Unstructured, fn ...func(obj *unstructured.Unstructured) error) *testf.EventuallyValue[*unstructured.Unstructured],
 ) *unstructured.Unstructured {
@@ -198,10 +198,44 @@ func ensureResourceApplied(
 
 	// Use Eventually to retry getting the resource until it appears
 	var u *unstructured.Unstructured
-	ro.tc.g.Eventually(func(innerG Gomega) {
+
+	ro.tc.g.Eventually(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed())
+
+	return u
+}
+
+// eventuallyResourceApplied is a common function for handling create/patch and create/update operations.
+// It applies a given resource and ensures it consistently meets the expected condition.
+//
+// Parameters:
+//   - ro: The ResourceOptions object that contains all the configuration for the resource, condition, and mutation function.
+//   - applyResourceFn: The function responsible for applying the resource (create, patch, etc.).
+//
+// Returns:
+//   - *unstructured.Unstructured: The applied resource if it meets the expected condition.
+func consistentlyResourceApplied(
+	ro *ResourceOptions,
+	applyResourceFn func(obj *unstructured.Unstructured, fn ...func(obj *unstructured.Unstructured) error) *testf.EventuallyValue[*unstructured.Unstructured],
+) *unstructured.Unstructured {
+	// Wrap condition if it's not already wrapped correctly
+	wrapConditionIfNeeded(&ro.Condition)
+
+	// Use Eventually to retry getting the resource until it appears
+	var u *unstructured.Unstructured
+
+	ro.tc.g.Consistently(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed())
+
+	return u
+}
+
+func ensureResourceAppliedGomegaFunction(
+	ro *ResourceOptions,
+	u **unstructured.Unstructured,
+	applyResourceFn func(obj *unstructured.Unstructured, fn ...func(obj *unstructured.Unstructured) error) *testf.EventuallyValue[*unstructured.Unstructured]) func(innerG Gomega) {
+	return func(innerG Gomega) {
 		// Fetch the resource
 		var err error
-		u, err = applyResourceFn(ro.Obj, ro.MutateFunc).Get()
+		*u, err = applyResourceFn(ro.Obj, ro.MutateFunc).Get()
 
 		// Evaluate the condition to check if failure is expected
 		expectingFailure := isFailureExpected(ro.Condition)
@@ -218,15 +252,13 @@ func ensureResourceApplied(
 			)
 
 			// Ensure that the resource object is not nil
-			innerG.Expect(u).NotTo(BeNil(), resourceNotFoundErrorMsg, ro.ResourceID, ro.GVK.Kind)
+			innerG.Expect(*u).NotTo(BeNil(), resourceNotFoundErrorMsg, ro.ResourceID, ro.GVK.Kind)
 		} else {
 			// Expect error if failure is expected
 			innerG.Expect(err).To(HaveOccurred(), "Expected applyResourceFn to fail but it succeeded")
 		}
 
 		// Apply the matchers based on the condition
-		applyMatchers(innerG, ro.ResourceID, ro.GVK, u, err, ro.Condition, ro.CustomErrorArgs)
-	}).Should(Succeed())
-
-	return u
+		applyMatchers(innerG, ro.ResourceID, ro.GVK, *u, err, ro.Condition, ro.CustomErrorArgs)
+	}
 }

@@ -255,6 +255,99 @@ func TestDeployNotOwnedCreate(t *testing.T) {
 	))
 }
 
+func TestDeployDeOwn(t *testing.T) {
+	g := NewWithT(t)
+
+	ctx := context.Background()
+	ns := xid.New().String()
+	name := xid.New().String()
+
+	action := deploy.NewAction(
+		// fake client does not yet support SSA
+		// - https://github.com/kubernetes/kubernetes/issues/115598
+		// - https://github.com/kubernetes-sigs/controller-runtime/issues/2341
+		deploy.WithMode(deploy.ModePatch),
+	)
+
+	ref := corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+	}
+
+	cl, err := fakeclient.New(fakeclient.WithObjects())
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = cl.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	rr := types.ReconciliationRequest{
+		Client: cl,
+		Controller: mocks.NewMockController(func(m *mocks.MockController) {
+			m.On("Owns", mock.Anything).Return(true)
+		}),
+		DSCI: &dsciv1.DSCInitialization{
+			Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		Instance: &componentApi.Dashboard{
+			ObjectMeta: metav1.ObjectMeta{
+				Generation: 1,
+			},
+		},
+		Release: common.Release{
+			Name: cluster.OpenDataHub,
+			Version: version.OperatorVersion{Version: semver.Version{
+				Major: 1, Minor: 2, Patch: 3,
+			}}},
+	}
+
+	err = rr.AddResources(&ref)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	cm1 := resources.GvkToUnstructured(gvk.ConfigMap)
+	cm1.SetNamespace(ref.Namespace)
+	cm1.SetName(ref.Name)
+
+	err = cl.Get(ctx, client.ObjectKeyFromObject(cm1), cm1)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(cm1).Should(And(
+		jq.Match(`.metadata.annotations | has("%s") | not`, annotations.ManagedByODHOperator),
+		jq.Match(`.metadata.ownerReferences | length == 1`),
+		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Dashboard.Kind),
+	))
+
+	unmanaged := ref.DeepCopy()
+	unmanaged.Annotations = map[string]string{
+		annotations.ManagedByODHOperator: "false",
+	}
+
+	err = cl.Update(ctx, unmanaged)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = action(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	cm2 := resources.GvkToUnstructured(gvk.ConfigMap)
+	cm2.SetNamespace(ref.Namespace)
+	cm2.SetName(ref.Name)
+
+	err = cl.Get(ctx, client.ObjectKeyFromObject(cm1), cm2)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	g.Expect(cm2).Should(And(
+		jq.Match(`.metadata.annotations | has("%s") `, annotations.ManagedByODHOperator),
+		jq.Match(`.metadata.ownerReferences | length == 0`),
+	))
+}
+
 func TestDeployClusterRole(t *testing.T) {
 	g := NewWithT(t)
 	s := runtime.NewScheme()
