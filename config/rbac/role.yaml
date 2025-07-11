@@ -404,6 +404,15 @@ rules:
   - update
   - watch
 - apiGroups:
+  - dashboard.opendatahub.io
+  resources:
+  - hardwareprofiles
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
   - datasciencecluster.opendatahub.io
   resources:
   - datascienceclusters
