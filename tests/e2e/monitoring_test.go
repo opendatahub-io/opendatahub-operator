@@ -183,11 +183,10 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
 	t.Helper()
 
 	dsci := tc.FetchDSCInitialization()
-	monitoringStackName := getMonitoringStackName(dsci)
 
 	// Verify MonitoringStack CR is created
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: "data-science-monitoringstack", Namespace: dsci.Spec.Monitoring.Namespace}),
 	)
 
 	// Set metrics to empty object
@@ -198,7 +197,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
 
 	// Verify MonitoringStack CR is deleted by gc
 	tc.EnsureResourcesGone(
-		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: "data-science-monitoringstack", Namespace: dsci.Spec.Monitoring.Namespace}),
 	)
 
 	// Ensure Monitoring CR is still present
@@ -208,7 +207,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
 
 	monitoring := &serviceApi.Monitoring{}
 	tc.FetchTypedResource(monitoring, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
-	tc.g.Expect(monitoring.Spec.Metrics).To(BeNil(), "Expected 'metrics' not in Monitoring CR")
+	tc.g.Expect(monitoring.Spec.Metrics).To(BeNil(), "Expected 'metrics' to be nil in Monitoring CR")
 }
 
 func (tc *MonitoringTestCtx) ValidateMonitoringCRDeleted(t *testing.T) {
