@@ -100,9 +100,9 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 }
 
 func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// If DSCI is not found, we don't need to create the monitoring stack
-	ok, _, _ := checkDSCI(ctx, rr)
-	if !ok {
+	// If DSCI is not found or monitoring is not Managed, we don't need to create the monitoring stack
+	ok, dsci, _ := checkDSCI(ctx, rr)
+	if !ok || dsci.Spec.Monitoring.ManagementSpec.ManagementState != operatorv1.Managed {
 		return nil
 	}
 
@@ -147,6 +147,10 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 }
 
 func createOpenTelemetryCollector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	ok, dsci, _ := checkDSCI(ctx, rr)
+	if !ok || dsci.Spec.Monitoring.ManagementSpec.ManagementState != operatorv1.Managed {
+		return nil
+	}
 	otcExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.OpenTelemetryCollector)
 	if !otcExists {
 		rr.Conditions.MarkFalse(
