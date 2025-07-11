@@ -174,8 +174,8 @@ spec:
                         type: object
                     type: object
                     x-kubernetes-validations:
-                    - message: Replicas can only be set when either Storage or Resources
-                        is configured
+                    - message: Replicas can only be set to non-zero value when either
+                        Storage or Resources is configured
                       rule: '!(self.storage == null && self.resources == null) ||
                         !has(self.replicas) || self.replicas == 0'
                   namespace:

@@ -12,6 +12,7 @@ spec:
   monitoring:
     managementState: "Managed"
     namespace: 'redhat-ods-monitoring'
+    metrics: {}
   applicationsNamespace: 'redhat-ods-applications'
   serviceMesh:
     controlPlane:
