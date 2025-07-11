@@ -12,6 +12,7 @@ spec:
   monitoring:
     managementState: "Managed"
     namespace: 'opendatahub'
+    metrics: {}
   applicationsNamespace: 'opendatahub'
   serviceMesh:
     controlPlane:

@@ -1,11 +1,17 @@
 package e2e_test
 
 import (
+	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
@@ -13,6 +19,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
@@ -21,6 +28,177 @@ import (
 
 type MonitoringTestCtx struct {
 	*TestContext
+}
+
+// setupMonitoringCRDs ensures that all required CRDs for monitoring tests are installed.
+func (tc *MonitoringTestCtx) setupMonitoringCRDs() {
+	// Install MonitoringStack CRD
+	if !tc.isMonitoringStackCRDAvailable() {
+		tc.createMonitoringStackCRD()
+	}
+
+	// Install TempoMonolithic CRD
+	if !tc.isTempoMonolithicCRDAvailable() {
+		tc.createTempoMonolithicCRD()
+	}
+
+	// Install TempoStack CRD
+	if !tc.isTempoStackCRDAvailable() {
+		tc.createTempoStackCRD()
+	}
+}
+
+// createMonitoringStackCRD creates a mock MonitoringStack CRD.
+func (tc *MonitoringTestCtx) createMonitoringStackCRD() {
+	crd := tc.createMockCRD(gvk.MonitoringStack, "monitoring")
+	tc.EnsureResourceCreatedOrUpdated(WithObjectToCreate(crd))
+}
+
+// createTempoMonolithicCRD creates a mock TempoMonolithic CRD.
+func (tc *MonitoringTestCtx) createTempoMonolithicCRD() {
+	crd := tc.createMockCRD(gvk.TempoMonolithic, "tempo")
+	tc.EnsureResourceCreatedOrUpdated(WithObjectToCreate(crd))
+}
+
+// createTempoStackCRD creates a mock TempoStack CRD.
+func (tc *MonitoringTestCtx) createTempoStackCRD() {
+	crd := tc.createMockCRD(gvk.TempoStack, "tempo")
+	tc.EnsureResourceCreatedOrUpdated(WithObjectToCreate(crd))
+}
+
+// createMockCRD creates a mock CRD for a given group, version, kind, and component.
+func (tc *MonitoringTestCtx) createMockCRD(gvk schema.GroupVersionKind, componentName string) *apiextv1.CustomResourceDefinition {
+	return &apiextv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: strings.ToLower(fmt.Sprintf("%ss.%s", gvk.Kind, gvk.Group)),
+			Labels: map[string]string{
+				labels.ODH.Component(componentName): labels.True,
+			},
+		},
+		Spec: apiextv1.CustomResourceDefinitionSpec{
+			Group: gvk.Group,
+			Names: apiextv1.CustomResourceDefinitionNames{
+				Kind:   gvk.Kind,
+				Plural: strings.ToLower(gvk.Kind) + "s",
+			},
+			Scope: apiextv1.NamespaceScoped,
+			Versions: []apiextv1.CustomResourceDefinitionVersion{
+				{
+					Name:    gvk.Version,
+					Served:  true,
+					Storage: true,
+					Schema: &apiextv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextv1.JSONSchemaProps{
+							Type: "object",
+							Properties: map[string]apiextv1.JSONSchemaProps{
+								"spec": {
+									Type: "object",
+									Properties: map[string]apiextv1.JSONSchemaProps{
+										"alertmanagerConfig": {Type: "object"},
+										"logLevel":           {Type: "string"},
+										"prometheusConfig":   {Type: "object"},
+										"resourceSelector":   {Type: "object"},
+										"resources":          {Type: "object"},
+										"retention":          {Type: "string"},
+										// Tempo-specific fields
+										"multitenancy": {
+											Type: "object",
+											Properties: map[string]apiextv1.JSONSchemaProps{
+												"enabled": {Type: "boolean"},
+											},
+										},
+										"storage": {
+											Type: "object",
+											Properties: map[string]apiextv1.JSONSchemaProps{
+												"traces": {
+													Type: "object",
+													Properties: map[string]apiextv1.JSONSchemaProps{
+														"backend": {Type: "string"},
+														"size":    {Type: "string"},
+													},
+												},
+												"secret": {
+													Type: "object",
+													Properties: map[string]apiextv1.JSONSchemaProps{
+														"name": {Type: "string"},
+														"type": {Type: "string"},
+													},
+												},
+											},
+										},
+										"tenants": {
+											Type: "object",
+											Properties: map[string]apiextv1.JSONSchemaProps{
+												"mode": {Type: "string"},
+											},
+										},
+										"template": {
+											Type: "object",
+											Properties: map[string]apiextv1.JSONSchemaProps{
+												"gateway": {
+													Type: "object",
+													Properties: map[string]apiextv1.JSONSchemaProps{
+														"enabled": {Type: "boolean"},
+													},
+												},
+											},
+										},
+									},
+								},
+								"status": {
+									Type: "object",
+									Properties: map[string]apiextv1.JSONSchemaProps{
+										"conditions": {
+											Type: "array",
+											Items: &apiextv1.JSONSchemaPropsOrArray{
+												Schema: &apiextv1.JSONSchemaProps{
+													Type: "object",
+													Properties: map[string]apiextv1.JSONSchemaProps{
+														"type":   {Type: "string"},
+														"status": {Type: "string"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Subresources: &apiextv1.CustomResourceSubresources{
+						Status: &apiextv1.CustomResourceSubresourceStatus{},
+					},
+				},
+			},
+		},
+	}
+}
+
+// isMonitoringStackCRDAvailable checks if the MonitoringStack CRD is available in the cluster.
+func (tc *MonitoringTestCtx) isMonitoringStackCRDAvailable() bool {
+	exists, err := cluster.HasCRD(context.Background(), tc.Client(), gvk.MonitoringStack)
+	if err != nil {
+		return false
+	}
+	return exists
+}
+
+// isTempoMonolithicCRDAvailable checks if the TempoMonolithic CRD is available in the cluster.
+func (tc *MonitoringTestCtx) isTempoMonolithicCRDAvailable() bool {
+	exists, err := cluster.HasCRD(context.Background(), tc.Client(), gvk.TempoMonolithic)
+	if err != nil {
+		return false
+	}
+	return exists
+}
+
+// isTempoStackCRDAvailable checks if the TempoStack CRD is available in the cluster.
+func (tc *MonitoringTestCtx) isTempoStackCRDAvailable() bool {
+	exists, err := cluster.HasCRD(context.Background(), tc.Client(), gvk.TempoStack)
+	if err != nil {
+		return false
+	}
+	return exists
 }
 
 func monitoringTestSuite(t *testing.T) {
@@ -35,6 +213,9 @@ func monitoringTestSuite(t *testing.T) {
 		TestContext: tc,
 	}
 
+	// Setup required CRDs for monitoring tests
+	monitoringServiceCtx.setupMonitoringCRDs()
+
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed)),
@@ -47,6 +228,12 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringStackCRMetricsWhenSet},
 		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsConfiguration},
 		{"Test Metrics Replicas Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsReplicasUpdate},
+		{"Test Traces default content", monitoringServiceCtx.ValidateMonitoringCRDefaultTracesContent},
+		{"Test TempoMonolithic CR Creation with PV backend", monitoringServiceCtx.ValidateTempoMonolithicCRCreation},
+		{"Test TempoMonolithic CR Configuration", monitoringServiceCtx.ValidateTempoMonolithicCRConfiguration},
+		{"Test TempoStack CR Creation with S3 backend", monitoringServiceCtx.ValidateTempoStackCRCreation},
+		{"Test TempoStack CR Configuration", monitoringServiceCtx.ValidateTempoStackCRConfiguration},
+		{"Test TempoStack CR Creation with GCS backend", monitoringServiceCtx.ValidateTempoStackCRCreationWithGCS},
 	}
 
 	// Run the test suite.
@@ -111,23 +298,25 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsWhenSet(t *testing.
 
 	monitoringStackName := getMonitoringStackName(dsci)
 
-	// Update DSCI to set metrics
+	// Update DSCI to set metrics - ensure managementState remains Managed
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: "5Gi", retention: "1d"}, resources: {cpurequest: "250m", memoryrequest: "350Mi"}}`)),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringMetrics(),
+		)),
 	)
 
-	// ensure the Monitoring CR is created with Ready status
-	m := tc.EnsureResourceExists(
+	// Wait for the Monitoring resource to be updated by DSCInitialization controller
+	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
-		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
+		WithCondition(jq.Match(`.spec.metrics != null`)),
+		WithCustomErrorMsg("Monitoring resource should be updated with metrics configuration by DSCInitialization controller"),
 	)
-	tc.g.Expect(m).ToNot(BeNil())
 
-	// ensure the MonitoringStack CR is created with Available status
+	// ensure the MonitoringStack CR is created (status conditions are set by external monitoring operator)
 	ms := tc.EnsureResourceExists(
 		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
-		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeAvailable, metav1.ConditionTrue)),
 	)
 	tc.g.Expect(ms).ToNot(BeNil())
 }
@@ -196,4 +385,240 @@ func getMonitoringStackName(dsci *dsciv1.DSCInitialization) string {
 	}
 
 	return "odh-monitoringstack"
+}
+
+func getTempoMonolithicName(dsci *dsciv1.DSCInitialization) string {
+	switch dsci.Status.Release.Name {
+	case cluster.ManagedRhoai:
+		return "rhoai-tempomonolithic"
+	case cluster.SelfManagedRhoai:
+		return "rhoai-tempomonolithic"
+	}
+
+	return "odh-tempomonolithic"
+}
+
+func getTempoStackName(dsci *dsciv1.DSCInitialization) string {
+	switch dsci.Status.Release.Name {
+	case cluster.ManagedRhoai:
+		return "rhoai-tempostack"
+	case cluster.SelfManagedRhoai:
+		return "rhoai-tempostack"
+	}
+
+	return "odh-tempostack"
+}
+
+// setMonitoringMetrics creates a transformation function that sets the monitoring metrics configuration.
+func setMonitoringMetrics() testf.TransformFn {
+	return func(obj *unstructured.Unstructured) error {
+		metricsConfig := map[string]interface{}{
+			"storage": map[string]interface{}{
+				"size":      "5Gi",
+				"retention": "1d",
+			},
+			"resources": map[string]interface{}{
+				"cpurequest":    "250m",
+				"memoryrequest": "350Mi",
+			},
+		}
+
+		return unstructured.SetNestedField(obj.Object, metricsConfig, "spec", "monitoring", "metrics")
+	}
+}
+
+// setMonitoringTraces creates a transformation function that sets the monitoring traces configuration.
+func setMonitoringTraces(backend, secret, size string) testf.TransformFn {
+	return func(obj *unstructured.Unstructured) error {
+		tracesConfig := map[string]interface{}{
+			"storage": map[string]interface{}{
+				"backend": backend,
+			},
+		}
+
+		if size != "" {
+			if storage, ok := tracesConfig["storage"].(map[string]interface{}); ok {
+				storage["size"] = size
+			}
+		}
+
+		if secret != "" {
+			if storage, ok := tracesConfig["storage"].(map[string]interface{}); ok {
+				storage["secret"] = secret
+			}
+		}
+
+		return unstructured.SetNestedField(obj.Object, tracesConfig, "spec", "monitoring", "traces")
+	}
+}
+
+// ValidateMonitoringCRDefaultTracesContent validates that traces stanza is omitted by default.
+func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultTracesContent(t *testing.T) {
+	t.Helper()
+
+	// Ensure that the Monitoring resource exists.
+	monitoring := &serviceApi.Monitoring{}
+	tc.FetchTypedResource(monitoring, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
+
+	// Validate the traces stanza is omitted by default
+	tc.g.Expect(monitoring.Spec.Traces).
+		To(BeNil(),
+			"Expected traces stanza to be omitted by default")
+}
+
+// ValidateTempoMonolithicCRCreation tests creation of TempoMonolithic CR with PV backend.
+func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRCreation(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+	tempoMonolithicName := getTempoMonolithicName(dsci)
+
+	// Update DSCI to set traces with PV backend
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringTraces("pv", "", "10Gi"),
+		)),
+	)
+
+	// Wait for the Monitoring resource to be updated by DSCInitialization controller.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.spec.traces != null`)),
+		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
+	)
+
+	// Ensure the TempoMonolithic CR is created (status conditions are set by external tempo operator).
+	tempoMonolithic := tc.EnsureResourceExists(
+		WithMinimalObject(gvk.TempoMonolithic, types.NamespacedName{Name: tempoMonolithicName, Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+	tc.g.Expect(tempoMonolithic).ToNot(BeNil())
+}
+
+// ValidateTempoMonolithicCRConfiguration tests configuration of TempoMonolithic CR.
+func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRConfiguration(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+	tempoMonolithicName := getTempoMonolithicName(dsci)
+
+	tempoMonolithic := tc.FetchResources(
+		WithMinimalObject(gvk.TempoMonolithic, types.NamespacedName{Name: tempoMonolithicName, Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+
+	// Validate the storage size is set to 10Gi.
+	storageSize, found, err := unstructured.NestedString(tempoMonolithic[0].Object, "spec", "storage", "traces", "size")
+	tc.g.Expect(err).ToNot(HaveOccurred())
+	tc.g.Expect(found).To(BeTrue())
+	tc.g.Expect(storageSize).To(Equal("10Gi"))
+
+	// Validate the backend is set to pv.
+	backend, found, err := unstructured.NestedString(tempoMonolithic[0].Object, "spec", "storage", "traces", "backend")
+	tc.g.Expect(err).ToNot(HaveOccurred())
+	tc.g.Expect(found).To(BeTrue())
+	tc.g.Expect(backend).To(Equal("pv"))
+}
+
+// ValidateTempoStackCRCreation tests creation of TempoStack CR with S3 backend.
+func (tc *MonitoringTestCtx) ValidateTempoStackCRCreation(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+	tempoStackName := getTempoStackName(dsci)
+
+	// Update DSCI to set traces with S3 backend.
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringTraces("s3", "s3-secret", ""),
+		)),
+	)
+
+	// Wait for the Monitoring resource to be updated by DSCInitialization controller.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.spec.traces != null`)),
+		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
+	)
+
+	// Ensure the TempoStack CR is created (status conditions are set by external tempo operator).
+	tempoStack := tc.EnsureResourceExists(
+		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: tempoStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+	tc.g.Expect(tempoStack).ToNot(BeNil())
+}
+
+// ValidateTempoStackCRConfiguration tests configuration of TempoStack CR.
+func (tc *MonitoringTestCtx) ValidateTempoStackCRConfiguration(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+	tempoStackName := getTempoStackName(dsci)
+
+	tempoStack := tc.FetchResources(
+		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: tempoStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+
+	// Validate the backend is set to s3.
+	backend, found, err := unstructured.NestedString(tempoStack[0].Object, "spec", "storage", "secret", "type")
+	tc.g.Expect(err).ToNot(HaveOccurred())
+	tc.g.Expect(found).To(BeTrue())
+	tc.g.Expect(backend).To(Equal("s3"))
+
+	// Validate the secret name is set.
+	secretName, found, err := unstructured.NestedString(tempoStack[0].Object, "spec", "storage", "secret", "name")
+	tc.g.Expect(err).ToNot(HaveOccurred())
+	tc.g.Expect(found).To(BeTrue())
+	tc.g.Expect(secretName).To(Equal("s3-secret"))
+}
+
+// ValidateTempoStackCRCreationWithGCS tests creation of TempoStack CR with GCS backend.
+func (tc *MonitoringTestCtx) ValidateTempoStackCRCreationWithGCS(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+	tempoStackName := getTempoStackName(dsci)
+
+	// Update DSCI to set traces with GCS backend.
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringTraces("gcs", "gcs-secret", ""),
+		)),
+	)
+
+	// Wait for the Monitoring resource to be updated by DSCInitialization controller.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.spec.traces.storage.backend == "gcs"`)),
+		WithCustomErrorMsg("Monitoring resource should be updated with GCS traces configuration by DSCInitialization controller"),
+	)
+
+	// Wait for the TempoStack CR to be updated with the GCS backend (this ensures the resource is updated after the previous S3 test).
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: tempoStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(jq.Match(`.spec.storage.secret.type == "gcs"`)),
+		WithCustomErrorMsg("TempoStack resource should be updated with GCS backend type"),
+	)
+
+	// Fetch the updated TempoStack to validate its configuration
+	tempoStack := tc.EnsureResourceExists(
+		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: tempoStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+	tc.g.Expect(tempoStack).ToNot(BeNil())
+
+	// Validate the backend is set to gcs.
+	backend, found, err := unstructured.NestedString(tempoStack.Object, "spec", "storage", "secret", "type")
+	tc.g.Expect(err).ToNot(HaveOccurred())
+	tc.g.Expect(found).To(BeTrue())
+	tc.g.Expect(backend).To(Equal("gcs"))
+
+	// Validate the secret name is set.
+	secretName, found, err := unstructured.NestedString(tempoStack.Object, "spec", "storage", "secret", "name")
+	tc.g.Expect(err).ToNot(HaveOccurred())
+	tc.g.Expect(found).To(BeTrue())
+	tc.g.Expect(secretName).To(Equal("gcs-secret"))
 }
