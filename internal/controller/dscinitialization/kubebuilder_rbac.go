@@ -51,3 +51,7 @@ package dscinitialization
 //+kubebuilder:rbac:groups=monitoring.rhobs,resources=monitoringstacks,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=monitoring.rhobs,resources=monitoringstacks/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=monitoring.rhobs,resources=monitoringstacks/finalizers,verbs=update
+
+//+kubebuilder:rbac:groups=opentelemetry.io,resources=instrumentations,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=opentelemetry.io,resources=instrumentations/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=opentelemetry.io,resources=instrumentations/finalizers,verbs=update
