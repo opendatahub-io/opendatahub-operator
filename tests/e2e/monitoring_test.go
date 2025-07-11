@@ -216,7 +216,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
 
 	monitoring := &serviceApi.Monitoring{}
 	tc.FetchTypedResource(monitoring, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
-	tc.g.Expect(monitoring.Spec.Metrics).To(BeNil(), "Expected 'metrics' not in Monitoring CR")
+	tc.g.Expect(*monitoring.Spec.Metrics).To(BeZero(), "Expected 'metrics' value be empty in Monitoring CR")
 }
 
 func (tc *MonitoringTestCtx) ValidateMonitoringCRDeleted(t *testing.T) {

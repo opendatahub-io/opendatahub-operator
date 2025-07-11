@@ -441,12 +441,11 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		},
 	}
 
-	// if metrics is not removed from DSCI totally, otherwise it is default as nil in defaultMonitoring
 	if dsci.Spec.Monitoring.Metrics != nil {
 		// when metrics has values set in resoures or storage. skip replicas since it cannot be 0 from CEL validation
 		if dsci.Spec.Monitoring.Metrics.Storage != nil || dsci.Spec.Monitoring.Metrics.Resources != nil {
 			defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
-		} else { // if metrics is set to metrics:{} to avoid  invalid value "null" to patch existing Monitoring CR
+		} else { // if metrics is set to metrics:{} to avoid  invalid value "null" to Apply() existing Monitoring CR
 			defaultMonitoring.Spec.Metrics = nil // explictliy set to nil, same as not set but for better readability
 		}
 	}
