@@ -164,12 +164,6 @@ func createOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 		conditions.WithMessage(OpenTelemetryCollectorCRDAvailableMessage),
 	)
 
-	// If DSCI is not found, we don't need to create the OpenTelemetry Collector
-	ok, _, _ := checkDSCI(ctx, rr)
-	if !ok {
-		return nil
-	}
-
 	mon, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
