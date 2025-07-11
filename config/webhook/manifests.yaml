@@ -24,6 +24,46 @@ webhooks:
     resources:
     - datascienceclusters
   sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-hardware-profile
+  failurePolicy: Fail
+  name: hardwareprofile-injector.opendatahub.io
+  rules:
+  - apiGroups:
+    - kubeflow.org
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - notebooks
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-hardware-profile
+  failurePolicy: Fail
+  name: hardwareprofile-kserve-injector.opendatahub.io
+  rules:
+  - apiGroups:
+    - serving.kserve.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - inferenceservices
+  sideEffects: None
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
