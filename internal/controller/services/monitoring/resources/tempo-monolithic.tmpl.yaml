@@ -1,0 +1,14 @@
+apiVersion: tempo.grafana.com/v1alpha1
+kind: TempoMonolithic
+metadata:
+  name: {{ .TempoName }}
+  namespace: {{ .Namespace }}
+spec:
+  multitenancy:
+    enabled: true  # Required for OpenShift
+  storage:
+    traces:
+      backend: {{ .Backend }}
+      {{ if .Size }}
+      size: "{{ .Size }}"
+      {{ end }}
