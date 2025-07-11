@@ -157,6 +157,8 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorDeployment(t *testing
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: monitoring.CollectorName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		// Format of statusReplicas is n/m, we check if at least one is ready
+		WithCondition(jq.Match(`.status.scale.statusReplicas | split("/") | min > 0`)),
 	)
 }
 
