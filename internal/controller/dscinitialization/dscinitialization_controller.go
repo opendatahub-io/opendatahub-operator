@@ -417,13 +417,8 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		},
 	}
 
-	if dsci.Spec.Monitoring.Metrics != nil {
-		defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
-	}
-
-	if dsci.Spec.Monitoring.Traces != nil {
-		defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
-	}
+	defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
+	defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
 
 	if err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme()); err != nil {
 		return err
