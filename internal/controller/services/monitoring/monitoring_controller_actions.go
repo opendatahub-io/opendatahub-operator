@@ -7,12 +7,15 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -82,7 +85,7 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 			// add
 			return updatePrometheusConfig(ctx, true, componentRules[ch.GetName()])
 		default:
-			return fmt.Errorf("unsuported management state %s", ms)
+			return fmt.Errorf("unsupported management state %s", ms)
 		}
 	})
 }
@@ -95,12 +98,93 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 
 	if monitoring.Spec.Metrics != nil && (monitoring.Spec.Metrics.Resources != nil || monitoring.Spec.Metrics.Storage != nil) {
 		if msExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack); !msExists {
-			return errors.New("MonitoringStack CRD not found")
+			// CRD not available, skip monitoring stack deployment (this is expected when monitoring stack operator is not installed)
+			rr.Conditions.MarkFalse(
+				status.ConditionMonitoringStackAvailable,
+				conditions.WithReason(status.MonitoringStackOperatorMissingReason),
+				conditions.WithMessage(status.MonitoringStackOperatorMissingMessage),
+			)
+			return nil
 		}
+
+		rr.Conditions.MarkTrue(status.ConditionMonitoringStackAvailable)
+
 		template := []odhtypes.TemplateInfo{
 			{
 				FS:   resourcesFS,
 				Path: MonitoringStackTemplate,
+			},
+		}
+		rr.Templates = append(rr.Templates, template...)
+	} else {
+		// No metrics configuration or metrics not sufficiently configured
+		rr.Conditions.MarkFalse(
+			status.ConditionMonitoringStackAvailable,
+			conditions.WithReason(status.MetricsNotConfiguredReason),
+			conditions.WithMessage(status.MetricsNotConfiguredMessage),
+		)
+	}
+
+	return nil
+}
+
+// deployTempo creates Tempo resources based on the Monitoring CR configuration.
+func deployTempo(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	// Read traces configuration directly from Monitoring CR
+	if monitoring.Spec.Traces == nil {
+		// No traces configuration - GC action will clean up any existing Tempo resources
+		rr.Conditions.MarkFalse(
+			status.ConditionTempoAvailable,
+			conditions.WithReason(status.TracesNotConfiguredReason),
+			conditions.WithMessage(status.TracesNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	traces := monitoring.Spec.Traces
+
+	var requiredCRD schema.GroupVersionKind
+	if traces.Storage.Backend == "pv" {
+		requiredCRD = gvk.TempoMonolithic
+	} else {
+		requiredCRD = gvk.TempoStack
+	}
+
+	crdExists, err := cluster.HasCRD(ctx, rr.Client, requiredCRD)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD exists: %w", err)
+	}
+	if !crdExists {
+		// CRD not available, skip tempo deployment (this is expected when tempo operator is not installed)
+		rr.Conditions.MarkFalse(
+			status.ConditionTempoAvailable,
+			conditions.WithReason(status.TempoOperatorMissingReason),
+			conditions.WithMessage(status.TempoOperatorMissingMessage),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionTempoAvailable)
+
+	// Add the appropriate template based on backend type
+	if traces.Storage.Backend == "pv" {
+		template := []odhtypes.TemplateInfo{
+			{
+				FS:   resourcesFS,
+				Path: TempoMonolithicTemplate,
+			},
+		}
+		rr.Templates = append(rr.Templates, template...)
+	} else {
+		template := []odhtypes.TemplateInfo{
+			{
+				FS:   resourcesFS,
+				Path: TempoStackTemplate,
 			},
 		}
 		rr.Templates = append(rr.Templates, template...)

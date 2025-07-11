@@ -19,7 +19,8 @@ var resourcesFS embed.FS
 
 const (
 	MonitoringStackTemplate = "resources/monitoring-stack.tmpl.yaml"
-	MSName                  = "data-science-monitoringstack"
+	TempoMonolithicTemplate = "resources/tempo-monolithic.tmpl.yaml"
+	TempoStackTemplate      = "resources/tempo-stack.tmpl.yaml"
 )
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
@@ -28,57 +29,62 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		return nil, errors.New("instance is not of type *services.Monitoring")
 	}
 
-	if monitoring.Spec.Metrics == nil {
-		// ensure MonitoringStack CR either not to create or should be GC from previous run
-		return nil, nil
+	templateData := map[string]any{
+		"Namespace": monitoring.Spec.Namespace,
 	}
 
-	monitoringStackName := MSName
+	// Add metrics data if metrics are configured
+	if monitoring.Spec.Metrics != nil {
+		metrics := monitoring.Spec.Metrics
 
-	metrics := monitoring.Spec.Metrics
+		var cpuLimit, memoryLimit, cpuRequest, memoryRequest string
+		if metrics.Resources != nil {
+			cpuLimit = metrics.Resources.CPULimit.String()
+			memoryLimit = metrics.Resources.MemoryLimit.String()
+			cpuRequest = metrics.Resources.CPURequest.String()
+			memoryRequest = metrics.Resources.MemoryRequest.String()
+		} else { // here need to match default value set in API
+			cpuLimit = "500m"
+			memoryLimit = "512Mi"
+			cpuRequest = "100m"
+			memoryRequest = "256Mi"
+		}
 
-	var cpuLimit, memoryLimit, cpuRequest, memoryRequest string
+		var storageSize, storageRetention string
+		if metrics.Storage != nil {
+			storageSize = metrics.Storage.Size.String()
+			storageRetention = metrics.Storage.Retention
+		} else { // here need to match default value set in API
+			storageSize = "5Gi"
+			storageRetention = "1d"
+		}
 
-	if metrics.Resources != nil {
-		cpuLimit = metrics.Resources.CPULimit.String()
-		memoryLimit = metrics.Resources.MemoryLimit.String()
-		cpuRequest = metrics.Resources.CPURequest.String()
-		memoryRequest = metrics.Resources.MemoryRequest.String()
-	} else { // here need to match default value set in API
-		cpuLimit = "500m"
-		memoryLimit = "512Mi"
-		cpuRequest = "100m"
-		memoryRequest = "256Mi"
+		// only when either storage or resources is set, we take replicas into account
+		// - if user did not set it / zero-value "0", we use default value of 2
+		// - if user set it to Y, we pass Y to template
+		var replicas int32 = 2 // default value to match monitoringstack CRD's default
+		if (metrics.Storage != nil || metrics.Resources != nil) && metrics.Replicas != 0 {
+			replicas = metrics.Replicas
+		}
+
+		templateData["CPULimit"] = cpuLimit
+		templateData["MemoryLimit"] = memoryLimit
+		templateData["CPURequest"] = cpuRequest
+		templateData["MemoryRequest"] = memoryRequest
+		templateData["StorageSize"] = storageSize
+		templateData["StorageRetention"] = storageRetention
+		templateData["Replicas"] = strconv.Itoa(int(replicas))
 	}
 
-	var storageSize, storageRetention string
-	if metrics.Storage != nil {
-		storageSize = metrics.Storage.Size.String()
-		storageRetention = metrics.Storage.Retention
-	} else { // here need to match default value set in API
-		storageSize = "5Gi"
-		storageRetention = "1d"
+	// Add traces data if traces are configured
+	if monitoring.Spec.Traces != nil {
+		traces := monitoring.Spec.Traces.Storage
+		templateData["Backend"] = traces.Backend
+		templateData["Secret"] = traces.Secret
+		templateData["Size"] = traces.Size
 	}
 
-	// only when either storage or resources is set, we take replicas into account
-	// - if user did not set it / zero-value "0", we use default value of 2
-	// - if user set it to Y, we pass Y to template
-	var replicas int32 = 2 // default value to match monitoringstack CRD's default
-	if (metrics.Storage != nil || metrics.Resources != nil) && metrics.Replicas != 0 {
-		replicas = metrics.Replicas
-	}
-
-	return map[string]any{
-		"CPULimit":            cpuLimit,
-		"MemoryLimit":         memoryLimit,
-		"CPURequest":          cpuRequest,
-		"MemoryRequest":       memoryRequest,
-		"StorageSize":         storageSize,
-		"StorageRetention":    storageRetention,
-		"MonitoringStackName": monitoringStackName,
-		"Namespace":           monitoring.Spec.Namespace,
-		"Replicas":            strconv.Itoa(int(replicas)),
-	}, nil
+	return templateData, nil
 }
 
 func ifGVKInstalled(kvg schema.GroupVersionKind) func(context.Context, *odhtypes.ReconciliationRequest) bool {

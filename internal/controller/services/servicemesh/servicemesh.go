@@ -38,7 +38,8 @@ func (h *serviceHandler) GetManagementState(_ common.Platform, _ *dsciv1.DSCInit
 
 func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	rec := &ServiceMeshReconciler{
-		Client: mgr.GetClient(),
+		Client:   mgr.GetClient(),
+		Recorder: mgr.GetEventRecorderFor("servicemesh-controller"),
 	}
 
 	if err := rec.SetupWithManager(ctx, mgr); err != nil {
