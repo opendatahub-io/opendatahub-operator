@@ -94,7 +94,6 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		{nn: types.NamespacedName{Name: serviceMeshOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
 		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: serverlessOperatorNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
-		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
 	}
 
 	// Create and run test cases in parallel.
@@ -123,6 +122,7 @@ func (tc *DSCTestCtx) ValidateObservabilityOperatorsInstallation(t *testing.T) {
 		skipOperatorGroup bool
 	}{
 		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: dsci.Spec.Monitoring.Namespace}, skipOperatorGroup: true},
+		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
 	}
 
 	// Create and run test cases in parallel.
