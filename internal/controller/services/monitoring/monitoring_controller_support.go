@@ -13,13 +13,23 @@ import (
 var resourcesFS embed.FS
 
 const (
-	MonitoringStackTemplate        = "resources/monitoring-stack.tmpl.yaml"
-	OpenTelemetryCollectorTemplate = "resources/opentelemetry-collector.tmpl.yaml"
-	CollectorRBACTemplate          = "resources/collector-rbac.tmpl.yaml"
-	PrometheusRouteTemplate        = "resources/prometheus-route.tmpl.yaml"
-	MonitoringStackName            = "monitoringstack"
-	PrometheusPipelineName         = "odh-prometheus-collector"
-	CollectorName                  = "otel"
+	MonitoringStackTemplate                   = "resources/monitoring-stack.tmpl.yaml"
+	OpenTelemetryCollectorTemplate            = "resources/opentelemetry-collector.tmpl.yaml"
+	CollectorRBACTemplate                     = "resources/collector-rbac.tmpl.yaml"
+	PrometheusRouteTemplate                   = "resources/prometheus-route.tmpl.yaml"
+	MonitoringStackName                       = "monitoringstack"
+	PrometheusPipelineName                    = "odh-prometheus-collector"
+	CollectorName                             = "otel"
+	MonitoringStackCRDAvailable               = "MonitoringStackCRDAvailable"
+	MonitoringStackCRDNotFoundReason          = "MonitoringStack CRD Not Found"
+	MonitoringStackCRDNotFoundMessage         = "MonitoringStack CRD not found. Dependent operator missing."
+	MonitoringStackCRDAvailableReason         = "MonitoringStack CRD Found"
+	MonitoringStackCRDAvailableMessage        = "MonitoringStack CRD found"
+	OpenTelemetryCollectorCRDAvailable        = "OpenTelemetryCollectorCRDAvailable"
+	OpenTelemetryCollectorCRDNotFoundReason   = "OpenTelemetryCollector CRD Not Found"
+	OpenTelemetryCollectorCRDNotFoundMessage  = "OpenTelemetryCollector CRD not found. Dependent operator missing."
+	OpenTelemetryCollectorCRDAvailableReason  = "OpenTelemetryCollector CRD Found"
+	OpenTelemetryCollectorCRDAvailableMessage = "OpenTelemetryCollector CRD found"
 )
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {

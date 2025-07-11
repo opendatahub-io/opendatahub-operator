@@ -14,6 +14,7 @@ import (
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -112,8 +113,20 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 
 	msExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack)
 	if !msExists {
-		return errors.New("MonitoringStack CRD not found")
+		rr.Conditions.MarkFalse(
+			MonitoringStackCRDAvailable,
+			conditions.WithReason(MonitoringStackCRDNotFoundReason),
+			conditions.WithMessage(MonitoringStackCRDNotFoundMessage),
+		)
+		return nil
 	}
+
+	// Mark monitoringstack CRD as available when CRD exists
+	rr.Conditions.MarkTrue(
+		MonitoringStackCRDAvailable,
+		conditions.WithReason(MonitoringStackCRDAvailableReason),
+		conditions.WithMessage(MonitoringStackCRDAvailableMessage),
+	)
 
 	if monitoring.Spec.Metrics != nil {
 		templates := []odhtypes.TemplateInfo{
@@ -136,8 +149,20 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 func createOpenTelemetryCollector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	otcExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.OpenTelemetryCollector)
 	if !otcExists {
-		return errors.New("OpentelemetryCollector CRD not found")
+		rr.Conditions.MarkFalse(
+			OpenTelemetryCollectorCRDAvailable,
+			conditions.WithReason(OpenTelemetryCollectorCRDNotFoundReason),
+			conditions.WithMessage(OpenTelemetryCollectorCRDNotFoundMessage),
+		)
+		return nil
 	}
+
+	// Mark OpenTelemetryCollector CRD as available when CRD exists
+	rr.Conditions.MarkTrue(
+		OpenTelemetryCollectorCRDAvailable,
+		conditions.WithReason(OpenTelemetryCollectorCRDAvailableReason),
+		conditions.WithMessage(OpenTelemetryCollectorCRDAvailableMessage),
+	)
 
 	// If DSCI is not found, we don't need to create the OpenTelemetry Collector
 	ok, _, _ := checkDSCI(ctx, rr)
