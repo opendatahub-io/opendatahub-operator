@@ -92,6 +92,7 @@ metadata:
             "applicationsNamespace": "opendatahub",
             "monitoring": {
               "managementState": "Managed",
+              "metrics": {},
               "namespace": "opendatahub"
             },
             "serviceMesh": {
@@ -125,7 +126,7 @@ metadata:
       "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.30.0
+  name: opendatahub-operator.v2.31.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1523,7 +1524,7 @@ spec:
   selector:
     matchLabels:
       component: opendatahub-operator
-  version: 2.30.0
+  version: 2.31.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
