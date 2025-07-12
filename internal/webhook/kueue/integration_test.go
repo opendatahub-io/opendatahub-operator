@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -24,8 +25,8 @@ import (
 var (
 	kueueQueueNameLabelKey     = kueuewebhook.KueueQueueNameLabelKey
 	localQueueName             = "default"
-	kueueManagedLabelKey       = kueuewebhook.KueueManagedLabelKey
-	kueueLegacyManagedLabelKey = kueuewebhook.KueueLegacyManagedLabelKey
+	KueueManagedLabelKey       = "kueue.openshift.io/managed"
+	KueueLegacyManagedLabelKey = "kueue-managed"
 	missingLabelError          = `Kueue label validation failed: missing required label "` + kueueQueueNameLabelKey + `"`
 )
 
@@ -47,6 +48,11 @@ func registerWebhooksWithManualDecoder(mgr manager.Manager) error {
 func TestKueueWebhook_Integration(t *testing.T) {
 	t.Parallel()
 
+	t.Cleanup(func() {
+		os.Unsetenv("ENVTEST_WEBHOOK_LOCAL_PORT")
+		os.Unsetenv("ENVTEST_WEBHOOK_LOCAL_CERT_DIR")
+	})
+
 	testCases := []struct {
 		name              string
 		kueueState        operatorv1.ManagementState
@@ -58,14 +64,14 @@ func TestKueueWebhook_Integration(t *testing.T) {
 		{
 			name:           "Kueue disabled in DSC - should allow",
 			kueueState:     operatorv1.Removed,
-			nsLabels:       map[string]string{kueueManagedLabelKey: "true"},
+			nsLabels:       map[string]string{KueueManagedLabelKey: "true"},
 			workloadLabels: map[string]string{},
 			expectAllowed:  true,
 		},
 		{
 			name:              "Kueue enabled, ns enabled, missing workload label - should deny",
 			kueueState:        operatorv1.Managed,
-			nsLabels:          map[string]string{kueueManagedLabelKey: "true"},
+			nsLabels:          map[string]string{KueueManagedLabelKey: "true"},
 			workloadLabels:    map[string]string{},
 			expectAllowed:     false,
 			expectDeniedError: missingLabelError,
@@ -73,7 +79,7 @@ func TestKueueWebhook_Integration(t *testing.T) {
 		{
 			name:           "Kueue enabled, ns enabled, valid workload label - should allow",
 			kueueState:     operatorv1.Managed,
-			nsLabels:       map[string]string{kueueManagedLabelKey: "true"},
+			nsLabels:       map[string]string{KueueManagedLabelKey: "true"},
 			workloadLabels: map[string]string{kueueQueueNameLabelKey: localQueueName},
 			expectAllowed:  true,
 		},
@@ -87,7 +93,7 @@ func TestKueueWebhook_Integration(t *testing.T) {
 		{
 			name:           "Kueue enabled, ns enabled with legacy label, valid workload label - should allow",
 			kueueState:     operatorv1.Managed,
-			nsLabels:       map[string]string{kueueLegacyManagedLabelKey: "true"},
+			nsLabels:       map[string]string{KueueLegacyManagedLabelKey: "true"},
 			workloadLabels: map[string]string{kueueQueueNameLabelKey: localQueueName},
 			expectAllowed:  true,
 		},
