@@ -41,18 +41,6 @@ type Validator struct {
 // Assert that Validator implements admission.Handler interface.
 var _ admission.Handler = &Validator{}
 
-// InjectDecoder implements admission.DecoderInjector so the manager can inject the decoder automatically.
-//
-// Parameters:
-//   - d: The admission.Decoder to inject.
-//
-// Returns:
-//   - error: Always nil.
-func (v *Validator) InjectDecoder(d admission.Decoder) error {
-	v.Decoder = d
-	return nil
-}
-
 // SetupWithManager registers the validating webhook with the provided controller-runtime manager.
 //
 // Parameters:
