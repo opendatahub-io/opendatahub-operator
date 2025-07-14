@@ -176,6 +176,8 @@ func LoadConfig() (*OperatorConfig, error) {
 	return &operatorConfig, nil
 }
 
+// test comment
+
 func main() { //nolint:funlen,maintidx,gocyclo
 	// Viper settings
 	viper.SetEnvPrefix("ODH_MANAGER")
