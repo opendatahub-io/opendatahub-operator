@@ -10,6 +10,7 @@ import (
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -81,6 +82,9 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate no FeatureTracker OwnerReferences", componentCtx.ValidateNoFeatureTrackerOwnerReferences},
 		{"Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers},
 		{"Validate default certs", componentCtx.ValidateDefaultCertsAvailable},
+		{"Validate custom certificate created for OpenshiftDefaultIngress", componentCtx.ValidateCustomCertificateCreation},
+		{"Validate invalid custom certificate creation for OpenshiftDefaultIngress", componentCtx.ValidateInvalidCustomCertificateCreation},
+		{"Validate DSCI DSC validation interaction", componentCtx.ValidateDSCIDSCValidationInteractionForKserve},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate serving transition to Unmanaged", componentCtx.ValidateServingTransitionToUnmanaged},
 		{"Validate serving transition to Removed", componentCtx.ValidateServingTransitionToRemoved},
@@ -509,5 +513,148 @@ func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 			}, "data")
 		}),
 		WithCustomErrorMsg("Failed to create connection secret"),
+	)
+}
+
+// ValidateDSCIDSCValidationInteractionForKserve tests DSCI and DSC validation interaction during reconciliation.
+func (tc *KserveTestCtx) ValidateDSCIDSCValidationInteractionForKserve(t *testing.T) {
+	t.Helper()
+
+	jqKserveReadyFalse := `
+	.status.conditions[]
+	| select(.type == "KserveReady" and .status == "%s")
+	| .message
+	| test("servicemesh needs to be set to 'managed' in dsci cr"; "i")`
+
+	t.Log("Disabling ServiceMesh in DSCI")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(
+			`.spec.serviceMesh.managementState = "%s"`, operatorv1.Removed,
+		)),
+	)
+
+	t.Log("Verifying KServe reports dependency on ServiceMesh correctly")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(jqKserveReadyFalse, metav1.ConditionFalse)),
+	)
+
+	t.Log("Re-enabling ServiceMesh in DSCI for recovery")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(
+			`.spec.serviceMesh.managementState = "%s"`,
+			operatorv1.Managed,
+		)),
+	)
+
+	t.Log("Verifying KServe becomes ready after ServiceMesh is enabled")
+	tc.verifyKserveStatus(t, metav1.ConditionTrue)
+
+	t.Log("DSCI/DSC validation interaction test completed successfully")
+}
+
+// ValidateCustomCertificateCreation tests that a valid custom certificate is created for OpenshiftDefaultIngress.
+func (tc *KserveTestCtx) ValidateCustomCertificateCreation(t *testing.T) {
+	t.Helper()
+
+	originalDSCI := tc.FetchDSCInitialization()
+	customSecretName := "custom-test-secret"
+
+	t.Log("Configuring Kserve with OpenshiftDefaultIngress and custom secret")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, customSecretName),
+		)),
+	)
+
+	t.Log("Verifying Kserve is ready")
+	tc.verifyKserveStatus(t, metav1.ConditionTrue)
+
+	t.Log("Verifying custom secret is created")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Secret, types.NamespacedName{Namespace: originalDSCI.Spec.ServiceMesh.ControlPlane.Namespace, Name: customSecretName}),
+	)
+
+	t.Log("Deleting secretName from DSC and verifying Kserve readiness")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate |= del(.secretName)`)),
+	)
+	tc.verifyKserveStatus(t, metav1.ConditionTrue)
+
+	t.Log("Deleting custom secret")
+	tc.DeleteResource(
+		WithMinimalObject(
+			gvk.Secret,
+			types.NamespacedName{Namespace: originalDSCI.Spec.ServiceMesh.ControlPlane.Namespace, Name: customSecretName},
+		),
+		WithWaitForDeletion(true),
+	)
+
+	t.Log("Custom certificate creation test completed successfully")
+}
+
+// ValidateInvalidCustomCertificateCreation tests rejection of an invalid custom certificate for OpenshiftDefaultIngress.
+func (tc *KserveTestCtx) ValidateInvalidCustomCertificateCreation(t *testing.T) {
+	t.Helper()
+
+	originalDSCI := tc.FetchDSCInitialization()
+	invalidCustomSecretName := "&invalid-secret-name"
+
+	t.Log("Configuring Kserve with OpenshiftDefaultIngress and invalid secret")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, invalidCustomSecretName),
+		)),
+	)
+
+	t.Log("Verifying Kserve reports not ready due to invalid secret")
+	tc.verifyKserveStatus(t, metav1.ConditionFalse, "unable to create serverless serving certificate secret.*&invalid-secret-name")
+
+	t.Log("Verifying invalid secret is not created")
+	tc.EnsureResourceDoesNotExist(
+		WithMinimalObject(gvk.Secret, types.NamespacedName{
+			Namespace: originalDSCI.Spec.ServiceMesh.ControlPlane.Namespace,
+			Name:      invalidCustomSecretName,
+		}),
+	)
+
+	t.Log("Deleting invalid secretName from DSC and verifying Kserve readiness")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate |= del(.secretName)`)),
+	)
+	tc.verifyKserveStatus(t, metav1.ConditionTrue)
+
+	t.Log("Invalid custom certificate creation test completed successfully")
+}
+
+func (tc *KserveTestCtx) verifyKserveStatus(t *testing.T, expectedStatus metav1.ConditionStatus, expectedMessage ...string) {
+	t.Helper()
+	jqKserveReadyTrue := `
+	.status.conditions[]
+	| select(.type == "KserveReady")
+	| .status == "True"`
+
+	jqKserveReadyFalse := `
+	.status.conditions[]
+	| select(.type == "KserveReady" and .status == "False")
+	| .message | test("%s"; "i")`
+
+	condition := jq.Match(jqKserveReadyTrue)
+	if expectedStatus == metav1.ConditionFalse {
+		if len(expectedMessage) == 0 {
+			t.Fatal("expectedMessage is required when expectedStatus is False")
+		}
+		condition = jq.Match(jqKserveReadyFalse, expectedMessage[0])
+	}
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(condition),
 	)
 }
