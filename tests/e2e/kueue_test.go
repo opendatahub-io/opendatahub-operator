@@ -21,6 +21,7 @@ import (
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
+	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -73,6 +74,7 @@ func kueueTestSuite(t *testing.T) {
 	// Add webhook tests if enabled
 	if testOpts.webhookTest {
 		testCases = append(testCases,
+			TestCase{"Validate Kueue webhook validation", componentCtx.ValidateKueueWebhookValidation},
 			TestCase{"Validate hardware profile webhook blocks workload with non-existent profile", componentCtx.ValidateHardwareProfileWebhookBlocksNonExistentProfile},
 			TestCase{"Validate hardware profile webhook allows workload with valid profile", componentCtx.ValidateHardwareProfileWebhookAllowsValidProfile},
 			TestCase{"Validate hardware profile webhook injects resources correctly", componentCtx.ValidateHardwareProfileWebhookResourceInjection},
@@ -82,7 +84,6 @@ func kueueTestSuite(t *testing.T) {
 
 	// Always run component disable test last
 	testCases = append(testCases, TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled})
-
 	// Run the test suite.
 	RunTestCases(t, testCases)
 }
@@ -165,7 +166,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedWhitOcpKueueOperator(t *testing.T) {
 
 	// since the test may be executed on a non-clean state, let clean it up
 	// so first set the component as removed ...
-	tc.setComponentManagementState(componentName, operatorv1.Removed)
+	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
 
 	// ... and then cleanup tests resources
 	cleanupKueueTestResources(t, tc.TestContext)
@@ -219,7 +220,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedWithoutOcpKueueOperator(t *testing
 
 	// since the test may be executed on a non-clean state, let clean it up
 	// so first set the component as removed ...
-	tc.setComponentManagementState(componentName, operatorv1.Removed)
+	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
 
 	// ... and then cleanup tests resources
 	cleanupKueueTestResources(t, tc.TestContext)
@@ -254,7 +255,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToUnmanagedTransition(t *testing.T) 
 
 	// since the test may be executed on a non-clean state, let clean it up
 	// so first set the component as removed ...
-	tc.setComponentManagementState(componentName, operatorv1.Removed)
+	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
 
 	// ... and then cleanup tests resources
 	cleanupKueueTestResources(t, tc.TestContext)
@@ -377,7 +378,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 
 		// since the test may be executed on a non-clean state, let clean it up
 		// so first set the component as removed ...
-		tc.setComponentManagementState(componentName, operatorv1.Removed)
+		tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
 
 		// ... and then cleanup tests resources
 		cleanupKueueTestResources(t, tc.TestContext)
@@ -489,6 +490,107 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 	}
 }
 
+// ValidateKueueWebhookValidation validates the Kueue validating webhook behavior using table-driven tests.
+func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
+	t.Helper()
+
+	// Ensure Kueue is in Managed state
+	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
+
+	// Ensure the managed namespace exists
+	createTestManagedNamespace(tc)
+
+	// Create a non-managed namespace for testing
+	nonManagedNamespace := "kueue-webhook-non-managed"
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nonManagedNamespace}),
+		WithCustomErrorMsg("Failed to create non-managed test namespace"),
+	)
+
+	// Helper function to create and test notebook
+	testNotebook := func(name, namespace, expectedError, errorMsg string, labels map[string]string, shouldBlock bool) func(*testing.T) {
+		return func(t *testing.T) {
+			t.Helper()
+
+			// Create notebook with labels if provided
+			notebook := envtestutil.NewNotebook(name, namespace)
+			if labels != nil {
+				notebook = envtestutil.NewNotebook(name, namespace, envtestutil.WithLabels(labels))
+			}
+
+			// Handle blocking case first (exceptional path)
+			if shouldBlock {
+				tc.EnsureWebhookBlocksResourceCreation(
+					WithObjectToCreate(notebook),
+					WithInvalidValue(expectedError),
+					WithCustomErrorMsg(errorMsg),
+				)
+				return
+			}
+
+			// Happy path - webhook allows the resource
+			tc.EventuallyResourceCreatedOrUpdated(
+				WithObjectToCreate(notebook),
+				WithCustomErrorMsg(errorMsg),
+			)
+		}
+	}
+
+	// Define test cases
+	testCases := []TestCase{
+		{
+			name: "blocks workload with missing queue label in managed namespace",
+			testFn: testNotebook(
+				"notebook-missing-queue",
+				kueueTestManagedNamespace,
+				kueuewebhook.KueueQueueNameLabelKey,
+				"Expected notebook without Kueue queue label to be blocked",
+				nil,
+				true,
+			),
+		},
+		{
+			name: "blocks workload with empty queue label in managed namespace",
+			testFn: testNotebook(
+				"notebook-empty-queue",
+				kueueTestManagedNamespace,
+				"empty",
+				"Expected notebook with empty Kueue queue label to be blocked",
+				map[string]string{kueuewebhook.KueueQueueNameLabelKey: ""},
+				true,
+			),
+		},
+		{
+			name: "allows workload without queue label in non-managed namespace",
+			testFn: testNotebook(
+				"notebook-non-managed",
+				nonManagedNamespace,
+				"",
+				"Expected notebook in non-managed namespace to be allowed",
+				nil,
+				false,
+			),
+		},
+		{
+			name: "allows workload with valid queue label in managed namespace",
+			testFn: testNotebook(
+				"notebook-valid-queue",
+				kueueTestManagedNamespace,
+				"",
+				"Expected notebook with valid Kueue queue label to be allowed",
+				map[string]string{kueuewebhook.KueueQueueNameLabelKey: "default"},
+				false,
+			),
+		},
+	}
+
+	// Run the test cases
+	RunTestCases(t, testCases)
+
+	// Remove Kueue test resources
+	cleanupKueueTestResources(t, tc.TestContext)
+}
+
 // ValidateKueueUnmanagedToManagedTransition ensures the transition from Unmanaged to Managed state happens as expected.
 func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) {
 	t.Helper()
@@ -497,7 +599,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 
 	// since the test may be executed on a non-clean state, let clean it up
 	// so first set the component as removed ...
-	tc.setComponentManagementState(componentName, operatorv1.Removed)
+	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
 
 	// ... and then cleanup tests resources
 	cleanupKueueTestResources(t, tc.TestContext)
@@ -625,22 +727,6 @@ func (tc *KueueTestCtx) setManagedAnnotation(gvk schema.GroupVersionKind, name t
 		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.ManagedByODHOperator, strconv.FormatBool(managed)),
 		jq.Match(`.metadata.ownerReferences | length == %d`, ownerReferencesCount),
 	))
-}
-
-func (tc *KueueTestCtx) setComponentManagementState(componentName string, state operatorv1.ManagementState) {
-	conditionsRemoved := []gTypes.GomegaMatcher{
-		// Validate that the component's management state is updated correctly
-		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, state),
-		// Validate the "Ready" condition for the component
-		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .reason == "%s"`, tc.GVK.Kind, state),
-	}
-
-	// Update the management state of the component in the DataScienceCluster to Removed.
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
-		WithCondition(And(conditionsRemoved...)),
-	)
 }
 
 func createTestManagedNamespace(tc *KueueTestCtx) {
