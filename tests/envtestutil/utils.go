@@ -1,9 +1,13 @@
 package envtestutil
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func FindProjectRoot() (string, error) {
@@ -26,4 +30,11 @@ func FindProjectRoot() (string, error) {
 	}
 
 	return "", errors.New("project root not found")
+}
+
+func JSONMarshal(t *testing.T, v interface{}) string {
+	t.Helper()
+	b, err := json.Marshal(v)
+	require.NoError(t, err, "Failed to marshal JSON")
+	return string(b)
 }
