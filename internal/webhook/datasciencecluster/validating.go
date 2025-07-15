@@ -63,7 +63,7 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		resp = shared.ValidateDupCreation(ctx, v.Client, &req, gvk.DataScienceCluster.Kind)
+		resp = shared.ValidateSingletonCreation(ctx, v.Client, &req, gvk.DataScienceCluster.Kind)
 	default:
 		resp.Allowed = true // initialize Allowed to be true in case Operation falls into "default" case
 	}

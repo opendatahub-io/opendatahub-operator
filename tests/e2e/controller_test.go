@@ -30,6 +30,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
+	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
 
@@ -394,6 +395,7 @@ func registerSchemes() {
 		componentApi.AddToScheme,
 		serviceApi.AddToScheme,
 		ofapiv1.AddToScheme,
+		infrav1alpha1.AddToScheme,
 	}
 
 	for _, schemeFn := range schemes {

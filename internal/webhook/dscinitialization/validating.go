@@ -63,7 +63,7 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		resp = shared.ValidateDupCreation(ctx, v.Client, &req, gvk.DSCInitialization.Kind)
+		resp = shared.ValidateSingletonCreation(ctx, v.Client, &req, gvk.DSCInitialization.Kind)
 	case admissionv1.Delete:
 		resp = shared.DenyCountGtZero(ctx, v.Client, gvk.DataScienceCluster,
 			"Cannot delete DSCInitialization object when DataScienceCluster object still exists")
