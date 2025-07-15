@@ -12,6 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -41,6 +42,7 @@ func modelRegistryTestSuite(t *testing.T) {
 		{"Validate SMM only created if servicemesh is Managed", componentCtx.ValidateSMM},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+		{"Validate namespace error reporting", componentCtx.ValidateNamespaceErrorReporting},
 	}
 
 	// Run the test suite.
@@ -133,4 +135,55 @@ func (tc *ModelRegistryTestCtx) retrieveModelRegistry() *componentApi.ModelRegis
 	tc.g.Expect(mri.Spec.RegistriesNamespace).NotTo(BeEmpty())
 
 	return mri
+}
+
+// ValidateNamespaceErrorReporting tests how operator reports validation errors in status conditions.
+func (tc *ModelRegistryTestCtx) ValidateNamespaceErrorReporting(t *testing.T) {
+	t.Helper()
+
+	t.Log("Testing operator validation error reporting")
+
+	originalDSC := tc.FetchDataScienceCluster()
+
+	// Restore original DSC state after the test
+	defer func() {
+		t.Log("Restoring original DSC state")
+		tc.EnsureResourceCreatedOrUpdated(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(testf.TransformPipeline(
+				testf.Transform(`.spec.components.modelregistry.managementState = "%s"`, originalDSC.Spec.Components.ModelRegistry.ManagementState),
+				testf.Transform(`.spec.components.modelregistry.registriesNamespace = "%s"`, originalDSC.Spec.Components.ModelRegistry.RegistriesNamespace),
+			)),
+		)
+	}()
+
+	t.Log("Creating DSC with ModelRegistry using an invalid namespace that operator will reject during reconciliation")
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.modelregistry.managementState = "Managed"`),
+			testf.Transform(`.spec.components.modelregistry.registriesNamespace = "invalid--namespace"`),
+		)),
+	)
+
+	t.Log("Checking that DSC reports ModelRegistryReady as False when ModelRegistry has validation errors")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			// Verify ModelRegistry is reported as not ready
+			jq.Match(`.status.conditions[] | select(.type == "ModelRegistryReady") | .status == "False"`),
+			// Verify error message is descriptive
+			jq.Match(`.status.conditions[] | select(.type == "ModelRegistryReady") | .message != null`),
+		)),
+		WithCustomErrorMsg("Operator should report descriptive error for ModelRegistry validation failure"),
+	)
+
+	t.Log("Checking that DSC reports ComponentsReady as False when components have validation errors")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "ComponentsReady") | .status == "False"`)),
+		WithCustomErrorMsg("DSC should report ComponentsReady as False when components have validation errors"),
+	)
+
+	t.Log("Operator properly reported validation errors in status conditions")
 }

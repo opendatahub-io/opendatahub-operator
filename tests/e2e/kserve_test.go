@@ -82,6 +82,9 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate serving transition to Unmanaged", componentCtx.ValidateServingTransitionToUnmanaged},
 		{"Validate serving transition to Removed", componentCtx.ValidateServingTransitionToRemoved},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate custom certificate creation", componentCtx.ValidateCustomCertificateCreation},
+		{"Validate certificate conflict detection", componentCtx.ValidateCertificateConflictDetection},
+		{"Validate DSCI DSC validation interaction", componentCtx.ValidateDSCIDSCValidationInteractionForKserve},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
@@ -409,4 +412,208 @@ func (tc *KserveTestCtx) validateTemplatedResourceOwnerRefsAndLabels(expectOwned
 			WithCondition(condition),
 			WithCustomErrorMsg(msg, child.gvk.Kind, child.nn.Name, child.nn.Namespace))
 	}
+}
+
+func (tc *KserveTestCtx) ValidateCustomCertificateCreation(t *testing.T) {
+	t.Helper()
+
+	originalDSC := tc.FetchDataScienceCluster()
+
+	defer func() {
+		t.Log("Restoring original certificate configuration")
+		tc.EnsureResourceCreatedOrUpdated(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(testf.TransformPipeline(
+				testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.type = "%s"`,
+					originalDSC.Spec.Components.Kserve.Serving.IngressGateway.Certificate.Type),
+				testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`,
+					originalDSC.Spec.Components.Kserve.Serving.IngressGateway.Certificate.SecretName),
+			)),
+		)
+	}()
+
+	t.Log("Ensuring ServiceMesh is ready")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(jq.Match(`.spec.serviceMesh.managementState == "Managed"`)),
+	)
+
+	// Test custom certificate configuration
+	t.Log("Configuring custom self-signed certificate")
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.type = "SelfSigned"`),
+			testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "custom-test-secret"`),
+		)),
+	)
+
+	// Verify custom secret creation
+	t.Log("Verifying custom certificate secret is created")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Secret, types.NamespacedName{
+			Name: "custom-test-secret", Namespace: "istio-system",
+		}),
+		WithCondition(And(
+			jq.Match(`.type == "kubernetes.io/tls"`),
+			jq.Match(`.data | has("tls.crt") and has("tls.key")`),
+		)),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+
+	// Verify Gateway uses custom secret
+	t.Log("Verifying Gateway uses custom certificate")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Gateway, types.NamespacedName{
+			Name: "knative-ingress-gateway", Namespace: "knative-serving",
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.servers[].tls.credentialName == "custom-test-secret"`),
+			jq.Match(`.spec.servers[].tls.mode == "SIMPLE"`),
+		)),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+
+	// Verify KServe component remains ready
+	t.Log("Verifying KServe remains ready with custom certificate")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "KserveReady") | .status == "True"`)),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+
+	t.Log("Custom certificate creation test completed successfully")
+}
+
+func (tc *KserveTestCtx) ValidateCertificateConflictDetection(t *testing.T) {
+	t.Helper()
+
+	originalDSC := tc.FetchDataScienceCluster()
+
+	defer func() {
+		t.Log("Restoring original certificate configuration")
+		tc.EnsureResourceCreatedOrUpdated(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(testf.TransformPipeline(
+				testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.type = "%s"`,
+					originalDSC.Spec.Components.Kserve.Serving.IngressGateway.Certificate.Type),
+				testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`,
+					originalDSC.Spec.Components.Kserve.Serving.IngressGateway.Certificate.SecretName),
+			)),
+		)
+	}()
+
+	t.Log("Ensuring ServiceMesh is ready")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(jq.Match(`.spec.serviceMesh.managementState == "Managed"`)),
+	)
+
+	t.Log("Testing certificate conflict by setting secretName to empty string")
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.type = "SelfSigned"`),
+			testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = ""`),
+		)),
+		WithCustomErrorMsg("Updating certificate secretName to empty string"),
+	)
+
+	// Verify conflict detection and error reporting
+	t.Log("Verifying certificate conflict detection")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "KserveReady") | .status == "False"`),
+			jq.Match(`.status.conditions[] | select(.type == "KserveReady") | .message | test("immutable|unable to create.*certificate|knative-serving-cert.*invalid"; "i")`),
+		)),
+		WithCustomErrorMsg("Operator should detect and report certificate configuration conflicts"),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+
+	t.Log("Certificate conflict detection test completed successfully")
+}
+
+// ValidateDSCIDSCValidationInteractionForKserve tests DSCI and DSC validation interaction during reconciliation.
+func (tc *KserveTestCtx) ValidateDSCIDSCValidationInteractionForKserve(t *testing.T) {
+	t.Helper()
+
+	// Original state
+	originalDSCI := tc.FetchDSCInitialization()
+	originalDSC := tc.FetchDataScienceCluster()
+
+	defer func() {
+		t.Log("Restoring original configuration")
+
+		// Restore DSCI first (dependency for KServe)
+		tc.EnsureResourceCreatedOrUpdated(
+			WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+			WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "%s"`, originalDSCI.Spec.ServiceMesh.ManagementState)),
+		)
+
+		// Wait for ServiceMesh to be ready before restoring KServe
+		if originalDSCI.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMesh") | .status == "True"`)),
+				WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+			)
+		}
+
+		// Restore DSC
+		tc.EnsureResourceCreatedOrUpdated(
+			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+			WithMutateFunc(testf.Transform(`.spec.components.kserve.managementState = "%s"`, originalDSC.Spec.Components.Kserve.ManagementState)),
+		)
+	}()
+
+	t.Log("Testing DSCI ServiceMesh dependency validation")
+
+	// Disable ServiceMesh and enable KServe (should fail)
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "Removed"`)),
+	)
+
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.kserve.managementState = "Managed"`)),
+	)
+
+	t.Log("Verifying KServe dependency validation")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			// KserveReady == False with correct message
+			jq.Match(`.status.conditions[] | select(.type == "KserveReady") | .status == "False"`),
+			jq.Match(`.status.conditions[] | select(.type == "KserveReady") | .message | test("servicemesh needs to be set to 'managed' in dsci cr"; "i")`),
+
+			// ComponentsReady == False with correct message
+			jq.Match(`.status.conditions[] | select(.type == "ComponentsReady") | .status == "False"`),
+			jq.Match(`.status.conditions[] | select(.type == "ComponentsReady") | .message | test("some components are not ready: kserve"; "i")`),
+		)),
+		WithCustomErrorMsg("KServe should report ServiceMesh dependency and kserve readiness correctly"),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+	)
+
+	t.Log("Testing recovery after ServiceMesh enablement")
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "Managed"`)),
+	)
+
+	t.Log("Verifying successful KServe deployment after ServiceMesh enablement")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			// Verify KServe becomes ready
+			jq.Match(`.status.conditions[] | select(.type == "KserveReady") | .status == "True"`),
+			// Verify overall components are ready
+			jq.Match(`.status.conditions[] | select(.type == "ComponentsReady") | .status == "True"`),
+		)),
+		WithCustomErrorMsg("KServe should become ready after ServiceMesh is enabled"),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+	)
+
+	t.Log("DSCI/DSC validation interaction test completed successfully")
 }
