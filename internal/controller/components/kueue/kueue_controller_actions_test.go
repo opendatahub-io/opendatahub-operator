@@ -579,7 +579,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-managed-ns",
 			Labels: map[string]string{
-				KueueManagedAnnotationKey: "true",
+				KueueManagedLabelKey: "true",
 			},
 		},
 	}
@@ -589,7 +589,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-legacy-managed-ns",
 			Labels: map[string]string{
-				KueueLegacyManagedAnnotationKey: "true",
+				KueueLegacyManagedLabelKey: "true",
 			},
 		},
 	}
@@ -599,8 +599,8 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-both-managed-ns",
 			Labels: map[string]string{
-				KueueManagedAnnotationKey:       "true",
-				KueueLegacyManagedAnnotationKey: "true",
+				KueueManagedLabelKey:       "true",
+				KueueLegacyManagedLabelKey: "true",
 			},
 		},
 	}

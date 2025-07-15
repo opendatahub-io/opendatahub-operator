@@ -118,7 +118,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				predicate.And(
 					predicate.LabelChangedPredicate{},
-					predicate.Or(component.ForLabel(KueueManagedAnnotationKey, "true"), component.ForLabel(KueueManagedAnnotationKey, "true")),
+					predicate.Or(component.ForLabel(KueueManagedLabelKey, "true"), component.ForLabel(KueueManagedLabelKey, "true")),
 				),
 			),
 		).

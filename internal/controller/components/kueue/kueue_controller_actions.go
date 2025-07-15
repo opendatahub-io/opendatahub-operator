@@ -117,12 +117,12 @@ func configureClusterQueueViewerRoleAction(ctx context.Context, rr *odhtypes.Rec
 	l := cr.GetLabels()
 	if l == nil {
 		l = map[string]string{}
-		cr.SetLabels(l)
 	}
 	if l[KueueBatchUserLabel] == "true" {
 		return nil
 	}
 	l[KueueBatchUserLabel] = "true"
+	cr.SetLabels(l)
 	return c.Update(ctx, &cr)
 }
 
@@ -167,9 +167,9 @@ func manageKueueAdminRoleBinding(ctx context.Context, rr *odhtypes.Reconciliatio
 		},
 		Subjects: subjects,
 		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "ClusterRole",
-			Name:     "kueue-batch-admin-role",
+			APIGroup: gvk.ClusterRole.Group,
+			Kind:     gvk.ClusterRole.Kind,
+			Name:     KueueAdminRoleName,
 		},
 	}
 
@@ -195,7 +195,7 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 
 	// In Unmanaged case create the default ocp kueue configuration.
 	if kueueCRInstance.Spec.ManagementState == operatorv1.Unmanaged {
-		defaultKueueConfig, err := createKueueConfigurationCR(ctx, rr)
+		defaultKueueConfig, err := createKueueCR(ctx, rr)
 		if err != nil {
 			return err
 		}
