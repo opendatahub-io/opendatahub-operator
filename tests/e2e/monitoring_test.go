@@ -8,10 +8,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -98,9 +96,8 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultContent(t *testing.T) {
 			"Expected metrics stanza to be omitted by default")
 
 	// Validate MontoringStack CR is not created
-	monitoringStackName := getMonitoringStackName(dsci)
 	tc.EnsureResourcesGone(
-		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: "data-science-monitoringstack", Namespace: dsci.Spec.Monitoring.Namespace}),
 	)
 }
 
@@ -108,8 +105,6 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsWhenSet(t *testing.
 	t.Helper()
 
 	dsci := tc.FetchDSCInitialization()
-
-	monitoringStackName := getMonitoringStackName(dsci)
 
 	// Update DSCI to set metrics
 	tc.EnsureResourceCreatedOrUpdated(
@@ -126,7 +121,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsWhenSet(t *testing.
 
 	// ensure the MonitoringStack CR is created with Available status
 	ms := tc.EnsureResourceExists(
-		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: "data-science-monitoringstack", Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeAvailable, metav1.ConditionTrue)),
 	)
 	tc.g.Expect(ms).ToNot(BeNil())
@@ -136,11 +131,10 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *te
 	t.Helper()
 
 	dsci := tc.FetchDSCInitialization()
-	monitoringStackName := getMonitoringStackName(dsci)
 
 	// Use EnsureResourceExists with jq matchers for cleaner validation
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: "data-science-monitoringstack", Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithCondition(And(
 			// Validate storage size is set to 5Gi
 			jq.Match(`.spec.prometheusConfig.persistentVolumeClaim.resources.requests.storage == "%s"`, "5Gi"),
@@ -161,7 +155,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *te
 			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Monitoring.Kind),
 			jq.Match(`.metadata.ownerReferences[0].name == "%s"`, "default-monitoring"),
 		)),
-		WithCustomErrorMsg("MonitoringStack '%s' configuration validation failed", monitoringStackName),
+		WithCustomErrorMsg("MonitoringStack '%s' configuration validation failed", "data-science-monitoringstack"),
 	)
 }
 
@@ -170,30 +164,19 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsReplicasUpdate(t *t
 
 	dsci := tc.FetchDSCInitialization()
 
-	monitoringStackName := getMonitoringStackName(dsci)
-
 	// Update DSCI to set replicas to 1 (must include either storage or resources due to CEL validation rule)
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: "5Gi", retention: "1d"}, replicas: 1}`)),
 	)
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: monitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: "data-science-monitoringstack", Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithCondition(And(
 			// Validate storage size is still the same value
 			jq.Match(`.spec.prometheusConfig.persistentVolumeClaim.resources.requests.storage == "%s"`, "5Gi"),
 			// Validate replicas is set to 1 when it is updated in DSCI
 			jq.Match(`.spec.prometheusConfig.replicas == %d`, 1),
 		)),
-		WithCustomErrorMsg("MonitoringStack '%s' configuration validation failed", monitoringStackName),
+		WithCustomErrorMsg("MonitoringStack '%s' configuration validation failed", "data-science-monitoringstack"),
 	)
-}
-
-func getMonitoringStackName(dsci *dsciv1.DSCInitialization) string {
-	switch dsci.Status.Release.Name {
-	case cluster.ManagedRhoai, cluster.SelfManagedRhoai:
-		return "rhoai-monitoringstack"
-	}
-
-	return "odh-monitoringstack"
 }
