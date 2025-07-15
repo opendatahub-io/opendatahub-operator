@@ -91,11 +91,6 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="cert-manager.io",resources=certificates;issuers,verbs=create;patch
 
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=roles,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=rolebindings,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterroles,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterrolebindings,verbs=*
-
 // +kubebuilder:rbac:groups="apps",resources=replicasets,verbs=*
 // +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
 
