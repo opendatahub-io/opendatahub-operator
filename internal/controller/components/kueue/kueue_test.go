@@ -97,7 +97,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		ctx := context.Background()
 
 		dsc := createDSCWithKueue(operatorv1.Managed)
-		kueue := createKueueCR(true)
+		kueue := createKueueComponentCR(true)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, kueue))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -125,7 +125,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		ctx := context.Background()
 
 		dsc := createDSCWithKueue(operatorv1.Unmanaged)
-		kueue := createKueueCR(true)
+		kueue := createKueueComponentCR(true)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, kueue))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -153,7 +153,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		ctx := context.Background()
 
 		dsc := createDSCWithKueue(operatorv1.Managed)
-		kueue := createKueueCR(false)
+		kueue := createKueueComponentCR(false)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, kueue))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -215,7 +215,7 @@ func createDSCWithKueue(managementState operatorv1.ManagementState) *dscv1.DataS
 	return &dsc
 }
 
-func createKueueCR(ready bool) *componentApi.Kueue {
+func createKueueComponentCR(ready bool) *componentApi.Kueue {
 	c := componentApi.Kueue{}
 	c.SetGroupVersionKind(gvk.Kueue)
 	c.SetName(componentApi.KueueInstanceName)

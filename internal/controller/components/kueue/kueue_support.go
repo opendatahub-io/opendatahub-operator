@@ -31,10 +31,11 @@ const (
 	ClusterQueueViewerRoleName = "kueue-clusterqueue-viewer-role"
 	KueueBatchUserLabel        = "rbac.kueue.x-k8s.io/batch-user"
 	KueueAdminRoleBindingName  = "kueue-admin-rolebinding"
+	KueueAdminRoleName         = "kueue-batch-admin-role"
 
-	// Kueue managed namespace annotation keys.
-	KueueManagedAnnotationKey       = "kueue.openshift.io/managed"
-	KueueLegacyManagedAnnotationKey = "kueue-managed"
+	// Kueue managed namespace label keys.
+	KueueManagedLabelKey       = "kueue.openshift.io/managed"
+	KueueLegacyManagedLabelKey = "kueue-managed"
 
 	KueueConfigCRName   = "cluster"
 	KueueConfigMapName  = "kueue-manager-config"
@@ -75,13 +76,13 @@ func getManagedNamespaces(ctx context.Context, c client.Client) ([]corev1.Namesp
 
 	// Add all namespaces with management label.
 	if err := collectNamespacesWithPagination(ctx, c, uniqueNamespaces, client.MatchingLabels{
-		KueueManagedAnnotationKey: "true",
+		KueueManagedLabelKey: "true",
 	}); err != nil {
 		return nil, err
 	}
 	// Add namespaces with legacy management label.
 	if err := collectNamespacesWithPagination(ctx, c, uniqueNamespaces, client.MatchingLabels{
-		KueueLegacyManagedAnnotationKey: "true",
+		KueueLegacyManagedLabelKey: "true",
 	}); err != nil {
 		return nil, err
 	}
@@ -103,7 +104,7 @@ func collectNamespacesWithPagination(ctx context.Context, c client.Client, names
 		// Listing namespaces with management label
 		namespaces := &corev1.NamespaceList{}
 		if err := c.List(ctx, namespaces, opts...); err != nil {
-			return fmt.Errorf("failed to list namespaces with label %s: %w", KueueManagedAnnotationKey+"=true", err)
+			return fmt.Errorf("failed to list namespaces with label %s: %w", KueueManagedLabelKey+"=true", err)
 		}
 
 		for _, ns := range namespaces.Items {
@@ -119,11 +120,11 @@ func collectNamespacesWithPagination(ctx context.Context, c client.Client, names
 	return nil
 }
 
-// i.e. if a namespace has just the KueueLegacyManagedAnnotationKey or the KueueManagedAnnotationKey, the other one is added as well.
+// i.e. if a namespace has just the KueueLegacyManagedLabelKey or the KueueManagedLabelKey, the other one is added as well.
 func fixAnnotationsOfManagedNamespaces(ctx context.Context, c client.Client, namespaces []corev1.Namespace) error {
 	for _, ns := range namespaces {
-		hasLegacy := resources.HasLabel(&ns, KueueLegacyManagedAnnotationKey)
-		hasManaged := resources.HasLabel(&ns, KueueManagedAnnotationKey)
+		hasLegacy := resources.HasLabel(&ns, KueueLegacyManagedLabelKey)
+		hasManaged := resources.HasLabel(&ns, KueueManagedLabelKey)
 
 		// Skip if both labels are already present
 		if hasLegacy && hasManaged {
@@ -132,8 +133,8 @@ func fixAnnotationsOfManagedNamespaces(ctx context.Context, c client.Client, nam
 
 		// Set both labels to ensure consistency
 		resources.SetLabels(&ns, map[string]string{
-			KueueLegacyManagedAnnotationKey: "true",
-			KueueManagedAnnotationKey:       "true",
+			KueueLegacyManagedLabelKey: "true",
+			KueueManagedLabelKey:       "true",
 		})
 
 		if err := c.Update(ctx, &ns); err != nil {

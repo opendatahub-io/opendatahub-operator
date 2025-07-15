@@ -227,6 +227,7 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform
 			ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 				Namespace: monNamespace,
+				Metrics:   &serviceApi.Metrics{},
 			},
 		},
 		ServiceMesh: &infrav1.ServiceMeshSpec{
