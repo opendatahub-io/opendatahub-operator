@@ -92,6 +92,7 @@ metadata:
             "applicationsNamespace": "opendatahub",
             "monitoring": {
               "managementState": "Managed",
+              "metrics": {},
               "namespace": "opendatahub"
             },
             "serviceMesh": {
@@ -112,8 +113,8 @@ metadata:
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
-    containerImage: quay.io/opendatahub/opendatahub-operator:v2.30.0
-    createdAt: "2025-06-27T13:34:05Z"
+    containerImage: quay.io/opendatahub/opendatahub-operator:v2.31.0
+    createdAt: "2025-07-11T06:55:33Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -125,7 +126,7 @@ metadata:
       "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.30.0
+  name: opendatahub-operator.v2.31.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1450,7 +1451,7 @@ spec:
   selector:
     matchLabels:
       component: opendatahub-operator
-  version: 2.30.0
+  version: 2.31.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1

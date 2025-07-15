@@ -2,7 +2,7 @@ name: Build Catalog FBC and run Integration tests
 on:
   pull_request_target:
     # action steps require 'run-integration-tests' label to be present, otherwise it's skipped
-    types: [ synchronize, reopened, labeled ]
+    types: [ synchronize, reopened ]
     paths:
       - 'bundle/**'
       - 'cmd/**'
@@ -29,10 +29,6 @@ jobs:
   create-catalog-image:
     name: Build/push catalog image
     runs-on: ubuntu-latest
-    if: |
-      (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'run-integration-tests')) ||
-      (github.event.action == 'reopened' && contains(github.event.pull_request.labels.*.name, 'run-integration-tests')) ||
-      (github.event.action == 'labeled' && github.event.label.name == 'run-integration-tests')
     needs: get-merge-commit
     env:
       IMAGE_BUILDER: podman
@@ -105,6 +101,18 @@ jobs:
           echo "version tag: ${{ env.VERSION_TAG }}"
           make catalog-build 
           make catalog-push
+      
+      - name: Save the PR data for GitHub artifact upload
+        run: |
+          echo ${{ github.event.number }} > pr_info.txt
+
+      - name: Upload the PR data as GitHub artifact
+        id: artifact-upload-pr-info
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr_info
+          path: ./pr_info.txt
+          retention-days: 1
 
       - name: Report success and give further instructions
         run: |
