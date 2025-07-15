@@ -67,7 +67,7 @@ func lookupKueueManagerConfig(ctx context.Context, rr *odhtypes.ReconciliationRe
 	return config, nil
 }
 
-func createKueueConfigurationCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*unstructured.Unstructured, error) {
+func createKueueCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*unstructured.Unstructured, error) {
 	managerConfig, err := lookupKueueManagerConfig(ctx, rr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lookup kueue manager config: %w", err)

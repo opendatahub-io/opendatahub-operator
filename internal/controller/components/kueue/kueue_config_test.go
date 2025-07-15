@@ -135,8 +135,8 @@ spec:
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
 
-// --- Test: Empty Configmap ---.
-func TestCreateKueueConfigurationCR_EmptyConfigmap(t *testing.T) {
+// --- Test: Empty Configuration ---.
+func TestCreateKueueConfigurationCR_EmptyConfiguration(t *testing.T) {
 	const kueueConfig = `{}`
 
 	const kueueCR = `
@@ -160,7 +160,7 @@ spec:
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
 
-// --- Test: No Configmap Exists ---.
+// --- Test: No Configuration Exists ---.
 func TestCreateKueueConfigurationCR_NoConfigmapExists(t *testing.T) {
 	const kueueConfig = ""
 
@@ -546,7 +546,7 @@ func runKueueCRTest(t *testing.T, configMapYAML string, expectedCRYAML string) {
 		g.Expect(fakeClient.Create(ctx, cm)).Should(Succeed())
 	}
 
-	result, err := createKueueConfigurationCR(ctx, rr)
+	result, err := createKueueCR(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(result).ShouldNot(BeNil())
 
@@ -603,7 +603,7 @@ invalid: yaml: content: [
 	}
 
 	// Call the function under test
-	result, err := createKueueConfigurationCR(ctx, rr)
+	result, err := createKueueCR(ctx, rr)
 
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(result).Should(BeNil())
