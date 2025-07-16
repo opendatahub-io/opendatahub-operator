@@ -169,8 +169,8 @@ func getDesiredKueueValidatingWebhooks(namespace string, labelKey string, suffix
 				{
 					Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Update},
 					Rule: admissionregistrationv1.Rule{
-						APIGroups:   []string{"kubeflow.org"},
-						APIVersions: []string{"v1"},
+						APIGroups:   []string{gvk.Notebook.Group},
+						APIVersions: []string{gvk.Notebook.Version},
 						Resources:   []string{"pytorchjobs", "notebooks"},
 					},
 				},
@@ -190,8 +190,8 @@ func getDesiredKueueValidatingWebhooks(namespace string, labelKey string, suffix
 				{
 					Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Update},
 					Rule: admissionregistrationv1.Rule{
-						APIGroups:   []string{"ray.io"},
-						APIVersions: []string{"v1"},
+						APIGroups:   []string{gvk.Ray.Group},
+						APIVersions: []string{gvk.Ray.Version},
 						Resources:   []string{"rayjobs", "rayclusters"},
 					},
 				},

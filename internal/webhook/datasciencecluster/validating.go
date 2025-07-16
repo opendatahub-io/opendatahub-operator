@@ -13,8 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/shared"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
 //+kubebuilder:webhook:path=/validate-datasciencecluster,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create,versions=v1,name=datasciencecluster-validator.opendatahub.io,admissionReviewVersions=v1
@@ -41,7 +41,7 @@ func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 	hookServer := mgr.GetWebhookServer()
 	hookServer.Register("/validate-datasciencecluster", &webhook.Admission{
 		Handler:        v,
-		LogConstructor: shared.NewLogConstructor(v.Name),
+		LogConstructor: webhookutils.NewWebhookLogConstructor(v.Name),
 	})
 	return nil
 }
@@ -63,7 +63,7 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		resp = shared.ValidateSingletonCreation(ctx, v.Client, &req, gvk.DataScienceCluster.Kind)
+		resp = webhookutils.ValidateSingletonCreation(ctx, v.Client, &req, gvk.DataScienceCluster.Kind)
 	default:
 		resp.Allowed = true // initialize Allowed to be true in case Operation falls into "default" case
 	}

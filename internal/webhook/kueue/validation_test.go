@@ -16,6 +16,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
@@ -24,7 +25,7 @@ import (
 
 const (
 	testNamespace     = "test-ns"
-	objLabelQueueName = kueuewebhook.KueueQueueNameLabelKey
+	objLabelQueueName = cluster.KueueQueueNameLabel
 	validQueueName    = "queue"
 )
 

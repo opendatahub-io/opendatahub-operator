@@ -1,4 +1,4 @@
-package shared
+package webhookutils
 
 import (
 	"context"
@@ -14,14 +14,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-// NewLogConstructor returns a log constructor function for admission webhooks that adds the webhook name to the logger context for each admission request.
+// NewWebhookLogConstructor returns a log constructor function for admission webhooks that adds the webhook name to the logger context for each admission request.
 //
 // Parameters:
 //   - name: The name of the webhook to include in the logger context.
 //
 // Returns:
 //   - func(logr.Logger, *admission.Request) logr.Logger: A function that constructs a logger with the webhook name and admission request context.
-func NewLogConstructor(name string) func(logr.Logger, *admission.Request) logr.Logger {
+func NewWebhookLogConstructor(name string) func(logr.Logger, *admission.Request) logr.Logger {
 	return func(_ logr.Logger, req *admission.Request) logr.Logger {
 		base := ctrl.Log
 		l := admission.DefaultLogConstructor(base, req)

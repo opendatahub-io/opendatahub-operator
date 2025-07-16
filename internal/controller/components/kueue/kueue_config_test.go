@@ -51,7 +51,11 @@ waitForPodsReady:
   blockAdmission: false
 integrations:
   frameworks:
+  - "pod"
+  - "deployment"
+  - "statefulset"
   - "batch/job"
+  - "ray.io/rayjob"
   - "kubeflow.org/mpijob"
   - "ray.io/rayjob"
   - "ray.io/raycluster"
@@ -61,6 +65,7 @@ integrations:
   - "kubeflow.org/tfjob"
   - "kubeflow.org/xgboostjob"
   - "workload.codeflare.dev/appwrapper"
+  - "leaderworkerset.x-k8s.io/leaderworkerset"
 manageJobsWithoutQueueName: true
 fairSharing:
   enable: true
@@ -81,12 +86,14 @@ spec:
         - BatchJob
         - Deployment
         - JobSet
+        - LeaderWorkerSet
         - MPIJob
         - PaddleJob
         - Pod
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
         - TFJob
         - XGBoostJob
     workloadManagement:
