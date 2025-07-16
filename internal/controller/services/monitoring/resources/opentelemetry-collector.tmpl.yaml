@@ -2,7 +2,7 @@ apiVersion: opentelemetry.io/v1beta1
 kind: OpenTelemetryCollector
 metadata:
   name: data-science-collector
-  namespace: {{ .Namespace}}
+  namespace: {{ .Namespace }}
 spec:
   mode: deployment
   config:
@@ -55,15 +55,15 @@ spec:
           enabled: true # by default resource attributes are dropped
       {{ end }}
       {{ if .Traces }}
-      otlp/odh-tempo:
-        endpoint: tempo-tempo-gateway.redhat-ods-monitoring.svc:4317
+      otlp/tempo:
+        endpoint: tempo-tempo-gateway.{{ .Namespace}}.svc:4317
         tls:
           ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
         auth:
           authenticator: bearertokenauth
         headers:
           # must be set to the tenant name from tempo CR
-          X-Scope-OrgID: redhat-ods-monitoring
+          X-Scope-OrgID: {{ .Namespace }}
       {{ end }}
     service:
       extensions: [bearertokenauth]

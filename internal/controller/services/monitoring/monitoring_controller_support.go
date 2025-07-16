@@ -18,9 +18,9 @@ import (
 var resourcesFS embed.FS
 
 const (
-	MonitoringStackTemplate = "resources/monitoring-stack.tmpl.yaml"
-	TempoMonolithicTemplate = "resources/tempo-monolithic.tmpl.yaml"
-	TempoStackTemplate      = "resources/tempo-stack.tmpl.yaml"
+	MonitoringStackTemplate          = "resources/monitoring-stack.tmpl.yaml"
+	TempoMonolithicTemplate          = "resources/tempo-monolithic.tmpl.yaml"
+	TempoStackTemplate               = "resources/tempo-stack.tmpl.yaml"
 	MSName                           = "data-science-monitoringstack"
 	OpenTelemetryCollectorTemplate   = "resources/opentelemetry-collector.tmpl.yaml"
 	CollectorServiceMonitorsTemplate = "resources/collector-servicemonitors.tmpl.yaml"
@@ -38,6 +38,9 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData := map[string]any{
 		"Namespace": monitoring.Spec.Namespace,
 	}
+
+	templateData["Traces"] = monitoring.Spec.Traces != nil
+	templateData["Metrics"] = monitoring.Spec.Metrics != nil
 
 	// Add metrics data if metrics are configured
 	if monitoring.Spec.Metrics != nil {
@@ -80,6 +83,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		templateData["StorageSize"] = storageSize
 		templateData["StorageRetention"] = storageRetention
 		templateData["Replicas"] = strconv.Itoa(int(replicas))
+		templateData["PromPipelineName"] = PrometheusPipelineName
 	}
 
 	// Add traces data if traces are configured
