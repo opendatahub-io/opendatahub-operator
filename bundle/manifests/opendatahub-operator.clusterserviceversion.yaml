@@ -1404,7 +1404,7 @@ spec:
                   value: /opt/manifests
                 - name: ODH_PLATFORM_TYPE
                   value: OpenDataHub
-                image: quay.io/opendatahub/opendatahub-operator:latest
+                image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
