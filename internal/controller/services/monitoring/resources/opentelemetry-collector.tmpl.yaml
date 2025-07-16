@@ -67,16 +67,18 @@ spec:
       {{ end }}
     service:
       extensions: [bearertokenauth]
+      {{ if or .Traces .Metrics }}
       pipelines:
       {{ if .Traces }}
         traces:
           receivers: [otlp]
           processors: [memory_limiter, k8sattributes, resourcedetection, batch]
-          exporters: [otlp/odh-tempo]
+          exporters: [otlp/tempo]
       {{ end }}
       {{ if .Metrics }}
         metrics:
           receivers: [prometheus, otlp]
           processors: [memory_limiter, k8sattributes, resourcedetection, batch]
           exporters: [prometheus]
+      {{ end }}
       {{ end }}
