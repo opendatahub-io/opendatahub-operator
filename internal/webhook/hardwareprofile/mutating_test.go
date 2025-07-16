@@ -244,20 +244,10 @@ func TestHardwareProfile_ResourceInjection(t *testing.T) {
 	sch, ctx := setupTestEnvironment(t)
 
 	// Create hardware profile with CPU and memory identifiers
-	hwp := envtestutil.NewHWP(testHardwareProfile, testNamespace, func(hwp *hwpv1alpha1.HardwareProfile) {
-		hwp.Spec.Identifiers = []hwpv1alpha1.HardwareIdentifier{
-			{
-				DisplayName:  "CPU",
-				Identifier:   "cpu",
-				DefaultCount: intstr.FromString("4"),
-			},
-			{
-				DisplayName:  "Memory",
-				Identifier:   "memory",
-				DefaultCount: intstr.FromString("8Gi"),
-			},
-		}
-	})
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("0", "4"),
+		envtestutil.WithMemoryIdentifier("0", "8Gi"),
+	)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
 	injector := createWebhookInjector(cli, sch)
@@ -428,23 +418,10 @@ func TestHardwareProfile_AppliesKueueConfiguration(t *testing.T) {
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
-	hwp := envtestutil.NewHWP(testHardwareProfile, testNamespace, func(hwp *hwpv1alpha1.HardwareProfile) {
-		hwp.Spec.Identifiers = []hwpv1alpha1.HardwareIdentifier{
-			{
-				DisplayName:  "Memory",
-				Identifier:   "memory",
-				MinCount:     intstr.FromString("4Gi"),
-				DefaultCount: intstr.FromString("8Gi"),
-			},
-		}
-		hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{
-			SchedulingType: hwpv1alpha1.QueueScheduling,
-			Kueue: &hwpv1alpha1.KueueSchedulingSpec{
-				LocalQueueName: testQueue,
-				PriorityClass:  "high-priority",
-			},
-		}
-	})
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithMemoryIdentifier("4Gi", "8Gi"),
+		envtestutil.WithKueueScheduling(testQueue, "high-priority"),
+	)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
 	injector := createWebhookInjector(cli, sch)
@@ -472,16 +449,14 @@ func TestHardwareProfile_SetsNamespaceAnnotation(t *testing.T) {
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
-	hwp := envtestutil.NewHWP(testHardwareProfile, testNamespace, func(hwp *hwpv1alpha1.HardwareProfile) {
-		hwp.Spec.Identifiers = []hwpv1alpha1.HardwareIdentifier{
-			{
-				DisplayName:  "Test Resource",
-				Identifier:   "test.com/resource",
-				MinCount:     intstr.FromString("1"),
-				DefaultCount: intstr.FromString("1"),
-			},
-		}
-	})
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithResourceIdentifiers(hwpv1alpha1.HardwareIdentifier{
+			DisplayName:  "Test Resource",
+			Identifier:   "test.com/resource",
+			MinCount:     intstr.FromString("1"),
+			DefaultCount: intstr.FromString("1"),
+		}),
+	)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
 	injector := createWebhookInjector(cli, sch)
@@ -521,36 +496,23 @@ func TestHardwareProfile_SchedulingConfiguration(t *testing.T) {
 
 			testCases := []struct {
 				name          string
-				setupHWP      func(*hwpv1alpha1.HardwareProfile)
+				hwpOptions    []envtestutil.ObjectOption
 				setupWorkload func() *unstructured.Unstructured
 				expectPatches bool
 			}{
 				{
 					name: "applies node scheduling to clean workload",
-					setupHWP: func(hwp *hwpv1alpha1.HardwareProfile) {
-						hwp.Spec.Identifiers = []hwpv1alpha1.HardwareIdentifier{
-							{
-								DisplayName:  "CPU",
-								Identifier:   "cpu",
-								DefaultCount: intstr.FromString("2"),
-							},
-						}
-						hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{
-							SchedulingType: hwpv1alpha1.NodeScheduling,
-							Node: &hwpv1alpha1.NodeSchedulingSpec{
-								NodeSelector: map[string]string{
-									"node-type": "gpu-node",
-								},
-								Tolerations: []corev1.Toleration{
-									{
-										Key:      "nvidia.com/gpu",
-										Operator: corev1.TolerationOpEqual,
-										Value:    "true",
-										Effect:   corev1.TaintEffectNoSchedule,
-									},
-								},
-							},
-						}
+					hwpOptions: []envtestutil.ObjectOption{
+						envtestutil.WithCPUIdentifier("2", "2"),
+						envtestutil.WithNodeScheduling(
+							map[string]string{"node-type": "gpu-node"},
+							[]corev1.Toleration{{
+								Key:      "nvidia.com/gpu",
+								Operator: corev1.TolerationOpEqual,
+								Value:    "true",
+								Effect:   corev1.TaintEffectNoSchedule,
+							}},
+						),
 					},
 					setupWorkload: func() *unstructured.Unstructured {
 						workload, ok := config.CreateWorkload(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
@@ -561,21 +523,9 @@ func TestHardwareProfile_SchedulingConfiguration(t *testing.T) {
 				},
 				{
 					name: "applies kueue scheduling to clean workload",
-					setupHWP: func(hwp *hwpv1alpha1.HardwareProfile) {
-						hwp.Spec.Identifiers = []hwpv1alpha1.HardwareIdentifier{
-							{
-								DisplayName:  "Memory",
-								Identifier:   "memory",
-								DefaultCount: intstr.FromString("4Gi"),
-							},
-						}
-						hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{
-							SchedulingType: hwpv1alpha1.QueueScheduling,
-							Kueue: &hwpv1alpha1.KueueSchedulingSpec{
-								LocalQueueName: testQueue,
-								PriorityClass:  "high-priority",
-							},
-						}
+					hwpOptions: []envtestutil.ObjectOption{
+						envtestutil.WithMemoryIdentifier("4Gi", "4Gi"),
+						envtestutil.WithKueueScheduling(testQueue, "high-priority"),
 					},
 					setupWorkload: func() *unstructured.Unstructured {
 						workload, ok := config.CreateWorkload(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
@@ -590,25 +540,14 @@ func TestHardwareProfile_SchedulingConfiguration(t *testing.T) {
 			if config.GVK.Kind == gvk.Notebook.Kind {
 				testCases = append(testCases, struct {
 					name          string
-					setupHWP      func(*hwpv1alpha1.HardwareProfile)
+					hwpOptions    []envtestutil.ObjectOption
 					setupWorkload func() *unstructured.Unstructured
 					expectPatches bool
 				}{
 					name: "applies kueue scheduling even when resources exist",
-					setupHWP: func(hwp *hwpv1alpha1.HardwareProfile) {
-						hwp.Spec.Identifiers = []hwpv1alpha1.HardwareIdentifier{
-							{
-								DisplayName:  "CPU",
-								Identifier:   "cpu",
-								DefaultCount: intstr.FromString("4"),
-							},
-						}
-						hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{
-							SchedulingType: hwpv1alpha1.QueueScheduling,
-							Kueue: &hwpv1alpha1.KueueSchedulingSpec{
-								LocalQueueName: testQueue,
-							},
-						}
+					hwpOptions: []envtestutil.ObjectOption{
+						envtestutil.WithCPUIdentifier("4", "4"),
+						envtestutil.WithKueueScheduling(testQueue),
 					},
 					setupWorkload: func() *unstructured.Unstructured {
 						workload, ok := config.CreateWorkload(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
@@ -625,7 +564,7 @@ func TestHardwareProfile_SchedulingConfiguration(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					t.Parallel()
 
-					hwp := envtestutil.NewHWP(testHardwareProfile, testNamespace, tc.setupHWP)
+					hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace, tc.hwpOptions...)
 					cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
 					injector := createWebhookInjector(cli, sch)
 
@@ -662,16 +601,9 @@ func TestHardwareProfile_SupportsCrossNamespaceAccess(t *testing.T) {
 	workloadNamespace := "workload-namespace"
 
 	// Create hardware profile in different namespace
-	hwp := envtestutil.NewHWP(testHardwareProfile, hwpNamespace, func(hwp *hwpv1alpha1.HardwareProfile) {
-		hwp.Spec.Identifiers = []hwpv1alpha1.HardwareIdentifier{
-			{
-				DisplayName:  "NVIDIA GPU",
-				Identifier:   "nvidia.com/gpu",
-				MinCount:     intstr.FromString("1"),
-				DefaultCount: intstr.FromString("1"),
-			},
-		}
-	})
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, hwpNamespace,
+		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "1", "1"),
+	)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
 	injector := createWebhookInjector(cli, sch)
@@ -730,22 +662,10 @@ func TestHardwareProfile_HandlesUpdateOperations(t *testing.T) {
 	sch, ctx := setupTestEnvironment(t)
 
 	// Create a hardware profile with multiple types of specifications
-	hwp := envtestutil.NewHWP(testHardwareProfile, testNamespace, func(hwp *hwpv1alpha1.HardwareProfile) {
-		hwp.Spec.Identifiers = []hwpv1alpha1.HardwareIdentifier{
-			{
-				DisplayName:  "Memory",
-				Identifier:   "memory",
-				MinCount:     intstr.FromString("4Gi"),
-				DefaultCount: intstr.FromString("8Gi"),
-			},
-		}
-		hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{
-			SchedulingType: hwpv1alpha1.QueueScheduling,
-			Kueue: &hwpv1alpha1.KueueSchedulingSpec{
-				LocalQueueName: "update-test-queue",
-			},
-		}
-	})
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithMemoryIdentifier("4Gi", "8Gi"),
+		envtestutil.WithKueueScheduling("update-test-queue"),
+	)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
 	injector := createWebhookInjector(cli, sch)
@@ -835,9 +755,7 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 			name: "empty hardware profile configuration",
 			injector: func() *hardwareprofile.Injector {
 				// Create empty hardware profile
-				hwp := envtestutil.NewHWP(testHardwareProfile, testNamespace, func(hwp *hwpv1alpha1.HardwareProfile) {
-					// No identifiers or scheduling spec
-				})
+				hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace)
 				cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
 				return createWebhookInjector(cli, sch)
 			}(),
@@ -920,15 +838,13 @@ func TestHardwareProfile_ConvertIntOrStringToQuantity(t *testing.T) {
 
 			// We need to test this through the webhook since the function is not exported
 			// Create a hardware profile with the test value
-			hwp := envtestutil.NewHWP(testHardwareProfile, testNamespace, func(hwp *hwpv1alpha1.HardwareProfile) {
-				hwp.Spec.Identifiers = []hwpv1alpha1.HardwareIdentifier{
-					{
-						DisplayName:  "Test Resource",
-						Identifier:   "test.com/resource",
-						DefaultCount: tc.input,
-					},
-				}
-			})
+			hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+				envtestutil.WithResourceIdentifiers(hwpv1alpha1.HardwareIdentifier{
+					DisplayName:  "Test Resource",
+					Identifier:   "test.com/resource",
+					DefaultCount: tc.input,
+				}),
+			)
 
 			sch, ctx := setupTestEnvironment(t)
 			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
@@ -1011,14 +927,9 @@ func TestHardwareProfile_UnsupportedWorkloadKind(t *testing.T) {
 	sch, ctx := setupTestEnvironment(t)
 
 	// Create hardware profile with node scheduling
-	hwp := envtestutil.NewHWP(testHardwareProfile, testNamespace, func(hwp *hwpv1alpha1.HardwareProfile) {
-		hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{
-			SchedulingType: hwpv1alpha1.NodeScheduling,
-			Node: &hwpv1alpha1.NodeSchedulingSpec{
-				NodeSelector: map[string]string{"test": "value"},
-			},
-		}
-	})
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithNodeSelector(map[string]string{"test": "value"}),
+	)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
 	injector := createWebhookInjector(cli, sch)
