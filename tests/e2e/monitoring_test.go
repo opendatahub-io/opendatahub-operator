@@ -45,6 +45,8 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringStackCRMetricsWhenSet},
 		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsConfiguration},
 		{"Test Metrics Replicas Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsReplicasUpdate},
+		{"Test MonitoringStack CR Deletion", monitoringServiceCtx.ValidateMonitoringStackCRDeleted},
+		{"Test Monitoring CR Deletion", monitoringServiceCtx.ValidateMonitoringCRDeleted},
 	}
 
 	// Run the test suite.
@@ -87,13 +89,9 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultContent(t *testing.T) {
 			"Monitoring CR's namespace mismatch: Expected namespace '%v' as per DSCInitialization, but found '%v' in Monitoring CR.",
 			dsci.Spec.Monitoring.Namespace, monitoring.Spec.Namespace)
 
-	comp := serviceApi.MonitoringSpec{
-		MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{Namespace: "opendatahub", Metrics: nil},
-	}
-	// Validate the metrics stanza is omitted by default
+	// Validate metrics is nil when not set in DSCI
 	tc.g.Expect(monitoring.Spec.Metrics).
-		To(Equal(comp.Metrics),
-			"Expected metrics stanza to be omitted by default")
+		To(BeNil(), "Expected metrics to be nil when not set in DSCI")
 
 	// Validate MontoringStack CR is not created
 	tc.EnsureResourcesGone(
@@ -179,4 +177,48 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsReplicasUpdate(t *t
 		)),
 		WithCustomErrorMsg("MonitoringStack '%s' configuration validation failed", "data-science-monitoringstack"),
 	)
+}
+
+func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Verify MonitoringStack CR is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: "data-science-monitoringstack", Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+
+	// Set metrics to empty object
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{}`)),
+	)
+
+	// Verify MonitoringStack CR is deleted by gc
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: "data-science-monitoringstack", Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+
+	// Ensure Monitoring CR is still present
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+	)
+
+	monitoring := &serviceApi.Monitoring{}
+	tc.FetchTypedResource(monitoring, WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
+	tc.g.Expect(monitoring.Spec.Metrics).To(BeNil(), "Expected 'metrics' to be nil in Monitoring CR")
+}
+
+func (tc *MonitoringTestCtx) ValidateMonitoringCRDeleted(t *testing.T) {
+	t.Helper()
+
+	// Set Monitroing to be removed
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, "Removed")),
+	)
+
+	// Ensure Monitoring CR is removed because of ownerreference
+	tc.EnsureResourcesGone(WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
 }
