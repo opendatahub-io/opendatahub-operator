@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -812,10 +811,8 @@ func SetupWebhookConfigurations(t *testing.T, env *envt.EnvT, ctx context.Contex
 	t.Helper()
 
 	// Set env for webhook to work
-	//nolint:usetesting
-	os.Setenv("ENVTEST_WEBHOOK_LOCAL_PORT", strconv.Itoa(env.Env.WebhookInstallOptions.LocalServingPort))
-	//nolint:usetesting
-	os.Setenv("ENVTEST_WEBHOOK_LOCAL_CERT_DIR", env.Env.WebhookInstallOptions.LocalServingCertDir)
+	t.Setenv("ENVTEST_WEBHOOK_LOCAL_PORT", strconv.Itoa(env.Env.WebhookInstallOptions.LocalServingPort))
+	t.Setenv("ENVTEST_WEBHOOK_LOCAL_CERT_DIR", env.Env.WebhookInstallOptions.LocalServingCertDir)
 
 	vwc := webhook.DesiredValidatingWebhookConfiguration("kueue-webhook-test")
 	if err := env.Client().Create(ctx, vwc); err != nil && !k8serr.IsAlreadyExists(err) {
