@@ -19,8 +19,7 @@ var resourcesFS embed.FS
 
 const (
 	MonitoringStackTemplate = "resources/monitoring-stack.tmpl.yaml"
-	ManagedStackName        = "rhoai-monitoringstack"
-	OpenDataHubStackName    = "odh-monitoringstack"
+	MSName                  = "data-science-monitoringstack"
 )
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
@@ -30,18 +29,12 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	if monitoring.Spec.Metrics == nil {
+		// ensure MonitoringStack CR either not to create or should be GC from previous run
 		return nil, nil
 	}
 
-	var monitoringStackName string
-	switch rr.Release.Name {
-	case cluster.ManagedRhoai:
-		monitoringStackName = ManagedStackName
-	case cluster.SelfManagedRhoai:
-		monitoringStackName = ManagedStackName
-	default:
-		monitoringStackName = OpenDataHubStackName
-	}
+	monitoringStackName := MSName
+
 	metrics := monitoring.Spec.Metrics
 
 	var cpuLimit, memoryLimit, cpuRequest, memoryRequest string
