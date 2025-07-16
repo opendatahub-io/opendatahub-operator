@@ -234,6 +234,34 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDeleted(t *testing.T) {
 	tc.EnsureResourcesGone(WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
 }
 
+func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorDeployment(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: "data-science-collector", Namespace: dsci.Spec.Monitoring.Namespace}),
+		// Format of statusReplicas is n/m, we check if at least one is ready
+		WithCondition(jq.Match(`.status.scale.statusReplicas | split("/") | min > 0`)),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorTracesConfiguration(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = %s`, `{storage: {backend: "pv"}}`)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: "data-science-collector", Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(jq.Match(`.spec.config.service.pipelines | has("traces")`)),
+	)
+}
+
 func getTempoMonolithicName(dsci *dsciv1.DSCInitialization) string {
 	return "data-science-tempomonolithic"
 }
