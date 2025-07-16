@@ -1365,6 +1365,19 @@ spec:
           verbs:
           - '*'
         - apiGroups:
+          - tempo.grafana.com
+          resources:
+          - tempomonolithics
+          - tempostacks
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
           - user.openshift.io
           resources:
           - groups

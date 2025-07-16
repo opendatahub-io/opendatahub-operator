@@ -38,6 +38,8 @@ const (
 	serviceMeshMemberName        = "default"
 	observabilityOpName          = "cluster-observability-operator"           // Name of the Cluster Observability Operator
 	observabilityOpNamespace     = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
+	tempoOpName                  = "tempo-product"                            // Name of the Tempo Operator
+	tempoOpNamespace             = "openshift-tempo-operator"                 // Namespace for the Tempo Operator
 )
 
 // Configuration and Miscellaneous Constants.
