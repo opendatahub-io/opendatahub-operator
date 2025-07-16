@@ -339,6 +339,10 @@ spec:
       storage:
         retention: 1d
         size: 5Gi
+    traces:
+      storage:
+        backend: pv
+        size: 5Gi
   serviceMesh:
     controlPlane:
       metricsCollection: Istio

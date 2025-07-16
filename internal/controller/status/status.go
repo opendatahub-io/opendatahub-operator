@@ -100,6 +100,8 @@ const (
 	ConditionArgoWorkflowAvailable         = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady           = "ComponentsReady"
 	ConditionServingAvailable              = "ServingAvailable"
+	ConditionMonitoringStackAvailable      = "MonitoringStackAvailable"
+	ConditionTempoAvailable                = "TempoAvailable"
 )
 
 const (
@@ -166,6 +168,19 @@ const (
 const (
 	ISVCMissingCRDReason  = "InferenceServiceCRDMissing"
 	ISVCMissingCRDMessage = "InferenceServices CRD does not exist, please enable serving component first"
+)
+
+// For Monitoring service missing operators.
+const (
+	MonitoringStackOperatorMissingReason  = "ClusterObservabilityOperatorMissing"
+	MonitoringStackOperatorMissingMessage = "ClusterObservability operator must be installed for metrics configuration"
+	TempoOperatorMissingReason            = "TempoOperatorMissing"
+	TempoOperatorMissingMessage           = "Tempo operator must be installed for traces configuration"
+
+	MetricsNotConfiguredReason  = "MetricsNotConfigured"
+	MetricsNotConfiguredMessage = "Metrics not configured in DSCI CR"
+	TracesNotConfiguredReason   = "TracesNotConfigured"
+	TracesNotConfiguredMessage  = "Traces not configured in DSCI CR"
 )
 
 // setConditions is a helper function to set multiple conditions at once.
