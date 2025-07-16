@@ -2,6 +2,7 @@ package gvk
 
 import (
 	configv1 "github.com/openshift/api/config/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -92,12 +93,6 @@ var (
 		Kind:    "Deployment",
 	}
 
-	OpenShiftClusterRole = schema.GroupVersionKind{
-		Group:   "authorization.openshift.io",
-		Version: "v1",
-		Kind:    "ClusterRole",
-	}
-
 	ClusterRole = schema.GroupVersionKind{
 		Group:   rbacv1.SchemeGroupVersion.Group,
 		Version: rbacv1.SchemeGroupVersion.Version,
@@ -122,6 +117,12 @@ var (
 		Kind:    "RoleBinding",
 	}
 
+	ServiceAccount = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "ServiceAccount",
+	}
+
 	Secret = schema.GroupVersionKind{
 		Group:   corev1.SchemeGroupVersion.Group,
 		Version: corev1.SchemeGroupVersion.Version,
@@ -132,6 +133,18 @@ var (
 		Group:   corev1.SchemeGroupVersion.Group,
 		Version: corev1.SchemeGroupVersion.Version,
 		Kind:    "ConfigMap",
+	}
+
+	Service = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "Service",
+	}
+
+	Route = schema.GroupVersionKind{
+		Group:   routev1.SchemeGroupVersion.Group,
+		Version: routev1.SchemeGroupVersion.Version,
+		Kind:    "Route",
 	}
 
 	KnativeServing = schema.GroupVersionKind{

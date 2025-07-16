@@ -42,6 +42,12 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
+		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		{"Validate route deletion recovery", componentCtx.ValidateRouteDeletionRecovery},
+		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
