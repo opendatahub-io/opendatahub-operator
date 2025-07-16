@@ -86,12 +86,6 @@ var (
 		Kind:    "Deployment",
 	}
 
-	OpenShiftClusterRole = schema.GroupVersionKind{
-		Group:   "authorization.openshift.io",
-		Version: "v1",
-		Kind:    "ClusterRole",
-	}
-
 	ClusterRole = schema.GroupVersionKind{
 		Group:   rbacv1.SchemeGroupVersion.Group,
 		Version: rbacv1.SchemeGroupVersion.Version,

@@ -99,16 +99,6 @@ rules:
   - create
   - get
 - apiGroups:
-  - authorization.openshift.io
-  - rbac.authorization.k8s.io
-  resources:
-  - clusterrolebindings
-  - clusterroles
-  - rolebindings
-  - roles
-  verbs:
-  - '*'
-- apiGroups:
   - autoscaling
   resources:
   - horizontalpodautoscalers
@@ -870,6 +860,15 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  - clusterroles
+  - rolebindings
+  - roles
+  verbs:
+  - '*'
 - apiGroups:
   - route.openshift.io
   resources:

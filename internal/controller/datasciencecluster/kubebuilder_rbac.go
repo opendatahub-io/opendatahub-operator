@@ -140,11 +140,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="autoscaling.openshift.io",resources=machinesets,verbs=list;patch;delete;get
 // +kubebuilder:rbac:groups="autoscaling.openshift.io",resources=machineautoscalers,verbs=list;patch;delete;get
 
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=roles,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=rolebindings,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterroles,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterrolebindings,verbs=*
-
 // +kubebuilder:rbac:groups="apps",resources=replicasets,verbs=*
 // +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
 
