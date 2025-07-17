@@ -20,9 +20,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/shared"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
 // Webhooks for Kueue label validation:
@@ -31,17 +31,14 @@ import (
 // - serving.kserve.io/v1beta1: inferenceservices
 
 const (
-	// KueueQueueNameLabelKey is the label key used to specify the Kueue queue name for workloads.
-	KueueQueueNameLabelKey = "kueue.x-k8s.io/queue-name"
-
 	// ValidateKueuePath is the path for the Kueue validating webhook.
 	ValidateKueuePath = "/validate-kueue"
 )
 
 var (
 	// Error messages for Kueue label validation.
-	ErrMissingRequiredLabel = fmt.Errorf("missing required label %q", KueueQueueNameLabelKey)
-	ErrEmptyRequiredLabel   = fmt.Errorf("label %q is set but empty", KueueQueueNameLabelKey)
+	ErrMissingRequiredLabel = fmt.Errorf("missing required label %q", cluster.KueueQueueNameLabel)
+	ErrEmptyRequiredLabel   = fmt.Errorf("label %q is set but empty", cluster.KueueQueueNameLabel)
 )
 
 // Validator implements webhook.AdmissionHandler for Kueue validation webhooks.
@@ -65,7 +62,7 @@ func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 	hookServer := mgr.GetWebhookServer()
 	hookServer.Register("/validate-kueue", &webhook.Admission{
 		Handler:        v,
-		LogConstructor: shared.NewLogConstructor(v.Name),
+		LogConstructor: webhookutils.NewWebhookLogConstructor(v.Name),
 	})
 	return nil
 }
@@ -172,7 +169,7 @@ func validateKueueLabels(labels map[string]string) error {
 		return ErrMissingRequiredLabel
 	}
 
-	queueName, ok := labels[KueueQueueNameLabelKey]
+	queueName, ok := labels[cluster.KueueQueueNameLabel]
 
 	if !ok {
 		// Required label is missing

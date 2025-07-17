@@ -190,7 +190,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
 	)
 
 	// Set metrics to empty object
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{}`)),
 	)
@@ -214,7 +214,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDeleted(t *testing.T) {
 	t.Helper()
 
 	// Set Monitroing to be removed
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, "Removed")),
 	)

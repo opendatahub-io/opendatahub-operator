@@ -24,16 +24,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/shared"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
 // Annotation constants.
 const (
 	HardwareProfileNameAnnotation      = "opendatahub.io/hardware-profile-name"
 	HardwareProfileNamespaceAnnotation = "opendatahub.io/hardware-profile-namespace"
-	KueueLocalQueueLabel               = "kueue.x-k8s.io/queue-name"
 )
 
 // WorkloadConfig defines path configuration for different workload types.
@@ -57,7 +57,7 @@ var WorkloadConfigs = map[string]WorkloadConfig{
 	},
 }
 
-//+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=kubeflow.org,resources=notebooks,verbs=create;update,versions=v1,name=hardwareprofile-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=kubeflow.org,resources=notebooks,verbs=create;update,versions=v1,name=hardwareprofile-notebook-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
 //+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=hardwareprofile-kserve-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
 //nolint:lll
 
@@ -84,7 +84,7 @@ func (i *Injector) SetupWithManager(mgr ctrl.Manager) error {
 	// Register single webhook path for both Notebooks and InferenceServices
 	hookServer.Register("/mutate-hardware-profile", &webhook.Admission{
 		Handler:        i,
-		LogConstructor: shared.NewLogConstructor(i.Name),
+		LogConstructor: webhookutils.NewWebhookLogConstructor(i.Name),
 	})
 
 	return nil
@@ -330,7 +330,7 @@ func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unst
 	if hwp.Spec.SchedulingSpec != nil {
 		// Apply Kueue LocalQueue label
 		if hwp.Spec.SchedulingSpec.Kueue != nil && hwp.Spec.SchedulingSpec.Kueue.LocalQueueName != "" {
-			resources.SetLabel(obj, KueueLocalQueueLabel, hwp.Spec.SchedulingSpec.Kueue.LocalQueueName)
+			resources.SetLabel(obj, cluster.KueueQueueNameLabel, hwp.Spec.SchedulingSpec.Kueue.LocalQueueName)
 		}
 
 		// Apply Node scheduling configuration

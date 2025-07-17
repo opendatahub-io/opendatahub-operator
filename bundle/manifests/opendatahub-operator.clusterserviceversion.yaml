@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.31.0
-    createdAt: "2025-07-16T12:46:09Z"
+    createdAt: "2025-07-16T15:51:58Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -1619,26 +1619,6 @@ spec:
     containerPort: 443
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
-    generateName: hardwareprofile-injector.opendatahub.io
-    rules:
-    - apiGroups:
-      - kubeflow.org
-      apiVersions:
-      - v1
-      operations:
-      - CREATE
-      - UPDATE
-      resources:
-      - notebooks
-    sideEffects: None
-    targetPort: 9443
-    type: MutatingAdmissionWebhook
-    webhookPath: /mutate-hardware-profile
-  - admissionReviewVersions:
-    - v1
-    containerPort: 443
-    deploymentName: opendatahub-operator-controller-manager
-    failurePolicy: Fail
     generateName: hardwareprofile-kserve-injector.opendatahub.io
     rules:
     - apiGroups:
@@ -1650,6 +1630,26 @@ spec:
       - UPDATE
       resources:
       - inferenceservices
+    sideEffects: None
+    targetPort: 9443
+    type: MutatingAdmissionWebhook
+    webhookPath: /mutate-hardware-profile
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: hardwareprofile-notebook-injector.opendatahub.io
+    rules:
+    - apiGroups:
+      - kubeflow.org
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - notebooks
     sideEffects: None
     targetPort: 9443
     type: MutatingAdmissionWebhook

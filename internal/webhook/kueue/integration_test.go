@@ -15,14 +15,14 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
-	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 
 	. "github.com/onsi/gomega"
 )
 
 var (
-	kueueQueueNameLabelKey     = kueuewebhook.KueueQueueNameLabelKey
+	kueueQueueNameLabelKey     = cluster.KueueQueueNameLabel
 	localQueueName             = "default"
 	KueueManagedLabelKey       = "kueue.openshift.io/managed"
 	KueueLegacyManagedLabelKey = "kueue-managed"

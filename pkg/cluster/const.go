@@ -24,4 +24,7 @@ const (
 	// Managed cluster required route.
 	NameConsoleLink      = "console"
 	NamespaceConsoleLink = "openshift-console"
+
+	// KueueQueueNameLabel is the label key used to specify the Kueue queue name for workloads.
+	KueueQueueNameLabel = "kueue.x-k8s.io/queue-name"
 )

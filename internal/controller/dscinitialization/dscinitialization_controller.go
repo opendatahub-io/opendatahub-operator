@@ -401,20 +401,12 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 //   - []reconcile.Request: The requests to reconcile the DSCInitialization instance
 func (r *DSCInitializationReconciler) dsciWebhookWatchFunc(ctx context.Context, obj client.Object) []reconcile.Request {
 	log := logf.FromContext(ctx).WithName("DSCIWebhookWatcherMapFunc")
-	log.V(1).Info("Webhook config changed, triggering DSCInitialization reconciliation", "WebhookConfigName", obj.GetName())
 
-	instanceList := &dsciv1.DSCInitializationList{}
-	if err := r.Client.List(ctx, instanceList); err != nil {
-		log.Error(err, "Failed to list DSCInitialization instances for webhook watch.", "WebhookConfigName", obj.GetName())
+	instance, err := cluster.GetDSCI(ctx, r.Client)
+	if err != nil {
+		log.Error(err, "Failed to get a valid DSCInitialization instance for webhook watch.", "WebhookConfigName", obj.GetName())
 		return nil
 	}
-
-	if len(instanceList.Items) == 0 {
-		log.V(1).Info("No DSCInitialization instances found to reconcile from webhook watch.", "WebhookConfigName", obj.GetName())
-		return nil
-	}
-
-	instance := instanceList.Items[0]
 
 	return []reconcile.Request{{NamespacedName: types.NamespacedName{
 		Name:      instance.GetName(),

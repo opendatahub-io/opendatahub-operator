@@ -13,8 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/shared"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
 //+kubebuilder:webhook:path=/validate-dscinitialization,mutating=false,failurePolicy=fail,sideEffects=None,groups=dscinitialization.opendatahub.io,resources=dscinitializations,verbs=create;delete,versions=v1,name=dscinitialization-validator.opendatahub.io,admissionReviewVersions=v1
@@ -41,7 +41,7 @@ func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 	hookServer := mgr.GetWebhookServer()
 	hookServer.Register("/validate-dscinitialization", &webhook.Admission{
 		Handler:        v,
-		LogConstructor: shared.NewLogConstructor(v.Name),
+		LogConstructor: webhookutils.NewWebhookLogConstructor(v.Name),
 	})
 	return nil
 }
@@ -63,9 +63,9 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		resp = shared.ValidateSingletonCreation(ctx, v.Client, &req, gvk.DSCInitialization.Kind)
+		resp = webhookutils.ValidateSingletonCreation(ctx, v.Client, &req, gvk.DSCInitialization.Kind)
 	case admissionv1.Delete:
-		resp = shared.DenyCountGtZero(ctx, v.Client, gvk.DataScienceCluster,
+		resp = webhookutils.DenyCountGtZero(ctx, v.Client, gvk.DataScienceCluster,
 			"Cannot delete DSCInitialization object when DataScienceCluster object still exists")
 	default:
 		resp.Allowed = true
