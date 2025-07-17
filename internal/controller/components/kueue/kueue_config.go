@@ -160,6 +160,7 @@ func convertIntegrations(config map[string]interface{}) (map[string]interface{},
 		"PyTorchJob",
 		"Pod",
 		"Deployment",
+		"StatefulSet",
 	)
 
 	for _, framework := range frameworks {
