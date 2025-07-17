@@ -4,13 +4,19 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"fmt"
 	"strconv"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -21,12 +27,14 @@ const (
 	MonitoringStackTemplate          = "resources/monitoring-stack.tmpl.yaml"
 	TempoMonolithicTemplate          = "resources/tempo-monolithic.tmpl.yaml"
 	TempoStackTemplate               = "resources/tempo-stack.tmpl.yaml"
-	MSName                           = "data-science-monitoringstack"
 	OpenTelemetryCollectorTemplate   = "resources/opentelemetry-collector.tmpl.yaml"
 	CollectorServiceMonitorsTemplate = "resources/collector-servicemonitors.tmpl.yaml"
 	CollectorRBACTemplate            = "resources/collector-rbac.tmpl.yaml"
 	PrometheusRouteTemplate          = "resources/prometheus-route.tmpl.yaml"
 	PrometheusPipelineName           = "odh-prometheus-collector"
+	opentelemetryOperator            = "opentelemetry-product"
+	clusterObservabilityOperator     = "cluster-observability-operator"
+	tempoOperator                    = "tempo-product"
 )
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
@@ -106,4 +114,77 @@ func ifGVKInstalled(kvg schema.GroupVersionKind) func(context.Context, *odhtypes
 		}
 		return hasCRD
 	}
+}
+
+func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	log := logf.FromContext(ctx)
+
+	// Set initial condition state
+	rr.Conditions.MarkUnknown("MonitoringConfigured")
+
+	if err := checkMonitoringPreconditions(ctx, rr); err != nil {
+		log.Error(err, "Monitoring preconditions failed")
+
+		rr.Conditions.MarkFalse(
+			"MonitoringConfigured",
+			cond.WithReason(status.MissingOperatorReason),
+			cond.WithMessage("Monitoring preconditions failed: %s", err.Error()),
+		)
+
+		return err
+	}
+
+	rr.Conditions.MarkTrue("MonitoringConfigured")
+
+	return nil
+}
+
+func checkOperatorSubscription(ctx context.Context, cli client.Client, operatorName string) error {
+	if found, err := cluster.SubscriptionExists(ctx, cli, operatorName); !found || err != nil {
+		if err != nil {
+			return fmt.Errorf("failed to find the pre-requisite operator subscription %q,"+
+				" please ensure operator is installed: %w", operatorName, err)
+		}
+		return fmt.Errorf("failed to find the pre-requisite operator subscription %q,"+
+			" please ensure operator is installed", operatorName)
+	}
+	return nil
+}
+
+func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	var allErrors []error
+
+	// Check for opentelemetry-product operator if either metrics or traces are enabled
+	if rr.DSCI.Spec.Monitoring.Metrics != nil || rr.DSCI.Spec.Monitoring.Traces != nil {
+		err := checkOperatorSubscription(ctx, rr.Client, opentelemetryOperator)
+		if err != nil {
+			allErrors = append(allErrors, err)
+		}
+	}
+
+	// Check for cluster-observability-operator if metrics are enabled
+	if rr.DSCI.Spec.Monitoring.Metrics != nil {
+		err := checkOperatorSubscription(ctx, rr.Client, clusterObservabilityOperator)
+		if err != nil {
+			allErrors = append(allErrors, err)
+		}
+	}
+
+	// Check for tempo-product operator if traces are enabled
+	if rr.DSCI.Spec.Monitoring.Traces != nil {
+		err := checkOperatorSubscription(ctx, rr.Client, tempoOperator)
+		if err != nil {
+			allErrors = append(allErrors, err)
+		}
+	}
+
+	if len(allErrors) > 0 {
+		var errorMessages []string
+		for _, err := range allErrors {
+			errorMessages = append(errorMessages, err.Error())
+		}
+		return fmt.Errorf("monitoring preconditions failed: %s", strings.Join(errorMessages, "; "))
+	}
+
+	return nil
 }

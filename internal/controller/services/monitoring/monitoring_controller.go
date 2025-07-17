@@ -112,6 +112,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(
 				handlers.ToNamed(serviceApi.MonitoringInstanceName)),
 		).
+		WithAction(addMonitoringCapability).
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).
 		WithAction(createMonitoringStack).
