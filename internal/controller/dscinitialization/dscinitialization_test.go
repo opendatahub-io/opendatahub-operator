@@ -98,7 +98,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			vwc := &admissionregistrationv1.ValidatingWebhookConfiguration{}
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{
-					Name: webhook.ValidatingWebhookConfigurationName,
+					Name: webhook.ValidatingWebhookConfigName,
 				}, vwc)
 				return err == nil
 			}, timeout, interval).Should(BeTrue(), "Expected ValidatingWebhookConfiguration to be present")

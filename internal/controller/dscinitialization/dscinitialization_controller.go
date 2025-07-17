@@ -20,6 +20,7 @@ package dscinitialization
 import (
 	"context"
 	"path/filepath"
+	"slices"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -76,10 +77,11 @@ type DSCInitializationReconciler struct {
 //
 // Returns:
 //   - error: Any error encountered while reconciling the webhooks
-func (r *DSCInitializationReconciler) reconcileWebhookDeployment(ctx context.Context, instance *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) reconcileWebhookDeployment(ctx context.Context, instance *dsciv1.DSCInitialization) (ctrl.Result, error) {
 	log := logf.FromContext(ctx).WithName("WebhookDeployment")
 
-	if err := webhook.ReconcileWebhooks(ctx, r.Client, r.Scheme, instance); err != nil {
+	result, err := webhook.ReconcileWebhooks(ctx, r.Client, r.Scheme, instance)
+	if err != nil {
 		log.Error(err, "Failed to reconcile webhook configurations")
 		// Update status to reflect webhook error
 		if _, statusErr := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
@@ -88,10 +90,10 @@ func (r *DSCInitializationReconciler) reconcileWebhookDeployment(ctx context.Con
 		}); statusErr != nil {
 			log.Error(statusErr, "Failed to update DSCInitialization status after webhook error")
 		}
-		return err
+		return result, err
 	}
 
-	return nil
+	return result, nil
 }
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
@@ -190,11 +192,16 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
-	if err := r.reconcileWebhookDeployment(ctx, instance); err != nil {
+	result, err := r.reconcileWebhookDeployment(ctx, instance)
+	if err != nil {
 		log.Error(err, "Failed to reconcile webhook deployment", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
 		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
 			"Failed to reconcile webhook deployment for instance %s: %s", instance.Name, err.Error())
 		return reconcile.Result{}, err
+	}
+
+	if result.Requeue || result.RequeueAfter > 0 {
+		return result, nil
 	}
 
 	// Deal with application namespace, configmap, networpolicy etc
@@ -387,7 +394,7 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			&admissionregistrationv1.ValidatingWebhookConfiguration{},
 			handler.EnqueueRequestsFromMapFunc(r.dsciWebhookWatchFunc),
 			builder.WithPredicates(
-				namePredicate(webhook.ValidatingWebhookConfigurationName),
+				namePredicate(),
 			),
 		).
 		Complete(r)
@@ -414,15 +421,10 @@ func (r *DSCInitializationReconciler) dsciWebhookWatchFunc(ctx context.Context, 
 	}}}
 }
 
-// namePredicate is a helper function to create a predicate that checks if the object name matches the given name
-// Parameters:
-//   - name: The name to check against
-//
-// Returns:
-//   - predicate.Predicate: The predicate that checks if the object name matches the given name
-func namePredicate(name string) predicate.Predicate {
+// namePredicate is a helper function to create a predicate that checks if the object name is in the include list.
+func namePredicate() predicate.Predicate {
 	return predicate.NewPredicateFuncs(func(obj client.Object) bool {
-		return obj.GetName() == name
+		return slices.Contains(webhook.IncludeWebhookNames, obj.GetName())
 	})
 }
 

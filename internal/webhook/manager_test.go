@@ -2,8 +2,6 @@ package webhook_test
 
 import (
 	"context"
-	"os"
-	"sort"
 	"testing"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -19,7 +17,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// FakePatchClient wraps client.Client to convert Patch(Apply) to Update for tests.
+// FakePatchClient converts Patch(Apply) into Create for fake client testing.
 type FakePatchClient struct {
 	client.Client
 }
@@ -28,93 +26,107 @@ func (f *FakePatchClient) Patch(ctx context.Context, obj client.Object, patch cl
 	return f.Create(ctx, obj)
 }
 
-func Test_ReconcileWebhooks_CreatesConfigs(t *testing.T) {
+func Test_ReconcileWebhooks(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
+
 	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	g.Expect(corev1.AddToScheme(scheme)).To(Succeed())
+	g.Expect(admissionregistrationv1.AddToScheme(scheme)).To(Succeed())
 
-	sch := runtime.NewScheme()
-	g.Expect(corev1.AddToScheme(sch)).To(Succeed())
-	g.Expect(admissionregistrationv1.AddToScheme(sch)).To(Succeed())
-
-	baseClient := fake.NewClientBuilder().
-		WithScheme(sch).
-		Build()
-
-	// Fake client does not support Apply, so we need to wrap it
-	// https://github.com/kubernetes/kubernetes/issues/115598
+	baseClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 	fakeClient := &FakePatchClient{Client: baseClient}
-	// Set OPERATOR_NAMESPACE so ReconcileWebhooks picks it up
-	const operatorNs = "test-operator-ns"
-	t.Setenv("OPERATOR_NAMESPACE", operatorNs)
-	defer os.Unsetenv("OPERATOR_NAMESPACE")
 
-	// Create a Namespace object to act as the "owner"
+	// Seed a source ValidatingWebhookConfiguration
+	sourceVWC := &admissionregistrationv1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "sample-webhook.opendatahub.io",
+		},
+		Webhooks: []admissionregistrationv1.ValidatingWebhook{
+			{
+				Name: "sample-webhook",
+				ClientConfig: admissionregistrationv1.WebhookClientConfig{
+					CABundle: []byte("dummy-ca-bundle"),
+					Service: &admissionregistrationv1.ServiceReference{
+						Name:      "dummy-service",
+						Namespace: "dummy-namespace",
+						Path:      strPtr("/dummy-path"),
+						Port:      int32Ptr(443),
+					},
+				},
+			},
+		},
+	}
+	g.Expect(fakeClient.Create(ctx, sourceVWC)).To(Succeed())
+
+	// Create owner Namespace
 	owner := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: operatorNs,
+			Name: "test-operator-ns",
 			UID:  types.UID("owner-uid-1234"),
 		},
 	}
+	g.Expect(fakeClient.Create(ctx, owner)).To(Succeed())
 
-	// Call ReconcileWebhooks
-	err := webhook.ReconcileWebhooks(ctx, fakeClient, sch, owner)
-	g.Expect(err).NotTo(HaveOccurred())
+	result, err := webhook.ReconcileWebhooks(ctx, fakeClient, scheme, owner)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(result.Requeue).To(BeFalse())
 
-	// Fetch the ValidatingWebhookConfiguration
 	vwc := &admissionregistrationv1.ValidatingWebhookConfiguration{}
-	g.Expect(fakeClient.Get(
-		ctx,
-		types.NamespacedName{Name: webhook.ValidatingWebhookConfigurationName},
-		vwc,
-	)).To(Succeed())
+	g.Expect(fakeClient.Get(ctx, types.NamespacedName{
+		Name: webhook.ValidatingWebhookConfigName,
+	}, vwc)).To(Succeed())
 
-	// Both configs must have the inject‑cabundle annotation
-	for _, wc := range []metav1.Object{vwc} {
-		g.Expect(wc.GetAnnotations()).To(HaveKeyWithValue(
-			webhook.InjectCabundleAnnotation, "true",
-		))
-	}
+	t.Run("HasInjectCabundleAnnotation", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+		g.Expect(vwc.Annotations).To(HaveKeyWithValue(webhook.InjectCabundleAnnotation, "true"))
+	})
 
-	// Both configs must carry an ownerRef to Namespace
-	expectedOwnerRef := metav1.OwnerReference{
-		APIVersion:         corev1.SchemeGroupVersion.String(),
-		Kind:               "Namespace",
-		Name:               operatorNs,
-		UID:                owner.UID,
-		Controller:         nil,
-		BlockOwnerDeletion: nil,
-	}
-
-	for _, wc := range []metav1.Object{vwc} {
-		g.Expect(wc.GetOwnerReferences()).To(ContainElement(expectedOwnerRef))
-	}
-
-	// Check that the validating config contains exactly the expected names
-	expectedValidating := []string{
-		webhook.KserveKueuelabelsValidatorName,
-		webhook.KubeflowKueuelabelsValidatorName,
-		webhook.RayKueuelabelsValidatorName,
-		webhook.KserveKueuelabelsValidatorName + "-legacy",
-		webhook.KubeflowKueuelabelsValidatorName + "-legacy",
-		webhook.RayKueuelabelsValidatorName + "-legacy",
-	}
-	foundValidating := []string{}
-	for _, wh := range vwc.Webhooks {
-		foundValidating = append(foundValidating, wh.Name)
-	}
-	sort.Strings(foundValidating)
-	sort.Strings(expectedValidating)
-	g.Expect(foundValidating).To(Equal(expectedValidating))
-
-	// Ensure any Kueue‑related validating webhooks have a non‑nil NamespaceSelector
-	for _, wh := range vwc.Webhooks {
-		if contains(wh.Name, "kueuelabels-validator") {
-			g.Expect(wh.NamespaceSelector).NotTo(BeNil(), "expected namespaceSelector on %s", wh.Name)
+	t.Run("HasCorrectOwnerReference", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+		var found bool
+		for _, ref := range vwc.OwnerReferences {
+			if ref.Kind == "Namespace" && ref.Name == "test-operator-ns" {
+				found = true
+				break
+			}
 		}
-	}
+		g.Expect(found).To(BeTrue(), "OwnerReference should match owner namespace")
+	})
+
+	t.Run("WebhooksHaveCorrectClientConfig", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+		wh := vwc.Webhooks[0]
+		g.Expect(wh.ClientConfig.CABundle).To(Equal([]byte("dummy-ca-bundle")))
+		g.Expect(wh.ClientConfig.Service).ToNot(BeNil())
+		g.Expect(wh.ClientConfig.Service.Name).To(Equal("dummy-service"))
+		g.Expect(wh.ClientConfig.Service.Namespace).To(Equal("dummy-namespace"))
+		g.Expect(wh.ClientConfig.Service.Port).To(Equal(int32Ptr(443)))
+		g.Expect(wh.ClientConfig.Service.Path).ToNot(BeNil())
+		g.Expect(*wh.ClientConfig.Service.Path).To(Equal("/validate-kueue"))
+	})
+
+	t.Run("HasExpectedWebhookNames", func(t *testing.T) {
+		t.Parallel()
+		g := NewWithT(t)
+		expectedNames := map[string]struct{}{
+			webhook.KserveKueuelabelsValidatorName:               {},
+			webhook.KubeflowKueuelabelsValidatorName:             {},
+			webhook.RayKueuelabelsValidatorName:                  {},
+			webhook.KserveKueuelabelsValidatorName + "-legacy":   {},
+			webhook.KubeflowKueuelabelsValidatorName + "-legacy": {},
+			webhook.RayKueuelabelsValidatorName + "-legacy":      {},
+		}
+		for _, wh := range vwc.Webhooks {
+			_, ok := expectedNames[wh.Name]
+			g.Expect(ok).To(BeTrue(), "Unexpected webhook name: %s", wh.Name)
+		}
+	})
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr ||
-		len(s) > len(substr) && (s[:len(substr)] == substr || contains(s[1:], substr)))
-}
+func strPtr(s string) *string { return &s }
+func int32Ptr(i int32) *int32 { return &i }

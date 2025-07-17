@@ -581,14 +581,16 @@ func MockInferenceServiceCRD() *apiextensionsv1.CustomResourceDefinition {
 func SetupWebhookConfigurations(t *testing.T, env *envt.EnvT, ctx context.Context) {
 	t.Helper()
 
-	// Set env for webhook to work
-	//nolint:usetesting
-	os.Setenv("ENVTEST_WEBHOOK_LOCAL_PORT", strconv.Itoa(env.Env.WebhookInstallOptions.LocalServingPort))
-	//nolint:usetesting
-	os.Setenv("ENVTEST_WEBHOOK_LOCAL_CERT_DIR", env.Env.WebhookInstallOptions.LocalServingCertDir)
+	localPort := strconv.Itoa(env.Env.WebhookInstallOptions.LocalServingPort)
+	localCertDir := env.Env.WebhookInstallOptions.LocalServingCertDir
 
-	vwc := webhook.DesiredValidatingWebhookConfiguration("kueue-webhook-test")
+	vwc := webhook.NewValidatingWebhookConfiguration(webhook.GetClientConfigForEnvtest(localCertDir, localPort))
 	if err := env.Client().Create(ctx, vwc); err != nil && !k8serr.IsAlreadyExists(err) {
 		t.Fatalf("failed to create webhook configuration: %v", err)
 	}
+
+	t.Cleanup(func() {
+		os.Unsetenv(webhook.EnvtestWebhookLocalPort)
+		os.Unsetenv(webhook.EnvtestWebhookLocalCertDir)
+	})
 }

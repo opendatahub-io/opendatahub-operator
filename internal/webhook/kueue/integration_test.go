@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
@@ -30,13 +29,6 @@ var (
 )
 
 func TestKueueWebhook_Integration(t *testing.T) {
-	t.Parallel()
-
-	t.Cleanup(func() {
-		os.Unsetenv("ENVTEST_WEBHOOK_LOCAL_PORT")
-		os.Unsetenv("ENVTEST_WEBHOOK_LOCAL_CERT_DIR")
-	})
-
 	testCases := []struct {
 		name              string
 		kueueState        operatorv1.ManagementState

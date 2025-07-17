@@ -143,8 +143,8 @@ var _ = BeforeSuite(func() {
 	webhookInstallOptions := &testEnv.WebhookInstallOptions
 
 	// Set env for webhook to work
-	os.Setenv("ENVTEST_WEBHOOK_LOCAL_PORT", strconv.Itoa(webhookInstallOptions.LocalServingPort))
-	os.Setenv("ENVTEST_WEBHOOK_LOCAL_CERT_DIR", webhookInstallOptions.LocalServingCertDir)
+	os.Setenv(webhook.EnvtestWebhookLocalPort, strconv.Itoa(webhookInstallOptions.LocalServingPort))
+	os.Setenv(webhook.EnvtestWebhookLocalCertDir, webhookInstallOptions.LocalServingCertDir)
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:         testScheme,
@@ -187,6 +187,4 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
-	os.Unsetenv("ENVTEST_WEBHOOK_LOCAL_PORT")
-	os.Unsetenv("ENVTEST_WEBHOOK_LOCAL_CERT_DIR")
 })
