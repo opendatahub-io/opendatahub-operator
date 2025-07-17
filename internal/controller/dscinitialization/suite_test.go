@@ -18,9 +18,7 @@ package dscinitialization_test
 
 import (
 	"context"
-	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
@@ -46,13 +44,11 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
-	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -104,11 +100,6 @@ var _ = BeforeSuite(func() {
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,
 		},
-		WebhookInstallOptions: envtest.WebhookInstallOptions{
-			Paths: []string{
-				filepath.Join(rootPath, "config", "webhook"),
-			},
-		},
 	}
 
 	var err error
@@ -141,11 +132,6 @@ var _ = BeforeSuite(func() {
 	k8sClient = cli
 
 	webhookInstallOptions := &testEnv.WebhookInstallOptions
-
-	// Set env for webhook to work
-	os.Setenv("ENVTEST_WEBHOOK_LOCAL_PORT", strconv.Itoa(webhookInstallOptions.LocalServingPort))
-	os.Setenv("ENVTEST_WEBHOOK_LOCAL_CERT_DIR", webhookInstallOptions.LocalServingCertDir)
-
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:         testScheme,
 		LeaderElection: false,
@@ -153,33 +139,23 @@ var _ = BeforeSuite(func() {
 			BindAddress: "0",
 			CertDir:     webhookInstallOptions.LocalServingCertDir,
 		},
-		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
-			Port:    webhookInstallOptions.LocalServingPort,
-			Host:    webhookInstallOptions.LocalServingHost,
-			CertDir: webhookInstallOptions.LocalServingCertDir,
-		}),
 	})
+
 	Expect(err).NotTo(HaveOccurred())
 
-	// Register webhooks before starting the manager
-	err = webhook.RegisterAllWebhooks(mgr)
-	Expect(err).ToNot(HaveOccurred())
-
-	// Register controllers
 	err = (&dscictrl.DSCInitializationReconciler{
 		Client:   k8sClient,
 		Scheme:   testScheme,
 		Recorder: mgr.GetEventRecorderFor("dscinitialization-controller"),
 	}).SetupWithManager(gCtx, mgr)
+
 	Expect(err).ToNot(HaveOccurred())
 
-	// Start the manager
 	go func() {
 		defer GinkgoRecover()
-		err := mgr.Start(gCtx)
+		err = mgr.Start(gCtx)
 		Expect(err).ToNot(HaveOccurred(), "Failed to run manager")
 	}()
-
 })
 
 var _ = AfterSuite(func() {
@@ -187,6 +163,4 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
-	os.Unsetenv("ENVTEST_WEBHOOK_LOCAL_PORT")
-	os.Unsetenv("ENVTEST_WEBHOOK_LOCAL_CERT_DIR")
 })

@@ -24,9 +24,11 @@ import (
 )
 
 const (
-	testNamespace     = "test-ns"
-	objLabelQueueName = cluster.KueueQueueNameLabel
-	validQueueName    = "queue"
+	testNamespace        = "test-ns"
+	nsLabelManaged       = cluster.KueueManagedLabelKey
+	legacyNsLabelManaged = cluster.KueueLegacyManagedLabelKey
+	objLabelQueueName    = cluster.KueueQueueNameLabel
+	validQueueName       = "queue"
 )
 
 // createDSCWithKueueState creates a DSC with the specified Kueue management state for testing.
@@ -128,6 +130,7 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 
 	// Create validator with proper setup
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(
+		envtestutil.NewNamespace(testNamespace, map[string]string{nsLabelManaged: "true"}),
 		createDSCWithKueueState(operatorv1.Managed),
 	).Build()
 	decoder := admission.NewDecoder(sch)
@@ -258,7 +261,27 @@ func TestKueueWebhook_ValidatingWebhook(t *testing.T) {
 		{
 			name: "Kueue not enabled, skip validation",
 			existingObjs: []client.Object{
+				envtestutil.NewNamespace(testNamespace, map[string]string{nsLabelManaged: "true"}),
 				createDSCWithKueueState(operatorv1.Removed),
+			},
+			req: envtestutil.NewAdmissionRequest(
+				t,
+				admissionv1.Create,
+				envtestutil.NewNotebook("test-notebook", testNamespace),
+				gvk.Notebook,
+				metav1.GroupVersionResource{
+					Group:    gvk.Notebook.Group,
+					Version:  gvk.Notebook.Version,
+					Resource: "notebooks",
+				},
+			),
+			allowed: true,
+		},
+		{
+			name: "Namespace not labeled, skip validation",
+			existingObjs: []client.Object{
+				envtestutil.NewNamespace(testNamespace, map[string]string{}),
+				createDSCWithKueueState(operatorv1.Managed),
 			},
 			req: envtestutil.NewAdmissionRequest(
 				t,
@@ -276,6 +299,7 @@ func TestKueueWebhook_ValidatingWebhook(t *testing.T) {
 		{
 			name: "Missing Kueue label",
 			existingObjs: []client.Object{
+				envtestutil.NewNamespace(testNamespace, map[string]string{nsLabelManaged: "true"}),
 				createDSCWithKueueState(operatorv1.Managed),
 			},
 			req: envtestutil.NewAdmissionRequest(
@@ -295,6 +319,7 @@ func TestKueueWebhook_ValidatingWebhook(t *testing.T) {
 		{
 			name: "Empty Kueue label value",
 			existingObjs: []client.Object{
+				envtestutil.NewNamespace(testNamespace, map[string]string{nsLabelManaged: "true"}),
 				createDSCWithKueueState(operatorv1.Managed),
 			},
 			req: envtestutil.NewAdmissionRequest(
@@ -316,6 +341,7 @@ func TestKueueWebhook_ValidatingWebhook(t *testing.T) {
 		{
 			name: "Valid Kueue label",
 			existingObjs: []client.Object{
+				envtestutil.NewNamespace(testNamespace, map[string]string{nsLabelManaged: "true"}),
 				createDSCWithKueueState(operatorv1.Managed),
 			},
 			req: envtestutil.NewAdmissionRequest(
@@ -336,6 +362,7 @@ func TestKueueWebhook_ValidatingWebhook(t *testing.T) {
 		{
 			name: "Valid Kueue label with other extra labels",
 			existingObjs: []client.Object{
+				envtestutil.NewNamespace(testNamespace, map[string]string{nsLabelManaged: "true"}),
 				createDSCWithKueueState(operatorv1.Managed),
 			},
 			req: envtestutil.NewAdmissionRequest(
@@ -357,8 +384,30 @@ func TestKueueWebhook_ValidatingWebhook(t *testing.T) {
 			allowed: true,
 		},
 		{
+			name: "Legacy namespace label support",
+			existingObjs: []client.Object{
+				envtestutil.NewNamespace(testNamespace, map[string]string{legacyNsLabelManaged: "true"}),
+				createDSCWithKueueState(operatorv1.Managed),
+			},
+			req: envtestutil.NewAdmissionRequest(
+				t,
+				admissionv1.Create,
+				envtestutil.NewNotebook("test-notebook", testNamespace, func(obj client.Object) {
+					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
+				}),
+				gvk.Notebook,
+				metav1.GroupVersionResource{
+					Group:    gvk.Notebook.Group,
+					Version:  gvk.Notebook.Version,
+					Resource: "notebooks",
+				},
+			),
+			allowed: true,
+		},
+		{
 			name: "Update operation with valid label",
 			existingObjs: []client.Object{
+				envtestutil.NewNamespace(testNamespace, map[string]string{nsLabelManaged: "true"}),
 				createDSCWithKueueState(operatorv1.Managed),
 			},
 			req: envtestutil.NewAdmissionRequest(
@@ -379,6 +428,7 @@ func TestKueueWebhook_ValidatingWebhook(t *testing.T) {
 		{
 			name: "Update operation with missing label",
 			existingObjs: []client.Object{
+				envtestutil.NewNamespace(testNamespace, map[string]string{nsLabelManaged: "true"}),
 				createDSCWithKueueState(operatorv1.Managed),
 			},
 			req: envtestutil.NewAdmissionRequest(
@@ -398,6 +448,7 @@ func TestKueueWebhook_ValidatingWebhook(t *testing.T) {
 		{
 			name: "Delete operation should be allowed",
 			existingObjs: []client.Object{
+				envtestutil.NewNamespace(testNamespace, map[string]string{nsLabelManaged: "true"}),
 				createDSCWithKueueState(operatorv1.Managed),
 			},
 			req: envtestutil.NewAdmissionRequest(

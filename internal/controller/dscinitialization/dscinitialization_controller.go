@@ -23,7 +23,6 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -47,7 +46,6 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	rp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
@@ -67,31 +65,6 @@ type DSCInitializationReconciler struct {
 	Client   client.Client
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
-}
-
-// reconcileWebhookDeployment encapsulates the logic for deploying and reconciling webhook configurations.
-// Parameters:
-//   - ctx: The context for the API call
-//   - instance: The DSCInitialization instance to reconcile
-//
-// Returns:
-//   - error: Any error encountered while reconciling the webhooks
-func (r *DSCInitializationReconciler) reconcileWebhookDeployment(ctx context.Context, instance *dsciv1.DSCInitialization) error {
-	log := logf.FromContext(ctx).WithName("WebhookDeployment")
-
-	if err := webhook.ReconcileWebhooks(ctx, r.Client, r.Scheme, instance); err != nil {
-		log.Error(err, "Failed to reconcile webhook configurations")
-		// Update status to reflect webhook error
-		if _, statusErr := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
-			status.SetProgressingCondition(&saved.Status.Conditions, status.ReconcileFailed, "Failed to reconcile webhooks: "+err.Error())
-			saved.Status.Phase = status.PhaseError
-		}); statusErr != nil {
-			log.Error(statusErr, "Failed to update DSCInitialization status after webhook error")
-		}
-		return err
-	}
-
-	return nil
 }
 
 // Reconcile contains controller logic specific to DSCInitialization instance updates.
@@ -188,13 +161,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				"%s for instance %s", message, instance.Name)
 			return reconcile.Result{}, err
 		}
-	}
-
-	if err := r.reconcileWebhookDeployment(ctx, instance); err != nil {
-		log.Error(err, "Failed to reconcile webhook deployment", "DSCInitialization", req.Namespace, "Request.Name", req.Name)
-		r.Recorder.Eventf(instance, corev1.EventTypeWarning, "DSCInitializationReconcileError",
-			"Failed to reconcile webhook deployment for instance %s: %s", instance.Name, err.Error())
-		return reconcile.Result{}, err
 	}
 
 	// Deal with application namespace, configmap, networpolicy etc
@@ -383,47 +349,7 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			&serviceApi.Auth{},
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
-		Watches(
-			&admissionregistrationv1.ValidatingWebhookConfiguration{},
-			handler.EnqueueRequestsFromMapFunc(r.dsciWebhookWatchFunc),
-			builder.WithPredicates(
-				namePredicate(webhook.ValidatingWebhookConfigurationName),
-			),
-		).
 		Complete(r)
-}
-
-// Parameters:
-//   - ctx: The context for the request
-//   - obj: The object that triggered the watch
-//
-// Returns:
-//   - []reconcile.Request: The requests to reconcile the DSCInitialization instance
-func (r *DSCInitializationReconciler) dsciWebhookWatchFunc(ctx context.Context, obj client.Object) []reconcile.Request {
-	log := logf.FromContext(ctx).WithName("DSCIWebhookWatcherMapFunc")
-
-	instance, err := cluster.GetDSCI(ctx, r.Client)
-	if err != nil {
-		log.Error(err, "Failed to get a valid DSCInitialization instance for webhook watch.", "WebhookConfigName", obj.GetName())
-		return nil
-	}
-
-	return []reconcile.Request{{NamespacedName: types.NamespacedName{
-		Name:      instance.GetName(),
-		Namespace: instance.GetNamespace(),
-	}}}
-}
-
-// namePredicate is a helper function to create a predicate that checks if the object name matches the given name
-// Parameters:
-//   - name: The name to check against
-//
-// Returns:
-//   - predicate.Predicate: The predicate that checks if the object name matches the given name
-func namePredicate(name string) predicate.Predicate {
-	return predicate.NewPredicateFuncs(func(obj client.Object) bool {
-		return obj.GetName() == name
-	})
 }
 
 func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(ctx context.Context, a client.Object) []reconcile.Request {
