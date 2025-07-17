@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
@@ -24,18 +23,13 @@ import (
 var (
 	kueueQueueNameLabelKey     = cluster.KueueQueueNameLabel
 	localQueueName             = "default"
-	KueueManagedLabelKey       = "kueue.openshift.io/managed"
-	KueueLegacyManagedLabelKey = "kueue-managed"
+	kueueManagedLabelKey       = cluster.KueueManagedLabelKey
+	kueueLegacyManagedLabelKey = cluster.KueueLegacyManagedLabelKey
 	missingLabelError          = `Kueue label validation failed: missing required label "` + kueueQueueNameLabelKey + `"`
 )
 
 func TestKueueWebhook_Integration(t *testing.T) {
 	t.Parallel()
-
-	t.Cleanup(func() {
-		os.Unsetenv("ENVTEST_WEBHOOK_LOCAL_PORT")
-		os.Unsetenv("ENVTEST_WEBHOOK_LOCAL_CERT_DIR")
-	})
 
 	testCases := []struct {
 		name              string
@@ -48,14 +42,14 @@ func TestKueueWebhook_Integration(t *testing.T) {
 		{
 			name:           "Kueue disabled in DSC - should allow",
 			kueueState:     operatorv1.Removed,
-			nsLabels:       map[string]string{KueueManagedLabelKey: "true"},
+			nsLabels:       map[string]string{kueueManagedLabelKey: "true"},
 			workloadLabels: map[string]string{},
 			expectAllowed:  true,
 		},
 		{
 			name:              "Kueue enabled, ns enabled, missing workload label - should deny",
 			kueueState:        operatorv1.Managed,
-			nsLabels:          map[string]string{KueueManagedLabelKey: "true"},
+			nsLabels:          map[string]string{kueueManagedLabelKey: "true"},
 			workloadLabels:    map[string]string{},
 			expectAllowed:     false,
 			expectDeniedError: missingLabelError,
@@ -63,7 +57,7 @@ func TestKueueWebhook_Integration(t *testing.T) {
 		{
 			name:           "Kueue enabled, ns enabled, valid workload label - should allow",
 			kueueState:     operatorv1.Managed,
-			nsLabels:       map[string]string{KueueManagedLabelKey: "true"},
+			nsLabels:       map[string]string{kueueManagedLabelKey: "true"},
 			workloadLabels: map[string]string{kueueQueueNameLabelKey: localQueueName},
 			expectAllowed:  true,
 		},
@@ -77,7 +71,7 @@ func TestKueueWebhook_Integration(t *testing.T) {
 		{
 			name:           "Kueue enabled, ns enabled with legacy label, valid workload label - should allow",
 			kueueState:     operatorv1.Managed,
-			nsLabels:       map[string]string{KueueLegacyManagedLabelKey: "true"},
+			nsLabels:       map[string]string{kueueLegacyManagedLabelKey: "true"},
 			workloadLabels: map[string]string{kueueQueueNameLabelKey: localQueueName},
 			expectAllowed:  true,
 		},
@@ -97,9 +91,6 @@ func TestKueueWebhook_Integration(t *testing.T) {
 				20*time.Second,
 				envtestutil.WithNotebook(),
 			)
-
-			// Create webhook configuration
-			envtestutil.SetupWebhookConfigurations(t, env, ctx)
 
 			t.Cleanup(teardown)
 			k8sClient := env.Client()

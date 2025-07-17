@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -18,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -26,7 +25,6 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
@@ -307,7 +305,7 @@ func NewAuth(name, namespace string, adminGroups, allowedGroups []string, opts .
 	return auth
 }
 
-// NewHWP creates a HardwareProfile object with the given name and namespace for use in tests.
+// NewHardwareProfile creates a HardwareProfile object with the given name and namespace for use in tests.
 //
 // Parameters:
 //   - name: The name of the HardwareProfile object.
@@ -316,7 +314,7 @@ func NewAuth(name, namespace string, adminGroups, allowedGroups []string, opts .
 //
 // Returns:
 //   - *hwpv1alpha1.HardwareProfile: The constructed HardwareProfile object.
-func NewHWP(name, namespace string, opts ...func(profile *hwpv1alpha1.HardwareProfile)) *hwpv1alpha1.HardwareProfile {
+func NewHardwareProfile(name, namespace string, opts ...ObjectOption) *hwpv1alpha1.HardwareProfile {
 	hwp := &hwpv1alpha1.HardwareProfile{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       gvk.HardwareProfile.Kind,
@@ -327,9 +325,13 @@ func NewHWP(name, namespace string, opts ...func(profile *hwpv1alpha1.HardwarePr
 			Namespace: namespace,
 		},
 	}
+
+	// Convert to client.Object for ObjectOption compatibility
+	var clientObj client.Object = hwp
 	for _, opt := range opts {
-		opt(hwp)
+		opt(clientObj)
 	}
+
 	return hwp
 }
 
@@ -420,6 +422,12 @@ func NewInferenceService(name, namespace string, opts ...ObjectOption) client.Ob
 // =============================================================================
 
 // WithLabels sets labels on the object.
+//
+// Parameters:
+//   - labels: A map of label keys and values to set on the object.
+//
+// Returns:
+//   - ObjectOption: A functional option that applies the labels to the object.
 func WithLabels(labels map[string]string) ObjectOption {
 	return func(obj client.Object) {
 		obj.SetLabels(labels)
@@ -427,6 +435,12 @@ func WithLabels(labels map[string]string) ObjectOption {
 }
 
 // WithHardwareProfile adds a hardware profile annotation to the object.
+//
+// Parameters:
+//   - profileName: The name of the hardware profile to associate with the object.
+//
+// Returns:
+//   - ObjectOption: A functional option that adds the hardware profile annotation.
 func WithHardwareProfile(profileName string) ObjectOption {
 	return func(obj client.Object) {
 		annotations := obj.GetAnnotations()
@@ -439,6 +453,12 @@ func WithHardwareProfile(profileName string) ObjectOption {
 }
 
 // WithHardwareProfileNamespace adds a hardware profile namespace annotation to the object.
+//
+// Parameters:
+//   - namespace: The namespace where the hardware profile is located.
+//
+// Returns:
+//   - ObjectOption: A functional option that adds the hardware profile namespace annotation.
 func WithHardwareProfileNamespace(namespace string) ObjectOption {
 	return func(obj client.Object) {
 		annotations := obj.GetAnnotations()
@@ -451,6 +471,13 @@ func WithHardwareProfileNamespace(namespace string) ObjectOption {
 }
 
 // WithAnnotation adds an annotation to the object.
+//
+// Parameters:
+//   - key: The annotation key.
+//   - value: The annotation value.
+//
+// Returns:
+//   - ObjectOption: A functional option that adds the annotation to the object.
 func WithAnnotation(key, value string) ObjectOption {
 	return func(obj client.Object) {
 		annotations := obj.GetAnnotations()
@@ -459,6 +486,206 @@ func WithAnnotation(key, value string) ObjectOption {
 		}
 		annotations[key] = value
 		obj.SetAnnotations(annotations)
+	}
+}
+
+// =============================================================================
+// Hardware Profile Specific Options
+// =============================================================================
+
+// WithHardwareProfileSpec sets the complete hardware profile spec.
+//
+// Parameters:
+//   - spec: The complete HardwareProfileSpec to set on the hardware profile object.
+//
+// Returns:
+//   - ObjectOption: A functional option that sets the hardware profile spec.
+func WithHardwareProfileSpec(spec hwpv1alpha1.HardwareProfileSpec) ObjectOption {
+	return func(obj client.Object) {
+		if hwp, ok := obj.(*hwpv1alpha1.HardwareProfile); ok {
+			hwp.Spec = spec
+		}
+	}
+}
+
+// WithResourceIdentifiers adds resource identifiers to the hardware profile.
+//
+// Parameters:
+//   - identifiers: One or more HardwareIdentifier objects to add to the hardware profile.
+//
+// Returns:
+//   - ObjectOption: A functional option that adds the resource identifiers to the hardware profile.
+func WithResourceIdentifiers(identifiers ...hwpv1alpha1.HardwareIdentifier) ObjectOption {
+	return func(obj client.Object) {
+		if hwp, ok := obj.(*hwpv1alpha1.HardwareProfile); ok {
+			if hwp.Spec.Identifiers == nil {
+				hwp.Spec.Identifiers = make([]hwpv1alpha1.HardwareIdentifier, 0)
+			}
+			hwp.Spec.Identifiers = append(hwp.Spec.Identifiers, identifiers...)
+		}
+	}
+}
+
+// WithCPUIdentifier is a convenience function to add a CPU resource identifier.
+//
+// Parameters:
+//   - minCount: The minimum CPU count (e.g., "1", "2").
+//   - defaultCount: The default CPU count (e.g., "2", "4").
+//   - maxCount: Optional maximum CPU count. If not provided, no maximum limit is set.
+//
+// Returns:
+//   - ObjectOption: A functional option that adds a CPU resource identifier to the hardware profile.
+func WithCPUIdentifier(minCount, defaultCount string, maxCount ...string) ObjectOption {
+	identifier := hwpv1alpha1.HardwareIdentifier{
+		DisplayName:  "CPU",
+		Identifier:   "cpu",
+		MinCount:     intstr.FromString(minCount),
+		DefaultCount: intstr.FromString(defaultCount),
+		ResourceType: "CPU",
+	}
+	setOptionalMaxCount(&identifier, maxCount...)
+	return WithResourceIdentifiers(identifier)
+}
+
+// WithMemoryIdentifier is a convenience function to add a Memory resource identifier.
+//
+// Parameters:
+//   - minCount: The minimum memory amount (e.g., "1Gi", "2Gi").
+//   - defaultCount: The default memory amount (e.g., "4Gi", "8Gi").
+//   - maxCount: Optional maximum memory amount. If not provided, no maximum limit is set.
+//
+// Returns:
+//   - ObjectOption: A functional option that adds a Memory resource identifier to the hardware profile.
+func WithMemoryIdentifier(minCount, defaultCount string, maxCount ...string) ObjectOption {
+	identifier := hwpv1alpha1.HardwareIdentifier{
+		DisplayName:  "Memory",
+		Identifier:   "memory",
+		MinCount:     intstr.FromString(minCount),
+		DefaultCount: intstr.FromString(defaultCount),
+		ResourceType: "Memory",
+	}
+	setOptionalMaxCount(&identifier, maxCount...)
+	return WithResourceIdentifiers(identifier)
+}
+
+// WithGPUIdentifier is a convenience function to add a GPU resource identifier.
+//
+// Parameters:
+//   - identifier: The GPU resource identifier (e.g., "nvidia.com/gpu", "amd.com/gpu").
+//   - minCount: The minimum GPU count (e.g., "1", "2").
+//   - defaultCount: The default GPU count (e.g., "1", "4").
+//   - maxCount: Optional maximum GPU count. If not provided, no maximum limit is set.
+//
+// Returns:
+//   - ObjectOption: A functional option that adds a GPU resource identifier to the hardware profile.
+func WithGPUIdentifier(identifier, minCount, defaultCount string, maxCount ...string) ObjectOption {
+	hwIdentifier := hwpv1alpha1.HardwareIdentifier{
+		DisplayName:  "GPU",
+		Identifier:   identifier,
+		MinCount:     intstr.FromString(minCount),
+		DefaultCount: intstr.FromString(defaultCount),
+		ResourceType: "Accelerator",
+	}
+	setOptionalMaxCount(&hwIdentifier, maxCount...)
+	return WithResourceIdentifiers(hwIdentifier)
+}
+
+// WithKueueScheduling adds Kueue scheduling configuration to the hardware profile.
+//
+// Parameters:
+//   - localQueueName: The name of the Kueue local queue for workload scheduling.
+//   - priorityClass: Optional priority class name for workload prioritization. If not provided, no priority class is set.
+//
+// Returns:
+//   - ObjectOption: A functional option that adds Kueue scheduling configuration to the hardware profile.
+func WithKueueScheduling(localQueueName string, priorityClass ...string) ObjectOption {
+	return func(obj client.Object) {
+		if hwp, ok := obj.(*hwpv1alpha1.HardwareProfile); ok {
+			kueueSpec := &hwpv1alpha1.KueueSchedulingSpec{
+				LocalQueueName: localQueueName,
+			}
+
+			// Set optional priority class if provided
+			if len(priorityClass) > 0 && priorityClass[0] != "" {
+				kueueSpec.PriorityClass = priorityClass[0]
+			}
+
+			// Initialize or merge with existing SchedulingSpec
+			if hwp.Spec.SchedulingSpec == nil {
+				hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{}
+			}
+
+			hwp.Spec.SchedulingSpec.SchedulingType = hwpv1alpha1.QueueScheduling
+			hwp.Spec.SchedulingSpec.Kueue = kueueSpec
+		}
+	}
+}
+
+// WithNodeScheduling adds node scheduling configuration to the hardware profile.
+//
+// Parameters:
+//   - nodeSelector: A map of key-value pairs for node selection criteria.
+//   - tolerations: A slice of tolerations for scheduling on tainted nodes.
+//
+// Returns:
+//   - ObjectOption: A functional option that adds node scheduling configuration to the hardware profile.
+func WithNodeScheduling(nodeSelector map[string]string, tolerations []corev1.Toleration) ObjectOption {
+	return func(obj client.Object) {
+		if hwp, ok := obj.(*hwpv1alpha1.HardwareProfile); ok {
+			// Initialize or merge with existing SchedulingSpec
+			if hwp.Spec.SchedulingSpec == nil {
+				hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{}
+			}
+
+			hwp.Spec.SchedulingSpec.SchedulingType = hwpv1alpha1.NodeScheduling
+			hwp.Spec.SchedulingSpec.Node = &hwpv1alpha1.NodeSchedulingSpec{
+				NodeSelector: nodeSelector,
+				Tolerations:  tolerations,
+			}
+		}
+	}
+}
+
+// WithNodeSelector is a convenience function to add just node selector (without tolerations).
+//
+// Parameters:
+//   - nodeSelector: A map of key-value pairs for node selection criteria.
+//
+// Returns:
+//   - ObjectOption: A functional option that adds node selector configuration to the hardware profile.
+func WithNodeSelector(nodeSelector map[string]string) ObjectOption {
+	return WithNodeScheduling(nodeSelector, nil)
+}
+
+// WithTolerations is a convenience function to add tolerations to existing node scheduling.
+//
+// Parameters:
+//   - tolerations: A slice of tolerations for scheduling on tainted nodes.
+//
+// Returns:
+//   - ObjectOption: A functional option that adds tolerations to the hardware profile's node scheduling configuration.
+func WithTolerations(tolerations []corev1.Toleration) ObjectOption {
+	return func(obj client.Object) {
+		if hwp, ok := obj.(*hwpv1alpha1.HardwareProfile); ok {
+			if hwp.Spec.SchedulingSpec == nil {
+				hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{
+					SchedulingType: hwpv1alpha1.NodeScheduling,
+					Node:           &hwpv1alpha1.NodeSchedulingSpec{},
+				}
+			}
+			if hwp.Spec.SchedulingSpec.Node == nil {
+				hwp.Spec.SchedulingSpec.Node = &hwpv1alpha1.NodeSchedulingSpec{}
+			}
+			hwp.Spec.SchedulingSpec.Node.Tolerations = tolerations
+		}
+	}
+}
+
+// setOptionalMaxCount is a helper function to set MaxCount only when a meaningful value is provided.
+func setOptionalMaxCount(identifier *hwpv1alpha1.HardwareIdentifier, maxCount ...string) {
+	if len(maxCount) > 0 && maxCount[0] != "" {
+		maxCountIntStr := intstr.FromString(maxCount[0])
+		identifier.MaxCount = &maxCountIntStr
 	}
 }
 
@@ -567,28 +794,5 @@ func MockInferenceServiceCRD() *apiextensionsv1.CustomResourceDefinition {
 				},
 			}},
 		},
-	}
-}
-
-// SetupWebhookConfigurations creates and configures webhook configurations for the given environment.
-// Parameters:
-//   - t: The testing.T object for error reporting.
-//   - env: The envtest environment wrapper instance.
-//   - ctx: The context for the test environment.
-//
-// Returns:
-//   - None.
-func SetupWebhookConfigurations(t *testing.T, env *envt.EnvT, ctx context.Context) {
-	t.Helper()
-
-	// Set env for webhook to work
-	//nolint:usetesting
-	os.Setenv("ENVTEST_WEBHOOK_LOCAL_PORT", strconv.Itoa(env.Env.WebhookInstallOptions.LocalServingPort))
-	//nolint:usetesting
-	os.Setenv("ENVTEST_WEBHOOK_LOCAL_CERT_DIR", env.Env.WebhookInstallOptions.LocalServingCertDir)
-
-	vwc := webhook.DesiredValidatingWebhookConfiguration("kueue-webhook-test")
-	if err := env.Client().Create(ctx, vwc); err != nil && !k8serr.IsAlreadyExists(err) {
-		t.Fatalf("failed to create webhook configuration: %v", err)
 	}
 }

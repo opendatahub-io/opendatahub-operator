@@ -2,13 +2,9 @@ package dscinitialization_test
 
 import (
 	"context"
-	"fmt"
-	"reflect"
-	"sort"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	userv1 "github.com/openshift/api/user/v1"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -18,7 +14,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -40,10 +35,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		// must be default as instance name, or it will break
 
 		BeforeEach(func(ctx context.Context) {
-			// Pre-create a valid Auth CR to avoid webhook rejection
-			auth := createAuth()
-			Expect(k8sClient.Create(ctx, auth)).Should(Succeed())
-
 			// when
 			foundApplicationNamespace := &corev1.Namespace{}
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: workingNamespace}, foundApplicationNamespace)).ShouldNot(Succeed())
@@ -93,46 +84,9 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				WithPolling(interval).
 				Should(BeFalse())
 		})
-
-		It("Should create validating webhook configuration with expected validators", func(ctx context.Context) {
-			vwc := &admissionregistrationv1.ValidatingWebhookConfiguration{}
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, client.ObjectKey{
-					Name: webhook.ValidatingWebhookConfigurationName,
-				}, vwc)
-				return err == nil
-			}, timeout, interval).Should(BeTrue(), "Expected ValidatingWebhookConfiguration to be present")
-
-			expectedWebhooks := []string{
-				webhook.KserveKueuelabelsValidatorName,
-				webhook.KubeflowKueuelabelsValidatorName,
-				webhook.RayKueuelabelsValidatorName,
-				webhook.KserveKueuelabelsValidatorName + "-legacy",
-				webhook.KubeflowKueuelabelsValidatorName + "-legacy",
-				webhook.RayKueuelabelsValidatorName + "-legacy",
-			}
-
-			foundWebhooks := []string{}
-			for _, wh := range vwc.Webhooks {
-				foundWebhooks = append(foundWebhooks, wh.Name)
-			}
-
-			sort.Strings(foundWebhooks)
-			sort.Strings(expectedWebhooks)
-
-			fmt.Println("foundWebhooks", foundWebhooks)
-			fmt.Println("expectedWebhooks", expectedWebhooks)
-
-			Expect(reflect.DeepEqual(foundWebhooks, expectedWebhooks)).To(BeTrue())
-		})
 	})
 
 	Context("Monitoring Resource", func() {
-		BeforeEach(func(ctx context.Context) {
-			// Pre-create a valid Auth CR to avoid webhook rejection
-			auth := createAuth()
-			Expect(k8sClient.Create(ctx, auth)).Should(Succeed())
-		})
 		AfterEach(cleanupResources)
 		const monitoringNamespace2 = "test-monitoring-ns2"
 		const applicationName = "default-dsci"
@@ -158,11 +112,6 @@ var _ = Describe("DataScienceCluster initialization", func() {
 	})
 
 	Context("Handling existing resources", func() {
-		BeforeEach(func(ctx context.Context) {
-			// Pre-create a valid Auth CR to avoid webhook rejection
-			auth := createAuth()
-			Expect(k8sClient.Create(ctx, auth)).Should(Succeed())
-		})
 		AfterEach(cleanupResources)
 		const applicationName = "default-dsci"
 
@@ -278,7 +227,6 @@ func cleanupResources(ctx context.Context) {
 
 	Expect(k8sClient.DeleteAllOf(ctx, &networkingv1.NetworkPolicy{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(ctx, &corev1.ConfigMap{}, appNamespace)).To(Succeed())
-	Expect(k8sClient.DeleteAllOf(ctx, &serviceApi.Auth{}, defaultNamespace)).To(Succeed())
 
 	Eventually(noInstanceExistsIn(workingNamespace, &dsciv1.DSCInitializationList{})).
 		WithContext(ctx).
@@ -374,17 +322,5 @@ func dscInitializationIsReady(name string, namespace string, dsciObj *dsciv1.DSC
 		_ = k8sClient.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, dsciObj)
 
 		return dsciObj.Status.Phase == readyPhase
-	}
-}
-
-func createAuth() *serviceApi.Auth {
-	return &serviceApi.Auth{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "auth",
-		},
-		Spec: serviceApi.AuthSpec{
-			AdminGroups:   []string{"odh-admins"},
-			AllowedGroups: []string{"system:authenticated"},
-		},
 	}
 }

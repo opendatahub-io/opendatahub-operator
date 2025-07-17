@@ -11,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
@@ -90,88 +89,50 @@ func expectTolerationsAtPath(g Gomega, scheme *runtime.Scheme, workload client.O
 
 // createResourceHardwareProfile creates a hardware profile with resource identifiers for testing.
 func createResourceHardwareProfile(name, namespace string) *hwpv1alpha1.HardwareProfile {
-	maxCount8 := intstr.FromString("8")
-	maxCount16Gi := intstr.FromString("16Gi")
-	maxCount4 := intstr.FromString("4")
-
-	return envtestutil.NewHWP(name, namespace, func(hwp *hwpv1alpha1.HardwareProfile) {
-		hwp.Spec.Identifiers = []hwpv1alpha1.HardwareIdentifier{
-			{
-				DisplayName:  "CPU",
-				Identifier:   "cpu",
-				MinCount:     intstr.FromString("2"),
-				MaxCount:     &maxCount8,
-				DefaultCount: intstr.FromString("4"),
-			},
-			{
-				DisplayName:  "Memory",
-				Identifier:   "memory",
-				MinCount:     intstr.FromString("4Gi"),
-				MaxCount:     &maxCount16Gi,
-				DefaultCount: intstr.FromString("8Gi"),
-			},
-			{
-				DisplayName:  "GPU",
-				Identifier:   "nvidia.com/gpu",
-				MinCount:     intstr.FromString("1"),
-				MaxCount:     &maxCount4,
-				DefaultCount: intstr.FromString("1"),
-			},
-		}
-	})
+	return envtestutil.NewHardwareProfile(name, namespace,
+		envtestutil.WithCPUIdentifier("2", "4", "8"),
+		envtestutil.WithMemoryIdentifier("4Gi", "8Gi", "16Gi"),
+		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "1", "1", "4"),
+	)
 }
 
 // createKueueHardwareProfile creates a hardware profile with Kueue configuration for testing.
 func createKueueHardwareProfile(name, namespace, queueName string) *hwpv1alpha1.HardwareProfile {
-	return envtestutil.NewHWP(name, namespace, func(hwp *hwpv1alpha1.HardwareProfile) {
-		hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{
-			SchedulingType: hwpv1alpha1.QueueScheduling,
-			Kueue: &hwpv1alpha1.KueueSchedulingSpec{
-				LocalQueueName: queueName,
-			},
-		}
-	})
+	return envtestutil.NewHardwareProfile(name, namespace,
+		envtestutil.WithKueueScheduling(queueName),
+	)
 }
 
 // createNodeSchedulingHardwareProfile creates a hardware profile with node scheduling configuration.
 func createNodeSchedulingHardwareProfile(name, namespace string) *hwpv1alpha1.HardwareProfile {
-	return envtestutil.NewHWP(name, namespace, func(hwp *hwpv1alpha1.HardwareProfile) {
-		hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{
-			SchedulingType: hwpv1alpha1.NodeScheduling,
-			Node: &hwpv1alpha1.NodeSchedulingSpec{
-				NodeSelector: map[string]string{
-					"accelerator": "nvidia-tesla-v100",
-					"zone":        "us-west-1a",
+	return envtestutil.NewHardwareProfile(name, namespace,
+		envtestutil.WithNodeScheduling(
+			map[string]string{
+				"accelerator": "nvidia-tesla-v100",
+				"zone":        "us-west-1a",
+			},
+			[]corev1.Toleration{
+				{
+					Key:      "nvidia.com/gpu",
+					Operator: corev1.TolerationOpEqual,
+					Value:    "present",
+					Effect:   corev1.TaintEffectNoSchedule,
 				},
-				Tolerations: []corev1.Toleration{
-					{
-						Key:      "nvidia.com/gpu",
-						Operator: corev1.TolerationOpEqual,
-						Value:    "present",
-						Effect:   corev1.TaintEffectNoSchedule,
-					},
-					{
-						Key:      "high-memory",
-						Operator: corev1.TolerationOpExists,
-						Effect:   corev1.TaintEffectNoSchedule,
-					},
+				{
+					Key:      "high-memory",
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoSchedule,
 				},
 			},
-		}
-	})
+		),
+	)
 }
 
 // createSimpleHardwareProfile creates a basic hardware profile with minimal configuration.
 func createSimpleHardwareProfile(name, namespace string) *hwpv1alpha1.HardwareProfile {
-	return envtestutil.NewHWP(name, namespace, func(hwp *hwpv1alpha1.HardwareProfile) {
-		hwp.Spec.Identifiers = []hwpv1alpha1.HardwareIdentifier{
-			{
-				DisplayName:  "CPU",
-				Identifier:   "cpu",
-				DefaultCount: intstr.FromString("2"),
-			},
-		}
-	})
+	return envtestutil.NewHardwareProfile(name, namespace,
+		envtestutil.WithCPUIdentifier("0", "2"),
+	)
 }
 
 // testNoHardwareProfileAnnotationForWorkload is a generic helper that tests webhook behavior
@@ -544,90 +505,106 @@ func TestHardwareProfileWebhook_Integration(t *testing.T) {
 // TestHardwareProfile_CRDValidation tests the CRD validation for HardwareProfile resources.
 func TestHardwareProfile_CRDValidation(t *testing.T) {
 	t.Parallel()
-	g := NewWithT(t)
 
-	ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
-		t,
-		[]envt.RegisterWebhooksFn{envtestutil.RegisterHardwareProfileAndKueueWebhooks},
-		envtestutil.DefaultWebhookTimeout,
-		envtestutil.WithNotebook(),
-		envtestutil.WithInferenceService(),
-	)
-	t.Cleanup(teardown)
-
-	// Create test namespace
-	ns := fmt.Sprintf("test-ns-%s", xid.New().String())
-	testNamespace := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{Name: ns},
+	testCases := []struct {
+		name          string
+		hwpOptions    []envtestutil.ObjectOption
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "valid queue scheduling configuration",
+			hwpOptions:  []envtestutil.ObjectOption{envtestutil.WithKueueScheduling("test-queue")},
+			expectError: false,
+		},
+		{
+			name: "valid node scheduling configuration",
+			hwpOptions: []envtestutil.ObjectOption{
+				envtestutil.WithNodeScheduling(
+					map[string]string{
+						"accelerator": "nvidia-tesla-v100",
+						"zone":        "us-west-1a",
+					},
+					[]corev1.Toleration{
+						{
+							Key:      "nvidia.com/gpu",
+							Operator: corev1.TolerationOpEqual,
+							Value:    "present",
+							Effect:   corev1.TaintEffectNoSchedule,
+						},
+						{
+							Key:      "high-memory",
+							Operator: corev1.TolerationOpExists,
+							Effect:   corev1.TaintEffectNoSchedule,
+						},
+					},
+				),
+			},
+			expectError: false,
+		},
+		{
+			name:          "invalid: queue scheduling without local queue name",
+			hwpOptions:    []envtestutil.ObjectOption{envtestutil.WithKueueScheduling("")},
+			expectError:   true,
+			errorContains: "spec.scheduling.kueue.localQueueName",
+		},
+		{
+			name: "invalid: queue scheduling with node configuration",
+			// Primary scheduling type (queue) set last to determine final SchedulingType
+			hwpOptions: []envtestutil.ObjectOption{
+				envtestutil.WithNodeSelector(map[string]string{"test": "value"}),
+				envtestutil.WithKueueScheduling("test-queue"),
+			},
+			expectError:   true,
+			errorContains: "and the 'node' field must not be set",
+		},
+		{
+			name: "invalid: node scheduling with kueue configuration",
+			// Primary scheduling type (node) set last to determine final SchedulingType
+			hwpOptions: []envtestutil.ObjectOption{
+				envtestutil.WithKueueScheduling("test-queue"),
+				envtestutil.WithNodeSelector(map[string]string{"test": "value"}),
+			},
+			expectError:   true,
+			errorContains: "and the 'kueue' field must not be set",
+		},
 	}
-	g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
 
-	// Add HardwareProfile types to scheme for client operations
-	g.Expect(hwpv1alpha1.AddToScheme(env.Scheme())).To(Succeed())
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
 
-	t.Run("valid queue scheduling configuration", func(t *testing.T) {
-		t.Parallel()
-		hwp := createKueueHardwareProfile("valid-queue", ns, "test-queue")
-		g.Expect(env.Client().Create(ctx, hwp)).To(Succeed())
-	})
+			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
+				t,
+				[]envt.RegisterWebhooksFn{envtestutil.RegisterHardwareProfileAndKueueWebhooks},
+				envtestutil.DefaultWebhookTimeout,
+				envtestutil.WithNotebook(),
+				envtestutil.WithInferenceService(),
+			)
+			t.Cleanup(teardown)
 
-	t.Run("valid node scheduling configuration", func(t *testing.T) {
-		t.Parallel()
-		hwp := createNodeSchedulingHardwareProfile("valid-node", ns)
-		g.Expect(env.Client().Create(ctx, hwp)).To(Succeed())
-	})
+			// Create test namespace
+			ns := fmt.Sprintf("test-ns-%s", xid.New().String())
+			testNamespace := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: ns},
+			}
+			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
 
-	t.Run("invalid: queue scheduling without local queue name", func(t *testing.T) {
-		t.Parallel()
-		hwp := envtestutil.NewHWP("invalid-queue-empty", ns, func(hwp *hwpv1alpha1.HardwareProfile) {
-			hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{
-				SchedulingType: hwpv1alpha1.QueueScheduling,
-				Kueue: &hwpv1alpha1.KueueSchedulingSpec{
-					LocalQueueName: "", // Empty - should fail validation
-				},
+			// Add HardwareProfile types to scheme for client operations
+			g.Expect(hwpv1alpha1.AddToScheme(env.Scheme())).To(Succeed())
+
+			// Create hardware profile with test case specific options
+			hwp := envtestutil.NewHardwareProfile(fmt.Sprintf("test-hwp-%s", xid.New().String()), ns, tc.hwpOptions...)
+
+			err := env.Client().Create(ctx, hwp)
+
+			if tc.expectError {
+				g.Expect(err).To(HaveOccurred(), "Expected creation to fail but it succeeded")
+				g.Expect(err.Error()).To(ContainSubstring(tc.errorContains))
+			} else {
+				g.Expect(err).To(Succeed(), fmt.Sprintf("Expected creation to succeed but got: %v", err))
 			}
 		})
-
-		err := env.Client().Create(ctx, hwp)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(err.Error()).To(ContainSubstring("spec.scheduling.kueue.localQueueName"))
-	})
-
-	t.Run("invalid: queue scheduling with node configuration", func(t *testing.T) {
-		t.Parallel()
-		hwp := envtestutil.NewHWP("invalid-queue-with-node", ns, func(hwp *hwpv1alpha1.HardwareProfile) {
-			hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{
-				SchedulingType: hwpv1alpha1.QueueScheduling,
-				Kueue: &hwpv1alpha1.KueueSchedulingSpec{
-					LocalQueueName: "test-queue",
-				},
-				Node: &hwpv1alpha1.NodeSchedulingSpec{ // Should not be allowed with Queue type
-					NodeSelector: map[string]string{"test": "value"},
-				},
-			}
-		})
-
-		err := env.Client().Create(ctx, hwp)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(err.Error()).To(ContainSubstring("the 'node' field must not be set"))
-	})
-
-	t.Run("invalid: node scheduling with kueue configuration", func(t *testing.T) {
-		t.Parallel()
-		hwp := envtestutil.NewHWP("invalid-node-with-kueue", ns, func(hwp *hwpv1alpha1.HardwareProfile) {
-			hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{
-				SchedulingType: hwpv1alpha1.NodeScheduling,
-				Node: &hwpv1alpha1.NodeSchedulingSpec{
-					NodeSelector: map[string]string{"test": "value"},
-				},
-				Kueue: &hwpv1alpha1.KueueSchedulingSpec{ // Should not be allowed with Node type
-					LocalQueueName: "test-queue",
-				},
-			}
-		})
-
-		err := env.Client().Create(ctx, hwp)
-		g.Expect(err).To(HaveOccurred())
-		g.Expect(err.Error()).To(ContainSubstring("the 'kueue' field must not be set"))
-	})
+	}
 }
