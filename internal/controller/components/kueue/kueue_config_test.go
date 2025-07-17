@@ -138,6 +138,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
 `
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
@@ -163,6 +164,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
 `
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
@@ -188,6 +190,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
 `
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
@@ -217,6 +220,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
 `
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
@@ -254,6 +258,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
       externalFrameworks:
         - MPIJob
         - RayJob
@@ -283,6 +288,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
 `
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
@@ -311,6 +317,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
     workloadManagement:
       labelPolicy: None
 `
@@ -342,6 +349,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
     gangScheduling:
       policy: ByWorkload
       byWorkload:
@@ -375,6 +383,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
     preemption:
       preemptionPolicy: FairSharing
       fairSharing:
@@ -410,6 +419,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
     gangScheduling:
       policy: ByWorkload
       byWorkload:
@@ -448,6 +458,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
 `
 	runKueueCRTest(t, kueueConfig, kueueCR)
 }
@@ -479,6 +490,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
       externalFrameworks:
         - MPIJob
         - RayJob
@@ -513,6 +525,7 @@ spec:
         - PyTorchJob
         - RayCluster
         - RayJob
+        - StatefulSet
       labelKeys:
         - custom.label/key1
         - custom.label/key2
