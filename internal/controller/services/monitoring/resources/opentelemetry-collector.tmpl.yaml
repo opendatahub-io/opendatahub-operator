@@ -1,0 +1,84 @@
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: data-science-collector
+  namespace: {{ .Namespace }}
+spec:
+  mode: deployment
+  config:
+    extensions:
+      bearertokenauth:
+        filename: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    receivers:
+      {{ if .Metrics }}
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: '{{ .PromPipelineName }}'
+              bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+              kubernetes_sd_configs:
+                - role: pod
+              metrics_path: /metrics
+              relabel_configs:
+                - action: keep
+                  regex: true
+                  source_labels: [__meta_kubernetes_pod_label_monitoring_opendatahub_io_scrape]
+                - action: replace
+                  regex: '([^:]+)(?::\d+)?'
+                  replacement: '$1:8080'
+                  source_labels: [__address__]
+                  target_label: __address__
+              scrape_interval: 30s
+              scrape_timeout: 10s
+              tls_config:
+                insecure_skip_verify: true
+      {{ end }}
+      otlp:
+        protocols:
+          grpc: {}
+          http: {}
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        spike_limit_mib: 800
+        limit_mib: 4000
+      batch:
+        send_batch_size: 10000
+      k8sattributes: {}
+      resourcedetection:
+        detectors: [openshift]
+    exporters:
+      {{ if .Metrics }}
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        resource_to_telemetry_conversion:
+          enabled: true # by default resource attributes are dropped
+      {{ end }}
+      {{ if .Traces }}
+      otlp/tempo:
+        endpoint: tempo-tempo-gateway.{{ .Namespace}}.svc:4317
+        tls:
+          ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+        auth:
+          authenticator: bearertokenauth
+        headers:
+          # must be set to the tenant name from tempo CR
+          X-Scope-OrgID: {{ .Namespace }}
+      {{ end }}
+    service:
+      extensions: [bearertokenauth]
+      {{ if or .Traces .Metrics }}
+      pipelines:
+      {{ if .Traces }}
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, k8sattributes, resourcedetection, batch]
+          exporters: [otlp/tempo]
+      {{ end }}
+      {{ if .Metrics }}
+        metrics:
+          receivers: [prometheus, otlp]
+          processors: [memory_limiter, k8sattributes, resourcedetection, batch]
+          exporters: [prometheus]
+      {{ end }}
+      {{ end }}
