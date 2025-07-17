@@ -352,3 +352,302 @@ func (tc *ComponentTestCtx) ValidateModelControllerInstance(t *testing.T) {
 		modelcontroller.ReadyConditionType,
 	)
 }
+
+// ValidateDeploymentDeletionRecovery validates Deployment resources are recreated upon deletion.
+func (tc *ComponentTestCtx) ValidateDeploymentDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	// Fetch Deployments
+	deployments := tc.FetchResources(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+	)
+
+	// For each Deployment, delete it and verify it gets recreated
+	for _, deployment := range deployments {
+		t.Run("deployment_"+deployment.GetName(), func(t *testing.T) {
+			t.Helper()
+
+			// Delete the Deployment
+			tc.DeleteResource(
+				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&deployment)),
+			)
+
+			// Verify the Deployment is recreated
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&deployment)),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeAvailable, metav1.ConditionTrue)),
+			)
+		})
+	}
+}
+
+// ValidateConfigMapDeletionRecovery validates ConfigMap resources are recreated upon deletion.
+func (tc *ComponentTestCtx) ValidateConfigMapDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	// Fetch ConfigMaps
+	configMaps := tc.FetchResources(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+	)
+
+	// For each ConfigMap, delete it and verify it gets recreated
+	for _, configMap := range configMaps {
+		t.Run("configMap_"+configMap.GetName(), func(t *testing.T) {
+			t.Helper()
+
+			// Delete the ConfigMap
+			tc.DeleteResource(
+				WithMinimalObject(gvk.ConfigMap, resources.NamespacedNameFromObject(&configMap)),
+			)
+
+			// Verify the ConfigMap is recreated
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.ConfigMap, resources.NamespacedNameFromObject(&configMap)),
+			)
+		})
+	}
+}
+
+// ValidateServiceDeletionRecovery validates Service resources are recreated upon deletion.
+func (tc *ComponentTestCtx) ValidateServiceDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	// Fetch Services
+	services := tc.FetchResources(
+		WithMinimalObject(gvk.Service, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+	)
+
+	// For each Service, delete it and verify it gets recreated
+	for _, service := range services {
+		t.Run("service_"+service.GetName(), func(t *testing.T) {
+			t.Helper()
+
+			// Delete the Service
+			tc.DeleteResource(
+				WithMinimalObject(gvk.Service, resources.NamespacedNameFromObject(&service)),
+			)
+
+			// Verify the Service is recreated
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Service, resources.NamespacedNameFromObject(&service)),
+			)
+		})
+	}
+}
+
+// ValidateRouteDeletionRecovery validates Route resources are recreated upon deletion.
+func (tc *ComponentTestCtx) ValidateRouteDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	// Fetch Routes
+	routes := tc.FetchResources(
+		WithMinimalObject(gvk.Route, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+	)
+
+	// For each Route, delete it and verify it gets recreated
+	for _, route := range routes {
+		t.Run("route_"+route.GetName(), func(t *testing.T) {
+			t.Helper()
+
+			// Delete the Route
+			tc.DeleteResource(
+				WithMinimalObject(gvk.Route, resources.NamespacedNameFromObject(&route)),
+			)
+
+			// Verify the Route is recreated
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Route, resources.NamespacedNameFromObject(&route)),
+			)
+		})
+	}
+}
+
+// ValidateServiceAccountDeletionRecovery validates ServiceAccount resources are recreated upon deletion.
+func (tc *ComponentTestCtx) ValidateServiceAccountDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	// Fetch ServiceAccounts
+	serviceAccounts := tc.FetchResources(
+		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+	)
+
+	// For each ServiceAccount, delete it and verify it gets recreated
+	for _, serviceAccount := range serviceAccounts {
+		t.Run("serviceAccount_"+serviceAccount.GetName(), func(t *testing.T) {
+			t.Helper()
+
+			// Delete the ServiceAccount
+			tc.DeleteResource(
+				WithMinimalObject(gvk.ServiceAccount, resources.NamespacedNameFromObject(&serviceAccount)),
+			)
+
+			// Verify the ServiceAccount is recreated
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.ServiceAccount, resources.NamespacedNameFromObject(&serviceAccount)),
+			)
+		})
+	}
+}
+
+// ValidateRBACDeletionRecovery validates ClusterRole, ClusterRoleBinding, Role, and RoleBinding resources are recreated upon deletion.
+func (tc *ComponentTestCtx) ValidateRBACDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	// Fetch ClusterRoles
+	clusterRoles := tc.FetchResources(
+		WithMinimalObject(gvk.ClusterRole, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+	)
+
+	// For each ClusterRole, delete it and verify it gets recreated
+	for _, clusterRole := range clusterRoles {
+		t.Run("clusterRole_"+clusterRole.GetName(), func(t *testing.T) {
+			t.Helper()
+
+			// Delete the ClusterRole
+			tc.DeleteResource(
+				WithMinimalObject(gvk.ClusterRole, resources.NamespacedNameFromObject(&clusterRole)),
+			)
+
+			// Verify the ClusterRole is recreated
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.ClusterRole, resources.NamespacedNameFromObject(&clusterRole)),
+			)
+		})
+	}
+
+	// Fetch ClusterRoleBindings
+	clusterRoleBindings := tc.FetchResources(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+	)
+
+	// For each ClusterRoleBinding, delete it and verify it gets recreated
+	for _, clusterRoleBinding := range clusterRoleBindings {
+		t.Run("clusterRoleBinding_"+clusterRoleBinding.GetName(), func(t *testing.T) {
+			t.Helper()
+
+			// Delete the ClusterRoleBinding
+			tc.DeleteResource(
+				WithMinimalObject(gvk.ClusterRoleBinding, resources.NamespacedNameFromObject(&clusterRoleBinding)),
+			)
+
+			// Verify the ClusterRoleBinding is recreated
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.ClusterRoleBinding, resources.NamespacedNameFromObject(&clusterRoleBinding)),
+			)
+		})
+	}
+
+	// Fetch Roles
+	roles := tc.FetchResources(
+		WithMinimalObject(gvk.Role, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+	)
+
+	// For each Role, delete it and verify it gets recreated
+	for _, role := range roles {
+		t.Run("role_"+role.GetName(), func(t *testing.T) {
+			t.Helper()
+
+			// Delete the Role
+			tc.DeleteResource(
+				WithMinimalObject(gvk.Role, resources.NamespacedNameFromObject(&role)),
+			)
+
+			// Verify the Role is recreated
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Role, resources.NamespacedNameFromObject(&role)),
+			)
+		})
+	}
+
+	// Fetch RoleBindings
+	roleBindings := tc.FetchResources(
+		WithMinimalObject(gvk.RoleBinding, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(
+			&client.ListOptions{
+				Namespace: tc.AppsNamespace,
+				LabelSelector: k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				}.AsSelector(),
+			},
+		),
+	)
+
+	// For each RoleBinding, delete it and verify it gets recreated
+	for _, roleBinding := range roleBindings {
+		t.Run("roleBinding_"+roleBinding.GetName(), func(t *testing.T) {
+			t.Helper()
+
+			// Delete the RoleBinding
+			tc.DeleteResource(
+				WithMinimalObject(gvk.RoleBinding, resources.NamespacedNameFromObject(&roleBinding)),
+			)
+
+			// Verify the RoleBinding is recreated
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.RoleBinding, resources.NamespacedNameFromObject(&roleBinding)),
+			)
+		})
+	}
+}
