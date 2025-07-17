@@ -262,7 +262,7 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorTracesConfiguration(t
 
 	tc.EnsureResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = %s`, `{}`)),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = %s`, `{storage: {backend: "pv"}}`)),
 	)
 
 	tc.EnsureResourceExists(
