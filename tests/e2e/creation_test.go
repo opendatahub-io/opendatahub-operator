@@ -55,9 +55,12 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
 		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
+		//TODO: disabled until RHOAIENG-29225 is resolved
+		// {"Validate ServiceMeshControlPlane exists and is recreated upon deletion.", dscTestCtx.ValidateServiceMeshControlPlane},
 		{"Validate Knative resource", dscTestCtx.ValidateKnativeSpecInDSC},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
+		{"Validate Observability operators are installed", dscTestCtx.ValidateObservabilityOperatorsInstallation},
 	}
 
 	// Append webhook-specific tests.
@@ -94,6 +97,8 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: serverlessOperatorNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
 		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false},
 	}
 
 	// Create and run test cases in parallel.
@@ -108,6 +113,32 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		}
 	}
 
+	RunTestCases(t, testCases, WithParallel())
+}
+
+func (tc *DSCTestCtx) ValidateObservabilityOperatorsInstallation(t *testing.T) {
+	t.Helper()
+
+	// Define operators to be installed.
+	operators := []struct {
+		nn                types.NamespacedName
+		skipOperatorGroup bool
+	}{
+		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
+	}
+
+	// Create and run test cases in parallel.
+	testCases := make([]TestCase, len(operators))
+	for i, op := range operators {
+		testCases[i] = TestCase{
+			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
+			testFn: func(t *testing.T) {
+				t.Helper()
+				tc.EnsureOperatorInstalled(op.nn, op.skipOperatorGroup)
+			},
+		}
+	}
 	RunTestCases(t, testCases, WithParallel())
 }
 
@@ -167,6 +198,38 @@ func (tc *DSCTestCtx) ValidateServiceMeshSpecInDSCI(t *testing.T) {
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithCondition(jq.Match(`.spec.serviceMesh == %s`, expServiceMeshSpecJSON)),
 		WithCustomErrorMsg("Error validating DSCInitialization instance: Service Mesh spec mismatch"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(jq.Match(`.status.phase == "Ready"`)))
+}
+
+// ValidateServiceMeshControlPlane checks that ServiceMeshControlPlane exists and is recreated upon deletion.
+func (tc *DSCTestCtx) ValidateServiceMeshControlPlane(t *testing.T) {
+	t.Helper()
+
+	smcp := types.NamespacedName{Name: serviceMeshControlPlane, Namespace: serviceMeshNamespace}
+
+	// Ensure service mesh feature tracker is in phase ready
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.FeatureTracker, types.NamespacedName{Name: "opendatahub-mesh-control-plane-creation"}),
+		WithCondition(jq.Match(`.status.phase == "Ready"`)))
+
+	// Check ServiceMeshControlPlane was created.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceMeshControlPlane, smcp),
+	)
+
+	// Delete it.
+	tc.DeleteResource(
+		WithMinimalObject(gvk.ServiceMeshControlPlane, smcp),
+		WithWaitForDeletion(true),
+	)
+
+	// Check eventually got recreated.
+	tc.EnsureResourceExistsConsistently(
+		WithMinimalObject(gvk.ServiceMeshControlPlane, smcp),
 	)
 }
 
