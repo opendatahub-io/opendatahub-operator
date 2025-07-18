@@ -32,6 +32,7 @@ import (
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
@@ -86,9 +87,9 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.Monitoring{}).
 		// operands - owned dynmically depends on external operators are installed for monitoring
 		// TODO: add more here later when enable other operator
-		OwnsGVK(gvk.MonitoringStack, reconciler.Dynamic(ifGVKInstalled(gvk.MonitoringStack))).
-		OwnsGVK(gvk.TempoMonolithic, reconciler.Dynamic(ifGVKInstalled(gvk.TempoMonolithic))).
-		OwnsGVK(gvk.TempoStack, reconciler.Dynamic(ifGVKInstalled(gvk.TempoStack))).
+		OwnsGVK(gvk.MonitoringStack, reconciler.Dynamic(actions.IfGVKInstalled(gvk.MonitoringStack))).
+		OwnsGVK(gvk.TempoMonolithic, reconciler.Dynamic(actions.IfGVKInstalled(gvk.TempoMonolithic))).
+		OwnsGVK(gvk.TempoStack, reconciler.Dynamic(actions.IfGVKInstalled(gvk.TempoStack))).
 		// operands - watched
 		//
 		// By default the Watches functions adds:
