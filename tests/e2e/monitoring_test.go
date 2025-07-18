@@ -35,7 +35,7 @@ func monitoringTestSuite(t *testing.T) {
 		TestContext: tc,
 	}
 
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed)),
 	)
@@ -115,7 +115,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsWhenSet(t *testing.
 	dsci := tc.FetchDSCInitialization()
 
 	// Update DSCI to set metrics - ensure managementState remains Managed
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
@@ -176,7 +176,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsReplicasUpdate(t *t
 	dsci := tc.FetchDSCInitialization()
 
 	// Update DSCI to set replicas to 1 (must include either storage or resources due to CEL validation rule)
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: "5Gi", retention: "1d"}, replicas: 1}`)),
 	)
@@ -203,7 +203,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
 	)
 
 	// Set metrics to empty object
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{}`)),
 	)
@@ -229,7 +229,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDeleted(t *testing.T) {
 	dsci := tc.FetchDSCInitialization()
 
 	// Set Monitoring to be removed
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, "Removed")),
 	)
@@ -260,7 +260,7 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorTracesConfiguration(t
 
 	dsci := tc.FetchDSCInitialization()
 
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = %s`, `{storage: {backend: "pv"}}`)),
 	)
@@ -327,7 +327,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultTracesContent(t *testing
 	t.Helper()
 
 	// Ensure monitoring is enabled (might have been disabled by previous test)
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed)),
 	)
@@ -357,7 +357,7 @@ func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRCreation(t *testing.T) {
 	tempoMonolithicName := getTempoMonolithicName(dsci)
 
 	// Update DSCI to set traces with PV backend
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
@@ -412,7 +412,7 @@ func (tc *MonitoringTestCtx) ValidateTempoStackCRCreation(t *testing.T) {
 	tempoStackName := getTempoStackName(dsci)
 
 	// Update DSCI to set traces with S3 backend.
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
@@ -466,7 +466,7 @@ func (tc *MonitoringTestCtx) ValidateTempoStackCRCreationWithGCS(t *testing.T) {
 	tempoStackName := getTempoStackName(dsci)
 
 	// Update DSCI to set traces with GCS backend.
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),

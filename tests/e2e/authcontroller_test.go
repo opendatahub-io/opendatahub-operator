@@ -195,7 +195,7 @@ func (tc *AuthControllerTestCtx) ValidateAddingGroups(t *testing.T) {
 	testAllowedGroup := "aTestAllowedGroup"
 
 	// Update the Auth CR with new admin and allowed groups.
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 		WithMutateFunc(
 			testf.Transform(
@@ -232,7 +232,7 @@ func (tc *AuthControllerTestCtx) ValidateRemovingGroups(t *testing.T) {
 	}
 
 	// Update the Auth CR to set only the expected admin group.
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.adminGroups = ["%s"]`, expectedGroup)),
 		WithCustomErrorMsg("Failed to create or update Auth resource '%s' with admin group '%s'", serviceApi.AuthInstanceName, expectedGroup),
@@ -314,6 +314,12 @@ func (tc *AuthControllerTestCtx) ValidateWebhookBlocksInvalidGroupsOnCreation(t 
 			)
 		})
 	}
+
+	validAuth := envtestutil.NewAuth("auth", "", []string{"valid-admin-group"}, []string{"system:authenticated"})
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(validAuth),
+		WithCustomErrorMsg("Failed to recreate valid Auth resource after webhook creation tests"),
+	)
 }
 
 // ValidateWebhookBlocksInvalidGroupsOnUpdate tests that the webhook blocks Auth resources
@@ -387,7 +393,7 @@ func (tc *AuthControllerTestCtx) ValidateWebhookAllowsValidGroups(t *testing.T) 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			// Test that the webhook allows this valid update
-			tc.EnsureResourceCreatedOrUpdated(
+			tc.EventuallyResourceCreatedOrUpdated(
 				WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 				WithMutateFunc(testf.Transform(testCase.transform)),
 				WithCustomErrorMsg(testCase.description),

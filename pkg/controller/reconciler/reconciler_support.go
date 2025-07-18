@@ -18,6 +18,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
@@ -69,6 +70,17 @@ func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 	return func(a *watchInput) {
 		a.dynamic = true
 		a.dynamicPred = slices.Clone(predicates)
+	}
+}
+
+// crdExists is a DynamicPredicate that cheks if a given crd identified by its gvk exists.
+func CrdExists(crdGvk schema.GroupVersionKind) DynamicPredicate {
+	return func(ctx context.Context, request *types.ReconciliationRequest) bool {
+		if hasCrd, err := cluster.HasCRD(ctx, request.Client, crdGvk); err != nil {
+			return false
+		} else {
+			return hasCrd
+		}
 	}
 }
 

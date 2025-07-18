@@ -64,7 +64,7 @@ func (tc *DataSciencePipelinesTestCtx) ValidateConditions(t *testing.T) {
 func (tc *DataSciencePipelinesTestCtx) ValidateArgoWorkflowsControllersOptions(t *testing.T) {
 	t.Helper()
 
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
 			func(obj *unstructured.Unstructured) error {

@@ -27,6 +27,9 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -87,6 +90,12 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.Dynamic(),
 			reconciler.WithPredicates(resources.Deleted()),
 		).
+		WatchesGVK(gvk.DashboardHardwareProfile, reconciler.WithEventHandler(
+			handlers.ToNamed(componentApi.DashboardInstanceName),
+		), reconciler.WithPredicates(predicate.Funcs{
+			GenericFunc: func(tge event.TypedGenericEvent[client.Object]) bool { return false },
+			DeleteFunc:  func(tde event.TypedDeleteEvent[client.Object]) bool { return false },
+		}), reconciler.Dynamic()).
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(setKustomizedParams).
@@ -107,6 +116,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(customizeResources).
 		WithAction(deploy.NewAction()).
 		WithAction(deployments.NewAction()).
+		WithAction(reconcileHardwareProfiles).
 		WithAction(updateStatus).
 		// must be the final action
 		WithAction(gc.NewAction(

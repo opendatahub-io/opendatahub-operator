@@ -17,8 +17,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/shared"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
 //+kubebuilder:webhook:path=/validate-auth,mutating=false,failurePolicy=fail,sideEffects=None,groups=services.platform.opendatahub.io,resources=auths,verbs=create;update,versions=v1alpha1,name=auth-validator.opendatahub.io,admissionReviewVersions=v1
@@ -41,18 +41,6 @@ type Validator struct {
 // Assert that Validator implements admission.Handler interface.
 var _ admission.Handler = &Validator{}
 
-// InjectDecoder implements admission.DecoderInjector so the manager can inject the decoder automatically.
-//
-// Parameters:
-//   - d: The admission.Decoder to inject.
-//
-// Returns:
-//   - error: Always nil.
-func (v *Validator) InjectDecoder(d admission.Decoder) error {
-	v.Decoder = d
-	return nil
-}
-
 // SetupWithManager registers the validating webhook with the provided controller-runtime manager.
 //
 // Parameters:
@@ -64,7 +52,7 @@ func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 	hookServer := mgr.GetWebhookServer()
 	hookServer.Register("/validate-auth", &webhook.Admission{
 		Handler:        v,
-		LogConstructor: shared.NewLogConstructor(v.Name),
+		LogConstructor: webhookutils.NewWebhookLogConstructor(v.Name),
 	})
 	return nil
 }
@@ -85,6 +73,13 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 	if v.Decoder == nil {
 		log.Error(nil, "Decoder is nil - webhook not properly initialized")
 		return admission.Errored(http.StatusInternalServerError, errors.New("webhook decoder not initialized"))
+	}
+
+	// Validate that we're processing the correct Kind
+	if req.Kind.Kind != gvk.Auth.Kind {
+		err := fmt.Errorf("unexpected kind: %s", req.Kind.Kind)
+		log.Error(err, "got wrong kind")
+		return admission.Errored(http.StatusBadRequest, err)
 	}
 
 	var resp admission.Response
