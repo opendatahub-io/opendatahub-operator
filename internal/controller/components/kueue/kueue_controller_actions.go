@@ -213,7 +213,7 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 		return fmt.Errorf("failed to get managed namespaces: %w", err)
 	}
 	// Update managed namespaces with missing labels
-	err = fixAnnotationsOfManagedNamespaces(ctx, rr.Client, managedNamespaces)
+	err = ensureKueueLabelsOnManagedNamespaces(ctx, rr.Client, managedNamespaces)
 	if err != nil {
 		return fmt.Errorf("failed to add missing labels to managed namespaces: %v with error: %w", managedNamespaces, err)
 	}

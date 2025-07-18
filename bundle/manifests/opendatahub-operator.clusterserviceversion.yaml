@@ -1015,6 +1015,7 @@ spec:
           - monitoring.rhobs
           resources:
           - monitoringstacks
+          - servicemonitors
           verbs:
           - create
           - delete
@@ -1027,12 +1028,14 @@ spec:
           - monitoring.rhobs
           resources:
           - monitoringstacks/finalizers
+          - servicemonitors/finalizers
           verbs:
           - update
         - apiGroups:
           - monitoring.rhobs
           resources:
           - monitoringstacks/status
+          - servicemonitors/status
           verbs:
           - get
           - patch
@@ -1103,6 +1106,32 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - opentelemetry.io
+          resources:
+          - opentelemetrycollectors
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - opentelemetry.io
+          resources:
+          - opentelemetrycollectors/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - opentelemetry.io
+          resources:
+          - opentelemetrycollectors/status
+          verbs:
+          - get
+          - patch
+          - update
         - apiGroups:
           - operator.authorino.kuadrant.io
           resources:
@@ -1363,6 +1392,19 @@ spec:
           - templates
           verbs:
           - '*'
+        - apiGroups:
+          - tempo.grafana.com
+          resources:
+          - tempomonolithics
+          - tempostacks
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
         - apiGroups:
           - user.openshift.io
           resources:

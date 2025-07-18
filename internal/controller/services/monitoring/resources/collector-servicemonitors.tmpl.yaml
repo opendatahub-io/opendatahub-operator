@@ -1,0 +1,37 @@
+apiVersion: monitoring.rhobs/v1
+kind: ServiceMonitor
+metadata:
+  name: data-science-collector-monitor
+  namespace: {{ .Namespace }}
+spec:
+  endpoints:
+    - port: monitoring
+  namespaceSelector:
+    matchNames:
+      - {{ .Namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: opentelemetry-collector
+      app.kubernetes.io/instance: {{ .Namespace }}.data-science-collector
+      app.kubernetes.io/managed-by: opentelemetry-operator
+      app.kubernetes.io/part-of: opentelemetry
+      operator.opentelemetry.io/collector-service-type: monitoring
+---
+apiVersion: monitoring.rhobs/v1
+kind: ServiceMonitor
+metadata:
+  name: data-science-collector-prometheus-monitor
+  namespace: {{ .Namespace }}
+spec:
+  endpoints:
+    - port: prometheus
+  namespaceSelector:
+    matchNames:
+      - {{ .Namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: opentelemetry-collector
+      app.kubernetes.io/instance: {{ .Namespace }}.data-science-collector
+      app.kubernetes.io/managed-by: opentelemetry-operator
+      app.kubernetes.io/part-of: opentelemetry
+      operator.opentelemetry.io/collector-service-type: base

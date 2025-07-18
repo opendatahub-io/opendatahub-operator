@@ -188,7 +188,7 @@ func TestCheckPreConditions_Managed_KueueOperatorAlreadyInstalled(t *testing.T) 
 	g.Expect(err).To(MatchError(ContainSubstring(status.KueueOperatorAlreadyInstalledMessage)))
 }
 
-func TestCheckPreConditions_Managed_KueueOperatorNotInstalled(t *testing.T) {
+func TestCheckPreConditions_Unmanaged_KueueOperatorNotInstalled(t *testing.T) {
 	ctx := context.Background()
 	g := NewWithT(t)
 

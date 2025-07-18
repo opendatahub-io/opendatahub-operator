@@ -258,10 +258,5 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=infrastructure.opendatahub.io,resources=hardwareprofiles/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infrastructure.opendatahub.io,resources=hardwareprofiles/finalizers,verbs=update
 
-// LlamaStackOperator
-// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=llamastackoperators,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=llamastackoperators/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=llamastackoperators/finalizers,verbs=update
-
 // DashboardHardwareProfile
 // +kubebuilder:rbac:groups=dashboard.opendatahub.io,resources=hardwareprofiles,verbs=get;list;watch;update

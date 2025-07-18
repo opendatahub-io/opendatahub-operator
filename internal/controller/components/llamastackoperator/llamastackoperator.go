@@ -95,8 +95,8 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	} else {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
-			conditions.WithReason(string(operatorv1.Removed)),
-			conditions.WithMessage("Component ManagementState is set to %s", operatorv1.Removed),
+			conditions.WithReason(string(dsc.Spec.Components.LlamaStackOperator.ManagementState)),
+			conditions.WithMessage("Component ManagementState is set to %s", dsc.Spec.Components.LlamaStackOperator.ManagementState),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
 	}

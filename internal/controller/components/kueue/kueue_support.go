@@ -121,7 +121,7 @@ func collectNamespacesWithPagination(ctx context.Context, c client.Client, names
 }
 
 // i.e. if a namespace has just the KueueLegacyManagedLabelKey or the KueueManagedLabelKey, the other one is added as well.
-func fixAnnotationsOfManagedNamespaces(ctx context.Context, c client.Client, namespaces []corev1.Namespace) error {
+func ensureKueueLabelsOnManagedNamespaces(ctx context.Context, c client.Client, namespaces []corev1.Namespace) error {
 	for _, ns := range namespaces {
 		hasLegacy := resources.HasLabel(&ns, KueueLegacyManagedLabelKey)
 		hasManaged := resources.HasLabel(&ns, KueueManagedLabelKey)

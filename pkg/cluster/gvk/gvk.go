@@ -416,4 +416,22 @@ var (
 		Version: "v1alpha1",
 		Kind:    "RayCluster",
 	}
+
+	TempoMonolithic = schema.GroupVersionKind{
+		Group:   "tempo.grafana.com",
+		Version: "v1alpha1",
+		Kind:    "TempoMonolithic",
+	}
+
+	TempoStack = schema.GroupVersionKind{
+		Group:   "tempo.grafana.com",
+		Version: "v1alpha1",
+		Kind:    "TempoStack",
+	}
+
+	OpenTelemetryCollector = schema.GroupVersionKind{
+		Group:   "opentelemetry.io",
+		Version: "v1beta1",
+		Kind:    "OpenTelemetryCollector",
+	}
 )

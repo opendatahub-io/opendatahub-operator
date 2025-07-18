@@ -12,7 +12,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main:manifests"
     ["modelmeshserving"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0:config"
     ["kserve"]="opendatahub-io:kserve:release-v0.15:config"
-    ["kueue"]="opendatahub-io:kueue:kueue-migration:config"
+    ["kueue"]="opendatahub-io:kueue:dev:config"
     ["codeflare"]="opendatahub-io:codeflare-operator:main:config"
     ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation:config"
@@ -21,7 +21,6 @@ declare -A COMPONENT_MANIFESTS=(
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main:config"
     ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating:config"
     ["feastoperator"]="opendatahub-io:feast:stable:infra/feast-operator/config"
-    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh:config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh:config"
 )
 
