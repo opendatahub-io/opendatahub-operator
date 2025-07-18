@@ -35,6 +35,7 @@ const (
 	opentelemetryOperator            = "opentelemetry-product"
 	clusterObservabilityOperator     = "cluster-observability-operator"
 	tempoOperator                    = "tempo-product"
+	MSName                           = "data-science-monitoringstack"
 )
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {

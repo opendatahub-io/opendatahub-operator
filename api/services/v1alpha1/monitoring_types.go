@@ -136,6 +136,8 @@ type MonitoringCommonSpec struct {
 	Namespace string `json:"namespace,omitempty"`
 	// metrics collection
 	Metrics *Metrics `json:"metrics,omitempty"`
+	// traces collection
+	Traces *Traces `json:"traces,omitempty"`
 }
 
 //+kubebuilder:object:root=true
