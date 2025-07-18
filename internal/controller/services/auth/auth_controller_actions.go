@@ -29,6 +29,7 @@ import (
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -63,8 +64,8 @@ func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []
 			continue
 		}
 		rs := rbacv1.Subject{
-			Kind:     "Group",
-			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     gvk.Group.Kind,
+			APIGroup: gvk.Group.Group,
 			Name:     e,
 		}
 		groupsToBind = append(groupsToBind, rs)
@@ -77,8 +78,8 @@ func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []
 		},
 		Subjects: groupsToBind,
 		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "Role",
+			APIGroup: gvk.Role.Group,
+			Kind:     gvk.Role.Kind,
 			Name:     roleName,
 		},
 	}
@@ -100,10 +101,11 @@ func bindClusterRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, gr
 			continue
 		}
 		rs := rbacv1.Subject{
-			Kind:     "Group",
-			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     gvk.Group.Kind,
+			APIGroup: gvk.Group.Group,
 			Name:     e,
 		}
+
 		groupsToBind = append(groupsToBind, rs)
 	}
 
@@ -113,8 +115,8 @@ func bindClusterRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, gr
 		},
 		Subjects: groupsToBind,
 		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "ClusterRole",
+			Kind:     gvk.ClusterRole.Kind,
+			APIGroup: gvk.ClusterRole.Group,
 			Name:     roleName,
 		},
 	}
