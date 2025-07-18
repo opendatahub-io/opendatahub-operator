@@ -415,6 +415,7 @@ var (
 		Group:   "ray.io",
 		Version: "v1alpha1",
 		Kind:    "RayCluster",
+	}
 
 	TempoMonolithic = schema.GroupVersionKind{
 		Group:   "tempo.grafana.com",
