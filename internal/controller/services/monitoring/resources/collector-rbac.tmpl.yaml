@@ -1,0 +1,39 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: generate-processors-rbac
+rules:
+- apiGroups:
+  - ""
+  - config.openshift.io
+  resources:
+  - pods
+  - namespaces
+  - infrastructures
+  - infrastructures/status
+  - services
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: generate-processors-rbac-collector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: generate-processors-rbac
+subjects:
+- kind: ServiceAccount
+  name: data-science-collector
+  namespace: {{ .Namespace }}

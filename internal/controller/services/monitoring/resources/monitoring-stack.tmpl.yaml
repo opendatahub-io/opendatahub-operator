@@ -1,7 +1,7 @@
 apiVersion: monitoring.rhobs/v1alpha1
 kind: MonitoringStack
 metadata:
-  name: {{ .MonitoringStackName }}
+  name: data-science-monitoringstack
   namespace: {{ .Namespace }}
 spec:
   alertmanagerConfig:
@@ -11,7 +11,7 @@ spec:
     enableOtlpHttpReceiver: true
     persistentVolumeClaim:
       resources:
-        requests: 
+        requests:
           storage: {{ .StorageSize }}
     replicas: {{ .Replicas }}
   resourceSelector: {}
