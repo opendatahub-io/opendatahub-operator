@@ -136,9 +136,14 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 				return err
 			}
 
-			// the user has explicitly marked the current object as not owned by the operator, so
-			// skip any further processing
+			// the user has explicitly marked the current object as not owned by the operator
 			if resources.GetAnnotation(current, annotations.ManagedByODHOperator) == "false" {
+				// de-own the object so the resource is not removed upon cleanup
+				if err := resources.RemoveOwnerReferences(ctx, rr.Client, current, ownedTypeIs(&igvk)); err != nil {
+					return err
+				}
+
+				//  skip any further processing
 				continue
 			}
 		}

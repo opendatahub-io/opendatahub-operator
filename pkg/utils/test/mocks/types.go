@@ -3,9 +3,13 @@ package mocks
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/mock"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -14,6 +18,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 type MockComponentHandler struct {
@@ -69,4 +74,36 @@ func NewMockController(f func(m *MockController)) *MockController {
 	f(m)
 
 	return m
+}
+
+// NewMockCRD creates a mock CRD with the specified parameters.
+func NewMockCRD(group, version, kind, componentName string) *apiextv1.CustomResourceDefinition {
+	return &apiextv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: strings.ToLower(fmt.Sprintf("%ss.%s", kind, group)),
+			Labels: map[string]string{
+				labels.ODH.Component(componentName): labels.True,
+			},
+		},
+		Spec: apiextv1.CustomResourceDefinitionSpec{
+			Group: group,
+			Names: apiextv1.CustomResourceDefinitionNames{
+				Kind:   kind,
+				Plural: strings.ToLower(kind) + "s",
+			},
+			Scope: apiextv1.ClusterScoped,
+			Versions: []apiextv1.CustomResourceDefinitionVersion{
+				{
+					Name:    version,
+					Served:  true,
+					Storage: true,
+					Schema: &apiextv1.CustomResourceValidation{
+						OpenAPIV3Schema: &apiextv1.JSONSchemaProps{
+							Type: "object",
+						},
+					},
+				},
+			},
+		},
+	}
 }

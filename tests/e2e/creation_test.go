@@ -146,7 +146,7 @@ func (tc *DSCTestCtx) ValidateObservabilityOperatorsInstallation(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 	t.Helper()
 
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name),
@@ -161,7 +161,7 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 	t.Helper()
 
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DataScienceCluster resource %s", tc.DataScienceClusterNamespacedName.Name),

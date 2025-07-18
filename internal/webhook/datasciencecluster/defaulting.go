@@ -17,7 +17,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/shared"
+	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
 //+kubebuilder:webhook:path=/mutate-datasciencecluster,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=datasciencecluster-defaulter.opendatahub.io,admissionReviewVersions=v1
@@ -42,7 +42,7 @@ var _ webhook.CustomDefaulter = &Defaulter{}
 //   - error: Always nil (for future extensibility).
 func (d *Defaulter) SetupWithManager(mgr ctrl.Manager) error {
 	mutateWebhook := admission.WithCustomDefaulter(mgr.GetScheme(), &dscv1.DataScienceCluster{}, d)
-	mutateWebhook.LogConstructor = shared.NewLogConstructor(d.Name)
+	mutateWebhook.LogConstructor = webhookutils.NewWebhookLogConstructor(d.Name)
 	mgr.GetWebhookServer().Register("/mutate-datasciencecluster", mutateWebhook)
 	// No error to return currently, but return nil for future extensibility
 	return nil

@@ -93,11 +93,9 @@ func TestDataScienceCluster_ValidatingWebhook(t *testing.T) {
 			objs := append([]client.Object{}, tc.existingObjs...)
 			objs = append(objs, envtestutil.NewDSCI("dsci-for-dsc", ns))
 			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(objs...).Build()
-			decoder := admission.NewDecoder(sch)
 			validator := &datasciencecluster.Validator{
-				Client:  cli,
-				Name:    "test",
-				Decoder: decoder,
+				Client: cli,
+				Name:   "test",
 			}
 			resp := validator.Handle(ctx, tc.req)
 			t.Logf("Admission response: Allowed=%v, Result=%+v", resp.Allowed, resp.Result)
