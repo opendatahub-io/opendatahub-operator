@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.31.0
-    createdAt: "2025-07-15T15:42:11Z"
+    createdAt: "2025-07-17T13:40:24Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -123,7 +123,8 @@ metadata:
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
       "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io",
-      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
+      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io",
+      "hardwareprofiles.infrastructure.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v2.31.0
@@ -171,6 +172,11 @@ spec:
     - kind: FeatureTracker
       name: featuretrackers.features.opendatahub.io
       version: v1
+    - description: HardwareProfile is the Schema for the hardwareprofiles API.
+      displayName: Hardware Profile
+      kind: HardwareProfile
+      name: hardwareprofiles.infrastructure.opendatahub.io
+      version: v1alpha1
     - description: Kserve is the Schema for the kserves API
       displayName: Kserve
       kind: Kserve
@@ -645,6 +651,15 @@ spec:
           - update
           - watch
         - apiGroups:
+          - dashboard.opendatahub.io
+          resources:
+          - hardwareprofiles
+          verbs:
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
           - datasciencecluster.opendatahub.io
           resources:
           - datascienceclusters
@@ -792,6 +807,32 @@ spec:
           verbs:
           - get
         - apiGroups:
+          - infrastructure.opendatahub.io
+          resources:
+          - hardwareprofiles
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - infrastructure.opendatahub.io
+          resources:
+          - hardwareprofiles/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - infrastructure.opendatahub.io
+          resources:
+          - hardwareprofiles/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
           - integreatly.org
           resources:
           - rhmis
@@ -813,6 +854,48 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - kueue.openshift.io
+          resources:
+          - kueues
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - kueue.openshift.io
+          resources:
+          - kueues/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - kueue.x-k8s.io
+          resources:
+          - clusterqueues
+          - localqueues
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - kueue.x-k8s.io
+          resources:
+          - clusterqueues/status
+          - localqueues/status
+          verbs:
+          - get
+          - patch
+          - update
         - apiGroups:
           - machinelearning.seldon.io
           resources:
@@ -1531,3 +1614,105 @@ spec:
     targetPort: 9443
     type: ValidatingAdmissionWebhook
     webhookPath: /validate-dscinitialization
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: hardwareprofile-kserve-injector.opendatahub.io
+    rules:
+    - apiGroups:
+      - serving.kserve.io
+      apiVersions:
+      - v1beta1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - inferenceservices
+    sideEffects: None
+    targetPort: 9443
+    type: MutatingAdmissionWebhook
+    webhookPath: /mutate-hardware-profile
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: hardwareprofile-notebook-injector.opendatahub.io
+    rules:
+    - apiGroups:
+      - kubeflow.org
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - notebooks
+    sideEffects: None
+    targetPort: 9443
+    type: MutatingAdmissionWebhook
+    webhookPath: /mutate-hardware-profile
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: kserve-kueuelabels-validator.opendatahub.io
+    rules:
+    - apiGroups:
+      - serving.kserve.io
+      apiVersions:
+      - v1beta1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - inferenceservices
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-kueue
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: kubeflow-kueuelabels-validator.opendatahub.io
+    rules:
+    - apiGroups:
+      - kubeflow.org
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pytorchjobs
+      - notebooks
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-kueue
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: ray-kueuelabels-validator.opendatahub.io
+    rules:
+    - apiGroups:
+      - ray.io
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - rayjobs
+      - rayclusters
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-kueue

@@ -64,7 +64,7 @@ func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testi
 	oldPt := ""
 
 	// Apply new platform type annotation and verify
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.OdhApplication, types.NamespacedName{Name: "jupyter", Namespace: tc.AppsNamespace}),
 		WithMutateFunc(
 			func(obj *unstructured.Unstructured) error {

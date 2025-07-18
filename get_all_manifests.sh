@@ -12,7 +12,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main:manifests"
     ["modelmeshserving"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0:config"
     ["kserve"]="opendatahub-io:kserve:release-v0.15:config"
-    ["kueue"]="opendatahub-io:kueue:dev:config"
+    ["kueue"]="opendatahub-io:kueue:kueue-migration:config"
     ["codeflare"]="opendatahub-io:codeflare-operator:main:config"
     ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation:config"
@@ -22,6 +22,17 @@ declare -A COMPONENT_MANIFESTS=(
     ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating:config"
     ["feastoperator"]="opendatahub-io:feast:stable:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh:config"
+    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh:config"
+)
+
+# PLATFORM_MANIFESTS is a list of manifests that are contained in the operator repository. Please also add them to the
+# Dockerfile COPY instructions. Declaring them here causes this script to create a symlink in the manifests folder, so
+# they can be easily modified during development, but during a container build, they must be copied into the proper
+# location instead, as this script DOES NOT manage platform manifest files for a container build.
+declare -A PLATFORM_MANIFESTS=(
+    ["osd-configs"]="config/osd-configs"
+    ["monitoring"]="config/monitoring"
+    ["kueue-configs"]="config/kueue-configs"
 )
 
 # Allow overwriting repo using flags component=repo
@@ -108,3 +119,13 @@ if [ $failed -eq 1 ]; then
     echo "One or more downloads failed"
     exit 1
 fi
+
+for key in "${!PLATFORM_MANIFESTS[@]}"; do
+    source_path="${PLATFORM_MANIFESTS[$key]}"
+    target_path="${key}"
+
+    if [[ -d ${source_path} && ! -L ./opt/manifests/${target_path} ]]; then
+        echo -e "\033[32mSymlinking local manifest \033[33m${key}\033[32m:\033[0m ${source_path}"
+        ln -s $(pwd)/${source_path} ./opt/manifests/${target_path}
+    fi
+done

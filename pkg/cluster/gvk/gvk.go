@@ -5,7 +5,6 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -17,6 +16,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
+	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
 
@@ -67,6 +67,12 @@ var (
 		Group:   dsciv1.GroupVersion.Group,
 		Version: dsciv1.GroupVersion.Version,
 		Kind:    "DSCInitialization",
+	}
+
+	HardwareProfile = schema.GroupVersionKind{
+		Group:   hwpv1alpha1.GroupVersion.Group,
+		Version: hwpv1alpha1.GroupVersion.Version,
+		Kind:    "HardwareProfile",
 	}
 
 	FeatureTracker = schema.GroupVersionKind{
@@ -175,6 +181,12 @@ var (
 		Group:   "dashboard.opendatahub.io",
 		Version: "v1",
 		Kind:    "AcceleratorProfile",
+	}
+
+	DashboardHardwareProfile = schema.GroupVersionKind{
+		Group:   "dashboard.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "HardwareProfile",
 	}
 
 	OdhQuickStart = schema.GroupVersionKind{
@@ -327,18 +339,6 @@ var (
 		Kind:    serviceApi.AuthKind,
 	}
 
-	ValidatingAdmissionPolicy = schema.GroupVersionKind{
-		Group:   admissionregistrationv1.SchemeGroupVersion.Group,
-		Version: admissionregistrationv1.SchemeGroupVersion.Version,
-		Kind:    "ValidatingAdmissionPolicy",
-	}
-
-	ValidatingAdmissionPolicyBinding = schema.GroupVersionKind{
-		Group:   admissionregistrationv1.SchemeGroupVersion.Group,
-		Version: admissionregistrationv1.SchemeGroupVersion.Version,
-		Kind:    "ValidatingAdmissionPolicyBinding",
-	}
-
 	MultiKueueConfigV1Alpha1 = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1alpha1",
@@ -351,10 +351,34 @@ var (
 		Kind:    "MultiKueueCluster",
 	}
 
+	KueueConfigV1 = schema.GroupVersionKind{
+		Group:   "kueue.openshift.io",
+		Version: "v1",
+		Kind:    "Kueue",
+	}
+
+	LocalQueue = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta1",
+		Kind:    "LocalQueue",
+	}
+
+	ClusterQueue = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta1",
+		Kind:    "ClusterQueue",
+	}
+
 	InferenceServices = schema.GroupVersionKind{
 		Group:   "serving.kserve.io",
 		Version: "v1beta1",
 		Kind:    "InferenceService",
+	}
+
+	Notebook = schema.GroupVersionKind{
+		Group:   "kubeflow.org",
+		Version: "v1",
+		Kind:    "Notebook",
 	}
 
 	OperatorCondition = schema.GroupVersionKind{
@@ -373,5 +397,23 @@ var (
 		Group:   "monitoring.rhobs",
 		Version: "v1alpha1",
 		Kind:    "MonitoringStack",
+	}
+
+	PyTorchJob = schema.GroupVersionKind{
+		Group:   "kubeflow.org",
+		Version: "v1",
+		Kind:    "PyTorchJob",
+	}
+
+	RayJob = schema.GroupVersionKind{
+		Group:   "ray.io",
+		Version: "v1alpha1",
+		Kind:    "RayJob",
+	}
+
+	RayCluster = schema.GroupVersionKind{
+		Group:   "ray.io",
+		Version: "v1alpha1",
+		Kind:    "RayCluster",
 	}
 )

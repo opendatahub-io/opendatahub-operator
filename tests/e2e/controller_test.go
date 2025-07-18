@@ -30,6 +30,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
+	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
 
@@ -297,7 +298,7 @@ func TestMain(m *testing.M) {
 	viper.SetDefault("mediumEventuallyTimeout", "7m")         // Medium timeout: for readiness checks (e.g., ClusterServiceVersion, DataScienceCluster).
 	viper.SetDefault("longEventuallyTimeout", "10m")          // Long timeout: for more complex readiness (e.g., DSCInitialization, KServe).
 	viper.SetDefault("defaultEventuallyPollInterval", "2s")   // Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.
-	viper.SetDefault("defaultConsistentlyTimeout", "10s")     // Duration used for Consistently; overrides Gomega's default of 2 seconds.
+	viper.SetDefault("defaultConsistentlyTimeout", "20s")     // Duration used for Consistently; overrides Gomega's default of 2 seconds.
 	viper.SetDefault("defaultConsistentlyPollInterval", "2s") // Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.
 
 	// Flags
@@ -394,6 +395,7 @@ func registerSchemes() {
 		componentApi.AddToScheme,
 		serviceApi.AddToScheme,
 		ofapiv1.AddToScheme,
+		infrav1alpha1.AddToScheme,
 	}
 
 	for _, schemeFn := range schemes {
