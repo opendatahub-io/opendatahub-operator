@@ -1154,7 +1154,8 @@ func (tc *TestContext) validateWebhookError(g Gomega, err error, operationType s
 //
 // Returns:
 //   - bool: true if the cluster version meets the minimum requirement, false otherwise
-func (tc *TestContext) CheckMinOCPVersion(minVersion string) bool {
+//   - error: error if version parsing fails
+func (tc *TestContext) CheckMinOCPVersion(minVersion string) (bool, error) {
 	currentVersion := cluster.GetClusterInfo().Version
 	requiredVersion, err := semver.ParseTolerant(minVersion)
 	if err != nil {
