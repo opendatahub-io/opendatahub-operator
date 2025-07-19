@@ -160,12 +160,23 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 }
 
 func reconcileHardwareProfiles(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// Check if the DashboardHardwareProfile CRD exists (old releases dashbaord ship this CRD)
+	exists, err := cluster.HasCRD(ctx, rr.Client, gvk.DashboardHardwareProfile)
+	if err != nil {
+		return fmt.Errorf("failed to check dashboard HardwareProfile CRD: %w", err)
+	}
+
+	// If the CRD doesn't exist, there's nothing to migrate
+	if !exists {
+		return nil
+	}
+
 	dashboardHardwareProfiles := &unstructured.UnstructuredList{}
 	dashboardHardwareProfiles.SetGroupVersionKind(gvk.DashboardHardwareProfile)
 
-	err := rr.Client.List(ctx, dashboardHardwareProfiles)
+	err = rr.Client.List(ctx, dashboardHardwareProfiles)
 	if err != nil {
-		return fmt.Errorf("failed to list dashboard hardware profiles: %w", err)
+		return fmt.Errorf("failed to list dashboard HardwareProfile CR: %w", err)
 	}
 
 	logger := log.FromContext(ctx)
