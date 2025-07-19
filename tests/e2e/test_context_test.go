@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"fmt"
 
 	"github.com/blang/semver/v4"
 	"github.com/onsi/gomega/gstruct"
