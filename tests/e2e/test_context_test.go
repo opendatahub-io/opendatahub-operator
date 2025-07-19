@@ -1,10 +1,10 @@
 package e2e_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
-	"fmt"
 
 	"github.com/blang/semver/v4"
 	"github.com/onsi/gomega/gstruct"
@@ -1183,7 +1183,7 @@ func (tc *TestContext) SkipIfOCPVersionBelow(t *testing.T, minVersion string, re
 	meets, err := tc.CheckMinOCPVersion(minVersion)
 	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to check OCP version")
 	if !meets {
-		t.Skipf("Skipping test: requires OpenShift %s or above for %s, current version: %s", 
+		t.Skipf("Skipping test: requires OpenShift %s or above for %s, current version: %s",
 			minVersion, reason, cluster.GetClusterInfo().Version.String())
 	}
 }
