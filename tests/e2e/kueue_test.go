@@ -66,7 +66,9 @@ func kueueTestSuite(t *testing.T) {
 	}
 
 	// Only add OCP Kueue operator test if OCP version is 4.18 or above
-	if componentCtx.CheckMinOCPVersion("4.18.0") {
+	meets, err := componentCtx.CheckMinOCPVersion("4.18.0")
+	componentCtx.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to check OCP version")
+	if meets {
 		testCases = append(testCases,
 			TestCase{"Validate component managed error with ocp kueue-operator installed", componentCtx.ValidateKueueManagedWhitOcpKueueOperator},
 			TestCase{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
