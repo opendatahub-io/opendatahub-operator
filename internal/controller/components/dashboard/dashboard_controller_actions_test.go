@@ -5,7 +5,8 @@ import (
 	"context"
 	"testing"
 
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,6 +37,21 @@ func TestMigrateHardwareProfiles(t *testing.T) {
 	fakeSchema.AddKnownTypeWithName(gvk.DashboardHardwareProfile, &unstructured.Unstructured{})
 	fakeSchema.AddKnownTypeWithName(dashboardHardwareProfileListGVK, &unstructured.UnstructuredList{})
 	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile, &infraAPI.HardwareProfile{})
+	fakeSchema.AddKnownTypeWithName(
+		schema.GroupVersionKind{
+			Group:   "apiextensions.k8s.io",
+			Version: "v1",
+			Kind:    "CustomResourceDefinition",
+		},
+		&apiextensionsv1.CustomResourceDefinition{},
+	)
+
+	// Add dashboard HWProfile CRD to the fake client
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hardwareprofiles.dashboard.opendatahub.io",
+		},
+	}
 
 	mockDashboardHardwareProfile := &unstructured.Unstructured{
 		Object: map[string]any{
@@ -57,7 +73,7 @@ func TestMigrateHardwareProfiles(t *testing.T) {
 	}
 
 	cli, err := fakeclient.New(
-		fakeclient.WithObjects(mockDashboardHardwareProfile),
+		fakeclient.WithObjects(crd, mockDashboardHardwareProfile),
 		fakeclient.WithScheme(fakeSchema),
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -105,7 +121,7 @@ func TestCreateInfraHardwareProfile(t *testing.T) {
 	logger := log.FromContext(ctx)
 
 	mockDashboardHardwareProfile := &DashboardHardwareProfile{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-name",
 			Namespace: "test-namespace",
 		},

@@ -11,10 +11,12 @@ import (
 	"github.com/go-logr/logr"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -160,19 +162,23 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 }
 
 func reconcileHardwareProfiles(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Check if the DashboardHardwareProfile CRD exists (old releases dashbaord ship this CRD)
-	exists, err := cluster.HasCRD(ctx, rr.Client, gvk.DashboardHardwareProfile)
+	// Check if the DashboardHardwareProfile CRD exists
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	err := rr.Client.Get(ctx, client.ObjectKey{Name: "hardwareprofiles.dashboard.opendatahub.io"}, crd)
+	if k8serr.IsNotFound(err) {
+		// If the CRD doesn't exist, there's nothing to migrate
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("failed to check dashboard HardwareProfile CRD: %w", err)
 	}
 
-	// If the CRD doesn't exist, there's nothing to migrate
-	if !exists {
-		return nil
-	}
-
 	dashboardHardwareProfiles := &unstructured.UnstructuredList{}
-	dashboardHardwareProfiles.SetGroupVersionKind(gvk.DashboardHardwareProfile)
+	dashboardHardwareProfiles.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "dashboard.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "HardwareProfileList",
+	})
 
 	err = rr.Client.List(ctx, dashboardHardwareProfiles)
 	if err != nil {
