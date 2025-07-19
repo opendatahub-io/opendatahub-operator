@@ -1165,7 +1165,7 @@ func (tc *TestContext) CheckMinOCPVersion(minVersion string) (bool, error) {
 	}
 
 	// Check if current version is greater than or equal to required version
-	return currentVersion.GTE(requiredVersion)
+	return currentVersion.GTE(requiredVersion), nil
 }
 
 // SkipIfOCPVersionBelow is a test helper that skips the current test if the OpenShift cluster
