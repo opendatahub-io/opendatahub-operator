@@ -1160,8 +1160,7 @@ func (tc *TestContext) CheckMinOCPVersion(minVersion string) (bool, error) {
 	requiredVersion, err := semver.ParseTolerant(minVersion)
 	if err != nil {
 		// If we can't parse the version, log error and return false for safety
-		tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to parse minimum version requirement: %s", minVersion)
-		return false
+		return false, fmt.Errorf("failed to parse minimum version requirement %s: %w", minVersion, err)
 	}
 
 	// Check if current version is greater than or equal to required version
