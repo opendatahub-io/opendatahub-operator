@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blang/semver/v4"
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
@@ -42,15 +41,6 @@ const (
 	kueueDefaultLocalQueueName   = "default"
 )
 
-// checkOCPVersion checks if the OpenShift version is 4.18 or above.
-func checkOCPVersion() bool {
-	// RHBoK only available for OCP 4.18 and above
-	if cluster.GetClusterInfo().Version.GTE(semver.MustParse("4.18.0")) {
-		return true
-	}
-	return false
-}
-
 type KueueTestCtx struct {
 	*ComponentTestCtx
 }
@@ -76,7 +66,7 @@ func kueueTestSuite(t *testing.T) {
 	}
 
 	// Only add OCP Kueue operator test if OCP version is 4.18 or above
-	if checkOCPVersion() {
+	if componentCtx.CheckMinOCPVersion("4.18.0") {
 		testCases = append(testCases,
 			TestCase{"Validate component managed error with ocp kueue-operator installed", componentCtx.ValidateKueueManagedWhitOcpKueueOperator},
 			TestCase{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
