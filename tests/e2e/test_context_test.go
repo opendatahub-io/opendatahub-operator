@@ -1179,8 +1179,10 @@ func (tc *TestContext) CheckMinOCPVersion(minVersion string) bool {
 //   - reason (string): Description of why this version is required (appears in skip message)
 func (tc *TestContext) SkipIfOCPVersionBelow(t *testing.T, minVersion string, reason string) {
 	t.Helper()
-	if !tc.CheckMinOCPVersion(minVersion) {
-		t.Skipf("Skipping test: requires OpenShift %s or above for %s, current version: %s",
+	meets, err := tc.CheckMinOCPVersion(minVersion)
+	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to check OCP version")
+	if !meets {
+		t.Skipf("Skipping test: requires OpenShift %s or above for %s, current version: %s", 
 			minVersion, reason, cluster.GetClusterInfo().Version.String())
 	}
 }
