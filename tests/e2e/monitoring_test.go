@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"fmt"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -17,6 +18,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
+)
+
+const (
+	instrumentationName = "data-science-instrumentation"
 )
 
 type MonitoringTestCtx struct {
@@ -57,6 +62,8 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test OpenTelemetry Collector Traces Configuration", monitoringServiceCtx.ValidateOpenTelemetryCollectorTracesConfiguration},
 		{"Test MonitoringStack CR Deletion", monitoringServiceCtx.ValidateMonitoringStackCRDeleted},
 		{"Test Monitoring CR Deletion", monitoringServiceCtx.ValidateMonitoringCRDeleted},
+		{"Test Traces Instrumentation CR Creation", monitoringServiceCtx.ValidateInstrumentationCRTracesWhenSet},
+		{"Test Traces Instrumentation CR Configuration", monitoringServiceCtx.ValidateInstrumentationCRTracesConfiguration},
 	}
 
 	// Run the test suite.
@@ -297,31 +304,6 @@ func setMonitoringMetrics() testf.TransformFn {
 	}
 }
 
-// setMonitoringTraces creates a transformation function that sets the monitoring traces configuration.
-func setMonitoringTraces(backend, secret, size string) testf.TransformFn {
-	return func(obj *unstructured.Unstructured) error {
-		tracesConfig := map[string]interface{}{
-			"storage": map[string]interface{}{
-				"backend": backend,
-			},
-		}
-
-		if size != "" {
-			if storage, ok := tracesConfig["storage"].(map[string]interface{}); ok {
-				storage["size"] = size
-			}
-		}
-
-		if secret != "" {
-			if storage, ok := tracesConfig["storage"].(map[string]interface{}); ok {
-				storage["secret"] = secret
-			}
-		}
-
-		return unstructured.SetNestedField(obj.Object, tracesConfig, "spec", "monitoring", "traces")
-	}
-}
-
 // ValidateMonitoringCRDefaultTracesContent validates that traces stanza is omitted by default.
 func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultTracesContent(t *testing.T) {
 	t.Helper()
@@ -361,7 +343,7 @@ func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRCreation(t *testing.T) {
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
-			setMonitoringTraces("pv", "", "10Gi"),
+			setMonitoringTracesWithStorage("pv", "", "10Gi"),
 		)),
 	)
 
@@ -416,7 +398,7 @@ func (tc *MonitoringTestCtx) ValidateTempoStackCRCreation(t *testing.T) {
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
-			setMonitoringTraces("s3", "s3-secret", ""),
+			setMonitoringTracesWithStorage("s3", "s3-secret", ""),
 		)),
 	)
 
@@ -470,7 +452,7 @@ func (tc *MonitoringTestCtx) ValidateTempoStackCRCreationWithGCS(t *testing.T) {
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
-			setMonitoringTraces("gcs", "gcs-secret", ""),
+			setMonitoringTracesWithStorage("gcs", "gcs-secret", ""),
 		)),
 	)
 
@@ -505,4 +487,120 @@ func (tc *MonitoringTestCtx) ValidateTempoStackCRCreationWithGCS(t *testing.T) {
 	tc.g.Expect(err).ToNot(HaveOccurred())
 	tc.g.Expect(found).To(BeTrue())
 	tc.g.Expect(secretName).To(Equal("gcs-secret"))
+}
+
+// ValidateInstrumentationCRTracesWhenSet validates that Instrumentation CR is created when traces are configured.
+func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesWhenSet(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Update DSCI to set traces - ensure managementState remains Managed
+	tc.EnsureResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringTraces(),
+		)),
+	)
+
+	// Wait for the Monitoring resource to be updated by DSCInitialization controller
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.spec.traces != null`)),
+		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
+	)
+
+	// Ensure the Instrumentation CR is created
+	instrumentation := tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: instrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCustomErrorMsg("Instrumentation CR should be created when traces are configured"),
+	)
+	tc.g.Expect(instrumentation).ToNot(BeNil())
+}
+
+// ValidateInstrumentationCRTracesConfiguration validates the content of the Instrumentation CR.
+func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesConfiguration(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Wait for the Instrumentation CR to be created and stabilized by the OpenTelemetry operator
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: instrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(And(
+			jq.Match(`.spec != null`),
+			jq.Match(`.metadata.generation >= 1`),
+		)),
+		WithCustomErrorMsg("Instrumentation CR should be created and have a valid spec"),
+	)
+
+	// Fetch the Instrumentation CR and validate its content with Eventually for stability
+	expectedEndpoint := fmt.Sprintf("http://data-science-collector.%s.svc.cluster.local:4317", dsci.Spec.Monitoring.Namespace)
+
+	tc.g.Eventually(func(g Gomega) {
+		instrumentation := tc.FetchResources(
+			WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: instrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		)
+		g.Expect(instrumentation).To(HaveLen(1))
+
+		// Validate the exporter endpoint is set correctly
+		endpoint, found, err := unstructured.NestedString(instrumentation[0].Object, "spec", "exporter", "endpoint")
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(found).To(BeTrue(), "Expected 'spec.exporter.endpoint' field to be found in Instrumentation CR")
+		g.Expect(endpoint).To(Equal(expectedEndpoint))
+
+		// Validate the sampler configuration
+		samplerType, found, err := unstructured.NestedString(instrumentation[0].Object, "spec", "sampler", "type")
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(found).To(BeTrue(), "Expected 'spec.sampler.type' field to be found in Instrumentation CR")
+		g.Expect(samplerType).To(Equal("traceidratio"))
+
+		samplerArgument, found, err := unstructured.NestedString(instrumentation[0].Object, "spec", "sampler", "argument")
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(found).To(BeTrue(), "Expected 'spec.sampler.argument' field to be found in Instrumentation CR")
+		g.Expect(samplerArgument).To(Equal("0.1"))
+	}).Should(Succeed(), "Instrumentation CR should have the expected configuration")
+
+	// Fetch again for owner reference validation
+	instrumentation := tc.FetchResources(
+		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: instrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+	tc.g.Expect(instrumentation).To(HaveLen(1))
+}
+
+// setMonitoringTracesWithStorage creates a transformation function that sets the monitoring traces configuration with storage backend.
+func setMonitoringTracesWithStorage(backend, secret, size string) testf.TransformFn {
+	return func(obj *unstructured.Unstructured) error {
+		tracesConfig := map[string]interface{}{
+			"storage": map[string]interface{}{
+				"backend": backend,
+			},
+		}
+
+		if size != "" {
+			if storage, ok := tracesConfig["storage"].(map[string]interface{}); ok {
+				storage["size"] = size
+			}
+		}
+
+		if secret != "" {
+			if storage, ok := tracesConfig["storage"].(map[string]interface{}); ok {
+				storage["secret"] = secret
+			}
+		}
+
+		return unstructured.SetNestedField(obj.Object, tracesConfig, "spec", "monitoring", "traces")
+	}
+}
+
+// setMonitoringTraces creates a transformation function that sets the monitoring traces configuration for instrumentation.
+func setMonitoringTraces() testf.TransformFn {
+	return func(obj *unstructured.Unstructured) error {
+		tracesConfig := map[string]interface{}{
+			"sampleRatio": "0.1",
+		}
+
+		return unstructured.SetNestedField(obj.Object, tracesConfig, "spec", "monitoring", "traces")
+	}
 }

@@ -239,3 +239,37 @@ func deployTempo(ctx context.Context, rr *odhtypes.ReconciliationRequest) error 
 
 	return nil
 }
+
+// handleInstrumentationCR manages OpenTelemetry Instrumentation CRs using templates.
+func handleInstrumentationCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *serviceApi.Monitoring")
+	}
+
+	// Only create instrumentation CR if traces are configured
+	if monitoring.Spec.Traces == nil {
+		// If traces are not configured, GC will clean up any existing instrumentation CRs
+		return nil
+	}
+
+	// Traces are configured, check if Instrumentation CRD exists before creating the template
+	instrumentationCRDExists, err := cluster.HasCRD(ctx, rr.Client, gvk.Instrumentation)
+	if err != nil {
+		return fmt.Errorf("failed to check if Instrumentation CRD exists: %w", err)
+	}
+	if !instrumentationCRDExists {
+		return errors.New("instrumentation CRD not found")
+	}
+
+	// Add instrumentation template to be rendered
+	template := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: InstrumentationTemplate,
+		},
+	}
+	rr.Templates = append(rr.Templates, template...)
+
+	return nil
+}

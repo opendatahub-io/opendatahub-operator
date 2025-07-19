@@ -44,6 +44,8 @@ const (
 	observabilityOpNamespace     = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
 	tempoOpName                  = "tempo-product"                            // Name of the Tempo Operator
 	tempoOpNamespace             = "openshift-tempo-operator"                 // Namespace for the Tempo Operator
+	opentelemetryOpName          = "opentelemetry-product"                    // Name of the OpenTelemetry Operator
+	opentelemetryOpNamespace     = "openshift-opentelemetry-operator"         // Namespace for the OpenTelemetry Operator
 )
 
 // Configuration and Miscellaneous Constants.
