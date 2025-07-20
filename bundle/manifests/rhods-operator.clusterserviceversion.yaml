@@ -205,8 +205,7 @@ metadata:
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
       "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io",
-      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io",
-      "hardwareprofiles.infrastructure.opendatahub.io"]'
+      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
