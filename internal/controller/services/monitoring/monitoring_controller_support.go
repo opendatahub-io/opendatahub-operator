@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -103,17 +101,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	return templateData, nil
-}
-
-func ifGVKInstalled(kvg schema.GroupVersionKind) func(context.Context, *odhtypes.ReconciliationRequest) bool {
-	return func(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
-		hasCRD, err := cluster.HasCRD(ctx, rr.Client, kvg)
-		if err != nil {
-			ctrl.Log.Error(err, "error checking if CRD installed", "GVK", kvg)
-			return false
-		}
-		return hasCRD
-	}
 }
 
 func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
