@@ -12,6 +12,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -33,11 +34,7 @@ const (
 	KueueAdminRoleBindingName  = "kueue-admin-rolebinding"
 	KueueAdminRoleName         = "kueue-batch-admin-role"
 
-	// Kueue managed namespace label keys.
-	KueueManagedLabelKey       = "kueue.openshift.io/managed"
-	KueueLegacyManagedLabelKey = "kueue-managed"
-
-	KueueConfigCRName   = "cluster"
+	KueueCRName         = "cluster"
 	KueueConfigMapName  = "kueue-manager-config"
 	KueueConfigMapEntry = "controller_manager_config.yaml"
 
@@ -76,13 +73,13 @@ func getManagedNamespaces(ctx context.Context, c client.Client) ([]corev1.Namesp
 
 	// Add all namespaces with management label.
 	if err := collectNamespacesWithPagination(ctx, c, uniqueNamespaces, client.MatchingLabels{
-		KueueManagedLabelKey: "true",
+		cluster.KueueManagedLabelKey: "true",
 	}); err != nil {
 		return nil, err
 	}
 	// Add namespaces with legacy management label.
 	if err := collectNamespacesWithPagination(ctx, c, uniqueNamespaces, client.MatchingLabels{
-		KueueLegacyManagedLabelKey: "true",
+		cluster.KueueLegacyManagedLabelKey: "true",
 	}); err != nil {
 		return nil, err
 	}
@@ -104,7 +101,7 @@ func collectNamespacesWithPagination(ctx context.Context, c client.Client, names
 		// Listing namespaces with management label
 		namespaces := &corev1.NamespaceList{}
 		if err := c.List(ctx, namespaces, opts...); err != nil {
-			return fmt.Errorf("failed to list namespaces with label %s: %w", KueueManagedLabelKey+"=true", err)
+			return fmt.Errorf("failed to list namespaces with label %s: %w", cluster.KueueManagedLabelKey+"=true", err)
 		}
 
 		for _, ns := range namespaces.Items {
@@ -123,8 +120,8 @@ func collectNamespacesWithPagination(ctx context.Context, c client.Client, names
 // i.e. if a namespace has just the KueueLegacyManagedLabelKey or the KueueManagedLabelKey, the other one is added as well.
 func ensureKueueLabelsOnManagedNamespaces(ctx context.Context, c client.Client, namespaces []corev1.Namespace) error {
 	for _, ns := range namespaces {
-		hasLegacy := resources.HasLabel(&ns, KueueLegacyManagedLabelKey)
-		hasManaged := resources.HasLabel(&ns, KueueManagedLabelKey)
+		hasLegacy := resources.HasLabel(&ns, cluster.KueueLegacyManagedLabelKey)
+		hasManaged := resources.HasLabel(&ns, cluster.KueueManagedLabelKey)
 
 		// Skip if both labels are already present
 		if hasLegacy && hasManaged {
@@ -133,8 +130,8 @@ func ensureKueueLabelsOnManagedNamespaces(ctx context.Context, c client.Client, 
 
 		// Set both labels to ensure consistency
 		resources.SetLabels(&ns, map[string]string{
-			KueueLegacyManagedLabelKey: "true",
-			KueueManagedLabelKey:       "true",
+			cluster.KueueLegacyManagedLabelKey: "true",
+			cluster.KueueManagedLabelKey:       "true",
 		})
 
 		if err := c.Update(ctx, &ns); err != nil {

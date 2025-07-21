@@ -131,7 +131,7 @@ func createKueueCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*un
 	}
 
 	u.SetGroupVersionKind(gvk.KueueConfigV1)
-	u.SetName(KueueConfigCRName)
+	u.SetName(KueueCRName)
 
 	// Set annotations to indicate this is not managed by ODH operator
 	u.SetAnnotations(map[string]string{
