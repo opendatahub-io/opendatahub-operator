@@ -1,10 +1,12 @@
 package e2e_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/blang/semver/v4"
 	"github.com/onsi/gomega/gstruct"
 	gTypes "github.com/onsi/gomega/types"
 	configv1 "github.com/openshift/api/config/v1"
@@ -1139,5 +1141,49 @@ func (tc *TestContext) validateWebhookError(g Gomega, err error, operationType s
 				[]any{ro.InvalidValue, operationType, errorMsg},
 				ro.CustomErrorArgs,
 			)...)
+	}
+}
+
+// CheckMinOCPVersion checks if the OpenShift cluster version meets the minimum required version.
+//
+// This helper function checks if the current OpenShift cluster version is greater than or equal
+// to the specified minimum version. It's useful for skipping tests or enabling features based
+// on OpenShift version requirements.
+//
+// Parameters:
+//   - minVersion (string): The minimum required version in semver format (e.g., "4.18.0", "4.17.9")
+//
+// Returns:
+//   - bool: true if the cluster version meets the minimum requirement, false otherwise
+//   - error: error if version parsing fails
+func (tc *TestContext) CheckMinOCPVersion(minVersion string) (bool, error) {
+	currentVersion := cluster.GetClusterInfo().Version
+	requiredVersion, err := semver.ParseTolerant(minVersion)
+	if err != nil {
+		// If we can't parse the version, log error and return false for safety
+		return false, fmt.Errorf("failed to parse minimum version requirement %s: %w", minVersion, err)
+	}
+
+	// Check if current version is greater than or equal to required version
+	return currentVersion.GTE(requiredVersion), nil
+}
+
+// SkipIfOCPVersionBelow is a test helper that skips the current test if the OpenShift cluster
+// version is below the specified minimum version.
+//
+// This is a convenience wrapper around CheckMinOCPVersion specifically designed for test skipping.
+// It automatically calls t.Skipf() with a descriptive message when the version requirement is not met.
+//
+// Parameters:
+//   - t (*testing.T): The test instance to skip
+//   - minVersion (string): The minimum required version in semver format (e.g., "4.18.0")
+//   - reason (string): Description of why this version is required (appears in skip message)
+func (tc *TestContext) SkipIfOCPVersionBelow(t *testing.T, minVersion string, reason string) {
+	t.Helper()
+	meets, err := tc.CheckMinOCPVersion(minVersion)
+	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to check OCP version")
+	if !meets {
+		t.Skipf("Skipping test: requires OpenShift %s or above for %s, current version: %s",
+			minVersion, reason, cluster.GetClusterInfo().Version.String())
 	}
 }
