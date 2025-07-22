@@ -82,6 +82,7 @@ type MonitoringStatus struct {
 	URL string `json:"url,omitempty"`
 }
 
+// Traces enables and defines the configuration for traces collection
 type Traces struct {
 	Storage TracesStorage `json:"storage"`
 }
@@ -135,7 +136,8 @@ type MonitoringCommonSpec struct {
 	Namespace string `json:"namespace,omitempty"`
 	// metrics collection
 	Metrics *Metrics `json:"metrics,omitempty"`
-	Traces  *Traces  `json:"traces,omitempty"`
+	// traces collection
+	Traces *Traces `json:"traces,omitempty"`
 }
 
 //+kubebuilder:object:root=true
