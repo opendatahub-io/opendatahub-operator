@@ -507,6 +507,8 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 
 	// Ensure Kueue is in Managed state
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
+	// We need Notebook CRD in the cluster so we enabled workbenches in DSC to get this CRD
+	tc.UpdateComponentStateInDataScienceClusterWhitKind(operatorv1.Managed, componentApi.WorkbenchesKind)
 
 	// Ensure the managed namespace exists
 	tc.setupKueueManagedNamespace()
