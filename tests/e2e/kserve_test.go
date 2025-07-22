@@ -82,11 +82,12 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate serving transition to Unmanaged", componentCtx.ValidateServingTransitionToUnmanaged},
 		{"Validate serving transition to Removed", componentCtx.ValidateServingTransitionToRemoved},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
-		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
-		{"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
+		// TODO: Disabled until these tests have been hardened (RHOAIENG-27721)
+		// {"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		// {"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		// {"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		// {"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 

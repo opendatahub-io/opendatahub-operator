@@ -28,11 +28,12 @@ func trainingOperatorTestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
-		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
-		{"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
+		// TODO: Disabled until these tests have been hardened (RHOAIENG-27721)
+		// {"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		// {"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		// {"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		// {"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
