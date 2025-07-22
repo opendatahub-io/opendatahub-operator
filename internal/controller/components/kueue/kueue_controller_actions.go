@@ -154,8 +154,8 @@ func manageKueueAdminRoleBinding(ctx context.Context, rr *odhtypes.Reconciliatio
 	subjects := []rbacv1.Subject{}
 	for _, group := range validAdminGroups {
 		subjects = append(subjects, rbacv1.Subject{
-			Kind:     "Group",
-			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     gvk.Group.Kind,
+			APIGroup: gvk.Group.Group,
 			Name:     group,
 		})
 	}
@@ -189,11 +189,11 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 	}
 
 	// Only proceed if Kueue is in Managed or Unmanaged state.
-	if kueueCRInstance.Spec.ManagementState != operatorv1.Managed && kueueCRInstance.Spec.ManagementState != operatorv1.Unmanaged {
+	if kueueCRInstance.Spec.ManagementState == operatorv1.Removed {
 		return nil
 	}
 
-	// In Unmanaged case create the default ocp kueue configuration.
+	// In Unmanaged case create HBoK Kueue CR 'default'.
 	if kueueCRInstance.Spec.ManagementState == operatorv1.Unmanaged {
 		defaultKueueConfig, err := createKueueCR(ctx, rr)
 		if err != nil {
@@ -218,7 +218,7 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 		return fmt.Errorf("failed to add missing labels to managed namespaces: %v with error: %w", managedNamespaces, err)
 	}
 
-	// Generate LocalQueues for managed namespaces.
+	// Generate LocalQueues in each managed namespaces.
 	for _, ns := range managedNamespaces {
 		localQueue := createDefaultLocalQueue(kueueCRInstance.Spec.DefaultLocalQueueName, kueueCRInstance.Spec.DefaultClusterQueueName, ns.Name)
 		rr.Resources = append(rr.Resources, *localQueue)

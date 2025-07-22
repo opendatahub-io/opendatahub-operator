@@ -213,7 +213,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedWhitOcpKueueOperator(t *testing.T) {
 
 	// Validate that Kueue configuration does not exist
 	tc.EnsureResourceDoesNotExist(
-		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueConfigCRName}),
+		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
 	)
 }
 
@@ -367,7 +367,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToUnmanagedTransition(t *testing.T) 
 
 	// Validate that Kueue configuration is created
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueConfigCRName}),
+		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
 		// check that the Kueue CR contains information that are not set by default, but
 		// can only be taken from the embedded Kueue ConfigMap
 		WithCondition(jq.Match(`.spec.config.integrations.frameworks | contains(["XGBoostJob"])`)),
@@ -478,7 +478,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 		ensureClusterAndLocalQueueExist(tc)
 
 		opts := []ResourceOpts{
-			WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueConfigCRName}),
+			WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
 		}
 
 		if migrateConfig {
@@ -887,7 +887,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 
 	// Validate that Kueue configuration is created
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueConfigCRName}),
+		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
 	)
 
 	// MANAGED
@@ -926,7 +926,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 
 	// Validate that Kueue configuration is still there
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueConfigCRName}),
+		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
 	)
 
 	// Remove Kueue test resources
@@ -1027,7 +1027,7 @@ func (tc *KueueTestCtx) setupNamespace(namespaceName string, isKueueManaged bool
 	// Add Kueue managed label only if requested
 	if isKueueManaged {
 		testNamespace.SetLabels(map[string]string{
-			kueue.KueueManagedLabelKey: "true",
+			cluster.KueueManagedLabelKey: "true",
 		})
 	}
 
