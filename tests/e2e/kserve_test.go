@@ -72,6 +72,7 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate serving enabled", componentCtx.ValidateServingEnabled},
 		{"Validate component spec", componentCtx.ValidateSpec},
 		{"Validate component conditions", componentCtx.ValidateConditions},
+		{"Validate KnativeServing resource exists and is recreated upon deletion", componentCtx.ValidateKnativeServing},
 		{"Validate model controller", componentCtx.ValidateModelControllerInstance},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate no FeatureTracker OwnerReferences", componentCtx.ValidateNoFeatureTrackerOwnerReferences},
@@ -147,6 +148,30 @@ func (tc *KserveTestCtx) ValidateConditions(t *testing.T) {
 		gvk.Kserve,
 		componentApi.KserveInstanceName,
 		status.ConditionServingAvailable,
+	)
+}
+
+// ValidateKnativeServing ensures that the KnativeServing resource exists and is recreated upon deletion.
+func (tc *KserveTestCtx) ValidateKnativeServing(t *testing.T) {
+	t.Helper()
+
+	// Retrieve the DataScienceCluster instance.
+	dsc := tc.FetchDataScienceCluster()
+
+	// Check KnativeServing was created.
+	managedKnativeServing := types.NamespacedName{Name: dsc.Spec.Components.Kserve.Serving.Name, Namespace: knativeServingNamespace}
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
+	)
+
+	// Delete it.
+	tc.DeleteResource(
+		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
+	)
+
+	// Check eventually got recreated.
+	tc.EnsureResourceExistsConsistently(
+		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
 	)
 }
 
