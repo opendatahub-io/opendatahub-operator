@@ -88,8 +88,20 @@ func kueueTestSuite(t *testing.T) {
 	// Add webhook tests if enabled
 	if testOpts.webhookTest {
 		testCases = append(testCases,
+			// Enable Workbenches component to ensure Notebook CRD is available for webhook tests
+			// This is required because webhook tests use Notebook objects which need the Notebook CRD
+			// installed by the Workbenches component
+			TestCase{"Enable Workbenches component", func(t *testing.T) {
+				t.Helper()
+				componentCtx.UpdateComponentStateInDataScienceClusterWhitKind(operatorv1.Managed, "Workbenches")
+			}},
 			TestCase{"Validate Kueue webhook validation", componentCtx.ValidateKueueWebhookValidation},
 			TestCase{"Validate hardware profile webhook validation", componentCtx.ValidateHardwareProfileWebhookValidation},
+			// Cleanup Workbenches immediately after webhook tests
+			TestCase{"Disable Workbenches component", func(t *testing.T) {
+				t.Helper()
+				componentCtx.UpdateComponentStateInDataScienceClusterWhitKind(operatorv1.Removed, "Workbenches")
+			}},
 		)
 	}
 
@@ -507,8 +519,6 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 
 	// Ensure Kueue is in Managed state
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
-	// We need Notebook CRD in the cluster so we enabled workbenches in DSC to get this CRD
-	tc.UpdateComponentStateInDataScienceClusterWhitKind(operatorv1.Managed, componentApi.WorkbenchesKind)
 
 	// Ensure the managed namespace exists
 	tc.setupKueueManagedNamespace()
