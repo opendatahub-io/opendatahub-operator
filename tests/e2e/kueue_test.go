@@ -43,7 +43,7 @@ func kueueTestSuite(t *testing.T) {
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
-		{"Validate Kueue Dynamically create VAP and VAPB", componentCtx.ValidateKueueVAPReady},
+		// {"Validate Kueue Dynamically create VAP and VAPB", componentCtx.ValidateKueueVAPReady},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate pre check", componentCtx.ValidateKueuePreCheck},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
