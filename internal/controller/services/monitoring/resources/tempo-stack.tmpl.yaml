@@ -1,0 +1,15 @@
+apiVersion: tempo.grafana.com/v1alpha1
+kind: TempoStack
+metadata:
+  name: data-science-tempostack
+  namespace: {{.Namespace}}
+spec:
+  tenants:
+    mode: openshift
+  storage:
+    secret:
+      name: {{.Secret}}
+      type: {{.Backend}}
+  template:
+    gateway:
+      enabled: true # Required for OpenShift mode

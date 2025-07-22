@@ -82,6 +82,31 @@ type MonitoringStatus struct {
 	URL string `json:"url,omitempty"`
 }
 
+type Traces struct {
+	Storage TracesStorage `json:"storage"`
+}
+
+// TracesStorage defines the storage configuration for tracing.
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? has(self.secret) : true",message="When backend is not 'pv', the 'secret' field must be specified and non-empty"
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? !has(self.size) : true",message="Size is not supported when backend is not 'pv'"
+type TracesStorage struct {
+	// Backend defines the storage backend type.
+	// Valid values are "pv", "s3", and "gcs".
+	// +kubebuilder:validation:Enum="pv";"s3";"gcs"
+	// +kubebuilder:default:="pv"
+	Backend string `json:"backend"`
+
+	// Size specifies the size of the storage.
+	// This field is optional.
+	// +optional
+	Size string `json:"size,omitempty"`
+
+	// Secret specifies the secret name for storage credentials.
+	// This field is required when the backend is not "pv".
+	// +optional
+	Secret string `json:"secret,omitempty"`
+}
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
@@ -110,6 +135,7 @@ type MonitoringCommonSpec struct {
 	Namespace string `json:"namespace,omitempty"`
 	// metrics collection
 	Metrics *Metrics `json:"metrics,omitempty"`
+	Traces  *Traces  `json:"traces,omitempty"`
 }
 
 //+kubebuilder:object:root=true
