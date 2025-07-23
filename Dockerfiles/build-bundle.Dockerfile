@@ -30,7 +30,9 @@ COPY pkg/ pkg/
 # Copy other source artifacts
 COPY tests/ tests/
 COPY PROJECT PROJECT
-COPY config/ config/
+COPY odh-config/ odh-config/
+COPY rhoai-config/ rhoai-config/
 COPY Dockerfiles/ Dockerfiles/
 
 RUN VERSION=$OPERATOR_VERSION make bundle
+RUN VERSION=$OPERATOR_VERSION make bundle ODH_PLATFORM_TYPE=rhoai
