@@ -50,6 +50,18 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 		AfterEach(cleanupResources)
 
+		It("Should not have finalizer on DSCI resource", func(ctx context.Context) {
+			// then
+			foundDsci := &dsciv1.DSCInitialization{}
+			Eventually(objectExists(applicationName, applicationNamespace, foundDsci)).
+				WithContext(ctx).
+				Should(BeTrue())
+			Eventually(func() bool {
+				return len(foundDsci.Finalizers) == 0
+			}).Should(BeTrue(), "Found finalizer on DSCI instance")
+
+		})
+
 		It("Should create default application namespace", func(ctx context.Context) {
 			// then
 			foundApplicationNamespace := &corev1.Namespace{}
