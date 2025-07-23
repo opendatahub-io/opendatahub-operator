@@ -13,4 +13,3 @@ spec:
   trustedCABundle:
     managementState: "Managed"
     customCABundle: ""
-

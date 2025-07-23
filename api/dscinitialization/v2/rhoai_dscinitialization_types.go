@@ -1,7 +1,7 @@
-//go:build !rhoai
+//go:build rhoai
 
 /*
-Copyright 2023.
+Copyright 2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,8 +28,8 @@ import (
 
 // DSCInitializationSpec defines the desired state of DSCInitialization.
 type DSCInitializationSpec struct {
-	// Namespace for applications to be installed, non-configurable, default to "opendatahub"
-	// +kubebuilder:default=opendatahub
+	// Namespace for applications to be installed, non-configurable, default to "redhat-ods-applications"
+	// +kubebuilder:default:=redhat-ods-applications
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="ApplicationsNamespace is immutable"
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63

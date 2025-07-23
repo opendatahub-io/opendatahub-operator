@@ -1,5 +1,5 @@
 # Build the manager binary
-ARG GOLANG_VERSION=1.24
+ARG GOLANG_VERSION=1.23
 
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
@@ -27,9 +27,9 @@ COPY odh-config/monitoring/ /opt/manifests/monitoring
 # Copy ods-configs removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/osd-configs
 COPY odh-config/osd-configs/ /opt/manifests/osd-configs
-# Copy hardwareprofiles removing any possibly pre-existing symlinks
-RUN rm -f /opt/manifests/hardwareprofiles
-COPY odh-config/hardwareprofiles/ /opt/manifests/hardwareprofiles
+# Copy kueue-configs removing any possibly pre-existing symlinks
+RUN rm -f /opt/manifests/kueue-configs
+COPY odh-config/kueue-configs/ /opt/manifests/kueue-configs
 
 ################################################################################
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder
@@ -51,20 +51,16 @@ COPY cmd/main.go cmd/main.go
 COPY pkg/ pkg/
 
 # Build stripe out debug info to minimize binary size
-RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o manager cmd/main.go
+RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime,rhoai -o manager cmd/main.go
 
 ################################################################################
 FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/ubi-minimal:latest
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --chown=1001:0 --from=manifests /opt/manifests /opt/manifests
-
-# tar installed to allow easy use of "oc cp" for component dev use cases.
-# See hack/component-dev/README.md in the source repo for more info.
-RUN microdnf install -y tar && microdnf clean all
-
 # Recursive change all files
-RUN chmod -R g=u /opt/manifests
+RUN chown -R 1001:0 /opt/manifests &&\
+    chmod -R g=u /opt/manifests
 USER 1001
 
 ENTRYPOINT ["/manager"]
