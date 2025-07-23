@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"testing"
 
+	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -408,37 +409,13 @@ func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRConfiguration(t *testing.T
 func (tc *MonitoringTestCtx) ValidateTempoStackCRCreation(t *testing.T) {
 	t.Helper()
 
-	dsci := tc.FetchDSCInitialization()
-	tempoStackName := getTempoStackName(dsci)
-
-	// Update DSCI to set traces with S3 backend.
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.TransformPipeline(
-			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
-			setMonitoringTraces("s3", "s3-secret", ""),
-		)),
+	tc.validateTempoStackCreationWithBackend(
+		t,
+		"s3",
+		"s3-secret",
+		jq.Match(`.spec.traces != null`),
+		"Monitoring resource should be updated with traces configuration by DSCInitialization controller",
 	)
-
-	// Wait for TempoStack to be updated with S3 backend
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: tempoStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
-		WithCondition(jq.Match(`.spec.storage.secret.type == "s3"`)),
-		WithCustomErrorMsg("TempoStack should be updated with S3 backend"),
-	)
-
-	// Wait for the Monitoring resource to be updated by DSCInitialization controller.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
-		WithCondition(jq.Match(`.spec.traces != null`)),
-		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
-	)
-
-	// Ensure the TempoStack CR is created (status conditions are set by external tempo operator).
-	tempoStack := tc.EnsureResourceExists(
-		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: tempoStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
-	)
-	tc.g.Expect(tempoStack).ToNot(BeNil())
 }
 
 // ValidateTempoStackCRConfiguration tests configuration of TempoStack CR.
@@ -448,75 +425,134 @@ func (tc *MonitoringTestCtx) ValidateTempoStackCRConfiguration(t *testing.T) {
 	dsci := tc.FetchDSCInitialization()
 	tempoStackName := getTempoStackName(dsci)
 
+	// Fetch existing TempoStack instead of creating new one
 	tempoStack := tc.FetchResources(
-		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: tempoStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithMinimalObject(gvk.TempoStack, types.NamespacedName{
+			Name:      tempoStackName,
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
 	)
+	tc.g.Expect(tempoStack).To(HaveLen(1))
 
-	// Validate the backend is set to s3.
-	backend, found, err := unstructured.NestedString(tempoStack[0].Object, "spec", "storage", "secret", "type")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(backend).To(Equal("s3"))
-
-	// Validate the secret name is set.
-	secretName, found, err := unstructured.NestedString(tempoStack[0].Object, "spec", "storage", "secret", "name")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(secretName).To(Equal("s3-secret"))
+	// Use helper function for validation logic
+	tc.validateTempoStackDetails(t, &tempoStack[0], "s3", "s3-secret")
 }
 
 // ValidateTempoStackCRCreationWithGCS tests creation of TempoStack CR with GCS backend.
 func (tc *MonitoringTestCtx) ValidateTempoStackCRCreationWithGCS(t *testing.T) {
 	t.Helper()
 
+	tc.validateTempoStackCreationWithBackendDetails(
+		t,
+		"gcs",
+		"gcs-secret",
+		jq.Match(`.spec.traces.storage.backend == "gcs"`),
+		"Monitoring resource should be updated with GCS traces configuration by DSCInitialization controller",
+	)
+}
+
+// validateTempoStackDetails validates the detailed configuration of a TempoStack resource.
+// This helper function checks that the backend type and secret name are correctly set
+// in the TempoStack specification.
+//
+// Parameters:
+//   - tempoStack: The TempoStack resource to validate
+//   - expectedBackend: The expected storage backend type (e.g., "s3", "gcs")
+//   - expectedSecretName: The expected name of the secret containing backend credentials
+func (tc *MonitoringTestCtx) validateTempoStackDetails(t *testing.T, tempoStack *unstructured.Unstructured, expectedBackend, expectedSecretName string) {
+	t.Helper()
+
+	// Validate the backend is set correctly
+	actualBackend, found, err := unstructured.NestedString(tempoStack.Object, "spec", "storage", "secret", "type")
+	tc.g.Expect(err).ToNot(HaveOccurred())
+	tc.g.Expect(found).To(BeTrue())
+	tc.g.Expect(actualBackend).To(Equal(expectedBackend))
+
+	// Validate the secret name is set correctly
+	actualSecretName, found, err := unstructured.NestedString(tempoStack.Object, "spec", "storage", "secret", "name")
+	tc.g.Expect(err).ToNot(HaveOccurred())
+	tc.g.Expect(found).To(BeTrue())
+	tc.g.Expect(actualSecretName).To(Equal(expectedSecretName))
+}
+
+// validateTempoStackCreationWithBackend validates TempoStack creation with the specified backend.
+// It updates the DSCInitialization to configure monitoring traces, waits for the Monitoring resource
+// to be updated, and ensures the TempoStack CR is created with the correct backend configuration.
+//
+// Parameters:
+//   - backend: The storage backend type (e.g., "s3", "gcs")
+//   - secretName: The name of the secret containing backend credentials
+//   - monitoringCondition: Gomega matcher to validate the Monitoring resource state
+//   - monitoringErrorMsg: Error message to display if Monitoring resource validation fails
+//
+// Returns the created TempoStack resource for additional validation by the caller.
+func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(
+	t *testing.T,
+	backend, secretName string,
+	monitoringCondition gTypes.GomegaMatcher,
+	monitoringErrorMsg string,
+) *unstructured.Unstructured {
+	t.Helper()
+
 	dsci := tc.FetchDSCInitialization()
 	tempoStackName := getTempoStackName(dsci)
 
-	// Update DSCI to set traces with GCS backend.
+	// Update DSCI to set traces with specified backend
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
-			setMonitoringTraces("gcs", "gcs-secret", ""),
+			setMonitoringTraces(backend, secretName, ""),
 		)),
 	)
 
-	// Wait for TempoStack to be updated with gcs backend
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: tempoStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
-		WithCondition(jq.Match(`.spec.storage.secret.type == "gcs"`)),
-		WithCustomErrorMsg("TempoStack should be updated with gcs backend"),
-	)
-
-	// Wait for the Monitoring resource to be updated by DSCInitialization controller.
+	// Wait for the Monitoring resource to be updated by DSCInitialization controller
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
-		WithCondition(jq.Match(`.spec.traces.storage.backend == "gcs"`)),
-		WithCustomErrorMsg("Monitoring resource should be updated with GCS traces configuration by DSCInitialization controller"),
+		WithCondition(monitoringCondition),
+		WithCustomErrorMsg(monitoringErrorMsg),
 	)
 
-	// Wait for the TempoStack CR to be updated with the GCS backend (this ensures the resource is updated after the previous S3 test).
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: tempoStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
-		WithCondition(jq.Match(`.spec.storage.secret.type == "gcs"`)),
-		WithCustomErrorMsg("TempoStack resource should be updated with GCS backend type"),
-	)
-
-	// Fetch the updated TempoStack to validate its configuration
+	// Ensure the TempoStack CR is created with specified backend
+	// (status conditions are set by external tempo operator)
 	tempoStack := tc.EnsureResourceExists(
-		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: tempoStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithMinimalObject(gvk.TempoStack, types.NamespacedName{
+			Name:      tempoStackName,
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(jq.Match(`.spec.storage.secret.type == "%s"`, backend)),
+		WithCustomErrorMsg(
+			"TempoStack should be created with %s backend, but was not found or has incorrect backend type",
+			backend,
+		),
 	)
-	tc.g.Expect(tempoStack).ToNot(BeNil())
 
-	// Validate the backend is set to gcs.
-	backend, found, err := unstructured.NestedString(tempoStack.Object, "spec", "storage", "secret", "type")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(backend).To(Equal("gcs"))
+	return tempoStack
+}
 
-	// Validate the secret name is set.
-	secretName, found, err := unstructured.NestedString(tempoStack.Object, "spec", "storage", "secret", "name")
-	tc.g.Expect(err).ToNot(HaveOccurred())
-	tc.g.Expect(found).To(BeTrue())
-	tc.g.Expect(secretName).To(Equal("gcs-secret"))
+// validateTempoStackCreationWithBackendDetails validates TempoStack creation with detailed configuration validation.
+// This function calls validateTempoStackCreationWithBackend and additionally validates that the backend
+// and secret name are correctly set in the TempoStack specification.
+//
+// Parameters:
+//   - backend: The storage backend type (e.g., "s3", "gcs")
+//   - secretName: The name of the secret containing backend credentials
+//   - monitoringCondition: Gomega matcher to validate the Monitoring resource state
+//   - monitoringErrorMsg: Error message to display if Monitoring resource validation fails
+//
+// Returns the created TempoStack resource for additional validation by the caller.
+func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackendDetails(
+	t *testing.T,
+	backend, secretName string,
+	monitoringCondition gTypes.GomegaMatcher,
+	monitoringErrorMsg string) *unstructured.Unstructured {
+	t.Helper()
+
+	// First, perform the basic TempoStack creation validation
+	tempoStack := tc.validateTempoStackCreationWithBackend(t, backend, secretName, monitoringCondition, monitoringErrorMsg)
+
+	// Use helper function for detailed validation
+	tc.validateTempoStackDetails(t, tempoStack, backend, secretName)
+
+	return tempoStack
 }
