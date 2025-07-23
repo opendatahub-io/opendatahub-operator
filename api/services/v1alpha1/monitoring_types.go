@@ -1,3 +1,5 @@
+//go:build odh
+
 /*
 Copyright 2023.
 
