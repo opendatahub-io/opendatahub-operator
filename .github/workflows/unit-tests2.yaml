@@ -1,15 +1,14 @@
-name: Unit Tests
-on: 
+name: Unit Tests2
+on:
   push:
     branches:
       - rhoai
       - incubation
       - main
-      - master
   pull_request:
 jobs:
   unit-test:
-    name: Run tests and collect coverage
+    name: Run tests and collect coverage on internal and pkg
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,6 +20,8 @@ jobs:
           go-version-file: go.mod
 
       - name: Run Unit Tests
+        env:
+          TEST_SRC: ./internal/... ./pkg/...
         run: make unit-test
 
       - name: Upload results to Codecov
