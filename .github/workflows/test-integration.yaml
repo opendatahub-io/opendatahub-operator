@@ -6,8 +6,10 @@ on:
     branches:
       - main
     paths:
-      - 'bundle/**'
-      - 'config/**'
+      - 'odh-bundle/**'
+      - 'rhoai-bundle/**'
+      - 'odh-config/**'
+      - 'rhoai-config/**'
       - 'Dockerfiles/**'
       - 'internal/**'
       - 'pkg/**'

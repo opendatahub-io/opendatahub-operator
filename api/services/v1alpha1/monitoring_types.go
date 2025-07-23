@@ -1,3 +1,5 @@
+//go:build !rhoai
+
 /*
 Copyright 2023.
 

@@ -49,7 +49,7 @@ func TestAuthCELValidationIntegration(t *testing.T) {
 	// Set up the envtest environment
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join(projectDir, "config", "crd", "bases"),
+			filepath.Join(projectDir, "odh-config", "crd", "bases"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}
