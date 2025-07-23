@@ -1,5 +1,5 @@
 name: Unit Tests1
-on: 
+on:
   push:
     branches:
       - rhoai
