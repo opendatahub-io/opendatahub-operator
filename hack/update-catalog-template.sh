@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-CATALOG_TEMPLATE=${1:-config/catalog/fbc-basic-template.yaml}
+CATALOG_TEMPLATE=${1:-odh-config/catalog/fbc-basic-template.yaml}
 BUNDLE_IMGS=${2:-}
 YQ=${3:-yq}
 

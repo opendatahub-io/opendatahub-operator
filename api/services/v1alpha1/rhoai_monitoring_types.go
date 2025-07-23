@@ -1,4 +1,4 @@
-//go:build !rhoai
+//go:build rhoai
 
 /*
 Copyright 2023.
@@ -22,7 +22,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
 const (
@@ -48,18 +47,8 @@ type MonitoringSpec struct {
 type Metrics struct {
 	Storage   *MetricsStorage   `json:"storage,omitempty"`
 	Resources *MetricsResources `json:"resources,omitempty"`
-	// Replicas specifies the number of replicas in monitoringstack. If not set, it defaults
-	// to 1 on single-node clusters and 2 on multi-node clusters.
-	// +kubebuilder:validation:Minimum=0
+	// Replicas specifies the number of replicas in monitoringstack, default is 2 if not set
 	Replicas int32 `json:"replicas,omitempty"`
-	// Exporters defines custom metrics exporters for sending metrics to external observability tools.
-	// Each key-value pair represents an exporter name and its configuration.
-	// Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.
-	// +optional
-	// +kubebuilder:validation:XValidation:rule="!('prometheus' in self)",message="exporter name 'prometheus' is reserved and cannot be used"
-	// +kubebuilder:validation:XValidation:rule="!('otlp/tempo' in self)",message="exporter name 'otlp/tempo' is reserved and cannot be used"
-	// +kubebuilder:validation:XValidation:rule="self.all(k, self[k] != '')",message="exporter configuration values must be non-empty strings"
-	Exporters map[string]string `json:"exporters,omitempty"`
 }
 
 // MetricsStorage defines the storage configuration for the monitoring service
@@ -68,7 +57,7 @@ type MetricsStorage struct {
 	// +kubebuilder:default="5Gi"
 	Size resource.Quantity `json:"size,omitempty"`
 	// Retention specifies how long metrics data should be retained (e.g., "1d", "2w")
-	// +kubebuilder:default="90d"
+	// +kubebuilder:default="1d"
 	Retention string `json:"retention,omitempty"`
 }
 
@@ -103,36 +92,16 @@ type Traces struct {
 	// +kubebuilder:default="0.1"
 	// +kubebuilder:validation:Pattern="^(0(\\.[0-9]+)?|1(\\.0+)?)$"
 	SampleRatio string `json:"sampleRatio,omitempty"`
-	// TLS configuration for Tempo gRPC connections
-	TLS *TracesTLS `json:"tls,omitempty"`
-	// Exporters defines custom trace exporters for sending traces to external observability tools.
-	// Each key represents the exporter name, and the value contains the exporter configuration.
-	// The configuration follows the OpenTelemetry Collector exporter format.
-	// +optional
-	Exporters map[string]runtime.RawExtension `json:"exporters,omitempty"`
-}
-
-// TracesTLS defines TLS configuration for traces collection
-type TracesTLS struct {
-	// Enabled enables TLS for Tempo gRPC connections
-	// +kubebuilder:default=true
-	Enabled bool `json:"enabled,omitempty"`
-	// CertificateSecret specifies the name of the secret containing TLS certificates
-	// If not specified, OpenShift service serving certificates will be used
-	CertificateSecret string `json:"certificateSecret,omitempty"`
-	// CAConfigMap specifies the name of the ConfigMap containing the CA certificate
-	// Required for mutual TLS authentication
-	CAConfigMap string `json:"caConfigMap,omitempty"`
 }
 
 // TracesStorage defines the storage configuration for tracing.
-// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? has(self.secret) : true", message="When backend is s3 or gcs, the 'secret' field must be specified and non-empty"
-// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? !has(self.size) : true", message="Size is supported when backend is pv only"
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? has(self.secret) : true",message="When backend is not 'pv', the 'secret' field must be specified and non-empty"
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? !has(self.size) : true",message="Size is not supported when backend is not 'pv'"
 type TracesStorage struct {
 	// Backend defines the storage backend type.
 	// Valid values are "pv", "s3", and "gcs".
 	// +kubebuilder:validation:Enum="pv";"s3";"gcs"
-	// +kubebuilder:default="pv"
+	// +kubebuilder:default:="pv"
 	Backend string `json:"backend"`
 
 	// Size specifies the size of the storage.
@@ -144,14 +113,6 @@ type TracesStorage struct {
 	// This field is required when the backend is not "pv".
 	// +optional
 	Secret string `json:"secret,omitempty"`
-
-	// Retention specifies how long trace data should be retained globally (e.g., "60m", "10h")
-	// +kubebuilder:default="2160h"
-	Retention metav1.Duration `json:"retention,omitempty"`
-}
-
-// Alerting configuration for Prometheus
-type Alerting struct {
 }
 
 //+kubebuilder:object:root=true
@@ -172,24 +133,19 @@ type Monitoring struct {
 }
 
 // MonitoringCommonSpec spec defines the shared desired state of Dashboard
-// +kubebuilder:validation:XValidation:rule="has(self.alerting) ? has(self.metrics.storage) || has(self.metrics.resources) : true",message="Alerting configuration requires metrics.storage or metrics.resources to be configured"
-// +kubebuilder:validation:XValidation:rule="!has(self.collectorReplicas) || (self.collectorReplicas > 0 && ((self.metrics.resources != null || self.metrics.storage != null) || self.traces != null))",message="CollectorReplicas can only be set when metrics.resources, metrics.storage or traces are configured, and must be > 0"
 type MonitoringCommonSpec struct {
 	// monitoring spec exposed to DSCI api
 	// Namespace for monitoring if it is enabled
-	// +kubebuilder:default=opendatahub
+	// +kubebuilder:default=redhat-ods-monitoring
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="MonitoringNamespace is immutable"
 	Namespace string `json:"namespace,omitempty"`
 	// metrics collection
 	Metrics *Metrics `json:"metrics,omitempty"`
+
 	// Tracing configuration for OpenTelemetry instrumentation
 	Traces *Traces `json:"traces,omitempty"`
-	// Alerting configuration for Prometheus
-	Alerting *Alerting `json:"alerting,omitempty"`
-	// CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set
-	CollectorReplicas int32 `json:"collectorReplicas,omitempty"`
 }
 
 //+kubebuilder:object:root=true
