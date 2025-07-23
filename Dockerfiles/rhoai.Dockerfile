@@ -1,5 +1,5 @@
 # Build the manager binary
-ARG GOLANG_VERSION=1.24
+ARG GOLANG_VERSION=1.23
 
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
@@ -51,7 +51,7 @@ COPY cmd/main.go cmd/main.go
 COPY pkg/ pkg/
 
 # Build stripe out debug info to minimize binary size
-RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime -o manager cmd/main.go
+RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go build -a -ldflags="-s -w" -tags strictfipsruntime,rhoai -o manager cmd/main.go
 
 ################################################################################
 FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/ubi-minimal:latest

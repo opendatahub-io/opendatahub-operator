@@ -26,8 +26,10 @@ COPY pkg/ pkg/
 # Copy other source artifacts
 COPY tests/ tests/
 COPY PROJECT PROJECT
-COPY config/ config/
+COPY odh-config/ odh-config/
+COPY rhoai-config/ rhoai-config/
 COPY Dockerfiles/ Dockerfiles/
 
 # NOTE: unset VERSION here otherwise, the bundle is built with the version from the go-toolset container
 RUN unset VERSION && make bundle
+RUN unset VERSION && make bundle ODH_PLATFORM_TYPE=rhoai

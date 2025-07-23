@@ -1,4 +1,4 @@
-//go:build !rhoai
+//go:build rhoai
 
 /*
 Copyright 2023.
@@ -57,7 +57,7 @@ type MetricsStorage struct {
 	// +kubebuilder:default="5Gi"
 	Size resource.Quantity `json:"size,omitempty"`
 	// Retention specifies how long metrics data should be retained (e.g., "1d", "2w")
-	// +kubebuilder:default="90d"
+	// +kubebuilder:default="1d"
 	Retention string `json:"retention,omitempty"`
 }
 
@@ -95,8 +95,8 @@ type Traces struct {
 }
 
 // TracesStorage defines the storage configuration for tracing.
-// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? has(self.secret) : true", message="When backend is s3 or gcs, the 'secret' field must be specified and non-empty"
-// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? !has(self.size) : true", message="Size is supported when backend is pv only"
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? has(self.secret) : true",message="When backend is not 'pv', the 'secret' field must be specified and non-empty"
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? !has(self.size) : true",message="Size is not supported when backend is not 'pv'"
 type TracesStorage struct {
 	// Backend defines the storage backend type.
 	// Valid values are "pv", "s3", and "gcs".
@@ -113,14 +113,6 @@ type TracesStorage struct {
 	// This field is required when the backend is not "pv".
 	// +optional
 	Secret string `json:"secret,omitempty"`
-
-	// Retention specifies how long trace data should be retained globally (e.g., "60m", "10h")
-	// +kubebuilder:default="2160h"
-	Retention metav1.Duration `json:"retention,omitempty"`
-}
-
-// Alerting configuration for Prometheus
-type Alerting struct {
 }
 
 //+kubebuilder:object:root=true
@@ -141,21 +133,19 @@ type Monitoring struct {
 }
 
 // MonitoringCommonSpec spec defines the shared desired state of Dashboard
-// +kubebuilder:validation:XValidation:rule="has(self.alerting) ? has(self.metrics) : true",message="Alerting configuration requires metrics to be configured"
 type MonitoringCommonSpec struct {
 	// monitoring spec exposed to DSCI api
 	// Namespace for monitoring if it is enabled
-	// +kubebuilder:default=opendatahub
+	// +kubebuilder:default=redhat-ods-monitoring
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="MonitoringNamespace is immutable"
 	Namespace string `json:"namespace,omitempty"`
 	// metrics collection
 	Metrics *Metrics `json:"metrics,omitempty"`
+
 	// Tracing configuration for OpenTelemetry instrumentation
 	Traces *Traces `json:"traces,omitempty"`
-	// Alerting configuration for Prometheus
-	Alerting *Alerting `json:"alerting,omitempty"`
 }
 
 //+kubebuilder:object:root=true
