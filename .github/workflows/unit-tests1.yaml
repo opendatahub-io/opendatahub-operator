@@ -1,0 +1,30 @@
+name: Unit Tests1
+on:
+  push:
+    branches:
+      - rhoai
+      - incubation
+      - main
+  pull_request:
+jobs:
+  unit-test:
+    name: Run tests and collect coverage on tests/integration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run Unit Tests
+        env:
+          TEST_SRC: ./tests/integration/...
+        run: make unit-test
+
+      - name: Upload results to Codecov
+        uses: codecov/codecov-action@v5.4.3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
