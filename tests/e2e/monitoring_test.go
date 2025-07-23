@@ -420,6 +420,13 @@ func (tc *MonitoringTestCtx) ValidateTempoStackCRCreation(t *testing.T) {
 		)),
 	)
 
+	// Wait for TempoStack to be updated with S3 backend
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: tempoStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(jq.Match(`.spec.storage.secret.type == "s3"`)),
+		WithCustomErrorMsg("TempoStack should be updated with S3 backend"),
+	)
+
 	// Wait for the Monitoring resource to be updated by DSCInitialization controller.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
@@ -472,6 +479,13 @@ func (tc *MonitoringTestCtx) ValidateTempoStackCRCreationWithGCS(t *testing.T) {
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
 			setMonitoringTraces("gcs", "gcs-secret", ""),
 		)),
+	)
+
+	// Wait for TempoStack to be updated with gcs backend
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: tempoStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(jq.Match(`.spec.storage.secret.type == "gcs"`)),
+		WithCustomErrorMsg("TempoStack should be updated with gcs backend"),
 	)
 
 	// Wait for the Monitoring resource to be updated by DSCInitialization controller.
