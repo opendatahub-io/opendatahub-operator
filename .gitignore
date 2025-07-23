@@ -65,3 +65,6 @@ local.mk
 
 # Ignore catalog related files
 catalog/
+
+# Ignore PROJECT, it will be generated at buildtime by the Makefile
+PROJECT

@@ -3,25 +3,55 @@ set -e
 
 GITHUB_URL="https://github.com"
 
+if [ "${ODH_PLATFORM_TYPE:-OpenDataHub}" = "OpenDataHub" ]; then
+    GITHUB_ORG=opendatahub-io
+    DEFAULT_REF=main
+    MODELMESH_SERVING_REF=release-0.12.0-rc0
+    KSERVE_REF=release-v0.15
+    KUEUE_REF=dev
+    RAY_REF=dev
+    TRUSTYAI_REF=incubation
+    TRAINING_REF=dev
+    MODELCONTROLLER_REF=incubating
+    FEAST_REF=stable
+    LLAMASTACK_REF=odh
+
+    echo "Cloning manifests for ODH"
+else
+    GITHUB_ORG=red-hat-data-services
+    DEFAULT_REF="rhoai-$(echo $VERSION | sed 's/\([0-9]\+\).\([0-9]\+\).*/\1.\2/')"
+    MODELMESH_SERVING_REF=$DEFAULT_REF
+    KSERVE_REF=$DEFAULT_REF
+    KUEUE_REF=$DEFAULT_REF
+    RAY_REF=$DEFAULT_REF
+    TRUSTYAI_REF=$DEFAULT_REF
+    TRAINING_REF=$DEFAULT_REF
+    MODELCONTROLLER_REF=$DEFAULT_REF
+    FEAST_REF=$DEFAULT_REF
+    LLAMASTACK_REF=$DEFAULT_REF
+
+    echo "Cloning manifests for RHOAI using ref $DEFAULT_REF"
+fi
+
 # COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
 # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
 declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main:manifests"
-    ["modelmeshserving"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0:config"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15:config"
-    ["kueue"]="opendatahub-io:kueue:dev:config"
-    ["codeflare"]="opendatahub-io:codeflare-operator:main:config"
-    ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config"
-    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main:config"
-    ["trainingoperator"]="opendatahub-io:training-operator:dev:manifests"
-    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main:config"
-    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating:config"
-    ["feastoperator"]="opendatahub-io:feast:stable:infra/feast-operator/config"
-    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh:config"
+    ["dashboard"]="$GITHUB_ORG:odh-dashboard:$DEFAULT_REF:manifests"
+    ["workbenches/kf-notebook-controller"]="$GITHUB_ORG:kubeflow:$DEFAULT_REF:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="$GITHUB_ORG:kubeflow:$DEFAULT_REF:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="$GITHUB_ORG:notebooks:$DEFAULT_REF:manifests"
+    ["modelmeshserving"]="$GITHUB_ORG:modelmesh-serving:$MODELMESH_SERVING_REF:config"
+    ["kserve"]="$GITHUB_ORG:kserve:$KSERVE_REF:config"
+    ["kueue"]="$GITHUB_ORG:kueue:$KUEUE_REF:config"
+    ["codeflare"]="$GITHUB_ORG:codeflare-operator:$DEFAULT_REF:config"
+    ["ray"]="$GITHUB_ORG:kuberay:$RAY_REF:ray-operator/config"
+    ["trustyai"]="$GITHUB_ORG:trustyai-service-operator:$TRUSTYAI_REF:config"
+    ["modelregistry"]="$GITHUB_ORG:model-registry-operator:$DEFAULT_REF:config"
+    ["trainingoperator"]="$GITHUB_ORG:training-operator:$TRAINING_REF:manifests"
+    ["datasciencepipelines"]="$GITHUB_ORG:data-science-pipelines-operator:$DEFAULT_REF:config"
+    ["modelcontroller"]="$GITHUB_ORG:odh-model-controller:$MODELCONTROLLER_REF:config"
+    ["feastoperator"]="$GITHUB_ORG:feast:$FEAST_REF:infra/feast-operator/config"
+    ["llamastackoperator"]="$GITHUB_ORG:llama-stack-k8s-operator:$LLAMASTACK_REF:config"
 )
 
 # PLATFORM_MANIFESTS is a list of manifests that are contained in the operator repository. Please also add them to the
