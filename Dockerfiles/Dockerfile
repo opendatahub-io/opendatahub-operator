@@ -11,7 +11,6 @@ ARG OVERWRITE_MANIFESTS=""
 USER root
 WORKDIR /
 COPY opt/manifests/ /opt/manifests/
-
 COPY get_all_manifests.sh get_all_manifests.sh
 RUN if [ "${USE_LOCAL}" != "true" ]; then \
         rm -rf /opt/manifests/*; \
@@ -31,11 +30,6 @@ COPY config/osd-configs/ /opt/manifests/osd-configs
 # Copy kueue-configs removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/kueue-configs
 COPY config/kueue-configs/ /opt/manifests/kueue-configs
-# TODO: Remove the following two lines once kueue migration is completely finished
-# This is a temporary workaround for missing /opt/manifests/kueue/rhoai/ocp-4.17-addons path
-# that causes "evalsymlink failure" errors on OCP 4.17+ clusters
-RUN mkdir -p /opt/manifests/kueue/rhoai/ocp-4.17-addons
-COPY config/kueue-configs/ /opt/manifests/kueue/rhoai/ocp-4.17-addons
 
 ################################################################################
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder

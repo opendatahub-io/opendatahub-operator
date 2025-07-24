@@ -190,6 +190,7 @@ spec:
                     - message: MonitoringNamespace is immutable
                       rule: self == oldSelf
                   traces:
+                    description: traces collection
                     properties:
                       storage:
                         description: TracesStorage defines the storage configuration

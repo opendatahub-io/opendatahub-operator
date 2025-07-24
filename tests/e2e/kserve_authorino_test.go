@@ -6,14 +6,12 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -140,55 +138,6 @@ func (tc *KserveAuthorinoTestCtx) CleanupTestResources(t *testing.T) {
 	cleanupListResources(t, tc.TestContext, gvk.DSCInitialization, "DSCInitialization")
 }
 
-// cleanupResourceIgnoringMissing cleans up a resource while ignoring if it doesn't exist.
-func cleanupResourceIgnoringMissing(t *testing.T, tc *TestContext, namespacedName types.NamespacedName, crdGvk schema.GroupVersionKind, removeFinalizers bool) error { //nolint:thelper,lll
-	t.Logf("Deleting (if present) resource %s of type: %v in namespace: %s (removing finalizers: %t)", namespacedName.Name, crdGvk, namespacedName.Namespace, removeFinalizers)
-	// Return if crdGvk does not exist in the cluster
-	hasCrd, err := cluster.HasCRD(tc.Context(), tc.Client(), crdGvk)
-	if err != nil {
-		return err
-	}
-	if !hasCrd {
-		return nil
-	}
-
-	// If the namespacedName.Namespace is passed, return if it does not exist in the cluster
-	if len(namespacedName.Namespace) > 0 && namespacedName.Namespace != metav1.NamespaceAll {
-		ro := tc.NewResourceOptions(WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: namespacedName.Namespace}))
-		namespaceExists, err := tc.ensureResourceExistsOrNil(ro)
-		if err != nil {
-			return err
-		}
-		if namespaceExists == nil {
-			return nil
-		}
-	}
-
-	// If the resource does not exist, return
-	ro := tc.NewResourceOptions(WithMinimalObject(crdGvk, namespacedName))
-	resorceExists, err := tc.ensureResourceExistsOrNil(ro)
-	if err != nil {
-		return err
-	}
-	if resorceExists == nil {
-		return nil
-	}
-
-	// Delete the resource
-	if removeFinalizers {
-		tc.EnsureResourceCreatedOrUpdated(
-			WithMinimalObject(crdGvk, namespacedName),
-			WithMutateFunc(testf.Transform(`.metadata.finalizers = []`)),
-			WithIgnoreNotFound(true),
-		)
-	}
-	tc.DeleteResource(
-		WithMinimalObject(crdGvk, namespacedName),
-		WithIgnoreNotFound(true),
-	)
-	return nil
-}
-
 // VerifyRequiredOperatorsInstalled ensures that Serverless and ServiceMesh operators are installed.
 func (tc *KserveAuthorinoTestCtx) VerifyRequiredOperatorsInstalled(t *testing.T) {
 	t.Helper()
@@ -216,7 +165,7 @@ func (tc *KserveAuthorinoTestCtx) VerifyRequiredOperatorsInstalled(t *testing.T)
 func (tc *KserveAuthorinoTestCtx) SetupDSCIWithServiceMesh(t *testing.T) {
 	t.Helper()
 
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DSCInitialization with ServiceMesh managed"),
@@ -236,7 +185,7 @@ func (tc *KserveAuthorinoTestCtx) SetupDSCIWithServiceMesh(t *testing.T) {
 func (tc *KserveAuthorinoTestCtx) SetupKServeServerlessMode(t *testing.T) {
 	t.Helper()
 
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name)),
 		WithMutateFunc(
 			testf.TransformPipeline(
@@ -269,7 +218,7 @@ func (tc *KserveAuthorinoTestCtx) SetupKServeServerlessMode(t *testing.T) {
 func (tc *KserveAuthorinoTestCtx) SetupKServeRawMode(t *testing.T) {
 	t.Helper()
 
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
 			testf.TransformPipeline(

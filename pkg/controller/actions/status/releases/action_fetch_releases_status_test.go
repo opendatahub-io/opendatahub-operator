@@ -13,7 +13,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
-	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
@@ -23,15 +22,8 @@ func TestFetchReleasesStatusAction(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
 
-	// Root directory for temporary test files
-	tempDir := filepath.Join(os.TempDir(), "releases_test")
-
-	// Clean up created files after each test
-	AfterEach(func() {
-		// Remove the temporary test files
-		err := os.RemoveAll(tempDir)
-		Expect(err).NotTo(HaveOccurred())
-	})
+	// Root directory for temporary test files - automatically cleaned up when test ends
+	tempDir := t.TempDir()
 
 	// Define a test cases
 	tests := []struct {
