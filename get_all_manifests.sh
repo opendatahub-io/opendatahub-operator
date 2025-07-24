@@ -3,7 +3,7 @@ set -e
 
 GITHUB_URL="https://github.com"
 
-if [ $ODH_PLATFORM_TYPE == "OpenDataHub" ]; then
+if [ "${ODH_PLATFORM_TYPE:-OpenDataHub}" = "OpenDataHub" ]; then
     GITHUB_ORG=opendatahub-io
     DEFAULT_REF=main
     MODELMESH_SERVING_REF=release-0.12.0-rc0

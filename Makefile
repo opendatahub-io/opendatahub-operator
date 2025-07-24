@@ -32,7 +32,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	CONTROLLER_GEN_TAGS=--load-build-tags=odh
 	KUSTOMIZE_BASE=config/default
 	KUSTOMIZE_DIR=config/manifests
-	MANAGER_DIR=config/manager.rhoai
+	MANAGER_DIR=config/manager
 	GO_RUN_ARGS=-tags=odh
 else
 	VERSION ?= 2.23.0
@@ -278,7 +278,7 @@ projectfile: PROJECT.in
 
 # phony target for the case of changing IMG variable
 .PHONY: manager-kustomization
-manager-kustomization: config/manager/kustomization.yaml.in
+manager-kustomization: $(MANAGER_DIR)/kustomization.yaml.in
 	cd $(MANAGER_DIR) \
 		&& cp -f kustomization.yaml.in kustomization.yaml \
 		&& $(KUSTOMIZE) edit set image controller=$(IMG)

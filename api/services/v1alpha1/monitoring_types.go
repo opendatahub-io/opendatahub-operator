@@ -1,4 +1,4 @@
-//go:build odh
+//go:build !rhoai
 
 /*
 Copyright 2023.
