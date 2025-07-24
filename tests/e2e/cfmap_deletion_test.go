@@ -73,7 +73,7 @@ func (tc *CfgMapDeletionTestCtx) ValidateDSCDeletionUsingConfigMap(t *testing.T)
 		},
 	}
 
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(configMap),
 		WithCustomErrorMsg("Failed to create or update deletion config map"),
 	)

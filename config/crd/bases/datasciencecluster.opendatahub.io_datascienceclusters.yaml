@@ -403,6 +403,16 @@ spec:
                   kueue:
                     description: Kueue component configuration.
                     properties:
+                      defaultClusterQueueName:
+                        default: default
+                        description: Configures the automatically created cluster
+                          queue name.
+                        type: string
+                      defaultLocalQueueName:
+                        default: default
+                        description: Configures the automatically created, in the
+                          managed namespaces, local queue name.
+                        type: string
                       devFlags:
                         description: Add developer fields
                         properties:
@@ -435,13 +445,17 @@ spec:
                         description: |-
                           Set to one of the following values:
 
-                          - "Managed" : the operator is actively managing the component and trying to keep it active.
-                                        It will only upgrade the component if it is safe to do so
+                          - "Managed"   : the operator is actively managing the component and trying to keep it active.
+                                          It will only upgrade the component if it is safe to do so
 
-                          - "Removed" : the operator is actively managing the component and will not install it,
-                                        or if it is installed, the operator will try to remove it
+                          - "Unmanaged" : the operator is actively managing the component and trying to keep it active.
+                                          It will only upgrade the component if it is safe to do so
+
+                          - "Removed"   : the operator is actively managing the component and will not install it,
+                                          or if it is installed, the operator will try to remove it
                         enum:
                         - Managed
+                        - Unmanaged
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
@@ -980,13 +994,17 @@ spec:
                         description: |-
                           Set to one of the following values:
 
-                          - "Managed" : the operator is actively managing the component and trying to keep it active.
-                                        It will only upgrade the component if it is safe to do so
+                          - "Managed"   : the operator is actively managing the component and trying to keep it active.
+                                          It will only upgrade the component if it is safe to do so
 
-                          - "Removed" : the operator is actively managing the component and will not install it,
-                                        or if it is installed, the operator will try to remove it
+                          - "Unmanaged" : the operator is actively managing the component and trying to keep it active.
+                                          It will only upgrade the component if it is safe to do so
+
+                          - "Removed"   : the operator is actively managing the component and will not install it,
+                                          or if it is installed, the operator will try to remove it
                         enum:
                         - Managed
+                        - Unmanaged
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string

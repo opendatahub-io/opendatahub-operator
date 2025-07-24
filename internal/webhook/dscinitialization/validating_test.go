@@ -118,11 +118,9 @@ func TestDSCInitialization_ValidatingWebhook(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(tc.existingObjs...).Build()
-			decoder := admission.NewDecoder(sch)
 			validator := &dscinitialization.Validator{
-				Client:  cli,
-				Name:    "test",
-				Decoder: decoder,
+				Client: cli,
+				Name:   "test",
 			}
 			resp := validator.Handle(ctx, tc.req)
 			g.Expect(resp.Allowed).To(Equal(tc.allowed))
