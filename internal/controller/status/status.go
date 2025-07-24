@@ -103,6 +103,7 @@ const (
 	ConditionMonitoringStackAvailable        = "MonitoringStackAvailable"
 	ConditionTempoAvailable                  = "TempoAvailable"
 	ConditionOpenTelemetryCollectorAvailable = "OpenTelemetryCollectorCRDAvailable"
+	ConditionInstrumentationAvailable        = "InstrumentationAvailable"
 )
 
 const (
@@ -185,6 +186,8 @@ const (
 	OpenTelemetryCollectorCRDNotFoundMessage  = "OpenTelemetryCollector CRD not found. Dependent operator missing."
 	OpenTelemetryCollectorCRDAvailableReason  = "OpenTelemetryCollector CRD Found"
 	OpenTelemetryCollectorCRDAvailableMessage = "OpenTelemetryCollector CRD found"
+	InstrumentationCRDNotFoundReason          = "Instrumentation CRD Not Found"
+	InstrumentationCRDNotFoundMessage         = "Instrumentation CRD not found. OpenTelemetry operator missing."
 
 	MetricsNotConfiguredReason  = "MetricsNotConfigured"
 	MetricsNotConfiguredMessage = "Metrics not configured in DSCI CR"

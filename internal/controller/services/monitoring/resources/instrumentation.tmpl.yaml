@@ -1,0 +1,11 @@
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: {{ .InstrumentationName }}
+  namespace: {{ .Namespace }}
+spec:
+  exporter:
+    endpoint: {{ .OtlpEndpoint }}
+  sampler:
+    type: {{ .SamplerType }}
+    argument: "{{ .SampleRatio }}"

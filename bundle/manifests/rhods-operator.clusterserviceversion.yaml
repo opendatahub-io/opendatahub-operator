@@ -113,7 +113,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-07-22T14:27:54Z"
+    createdAt: "2025-07-24T06:42:59Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -1192,6 +1192,7 @@ spec:
         - apiGroups:
           - opentelemetry.io
           resources:
+          - instrumentations
           - opentelemetrycollectors
           verbs:
           - create
@@ -1204,12 +1205,14 @@ spec:
         - apiGroups:
           - opentelemetry.io
           resources:
+          - instrumentations/finalizers
           - opentelemetrycollectors/finalizers
           verbs:
           - update
         - apiGroups:
           - opentelemetry.io
           resources:
+          - instrumentations/status
           - opentelemetrycollectors/status
           verbs:
           - get
