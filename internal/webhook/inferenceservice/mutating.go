@@ -1,6 +1,6 @@
 //go:build !nowebhook
 
-package dataconnection
+package inferenceservice
 
 import (
 	"context"
