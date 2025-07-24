@@ -29,8 +29,7 @@ spec:
   - name: rebuild
     value: true
   - name: target_branch
-    type: string
-    default: "{{target_branch}}"
+    value: "{{target_branch}}"
   pipelineSpec:
     description: |
       This pipeline is ideal for building container images from a Containerfile while maintaining trust after pipeline customization.
