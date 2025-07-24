@@ -59,7 +59,7 @@ func (h *serviceHandler) GetName() string {
 }
 
 func (h *serviceHandler) GetManagementState(platform common.Platform, dsci *dsciv1.DSCInitialization) operatorv1.ManagementState {
-	// Managed cluster must have monitoring enabled even user manually turn it off
+	// Managed cluster must have monitoring enabled even if user manually turns it off
 	if platform == cluster.ManagedRhoai {
 		return operatorv1.Managed
 	}
@@ -86,9 +86,10 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.Monitoring{}).
 		// operands - owned dynmically depends on external operators are installed for monitoring
 		// TODO: add more here later when enable other operator
-		OwnsGVK(gvk.MonitoringStack, reconciler.Dynamic(ifGVKInstalled(gvk.MonitoringStack))).
-		OwnsGVK(gvk.TempoMonolithic, reconciler.Dynamic(ifGVKInstalled(gvk.TempoMonolithic))).
-		OwnsGVK(gvk.TempoStack, reconciler.Dynamic(ifGVKInstalled(gvk.TempoStack))).
+		OwnsGVK(gvk.MonitoringStack, reconciler.Dynamic(reconciler.CrdExists(gvk.MonitoringStack))).
+		OwnsGVK(gvk.TempoMonolithic, reconciler.Dynamic(reconciler.CrdExists(gvk.TempoMonolithic))).
+		OwnsGVK(gvk.TempoStack, reconciler.Dynamic(reconciler.CrdExists(gvk.TempoStack))).
+		OwnsGVK(gvk.Instrumentation, reconciler.Dynamic(reconciler.CrdExists(gvk.Instrumentation))).
 		// operands - watched
 		//
 		// By default the Watches functions adds:
@@ -118,6 +119,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(createMonitoringStack).
 		WithAction(deployTempo).
 		WithAction(createOpenTelemetryCollector).
+		WithAction(handleInstrumentationCR).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
