@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"fmt"
 	"testing"
 
 	gTypes "github.com/onsi/gomega/types"
@@ -12,6 +13,7 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -56,6 +58,8 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test TempoStack CR Creation with GCS backend", monitoringServiceCtx.ValidateTempoStackCRCreationWithGCS},
 		{"Test OpenTelemetry Collector Deployment", monitoringServiceCtx.ValidateOpenTelemetryCollectorDeployment},
 		{"Test OpenTelemetry Collector Traces Configuration", monitoringServiceCtx.ValidateOpenTelemetryCollectorTracesConfiguration},
+		{"Test Instrumentation CR Traces Creation", monitoringServiceCtx.ValidateInstrumentationCRTracesWhenSet},
+		{"Test Instrumentation CR Traces Configuration", monitoringServiceCtx.ValidateInstrumentationCRTracesConfiguration},
 		{"Test MonitoringStack CR Deletion", monitoringServiceCtx.ValidateMonitoringStackCRDeleted},
 		{"Test Monitoring CR Deletion", monitoringServiceCtx.ValidateMonitoringCRDeleted},
 	}
@@ -555,4 +559,90 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackendDetails(
 	tc.validateTempoStackDetails(t, tempoStack, backend, secretName)
 
 	return tempoStack
+}
+
+func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesWhenSet(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Update DSCI to set traces - ensure managementState remains Managed
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringTraces(),
+		)),
+	)
+
+	// Wait for the Monitoring resource to be updated by DSCInitialization controller
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.spec.traces != null`)),
+		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
+	)
+
+	// Ensure the Instrumentation CR is created
+	instrumentation := tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: monitoring.InstrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCustomErrorMsg("Instrumentation CR should be created when traces are configured"),
+	)
+	tc.g.Expect(instrumentation).ToNot(BeNil())
+}
+
+// ValidateInstrumentationCRTracesConfiguration validates the content of the Instrumentation CR.
+func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesConfiguration(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Wait for the Instrumentation CR to be created and stabilized by the OpenTelemetry operator
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: monitoring.InstrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(And(
+			jq.Match(`.spec != null`),
+			jq.Match(`.metadata.generation >= 1`),
+		)),
+		WithCustomErrorMsg("Instrumentation CR should be created and have a valid spec"),
+	)
+
+	// Fetch the Instrumentation CR and validate its content with Eventually for stability
+	expectedEndpoint := fmt.Sprintf("http://data-science-collector.%s.svc.cluster.local:4317", dsci.Spec.Monitoring.Namespace)
+
+	tc.g.Eventually(func(g Gomega) {
+		instrumentation := tc.FetchResources(
+			WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: monitoring.InstrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		)
+		g.Expect(instrumentation).To(HaveLen(1))
+
+		// Validate the exporter endpoint is set correctly
+		endpoint, found, err := unstructured.NestedString(instrumentation[0].Object, "spec", "exporter", "endpoint")
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(found).To(BeTrue(), "Expected 'spec.exporter.endpoint' field to be found in Instrumentation CR")
+		g.Expect(endpoint).To(Equal(expectedEndpoint))
+
+		// Validate the sampler configuration
+		samplerType, found, err := unstructured.NestedString(instrumentation[0].Object, "spec", "sampler", "type")
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(found).To(BeTrue(), "Expected 'spec.sampler.type' field to be found in Instrumentation CR")
+		g.Expect(samplerType).To(Equal(monitoring.DefaultSamplerType))
+
+		samplerArgument, found, err := unstructured.NestedString(instrumentation[0].Object, "spec", "sampler", "argument")
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(found).To(BeTrue(), "Expected 'spec.sampler.argument' field to be found in Instrumentation CR")
+		g.Expect(samplerArgument).To(Equal("0.1"))
+	}).Should(Succeed(), "Instrumentation CR should have the expected configuration")
+
+	// Fetch again for owner reference validation
+	instrumentation := tc.FetchResources(
+		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: monitoring.InstrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+	tc.g.Expect(instrumentation).To(HaveLen(1))
+
+	// Validate owner references
+	tc.g.Expect(instrumentation[0].Object).To(And(
+		jq.Match(`.metadata.ownerReferences | length == 1`),
+		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Monitoring.Kind),
+		jq.Match(`.metadata.ownerReferences[0].name == "%s"`, "default-monitoring"),
+	))
 }
