@@ -6,7 +6,7 @@ GITHUB_URL="https://github.com"
 # COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
 # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
 declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:v2.35.2-odh-release:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:v2.36.0-fixes:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:v1.10.0-4:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:v1.10.0-4:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:v1.34.0:manifests"
