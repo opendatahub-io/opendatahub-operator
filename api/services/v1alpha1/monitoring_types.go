@@ -85,6 +85,11 @@ type MonitoringStatus struct {
 // Traces enables and defines the configuration for traces collection
 type Traces struct {
 	Storage TracesStorage `json:"storage"`
+	// SampleRatio determines the sampling rate for traces
+	// Value should be between 0.0 (no sampling) and 1.0 (sample all traces)
+	// +kubebuilder:default="0.1"
+	// +kubebuilder:validation:Pattern="^(0(\\.[0-9]+)?|1(\\.0+)?)$"
+	SampleRatio string `json:"sampleRatio,omitempty"`
 }
 
 // TracesStorage defines the storage configuration for tracing.
@@ -136,7 +141,9 @@ type MonitoringCommonSpec struct {
 	Namespace string `json:"namespace,omitempty"`
 	// metrics collection
 	Metrics *Metrics `json:"metrics,omitempty"`
-	Traces  *Traces  `json:"traces,omitempty"`
+
+	// Tracing configuration for OpenTelemetry instrumentation
+	Traces *Traces `json:"traces,omitempty"`
 }
 
 //+kubebuilder:object:root=true
