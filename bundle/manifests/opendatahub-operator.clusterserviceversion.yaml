@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.31.0
-    createdAt: "2025-07-19T07:42:30Z"
+    createdAt: "2025-07-24T06:42:59Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -1109,6 +1109,7 @@ spec:
         - apiGroups:
           - opentelemetry.io
           resources:
+          - instrumentations
           - opentelemetrycollectors
           verbs:
           - create
@@ -1121,12 +1122,14 @@ spec:
         - apiGroups:
           - opentelemetry.io
           resources:
+          - instrumentations/finalizers
           - opentelemetrycollectors/finalizers
           verbs:
           - update
         - apiGroups:
           - opentelemetry.io
           resources:
+          - instrumentations/status
           - opentelemetrycollectors/status
           verbs:
           - get
