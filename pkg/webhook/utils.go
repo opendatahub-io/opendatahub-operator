@@ -120,7 +120,7 @@ func ValidateSingletonCreation(ctx context.Context, cli client.Reader, req *admi
 // ValidateDataConnectionAnnotation validates the data connection annotation  "opendatahub.io/connections"
 // If the annotation exists and has a non-empty value, it validates that the value references
 // a valid secret in the same namespace. Additionally, it checks the secret's connection type
-// annotation and rejects requests with invalid configurations.
+// annotation and rejects requests with invalid configurations. (see allowedTypes)
 // If the annotation doesn't exist or is empty, it allows the operation.
 //
 // Parameters:
@@ -150,7 +150,7 @@ func ValidateDataConnectionAnnotation(ctx context.Context,
 		return admission.Errored(http.StatusInternalServerError, err), false, nil, ""
 	}
 
-	// Get annotations from the object
+	// Get annotations from the request	object
 	objAnnotations := obj.GetAnnotations()
 	if objAnnotations == nil {
 		objAnnotations = make(map[string]string)
@@ -159,17 +159,16 @@ func ValidateDataConnectionAnnotation(ctx context.Context,
 	// Check if the annotation "opendatahub.io/connections" exists and has a non-empty value
 	annotationValue, exists := objAnnotations[annotations.DataConnection]
 	if !exists || annotationValue == "" {
-		// If annotation doesn't exist or is empty, allow the operation but no injection
+		// If annotation doesn't exist or is empty, allow the operation skip injection
 		return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value, skipping validation", annotations.DataConnection)), false, nil, ""
 	}
 
-	// If annotation exists and has a value, validate the secret
+	// If annotation exists and has a value, validate the secret value
 	secret := &corev1.Secret{}
 	secretKey := types.NamespacedName{
 		Name:      annotationValue,
 		Namespace: req.Namespace,
 	}
-
 	if err := cli.Get(ctx, secretKey, secret); err != nil {
 		if k8serr.IsNotFound(err) {
 			return admission.Denied(fmt.Sprintf("Secret '%s' referenced in annotation '%s' not found in namespace '%s'",
@@ -179,19 +178,18 @@ func ValidateDataConnectionAnnotation(ctx context.Context,
 		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("failed to validate secret: %w", err)), false, nil, ""
 	}
 
-	// Additional validation: check the secret's connection type annotation
+	// Additional validation: check the secret's connections-type-ref annotation
 	secretAnnotations := secret.GetAnnotations()
 	if secretAnnotations == nil {
 		secretAnnotations = make(map[string]string)
 	}
-
 	connectionType, hasTypeAnnotation := secretAnnotations[annotations.DataConnectionTypeRef]
 	if !hasTypeAnnotation || connectionType == "" {
 		// If annotation doesn't exist or is empty, allow the operation but no injection
-		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' annotation, skipping type validation", annotationValue, annotations.DataConnectionTypeRef)), false, nil, ""
+		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' annotation", annotationValue, annotations.DataConnectionTypeRef)), false, nil, ""
 	}
-
 	// Validate that the connection type is one of the allowed values
+	// TODO: we can extend this if we have new types in the future
 	isValidType := false
 	for _, allowedType := range allowedTypes {
 		if connectionType == allowedType {
@@ -209,4 +207,26 @@ func ValidateDataConnectionAnnotation(ctx context.Context,
 
 	// Allow the operation and indicate that injection should be performed
 	return admission.Allowed(fmt.Sprintf("Annotation '%s' validation passed for secret in namespace '%s'", annotations.DataConnection, req.Namespace)), true, secret, connectionType
+}
+
+// GetOrCreateNestedMap safely retrieves or creates a nested map within an unstructured object.
+// This utility function handles the common pattern of accessing nested maps in Kubernetes
+// resource specifications, creating them if they don't exist.
+//
+// Parameters:
+//   - obj: The parent map containing the nested field
+//   - field: The field name to access or create
+//
+// Returns:
+//   - map[string]interface{}: The existing or newly created nested map
+//   - error: Any error encountered during map access or creation
+func GetOrCreateNestedMap(obj map[string]interface{}, field string) (map[string]interface{}, error) {
+	nested, found, err := unstructured.NestedMap(obj, field)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get nested map for field %s: %w", field, err)
+	}
+	if !found {
+		nested = make(map[string]interface{})
+	}
+	return nested, nil
 }
