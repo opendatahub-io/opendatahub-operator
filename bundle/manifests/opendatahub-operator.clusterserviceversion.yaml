@@ -1607,7 +1607,7 @@ spec:
     containerPort: 443
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
-    generateName: dataconnection-isvc.opendatahub.io
+    generateName: connection-isvc.opendatahub.io
     rules:
     - apiGroups:
       - serving.kserve.io
@@ -1621,7 +1621,7 @@ spec:
     sideEffects: None
     targetPort: 9443
     type: MutatingAdmissionWebhook
-    webhookPath: /platform-dataconnection-isvc
+    webhookPath: /platform-connection-isvc
   - admissionReviewVersions:
     - v1
     containerPort: 443
