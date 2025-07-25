@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.31.0
-    createdAt: "2025-07-25T12:39:44Z"
+    createdAt: "2025-07-25T14:00:23Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -1605,7 +1605,7 @@ spec:
     containerPort: 443
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
-    generateName: dataconnection-isvc.opendatahub.io
+    generateName: connection-isvc.opendatahub.io
     rules:
     - apiGroups:
       - serving.kserve.io
@@ -1619,7 +1619,7 @@ spec:
     sideEffects: None
     targetPort: 9443
     type: MutatingAdmissionWebhook
-    webhookPath: /platform-dataconnection-isvc
+    webhookPath: /platform-connection-isvc
   - admissionReviewVersions:
     - v1
     containerPort: 443

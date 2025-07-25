@@ -70,9 +70,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /platform-dataconnection-isvc
+      path: /platform-connection-isvc
   failurePolicy: Fail
-  name: dataconnection-isvc.opendatahub.io
+  name: connection-isvc.opendatahub.io
   rules:
   - apiGroups:
     - serving.kserve.io

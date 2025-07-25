@@ -117,7 +117,7 @@ func ValidateSingletonCreation(ctx context.Context, cli client.Reader, req *admi
 		fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
 }
 
-// ValidateDataConnectionAnnotation validates the data connection annotation  "opendatahub.io/connections"
+// ValidateConnectionAnnotation validates the connection annotation  "opendatahub.io/connections"
 // If the annotation exists and has a non-empty value, it validates that the value references
 // a valid secret in the same namespace. Additionally, it checks the secret's connection type
 // annotation and rejects requests with invalid configurations. (see allowedTypes)
@@ -135,7 +135,7 @@ func ValidateSingletonCreation(ctx context.Context, cli client.Reader, req *admi
 //   - bool: true if injection should be performed (only for known valid connection types)
 //   - *corev1.Secret: The validated secret (only valid when injection should be performed)
 //   - string: The connection type (only valid when injection should be performed)
-func ValidateDataConnectionAnnotation(ctx context.Context,
+func ValidateConnectionAnnotation(ctx context.Context,
 	cli client.Reader,
 	decoder admission.Decoder,
 	req admission.Request,
@@ -157,10 +157,10 @@ func ValidateDataConnectionAnnotation(ctx context.Context,
 	}
 
 	// Check if the annotation "opendatahub.io/connections" exists and has a non-empty value
-	annotationValue, exists := objAnnotations[annotations.DataConnection]
+	annotationValue, exists := objAnnotations[annotations.Connection]
 	if !exists || annotationValue == "" {
 		// If annotation doesn't exist or is empty, allow the operation skip injection
-		return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value, skipping validation", annotations.DataConnection)), false, nil, ""
+		return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value, skipping validation", annotations.Connection)), false, nil, ""
 	}
 
 	// If annotation exists and has a value, validate the secret value
@@ -172,7 +172,7 @@ func ValidateDataConnectionAnnotation(ctx context.Context,
 	if err := cli.Get(ctx, secretKey, secret); err != nil {
 		if k8serr.IsNotFound(err) {
 			return admission.Denied(fmt.Sprintf("Secret '%s' referenced in annotation '%s' not found in namespace '%s'",
-				annotationValue, annotations.DataConnection, req.Namespace)), false, nil, ""
+				annotationValue, annotations.Connection, req.Namespace)), false, nil, ""
 		}
 		log.Error(err, "failed to get secret", "secretName", annotationValue, "namespace", req.Namespace)
 		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("failed to validate secret: %w", err)), false, nil, ""
@@ -183,10 +183,10 @@ func ValidateDataConnectionAnnotation(ctx context.Context,
 	if secretAnnotations == nil {
 		secretAnnotations = make(map[string]string)
 	}
-	connectionType, hasTypeAnnotation := secretAnnotations[annotations.DataConnectionTypeRef]
+	connectionType, hasTypeAnnotation := secretAnnotations[annotations.ConnectionTypeRef]
 	if !hasTypeAnnotation || connectionType == "" {
 		// If annotation doesn't exist or is empty, allow the operation but no injection
-		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' annotation", annotationValue, annotations.DataConnectionTypeRef)), false, nil, ""
+		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' annotation", annotationValue, annotations.ConnectionTypeRef)), false, nil, ""
 	}
 	// Validate that the connection type is one of the allowed values
 	// TODO: we can extend this if we have new types in the future
@@ -202,11 +202,11 @@ func ValidateDataConnectionAnnotation(ctx context.Context,
 		// Allow unknown connection types but log a warning and don't perform injection
 		log.Info("Unknown connection type found, allowing operation but skipping injection", "connectionType", connectionType, "allowedTypes", allowedTypes)
 		return admission.Allowed(fmt.Sprintf("Annotation '%s' validation on secret '%s' with unknown type '%s' in namespace '%s'",
-			annotations.DataConnection, annotationValue, connectionType, req.Namespace)), false, nil, ""
+			annotations.Connection, annotationValue, connectionType, req.Namespace)), false, nil, ""
 	}
 
 	// Allow the operation and indicate that injection should be performed
-	return admission.Allowed(fmt.Sprintf("Annotation '%s' validation passed for secret in namespace '%s'", annotations.DataConnection, req.Namespace)), true, secret, connectionType
+	return admission.Allowed(fmt.Sprintf("Annotation '%s' validation passed for secret in namespace '%s'", annotations.Connection, req.Namespace)), true, secret, connectionType
 }
 
 // GetOrCreateNestedMap safely retrieves or creates a nested map within an unstructured object.
