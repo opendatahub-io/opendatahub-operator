@@ -418,13 +418,13 @@ func (i *Injector) applyIdentifiersToContainer(container interface{}, identifier
 	}
 
 	// Get or create resources section
-	resourcesMap, err := getOrCreateNestedMap(containerMap, "resources")
+	resourcesMap, err := webhookutils.GetOrCreateNestedMap(containerMap, "resources")
 	if err != nil {
 		return err
 	}
 
 	// Get or create requests section
-	requests, err := getOrCreateNestedMap(resourcesMap, "requests")
+	requests, err := webhookutils.GetOrCreateNestedMap(resourcesMap, "requests")
 	if err != nil {
 		return err
 	}
@@ -523,28 +523,6 @@ func (i *Injector) applyNodeSchedulingConfiguration(obj *unstructured.Unstructur
 	}
 
 	return nil
-}
-
-// getOrCreateNestedMap safely retrieves or creates a nested map within an unstructured object.
-// This utility function handles the common pattern of accessing nested maps in Kubernetes
-// resource specifications, creating them if they don't exist.
-//
-// Parameters:
-//   - obj: The parent map containing the nested field
-//   - field: The field name to access or create
-//
-// Returns:
-//   - map[string]interface{}: The existing or newly created nested map
-//   - error: Any error encountered during map access or creation
-func getOrCreateNestedMap(obj map[string]interface{}, field string) (map[string]interface{}, error) {
-	nested, found, err := unstructured.NestedMap(obj, field)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get nested map for field %s: %w", field, err)
-	}
-	if !found {
-		nested = make(map[string]interface{})
-	}
-	return nested, nil
 }
 
 // convertIntOrStringToQuantity converts an IntOrString value to a Kubernetes resource.Quantity.

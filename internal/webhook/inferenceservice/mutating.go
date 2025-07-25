@@ -21,6 +21,16 @@ import (
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
+type InferenceServingPath struct {
+	ModelPath           []string
+	ImagePullSecretPath []string
+}
+
+var IsvcConfigs = InferenceServingPath{
+	ModelPath:           []string{"spec", "predictor", "model"},            // used by S3
+	ImagePullSecretPath: []string{"spec", "predictor", "imagePullSecrets"}, // used by OCI
+}
+
 //+kubebuilder:webhook:path=/platform-dataconnection-isvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=dataconnection-isvc.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
 //nolint:lll
 
@@ -53,12 +63,12 @@ func (w *DataConnectionWebhook) Handle(ctx context.Context, req admission.Reques
 
 	switch req.Operation {
 	case admissionv1.Create, admissionv1.Update:
-		// Define allowed connection types for data connection validation on isvc.
+		// allowed connection types for data connection validation on isvc.
 		allowedTypes := []string{"uri-v1", "s3", "oci-v1"}
 
 		// validate the data connection annotation
 		// - if has matched annoataion
-		// - if annaotation has valid value as that secret is in the same namespace(permission allowed)
+		// - if annaotation has valid value as that secret exists in the same namespace(permission allowed)
 		validationResp, shouldInject, secret, connectionType := webhookutils.ValidateDataConnectionAnnotation(ctx, w.Client, w.Decoder, req, allowedTypes)
 		if !validationResp.Allowed {
 			return validationResp
@@ -75,10 +85,10 @@ func (w *DataConnectionWebhook) Handle(ctx context.Context, req admission.Reques
 			return admission.Errored(http.StatusInternalServerError, err)
 		}
 
+		// finally, write updated object back to k8s
 		if injectionPerformed {
 			marshaledObj, err := json.Marshal(obj)
 			if err != nil {
-				log.Error(err, "Failed to marshal modified object")
 				return admission.Errored(http.StatusInternalServerError, err)
 			}
 			return admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
@@ -102,6 +112,7 @@ func (w *DataConnectionWebhook) performDataConnectionInjection(
 	if err := w.Decoder.Decode(req, obj); err != nil {
 		return false, nil, fmt.Errorf("failed to decode InferenceService object: %w", err)
 	}
+	log.Info("Decoded InferenceService object", "connectionType", connectionType, "operation", req.Operation)
 
 	// injection based on connection type
 	switch connectionType {
@@ -121,7 +132,7 @@ func (w *DataConnectionWebhook) performDataConnectionInjection(
 
 	case "s3":
 		if err := w.injectS3StorageKey(obj, secret.Name); err != nil {
-			return false, nil, fmt.Errorf("failed to inject S3 storage key: %w", err)
+			return false, nil, fmt.Errorf("failed to inject S3 storage.key: %w", err)
 		}
 		log.Info("Successfully injected S3 storage key", "secretName", secret.Name)
 		return true, obj, nil
@@ -134,20 +145,21 @@ func (w *DataConnectionWebhook) performDataConnectionInjection(
 
 // injectOCIImagePullSecrets injects imagePullSecrets into spec.predictor.imagePullSecrets for OCI connections.
 func (w *DataConnectionWebhook) injectOCIImagePullSecrets(obj *unstructured.Unstructured, secretName string) error {
-	imagePullSecret := map[string]interface{}{
-		"name": secretName,
-	}
-
-	// Get existing imagePullSecrets or create new slice
-	imagePullSecrets, found, err := unstructured.NestedSlice(obj.Object, "spec", "predictor", "imagePullSecrets")
+	imagePullSecrets, found, err := unstructured.NestedSlice(obj.Object, IsvcConfigs.ImagePullSecretPath...)
 	if err != nil {
-		return fmt.Errorf("failed to get imagePullSecrets: %w", err)
+		return fmt.Errorf("failed to get spec.predictor.imagePullSecrets: %w", err)
 	}
+	// did not have imagePullSecrets (upon CREATE), just set to the new secret
 	if !found {
-		imagePullSecrets = make([]interface{}, 0)
+		imagePullSecrets = []interface{}{
+			map[string]interface{}{
+				"name": secretName,
+			},
+		}
+		return unstructured.SetNestedSlice(obj.Object, imagePullSecrets, IsvcConfigs.ImagePullSecretPath...)
 	}
 
-	// if the secret is already in the list (upon UPDATE), then skip adding it
+	// if already some secrets(upon UPDATE), and the secret is already there, fast exit
 	for _, secret := range imagePullSecrets {
 		if secretMap, ok := secret.(map[string]interface{}); ok {
 			if name, exists := secretMap["name"]; exists && name == secretName {
@@ -156,10 +168,13 @@ func (w *DataConnectionWebhook) injectOCIImagePullSecrets(obj *unstructured.Unst
 		}
 	}
 
-	// Add as new imagePullSecret
-	imagePullSecrets = append(imagePullSecrets, imagePullSecret)
+	// add new secret to the secrets(upon UPDATE)
+	newImagePullSecret := map[string]interface{}{
+		"name": secretName,
+	}
+	imagePullSecrets = append(imagePullSecrets, newImagePullSecret)
 
-	return unstructured.SetNestedSlice(obj.Object, imagePullSecrets, "spec", "predictor", "imagePullSecrets")
+	return unstructured.SetNestedSlice(obj.Object, imagePullSecrets, IsvcConfigs.ImagePullSecretPath...)
 }
 
 // injectURIStorageUri injects storageUri into spec.predictor.model.storageUri for URI connections.
@@ -178,15 +193,20 @@ func (w *DataConnectionWebhook) injectURIStorageUri(obj *unstructured.Unstructur
 
 // injectS3StorageKey injects storage key into spec.predictor.model.storage.key for S3 connections.
 func (w *DataConnectionWebhook) injectS3StorageKey(obj *unstructured.Unstructured, secretName string) error {
-	// can be no storage, or can be with storage.key but need updated
-	storage, found, err := unstructured.NestedMap(obj.Object, "spec", "predictor", "model", "storage")
-	if err != nil || !found {
-		storage = make(map[string]interface{})
+	model, found, err := unstructured.NestedMap(obj.Object, IsvcConfigs.ModelPath...)
+	if err != nil {
+		return fmt.Errorf("failed to get spec.predictor.model: %w", err)
+	}
+	if !found {
+		return errors.New("found no spec.predictor.model set in resource")
 	}
 
-	// Set the key
-	storage["key"] = secretName
+	storageMap, err := webhookutils.GetOrCreateNestedMap(model, "storage")
+	if err != nil {
+		return fmt.Errorf("failed to get or create nested map for storage: %w", err)
+	}
+	storageMap["key"] = secretName
+	model["storage"] = storageMap
 
-	// Set the storage field back
-	return unstructured.SetNestedMap(obj.Object, storage, "spec", "predictor", "model", "storage")
+	return unstructured.SetNestedMap(obj.Object, model, IsvcConfigs.ModelPath...)
 }
