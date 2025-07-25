@@ -63,5 +63,3 @@ local.mk
 # Ignore temporary files created by the Makefile
 *.mktmp.*
 
-# Ignore catalog related files
-catalog/
