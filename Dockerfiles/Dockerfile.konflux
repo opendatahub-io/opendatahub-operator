@@ -34,6 +34,9 @@ COPY config/monitoring/ /opt/manifests/monitoring/
 # Copy ods-configs
 COPY config/osd-configs/ /opt/manifests/osd-configs/
 
+# Copy kueue configs
+COPY config/kueue-configs/ /opt/manifests/kueue-configs
+
 # Clean up unwanted directories and files from manifests
 RUN rm -rf /opt/manifests/*/e2e /opt/manifests/*/scorecard /opt/manifests/*/test /opt/manifests/*/samples /opt/manifests/*/example-* \
     && find /opt/manifests -name "README.md" -delete
