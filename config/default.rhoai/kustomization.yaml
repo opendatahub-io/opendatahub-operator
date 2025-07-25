@@ -16,7 +16,7 @@ namespace: redhat-ods-operator
 #  someName: someValue
 
 resources:
-- ../crd
+- ../crd.rhoai
 - ../rbac.rhoai
 - ../manager.rhoai
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix including the one in

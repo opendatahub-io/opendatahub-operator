@@ -34,6 +34,8 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	KUSTOMIZE_DIR=config/manifests
 	MANAGER_DIR=config/manager
 	GO_RUN_ARGS=-tags=odh
+	CRD_BASE_DIR=config/crd/bases
+	RBAC_DIR=config/rbac
 else
 	VERSION ?= 2.23.0
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
@@ -48,6 +50,8 @@ else
 	KUSTOMIZE_DIR=config/manifests.rhoai
 	MANAGER_DIR=config/manager.rhoai
 	GO_RUN_ARGS=-tags=rhoai
+	CRD_BASE_DIR=config/crd.rhoai/bases
+	RBAC_DIR=config/rbac.rhoai
 endif
 
 IMAGE_BUILDER ?= podman
@@ -188,7 +192,7 @@ endef
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CRD_BASE_DIR) output:rbac:artifacts:config=$(RBAC_DIR)
 	$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	$(call fetch-external-crds,github.com/openshift/api,user/v1)
 
