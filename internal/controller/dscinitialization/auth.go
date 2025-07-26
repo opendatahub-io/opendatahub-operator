@@ -39,11 +39,17 @@ func (r *DSCInitializationReconciler) createAuth(ctx context.Context, platform c
 }
 
 func buildDefaultAuth(platform common.Platform) client.Object {
+	// Get admin group for the platform, with fallback to OpenDataHub admin group
+	adminGroup := adminGroups[platform]
+	if adminGroup == "" {
+		adminGroup = adminGroups[cluster.OpenDataHub]
+	}
+
 	return &serviceApi.Auth{
 		TypeMeta:   metav1.TypeMeta{Kind: serviceApi.AuthKind, APIVersion: serviceApi.GroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.AuthInstanceName},
 		Spec: serviceApi.AuthSpec{
-			AdminGroups:   []string{adminGroups[platform]},
+			AdminGroups:   []string{adminGroup},
 			AllowedGroups: []string{"system:authenticated"},
 		},
 	}
