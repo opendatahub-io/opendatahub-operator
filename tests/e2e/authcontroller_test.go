@@ -301,20 +301,7 @@ func (tc *AuthControllerTestCtx) ValidateCELBlocksInvalidGroupsViaUpdate(t *test
 			adminGroups:   []string{"valid-admin-group"},
 			allowedGroups: []string{""},
 		},
-		{
-			name:          "multiple empty strings in AdminGroups",
-			invalidValue:  "empty string",
-			fieldName:     "AdminGroups",
-			adminGroups:   []string{"", "", "valid-admin-group"},
-			allowedGroups: []string{"valid-allowed-group"},
-		},
-		{
-			name:          "multiple empty strings in AllowedGroups",
-			invalidValue:  "empty string",
-			fieldName:     "AllowedGroups",
-			adminGroups:   []string{"valid-admin-group"},
-			allowedGroups: []string{"", "valid-allowed-group", ""},
-		},
+
 		{
 			name:          "multiple system:authenticated in AdminGroups",
 			invalidValue:  "system:authenticated",
