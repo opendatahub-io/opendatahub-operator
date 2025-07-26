@@ -3,15 +3,20 @@ package e2e_test
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -19,6 +24,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+	envtestutil "github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/gomega"
 )
@@ -61,6 +67,7 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
 		{"Validate Observability operators are installed", dscTestCtx.ValidateObservabilityOperatorsInstallation},
+		{"Validate components deployment failure", dscTestCtx.ValidateComponentsDeploymentFailure},
 	}
 
 	// Append webhook-specific tests.
@@ -350,5 +357,114 @@ func (tc *DSCTestCtx) UpdateRegistriesNamespace(targetNamespace, expectedValue s
 		WithMutateFunc(testf.Transform(`.spec.components.modelregistry.registriesNamespace = "%s"`, targetNamespace)),
 		WithCondition(expectedCondition),
 		WithCustomErrorMsg("Failed to update RegistriesNamespace to %s, expected %s", targetNamespace, expectedValue),
+	)
+}
+
+// ValidateComponentsDeploymentFailure simulates component deployment failure using restrictive resource quota.
+func (tc *DSCTestCtx) ValidateComponentsDeploymentFailure(t *testing.T) {
+	t.Helper()
+
+	var allComponents = []string{
+		"dashboard", "workbenches", "modelregistry", "ray", "kueue",
+		"codeflare", "trainingoperator", "datasciencepipelines",
+		"kserve", "modelmeshserving", "trustyai", "feastoperator", "llamastackoperator",
+	}
+
+	originalDSC := tc.FetchDataScienceCluster()
+	restrictiveQuota := createRestrictiveQuotaForOperator(tc.AppsNamespace)
+
+	t.Log("Creating restrictive resource quota in operator namespace")
+	tc.EnsureResourceCreatedOrPatched(WithObjectToCreate(restrictiveQuota))
+
+	t.Log("Enabling all components in DataScienceCluster")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(updateAllComponentsTransform(allComponents, operatorv1.Managed)),
+	)
+
+	t.Log("Verifying DSC reports all failed components due to restrictive quota")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jqAllComponentsFailureMatcher(allComponents)),
+		WithCustomErrorMsg("DSC should report all components failed due to insufficient quota"),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+
+	t.Log("Cleaning up restrictive quota")
+	tc.DeleteResource(WithObjectToCreate(restrictiveQuota))
+
+	t.Log("Restoring original DSC state")
+	tc.restoreDSC(t, originalDSC)
+
+	t.Log("Verifying DSC reports components ready after restoring")
+	tc.verifyComponentsReady(t)
+
+	t.Log("Component deployment failure validation test completed successfully")
+}
+
+// Helper function to enable/disable all components.
+func updateAllComponentsTransform(components []string, state operatorv1.ManagementState) testf.TransformFn {
+	transformParts := make([]string, len(components))
+	for i, component := range components {
+		transformParts[i] = fmt.Sprintf(`.spec.components.%s.managementState = "%s"`, component, state)
+	}
+
+	return testf.Transform(strings.Join(transformParts, " | "))
+}
+
+func jqAllComponentsFailureMatcher(components []string) *jq.Matcher {
+	tests := make([]string, 0, len(components))
+	for _, c := range components {
+		tests = append(tests, fmt.Sprintf(`test("%s"; "i")`, c))
+	}
+	return jq.Match(fmt.Sprintf(`
+		.status.conditions[]
+		| select(.type == "ComponentsReady" and .status == "False")
+		| .message
+		| (%s)
+	`, strings.Join(tests, " and ")))
+}
+
+func createRestrictiveQuotaForOperator(namespace string) *corev1.ResourceQuota {
+	return &corev1.ResourceQuota{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ResourceQuota",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-restrictive-quota-operator",
+			Namespace: namespace,
+		},
+		Spec: corev1.ResourceQuotaSpec{
+			Hard: corev1.ResourceList{
+				corev1.ResourceRequestsCPU:    resource.MustParse("0.1m"),
+				corev1.ResourceRequestsMemory: resource.MustParse("1Ki"),
+				corev1.ResourceLimitsCPU:      resource.MustParse("0.1m"),
+				corev1.ResourceLimitsMemory:   resource.MustParse("1Ki"),
+			},
+		},
+	}
+}
+
+func (tc *DSCTestCtx) restoreDSC(t *testing.T, dsc *dscv1.DataScienceCluster) {
+	t.Helper()
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec = %s`, envtestutil.JSONMarshal(t, dsc.Spec))),
+	)
+}
+
+func (tc *DSCTestCtx) verifyComponentsReady(t *testing.T) {
+	t.Helper()
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(
+			jq.Match(
+				`.status.conditions[] | select(.type == "ComponentsReady") | .status == "%s"`,
+				metav1.ConditionTrue,
+			),
+		),
+		WithCustomErrorMsg("DSC should report all components ready"),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 	)
 }

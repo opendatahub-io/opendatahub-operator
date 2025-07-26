@@ -9,6 +9,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -16,13 +17,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+	envtestutil "github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
 	. "github.com/onsi/gomega"
 )
@@ -78,6 +82,9 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate no FeatureTracker OwnerReferences", componentCtx.ValidateNoFeatureTrackerOwnerReferences},
 		{"Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers},
 		{"Validate default certs", componentCtx.ValidateDefaultCertsAvailable},
+		{"Validate custom certificate created for OpenshiftDefaultIngress", componentCtx.ValidateCustomCertificateCreation},
+		{"Validate no invalid custom certificate created for OpenshiftDefaultIngress", componentCtx.ValidateNoInvalidCustomCertificateCreation},
+		{"Validate DSCI DSC validation interaction", componentCtx.ValidateDSCIDSCValidationInteractionForKserve},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate serving transition to Unmanaged", componentCtx.ValidateServingTransitionToUnmanaged},
 		{"Validate serving transition to Removed", componentCtx.ValidateServingTransitionToRemoved},
@@ -415,4 +422,145 @@ func (tc *KserveTestCtx) validateTemplatedResourceOwnerRefsAndLabels(expectOwned
 			WithCondition(condition),
 			WithCustomErrorMsg(msg, child.gvk.Kind, child.nn.Name, child.nn.Namespace))
 	}
+}
+
+// ValidateDSCIDSCValidationInteractionForKserve tests DSCI and DSC validation interaction during reconciliation.
+func (tc *KserveTestCtx) ValidateDSCIDSCValidationInteractionForKserve(t *testing.T) {
+	t.Helper()
+
+	jqKserveReadyFalse := `
+	.status.conditions[]
+	| select(.type == "KserveReady" and .status == "%s")
+	| .message
+	| test("servicemesh needs to be set to 'managed' in dsci cr"; "i")`
+
+	originalDSCI := tc.FetchDSCInitialization()
+
+	t.Log("Disabling ServiceMesh in DSCI")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(
+			`.spec.serviceMesh.managementState = "%s"`, operatorv1.Removed,
+		)),
+	)
+
+	t.Log("Verifying KServe reports dependency on ServiceMesh correctly")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(jqKserveReadyFalse, metav1.ConditionFalse),
+		)),
+		WithCustomErrorMsg("KServe should report ServiceMesh dependency and kserve readiness correctly"),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+	)
+
+	t.Log("Re-enabling ServiceMesh in DSCI for recovery")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(
+			`.spec.serviceMesh.managementState = "%s"`,
+			originalDSCI.Spec.ServiceMesh.ManagementState,
+		)),
+	)
+
+	t.Log("Verifying KServe becomes ready after ServiceMesh is enabled")
+	tc.verifyKserveReady(t, metav1.ConditionTrue)
+
+	t.Log("DSCI/DSC validation interaction test completed successfully")
+}
+
+// ValidateCustomCertificateCreation tests that a valid custom certificate is created for OpenshiftDefaultIngress.
+func (tc *KserveTestCtx) ValidateCustomCertificateCreation(t *testing.T) {
+	t.Helper()
+
+	originalDSC := tc.FetchDataScienceCluster()
+	originalDSCI := tc.FetchDSCInitialization()
+	customSecretName := "custom-test-secret"
+
+	t.Log("Configuring Kserve with OpenshiftDefaultIngress and custom secret")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.kserve.serving.managementState = "%s"`, operatorv1.Managed),
+			testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.type = "%s"`, infrav1.OpenshiftDefaultIngress),
+			testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, customSecretName),
+		)),
+	)
+
+	t.Log("Verifying Kserve is ready")
+	tc.verifyKserveReady(t, metav1.ConditionTrue)
+
+	t.Log("Verifying custom secret is created")
+	_, err := cluster.GetSecret(tc.g.Context(), tc.g.Client(), originalDSCI.Spec.ServiceMesh.ControlPlane.Namespace, customSecretName)
+	tc.g.Expect(err).NotTo(HaveOccurred())
+
+	t.Log("Restoring original DSC state")
+	tc.restoreDSCSpec(t, originalDSC)
+
+	t.Log("Deleting custom secret")
+	tc.DeleteResource(
+		WithMinimalObject(
+			gvk.Secret,
+			types.NamespacedName{Namespace: originalDSCI.Spec.ServiceMesh.ControlPlane.Namespace, Name: customSecretName},
+		),
+	)
+
+	t.Log("Custom certificate creation test completed successfully")
+}
+
+// ValidateNoInvalidCustomCertificateCreation tests rejection of an invalid custom certificate for OpenshiftDefaultIngress.
+func (tc *KserveTestCtx) ValidateNoInvalidCustomCertificateCreation(t *testing.T) {
+	t.Helper()
+
+	originalDSC := tc.FetchDataScienceCluster()
+	originalDSCI := tc.FetchDSCInitialization()
+	invalidCustomSecretName := "&invalid-secret-name"
+
+	t.Log("Configuring Kserve with OpenshiftDefaultIngress and invalid secret")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.kserve.serving.managementState = "%s"`, operatorv1.Managed),
+			testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.type = "%s"`, infrav1.OpenshiftDefaultIngress),
+			testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, invalidCustomSecretName),
+		)),
+	)
+
+	t.Log("Verifying Kserve reports not ready due to invalid secret")
+	tc.verifyKserveReady(t, metav1.ConditionFalse)
+
+	t.Log("Verifying invalid secret is not created")
+	_, err := cluster.GetSecret(tc.g.Context(), tc.g.Client(), originalDSCI.Spec.ServiceMesh.ControlPlane.Namespace, invalidCustomSecretName)
+	tc.g.Expect(err).To(HaveOccurred())
+
+	tc.restoreDSCSpec(t, originalDSC)
+
+	t.Log("Invalid custom certificate creation test completed successfully")
+}
+
+func (tc *KserveTestCtx) verifyKserveReady(t *testing.T, expectedStatus metav1.ConditionStatus) {
+	t.Helper()
+	jqKserveReadyTrue := `
+	.status.conditions[]
+	| select(.type == "KserveReady")
+	| .status == "%s"`
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(
+			jq.Match(jqKserveReadyTrue, expectedStatus),
+		),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+}
+
+func (tc *KserveTestCtx) restoreDSCSpec(t *testing.T, originalDSC *dscv1.DataScienceCluster) {
+	t.Helper()
+	t.Log("Restoring original DSC state")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec = %s`, envtestutil.JSONMarshal(t, originalDSC.Spec))),
+	)
+	t.Log("Verifying Kserve readiness after restore")
+	tc.verifyKserveReady(t, metav1.ConditionTrue)
 }
