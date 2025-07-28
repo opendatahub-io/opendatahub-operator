@@ -36,7 +36,7 @@ type TestCase struct {
 	secretData         map[string][]byte
 	secretNamespace    string
 	annotations        map[string]string
-	modelSpec          map[string]interface{}
+	predictorSpec      map[string]interface{}
 	operation          admissionv1.Operation
 	expectedAllowed    bool
 	expectedMessage    string
@@ -71,10 +71,11 @@ func createTestSecret(name, namespace, connectionType string, data map[string][]
 		},
 		Data: data,
 	}
+
 	return secret
 }
 
-func createTestInferenceService(name, namespace string, annotations map[string]string, modelSpec map[string]interface{}) *unstructured.Unstructured {
+func createTestInferenceService(name, namespace string, annotations map[string]string, predictorSpec map[string]interface{}) *unstructured.Unstructured {
 	isvc := envtestutil.NewInferenceService(name, namespace)
 	unstructuredISVC, ok := isvc.(*unstructured.Unstructured)
 	if !ok {
@@ -84,15 +85,13 @@ func createTestInferenceService(name, namespace string, annotations map[string]s
 	if annotations != nil {
 		unstructuredISVC.SetAnnotations(annotations)
 	}
-	if modelSpec != nil {
-		// Ensure the predictor spec exists before setting the model.
-		predictorSpec := map[string]interface{}{
-			"model": modelSpec,
-		}
+
+	if len(predictorSpec) > 0 {
 		if err := unstructured.SetNestedMap(unstructuredISVC.Object, predictorSpec, "spec", "predictor"); err != nil {
 			panic("failed to set nested map: " + err.Error())
 		}
 	}
+
 	return unstructuredISVC
 }
 
@@ -103,7 +102,15 @@ func runTestCase(t *testing.T, tc TestCase) {
 
 	var cli client.Client
 	if tc.secretType != "" {
-		secret := createTestSecret(testSecret, tc.secretNamespace, tc.secretType, tc.secretData)
+		// Extract secret name from annotations, default to testSecret if not specified
+		secretName := testSecret
+		if tc.annotations != nil {
+			if name, exists := tc.annotations[annotations.Connection]; exists {
+				secretName = name
+			}
+		}
+
+		secret := createTestSecret(secretName, tc.secretNamespace, tc.secretType, tc.secretData)
 		cli = fake.NewClientBuilder().WithScheme(sch).WithObjects(secret).Build()
 	} else {
 		cli = fake.NewClientBuilder().WithScheme(sch).Build()
@@ -111,7 +118,7 @@ func runTestCase(t *testing.T, tc TestCase) {
 
 	webhook := createWebhook(cli, sch)
 
-	isvc := createTestInferenceService(testInferenceService, testNamespace, tc.annotations, tc.modelSpec)
+	isvc := createTestInferenceService(testInferenceService, testNamespace, tc.annotations, tc.predictorSpec)
 	isvcRaw, err := json.Marshal(isvc)
 	if err != nil {
 		t.Fatalf("failed to marshal InferenceService: %v", err)
@@ -142,49 +149,78 @@ func runTestCase(t *testing.T, tc TestCase) {
 	if tc.expectedPatchCheck != nil {
 		g.Expect(tc.expectedPatchCheck(resp.Patches)).To(BeTrue())
 	}
-}
-
-// oci-v.
-func hasImagePullSecretsPatch(patches []jsonpatch.JsonPatchOperation) bool {
-	for _, patch := range patches {
-		if patch.Path == "/spec/predictor/imagePullSecrets" {
-			return true
-		}
-	}
-	return false
-}
-
-// uri-v1.
-func hasStorageUriPatch(patches []jsonpatch.JsonPatchOperation) bool {
-	for _, patch := range patches {
-		if patch.Path == "/spec/predictor/model/storageUri" {
-			return true
-		}
-	}
-	return false
-}
-
-// s3.
-func hasStorageKeyPatch(patches []jsonpatch.JsonPatchOperation) bool {
-	for _, patch := range patches {
-		if patch.Path == "/spec/predictor/model/storage/key" {
-			return true
-		}
-		if patch.Path == "/spec/predictor/model/storage" {
-			if storageMap, ok := patch.Value.(map[string]interface{}); ok {
-				if _, hasKey := storageMap["key"]; hasKey {
-					return true
+} // oci-v1 - simple case for new injection without existing secrets
+func hasImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		for _, patch := range patches {
+			if patch.Path == "/spec/predictor/imagePullSecrets" {
+				// Should be a single secret in the array
+				if secretsList, ok := patch.Value.([]interface{}); ok && len(secretsList) == 1 {
+					if secretMap, ok := secretsList[0].(map[string]interface{}); ok {
+						if name, exists := secretMap["name"]; exists && name == expectedSecretName {
+							return true
+						}
+					}
 				}
 			}
 		}
+		return false
 	}
-	return false
+} // uri-v1.
+func hasStorageUriPatch(expectedUri ...string) func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		expectedValue := ""
+		if len(expectedUri) > 0 {
+			expectedValue = expectedUri[0]
+		}
+
+		for _, patch := range patches {
+			if patch.Path == "/spec/predictor/model/storageUri" {
+				if expectedValue == "" {
+					return true
+				}
+				return patch.Value == expectedValue
+			}
+		}
+		return false
+	}
+}
+
+// s3.
+func hasStorageKeyPatch(expectedValue ...string) func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		expectedKey := ""
+		if len(expectedValue) > 0 {
+			expectedKey = expectedValue[0]
+		}
+
+		for _, patch := range patches {
+			if patch.Path == "/spec/predictor/model/storage/key" {
+				if expectedKey == "" {
+					return true
+				}
+				return patch.Value == expectedKey
+			}
+			if patch.Path == "/spec/predictor/model/storage" {
+				if storageMap, ok := patch.Value.(map[string]interface{}); ok {
+					if key, hasKey := storageMap["key"]; hasKey {
+						if expectedKey == "" {
+							return true
+						}
+						return key == expectedKey
+					}
+				}
+			}
+		}
+		return false
+	}
 }
 
 func TestConnectionWebhook(t *testing.T) {
 	testCases := []TestCase{
+		// general cases
 		{
-			name:            "no connection annotation set on ISVC should be allowed to create",
+			name:            "no connection annotation set, ISVC should be allowed to create",
 			secretType:      "",
 			annotations:     nil,
 			operation:       admissionv1.Create,
@@ -192,7 +228,17 @@ func TestConnectionWebhook(t *testing.T) {
 			expectedMessage: "no injection needed",
 		},
 		{
-			name:            "delete operation on allowed type",
+			name:            "secret exists but has no allowed connection type annotation, ISVC should be allowed to create with no injection",
+			secretType:      "other-type",
+			secretNamespace: testNamespace,
+			secretData:      map[string][]byte{"key": []byte("value")},
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			operation:       admissionv1.Create,
+			expectedAllowed: true,
+			expectedMessage: "no injection needed",
+		},
+		{
+			name:            "to delete ISVC with allowed type should be passed",
 			secretType:      "s3",
 			annotations:     map[string]string{annotations.Connection: testSecret},
 			operation:       admissionv1.Delete,
@@ -200,7 +246,16 @@ func TestConnectionWebhook(t *testing.T) {
 			expectedMessage: "Operation DELETE",
 		},
 		{
-			name:            "unsupported type set in the annoation should be allow to create but no injection",
+			name:            "secret not found regardless not exist or in a different namespace, ISVC should not be allowed",
+			secretType:      "",
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			operation:       admissionv1.Create,
+			expectedAllowed: false,
+			expectedMessage: "not found",
+		},
+		// type cases for new creation
+		{
+			name:            "unsupported type set in the annoation, ISVC should be allow to create but no injection",
 			secretType:      "new-type",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret},
@@ -209,47 +264,70 @@ func TestConnectionWebhook(t *testing.T) {
 			expectedMessage: "no injection needed",
 		},
 		{
-			name:               "annotation as OCI type, creation allowed with injection",
+			name:               "annotation as OCI type, ISVC creation allowed with injection done",
 			secretType:         "oci-v1",
 			secretNamespace:    testNamespace,
 			annotations:        map[string]string{annotations.Connection: testSecret},
 			operation:          admissionv1.Create,
 			expectedAllowed:    true,
-			expectedPatchCheck: hasImagePullSecretsPatch,
+			expectedPatchCheck: hasImagePullSecretsPatch(testSecret),
 		},
 		{
-			name:               "annotation as URI type with model in spec, creation allowed with injection",
+			name:               "annotation as URI type with model in spec, ISVC creation allowed with injection done",
 			secretType:         "uri-v1",
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{"URI": []byte("https://opendathub.io/model")},
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			modelSpec:          map[string]interface{}{},
+			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
 			operation:          admissionv1.Create,
 			expectedAllowed:    true,
-			expectedPatchCheck: hasStorageUriPatch,
+			expectedPatchCheck: hasStorageUriPatch("https://opendathub.io/model"),
 		},
 		{
-			name:               "annotation as S3 type, creation allowed with injection",
+			name:               "annotation as S3 type, ISVC creation allowed with injection done",
 			secretType:         "s3",
 			secretNamespace:    testNamespace,
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			modelSpec:          map[string]interface{}{},
+			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
 			operation:          admissionv1.Create,
 			expectedAllowed:    true,
-			expectedPatchCheck: hasStorageKeyPatch,
+			expectedPatchCheck: hasStorageKeyPatch(testSecret),
 		},
 		{
-			name:               "S3 type with existing storageUri in model, update allowed with injection",
+			name:            "annotation as URI type without data.URI set, ISVC should not be allowed to create",
+			secretType:      "uri-v1",
+			secretNamespace: testNamespace,
+			secretData:      map[string][]byte{},
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			predictorSpec:   map[string]interface{}{"model": map[string]interface{}{}},
+			operation:       admissionv1.Create,
+			expectedAllowed: false,
+			expectedMessage: "secret does not contain 'URI' data key",
+		},
+		// type cases for update
+		{
+			name:               "annotation as S3 type with existing storageUri, ISVC update allowed with replacement",
 			secretType:         "s3",
 			secretNamespace:    testNamespace,
+			secretData:         map[string][]byte{},
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			modelSpec:          map[string]interface{}{"storageUri": "s3://existing-bucket/model"},
+			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{"key": "existing-secret"}},
 			operation:          admissionv1.Update,
 			expectedAllowed:    true,
-			expectedPatchCheck: hasStorageKeyPatch,
+			expectedPatchCheck: hasStorageKeyPatch(testSecret),
 		},
 		{
-			name:            "S3 type without model set should not be allowed to create",
+			name:               "annotation as OCI type, ISVC update allowed with replacement",
+			secretType:         "oci-v1",
+			secretNamespace:    testNamespace,
+			annotations:        map[string]string{annotations.Connection: testSecret},
+			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
+			operation:          admissionv1.Update,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasImagePullSecretsPatch(testSecret),
+		},
+		{
+			name:            "annotation as S3 type without model set, ISVC should not be allowed to create",
 			secretType:      "s3",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret},
@@ -258,30 +336,15 @@ func TestConnectionWebhook(t *testing.T) {
 			expectedMessage: "found no spec.predictor.model set in resource",
 		},
 		{
-			name:            "URI type without data.URI set should not be allowed to create",
-			secretType:      "uri-v1",
-			secretNamespace: testNamespace,
-			annotations:     map[string]string{annotations.Connection: testSecret},
-			operation:       admissionv1.Create,
-			expectedAllowed: false,
-			expectedMessage: "secret does not contain 'URI' data key",
-		},
-		{
-			name:            "secret not found regardless not exist or in a different namespace should not be allowed",
-			secretType:      "",
-			annotations:     map[string]string{annotations.Connection: testSecret},
-			operation:       admissionv1.Create,
-			expectedAllowed: false,
-			expectedMessage: "not found",
-		},
-		{
-			name:               "update operation on any allowed type",
-			secretType:         "oci-v1",
+			name:               "annotation as URI type with new URI, ISVC should overwrite with new value in the patch",
+			secretType:         "uri-v1",
 			secretNamespace:    testNamespace,
+			secretData:         map[string][]byte{"URI": []byte("s3://new-bucket/new-model")},
 			annotations:        map[string]string{annotations.Connection: testSecret},
+			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{"URI": "s3://old-bucket/old-model"}},
 			operation:          admissionv1.Update,
 			expectedAllowed:    true,
-			expectedPatchCheck: hasImagePullSecretsPatch,
+			expectedPatchCheck: hasStorageUriPatch("s3://new-bucket/new-model"),
 		},
 	}
 

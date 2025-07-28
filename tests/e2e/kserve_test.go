@@ -9,6 +9,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -18,8 +19,10 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -89,6 +92,13 @@ func kserveTestSuite(t *testing.T) {
 		// {"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
 		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+	}
+
+	// Add webhook tests if enabled
+	if testOpts.webhookTest {
+		testCases = append(testCases,
+			TestCase{"Validate connection webhook injection", componentCtx.ValidateConnectionWebhookInjection},
+		)
 	}
 
 	// Run the test suite.
@@ -415,4 +425,88 @@ func (tc *KserveTestCtx) validateTemplatedResourceOwnerRefsAndLabels(expectOwned
 			WithCondition(condition),
 			WithCustomErrorMsg(msg, child.gvk.Kind, child.nn.Name, child.nn.Namespace))
 	}
+}
+
+// ValidateConnectionWebhookInjection validates that the connection webhook properly injects
+// secrets into InferenceService resources with existing imagePullSecrets.
+func (tc *KserveTestCtx) ValidateConnectionWebhookInjection(t *testing.T) {
+	t.Helper()
+
+	// Ensure KServe is in Managed state to enable webhook functionality
+	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
+
+	testNamespace := "glue-namespace"
+	secretName := "glue-secret"
+	isvcName := "glue-isvc"
+
+	// Create test namespace
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: testNamespace}),
+		WithCustomErrorMsg("Failed to create webhook test namespace"),
+	)
+
+	// Setup cleanup
+	t.Cleanup(func() {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: testNamespace}),
+		)
+	})
+
+	// Create a connection secret with OCI type
+	tc.createConnectionSecret(secretName, testNamespace)
+
+	// Create InferenceService with existing imagePullSecrets and connection annotation
+	isvc := envtestutil.NewInferenceService(isvcName, testNamespace)
+	isvcUnstructured, ok := isvc.(*unstructured.Unstructured)
+	if !ok {
+		t.Fatalf("failed to cast InferenceService to unstructured")
+	}
+
+	isvcUnstructured.SetAnnotations(map[string]string{
+		annotations.Connection: secretName,
+	})
+
+	predictorSpec := map[string]interface{}{
+		"model": map[string]interface{}{},
+		"imagePullSecrets": []interface{}{
+			map[string]interface{}{"name": "existing-secret"},
+		},
+	}
+	err := unstructured.SetNestedMap(isvcUnstructured.Object, predictorSpec, "spec", "predictor")
+	require.NoError(t, err, "Failed to set predictor spec with existing imagePullSecrets")
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(isvcUnstructured),
+		WithCustomErrorMsg("Failed to create InferenceService with webhook injection"),
+	)
+
+	// Validate that both the existing-secret and the new connection secret are present
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.InferenceServices, types.NamespacedName{Name: isvcName, Namespace: testNamespace}),
+		WithCondition(jq.Match(`.spec.predictor.imagePullSecrets | length == 2`)),
+		WithCondition(jq.Match(`.spec.predictor.imagePullSecrets[0].name == "existing-secret" or .spec.predictor.imagePullSecrets[1].name == "existing-secret"`)),
+		WithCondition(jq.Match(`.spec.predictor.imagePullSecrets[0].name == "%s" or .spec.predictor.imagePullSecrets[1].name == "%s"`, secretName, secretName)),
+		WithCustomErrorMsg("InferenceService should have both existing and injected imagePullSecrets"),
+	)
+}
+
+// createConnectionSecret creates a connection secret with OCI type to test webhook.
+func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Secret, types.NamespacedName{Name: secretName, Namespace: namespace}),
+		WithMutateFunc(func(obj *unstructured.Unstructured) error {
+			obj.SetAnnotations(map[string]string{
+				annotations.ConnectionTypeRef: "oci-v1",
+			})
+
+			if err := unstructured.SetNestedField(obj.Object, string(corev1.SecretTypeOpaque), "type"); err != nil {
+				return err
+			}
+
+			return unstructured.SetNestedStringMap(obj.Object, map[string]string{
+				"credential": "mysecretjson",
+			}, "data")
+		}),
+		WithCustomErrorMsg("Failed to create connection secret"),
+	)
 }
