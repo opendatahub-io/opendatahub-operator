@@ -9,7 +9,7 @@ The list of the currently integrated ODH components is provided [at the end of t
 
 ## Use scaffolding to create boilerplate code
 
-Integrating a new component into the Open Data Hub (ODH) operator is  easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
+Integrating a new component into the Open Data Hub (ODH) operator is easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
 
 While the CLI handles most of the heavy lifting, it’s still important to understand the purpose of each generated file. Please refer to the following sections for a detailed breakdown of the key files and their roles in the integration process.
 
@@ -26,7 +26,7 @@ The first step is to define the internal API spec for the new component and intr
 1. Create a dedicated `<example_component_name>_types.go` file within `api/component/v1alpha1` directory.
 
 2. Define the internal API spec for the new component according to the expected definitions.
-You can use the following pseudo-implementation for reference:
+   You can use the following pseudo-implementation for reference:
 
 ```go
 package v1alpha1
@@ -197,9 +197,11 @@ Add kubebuilder RBAC permissions intended for the new component into `internal/c
 #### Update the dependent files
 
 To fully reflect the API changes brought by the addition of the new component, run the following command:
+
 ```make
 make generate manifests api-docs bundle
 ```
+
 This command will (re-)generate the necessary kubebuilder functions, and update both the API documentation and the operator bundle manifests.
 
 ### 2. Create a module for the new component reconciliation logic
@@ -226,7 +228,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject
 
-func (s *componentHandler) Init(platform common.Platform) error 
+func (s *componentHandler) Init(platform common.Platform) error
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error)
 ```
@@ -239,13 +241,15 @@ Create a dedicated `<example_component_name>_controller.go` file and implement t
 This function will be responsible for creating the reconciler for the previously introduced `<ExampleComponent>` API.
 
 `NewControllerReconciler` utilizes a generic builder pattern, that supports defining various types of relationships and functionality:
+
 - resource ownership - using `.Owns()`
 - watching a resource - using `.Watches()`
 - reconciler actions - using `.WithAction()`
-	- this includes pre-implemented actions used commonly across components (e.g. manifests rendering), as well as customized, component-specific actions
-	- more details on actions are provided [below](#actions)
+  - this includes pre-implemented actions used commonly across components (e.g. manifests rendering), as well as customized, component-specific actions
+  - more details on actions are provided [below](#actions)
 
 The example pseudo-implementation should look like as follows:
+
 ```go
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.ExampleComponent{}).
@@ -278,18 +282,20 @@ Such actions can be then introduced to the reconciler builder using `.WithAction
 As seen in the existing component reconciler implementations, it would be recommended to include the action implementations in a separate file within the module, such as `<example_component_name>_controller_actions.go`.
 
 "Generic"/commonly-implemented actions for each of the currently integrated components include:
+
 - `initialize()` - to register paths to the component manifests
-- `devFlags()` - to override the component manifest paths according to the Dev Flags configuration 
+- `devFlags()` - to override the component manifest paths according to the Dev Flags configuration
 
 In addition, proper generic actions, intended to be used across the components, are provided as part of the operator implementation (located in `pkg/controller/actions`).
 These support:
+
 - manifest rendering
-    - can additionally utilize caching
+  - can additionally utilize caching
 - manifest deployment
-    - can additionally utilize caching
+  - can additionally utilize caching
 - status updating
 - garbage collection
-	- **additional requirement - garbage collection action must always be called as the last action before the final `.Build()` call**
+  - **additional requirement - garbage collection action must always be called as the last action before the final `.Build()` call**
 
 If the new component requires additional custom logic, custom actions can also be added to the builder via the respective `.WithAction()` calls.
 
@@ -319,6 +325,7 @@ the e2e test suite to capture deployments introduced by the new component.
 Existing e2e test suites for the integrated components can be also found there.
 
 Lastly, please update the following files to fully integrate new component tests into the overall test suite:
+
 - update `setupDSCInstance()` function in `tests/e2e/helper_test.go` to set new component in DSC
 - update `newDSC()` function in `/internal/webhook/webhook_suite_test.go` to update creation of DSC include the new component
 - update `componentsTestSuites` map in `tests/e2e/controller_test.go` to include the reference for the new component e2e test suite
@@ -326,9 +333,42 @@ Lastly, please update the following files to fully integrate new component tests
 ### 4. Update Prometheus config and tests
 
 If the component is planned to be released for downstream, Prometheus rules and promtest need to be updated for the component.
-- Rules are located in `config/monitoring/prometheus/app/prometheus-configs.yaml` file
-- Tests are grouped in `tests/prometheus_unit_tests` <component>_unit_tests.yam file
 
+- Rules are located in `config/monitoring/prometheus/app/prometheus-configs.yaml` file
+- Tests are grouped in `tests/prometheus_unit_tests` <component>\_unit_tests.yam file
+
+## Observability and Tracing
+
+For comprehensive observability including distributed tracing, refer to the [Observability ADR](observability-adr.md) which provides detailed guidance on:
+
+- **Recommended approach**: Using the `instrumentation.opentelemetry.io/inject-sdk: "true"` annotation for native OpenTelemetry SDK injection
+- **Configuration**: How to enable tracing through DSCInitialization CR
+- **Architecture**: Understanding the trace collection pipeline (Component → Collector → Tempo → Grafana)
+- **Prerequisites**: Required operators (OpenTelemetry and Tempo)
+
+### Quick Start for Component Tracing
+
+To enable tracing in your component deployment:
+
+1. Add the annotation to your deployment/pod specification:
+
+   ```yaml
+   metadata:
+     annotations:
+       instrumentation.opentelemetry.io/inject-sdk: "true"
+   ```
+
+2. Ensure tracing is enabled in the DSCInitialization CR:
+   ```yaml
+   spec:
+     monitoring:
+       traces:
+         storage:
+           backend: "pv"
+         sampleRatio: "0.1"
+   ```
+
+The OpenShift AI operator will automatically handle the rest of the tracing infrastructure setup.
 
 ## Integrated components
 

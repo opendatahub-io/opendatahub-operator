@@ -5,23 +5,24 @@ Jupyter Notebooks, Modelmesh serving, Datascience pipelines etc. The operator ma
 and configure these applications.
 
 ### Table of contents
+
 - [Usage](#usage)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Configuration](#configuration)
     - [Custom application namespace](#use-custom-application-namespace)
 - [Developer Guide](#developer-guide)
-    - [Pre-requisites](#pre-requisites)
-    - [Download manifests](#download-manifests)
-    - [Structure of `COMPONENT_MANIFESTS`](#structure-of-component_manifests)
-    - [Workflow](#workflow)
-    - [Local Storage](#local-storage)
-    - [Adding New Components](#adding-new-components)
-    - [Customizing Manifests Source](#customizing-manifests-source)
-      - [for local development](#for-local-development)
-      - [for build operator image](#for-build-operator-image)
-    - [Build Image](#build-image)
-    - [Deployment](#deployment)
+  - [Pre-requisites](#pre-requisites)
+  - [Download manifests](#download-manifests)
+  - [Structure of `COMPONENT_MANIFESTS`](#structure-of-component_manifests)
+  - [Workflow](#workflow)
+  - [Local Storage](#local-storage)
+  - [Adding New Components](#adding-new-components)
+  - [Customizing Manifests Source](#customizing-manifests-source)
+    - [for local development](#for-local-development)
+    - [for build operator image](#for-build-operator-image)
+  - [Build Image](#build-image)
+  - [Deployment](#deployment)
   - [Test with customized manifests](#test-with-customized-manifests)
   - [Update API docs](#update-api-docs)
   - [Change logging level at runtime](#change-logging-level-at-runtime)
@@ -38,10 +39,12 @@ and configure these applications.
 ## Usage
 
 ### Prerequisites
+
 If `single model serving configuration` is used or if `Kserve` component is used then please make sure to install the following operators before proceeding to create a DSCI and DSC instances.
- - [Authorino operator](https://github.com/Kuadrant/authorino)
- - [Service Mesh operator](https://github.com/Maistra/istio-operator)
- - [Serverless operator](https://github.com/openshift-knative/serverless-operator)
+
+- [Authorino operator](https://github.com/Kuadrant/authorino)
+- [Service Mesh operator](https://github.com/Maistra/istio-operator)
+- [Serverless operator](https://github.com/openshift-knative/serverless-operator)
 
 Additionally installing `Authorino operator` & `Service Mesh operator` enhances user-experience by providing a single sign on experience.
 
@@ -57,33 +60,32 @@ Additionally installing `Authorino operator` & `Service Mesh operator` enhances 
 
   1. Subscribe to operator by creating following subscription
 
-      ```console
-      cat <<EOF | oc create -f -
-      apiVersion: operators.coreos.com/v1alpha1
-      kind: Subscription
-      metadata:
-        name: opendatahub-operator
-        namespace: openshift-operators
-      spec:
-        channel: fast
-        name: opendatahub-operator
-        source: community-operators
-        sourceNamespace: openshift-marketplace
-      EOF
-      ```
+     ```console
+     cat <<EOF | oc create -f -
+     apiVersion: operators.coreos.com/v1alpha1
+     kind: Subscription
+     metadata:
+       name: opendatahub-operator
+       namespace: openshift-operators
+     spec:
+       channel: fast
+       name: opendatahub-operator
+       source: community-operators
+       sourceNamespace: openshift-marketplace
+     EOF
+     ```
 
   2. Create [DSCInitialization](#example-dscinitialization) CR manually.
-    You can also use operator to create default DSCI CR by removing env variable DISABLE_DSC_CONFIG from CSV or changing the value to "false", followed by restarting the operator pod.
+     You can also use operator to create default DSCI CR by removing env variable DISABLE_DSC_CONFIG from CSV or changing the value to "false", followed by restarting the operator pod.
 
   3. Create [DataScienceCluster](#example-datasciencecluster) CR to enable components
-
 
 ### Configuration
 
 ODH operator can be configured both through flags and environment variables, here a list of the available one:
 
 | Env variable                                         | Corresponding flag          | Description                                                                                                                                                                | Default value |
-|------------------------------------------------------|-----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------|
+| ---------------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | ODH_MANAGER_METRICS_BIND_ADDRESS                     | --metrics-bind-address      | The address the metric endpoint binds to.                                                                                                                                  | :8080         |
 | ODH_MANAGER_HEALTH_PROBE_BIND_ADDRESS                | --health-probe-bind-address | The address the probe endpoint binds to.                                                                                                                                   | :8081         |
 | ODH_MANAGER_LEADER_ELECT                             | --leader-elect              | Enable leader election for controller manager.                                                                                                                             | false         |
@@ -101,7 +103,7 @@ If both env variables and flags are set for the same configuration, flags values
 #### Log mode values
 
 | log-mode    | zap-stacktrace-level | zap-log-level | zap-encoder | Comments                                      |
-|-------------|----------------------|---------------|-------------|-----------------------------------------------|
+| ----------- | -------------------- | ------------- | ----------- | --------------------------------------------- |
 | devel       | WARN                 | INFO          | Console     | lowest level, using epoch time                |
 | development | WARN                 | INFO          | Console     | same as devel                                 |
 | ""          | ERROR                | INFO          | JSON        | default option                                |
@@ -109,12 +111,13 @@ If both env variables and flags are set for the same configuration, flags values
 | production  | ERROR                | INFO          | JSON        | same as prod                                  |
 
 #### Use custom application namespace
+
 In ODH 2.23.1, we introduced a new feature which allows user to use their own application namespace than default one "opendatahub".
 To enable it:
 
 - For new cluster (i.e. a cluster that has not been used for ODH or RHOAI), using "namespace A" as an example of the targeted application namespace. Follow below steps before install ODH operator:
   1. create namespace A
-  2. add label `opendatahub.io/application-namespace: true`  onto namespace A. Only one namespace in the cluster can have this label.
+  2. add label `opendatahub.io/application-namespace: true` onto namespace A. Only one namespace in the cluster can have this label.
   3. install ODH operator either from UI or by GitOps/CLI
   4. once Operator is up and running, manually create DSCI CR by set `.spec.applicationsNamespace:A`
   5. wait till DSCI status update to "Ready"
@@ -158,6 +161,7 @@ declare -A COMPONENT_MANIFESTS=(
 ```
 
 #### Customizing Manifests Source
+
 You have the flexibility to change the source of the manifests. Invoke the `get_all_manifests.sh` script with specific flags, as illustrated below:
 
 ```shell
@@ -198,6 +202,7 @@ e.g `make image-build USE_LOCAL=true"`
   The default image used is `quay.io/opendatahub/opendatahub-operator:dev-0.0.1` when not supply argument for `make image`
 
 - To build multi-arch image, set environment variable PLATFORM
+
   ```commandline
   export PLATFORM=linux/amd64,linux/arm64,linux/ppc64le,linux/s390x
   make image
@@ -254,15 +259,17 @@ e.g `make image-build USE_LOCAL=true"`
   ```commandline
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE --decompression-image quay.io/project-codeflare/busybox:1.36
   ```
-  
+
 - Understanding Catalog Generation:
-  
+
   The operator uses File-Based Catalog (FBC) format for OLM integration. The `make catalog-build` command internally runs `catalog-prepare` which:
+
   - Uses the basic template from `config/catalog/fbc-basic-template.yaml`
   - Processes the template using `hack/update-catalog-template.sh` to generate `catalog/operator.yaml`
   - Validates the generated catalog structure
 
   **Important Note**: Users must provide the old version bundle images as a comma-separated list, in ascending order, to generate an upgradeable catalog image. For example:
+
   ```commandline
   make catalog-build catalog-push -e CATALOG_IMG=quay.io/<username>/opendatahub-operator-index:<target_version> \
     BUNDLE_IMGS=quay.io/<username>/opendatahub-operator-bundle:v2.26.0,\
@@ -271,6 +278,7 @@ e.g `make image-build USE_LOCAL=true"`
   ```
 
   This creates the following upgrade path:
+
   ```
   v2.26.0 -> v2.27.0 -> v2.28.0 -> target_version
   ```
@@ -282,7 +290,7 @@ e.g `make image-build USE_LOCAL=true"`
   ```commandline
   make catalog-build catalog-push -e CATALOG_IMG=quay.io/<username>/opendatahub-operator-index:<target_version> BUNDLE_IMGS=<list-of-comma-separated-bundle-images>
   ```
-  
+
 ### Test with customized manifests
 
 There are 2 ways to test your changes with modification:
@@ -294,9 +302,11 @@ There are 2 ways to test your changes with modification:
 ### Update API docs
 
 Whenever a new api is added or a new field is added to the CRD, please make sure to run the command:
-  ```commandline
-  make api-docs
-  ```
+
+```commandline
+make api-docs
+```
+
 This will ensure that the doc for the apis are updated accordingly.
 
 ### Change logging level at runtime
@@ -356,6 +366,8 @@ spec:
 ```
 
 Apply this example with modification for your usage.
+
+For comprehensive guidance on observability and tracing configuration, including how to enable component tracing with the `instrumentation.opentelemetry.io/inject-sdk: "true"` annotation, see the [Observability ADR](docs/observability-adr.md).
 
 ### Example DataScienceCluster
 
@@ -431,6 +443,7 @@ spec:
 The functional tests are writted based on [ginkgo](https://onsi.github.io/ginkgo/) and [gomega](https://onsi.github.io/gomega/). In order to run the tests, the user needs to setup the envtest which provides a mocked kubernetes cluster. A detailed explanation on how to configure envtest is provided [here](https://book.kubebuilder.io/reference/envtest.html#configuring-envtest-for-integration-tests).
 
 To run the test on individual controllers, change directory into the contorller's folder and run
+
 ```shell
 ginkgo -v
 ```
@@ -440,10 +453,13 @@ This provides detailed logs of the test spec.
 **Note:** When runninng tests for each controller, make sure to add the `BinaryAssetsDirectory` attribute in the `envtest.Environment` in the `suite_test.go` file. The value should point to the path where the envtest binaries are installed.
 
 In order to run tests for all the controllers, we can use the `make` command
+
 ```shell
 make unit-test
 ```
+
 **Note:** The make command should be executed on the root project level.
+
 ### Run e2e Tests
 
 A user can run the e2e tests in the same namespace as the operator. To deploy
@@ -462,10 +478,11 @@ make e2e-test
 ```
 
 #### Configuring e2e Tests
+
 Evn vars can be set to configure e2e tests:
 
 | Configuration Env var           | Description                                                                                                                                                                  | Default value                 |
-|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
 | E2E_TEST_OPERATOR_NAMESPACE     | Namespace where the ODH operator is deployed.                                                                                                                                | `opendatahub-operator-system` |
 | E2E_TEST_APPLICATIONS_NAMESPACE | Namespace where the ODH applications are deployed.                                                                                                                           | `opendatahub`                 |
 | E2E_TEST_OPERATOR_CONTROLLER    | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes      | `true`                        |
@@ -481,7 +498,7 @@ Evn vars can be set to configure e2e tests:
 Alternatively the above configurations can be passed to e2e-tests as flags by setting up `E2E_TEST_FLAGS` variable. Following table lists all the available flags:
 
 | Flag                       | Description                                                                                                                                                                  | Default value                 |
-|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
 | --operator-namespace       | Namespace where the ODH operator is deployed.                                                                                                                                | `opendatahub-operator-system` |
 | --applications-namespace   | Namespace where the ODH applications are deployed.                                                                                                                           | `opendatahub`                 |
 | --test-operator-controller | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes      | `true`                        |
@@ -503,6 +520,7 @@ Example commands to run test suite for the dashboard `component` only, with the 
 ```shell
 make run-nowebhook
 ```
+
 ```shell
 make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_WEBHOOK=false -e E2E_TEST_SERVICES=false -e E2E_TEST_COMPONENT=dashboard
 ```
@@ -512,11 +530,13 @@ Example commands to run test suite for the monitoring `service` only, with the o
 ```shell
 make run-nowebhook
 ```
+
 ```shell
 make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_WEBHOOK=false -e E2E_TEST_COMPONENTS=false -e E2E_TEST_SERVICE=monitoring
 ```
 
 Example commands to run test suite excluding tests for ray `component`:
+
 ```shell
 make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_COMPONENT=!ray
 ```
@@ -524,7 +544,7 @@ make e2e-test -e E2E_TEST_OPERATOR_NAMESPACE=<namespace> -e E2E_TEST_COMPONENT=!
 Additionally specific env vars can be used to configure tests timeouts
 
 | Timeouts Env var                         | Description                                                                             | Default value |
-|------------------------------------------|-----------------------------------------------------------------------------------------|---------------|
+| ---------------------------------------- | --------------------------------------------------------------------------------------- | ------------- |
 | E2E_TEST_DEFAULTEVENTUALLYTIMEOUT        | Timeout used for Eventually; overrides Gomega's default of 1 second.                    | `5m`          |
 | E2E_TEST_MEDIUMEVENTUALLYTIMEOUT         | Medium timeout: for readiness checks (e.g., ClusterServiceVersion, DataScienceCluster). | `7m`          |
 | E2E_TEST_LONGEVENTUALLYTIMEOUT           | Long timeout: for more complex readiness (e.g., DSCInitialization, KServe).             | `10m`         |
