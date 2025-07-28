@@ -78,7 +78,7 @@ spec:
                 description: Eval configuration for TrustyAI evaluations
                 properties:
                   lmeval:
-                    description: LMEval configuration for language model evaluations
+                    description: LMEval configuration for model evaluations
                     properties:
                       allowCodeExecution:
                         default: false
