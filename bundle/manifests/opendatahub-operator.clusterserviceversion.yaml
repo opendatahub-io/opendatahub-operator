@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.33.0
-    createdAt: "2025-07-28T11:49:57Z"
+    createdAt: "2025-07-28T18:05:57Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -807,28 +807,6 @@ spec:
           verbs:
           - get
         - apiGroups:
-          - inference.networking.x-k8s.io
-          resources:
-          - inferencemodels
-          - inferencepools
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - inference.networking.x-k8s.io
-          resources:
-          - inferencemodels/status
-          - inferencepools/status
-          verbs:
-          - get
-          - patch
-          - update
-        - apiGroups:
           - infrastructure.opendatahub.io
           resources:
           - hardwareprofiles
@@ -1360,15 +1338,10 @@ spec:
           resources:
           - clusterservingruntimes
           - clusterservingruntimes/finalizers
-          - clusterstoragecontainers
           - inferencegraphs
           - inferenceservices
           - inferenceservices/finalizers
           - llminferenceserviceconfigs
-          - llminferenceservices
-          - localmodelcaches
-          - localmodelnodegroups
-          - localmodelnodes
           - predictors
           - servingruntimes/finalizers
           - trainedmodels
@@ -1396,12 +1369,7 @@ spec:
         - apiGroups:
           - serving.kserve.io
           resources:
-          - clusterstoragecontainers/status
           - llminferenceserviceconfigs/status
-          - llminferenceservices/status
-          - localmodelcaches/status
-          - localmodelnodegroups/status
-          - localmodelnodes/status
           - predictors/finalizers
           - servingruntimes/status
           verbs:

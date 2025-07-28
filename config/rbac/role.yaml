@@ -550,28 +550,6 @@ rules:
   verbs:
   - get
 - apiGroups:
-  - inference.networking.x-k8s.io
-  resources:
-  - inferencemodels
-  - inferencepools
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - inference.networking.x-k8s.io
-  resources:
-  - inferencemodels/status
-  - inferencepools/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
   - infrastructure.opendatahub.io
   resources:
   - hardwareprofiles
@@ -1103,15 +1081,10 @@ rules:
   resources:
   - clusterservingruntimes
   - clusterservingruntimes/finalizers
-  - clusterstoragecontainers
   - inferencegraphs
   - inferenceservices
   - inferenceservices/finalizers
   - llminferenceserviceconfigs
-  - llminferenceservices
-  - localmodelcaches
-  - localmodelnodegroups
-  - localmodelnodes
   - predictors
   - servingruntimes/finalizers
   - trainedmodels
@@ -1139,12 +1112,7 @@ rules:
 - apiGroups:
   - serving.kserve.io
   resources:
-  - clusterstoragecontainers/status
   - llminferenceserviceconfigs/status
-  - llminferenceservices/status
-  - localmodelcaches/status
-  - localmodelnodegroups/status
-  - localmodelnodes/status
   - predictors/finalizers
   - servingruntimes/status
   verbs:

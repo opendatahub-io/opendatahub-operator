@@ -200,20 +200,6 @@ package datasciencecluster
 /* LLM-d */
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=llminferenceserviceconfigs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=llminferenceserviceconfigs/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=llminferenceservices,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=llminferenceservices/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="inference.networking.x-k8s.io",resources=inferencemodels,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="inference.networking.x-k8s.io",resources=inferencemodels/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="inference.networking.x-k8s.io",resources=inferencepools,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="inference.networking.x-k8s.io",resources=inferencepools/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=clusterstoragecontainers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=clusterstoragecontainers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=localmodelcaches,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=localmodelcaches/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=localmodelnodes,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=localmodelnodes/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=localmodelnodegroups,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="serving.kserve.io",resources=localmodelnodegroups/status,verbs=get;update;patch
 
 // WB
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=workbenches,verbs=get;list;watch;create;update;patch;delete
