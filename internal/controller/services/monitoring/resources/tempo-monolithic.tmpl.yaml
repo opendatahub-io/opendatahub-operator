@@ -9,6 +9,6 @@ spec:
   storage:
     traces:
       backend: pv
-      {{ if .Size }}
+      {{- if .Size }}
       size: "{{.Size}}"
-      {{ end }}
+      {{- end }}

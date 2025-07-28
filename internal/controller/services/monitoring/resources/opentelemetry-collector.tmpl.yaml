@@ -10,7 +10,7 @@ spec:
       bearertokenauth:
         filename: "/var/run/secrets/kubernetes.io/serviceaccount/token"
     receivers:
-      {{ if .Metrics }}
+      {{- if .Metrics }}
       prometheus:
         config:
           scrape_configs:
@@ -32,7 +32,7 @@ spec:
               scrape_timeout: 10s
               tls_config:
                 insecure_skip_verify: true
-      {{ end }}
+      {{- end }}
       otlp:
         protocols:
           grpc: {}
@@ -48,13 +48,13 @@ spec:
       resourcedetection:
         detectors: [openshift]
     exporters:
-      {{ if .Metrics }}
+      {{- if .Metrics }}
       prometheus:
         endpoint: 0.0.0.0:8889
         resource_to_telemetry_conversion:
           enabled: true # by default resource attributes are dropped
-      {{ end }}
-      {{ if .Traces }}
+      {{- end }}
+      {{- if .Traces }}
       otlp/tempo:
         endpoint: {{.TempoEndpoint}}
         tls:
@@ -64,21 +64,21 @@ spec:
         headers:
           # must be set to the tenant name from tempo CR
           X-Scope-OrgID: {{.Namespace}}
-      {{ end }}
+      {{- end }}
     service:
       extensions: [bearertokenauth]
-      {{ if or .Traces .Metrics }}
+      {{- if or .Traces .Metrics }}
       pipelines:
-      {{ if .Traces }}
+      {{- if .Traces }}
         traces:
           receivers: [otlp]
           processors: [memory_limiter, k8sattributes, resourcedetection, batch]
           exporters: [otlp/tempo]
-      {{ end }}
-      {{ if .Metrics }}
+      {{- end }}
+      {{- if .Metrics }}
         metrics:
           receivers: [prometheus, otlp]
           processors: [memory_limiter, k8sattributes, resourcedetection, batch]
           exporters: [prometheus]
-      {{ end }}
-      {{ end }}
+      {{- end }}
+      {{- end }}
