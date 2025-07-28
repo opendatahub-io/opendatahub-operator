@@ -15,11 +15,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsci "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -105,7 +105,7 @@ func TestCreateConfigMap(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsciObj))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		rr := &types.ReconciliationRequest{
+		rr := &odhtypes.ReconciliationRequest{
 			Client:   cli,
 			Instance: trustyai,
 			DSCI:     dsciObj,
@@ -146,7 +146,7 @@ func TestCreateConfigMap(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsciObj))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		rr := &types.ReconciliationRequest{
+		rr := &odhtypes.ReconciliationRequest{
 			Client:   cli,
 			Instance: trustyai,
 			DSCI:     dsciObj,
@@ -176,7 +176,7 @@ func TestCreateConfigMap(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsciObj))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		rr := &types.ReconciliationRequest{
+		rr := &odhtypes.ReconciliationRequest{
 			Client:   cli,
 			Instance: trustyai,
 			DSCI:     dsciObj,
@@ -212,7 +212,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, trustyai))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -240,7 +240,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, trustyai))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -267,7 +267,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -297,8 +297,8 @@ func createDSCWithTrustyAI(managementState operatorv1.ManagementState) *dscv1.Da
 	return &dsc
 }
 
-func createDSCI(applicationsNamespace string) *dsci.DSCInitialization {
-	dsciObj := dsci.DSCInitialization{}
+func createDSCI(applicationsNamespace string) *dsciv1.DSCInitialization {
+	dsciObj := dsciv1.DSCInitialization{}
 	dsciObj.SetGroupVersionKind(gvk.DSCInitialization)
 	dsciObj.SetName("test-dsci")
 	dsciObj.Spec.ApplicationsNamespace = applicationsNamespace
