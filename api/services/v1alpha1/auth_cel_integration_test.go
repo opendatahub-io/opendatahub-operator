@@ -275,9 +275,9 @@ func testAuthCELValidationValid(t *testing.T, ctx context.Context, k8sClient cli
 			},
 		},
 		{
-			name: "valid auth with empty arrays",
+			name: "valid auth with empty AllowedGroups only",
 			spec: AuthSpec{
-				AdminGroups:   []string{},
+				AdminGroups:   []string{"valid-admin-group"},
 				AllowedGroups: []string{},
 			},
 		},

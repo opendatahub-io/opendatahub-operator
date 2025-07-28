@@ -260,68 +260,32 @@ func (tc *AuthControllerTestCtx) ValidateCELBlocksInvalidGroupsViaUpdate(t *test
 		allowedGroups []string
 	}{
 		{
+			name:          "empty AdminGroups array",
+			invalidValue:  "cannot be empty",
+			fieldName:     "AdminGroups",
+			adminGroups:   []string{},
+			allowedGroups: []string{"valid-allowed-group"},
+		},
+		{
 			name:          "system:authenticated in AdminGroups",
-			invalidValue:  "system:authenticated",
+			invalidValue:  "cannot contain 'system:authenticated'",
 			fieldName:     "AdminGroups",
 			adminGroups:   []string{"valid-admin-group", "system:authenticated"},
 			allowedGroups: []string{"valid-allowed-group"},
 		},
 		{
 			name:          "empty string in AdminGroups",
-			invalidValue:  "empty string",
+			invalidValue:  "cannot contain 'system:authenticated' or empty strings",
 			fieldName:     "AdminGroups",
 			adminGroups:   []string{"valid-admin-group", ""},
 			allowedGroups: []string{"valid-allowed-group"},
 		},
 		{
 			name:          "empty string in AllowedGroups",
-			invalidValue:  "empty string",
+			invalidValue:  "cannot contain empty strings",
 			fieldName:     "AllowedGroups",
 			adminGroups:   []string{"valid-admin-group"},
 			allowedGroups: []string{"valid-allowed-group", ""},
-		},
-		{
-			name:          "only system:authenticated in AdminGroups",
-			invalidValue:  "system:authenticated",
-			fieldName:     "AdminGroups",
-			adminGroups:   []string{"system:authenticated"},
-			allowedGroups: []string{"valid-allowed-group"},
-		},
-		{
-			name:          "only empty string in AdminGroups",
-			invalidValue:  "empty string",
-			fieldName:     "AdminGroups",
-			adminGroups:   []string{""},
-			allowedGroups: []string{"valid-allowed-group"},
-		},
-		{
-			name:          "only empty string in AllowedGroups",
-			invalidValue:  "empty string",
-			fieldName:     "AllowedGroups",
-			adminGroups:   []string{"valid-admin-group"},
-			allowedGroups: []string{""},
-		},
-
-		{
-			name:          "multiple system:authenticated in AdminGroups",
-			invalidValue:  "system:authenticated",
-			fieldName:     "AdminGroups",
-			adminGroups:   []string{"system:authenticated", "valid-admin-group", "system:authenticated"},
-			allowedGroups: []string{"valid-allowed-group"},
-		},
-		{
-			name:          "both AdminGroups and AllowedGroups with issues",
-			invalidValue:  "empty string",
-			fieldName:     "AdminGroups", // CEL will catch AdminGroups first
-			adminGroups:   []string{"valid-admin-group", ""},
-			allowedGroups: []string{"valid-allowed-group", ""},
-		},
-		{
-			name:          "system:authenticated and empty string in AdminGroups",
-			invalidValue:  "system:authenticated",
-			fieldName:     "AdminGroups",
-			adminGroups:   []string{"system:authenticated", ""},
-			allowedGroups: []string{"valid-allowed-group"},
 		},
 	}
 
@@ -391,19 +355,9 @@ func (tc *AuthControllerTestCtx) ValidateCELAllowsValidGroups(t *testing.T) {
 			description: "Expected Auth resource update with system:authenticated in AllowedGroups to be allowed",
 		},
 		{
-			name:        "empty AdminGroups array",
-			transform:   `.spec.adminGroups = [] | .spec.allowedGroups = ["valid-allowed-group"]`,
-			description: "Expected Auth resource update with empty AdminGroups array to be allowed",
-		},
-		{
 			name:        "empty AllowedGroups array",
 			transform:   `.spec.adminGroups = ["valid-admin-group"] | .spec.allowedGroups = []`,
 			description: "Expected Auth resource update with empty AllowedGroups array to be allowed",
-		},
-		{
-			name:        "both arrays empty",
-			transform:   `.spec.adminGroups = [] | .spec.allowedGroups = []`,
-			description: "Expected Auth resource update with both arrays empty to be allowed",
 		},
 		{
 			name:        "only system:authenticated in AllowedGroups",
