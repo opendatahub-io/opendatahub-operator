@@ -21,13 +21,15 @@ const (
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
-	LegacyComponentName      = "data-science-pipelines-operator"
-	platformVersionParamsKey = "PLATFORMVERSION"
-	fipsEnabledParamsKey     = "FIPSENABLED"
+	LegacyComponentName               = "data-science-pipelines-operator"
+	platformVersionParamsKey          = "PLATFORMVERSION"
+	fipsEnabledParamsKey              = "FIPSENABLED"
+	argoWorkflowsControllersParamsKey = "ARGOWORKFLOWSCONTROLLERS"
 )
 
 var (
 	ErrArgoWorkflowAPINotOwned = odherrors.NewStopError(status.DataSciencePipelinesDoesntOwnArgoCRDMessage)
+	ErrArgoWorkflowCRDMissing  = odherrors.NewStopError(status.DataSciencePipelinesArgoWorkflowsCRDMissingMessage)
 )
 
 var (

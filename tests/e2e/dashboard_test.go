@@ -42,6 +42,14 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
+		{"Validate hardware profile reconcilliation", componentCtx.ValidateHardwareProfileReconciliation},
+		// TODO: Disabled until these tests have been hardened (RHOAIENG-27721)
+		// {"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		// {"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		// {"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		// {"Validate route deletion recovery", componentCtx.ValidateRouteDeletionRecovery},
+		// {"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
@@ -58,7 +66,7 @@ func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testi
 	oldPt := ""
 
 	// Apply new platform type annotation and verify
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.OdhApplication, types.NamespacedName{Name: "jupyter", Namespace: tc.AppsNamespace}),
 		WithMutateFunc(
 			func(obj *unstructured.Unstructured) error {
@@ -99,4 +107,81 @@ func (tc *DashboardTestCtx) ValidateCRDReinstated(t *testing.T) {
 	}
 
 	tc.ValidateCRDsReinstated(t, crds)
+}
+
+func (tc *DashboardTestCtx) ValidateHardwareProfileReconciliation(t *testing.T) {
+	t.Helper()
+
+	testHWPName := "test-hwp-" + xid.New().String()
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DashboardHardwareProfile, types.NamespacedName{Name: testHWPName, Namespace: tc.AppsNamespace}),
+		WithMutateFunc(
+			func(obj *unstructured.Unstructured) error {
+				spec := map[string]any{
+					"displayName": "Test Hardware Profile",
+					"enabled":     true,
+					"description": "Test hardware profile for e2e testing",
+					"nodeSelector": map[string]any{
+						"kubernetes.io/arch": "amd64",
+					},
+					"tolerations": []any{
+						map[string]any{
+							"key":      "test-key",
+							"operator": "Equal",
+							"value":    "test-value",
+							"effect":   "NoSchedule",
+						},
+					},
+				}
+				if err := unstructured.SetNestedMap(obj.Object, spec, "spec"); err != nil {
+					return err
+				}
+				return nil
+			},
+		),
+	)
+
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: testHWPName, Namespace: tc.AppsNamespace}),
+		WithCondition(
+			ContainElement(
+				And(
+					jq.Match(`.metadata.name == "%s"`, testHWPName),
+					jq.Match(`.metadata.annotations."opendatahub.io/migrated-from" == "hardwareprofiles.dashboard.opendatahub.io/%s"`, testHWPName),
+					jq.Match(`.metadata.annotations."opendatahub.io/display-name" == "Test Hardware Profile"`),
+					jq.Match(`.metadata.annotations."opendatahub.io/description" == "Test hardware profile for e2e testing"`),
+					jq.Match(`.metadata.annotations."opendatahub.io/disabled" == "false"`),
+					jq.Match(`.spec.scheduling.node.nodeSelector."kubernetes.io/arch" == "amd64"`),
+					jq.Match(`.spec.scheduling.node.tolerations[0].key == "test-key"`),
+				),
+			),
+		),
+	)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DashboardHardwareProfile, types.NamespacedName{Name: testHWPName, Namespace: tc.AppsNamespace}),
+		WithMutateFunc(
+			func(obj *unstructured.Unstructured) error {
+				resources.SetAnnotation(obj, "test-annotation", "test-value")
+				resources.SetAnnotation(obj, "another-test-annotation", "another-test-value")
+				return nil
+			},
+		),
+	)
+
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: testHWPName, Namespace: tc.AppsNamespace}),
+		WithCondition(
+			ContainElement(
+				And(
+					jq.Match(`.metadata.name == "%s"`, testHWPName),
+					jq.Match(`.metadata.annotations."test-annotation" == "test-value"`),
+					jq.Match(`.metadata.annotations."another-test-annotation" == "another-test-value"`),
+					jq.Match(`.metadata.annotations."opendatahub.io/migrated-from" == "hardwareprofiles.dashboard.opendatahub.io/%s"`, testHWPName),
+					jq.Match(`.metadata.annotations."opendatahub.io/display-name" == "Test Hardware Profile"`),
+				),
+			),
+		),
+	)
 }

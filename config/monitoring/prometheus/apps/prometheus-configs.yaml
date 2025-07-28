@@ -421,7 +421,32 @@ data:
           regex: (.+):(\d+)
           target_label: __address__
           replacement: ${1}:8443
-    
+          
+    - job_name: 'Llama Stack K8s Operator'
+      honor_labels: true
+      metrics_path: /metrics
+      scheme: https
+      tls_config:
+        insecure_skip_verify: true
+      params:
+        module: [http_2xx]
+      authorization:
+        credentials_file: /run/secrets/kubernetes.io/serviceaccount/token
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names:
+              - <odh_application_namespace>
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          regex: ^(llama-stack-k8s-operator-controller-manager-metrics-service)$
+          target_label: kubernetes_name
+          action: keep
+        - source_labels: [__address__]
+          regex: (.+):(\d+)
+          target_label: __address__
+          replacement: ${1}:8443
+
     - job_name: 'RHOAI Metrics'
       honor_labels: true
       scheme: http
@@ -1815,3 +1840,100 @@ data:
             labels:
               severity: warning
               instance: feast-operator-controller-manager
+  llama-stack-k8s-operator-recording.rules: |
+    groups:
+      - name: SLOs - Llama Stack K8s Operator
+        rules:
+        - expr: |
+            absent(up{job="llama-stack-k8s-operator"}) * 0 or vector(1)
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[1d]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate1d
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[1h]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate1h
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[2h]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate2h
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[30m]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate30m
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[3d]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate3d
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[5m]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate5m
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[6h]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate6h
+
+  llama-stack-k8s-operator-alerting.rules: |
+    groups:
+      - name: SLOs-probe_success_llama_stack_k8s_operator
+        rules:
+          - alert: Llama Stack K8s Operator Probe Success Burn Rate
+            annotations:
+              message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Llama-Stack/rhoai-llama-stack-k8s-operator-probe-success-burn-rate.md"
+              summary: Llama Stack K8s Operator Probe Success Burn Rate
+            expr: |
+              sum(probe_success:burnrate5m{instance=~"llama-stack-k8s-operator-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+              and
+              sum(probe_success:burnrate1h{instance=~"llama-stack-k8s-operator-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+            for: 2m
+            labels:
+              severity: warning
+              instance: llama-stack-k8s-operator-controller-manager
+    
+          - alert: Llama Stack K8s Operator Probe Success Burn Rate
+            annotations:
+              message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Llama-Stack/rhoai-llama-stack-k8s-operator-probe-success-burn-rate.md"
+              summary: Llama Stack K8s Operator Probe Success Burn Rate
+            expr: |
+              sum(probe_success:burnrate30m{instance=~"llama-stack-k8s-operator-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+              and
+              sum(probe_success:burnrate6h{instance=~"llama-stack-k8s-operator-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+            for: 15m
+            labels:
+              severity: warning
+              instance: llama-stack-k8s-operator-controller-manager
+    
+          - alert: Llama Stack K8s Operator Probe Success Burn Rate
+            annotations:
+              message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
+              summary: Llama Stack K8s Operator Probe Success Burn Rate
+              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Llama-Stack/rhoai-llama-stack-k8s-operator-probe-success-burn-rate.md"
+            expr: |
+              sum(probe_success:burnrate2h{instance=~"llama-stack-k8s-operator-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+              and
+              sum(probe_success:burnrate1d{instance=~"llama-stack-k8s-operator-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+            for: 1h
+            labels:
+              severity: warning
+              instance: llama-stack-k8s-operator-controller-manager

@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 2.29.0
+VERSION ?= 2.31.0
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -63,7 +63,7 @@ ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 CRD_REF_DOCS_VERSION = 0.1.0
 # Add to tool versions section
-GINKGO_VERSION ?= v2.22.0
+GINKGO_VERSION ?= v2.23.4
 
 
 PLATFORM ?= linux/amd64
@@ -398,7 +398,7 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC=./internal/... ./tests/integration/... ./pkg/...
+TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/...
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
@@ -410,7 +410,20 @@ test: unit-test e2e-test
 
 .PHONY: unit-test
 unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
-	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" ${GINKGO} -r -v --timeout=15m --procs=4 --cover --coverprofile=cover.out $(TEST_SRC)
+	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+    	${GINKGO} -r \
+        		--procs=8 \
+        		--compilers=2 \
+        		--timeout=15m \
+        		--poll-progress-after=30s \
+        		--poll-progress-interval=5s \
+        		--randomize-all \
+        		--randomize-suites \
+        		--fail-fast \
+        		--cover \
+        		--coverprofile=cover.out \
+        		--succinct \
+        		$(TEST_SRC)
 CLEANFILES += cover.out
 
 $(PROMETHEUS_TEST_DIR)/%.rules.yaml: $(PROMETHEUS_TEST_DIR)/%.unit-tests.yaml $(PROMETHEUS_CONFIG_YAML) $(YQ)

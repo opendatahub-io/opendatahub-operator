@@ -7,10 +7,13 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/lib/version"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -157,5 +160,62 @@ func TestPatchOdhDashboardConfig(t *testing.T) {
 		g.Expect(modelServerExists).To(BeTrue(), "Expected 'modelServerSizes' field to be set")
 		g.Expect(modelServerSizes).ToNot(BeEmpty(), "Expected 'modelServerSizes' to have values")
 		g.Expect(modelServerSizes).To(Equal(upgrade.ModelServerSizeData), "Expected 'modelServerSizes' to match expected values")
+	})
+}
+
+func TestCleanupDeprecatedKueueVAPB(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should delete existing ValidatingAdmissionPolicyBinding during upgrade cleanup", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Create a deprecated ValidatingAdmissionPolicyBinding
+		vapb := &admissionregistrationv1.ValidatingAdmissionPolicyBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "kueue-validating-admission-policy-binding",
+			},
+		}
+
+		// Create a DSCI to provide the application namespace
+		dsci := &unstructured.Unstructured{}
+		dsci.SetGroupVersionKind(gvk.DSCInitialization)
+		dsci.SetName("test-dsci")
+		dsci.SetNamespace("test-namespace")
+		err := unstructured.SetNestedField(dsci.Object, "test-app-ns", "spec", "applicationsNamespace")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(vapb, dsci))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Call CleanupExistingResource which should trigger the Kueue VAPB cleanup
+		oldRelease := common.Release{Version: version.OperatorVersion{Version: semver.MustParse("2.28.0")}}
+		err = upgrade.CleanupExistingResource(ctx, cli, cluster.ManagedRhoai, oldRelease)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify that the ValidatingAdmissionPolicyBinding was deleted
+		var deletedVAPB admissionregistrationv1.ValidatingAdmissionPolicyBinding
+		err = cli.Get(ctx, client.ObjectKey{Name: "kueue-validating-admission-policy-binding"}, &deletedVAPB)
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("not found"))
+	})
+
+	t.Run("should handle non-existent ValidatingAdmissionPolicyBinding gracefully during upgrade cleanup", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Create a DSCI to provide the application namespace
+		dsci := &unstructured.Unstructured{}
+		dsci.SetGroupVersionKind(gvk.DSCInitialization)
+		dsci.SetName("test-dsci")
+		dsci.SetNamespace("test-namespace")
+		err := unstructured.SetNestedField(dsci.Object, "test-app-ns", "spec", "applicationsNamespace")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Call CleanupExistingResource when the VAPB doesn't exist
+		oldRelease := common.Release{Version: version.OperatorVersion{Version: semver.MustParse("2.28.0")}}
+		err = upgrade.CleanupExistingResource(ctx, cli, cluster.ManagedRhoai, oldRelease)
+		g.Expect(err).ShouldNot(HaveOccurred())
 	})
 }

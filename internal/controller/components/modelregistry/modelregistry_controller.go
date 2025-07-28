@@ -29,10 +29,8 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/observability"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
@@ -74,33 +72,22 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True)),
 		).
-		// This component adds a ServiceMeshMember resource to the registries
-		// namespaces that may not be known when the controller is started, hence
-		// it should be watched dynamically if SMM CR exists
-		WatchesGVK(gvk.ServiceMeshMember, reconciler.Dynamic(isServiceMeshEnabled)).
-		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(customizeManifests).
 		WithAction(releases.NewAction()).
 		WithAction(configureDependencies).
-		WithAction(template.NewAction(
-			template.WithCache(),
-		)).
+		WithAction(template.NewAction()).
 		WithAction(kustomize.NewAction(
-			kustomize.WithCache(),
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
-		WithAction(observability.NewAction()).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
 		WithAction(deployments.NewAction()).
 		WithAction(updateStatus).
 		// must be the final action
-		WithAction(gc.NewAction(
-			gc.WithUnremovables(gvk.ServiceMeshMember),
-		)).
+		WithAction(gc.NewAction()).
 		// declares the list of additional, controller specific conditions that are
 		// contributing to the controller readiness status
 		WithConditions(conditionTypes...).

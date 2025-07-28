@@ -1,0 +1,102 @@
+name: Build and push operator images on PR update
+on:
+  pull_request_target:
+    types: [ opened, synchronize, reopened ]
+    paths:
+      - 'bundle/**'
+      - 'cmd/**'
+      - 'config/**'
+      - 'Dockerfiles/**'
+      - 'internal/**'
+      - 'pkg/**'
+      - 'cmd/main.go'
+
+permissions: { }
+
+env:
+  IMAGE_TAG_BASE: quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator
+  PR_NUMBER: pr-${{ github.event.number }}
+jobs:
+  get-merge-commit:
+    # runs on every PR update, unless 'run-integration-tests' label is present
+    # done to prevent potentially conflicting image builds between this action and the integration test action
+    if: (!contains(github.event.pull_request.labels.*.name, 'run-integration-tests'))
+    name: Get merge commit
+    uses: ./.github/workflows/get-merge-commit.yaml
+
+  create-catalog-image:
+    name: Build/push catalog image
+    runs-on: ubuntu-latest
+    needs: get-merge-commit
+    if: (!contains(github.event.pull_request.labels.*.name, 'run-integration-tests'))
+    env:
+      IMAGE_BUILDER: podman
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        if: needs.get-merge-commit.outputs.mergedSha
+        with:
+          ref: ${{ needs.get-merge-commit.outputs.mergedSha }}
+
+      - name: Quay.io login
+        uses: redhat-actions/podman-login@v1
+        if: needs.get-merge-commit.outputs.mergedSha
+        env:
+          QUAY_ID: ${{ secrets.QUAY_ID }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        with:
+          registry: quay.io
+          username: ${{ env.QUAY_ID }}
+          password: ${{ env.QUAY_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        if: needs.get-merge-commit.outputs.mergedSha
+        with:
+          go-version-file: go.mod
+
+      - name: Get latest release version
+        if: needs.get-merge-commit.outputs.mergedSha
+        env:
+          OPERATOR_REPOSITORY_NAME: opendatahub-io/opendatahub-operator
+        run: |
+          raw_version_tag=$(curl -s https://api.github.com/repos/${OPERATOR_REPOSITORY_NAME}/releases/latest | jq -r .tag_name)
+
+          if [ -z "$raw_version_tag" ] || [ "$raw_version_tag" == "null" ]; then
+            echo "Failed to retrieve a valid release tag from ${{ env.OPERATOR_REPOSITORY_NAME }}, API call failed. Please re-run the action if possible."
+            exit 1
+          fi
+          echo "Latest ODH version '${raw_version_tag}' obtained successfully."
+
+          version_tag=$raw_version_tag-${{ env.PR_NUMBER }}
+          echo "Proceeding to use version tag '${version_tag}' in the operator and bundle image builds."
+          echo "VERSION_TAG=${version_tag:1}" >> $GITHUB_ENV
+
+      - name: Create operator image
+        if: needs.get-merge-commit.outputs.mergedSha
+        env:
+          IMG: ${{ env.IMAGE_TAG_BASE }}:v${{ env.VERSION_TAG }}
+        run: |
+          echo "version tag: ${{ env.VERSION_TAG }}"
+          make image
+
+      - name: Create bundle image
+        if: needs.get-merge-commit.outputs.mergedSha
+        env:
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ env.VERSION_TAG }}
+          IMG_TAG: v${{ env.VERSION_TAG }}
+          VERSION: ${{ env.VERSION_TAG }}
+        run: |
+          echo "version tag: ${{ env.VERSION_TAG }}"
+          make bundle-build
+          make bundle-push
+
+      - name: Create catalog image
+        if: needs.get-merge-commit.outputs.mergedSha
+        env:
+          CATALOG_IMG: ${{ env.IMAGE_TAG_BASE }}-catalog:${{ env.PR_NUMBER }}
+          BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ env.VERSION_TAG }}
+        run: |
+          echo "version tag: ${{ env.VERSION_TAG }}"
+          make catalog-build 
+          make catalog-push

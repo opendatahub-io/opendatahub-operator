@@ -2,9 +2,9 @@ package gvk
 
 import (
 	configv1 "github.com/openshift/api/config/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -16,6 +16,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
+	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
 
@@ -68,6 +69,12 @@ var (
 		Kind:    "DSCInitialization",
 	}
 
+	HardwareProfile = schema.GroupVersionKind{
+		Group:   hwpv1alpha1.GroupVersion.Group,
+		Version: hwpv1alpha1.GroupVersion.Version,
+		Kind:    "HardwareProfile",
+	}
+
 	FeatureTracker = schema.GroupVersionKind{
 		Group:   featuresv1.GroupVersion.Group,
 		Version: featuresv1.GroupVersion.Version,
@@ -86,10 +93,10 @@ var (
 		Kind:    "Deployment",
 	}
 
-	OpenShiftClusterRole = schema.GroupVersionKind{
-		Group:   "authorization.openshift.io",
-		Version: "v1",
-		Kind:    "ClusterRole",
+	Group = schema.GroupVersionKind{
+		Group:   rbacv1.SchemeGroupVersion.Group,
+		Version: rbacv1.SchemeGroupVersion.Version,
+		Kind:    "Group",
 	}
 
 	ClusterRole = schema.GroupVersionKind{
@@ -116,6 +123,12 @@ var (
 		Kind:    "RoleBinding",
 	}
 
+	ServiceAccount = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "ServiceAccount",
+	}
+
 	Secret = schema.GroupVersionKind{
 		Group:   corev1.SchemeGroupVersion.Group,
 		Version: corev1.SchemeGroupVersion.Version,
@@ -126,6 +139,18 @@ var (
 		Group:   corev1.SchemeGroupVersion.Group,
 		Version: corev1.SchemeGroupVersion.Version,
 		Kind:    "ConfigMap",
+	}
+
+	Service = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "Service",
+	}
+
+	Route = schema.GroupVersionKind{
+		Group:   routev1.SchemeGroupVersion.Group,
+		Version: routev1.SchemeGroupVersion.Version,
+		Kind:    "Route",
 	}
 
 	KnativeServing = schema.GroupVersionKind{
@@ -162,6 +187,12 @@ var (
 		Group:   "dashboard.opendatahub.io",
 		Version: "v1",
 		Kind:    "AcceleratorProfile",
+	}
+
+	DashboardHardwareProfile = schema.GroupVersionKind{
+		Group:   "dashboard.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "HardwareProfile",
 	}
 
 	OdhQuickStart = schema.GroupVersionKind{
@@ -314,18 +345,6 @@ var (
 		Kind:    serviceApi.AuthKind,
 	}
 
-	ValidatingAdmissionPolicy = schema.GroupVersionKind{
-		Group:   admissionregistrationv1.SchemeGroupVersion.Group,
-		Version: admissionregistrationv1.SchemeGroupVersion.Version,
-		Kind:    "ValidatingAdmissionPolicy",
-	}
-
-	ValidatingAdmissionPolicyBinding = schema.GroupVersionKind{
-		Group:   admissionregistrationv1.SchemeGroupVersion.Group,
-		Version: admissionregistrationv1.SchemeGroupVersion.Version,
-		Kind:    "ValidatingAdmissionPolicyBinding",
-	}
-
 	MultiKueueConfigV1Alpha1 = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1alpha1",
@@ -338,10 +357,34 @@ var (
 		Kind:    "MultiKueueCluster",
 	}
 
+	KueueConfigV1 = schema.GroupVersionKind{
+		Group:   "kueue.openshift.io",
+		Version: "v1",
+		Kind:    "Kueue",
+	}
+
+	LocalQueue = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta1",
+		Kind:    "LocalQueue",
+	}
+
+	ClusterQueue = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta1",
+		Kind:    "ClusterQueue",
+	}
+
 	InferenceServices = schema.GroupVersionKind{
 		Group:   "serving.kserve.io",
 		Version: "v1beta1",
 		Kind:    "InferenceService",
+	}
+
+	Notebook = schema.GroupVersionKind{
+		Group:   "kubeflow.org",
+		Version: "v1",
+		Kind:    "Notebook",
 	}
 
 	OperatorCondition = schema.GroupVersionKind{
@@ -354,5 +397,53 @@ var (
 		Group:   networkingv1.SchemeGroupVersion.Group,
 		Version: networkingv1.SchemeGroupVersion.Version,
 		Kind:    "NetworkPolicy",
+	}
+
+	MonitoringStack = schema.GroupVersionKind{
+		Group:   "monitoring.rhobs",
+		Version: "v1alpha1",
+		Kind:    "MonitoringStack",
+	}
+
+	PyTorchJob = schema.GroupVersionKind{
+		Group:   "kubeflow.org",
+		Version: "v1",
+		Kind:    "PyTorchJob",
+	}
+
+	RayJob = schema.GroupVersionKind{
+		Group:   "ray.io",
+		Version: "v1alpha1",
+		Kind:    "RayJob",
+	}
+
+	RayCluster = schema.GroupVersionKind{
+		Group:   "ray.io",
+		Version: "v1alpha1",
+		Kind:    "RayCluster",
+	}
+
+	TempoMonolithic = schema.GroupVersionKind{
+		Group:   "tempo.grafana.com",
+		Version: "v1alpha1",
+		Kind:    "TempoMonolithic",
+	}
+
+	TempoStack = schema.GroupVersionKind{
+		Group:   "tempo.grafana.com",
+		Version: "v1alpha1",
+		Kind:    "TempoStack",
+	}
+
+	OpenTelemetryCollector = schema.GroupVersionKind{
+		Group:   "opentelemetry.io",
+		Version: "v1beta1",
+		Kind:    "OpenTelemetryCollector",
+	}
+
+	Instrumentation = schema.GroupVersionKind{
+		Group:   "opentelemetry.io",
+		Version: "v1alpha1",
+		Kind:    "Instrumentation",
 	}
 )

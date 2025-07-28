@@ -72,6 +72,7 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate serving enabled", componentCtx.ValidateServingEnabled},
 		{"Validate component spec", componentCtx.ValidateSpec},
 		{"Validate component conditions", componentCtx.ValidateConditions},
+		{"Validate KnativeServing resource exists and is recreated upon deletion", componentCtx.ValidateKnativeServing},
 		{"Validate model controller", componentCtx.ValidateModelControllerInstance},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate no FeatureTracker OwnerReferences", componentCtx.ValidateNoFeatureTrackerOwnerReferences},
@@ -81,6 +82,12 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate serving transition to Unmanaged", componentCtx.ValidateServingTransitionToUnmanaged},
 		{"Validate serving transition to Removed", componentCtx.ValidateServingTransitionToRemoved},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		// TODO: Disabled until these tests have been hardened (RHOAIENG-27721)
+		// {"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		// {"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		// {"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		// {"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
@@ -105,7 +112,7 @@ func (tc *KserveTestCtx) ValidateServingEnabled(t *testing.T) {
 	t.Helper()
 
 	// Ensure the DataScienceCluster exists and the component's conditions are met
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
 			testf.TransformPipeline(
@@ -147,6 +154,30 @@ func (tc *KserveTestCtx) ValidateConditions(t *testing.T) {
 		gvk.Kserve,
 		componentApi.KserveInstanceName,
 		status.ConditionServingAvailable,
+	)
+}
+
+// ValidateKnativeServing ensures that the KnativeServing resource exists and is recreated upon deletion.
+func (tc *KserveTestCtx) ValidateKnativeServing(t *testing.T) {
+	t.Helper()
+
+	// Retrieve the DataScienceCluster instance.
+	dsc := tc.FetchDataScienceCluster()
+
+	// Check KnativeServing was created.
+	managedKnativeServing := types.NamespacedName{Name: dsc.Spec.Components.Kserve.Serving.Name, Namespace: knativeServingNamespace}
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
+	)
+
+	// Delete it.
+	tc.DeleteResource(
+		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
+	)
+
+	// Check eventually got recreated.
+	tc.EnsureResourceExistsConsistently(
+		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
 	)
 }
 
@@ -277,7 +308,7 @@ func (tc *KserveTestCtx) createDummyFeatureTrackers() {
 		ft := &featuresv1.FeatureTracker{}
 		ft.SetName(name)
 
-		tc.EnsureResourceCreatedOrUpdated(
+		tc.EventuallyResourceCreatedOrUpdated(
 			WithMinimalObject(gvk.FeatureTracker, types.NamespacedName{Name: name}),
 			WithMutateFunc(func(obj *unstructured.Unstructured) error {
 				if err := controllerutil.SetOwnerReference(dsc, obj, tc.Client().Scheme()); err != nil {
@@ -326,7 +357,7 @@ func (tc *KserveTestCtx) cleanExistingKnativeServing(t *testing.T) {
 
 // updateKserveDeploymentAndServingState updates the Kserve deployment mode and serving state.
 func (tc *KserveTestCtx) updateKserveDeploymentAndServingState(mode componentApi.DefaultDeploymentMode, state operatorv1.ManagementState) {
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
 			testf.TransformPipeline(
@@ -342,7 +373,7 @@ func (tc *KserveTestCtx) updateKserveDeploymentAndServingState(mode componentApi
 
 // updateKserveServingState updates the state of the serving component in Kserve.
 func (tc *KserveTestCtx) updateKserveServingState(state operatorv1.ManagementState) {
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), state)),
 		WithCustomErrorMsg("Updating serving managementState"),

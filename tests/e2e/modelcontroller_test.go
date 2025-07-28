@@ -41,6 +41,12 @@ func modelControllerTestSuite(t *testing.T) {
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
+		// TODO: Disabled until these tests have been hardened (RHOAIENG-27721)
+		// {"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		// {"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		// {"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		// {"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
@@ -98,7 +104,7 @@ func (tc *ModelControllerTestCtx) ValidateComponentDeployed(
 	status metav1.ConditionStatus,
 ) {
 	// Ensure the components are updated with the correct states in DataScienceCluster.
-	tc.EnsureResourceCreatedOrUpdated(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
 			testf.TransformPipeline(

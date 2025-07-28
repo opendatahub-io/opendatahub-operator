@@ -18,12 +18,13 @@ package v1alpha1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
 	MonitoringServiceName = "monitoring"
-	// MonitoringInstanceName the name of the Dashboard instance singleton.
+	// MonitoringInstanceName the name of the Monitoring instance singleton.
 	// value should match whats set in the XValidation below
 	MonitoringInstanceName = "default-monitoring"
 	MonitoringKind         = "Monitoring"
@@ -39,11 +40,77 @@ type MonitoringSpec struct {
 	// monitoring spec exposed only to internal api
 }
 
+// Metrics defines the desired state of metrics for the monitoring service
+// +kubebuilder:validation:XValidation:rule="!(self.storage == null && self.resources == null) || !has(self.replicas) || self.replicas == 0",message="Replicas can only be set to non-zero value when either Storage or Resources is configured"
+type Metrics struct {
+	Storage   *MetricsStorage   `json:"storage,omitempty"`
+	Resources *MetricsResources `json:"resources,omitempty"`
+	// Replicas specifies the number of replicas in monitoringstack, default is 2 if not set
+	Replicas int32 `json:"replicas,omitempty"`
+}
+
+// MetricsStorage defines the storage configuration for the monitoring service
+type MetricsStorage struct {
+	// Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi")
+	// +kubebuilder:default="5Gi"
+	Size resource.Quantity `json:"size,omitempty"`
+	// Retention specifies how long metrics data should be retained (e.g., "1d", "2w")
+	// +kubebuilder:default="1d"
+	Retention string `json:"retention,omitempty"`
+}
+
+// MetricsResources defines the resource requests and limits for the monitoring service
+type MetricsResources struct {
+	// CPULimit specifies the maximum CPU allocation (e.g., "500m", "2")
+	// +kubebuilder:default="500m"
+	CPULimit resource.Quantity `json:"cpulimit,omitempty"`
+	// MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi")
+	// +kubebuilder:default="512Mi"
+	MemoryLimit resource.Quantity `json:"memorylimit,omitempty"`
+	// CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5")
+	// +kubebuilder:default="100m"
+	CPURequest resource.Quantity `json:"cpurequest,omitempty"`
+	// MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi")
+	// +kubebuilder:default="256Mi"
+	MemoryRequest resource.Quantity `json:"memoryrequest,omitempty"`
+}
+
 // MonitoringStatus defines the observed state of Monitoring
 type MonitoringStatus struct {
 	common.Status `json:",inline"`
 
 	URL string `json:"url,omitempty"`
+}
+
+// Traces enables and defines the configuration for traces collection
+type Traces struct {
+	Storage TracesStorage `json:"storage"`
+	// SampleRatio determines the sampling rate for traces
+	// Value should be between 0.0 (no sampling) and 1.0 (sample all traces)
+	// +kubebuilder:default="0.1"
+	// +kubebuilder:validation:Pattern="^(0(\\.[0-9]+)?|1(\\.0+)?)$"
+	SampleRatio string `json:"sampleRatio,omitempty"`
+}
+
+// TracesStorage defines the storage configuration for tracing.
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? has(self.secret) : true",message="When backend is not 'pv', the 'secret' field must be specified and non-empty"
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? !has(self.size) : true",message="Size is not supported when backend is not 'pv'"
+type TracesStorage struct {
+	// Backend defines the storage backend type.
+	// Valid values are "pv", "s3", and "gcs".
+	// +kubebuilder:validation:Enum="pv";"s3";"gcs"
+	// +kubebuilder:default:="pv"
+	Backend string `json:"backend"`
+
+	// Size specifies the size of the storage.
+	// This field is optional.
+	// +optional
+	Size string `json:"size,omitempty"`
+
+	// Secret specifies the secret name for storage credentials.
+	// This field is required when the backend is not "pv".
+	// +optional
+	Secret string `json:"secret,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -72,6 +139,11 @@ type MonitoringCommonSpec struct {
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="MonitoringNamespace is immutable"
 	Namespace string `json:"namespace,omitempty"`
+	// metrics collection
+	Metrics *Metrics `json:"metrics,omitempty"`
+
+	// Tracing configuration for OpenTelemetry instrumentation
+	Traces *Traces `json:"traces,omitempty"`
 }
 
 //+kubebuilder:object:root=true

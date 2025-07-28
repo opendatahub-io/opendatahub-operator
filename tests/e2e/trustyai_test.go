@@ -41,6 +41,12 @@ func trustyAITestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate pre check", componentCtx.ValidateTrustyAIPreCheck},
+		// TODO: Disabled until these tests have been hardened (RHOAIENG-27721)
+		// {"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		// {"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		// {"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		// {"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
@@ -94,7 +100,7 @@ func (tc *TrustyAITestCtx) SetKserveState(state operatorv1.ManagementState, shou
 	nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
 
 	// Update the Kserve component state in DataScienceCluster.
-	tc.UpdateComponentStateInDataScienceCluster(state, gvk.Kserve.Kind)
+	tc.UpdateComponentStateInDataScienceClusterWhitKind(state, gvk.Kserve.Kind)
 
 	// Verify if Kserve should exist or be removed.
 	if shouldExist {

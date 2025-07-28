@@ -4,6 +4,7 @@
 - [components.platform.opendatahub.io/v1alpha1](#componentsplatformopendatahubiov1alpha1)
 - [datasciencecluster.opendatahub.io/v1](#datascienceclusteropendatahubiov1)
 - [dscinitialization.opendatahub.io/v1](#dscinitializationopendatahubiov1)
+- [infrastructure.opendatahub.io/v1alpha1](#infrastructureopendatahubiov1alpha1)
 - [services.platform.opendatahub.io/v1alpha1](#servicesplatformopendatahubiov1alpha1)
 
 
@@ -41,6 +42,24 @@ Package v1 contains API Schema definitions for the components v1 API group
 - [Workbenches](#workbenches)
 - [WorkbenchesList](#workbencheslist)
 
+
+
+#### ArgoWorkflowsControllersSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCDataSciencePipelines](#dscdatasciencepipelines)
+- [DataSciencePipelinesCommonSpec](#datasciencepipelinescommonspec)
+- [DataSciencePipelinesSpec](#datasciencepipelinesspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the bundled Argo Workflows controllers.<br />              It will only upgrade the Argo Workflows controllers if it is safe to do so. This is the default<br />              behavior.<br /><br />- "Removed" : the operator is not managing the bundled Argo Workflows controllers and will not install it.<br />              If it is installed, the operator will remove it but will not remove other Argo Workflows<br />              installations. | Managed | Enum: [Managed Removed] <br /> |
 
 
 #### CodeFlare
@@ -235,6 +254,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `argoWorkflowsControllers` _[ArgoWorkflowsControllersSpec](#argoworkflowscontrollersspec)_ |  |  |  |
 
 
 #### DSCDataSciencePipelinesStatus
@@ -336,8 +356,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
 
 
 #### DSCKueueStatus
@@ -353,7 +375,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
 
 
 #### DSCLlamaStackOperator
@@ -737,6 +759,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `argoWorkflowsControllers` _[ArgoWorkflowsControllersSpec](#argoworkflowscontrollersspec)_ |  |  |  |
 
 
 #### DataSciencePipelinesCommonStatus
@@ -790,6 +813,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `argoWorkflowsControllers` _[ArgoWorkflowsControllersSpec](#argoworkflowscontrollersspec)_ |  |  |  |
 
 
 #### DataSciencePipelinesStatus
@@ -1121,6 +1145,24 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
+#### KueueDefaultQueueSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCKueue](#dsckueue)
+- [KueueSpec](#kueuespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
+
+
 #### KueueList
 
 
@@ -1141,6 +1183,24 @@ KueueList contains a list of Kueue
 | `items` _[Kueue](#kueue) array_ |  |  |  |
 
 
+#### KueueManagementSpec
+
+
+
+KueueManagementSpec struct defines the component's management configuration.
+
+
+
+_Appears in:_
+- [DSCKueue](#dsckueue)
+- [DSCKueueStatus](#dsckueuestatus)
+- [KueueSpec](#kueuespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+
+
 #### KueueSpec
 
 
@@ -1154,7 +1214,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
 
 
 #### KueueStatus
@@ -2505,6 +2568,181 @@ _Appears in:_
 
 
 
+## infrastructure.opendatahub.io/v1alpha1
+
+Package v1alpha1 contains API Schema definitions for the infrastructure v1alpha1 API group.
+
+### Resource Types
+- [HardwareProfile](#hardwareprofile)
+- [HardwareProfileList](#hardwareprofilelist)
+
+
+
+#### HardwareIdentifier
+
+
+
+
+
+
+
+_Appears in:_
+- [HardwareProfileSpec](#hardwareprofilespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `displayName` _string_ | The display name of identifier. |  |  |
+| `identifier` _string_ | The resource identifier of the hardware device. |  |  |
+| `minCount` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#intorstring-intstr-util)_ | The minimum count can be an integer or a string. |  |  |
+| `maxCount` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#intorstring-intstr-util)_ | The maximum count can be an integer or a string. |  |  |
+| `defaultCount` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#intorstring-intstr-util)_ | The default count can be an integer or a string. |  |  |
+| `resourceType` _string_ | The type of identifier. could be "CPU", "Memory", or "Accelerator". Leave it undefined for the other types. |  | Enum: [CPU Memory Accelerator] <br /> |
+
+
+#### HardwareProfile
+
+
+
+HardwareProfile is the Schema for the hardwareprofiles API.
+
+
+
+_Appears in:_
+- [HardwareProfileList](#hardwareprofilelist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `infrastructure.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `HardwareProfile` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[HardwareProfileSpec](#hardwareprofilespec)_ |  |  |  |
+| `status` _[HardwareProfileStatus](#hardwareprofilestatus)_ |  |  |  |
+
+
+#### HardwareProfileList
+
+
+
+HardwareProfileList contains a list of HardwareProfile.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `infrastructure.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `HardwareProfileList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[HardwareProfile](#hardwareprofile) array_ |  |  |  |
+
+
+#### HardwareProfileSpec
+
+
+
+HardwareProfileSpec defines the desired state of HardwareProfile.
+
+
+
+_Appears in:_
+- [HardwareProfile](#hardwareprofile)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `identifiers` _[HardwareIdentifier](#hardwareidentifier) array_ | The array of identifiers |  |  |
+| `scheduling` _[SchedulingSpec](#schedulingspec)_ | SchedulingSpec specifies how workloads using this hardware profile should be scheduled. |  |  |
+
+
+#### HardwareProfileStatus
+
+
+
+HardwareProfileStatus defines the observed state of HardwareProfile.
+
+
+
+_Appears in:_
+- [HardwareProfile](#hardwareprofile)
+
+
+
+#### KueueSchedulingSpec
+
+
+
+KueueSchedulingSpec defines queue-based scheduling configuration.
+
+
+
+_Appears in:_
+- [SchedulingSpec](#schedulingspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `localQueueName` _string_ | LocalQueueName specifies the name of the local queue to use for workload scheduling.<br />When specified, workloads using this hardware profile will be submitted to the<br />specified queue and the queue's configuration will determine the actual node<br />placement and tolerations. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `priorityClass` _string_ | PriorityClass specifies the name of the WorkloadPriorityClass associated with the HardwareProfile. |  |  |
+
+
+#### NodeSchedulingSpec
+
+
+
+NodeSchedulingSpec defines direct node scheduling configuration.
+
+
+
+_Appears in:_
+- [SchedulingSpec](#schedulingspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `nodeSelector` _object (keys:string, values:string)_ | NodeSelector specifies the node selector to use for direct node scheduling.<br />Workloads will be scheduled only on nodes that match all the specified labels. |  |  |
+| `tolerations` _[Toleration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#toleration-v1-core) array_ | Tolerations specifies the tolerations to apply to workloads for direct node scheduling.<br />These tolerations allow workloads to be scheduled on nodes with matching taints. |  |  |
+
+
+#### SchedulingSpec
+
+
+
+SchedulingSpec allows for specifying either kueue-based scheduling or direct node scheduling.
+CEL Rule 1: If schedulingType is "Queue", the 'kueue' field (with a non-empty localQueueName) must be set, and the 'node' field must not be set.
+CEL Rule 2: If schedulingType is "Node", the 'node' field must be set, and the 'kueue' field must not be set.
+
+
+
+_Appears in:_
+- [HardwareProfileSpec](#hardwareprofilespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _[SchedulingType](#schedulingtype)_ | SchedulingType is the scheduling method discriminator.<br />Users must set this value to indicate which scheduling method to use.<br />The value of this field should match exactly one configured scheduling method.<br />Valid values are "Queue" and "Node". |  | Enum: [Queue Node] <br />Required: \{\} <br /> |
+| `kueue` _[KueueSchedulingSpec](#kueueschedulingspec)_ | Kueue specifies queue-based scheduling configuration.<br />This field is only valid when schedulingType is "Queue". |  |  |
+| `node` _[NodeSchedulingSpec](#nodeschedulingspec)_ | node specifies direct node scheduling configuration.<br />This field is only valid when schedulingType is "Node". |  |  |
+
+
+#### SchedulingType
+
+_Underlying type:_ _string_
+
+SchedulingType defines the scheduling method for the hardware profile.
+
+
+
+_Appears in:_
+- [SchedulingSpec](#schedulingspec)
+
+| Field | Description |
+| --- | --- |
+| `Queue` | QueueScheduling indicates that workloads should be scheduled through a queue.<br /> |
+| `Node` | NodeScheduling indicates that workloads should be scheduled directly to nodes.<br /> |
+
+
+
 ## services.platform.opendatahub.io/v1alpha1
 
 Package v1 contains API Schema definitions for the services v1 API group
@@ -2609,6 +2847,64 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
+| `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
+
+
+#### Metrics
+
+
+
+Metrics defines the desired state of metrics for the monitoring service
+
+
+
+_Appears in:_
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
+- [MonitoringSpec](#monitoringspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `storage` _[MetricsStorage](#metricsstorage)_ |  |  |  |
+| `resources` _[MetricsResources](#metricsresources)_ |  |  |  |
+| `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack, default is 2 if not set |  |  |
+
+
+#### MetricsResources
+
+
+
+MetricsResources defines the resource requests and limits for the monitoring service
+
+
+
+_Appears in:_
+- [Metrics](#metrics)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `cpulimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPULimit specifies the maximum CPU allocation (e.g., "500m", "2") | 500m |  |
+| `memorylimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi") | 512Mi |  |
+| `cpurequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5") | 100m |  |
+| `memoryrequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi") | 256Mi |  |
+
+
+#### MetricsStorage
+
+
+
+MetricsStorage defines the storage configuration for the monitoring service
+
+
+
+_Appears in:_
+- [Metrics](#metrics)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `size` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi") | 5Gi |  |
+| `retention` _string_ | Retention specifies how long metrics data should be retained (e.g., "1d", "2w") | 1d |  |
 
 
 #### Monitoring
@@ -2648,6 +2944,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
+| `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 
 
 #### MonitoringList
@@ -2684,6 +2982,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
+| `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 
 
 #### MonitoringStatus
@@ -2703,5 +3003,42 @@ _Appears in:_
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `url` _string_ |  |  |  |
+
+
+#### Traces
+
+
+
+Traces enables and defines the configuration for traces collection
+
+
+
+_Appears in:_
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
+- [MonitoringSpec](#monitoringspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `storage` _[TracesStorage](#tracesstorage)_ |  |  |  |
+| `sampleRatio` _string_ | SampleRatio determines the sampling rate for traces<br />Value should be between 0.0 (no sampling) and 1.0 (sample all traces) | 0.1 | Pattern: `^(0(\.[0-9]+)?\|1(\.0+)?)$` <br /> |
+
+
+#### TracesStorage
+
+
+
+TracesStorage defines the storage configuration for tracing.
+
+
+
+_Appears in:_
+- [Traces](#traces)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `backend` _string_ | Backend defines the storage backend type.<br />Valid values are "pv", "s3", and "gcs". | pv | Enum: [pv s3 gcs] <br /> |
+| `size` _string_ | Size specifies the size of the storage.<br />This field is optional. |  |  |
+| `secret` _string_ | Secret specifies the secret name for storage credentials.<br />This field is required when the backend is not "pv". |  |  |
 
 

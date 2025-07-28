@@ -8,6 +8,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 )
 
@@ -31,13 +32,14 @@ func (h *serviceHandler) GetName() string {
 	return ServiceName
 }
 
-func (h *serviceHandler) GetManagementState(_ common.Platform) operatorv1.ManagementState {
+func (h *serviceHandler) GetManagementState(_ common.Platform, _ *dsciv1.DSCInitialization) operatorv1.ManagementState {
 	return operatorv1.Managed
 }
 
 func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	rec := &ServiceMeshReconciler{
-		Client: mgr.GetClient(),
+		Client:   mgr.GetClient(),
+		Recorder: mgr.GetEventRecorderFor("servicemesh-controller"),
 	}
 
 	if err := rec.SetupWithManager(ctx, mgr); err != nil {

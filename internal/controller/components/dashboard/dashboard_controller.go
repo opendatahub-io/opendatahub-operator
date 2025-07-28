@@ -27,12 +27,14 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/observability"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
@@ -87,12 +89,17 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.Dynamic(),
 			reconciler.WithPredicates(resources.Deleted()),
 		).
+		WatchesGVK(gvk.DashboardHardwareProfile, reconciler.WithEventHandler(
+			handlers.ToNamed(componentApi.DashboardInstanceName),
+		), reconciler.WithPredicates(predicate.Funcs{
+			GenericFunc: func(tge event.TypedGenericEvent[client.Object]) bool { return false },
+			DeleteFunc:  func(tde event.TypedDeleteEvent[client.Object]) bool { return false },
+		}), reconciler.Dynamic()).
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(setKustomizedParams).
 		WithAction(configureDependencies).
 		WithAction(kustomize.NewAction(
-			kustomize.WithCache(),
 			// Those are the default labels added by the legacy deploy method
 			// and should be preserved as the original plugin were affecting
 			// deployment selectors that are immutable once created, so it won't
@@ -104,12 +111,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
-		WithAction(observability.NewAction()).
 		WithAction(customizeResources).
-		WithAction(deploy.NewAction(
-			deploy.WithCache(),
-		)).
+		WithAction(deploy.NewAction()).
 		WithAction(deployments.NewAction()).
+		WithAction(reconcileHardwareProfiles).
 		WithAction(updateStatus).
 		// must be the final action
 		WithAction(gc.NewAction(

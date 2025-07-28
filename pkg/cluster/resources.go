@@ -91,7 +91,7 @@ func GetSingleton[T client.Object](ctx context.Context, cli client.Client, obj T
 }
 
 // GetDSC retrieves the DataScienceCluster (DSC) instance from the Kubernetes cluster.
-func GetDSC(ctx context.Context, cli client.Client) (*dscv1.DataScienceCluster, error) {
+func GetDSC(ctx context.Context, cli client.Reader) (*dscv1.DataScienceCluster, error) {
 	instances := dscv1.DataScienceClusterList{}
 	if err := cli.List(ctx, &instances); err != nil {
 		return nil, fmt.Errorf("failed to list resources of type %s: %w", gvk.DataScienceCluster, err)

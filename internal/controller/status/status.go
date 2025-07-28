@@ -92,14 +92,18 @@ const (
 	ConditionTypeReconcileComplete = "ReconcileComplete"
 
 	// Component-specific condition types.
-	ConditionTypeProvisioningSucceeded     = "ProvisioningSucceeded"
-	ConditionDeploymentsNotAvailableReason = "DeploymentsNotReady"
-	ConditionDeploymentsAvailable          = "DeploymentsAvailable"
-	ConditionServerlessAvailable           = "ServerlessAvailable"
-	ConditionServiceMeshAvailable          = "ServiceMeshAvailable"
-	ConditionArgoWorkflowAvailable         = "ArgoWorkflowAvailable"
-	ConditionTypeComponentsReady           = "ComponentsReady"
-	ConditionServingAvailable              = "ServingAvailable"
+	ConditionTypeProvisioningSucceeded       = "ProvisioningSucceeded"
+	ConditionDeploymentsNotAvailableReason   = "DeploymentsNotReady"
+	ConditionDeploymentsAvailable            = "DeploymentsAvailable"
+	ConditionServerlessAvailable             = "ServerlessAvailable"
+	ConditionServiceMeshAvailable            = "ServiceMeshAvailable"
+	ConditionArgoWorkflowAvailable           = "ArgoWorkflowAvailable"
+	ConditionTypeComponentsReady             = "ComponentsReady"
+	ConditionServingAvailable                = "ServingAvailable"
+	ConditionMonitoringStackAvailable        = "MonitoringStackAvailable"
+	ConditionTempoAvailable                  = "TempoAvailable"
+	ConditionOpenTelemetryCollectorAvailable = "OpenTelemetryCollectorCRDAvailable"
+	ConditionInstrumentationAvailable        = "InstrumentationAvailable"
 )
 
 const (
@@ -131,8 +135,10 @@ const (
 
 const (
 	ServiceMeshNotConfiguredReason   = "ServiceMeshNotConfigured"
+	ServiceMeshNotReadyReason        = "ServiceMeshNotReady"
 	ServiceMeshNeedConfiguredMessage = "ServiceMesh needs to be set to 'Managed' in DSCI CR"
 	ServiceMeshNotConfiguredMessage  = "ServiceMesh is not configured in DSCI CR"
+	ServiceMeshNotReadyMessage       = "ServiceMesh is not ready"
 
 	ServiceMeshOperatorNotInstalledReason  = "ServiceMeshOperatorNotInstalled"
 	ServiceMeshOperatorNotInstalledMessage = "ServiceMesh operator must be installed for this component's configuration"
@@ -144,22 +150,50 @@ const (
 )
 
 const (
-	DataSciencePipelinesDoesntOwnArgoCRDReason = "DataSciencePipelinesDoesntOwnArgoCRD"
+	DataSciencePipelinesDoesntOwnArgoCRDReason        = "DataSciencePipelinesDoesntOwnArgoCRD"
+	DataSciencePipelinesArgoWorkflowsNotManagedReason = "DataSciencePipelinesArgoWorkflowsNotManaged"
+	DataSciencePipelinesArgoWorkflowsCRDMissingReason = "DataSciencePipelinesArgoWorkflowsCRDMissing"
 
 	DataSciencePipelinesDoesntOwnArgoCRDMessage = "Failed upgrade: workflows.argoproj.io CRD already exists but not deployed by this operator " +
 		"remove existing Argo workflows or set `spec.components.datasciencepipelines.managementState` to Removed to proceed"
+	DataSciencePipelinesArgoWorkflowsNotManagedMessage = "Argo Workflows controllers are not managed by this operator"
+	DataSciencePipelinesArgoWorkflowsCRDMissingMessage = "Argo Workflows controllers are not managed by this operator, but the CRD is missing"
 )
 
 // For Kueue MultiKueue CRD.
 const (
 	MultiKueueCRDReason  = "MultiKueueCRDV1Alpha1Exist"
-	MultiKueueCRDMessage = "MultiKueue CRDs MultiKueueConfig v1alpha1 and MultiKueueCluster v1Alpha1 exist, please remove them to proceed"
+	MultiKueueCRDMessage = "Kueue CRDs MultiKueueConfig v1alpha1 and/or MultiKueueCluster v1alpha1 exist, please remove them to proceed"
+
+	KueueOperatorAlreadyInstalleReason   = "KueueOperatorAlreadyInstalled"
+	KueueOperatorAlreadyInstalledMessage = "Kueue operator already installed, uninstall it or change kueue component state to Unmanaged"
+	KueueOperatorNotInstalleReason       = "KueueOperatorNotInstalleReason"
+	KueueOperatorNotInstalledMessage     = "Kueue operator not installed, install it or change kueue component state to Managed"
 )
 
 // For TrustyAI require ISVC CRD.
 const (
 	ISVCMissingCRDReason  = "InferenceServiceCRDMissing"
 	ISVCMissingCRDMessage = "InferenceServices CRD does not exist, please enable serving component first"
+)
+
+// For Monitoring service missing operators.
+const (
+	MonitoringStackOperatorMissingReason      = "ClusterObservabilityOperatorMissing"
+	MonitoringStackOperatorMissingMessage     = "ClusterObservability operator must be installed for metrics configuration"
+	TempoOperatorMissingReason                = "TempoOperatorMissing"
+	TempoOperatorMissingMessage               = "Tempo operator must be installed for traces configuration"
+	OpenTelemetryCollectorCRDNotFoundReason   = "OpenTelemetryCollector CRD Not Found"
+	OpenTelemetryCollectorCRDNotFoundMessage  = "OpenTelemetryCollector CRD not found. Dependent operator missing."
+	OpenTelemetryCollectorCRDAvailableReason  = "OpenTelemetryCollector CRD Found"
+	OpenTelemetryCollectorCRDAvailableMessage = "OpenTelemetryCollector CRD found"
+	InstrumentationCRDNotFoundReason          = "Instrumentation CRD Not Found"
+	InstrumentationCRDNotFoundMessage         = "Instrumentation CRD not found. OpenTelemetry operator missing."
+
+	MetricsNotConfiguredReason  = "MetricsNotConfigured"
+	MetricsNotConfiguredMessage = "Metrics not configured in DSCI CR"
+	TracesNotConfiguredReason   = "TracesNotConfigured"
+	TracesNotConfiguredMessage  = "Traces not configured in DSCI CR"
 )
 
 // setConditions is a helper function to set multiple conditions at once.

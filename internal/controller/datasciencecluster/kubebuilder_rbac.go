@@ -91,11 +91,6 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="cert-manager.io",resources=certificates;issuers,verbs=create;patch
 
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=roles,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=rolebindings,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterroles,verbs=*
-// +kubebuilder:rbac:groups="authorization.openshift.io",resources=clusterrolebindings,verbs=*
-
 // +kubebuilder:rbac:groups="apps",resources=replicasets,verbs=*
 // +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
 
@@ -139,6 +134,7 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhdocuments,verbs=create;get;patch;list;delete;watch;update
 // +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhapplications,verbs=create;get;patch;list;delete;watch;update
 // +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=acceleratorprofiles,verbs=create;get;patch;list;delete;watch;update
+// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=hardwareprofiles,verbs=get;list;watch;update
 
 // ModelRegistry
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelregistries,verbs=get;list;watch;create;update;patch;delete
@@ -157,6 +153,12 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=podmonitors,verbs=get;create;delete;update;watch;list;patch
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingadmissionpolicybindings,verbs=get;create;delete;update;watch;list;patch
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingadmissionpolicies,verbs=get;create;delete;update;watch;list;patch
+// +kubebuilder:rbac:groups="kueue.x-k8s.io",resources=clusterqueues,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="kueue.x-k8s.io",resources=clusterqueues/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="kueue.x-k8s.io",resources=localqueues,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="kueue.x-k8s.io",resources=localqueues/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="kueue.openshift.io",resources=kueues,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="kueue.openshift.io",resources=kueues/status,verbs=get;update;patch
 
 // CFO
 //+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=codeflares,verbs=get;list;watch;create;update;patch;delete
@@ -251,3 +253,8 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=llamastackoperators,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=llamastackoperators/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=llamastackoperators/finalizers,verbs=update
+
+// HardwareProfile
+// +kubebuilder:rbac:groups=infrastructure.opendatahub.io,resources=hardwareprofiles,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infrastructure.opendatahub.io,resources=hardwareprofiles/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=infrastructure.opendatahub.io,resources=hardwareprofiles/finalizers,verbs=update
