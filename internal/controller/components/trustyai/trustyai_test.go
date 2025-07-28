@@ -8,11 +8,14 @@ import (
 
 	gt "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dsci "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -87,6 +90,113 @@ func TestIsEnabled(t *testing.T) {
 			)
 		})
 	}
+}
+
+func TestCreateConfigMap(t *testing.T) {
+	t.Run("should create ConfigMap when configuration is provided", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := context.Background()
+
+		// Create TrustyAI CR with configuration
+		trustyai := createTrustyAICRWithConfig(true, true)
+		dsc := createDSCWithTrustyAI(operatorv1.Managed)
+		dsciObj := createDSCI("test-namespace")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsciObj))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &types.ReconciliationRequest{
+			Client:   cli,
+			Instance: trustyai,
+			DSCI:     dsciObj,
+		}
+
+		err = createConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify ConfigMap was created
+		configMap := &corev1.ConfigMap{}
+		err = cli.Get(ctx, client.ObjectKey{
+			Name:      "trustyai-dsc-config",
+			Namespace: "test-namespace",
+		}, configMap)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify ConfigMap data
+		g.Expect(configMap.Data["eval.lmeval.allowCodeExecution"]).Should(Equal("true"))
+		g.Expect(configMap.Data["eval.lmeval.allowOnline"]).Should(Equal("true"))
+
+		// Verify labels and annotations
+		g.Expect(configMap.Labels["app.opendatahub.io/component"]).Should(Equal("true"))
+		g.Expect(configMap.Labels["app.kubernetes.io/part-of"]).Should(Equal("trustyai"))
+		g.Expect(configMap.Labels["app.opendatahub.io/config-type"]).Should(Equal("dsc-config"))
+		g.Expect(configMap.Annotations["opendatahub.io/managed-by"]).Should(Equal("dsc-trustyai-controller"))
+		g.Expect(configMap.Annotations["opendatahub.io/config-source"]).Should(Equal("datasciencecluster"))
+	})
+
+	t.Run("should skip ConfigMap creation when no configuration is provided", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := context.Background()
+
+		// Create TrustyAI CR without configuration
+		trustyai := createTrustyAICR(true)
+		dsc := createDSCWithTrustyAI(operatorv1.Managed)
+		dsciObj := createDSCI("test-namespace")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsciObj))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &types.ReconciliationRequest{
+			Client:   cli,
+			Instance: trustyai,
+			DSCI:     dsciObj,
+		}
+
+		err = createConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify ConfigMap was not created
+		configMap := &corev1.ConfigMap{}
+		err = cli.Get(ctx, client.ObjectKey{
+			Name:      "trustyai-dsc-config",
+			Namespace: "test-namespace",
+		}, configMap)
+		g.Expect(err).Should(HaveOccurred())
+	})
+
+	t.Run("should handle partial configuration", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := context.Background()
+
+		// Create TrustyAI CR with partial configuration
+		trustyai := createTrustyAICRWithPartialConfig(true)
+		dsc := createDSCWithTrustyAI(operatorv1.Managed)
+		dsciObj := createDSCI("test-namespace")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsciObj))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &types.ReconciliationRequest{
+			Client:   cli,
+			Instance: trustyai,
+			DSCI:     dsciObj,
+		}
+
+		err = createConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify ConfigMap was created with only the specified configuration
+		configMap := &corev1.ConfigMap{}
+		err = cli.Get(ctx, client.ObjectKey{
+			Name:      "trustyai-dsc-config",
+			Namespace: "test-namespace",
+		}, configMap)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify only allowCodeExecution is set
+		g.Expect(configMap.Data["eval.lmeval.allowCodeExecution"]).Should(Equal("true"))
+		g.Expect(configMap.Data["eval.lmeval.allowOnline"]).Should(BeEmpty())
+	})
 }
 
 func TestUpdateDSCStatus(t *testing.T) {
@@ -187,6 +297,14 @@ func createDSCWithTrustyAI(managementState operatorv1.ManagementState) *dscv1.Da
 	return &dsc
 }
 
+func createDSCI(applicationsNamespace string) *dsci.DSCInitialization {
+	dsciObj := dsci.DSCInitialization{}
+	dsciObj.SetGroupVersionKind(gvk.DSCInitialization)
+	dsciObj.SetName("test-dsci")
+	dsciObj.Spec.ApplicationsNamespace = applicationsNamespace
+	return &dsciObj
+}
+
 func createTrustyAICR(ready bool) *componentApi.TrustyAI {
 	c := componentApi.TrustyAI{}
 	c.SetGroupVersionKind(gvk.TrustyAI)
@@ -209,4 +327,17 @@ func createTrustyAICR(ready bool) *componentApi.TrustyAI {
 	}
 
 	return &c
+}
+
+func createTrustyAICRWithConfig(allowCodeExecution, allowOnline bool) *componentApi.TrustyAI {
+	c := createTrustyAICR(true)
+	c.Spec.Eval.LMEval.AllowCodeExecution = &allowCodeExecution
+	c.Spec.Eval.LMEval.AllowOnline = &allowOnline
+	return c
+}
+
+func createTrustyAICRWithPartialConfig(allowCodeExecution bool) *componentApi.TrustyAI {
+	c := createTrustyAICR(true)
+	c.Spec.Eval.LMEval.AllowCodeExecution = &allowCodeExecution
+	return c
 }

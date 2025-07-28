@@ -54,8 +54,26 @@ type TrustyAISpec struct {
 	TrustyAICommonSpec `json:",inline"`
 }
 
+// TrustyAIEvalSpec defines evaluation configuration for TrustyAI
+type TrustyAIEvalSpec struct {
+	// LMEval configuration for model evaluations
+	LMEval TrustyAILMEvalSpec `json:"lmeval,omitempty"`
+}
+
+// TrustyAILMEvalSpec defines configuration for LMEval evaluations
+type TrustyAILMEvalSpec struct {
+	// AllowCodeExecution controls whether code execution is allowed during evaluations
+	// +kubebuilder:default=false
+	AllowCodeExecution *bool `json:"allowCodeExecution,omitempty"`
+	// AllowOnline controls whether online access is allowed during evaluations
+	// +kubebuilder:default=false
+	AllowOnline *bool `json:"allowOnline,omitempty"`
+}
+
 type TrustyAICommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
+	// Eval configuration for TrustyAI evaluations
+	Eval TrustyAIEvalSpec `json:"eval,omitempty"`
 }
 
 // TrustyAICommonStatus defines the shared observed state of TrustyAI
