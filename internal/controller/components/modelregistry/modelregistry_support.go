@@ -1,18 +1,10 @@
 package modelregistry
 
 import (
-	"context"
-	"embed"
 	"path"
-
-	operatorv1 "github.com/openshift/api/operator/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -25,17 +17,10 @@ const (
 	DefaultModelRegistriesNamespace = "rhoai-model-registries"
 	DefaultModelRegistryCert        = "default-modelregistry-cert"
 	BaseManifestsSourcePath         = "overlays/odh"
-	ServiceMeshMemberTemplate       = "resources/servicemesh-member.tmpl.yaml"
-	ServiceMeshMemberCRD            = "servicemeshmembers.maistra.io"
-	ServiceMeshMemberAPINotFound    = "ServiceMeshMember API not found"
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "model-registry-operator"
-)
-
-var (
-	ErrServiceMeshMemberAPINotFound = odherrors.NewStopError(ServiceMeshMemberAPINotFound)
 )
 
 var (
@@ -55,9 +40,6 @@ var (
 	}
 )
 
-//go:embed resources
-var resourcesFS embed.FS
-
 func baseManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       deploy.DefaultManifestPath,
@@ -72,20 +54,4 @@ func extraManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 		ContextDir: ComponentName,
 		SourcePath: path.Join(sourcePath, "extras"),
 	}
-}
-
-func isServiceMeshEnabled(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
-	// Check if ServiceMesh exists and is managed
-	if rr.DSCI.Spec.ServiceMesh == nil || rr.DSCI.Spec.ServiceMesh.ManagementState != operatorv1.Managed {
-		return false
-	}
-
-	// Check if the cluster has the `ServiceMeshMember` CRD installed
-	hasCRD, err := cluster.HasCRD(ctx, rr.Client, gvk.ServiceMeshMember)
-	if err != nil {
-		ctrl.Log.Error(err, "error checking if CRD installed", "GVK", gvk.ServiceMeshMember)
-		return false
-	}
-
-	return hasCRD
 }
