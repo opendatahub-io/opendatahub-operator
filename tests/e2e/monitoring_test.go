@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -439,7 +438,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesWhenSet(t *testing.T
 
 	// Ensure the Instrumentation CR is created
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: monitoring.InstrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: "data-science-instrumentation", Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithCustomErrorMsg("Instrumentation CR should be created when traces are configured"),
 	)
 }
@@ -452,7 +451,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesConfiguration(t *tes
 
 	// Wait for the Instrumentation CR to be created and stabilized by the OpenTelemetry operator
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: monitoring.InstrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: "data-science-instrumentation", Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithCondition(And(
 			jq.Match(`.spec != null`),
 			jq.Match(`.metadata.generation >= 1`),
@@ -464,13 +463,13 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesConfiguration(t *tes
 	expectedEndpoint := fmt.Sprintf("http://data-science-collector.%s.svc.cluster.local:4317", dsci.Spec.Monitoring.Namespace)
 
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: monitoring.InstrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: "data-science-instrumentation", Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithCondition(
 			And(
 				// Validate the exporter endpoint is set correctly
 				jq.Match(`.spec.exporter.endpoint == "%s"`, expectedEndpoint),
 				// Validate the sampler configuration
-				jq.Match(`.spec.sampler.type == "%s"`, monitoring.DefaultSamplerType),
+				jq.Match(`.spec.sampler.type == "%s"`, "traceidratio"),
 				jq.Match(`.spec.sampler.argument == "0.1"`),
 			),
 		),
@@ -479,7 +478,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesConfiguration(t *tes
 
 	// Validate owner references
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: monitoring.InstrumentationName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: "data-science-instrumentation", Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithCondition(
 			And(
 				jq.Match(`.metadata.ownerReferences | length == 1`),

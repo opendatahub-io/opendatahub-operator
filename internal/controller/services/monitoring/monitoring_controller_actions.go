@@ -2,6 +2,7 @@ package monitoring
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"fmt"
 
@@ -17,6 +18,18 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+)
+
+const (
+	// Template files.
+	MonitoringStackTemplate          = "resources/monitoring-stack.tmpl.yaml"
+	TempoMonolithicTemplate          = "resources/tempo-monolithic.tmpl.yaml"
+	TempoStackTemplate               = "resources/tempo-stack.tmpl.yaml"
+	OpenTelemetryCollectorTemplate   = "resources/opentelemetry-collector.tmpl.yaml"
+	CollectorServiceMonitorsTemplate = "resources/collector-servicemonitors.tmpl.yaml"
+	CollectorRBACTemplate            = "resources/collector-rbac.tmpl.yaml"
+	PrometheusRouteTemplate          = "resources/prometheus-route.tmpl.yaml"
+	InstrumentationTemplate          = "resources/instrumentation.tmpl.yaml"
 )
 
 var componentRules = map[string]string{
@@ -35,6 +48,9 @@ var componentRules = map[string]string{
 	componentApi.FeastOperatorComponentName:        "feastoperator",
 	componentApi.LlamaStackOperatorComponentName:   "llamastackoperator",
 }
+
+//go:embed resources
+var resourcesFS embed.FS
 
 // initialize handles all pre-deployment configurations.
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -86,19 +102,23 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	})
 }
 
-func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func deployMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
 	}
 
 	if monitoring.Spec.Metrics != nil && (monitoring.Spec.Metrics.Resources != nil || monitoring.Spec.Metrics.Storage != nil) {
-		if msExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack); !msExists {
+		msExists, err := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack)
+		if err != nil {
+			return fmt.Errorf("failed to check if CRD MonitoringStack exists: %w", err)
+		}
+		if !msExists {
 			// CRD not available, skip monitoring stack deployment (this is expected when monitoring stack operator is not installed)
 			rr.Conditions.MarkFalse(
 				status.ConditionMonitoringStackAvailable,
-				conditions.WithReason(status.MonitoringStackOperatorMissingReason),
-				conditions.WithMessage(status.MonitoringStackOperatorMissingMessage),
+				conditions.WithReason(gvk.MonitoringStack.Kind+"CRDNotFoundReason"),
+				conditions.WithMessage(gvk.MonitoringStack.Kind+" CRD Not Found"),
 			)
 			return nil
 		}
@@ -131,13 +151,21 @@ func createMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 	return nil
 }
 
-func createOpenTelemetryCollector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	otcExists, _ := cluster.HasCRD(ctx, rr.Client, gvk.OpenTelemetryCollector)
+func deployoOpenTelemetryCollector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	otcExists, err := cluster.HasCRD(ctx, rr.Client, gvk.OpenTelemetryCollector)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD OpenTelemetryCollector exists: %w", err)
+	}
 	if !otcExists {
 		rr.Conditions.MarkFalse(
 			status.ConditionOpenTelemetryCollectorAvailable,
-			conditions.WithReason(status.OpenTelemetryCollectorCRDNotFoundReason),
-			conditions.WithMessage(status.OpenTelemetryCollectorCRDNotFoundMessage),
+			conditions.WithReason(gvk.OpenTelemetryCollector.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage(gvk.OpenTelemetryCollector.Kind+" CRD Not Found"),
 		)
 		return nil
 	}
@@ -145,16 +173,9 @@ func createOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 	// Mark OpenTelemetryCollector CRD as available when CRD exists
 	rr.Conditions.MarkTrue(
 		status.ConditionOpenTelemetryCollectorAvailable,
-		conditions.WithReason(status.OpenTelemetryCollectorCRDAvailableReason),
-		conditions.WithMessage(status.OpenTelemetryCollectorCRDAvailableMessage),
 	)
 
-	mon, ok := rr.Instance.(*serviceApi.Monitoring)
-	if !ok {
-		return errors.New("instance is not of type *services.Monitoring")
-	}
-
-	if mon.Spec.Metrics != nil {
+	if monitoring.Spec.Metrics != nil {
 		template := []odhtypes.TemplateInfo{
 			{
 				FS:   resourcesFS,
@@ -203,10 +224,13 @@ func deployTempo(ctx context.Context, rr *odhtypes.ReconciliationRequest) error 
 	traces := monitoring.Spec.Traces
 
 	var requiredCRD schema.GroupVersionKind
+	var templatePath string
 	if traces.Storage.Backend == "pv" {
 		requiredCRD = gvk.TempoMonolithic
+		templatePath = TempoMonolithicTemplate
 	} else {
 		requiredCRD = gvk.TempoStack
+		templatePath = TempoStackTemplate
 	}
 
 	crdExists, err := cluster.HasCRD(ctx, rr.Client, requiredCRD)
@@ -217,38 +241,27 @@ func deployTempo(ctx context.Context, rr *odhtypes.ReconciliationRequest) error 
 		// CRD not available, skip tempo deployment (this is expected when tempo operator is not installed)
 		rr.Conditions.MarkFalse(
 			status.ConditionTempoAvailable,
-			conditions.WithReason(status.TempoOperatorMissingReason),
-			conditions.WithMessage(status.TempoOperatorMissingMessage),
+			conditions.WithReason(requiredCRD.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage(requiredCRD.Kind+" CRD Not Found"),
 		)
 		return nil
 	}
 
 	rr.Conditions.MarkTrue(status.ConditionTempoAvailable)
 
-	// Add the appropriate template based on backend type
-	if traces.Storage.Backend == "pv" {
-		template := []odhtypes.TemplateInfo{
-			{
-				FS:   resourcesFS,
-				Path: TempoMonolithicTemplate,
-			},
-		}
-		rr.Templates = append(rr.Templates, template...)
-	} else {
-		template := []odhtypes.TemplateInfo{
-			{
-				FS:   resourcesFS,
-				Path: TempoStackTemplate,
-			},
-		}
-		rr.Templates = append(rr.Templates, template...)
+	template := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: templatePath,
+		},
 	}
+	rr.Templates = append(rr.Templates, template...)
 
 	return nil
 }
 
-// handleInstrumentationCR manages OpenTelemetry Instrumentation CRs using templates.
-func handleInstrumentationCR(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+// deployInstrumentation manages OpenTelemetry Instrumentation CRs using templates.
+func deployInstrumentation(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *serviceApi.Monitoring")
@@ -273,8 +286,8 @@ func handleInstrumentationCR(ctx context.Context, rr *odhtypes.ReconciliationReq
 	if !instrumentationCRDExists {
 		rr.Conditions.MarkFalse(
 			status.ConditionInstrumentationAvailable,
-			conditions.WithReason(status.InstrumentationCRDNotFoundReason),
-			conditions.WithMessage(status.InstrumentationCRDNotFoundMessage),
+			conditions.WithReason(gvk.Instrumentation.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage(gvk.Instrumentation.Kind+" CRD Not Found"),
 		)
 		return nil
 	}

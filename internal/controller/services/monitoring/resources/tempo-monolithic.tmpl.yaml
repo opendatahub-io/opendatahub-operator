@@ -2,7 +2,7 @@ apiVersion: tempo.grafana.com/v1alpha1
 kind: TempoMonolithic
 metadata:
   name: data-science-tempomonolithic
-  namespace: {{ .Namespace }}
+  namespace: {{.Namespace}}
 spec:
   multitenancy:
     enabled: true  # Required for OpenShift
@@ -10,5 +10,5 @@ spec:
     traces:
       backend: pv
       {{ if .Size }}
-      size: "{{ .Size }}"
+      size: "{{.Size}}"
       {{ end }}

@@ -2,7 +2,7 @@ apiVersion: monitoring.rhobs/v1alpha1
 kind: MonitoringStack
 metadata:
   name: data-science-monitoringstack
-  namespace: {{ .Namespace }}
+  namespace: {{.Namespace}}
 spec:
   alertmanagerConfig:
     disabled: false
@@ -12,14 +12,14 @@ spec:
     persistentVolumeClaim:
       resources:
         requests:
-          storage: {{ .StorageSize }}
-    replicas: {{ .Replicas }}
+          storage: {{.StorageSize}}
+    replicas: {{.Replicas}}
   resourceSelector: {}
   resources:
     limits:
-      cpu: {{ .CPULimit }}
-      memory: {{ .MemoryLimit }}
+      cpu: {{.CPULimit}}
+      memory: {{.MemoryLimit}}
     requests:
-      cpu: {{ .CPURequest }}
-      memory: {{ .MemoryRequest }}
-  retention: {{ .StorageRetention }}
+      cpu: {{.CPURequest}}
+      memory: {{.MemoryRequest}}
+  retention: {{.StorageRetention}}

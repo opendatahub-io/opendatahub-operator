@@ -2,7 +2,7 @@ apiVersion: opentelemetry.io/v1beta1
 kind: OpenTelemetryCollector
 metadata:
   name: data-science-collector
-  namespace: {{ .Namespace }}
+  namespace: {{.Namespace}}
 spec:
   mode: deployment
   config:
@@ -14,7 +14,7 @@ spec:
       prometheus:
         config:
           scrape_configs:
-            - job_name: '{{ .PromPipelineName }}'
+            - job_name: 'data-science-collector-prometheus'
               bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
               kubernetes_sd_configs:
                 - role: pod
@@ -56,14 +56,14 @@ spec:
       {{ end }}
       {{ if .Traces }}
       otlp/tempo:
-        endpoint: tempo-tempo-gateway.{{ .Namespace}}.svc:4317
+        endpoint: {{.TempoEndpoint}}
         tls:
           ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
         auth:
           authenticator: bearertokenauth
         headers:
           # must be set to the tenant name from tempo CR
-          X-Scope-OrgID: {{ .Namespace }}
+          X-Scope-OrgID: {{.Namespace}}
       {{ end }}
     service:
       extensions: [bearertokenauth]
