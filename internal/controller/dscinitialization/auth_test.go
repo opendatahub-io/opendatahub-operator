@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -17,6 +16,18 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// expectedAdminGroupForPlatform returns the expected admin group for a given platform.
+func expectedAdminGroupForPlatform(platform common.Platform) string {
+	switch platform {
+	case cluster.SelfManagedRhoai:
+		return "rhods-admins"
+	case cluster.ManagedRhoai:
+		return "dedicated-admins"
+	default:
+		return "odh-admins" // fallback for OpenDataHub and unknown platforms
+	}
+}
+
 func TestBuildDefaultAuth(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -26,59 +37,53 @@ func TestBuildDefaultAuth(t *testing.T) {
 		{
 			name:               "OpenDataHub platform",
 			platform:           cluster.OpenDataHub,
-			expectedAdminGroup: "odh-admins",
+			expectedAdminGroup: expectedAdminGroupForPlatform(cluster.OpenDataHub),
 		},
 		{
 			name:               "SelfManagedRhoai platform",
 			platform:           cluster.SelfManagedRhoai,
-			expectedAdminGroup: "rhods-admins",
+			expectedAdminGroup: expectedAdminGroupForPlatform(cluster.SelfManagedRhoai),
 		},
 		{
 			name:               "ManagedRhoai platform",
 			platform:           cluster.ManagedRhoai,
-			expectedAdminGroup: "dedicated-admins",
+			expectedAdminGroup: expectedAdminGroupForPlatform(cluster.ManagedRhoai),
 		},
 		{
 			name:               "Empty platform should fallback to OpenDataHub",
 			platform:           "",
-			expectedAdminGroup: "odh-admins",
+			expectedAdminGroup: expectedAdminGroupForPlatform(""),
 		},
 		{
 			name:               "Unknown platform should fallback to OpenDataHub",
 			platform:           "unknown-platform",
-			expectedAdminGroup: "odh-admins",
+			expectedAdminGroup: expectedAdminGroupForPlatform("unknown-platform"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
 			authObj := dscinitialization.BuildDefaultAuth(tt.platform)
+			g.Expect(authObj).ShouldNot(BeNil(), "BuildDefaultAuth should not return nil")
+
 			auth, ok := authObj.(*serviceApi.Auth)
-			assert.True(t, ok, "BuildDefaultAuth should return *serviceApi.Auth")
-			assert.NotNil(t, auth, "BuildDefaultAuth should not return nil")
+			g.Expect(ok).Should(BeTrue(), "BuildDefaultAuth should return *serviceApi.Auth")
+			g.Expect(auth).ShouldNot(BeNil(), "Auth object should not be nil after type assertion")
 
 			// Verify basic properties
-			assert.Equal(t, serviceApi.AuthInstanceName, auth.Name)
-			assert.Equal(t, serviceApi.AuthKind, auth.Kind)
+			g.Expect(auth.Name).Should(Equal(serviceApi.AuthInstanceName))
+			g.Expect(auth.Kind).Should(Equal(serviceApi.AuthKind))
 
 			// Verify AdminGroups
-			assert.Len(t, auth.Spec.AdminGroups, 1)
-			assert.Equal(t, tt.expectedAdminGroup, auth.Spec.AdminGroups[0])
-			assert.NotEmpty(t, auth.Spec.AdminGroups[0], "AdminGroups should not contain empty strings")
+			g.Expect(auth.Spec.AdminGroups).Should(HaveLen(1))
+			g.Expect(auth.Spec.AdminGroups[0]).Should(Equal(tt.expectedAdminGroup))
+			g.Expect(auth.Spec.AdminGroups[0]).ShouldNot(BeEmpty(), "AdminGroups should not contain empty strings")
 
 			// Verify AllowedGroups
-			assert.Len(t, auth.Spec.AllowedGroups, 1)
-			assert.Equal(t, "system:authenticated", auth.Spec.AllowedGroups[0])
-
-			// Verify CEL validation compliance
-			for _, group := range auth.Spec.AdminGroups {
-				assert.NotEqual(t, "system:authenticated", group, "AdminGroups should not contain 'system:authenticated'")
-				assert.NotEmpty(t, group, "AdminGroups should not contain empty strings")
-			}
-
-			for _, group := range auth.Spec.AllowedGroups {
-				assert.NotEmpty(t, group, "AllowedGroups should not contain empty strings")
-			}
+			g.Expect(auth.Spec.AllowedGroups).Should(HaveLen(1))
+			g.Expect(auth.Spec.AllowedGroups[0]).Should(Equal("system:authenticated"))
 		})
 	}
 }
@@ -168,15 +173,7 @@ func TestCreateAuth(t *testing.T) {
 				g.Expect(auth.Spec.AllowedGroups).Should(Equal(tt.existingAuth.Spec.AllowedGroups))
 			} else {
 				// Should create new Auth with correct admin group
-				var expectedAdminGroup string
-				switch tt.platform {
-				case cluster.SelfManagedRhoai:
-					expectedAdminGroup = "rhods-admins"
-				case cluster.ManagedRhoai:
-					expectedAdminGroup = "dedicated-admins"
-				default:
-					expectedAdminGroup = "odh-admins" // fallback for OpenDataHub and unknown platforms
-				}
+				expectedAdminGroup := expectedAdminGroupForPlatform(tt.platform)
 
 				g.Expect(auth.Spec.AdminGroups).Should(HaveLen(1))
 				g.Expect(auth.Spec.AdminGroups[0]).Should(Equal(expectedAdminGroup))
@@ -187,28 +184,27 @@ func TestCreateAuth(t *testing.T) {
 }
 
 func TestCreateAuth_ErrorHandling(t *testing.T) {
-	t.Run("Handles non-NotFound errors during Get", func(t *testing.T) {
+	t.Run("Succeeds with clean fakeclient", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := context.Background()
 
-		// Create a client that will fail on Get operations
+		// Create a clean fakeclient for testing successful CreateAuth flow
 		cli, err := fakeclient.New()
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// Simulate a client error by creating an invalid state
-		// Note: This is difficult to test with fakeclient, so we'll focus on the happy path
-		// In a real test environment, you might use a mock client here
+		// Note: For actual error testing, a mock client would be needed
+		// as fakeclient doesn't simulate Get/Create failures easily
 
 		reconciler := &dscinitialization.DSCInitializationReconciler{
 			Client: cli,
 		}
 
-		// This should succeed since fakeclient doesn't produce Get errors
+		// This should succeed with a clean fakeclient
 		err = reconciler.CreateAuth(ctx, cluster.OpenDataHub)
 		g.Expect(err).ShouldNot(HaveOccurred())
 	})
 
-	t.Run("Ignores AlreadyExists errors during Create", func(t *testing.T) {
+	t.Run("Maintains idempotency on multiple calls", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := context.Background()
 
@@ -223,8 +219,7 @@ func TestCreateAuth_ErrorHandling(t *testing.T) {
 		err = reconciler.CreateAuth(ctx, cluster.OpenDataHub)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// Second call should handle the "already exists" scenario gracefully
-		// (though fakeclient doesn't actually return AlreadyExists errors)
+		// Second call should be idempotent and not cause errors
 		err = reconciler.CreateAuth(ctx, cluster.OpenDataHub)
 		g.Expect(err).ShouldNot(HaveOccurred())
 

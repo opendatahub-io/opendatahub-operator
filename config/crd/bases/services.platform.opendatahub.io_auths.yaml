@@ -50,11 +50,13 @@ spec:
             properties:
               adminGroups:
                 description: AdminGroups cannot contain 'system:authenticated' (security
-                  risk) or empty strings
+                  risk) or empty strings, and must not be empty
                 items:
                   type: string
                 type: array
                 x-kubernetes-validations:
+                - message: AdminGroups cannot be empty
+                  rule: size(self) > 0
                 - message: AdminGroups cannot contain 'system:authenticated' or empty
                     strings
                   rule: self.all(group, group != 'system:authenticated' && group !=

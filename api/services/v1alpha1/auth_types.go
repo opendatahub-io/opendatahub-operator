@@ -32,7 +32,8 @@ var _ common.PlatformObject = (*Auth)(nil)
 
 // AuthSpec defines the desired state of Auth
 type AuthSpec struct {
-	// AdminGroups cannot contain 'system:authenticated' (security risk) or empty strings
+	// AdminGroups cannot contain 'system:authenticated' (security risk) or empty strings, and must not be empty
+	// +kubebuilder:validation:XValidation:rule="size(self) > 0",message="AdminGroups cannot be empty"
 	// +kubebuilder:validation:XValidation:rule="self.all(group, group != 'system:authenticated' && group != '')",message="AdminGroups cannot contain 'system:authenticated' or empty strings"
 	AdminGroups []string `json:"adminGroups"`
 	// AllowedGroups cannot contain empty strings, but 'system:authenticated' is allowed for general access
