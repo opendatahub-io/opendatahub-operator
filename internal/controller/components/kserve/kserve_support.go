@@ -33,7 +33,6 @@ import (
 
 const DefaultCertificateSecretName = "knative-serving-cert"
 
-
 var (
 	imageParamMap = map[string]string{
 		"kserve-agent":                     "RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
