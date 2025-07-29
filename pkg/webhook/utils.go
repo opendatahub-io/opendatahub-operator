@@ -118,6 +118,15 @@ func ValidateSingletonCreation(ctx context.Context, cli client.Reader, req *admi
 		fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
 }
 
+// DecodeUnstructured decodes an admission request into an unstructured object.
+func DecodeUnstructured(decoder admission.Decoder, req admission.Request) (*unstructured.Unstructured, error) {
+	obj := &unstructured.Unstructured{}
+	if err := decoder.Decode(req, obj); err != nil {
+		return nil, fmt.Errorf("failed to decode object: %w", err)
+	}
+	return obj, nil
+}
+
 // ValidateConnectionAnnotation validates the connection annotation  "opendatahub.io/connections"
 // If the annotation exists and has a non-empty value, it validates that the value references
 // a valid secret in the same namespace. Additionally, it checks the secret's connection type
@@ -139,23 +148,16 @@ func ValidateSingletonCreation(ctx context.Context, cli client.Reader, req *admi
 //   - *unstructured.Unstructured: The decoded object (only valid when validation passes)
 func ValidateConnectionAnnotation(ctx context.Context,
 	cli client.Reader,
-	decoder admission.Decoder,
+	decodedObj *unstructured.Unstructured,
 	req admission.Request,
 	allowedTypes []string,
-) (admission.Response, bool, *corev1.Secret, string, *unstructured.Unstructured) {
+) (admission.Response, bool, *corev1.Secret, string) {
 	log := logf.FromContext(ctx)
 
-	// Decode the InferenceService object from the request
-	obj := &unstructured.Unstructured{}
-	if err := decoder.Decode(req, obj); err != nil {
-		log.Error(err, "failed to decode InferenceService object")
-		return admission.Errored(http.StatusInternalServerError, err), false, nil, "", nil
-	}
-
 	// Check if the annotation "opendatahub.io/connections" exists and has a non-empty value
-	annotationValue := resources.GetAnnotation(obj, annotations.Connection)
+	annotationValue := resources.GetAnnotation(decodedObj, annotations.Connection)
 	if annotationValue == "" {
-		return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value, skipping validation", annotations.Connection)), false, nil, "", obj
+		return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value, skipping validation", annotations.Connection)), false, nil, ""
 	}
 
 	// If annotation exists and has a value, validate the secret value
@@ -166,16 +168,16 @@ func ValidateConnectionAnnotation(ctx context.Context,
 	}, secret); err != nil {
 		if k8serr.IsNotFound(err) {
 			return admission.Denied(fmt.Sprintf("Secret '%s' referenced in annotation '%s' not found in namespace '%s'",
-				annotationValue, annotations.Connection, req.Namespace)), false, nil, "", obj
+				annotationValue, annotations.Connection, req.Namespace)), false, nil, ""
 		}
 		log.Error(err, "failed to get secret", "secretName", annotationValue, "namespace", req.Namespace)
-		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("failed to validate secret: %w", err)), false, nil, "", obj
+		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("failed to validate secret: %w", err)), false, nil, ""
 	}
 
 	// Additional validation: check the secret's connections-type-ref annotation exists and has a non-empty value
 	connectionType := resources.GetAnnotation(secret, annotations.ConnectionTypeRef)
 	if connectionType == "" {
-		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' annotation", annotationValue, annotations.ConnectionTypeRef)), false, nil, "", obj
+		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' annotation", annotationValue, annotations.ConnectionTypeRef)), false, nil, ""
 	}
 	// Validate that the connection type is one of the allowed values
 	isValidType := slices.Contains(allowedTypes, connectionType)
@@ -184,11 +186,11 @@ func ValidateConnectionAnnotation(ctx context.Context,
 		// Allow unknown connection types but log a warning and don't perform injection
 		log.Info("Unknown connection type found, allowing operation but skipping injection", "connectionType", connectionType, "allowedTypes", allowedTypes)
 		return admission.Allowed(fmt.Sprintf("Annotation '%s' validation on secret '%s' with unknown type '%s' in namespace '%s'",
-			annotations.Connection, annotationValue, connectionType, req.Namespace)), false, nil, "", obj
+			annotations.Connection, annotationValue, connectionType, req.Namespace)), false, nil, ""
 	}
 
 	// Allow the operation and indicate that injection should be performed
-	return admission.Allowed(fmt.Sprintf("Annotation '%s' validation passed for secret in namespace '%s'", annotations.Connection, req.Namespace)), true, secret, connectionType, obj
+	return admission.Allowed(fmt.Sprintf("Annotation '%s' validation passed for secret in namespace '%s'", annotations.Connection, req.Namespace)), true, secret, connectionType
 }
 
 // GetOrCreateNestedMap safely retrieves or creates a nested map within an unstructured object.
@@ -223,4 +225,27 @@ func GetOrCreateNestedSlice(obj map[string]interface{}, path ...string) ([]inter
 		nested = make([]interface{}, 0)
 	}
 	return nested, nil
+}
+
+// SetNestedValue sets a nested value in an unstructured object based on the field type.
+// This function unifies SetNestedField, SetNestedMap, SetNestedSlice.
+//
+// Parameters:
+//   - obj: The unstructured object to modify
+//   - value: The value to set
+//   - path: The path to the field to set
+//
+// Returns:
+//   - error: Any error encountered during the operation
+func SetNestedValue(obj map[string]interface{}, value interface{}, path []string) error {
+	switch v := value.(type) {
+	case string:
+		return unstructured.SetNestedField(obj, v, path...)
+	case map[string]interface{}:
+		return unstructured.SetNestedMap(obj, v, path...)
+	case []interface{}:
+		return unstructured.SetNestedSlice(obj, v, path...)
+	default:
+		return fmt.Errorf("unsupported value type %T for SetNestedValue", value)
+	}
 }

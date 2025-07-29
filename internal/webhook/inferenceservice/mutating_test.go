@@ -153,7 +153,9 @@ func runTestCase(t *testing.T, tc TestCase) {
 	if tc.expectedPatchCheck != nil {
 		g.Expect(tc.expectedPatchCheck(resp.Patches)).To(BeTrue())
 	}
-} // oci-v1 - simple case for new injection without existing secrets
+}
+
+// oci-v1 - simple case for new injection without existing secrets.
 func hasImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {

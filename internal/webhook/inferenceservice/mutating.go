@@ -40,11 +40,13 @@ func (ct ConnectionType) String() string {
 type InferenceServingPath struct {
 	ModelPath           []string
 	ImagePullSecretPath []string
+	StorageUriPath      []string
 }
 
 var IsvcConfigs = InferenceServingPath{
-	ModelPath:           []string{"spec", "predictor", "model"},            // used by S3, has map
-	ImagePullSecretPath: []string{"spec", "predictor", "imagePullSecrets"}, // used by OCI, has slice
+	ModelPath:           []string{"spec", "predictor", "model"},               // used by S3, has map
+	ImagePullSecretPath: []string{"spec", "predictor", "imagePullSecrets"},    // used by OCI, has slice
+	StorageUriPath:      []string{"spec", "predictor", "model", "storageUri"}, // used by URI, has string
 }
 
 //+kubebuilder:webhook:path=/platform-connection-isvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=connection-isvc.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
@@ -77,6 +79,13 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 
 	switch req.Operation {
 	case admissionv1.Create, admissionv1.Update:
+		// Decode the object once
+		obj, err := webhookutils.DecodeUnstructured(w.Decoder, req)
+		if err != nil {
+			log.Error(err, "failed to decode object")
+			return admission.Errored(http.StatusInternalServerError, err)
+		}
+
 		// allowed connection types for connection validation on isvc.
 		allowedTypes := []string{
 			ConnectionTypeURI.String(),
@@ -87,7 +96,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		// validate the connection annotation
 		// - if has matched annoataion
 		// - if annaotation has valid value as that secret exists in the same namespace(permission allowed)
-		validationResp, shouldInject, secret, connectionType, decodedObj := webhookutils.ValidateConnectionAnnotation(ctx, w.Client, w.Decoder, req, allowedTypes)
+		validationResp, shouldInject, secret, connectionType := webhookutils.ValidateConnectionAnnotation(ctx, w.Client, obj, req, allowedTypes)
 		if !validationResp.Allowed {
 			return validationResp
 		}
@@ -97,7 +106,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 			return admission.Allowed(fmt.Sprintf("Connection validation passed in namespace %s for %s, no injection needed", req.Namespace, req.Kind.Kind))
 		}
 
-		injectionPerformed, obj, err := w.performConnectionInjection(ctx, req, secret, connectionType, decodedObj)
+		injectionPerformed, err := w.performConnectionInjection(ctx, req, secret, connectionType, obj)
 		if err != nil {
 			log.Error(err, "Failed to perform connection injection")
 			return admission.Errored(http.StatusInternalServerError, err)
@@ -126,7 +135,7 @@ func (w *ConnectionWebhook) performConnectionInjection(
 	secret *corev1.Secret,
 	connectionType string,
 	decodedObj *unstructured.Unstructured,
-) (bool, *unstructured.Unstructured, error) {
+) (bool, error) {
 	log := logf.FromContext(ctx)
 
 	log.Info("Decoded InferenceService object", "connectionType", connectionType, "operation", req.Operation)
@@ -135,28 +144,28 @@ func (w *ConnectionWebhook) performConnectionInjection(
 	switch ConnectionType(connectionType) {
 	case ConnectionTypeOCI:
 		if err := w.injectOCIImagePullSecrets(decodedObj, secret.Name); err != nil {
-			return false, nil, fmt.Errorf("failed to inject OCI imagePullSecrets: %w", err)
+			return false, fmt.Errorf("failed to inject OCI imagePullSecrets: %w", err)
 		}
 		log.Info("Successfully injected OCI imagePullSecrets", "secretName", secret.Name)
-		return true, decodedObj, nil
+		return true, nil
 
 	case ConnectionTypeURI:
 		if err := w.injectURIStorageUri(decodedObj, secret); err != nil {
-			return false, nil, fmt.Errorf("failed to inject URI storageUri: %w", err)
+			return false, fmt.Errorf("failed to inject URI storageUri: %w", err)
 		}
 		log.Info("Successfully injected URI storageUri from secret", "secretName", secret.Name)
-		return true, decodedObj, nil
+		return true, nil
 
 	case ConnectionTypeS3:
 		if err := w.injectS3StorageKey(decodedObj, secret.Name); err != nil {
-			return false, nil, fmt.Errorf("failed to inject S3 storage.key: %w", err)
+			return false, fmt.Errorf("failed to inject S3 storage.key: %w", err)
 		}
 		log.Info("Successfully injected S3 storage key", "secretName", secret.Name)
-		return true, decodedObj, nil
+		return true, nil
 
 	default: // this should not enter since ValidateConnectionAnnotation ensures valid types, but keep it for safety
 		log.Info("Unknown connection type, skipping injection", "connectionType", connectionType)
-		return false, nil, nil
+		return false, nil
 	}
 }
 
@@ -182,7 +191,7 @@ func (w *ConnectionWebhook) injectOCIImagePullSecrets(obj *unstructured.Unstruct
 	}
 	imagePullSecrets = append(imagePullSecrets, newImagePullSecret)
 
-	return unstructured.SetNestedSlice(obj.Object, imagePullSecrets, IsvcConfigs.ImagePullSecretPath...)
+	return webhookutils.SetNestedValue(obj.Object, imagePullSecrets, IsvcConfigs.ImagePullSecretPath)
 }
 
 // injectURIStorageUri injects storageUri into spec.predictor.model.storageUri for URI connections.
@@ -196,7 +205,7 @@ func (w *ConnectionWebhook) injectURIStorageUri(obj *unstructured.Unstructured, 
 	storageUri = string(uri)
 
 	// Set the storageUri directly
-	return unstructured.SetNestedField(obj.Object, storageUri, "spec", "predictor", "model", "storageUri")
+	return webhookutils.SetNestedValue(obj.Object, storageUri, IsvcConfigs.StorageUriPath)
 }
 
 // injectS3StorageKey injects storage key into spec.predictor.model.storage.key for S3 connections.
@@ -216,5 +225,5 @@ func (w *ConnectionWebhook) injectS3StorageKey(obj *unstructured.Unstructured, s
 	storageMap["key"] = secretName
 	model["storage"] = storageMap
 
-	return unstructured.SetNestedMap(obj.Object, model, IsvcConfigs.ModelPath...)
+	return webhookutils.SetNestedValue(obj.Object, model, IsvcConfigs.ModelPath)
 }
