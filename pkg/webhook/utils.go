@@ -4,19 +4,20 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 // NewWebhookLogConstructor returns a log constructor function for admission webhooks that adds the webhook name to the logger context for each admission request.
@@ -135,78 +136,59 @@ func ValidateSingletonCreation(ctx context.Context, cli client.Reader, req *admi
 //   - bool: true if injection should be performed (only for known valid connection types)
 //   - *corev1.Secret: The validated secret (only valid when injection should be performed)
 //   - string: The connection type (only valid when injection should be performed)
+//   - *unstructured.Unstructured: The decoded object (only valid when validation passes)
 func ValidateConnectionAnnotation(ctx context.Context,
 	cli client.Reader,
 	decoder admission.Decoder,
 	req admission.Request,
 	allowedTypes []string,
-) (admission.Response, bool, *corev1.Secret, string) {
+) (admission.Response, bool, *corev1.Secret, string, *unstructured.Unstructured) {
 	log := logf.FromContext(ctx)
 
 	// Decode the InferenceService object from the request
 	obj := &unstructured.Unstructured{}
 	if err := decoder.Decode(req, obj); err != nil {
 		log.Error(err, "failed to decode InferenceService object")
-		return admission.Errored(http.StatusInternalServerError, err), false, nil, ""
-	}
-
-	// Get annotations from the request	object
-	objAnnotations := obj.GetAnnotations()
-	if objAnnotations == nil {
-		objAnnotations = make(map[string]string)
+		return admission.Errored(http.StatusInternalServerError, err), false, nil, "", nil
 	}
 
 	// Check if the annotation "opendatahub.io/connections" exists and has a non-empty value
-	annotationValue, exists := objAnnotations[annotations.Connection]
-	if !exists || annotationValue == "" {
-		// If annotation doesn't exist or is empty, allow the operation skip injection
-		return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value, skipping validation", annotations.Connection)), false, nil, ""
+	annotationValue := resources.GetAnnotation(obj, annotations.Connection)
+	if annotationValue == "" {
+		return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value, skipping validation", annotations.Connection)), false, nil, "", obj
 	}
 
 	// If annotation exists and has a value, validate the secret value
 	secret := &corev1.Secret{}
-	secretKey := types.NamespacedName{
+	if err := cli.Get(ctx, client.ObjectKey{
 		Name:      annotationValue,
 		Namespace: req.Namespace,
-	}
-	if err := cli.Get(ctx, secretKey, secret); err != nil {
+	}, secret); err != nil {
 		if k8serr.IsNotFound(err) {
 			return admission.Denied(fmt.Sprintf("Secret '%s' referenced in annotation '%s' not found in namespace '%s'",
-				annotationValue, annotations.Connection, req.Namespace)), false, nil, ""
+				annotationValue, annotations.Connection, req.Namespace)), false, nil, "", obj
 		}
 		log.Error(err, "failed to get secret", "secretName", annotationValue, "namespace", req.Namespace)
-		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("failed to validate secret: %w", err)), false, nil, ""
+		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("failed to validate secret: %w", err)), false, nil, "", obj
 	}
 
-	// Additional validation: check the secret's connections-type-ref annotation
-	secretAnnotations := secret.GetAnnotations()
-	if secretAnnotations == nil {
-		secretAnnotations = make(map[string]string)
-	}
-	connectionType, hasTypeAnnotation := secretAnnotations[annotations.ConnectionTypeRef]
-	if !hasTypeAnnotation || connectionType == "" {
-		// If annotation doesn't exist or is empty, allow the operation but no injection
-		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' annotation", annotationValue, annotations.ConnectionTypeRef)), false, nil, ""
+	// Additional validation: check the secret's connections-type-ref annotation exists and has a non-empty value
+	connectionType := resources.GetAnnotation(secret, annotations.ConnectionTypeRef)
+	if connectionType == "" {
+		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' annotation", annotationValue, annotations.ConnectionTypeRef)), false, nil, "", obj
 	}
 	// Validate that the connection type is one of the allowed values
-	// TODO: we can extend this if we have new types in the future
-	isValidType := false
-	for _, allowedType := range allowedTypes {
-		if connectionType == allowedType {
-			isValidType = true
-			break
-		}
-	}
+	isValidType := slices.Contains(allowedTypes, connectionType)
 
 	if !isValidType {
 		// Allow unknown connection types but log a warning and don't perform injection
 		log.Info("Unknown connection type found, allowing operation but skipping injection", "connectionType", connectionType, "allowedTypes", allowedTypes)
 		return admission.Allowed(fmt.Sprintf("Annotation '%s' validation on secret '%s' with unknown type '%s' in namespace '%s'",
-			annotations.Connection, annotationValue, connectionType, req.Namespace)), false, nil, ""
+			annotations.Connection, annotationValue, connectionType, req.Namespace)), false, nil, "", obj
 	}
 
 	// Allow the operation and indicate that injection should be performed
-	return admission.Allowed(fmt.Sprintf("Annotation '%s' validation passed for secret in namespace '%s'", annotations.Connection, req.Namespace)), true, secret, connectionType
+	return admission.Allowed(fmt.Sprintf("Annotation '%s' validation passed for secret in namespace '%s'", annotations.Connection, req.Namespace)), true, secret, connectionType, obj
 }
 
 // GetOrCreateNestedMap safely retrieves or creates a nested map within an unstructured object.
@@ -227,6 +209,18 @@ func GetOrCreateNestedMap(obj map[string]interface{}, field string) (map[string]
 	}
 	if !found {
 		nested = make(map[string]interface{})
+	}
+	return nested, nil
+}
+
+// GetOrCreateNestedSlice gets a nested slice from an unstructured object, creating it if it doesn't exist.
+func GetOrCreateNestedSlice(obj map[string]interface{}, path ...string) ([]interface{}, error) {
+	nested, found, err := unstructured.NestedSlice(obj, path...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get nested slice for path %v: %w", path, err)
+	}
+	if !found {
+		nested = make([]interface{}, 0)
 	}
 	return nested, nil
 }

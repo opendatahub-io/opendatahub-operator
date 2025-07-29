@@ -3,6 +3,8 @@ package inferenceservice_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"testing"
 
 	"gomodules.xyz/jsonpatch/v2"
@@ -71,15 +73,14 @@ func createTestSecret(name, namespace, connectionType string, data map[string][]
 		},
 		Data: data,
 	}
-
 	return secret
 }
 
-func createTestInferenceService(name, namespace string, annotations map[string]string, predictorSpec map[string]interface{}) *unstructured.Unstructured {
+func createTestInferenceService(name, namespace string, annotations map[string]string, predictorSpec map[string]interface{}) (*unstructured.Unstructured, error) {
 	isvc := envtestutil.NewInferenceService(name, namespace)
 	unstructuredISVC, ok := isvc.(*unstructured.Unstructured)
 	if !ok {
-		panic("failed to cast InferenceService to unstructured")
+		return nil, errors.New("failed to cast InferenceService to unstructured")
 	}
 
 	if annotations != nil {
@@ -88,11 +89,11 @@ func createTestInferenceService(name, namespace string, annotations map[string]s
 
 	if len(predictorSpec) > 0 {
 		if err := unstructured.SetNestedMap(unstructuredISVC.Object, predictorSpec, "spec", "predictor"); err != nil {
-			panic("failed to set nested map: " + err.Error())
+			return nil, fmt.Errorf("failed to set nested map: %w", err)
 		}
 	}
 
-	return unstructuredISVC
+	return unstructuredISVC, nil
 }
 
 func runTestCase(t *testing.T, tc TestCase) {
@@ -118,7 +119,10 @@ func runTestCase(t *testing.T, tc TestCase) {
 
 	webhook := createWebhook(cli, sch)
 
-	isvc := createTestInferenceService(testInferenceService, testNamespace, tc.annotations, tc.predictorSpec)
+	isvc, err := createTestInferenceService(testInferenceService, testNamespace, tc.annotations, tc.predictorSpec)
+	if err != nil {
+		t.Fatalf("failed to create test InferenceService: %v", err)
+	}
 	isvcRaw, err := json.Marshal(isvc)
 	if err != nil {
 		t.Fatalf("failed to marshal InferenceService: %v", err)
@@ -166,20 +170,17 @@ func hasImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch.JsonPa
 		}
 		return false
 	}
-} // uri-v1.
-func hasStorageUriPatch(expectedUri ...string) func([]jsonpatch.JsonPatchOperation) bool {
-	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		expectedValue := ""
-		if len(expectedUri) > 0 {
-			expectedValue = expectedUri[0]
-		}
+}
 
+// uri-v1.
+func hasStorageUriPatch(expectedUri string) func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
 			if patch.Path == "/spec/predictor/model/storageUri" {
-				if expectedValue == "" {
+				if expectedUri == "" {
 					return true
 				}
-				return patch.Value == expectedValue
+				return patch.Value == expectedUri
 			}
 		}
 		return false
@@ -187,27 +188,22 @@ func hasStorageUriPatch(expectedUri ...string) func([]jsonpatch.JsonPatchOperati
 }
 
 // s3.
-func hasStorageKeyPatch(expectedValue ...string) func([]jsonpatch.JsonPatchOperation) bool {
+func hasStorageKeyPatch(expectedStorageKey string) func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		expectedKey := ""
-		if len(expectedValue) > 0 {
-			expectedKey = expectedValue[0]
-		}
-
 		for _, patch := range patches {
 			if patch.Path == "/spec/predictor/model/storage/key" {
-				if expectedKey == "" {
+				if expectedStorageKey == "" {
 					return true
 				}
-				return patch.Value == expectedKey
+				return patch.Value == expectedStorageKey
 			}
 			if patch.Path == "/spec/predictor/model/storage" {
 				if storageMap, ok := patch.Value.(map[string]interface{}); ok {
 					if key, hasKey := storageMap["key"]; hasKey {
-						if expectedKey == "" {
+						if expectedStorageKey == "" {
 							return true
 						}
-						return key == expectedKey
+						return key == expectedStorageKey
 					}
 				}
 			}
@@ -239,7 +235,7 @@ func TestConnectionWebhook(t *testing.T) {
 		},
 		{
 			name:            "to delete ISVC with allowed type should be passed",
-			secretType:      "s3",
+			secretType:      inferenceservice.ConnectionTypeS3.String(),
 			annotations:     map[string]string{annotations.Connection: testSecret},
 			operation:       admissionv1.Delete,
 			expectedAllowed: true,
@@ -265,7 +261,7 @@ func TestConnectionWebhook(t *testing.T) {
 		},
 		{
 			name:               "annotation as OCI type, ISVC creation allowed with injection done",
-			secretType:         "oci-v1",
+			secretType:         inferenceservice.ConnectionTypeOCI.String(),
 			secretNamespace:    testNamespace,
 			annotations:        map[string]string{annotations.Connection: testSecret},
 			operation:          admissionv1.Create,
@@ -274,7 +270,7 @@ func TestConnectionWebhook(t *testing.T) {
 		},
 		{
 			name:               "annotation as URI type with model in spec, ISVC creation allowed with injection done",
-			secretType:         "uri-v1",
+			secretType:         inferenceservice.ConnectionTypeURI.String(),
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{"URI": []byte("https://opendathub.io/model")},
 			annotations:        map[string]string{annotations.Connection: testSecret},
@@ -285,7 +281,7 @@ func TestConnectionWebhook(t *testing.T) {
 		},
 		{
 			name:               "annotation as S3 type, ISVC creation allowed with injection done",
-			secretType:         "s3",
+			secretType:         inferenceservice.ConnectionTypeS3.String(),
 			secretNamespace:    testNamespace,
 			annotations:        map[string]string{annotations.Connection: testSecret},
 			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
@@ -295,7 +291,7 @@ func TestConnectionWebhook(t *testing.T) {
 		},
 		{
 			name:            "annotation as URI type without data.URI set, ISVC should not be allowed to create",
-			secretType:      "uri-v1",
+			secretType:      inferenceservice.ConnectionTypeURI.String(),
 			secretNamespace: testNamespace,
 			secretData:      map[string][]byte{},
 			annotations:     map[string]string{annotations.Connection: testSecret},
@@ -307,7 +303,7 @@ func TestConnectionWebhook(t *testing.T) {
 		// type cases for update
 		{
 			name:               "annotation as S3 type with existing storageUri, ISVC update allowed with replacement",
-			secretType:         "s3",
+			secretType:         inferenceservice.ConnectionTypeS3.String(),
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{},
 			annotations:        map[string]string{annotations.Connection: testSecret},
@@ -318,7 +314,7 @@ func TestConnectionWebhook(t *testing.T) {
 		},
 		{
 			name:               "annotation as OCI type, ISVC update allowed with replacement",
-			secretType:         "oci-v1",
+			secretType:         inferenceservice.ConnectionTypeOCI.String(),
 			secretNamespace:    testNamespace,
 			annotations:        map[string]string{annotations.Connection: testSecret},
 			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
@@ -328,7 +324,7 @@ func TestConnectionWebhook(t *testing.T) {
 		},
 		{
 			name:            "annotation as S3 type without model set, ISVC should not be allowed to create",
-			secretType:      "s3",
+			secretType:      inferenceservice.ConnectionTypeS3.String(),
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret},
 			operation:       admissionv1.Create,
@@ -337,7 +333,7 @@ func TestConnectionWebhook(t *testing.T) {
 		},
 		{
 			name:               "annotation as URI type with new URI, ISVC should overwrite with new value in the patch",
-			secretType:         "uri-v1",
+			secretType:         inferenceservice.ConnectionTypeURI.String(),
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{"URI": []byte("s3://new-bucket/new-model")},
 			annotations:        map[string]string{annotations.Connection: testSecret},
