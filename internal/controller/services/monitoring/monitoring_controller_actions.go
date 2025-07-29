@@ -151,7 +151,7 @@ func deployMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 	return nil
 }
 
-func deployoOpenTelemetryCollector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")

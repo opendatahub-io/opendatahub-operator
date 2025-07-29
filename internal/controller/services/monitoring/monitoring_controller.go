@@ -128,7 +128,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(addMonitoringCapability).
 		WithAction(deployMonitoringStack).
 		WithAction(deployTempo).
-		WithAction(deployoOpenTelemetryCollector).
+		WithAction(deployOpenTelemetryCollector).
 		WithAction(deployInstrumentation).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),

@@ -18,10 +18,10 @@ import (
 )
 
 const (
-	// Dependent operators.
-	opentelemetryOperator        = "opentelemetry-product"
+	// Dependent operators names. match the one in the operatorcondition..
+	opentelemetryOperator        = "opentelemetry-operator"
 	clusterObservabilityOperator = "cluster-observability-operator"
-	tempoOperator                = "tempo-product"
+	tempoOperator                = "tempo-operator"
 )
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
@@ -125,7 +125,7 @@ func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationReq
 	log := logf.FromContext(ctx)
 
 	// Set initial condition state
-	rr.Conditions.MarkUnknown("MonitoringConfigured")
+	rr.Conditions.MarkUnknown(status.ConditionMonitoringAvailable)
 
 	if err := checkMonitoringPreconditions(ctx, rr); err != nil {
 		log.Error(err, "Monitoring preconditions failed")
