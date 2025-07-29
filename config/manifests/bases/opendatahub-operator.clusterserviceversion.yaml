@@ -17,7 +17,7 @@ metadata:
       "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io",
       "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.31.0
+  name: opendatahub-operator.v2.23.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -163,4 +163,4 @@ spec:
   selector:
     matchLabels:
       component: opendatahub-operator
-  version: 2.31.0
+  version: 2.23.0
