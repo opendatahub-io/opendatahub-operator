@@ -33,13 +33,16 @@ import (
 
 const DefaultCertificateSecretName = "knative-serving-cert"
 
+
 var (
 	imageParamMap = map[string]string{
-		"kserve-agent":               "RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
-		"kserve-controller":          "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
-		"kserve-router":              "RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE",
-		"kserve-storage-initializer": "RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE",
-		"oauth-proxy":                "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
+		"kserve-agent":                     "RELATED_IMAGE_ODH_KSERVE_AGENT_IMAGE",
+		"kserve-controller":                "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
+		"kserve-router":                    "RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE",
+		"kserve-storage-initializer":       "RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE",
+		"kserve-llm-d-inference-scheduler": "RELATED_IMAGE_ODH_LLM_D_INFERENCE_SCHEDULER_IMAGE",
+		"kserve-llm-d-routing-sidecar":     "RELATED_IMAGE_ODH_LLM_D_ROUTING_SIDECAR_IMAGE",
+		"oauth-proxy":                      "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
 	}
 )
 
