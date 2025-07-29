@@ -167,6 +167,16 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 		return nil
 	}
 
+	if monitoring.Spec.Traces == nil {
+		// No traces configuration - skip OpenTelemetry collector deployment for traces
+		rr.Conditions.MarkFalse(
+			status.ConditionOpenTelemetryCollectorAvailable,
+			conditions.WithReason(status.TracesNotConfiguredReason),
+			conditions.WithMessage(status.TracesNotConfiguredMessage),
+		)
+		return nil
+	}
+
 	otcExists, err := cluster.HasCRD(ctx, rr.Client, gvk.OpenTelemetryCollector)
 	if err != nil {
 		return fmt.Errorf("failed to check if CRD OpenTelemetryCollector exists: %w", err)

@@ -18,6 +18,28 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/resource"
 )
 
+// indent adds the specified number of spaces to each line of the input string.
+func indent(spaces int, text string) string {
+	if text == "" {
+		return text
+	}
+	prefix := strings.Repeat(" ", spaces)
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		if line != "" {
+			lines[i] = prefix + line
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// templateFuncMap returns a map of custom template functions.
+func templateFuncMap() template.FuncMap {
+	return template.FuncMap{
+		"indent": indent,
+	}
+}
+
 func Create(fsys fs.FS, path string) *Manifest {
 	basePath := filepath.Base(path)
 	return &Manifest{
@@ -109,6 +131,7 @@ func (m *Manifest) Process(data any) ([]*unstructured.Unstructured, error) {
 
 	if isTemplate(m.path) {
 		tmpl, err := template.New(m.name).
+			Funcs(templateFuncMap()).
 			Option("missingkey=error").
 			Parse(resources)
 		if err != nil {

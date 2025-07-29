@@ -46,10 +46,10 @@ func monitoringTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Auto creation of Monitoring CR", monitoringServiceCtx.ValidateMonitoringCRCreation},
 		{"Test Monitoring CR content default value", monitoringServiceCtx.ValidateMonitoringCRDefaultContent},
+		{"Test Traces default content", monitoringServiceCtx.ValidateMonitoringCRDefaultTracesContent},
 		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringStackCRMetricsWhenSet},
 		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsConfiguration},
 		{"Test Metrics Replicas Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsReplicasUpdate},
-		{"Test Traces default content", monitoringServiceCtx.ValidateMonitoringCRDefaultTracesContent},
 		{"Test TempoMonolithic CR Creation with PV backend", monitoringServiceCtx.ValidateTempoMonolithicCRCreation},
 		{"Test TempoStack CR Creation with S3 backend", monitoringServiceCtx.ValidateTempoStackCRCreationWithS3},
 		{"Test TempoStack CR Creation with GCS backend", monitoringServiceCtx.ValidateTempoStackCRCreationWithGCS},
@@ -57,6 +57,8 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test OpenTelemetry Collector Traces Configuration", monitoringServiceCtx.ValidateOpenTelemetryCollectorTracesConfiguration},
 		{"Test Instrumentation CR Traces Creation", monitoringServiceCtx.ValidateInstrumentationCRTracesWhenSet},
 		{"Test Instrumentation CR Traces Configuration", monitoringServiceCtx.ValidateInstrumentationCRTracesConfiguration},
+		{"Test OpenTelemetry Collector Custom Traces Exporters", monitoringServiceCtx.ValidateOpenTelemetryCollectorCustomTracesExporters},
+		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
 		{"Test MonitoringStack CR Deletion", monitoringServiceCtx.ValidateMonitoringStackCRDeleted},
 		{"Test Monitoring CR Deletion", monitoringServiceCtx.ValidateMonitoringCRDeleted},
 	}
@@ -204,7 +206,10 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
 	// Set metrics to empty object
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{}`)),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.metrics = %s`, `{}`),
+			testf.Transform(`.spec.monitoring.traces = null`),
+		)),
 	)
 
 	// Verify MonitoringStack CR is deleted by gc
@@ -264,6 +269,69 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorTracesConfiguration(t
 	)
 }
 
+func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorCustomTracesExporters(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Set traces configuration with custom exporters
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = %s`, `{
+			storage: {backend: "pv"},
+			exporters: {
+				"jaeger": {
+					endpoint: "http://jaeger-collector:14250",
+					tls: {
+						insecure: true
+					}
+				},
+				"otlp/custom": {
+					endpoint: "http://custom-endpoint:4317",
+					headers: {
+						"api-key": "secret-key"
+					}
+				}
+			}
+		}`)),
+	)
+
+	// Validate that the OpenTelemetry collector has the custom exporters configured
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: "data-science-collector", Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(jq.Match(`.spec.config.exporters | has("jaeger")`)),
+		WithCondition(jq.Match(`.spec.config.exporters | has("otlp/custom")`)),
+		WithCondition(jq.Match(`.spec.config.exporters | has("otlp/tempo")`)), // Default tempo exporter should still exist
+		WithCondition(jq.Match(`.spec.config.service.pipelines.traces.exporters | contains(["jaeger"])`)),
+		WithCondition(jq.Match(`.spec.config.service.pipelines.traces.exporters | contains(["otlp/custom"])`)),
+		WithCondition(jq.Match(`.spec.config.service.pipelines.traces.exporters | contains(["otlp/tempo"])`)),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateTracesExportersReservedNameValidation(t *testing.T) {
+	t.Helper()
+
+	// Attempt to set traces configuration with a reserved exporter name
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = %s`, `{
+			storage: {backend: "pv"},
+			exporters: {
+				"otlp/tempo": {
+					endpoint: "http://malicious-endpoint:4317"
+				}
+			}
+		}`)),
+	)
+
+	// Validate that the Monitoring resource reports an error condition due to reserved name
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse)),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("reserved")`, status.ConditionTypeProvisioningSucceeded)),
+	)
+}
+
 func getTempoMonolithicName(dsci *dsciv1.DSCInitialization) string {
 	return "data-science-tempomonolithic"
 }
@@ -297,6 +365,7 @@ func setMonitoringTraces(backend, secret, size string) testf.TransformFn {
 			"storage": map[string]interface{}{
 				"backend": backend,
 			},
+			"exporters": map[string]interface{}{},
 		}
 
 		if size != "" {
