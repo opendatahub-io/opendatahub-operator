@@ -71,6 +71,12 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		OwnsGVK(gvk.OdhApplication, reconciler.Dynamic()).
 		OwnsGVK(gvk.OdhDocument, reconciler.Dynamic()).
 		OwnsGVK(gvk.OdhQuickStart, reconciler.Dynamic()).
+		Watches(
+			&corev1.ConfigMap{},
+			reconciler.WithPredicates(
+				component.ForLabel(labels.PlatformPartOf, componentApi.DashboardComponentName),
+			),
+		).
 		// CRDs are not owned by the component and should be left on the cluster,
 		// so by default, the deploy action won't add all the annotation added to
 		// other resources. Hence, a custom handling is required in order to minimize
