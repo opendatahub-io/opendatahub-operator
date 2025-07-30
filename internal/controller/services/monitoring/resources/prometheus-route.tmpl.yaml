@@ -2,7 +2,7 @@ kind: Route
 apiVersion: route.openshift.io/v1
 metadata:
   name: data-science-prometheus-route
-  namespace: {{ .Namespace }}
+  namespace: {{.Namespace}}
 spec:
   path: /
   to:
