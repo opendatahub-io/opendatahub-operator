@@ -12,6 +12,7 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -96,7 +97,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		// validate the connection annotation
 		// - if has matched annoataion
 		// - if annaotation has valid value as that secret exists in the same namespace(permission allowed)
-		validationResp, shouldInject, secret, connectionType := webhookutils.ValidateConnectionAnnotation(ctx, w.Client, obj, req, allowedTypes)
+		validationResp, shouldInject, secretName, connectionType := webhookutils.ValidateConnectionAnnotation(ctx, w.Client, obj, req, allowedTypes)
 		if !validationResp.Allowed {
 			return validationResp
 		}
@@ -106,7 +107,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 			return admission.Allowed(fmt.Sprintf("Connection validation passed in namespace %s for %s, no injection needed", req.Namespace, req.Kind.Kind))
 		}
 
-		injectionPerformed, err := w.performConnectionInjection(ctx, req, secret, connectionType, obj)
+		injectionPerformed, err := w.performConnectionInjection(ctx, req, secretName, connectionType, obj)
 		if err != nil {
 			log.Error(err, "Failed to perform connection injection")
 			return admission.Errored(http.StatusInternalServerError, err)
@@ -132,7 +133,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 func (w *ConnectionWebhook) performConnectionInjection(
 	ctx context.Context,
 	req admission.Request,
-	secret *corev1.Secret,
+	secretName string,
 	connectionType string,
 	decodedObj *unstructured.Unstructured,
 ) (bool, error) {
@@ -143,24 +144,24 @@ func (w *ConnectionWebhook) performConnectionInjection(
 	// injection based on connection type
 	switch ConnectionType(connectionType) {
 	case ConnectionTypeOCI:
-		if err := w.injectOCIImagePullSecrets(decodedObj, secret.Name); err != nil {
+		if err := w.injectOCIImagePullSecrets(decodedObj, secretName); err != nil {
 			return false, fmt.Errorf("failed to inject OCI imagePullSecrets: %w", err)
 		}
-		log.Info("Successfully injected OCI imagePullSecrets", "secretName", secret.Name)
+		log.Info("Successfully injected OCI imagePullSecrets", "secretName", secretName)
 		return true, nil
 
 	case ConnectionTypeURI:
-		if err := w.injectURIStorageUri(decodedObj, secret); err != nil {
+		if err := w.injectURIStorageUri(ctx, decodedObj, secretName, req.Namespace); err != nil {
 			return false, fmt.Errorf("failed to inject URI storageUri: %w", err)
 		}
-		log.Info("Successfully injected URI storageUri from secret", "secretName", secret.Name)
+		log.Info("Successfully injected URI storageUri from secret", "secretName", secretName)
 		return true, nil
 
 	case ConnectionTypeS3:
-		if err := w.injectS3StorageKey(decodedObj, secret.Name); err != nil {
+		if err := w.injectS3StorageKey(decodedObj, secretName); err != nil {
 			return false, fmt.Errorf("failed to inject S3 storage.key: %w", err)
 		}
-		log.Info("Successfully injected S3 storage key", "secretName", secret.Name)
+		log.Info("Successfully injected S3 storage key", "secretName", secretName)
 		return true, nil
 
 	default: // this should not enter since ValidateConnectionAnnotation ensures valid types, but keep it for safety
@@ -195,7 +196,13 @@ func (w *ConnectionWebhook) injectOCIImagePullSecrets(obj *unstructured.Unstruct
 }
 
 // injectURIStorageUri injects storageUri into spec.predictor.model.storageUri for URI connections.
-func (w *ConnectionWebhook) injectURIStorageUri(obj *unstructured.Unstructured, secret *corev1.Secret) error {
+func (w *ConnectionWebhook) injectURIStorageUri(ctx context.Context, obj *unstructured.Unstructured, secretName, namespace string) error {
+	// Fetch the secret to get the URI data
+	secret := &corev1.Secret{}
+	if err := w.Client.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
+		return fmt.Errorf("failed to get secret %s: %w", secretName, err)
+	}
+
 	var storageUri string
 	uri, exists := secret.Data["URI"]
 	if !exists {
