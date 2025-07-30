@@ -479,7 +479,7 @@ func TestHardwareProfileWebhook_Integration(t *testing.T) {
 
 			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
 				t,
-				[]envt.RegisterWebhooksFn{envtestutil.RegisterHardwareProfileAndKueueWebhooks},
+				[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
 				envtestutil.DefaultWebhookTimeout,
 				envtestutil.WithNotebook(),
 				envtestutil.WithInferenceService(),
@@ -577,7 +577,7 @@ func TestHardwareProfile_CRDValidation(t *testing.T) {
 
 			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
 				t,
-				[]envt.RegisterWebhooksFn{envtestutil.RegisterHardwareProfileAndKueueWebhooks},
+				[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
 				envtestutil.DefaultWebhookTimeout,
 				envtestutil.WithNotebook(),
 				envtestutil.WithInferenceService(),

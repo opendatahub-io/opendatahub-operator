@@ -9,6 +9,7 @@ import (
 	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
 	dsciwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
+	isvc "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/inferenceservice"
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 )
 
@@ -21,6 +22,7 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 		authwebhook.RegisterWebhooks,
 		hardwareprofilewebhook.RegisterWebhooks,
 		kueuewebhook.RegisterWebhooks,
+		isvc.RegisterWebhooks,
 	}
 	for _, reg := range webhookRegistrations {
 		if err := reg(mgr); err != nil {
