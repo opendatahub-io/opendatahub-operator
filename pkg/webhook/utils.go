@@ -128,7 +128,7 @@ func DecodeUnstructured(decoder admission.Decoder, req admission.Request) (*unst
 	return obj, nil
 }
 
-// ValidateConnectionAnnotation validates the connection annotation  "opendatahub.io/connections"
+// ValidateInferenceServiceConnectionAnnotation validates the connection annotation  "opendatahub.io/connections"
 // If the annotation exists and has a non-empty value, it validates that the value references
 // a valid secret in the same namespace. Additionally, it checks the secret's connection type
 // annotation and rejects requests with invalid configurations. (see allowedTypes)
@@ -146,7 +146,7 @@ func DecodeUnstructured(decoder admission.Decoder, req admission.Request) (*unst
 //   - bool: true if injection should be performed (only for known valid connection types)
 //   - string: The validated secret name (only valid when injection should be performed)
 //   - string: The connection type (only valid when injection should be performed)
-func ValidateConnectionAnnotation(ctx context.Context,
+func ValidateInferenceServiceConnectionAnnotation(ctx context.Context,
 	cli client.Reader,
 	decodedObj *unstructured.Unstructured,
 	req admission.Request,

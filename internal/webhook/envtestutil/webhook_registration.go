@@ -9,7 +9,7 @@ import (
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 )
 
-// RegisterHardwareProfileAndKueueWebhooks registers hardware profile, Kueue, and connection webhooks for integration testing.
+// RegisterWebhooks registers hardware profile, Kueue, and connection webhooks for integration testing.
 //
 // This function is specifically designed for tests that create Kubernetes resources (such as Notebooks or InferenceServices)
 // that are targeted by multiple webhook configurations. In a real cluster, when these resources are created, Kubernetes
@@ -21,7 +21,7 @@ import (
 //   - Testing InferenceService creation with hardware profiles
 //   - Testing any workflow that creates resources matching multiple webhook selectors
 //   - You need all webhooks to be available to avoid "webhook endpoint not found" errors
-func RegisterHardwareProfileAndKueueWebhooks(mgr manager.Manager) error {
+func RegisterWebhooks(mgr manager.Manager) error {
 	// Register Kueue webhook
 	kueueValidator := &kueuewebhook.Validator{
 		Client:  mgr.GetAPIReader(),
@@ -43,12 +43,12 @@ func RegisterHardwareProfileAndKueueWebhooks(mgr manager.Manager) error {
 	}
 
 	// Register Connection webhook for InferenceService
-	connectionWebhook := &inferenceservicewebhook.ConnectionWebhook{
+	isvcConnectionWebhook := &inferenceservicewebhook.ConnectionWebhook{
 		Client:  mgr.GetAPIReader(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 		Name:    "connection-isvc",
 	}
-	if err := connectionWebhook.SetupWithManager(mgr); err != nil {
+	if err := isvcConnectionWebhook.SetupWithManager(mgr); err != nil {
 		return err
 	}
 

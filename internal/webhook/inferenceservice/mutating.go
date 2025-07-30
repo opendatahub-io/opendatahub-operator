@@ -83,7 +83,6 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		// Decode the object once
 		obj, err := webhookutils.DecodeUnstructured(w.Decoder, req)
 		if err != nil {
-			log.Error(err, "failed to decode object")
 			return admission.Errored(http.StatusInternalServerError, err)
 		}
 
@@ -97,7 +96,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		// validate the connection annotation
 		// - if has matched annoataion
 		// - if annaotation has valid value as that secret exists in the same namespace(permission allowed)
-		validationResp, shouldInject, secretName, connectionType := webhookutils.ValidateConnectionAnnotation(ctx, w.Client, obj, req, allowedTypes)
+		validationResp, shouldInject, secretName, connectionType := webhookutils.ValidateInferenceServiceConnectionAnnotation(ctx, w.Client, obj, req, allowedTypes)
 		if !validationResp.Allowed {
 			return validationResp
 		}
