@@ -85,7 +85,7 @@ func TestKueueWebhook_Integration(t *testing.T) {
 			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
 				t,
 				[]envt.RegisterWebhooksFn{
-					envtestutil.RegisterHardwareProfileAndKueueWebhooks,
+					envtestutil.RegisterWebhooks,
 					dscwebhook.RegisterWebhooks,
 				},
 				20*time.Second,
