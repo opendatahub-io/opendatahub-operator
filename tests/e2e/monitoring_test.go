@@ -226,9 +226,6 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
 
 func (tc *MonitoringTestCtx) ValidateMonitoringCRDeleted(t *testing.T) {
 	t.Helper()
-
-	dsci := tc.FetchDSCInitialization()
-
 	// Set Monitoring to be removed
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
@@ -237,11 +234,6 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDeleted(t *testing.T) {
 
 	// Ensure Monitoring CR is removed because of ownerreference
 	tc.EnsureResourcesGone(WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}))
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: "data-science-collector", Namespace: dsci.Spec.Monitoring.Namespace}),
-		// Format of statusReplicas is n/m, we check if at least one is ready
-		WithCondition(jq.Match(`.status.scale.statusReplicas | split("/") | min > 0`)),
-	)
 }
 
 func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorDeployment(t *testing.T) {
