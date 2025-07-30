@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: generate-processors-rbac
+  name: generate-processors-role
 rules:
 - apiGroups:
   - ""
@@ -28,12 +28,12 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: generate-processors-rbac-collector
+  name: generate-processors-collector-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: generate-processors-rbac
+  name: generate-processors-role
 subjects:
 - kind: ServiceAccount
   name: data-science-collector
-  namespace: {{ .Namespace }}
+  namespace: {{.Namespace}}

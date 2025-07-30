@@ -458,4 +458,10 @@ var (
 		Version: "v1alpha1",
 		Kind:    "Instrumentation",
 	}
+
+	ServiceMonitor = schema.GroupVersionKind{
+		Group:   "monitoring.rhobs",
+		Version: "v1",
+		Kind:    "ServiceMonitor",
+	}
 )

@@ -2,40 +2,26 @@ package monitoring
 
 import (
 	"context"
-	"embed"
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"github.com/hashicorp/go-multierror"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-//go:embed resources
-var resourcesFS embed.FS
-
 const (
-	MonitoringStackTemplate          = "resources/monitoring-stack.tmpl.yaml"
-	TempoMonolithicTemplate          = "resources/tempo-monolithic.tmpl.yaml"
-	TempoStackTemplate               = "resources/tempo-stack.tmpl.yaml"
-	OpenTelemetryCollectorTemplate   = "resources/opentelemetry-collector.tmpl.yaml"
-	CollectorServiceMonitorsTemplate = "resources/collector-servicemonitors.tmpl.yaml"
-	CollectorRBACTemplate            = "resources/collector-rbac.tmpl.yaml"
-	PrometheusRouteTemplate          = "resources/prometheus-route.tmpl.yaml"
-	PrometheusPipelineName           = "odh-prometheus-collector"
-	opentelemetryOperator            = "opentelemetry-product"
-	clusterObservabilityOperator     = "cluster-observability-operator"
-	tempoOperator                    = "tempo-product"
-	InstrumentationTemplate          = "resources/instrumentation.tmpl.yaml"
-	InstrumentationName              = "data-science-instrumentation"
-	DefaultSamplerType               = "traceidratio"
+	// Dependent operators names. match the one in the operatorcondition..
+	opentelemetryOperator        = "opentelemetry-operator"
+	clusterObservabilityOperator = "cluster-observability-operator"
+	tempoOperator                = "tempo-operator"
 )
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
@@ -113,21 +99,22 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 			replicas = metrics.Replicas
 		}
 		templateData["Replicas"] = strconv.Itoa(int(replicas))
-		templateData["PromPipelineName"] = PrometheusPipelineName
 	}
 
 	// Add traces-related data if traces are configured
 	if traces := monitoring.Spec.Traces; traces != nil {
-		templateData["InstrumentationName"] = InstrumentationName
 		templateData["OtlpEndpoint"] = fmt.Sprintf("http://data-science-collector.%s.svc.cluster.local:4317", monitoring.Spec.Namespace)
 		templateData["SampleRatio"] = traces.SampleRatio
-		templateData["SamplerType"] = DefaultSamplerType
+		templateData["Backend"] = traces.Storage.Backend // backend has default "pv" set in API
 
 		// Add tempo-related data from traces.Storage fields (Storage is a struct, not a pointer)
-		if traces.Storage.Backend != "" {
-			templateData["Backend"] = traces.Storage.Backend
-			templateData["Secret"] = traces.Storage.Secret
+		switch traces.Storage.Backend {
+		case "pv":
+			templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempomonolithic.%s.svc.cluster.local:4317", monitoring.Spec.Namespace)
 			templateData["Size"] = traces.Storage.Size
+		case "s3", "gcs":
+			templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempostack-gateway.%s.svc.cluster.local:4317", monitoring.Spec.Namespace)
+			templateData["Secret"] = traces.Storage.Secret
 		}
 	}
 
@@ -138,13 +125,13 @@ func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationReq
 	log := logf.FromContext(ctx)
 
 	// Set initial condition state
-	rr.Conditions.MarkUnknown("MonitoringConfigured")
+	rr.Conditions.MarkUnknown(status.ConditionMonitoringAvailable)
 
 	if err := checkMonitoringPreconditions(ctx, rr); err != nil {
 		log.Error(err, "Monitoring preconditions failed")
 
 		rr.Conditions.MarkFalse(
-			"MonitoringConfigured",
+			status.ConditionMonitoringAvailable,
 			cond.WithReason(status.MissingOperatorReason),
 			cond.WithMessage("Monitoring preconditions failed: %s", err.Error()),
 		)
@@ -152,53 +139,43 @@ func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationReq
 		return err
 	}
 
-	rr.Conditions.MarkTrue("MonitoringConfigured")
+	rr.Conditions.MarkTrue(status.ConditionMonitoringAvailable)
 
-	return nil
-}
-
-func checkOperatorSubscription(ctx context.Context, cli client.Client, operatorName string) error {
-	if found, err := cluster.SubscriptionExists(ctx, cli, operatorName); !found || err != nil {
-		return fmt.Errorf("failed to find the pre-requisite operator subscription %q,"+
-			" please ensure operator is installed: %w", operatorName, err)
-	}
 	return nil
 }
 
 func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	var allErrors []error
+	var allErrors *multierror.Error
 
 	// Check for opentelemetry-product operator if either metrics or traces are enabled
 	if rr.DSCI.Spec.Monitoring.Metrics != nil || rr.DSCI.Spec.Monitoring.Traces != nil {
-		err := checkOperatorSubscription(ctx, rr.Client, opentelemetryOperator)
-		if err != nil {
-			allErrors = append(allErrors, err)
+		if found, err := cluster.OperatorExists(ctx, rr.Client, opentelemetryOperator); err != nil || !found {
+			if err != nil {
+				return odherrors.NewStopErrorW(err)
+			}
+			allErrors = multierror.Append(allErrors, odherrors.NewStopError(status.OpenTelemetryCollectorOperatorMissingMessage))
 		}
 	}
 
 	// Check for cluster-observability-operator if metrics are enabled
 	if rr.DSCI.Spec.Monitoring.Metrics != nil {
-		err := checkOperatorSubscription(ctx, rr.Client, clusterObservabilityOperator)
-		if err != nil {
-			allErrors = append(allErrors, err)
+		if found, err := cluster.OperatorExists(ctx, rr.Client, clusterObservabilityOperator); err != nil || !found {
+			if err != nil {
+				return odherrors.NewStopErrorW(err)
+			}
+			allErrors = multierror.Append(allErrors, odherrors.NewStopError(status.COOMissingMessage))
 		}
 	}
 
 	// Check for tempo-product operator if traces are enabled
 	if rr.DSCI.Spec.Monitoring.Traces != nil {
-		err := checkOperatorSubscription(ctx, rr.Client, tempoOperator)
-		if err != nil {
-			allErrors = append(allErrors, err)
+		if found, err := cluster.OperatorExists(ctx, rr.Client, tempoOperator); err != nil || !found {
+			if err != nil {
+				return odherrors.NewStopErrorW(err)
+			}
+			allErrors = multierror.Append(allErrors, odherrors.NewStopError(status.TempoOperatorMissingMessage))
 		}
 	}
 
-	if len(allErrors) > 0 {
-		var errorMessages []string
-		for _, err := range allErrors {
-			errorMessages = append(errorMessages, err.Error())
-		}
-		return fmt.Errorf("monitoring preconditions failed: %s", strings.Join(errorMessages, "; "))
-	}
-
-	return nil
+	return allErrors.ErrorOrNil()
 }
