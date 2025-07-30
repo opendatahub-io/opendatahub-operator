@@ -209,7 +209,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
-  name: rhods-operator.v2.23.0
+  name: rhods-operator.v2.24.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1532,6 +1532,26 @@ spec:
               labels:
                 name: rhods-operator
             spec:
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                    - matchExpressions:
+                      - key: kubernetes.io/os
+                        operator: In
+                        values:
+                        - linux
+                podAntiAffinity:
+                  preferredDuringSchedulingIgnoredDuringExecution:
+                  - podAffinityTerm:
+                      labelSelector:
+                        matchExpressions:
+                        - key: name
+                          operator: In
+                          values:
+                          - opendatahub-operator
+                      topologyKey: kubernetes.io/hostname
+                    weight: 100
               containers:
               - args:
                 - --health-probe-bind-address=:8081
@@ -1646,7 +1666,7 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.23.0
+  version: 2.24.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
