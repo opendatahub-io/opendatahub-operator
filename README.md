@@ -29,6 +29,7 @@ and configure these applications.
   - [Example DataScienceCluster](#example-datasciencecluster)
   - [Run functional Tests](#run-functional-tests)
   - [Run e2e Tests](#run-e2e-tests)
+  - [Run integration tests (Jenkins pipeline)](#run-integration-tests-jenkins-pipeline)
   - [API Overview](#api-overview)
   - [Component Integration](#component-integration)
   - [Troubleshooting](#troubleshooting)
@@ -502,6 +503,10 @@ Additionally specific env vars can be used to configure tests timeouts
 | E2E_TEST_DEFAULTEVENTUALLYPOLLINTERVAL   | Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.         | `2s`          |
 | E2E_TEST_DEFAULTCONSISTENTLYTIMEOUT      | Duration used for Consistently; overrides Gomega's default of 2 seconds.                | `10s`         |
 | E2E_TEST_DEFAULTCONSISTENTLYPOLLINTERVAL | Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.       | `2s`          |
+
+## Run Integration tests (Jenkins pipeline)
+
+For instructions on how to run the integration test Jenkins pipeline, please refer to [the following document](docs/integration-testing.md)
 
 ## Run Prometheus Unit Tests for Alerts
 
