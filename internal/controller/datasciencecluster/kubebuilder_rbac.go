@@ -200,6 +200,7 @@ package datasciencecluster
 /* LLM-d */
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=llminferenceserviceconfigs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=llminferenceserviceconfigs/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="security.openshift.io",resources=securitycontextconstraints,verbs=get;list;watch;create;update;patch;delete;use,resourceNames=openshift-ai-llminferenceservice-scc
 
 // WB
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=workbenches,verbs=get;list;watch;create;update;patch;delete

@@ -1020,6 +1020,21 @@ rules:
 - apiGroups:
   - security.openshift.io
   resourceNames:
+  - openshift-ai-llminferenceservice-scc
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - use
+  - watch
+- apiGroups:
+  - security.openshift.io
+  resourceNames:
   - restricted
   resources:
   - securitycontextconstraints
