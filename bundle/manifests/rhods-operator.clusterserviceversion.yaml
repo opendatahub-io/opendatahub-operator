@@ -1424,6 +1424,7 @@ spec:
           - inferencegraphs
           - inferenceservices
           - inferenceservices/finalizers
+          - llminferenceserviceconfigs
           - predictors
           - servingruntimes/finalizers
           - trainedmodels
@@ -1451,6 +1452,7 @@ spec:
         - apiGroups:
           - serving.kserve.io
           resources:
+          - llminferenceserviceconfigs/status
           - predictors/finalizers
           - servingruntimes/status
           verbs:
