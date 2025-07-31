@@ -13,6 +13,7 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,8 +21,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
@@ -59,28 +60,28 @@ func (w *NotebookWebhook) Handle(ctx context.Context, req admission.Request) adm
 		return admission.Errored(http.StatusInternalServerError, errors.New("webhook decoder not initialized"))
 	}
 
-	// Validate that we're processing the correct Kind
-	if req.Kind.Kind != gvk.Notebook.Kind {
-		err := fmt.Errorf("unexpected kind: %s", req.Kind.Kind)
-		log.Error(err, "got wrong kind", "group", req.Kind.Group, "version", req.Kind.Version, "kind", req.Kind.Kind)
-		return admission.Errored(http.StatusBadRequest, err)
+	// Decode the notebook from the request
+	notebook := &unstructured.Unstructured{}
+	if err := w.Decoder.Decode(req, notebook); err != nil {
+		log.Error(err, "failed to decode object")
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode object: %w", err))
 	}
 
 	var resp admission.Response
 
 	switch req.Operation {
 	case admissionv1.Create, admissionv1.Update:
-		validationResp, shouldInject, secretRefs := w.validateNotebookConnectionAnnotation(ctx, &req)
+		validationResp, shouldInject, secretRefs := w.validateNotebookConnectionAnnotation(ctx, notebook, &req)
 		if !validationResp.Allowed {
 			return validationResp
 		}
 
-		// Only proceed with injection if the annotation is valid and shouldInject is true
-		if !shouldInject {
+		// Skip proceeding to injection if shouldInject is false or the secretRefs nil
+		if !shouldInject || secretRefs == nil {
 			return admission.Allowed(fmt.Sprintf("Connection annotation validation passed in namespace %s for %s, no injection needed", req.Namespace, req.Kind.Kind))
 		}
 
-		injectionPerformed, obj, err := w.performConnectionInjection(req, secretRefs)
+		injectionPerformed, obj, err := w.performConnectionInjection(notebook, secretRefs)
 		if err != nil {
 			log.Error(err, "Failed to perform connection injection")
 			return admission.Errored(http.StatusInternalServerError, err)
@@ -106,64 +107,41 @@ func (w *NotebookWebhook) Handle(ctx context.Context, req admission.Request) adm
 // If the annotation exists and has a non-empty value, it validates that the value references valid secret(s).
 // Additionally, it checks that user requesting the notebook operation has the required permissions to get the secret(s)
 // If the annotation doesn't exist or is empty, it allows the operation.
-func (w *NotebookWebhook) validateNotebookConnectionAnnotation(ctx context.Context, req *admission.Request) (admission.Response, bool, []corev1.SecretReference) {
+func (w *NotebookWebhook) validateNotebookConnectionAnnotation(
+	ctx context.Context,
+	nb *unstructured.Unstructured,
+	req *admission.Request,
+) (admission.Response, bool, []corev1.SecretReference) {
 	log := logf.FromContext(ctx)
 
-	// Decode the object from the request
-	obj := &unstructured.Unstructured{}
-	if err := w.Decoder.Decode(*req, obj); err != nil {
-		log.Error(err, "failed to decode object")
-		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode object: %w", err)), false, nil
-	}
-
-	// Get the connections annotation
-	objAnnotations := obj.GetAnnotations()
-	if objAnnotations == nil {
-		// No annotations - allow the request
-		return admission.Allowed("No annotations found - connections validation skipped"), false, nil
-	}
-
-	connectionsValue, found := objAnnotations[annotations.Connection]
-	if !found {
-		// No connections annotation - allow the request
-		return admission.Allowed("No connections annotation found - connections validation skipped"), false, nil
-	}
-
-	if strings.TrimSpace(connectionsValue) == "" {
-		// Empty connections annotation - allow the request
-		return admission.Allowed("Empty connections annotation - connections validation skipped"), false, nil
+	annotationValue := resources.GetAnnotation(nb, annotations.Connection)
+	if annotationValue == "" {
+		return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value, skipping validation", annotations.Connection)), false, nil
 	}
 
 	// Parse the connections annotation
-	connectionSecrets, err := parseConnectionsAnnotation(connectionsValue)
+	connectionSecrets, err := parseConnectionsAnnotation(annotationValue)
 	if err != nil {
-		log.Error(err, "failed to parse connections annotation", "connectionsValue", connectionsValue)
+		log.Error(err, "failed to parse connections annotation", "annotationValue", annotationValue)
 		return admission.Denied(fmt.Sprintf("failed to parse connections annotation: %v", err)), false, nil
 	}
 
-	// Validate permissions for each connection secret
-	var permissionErrors []string
-	secretRefs := make([]corev1.SecretReference, 0)
-	for _, secretRef := range connectionSecrets {
-		log.V(1).Info("checking permission for secret", "secret", secretRef.Name, "namespace", secretRef.Namespace)
-		hasPermission, err := w.checkSecretPermission(ctx, req, secretRef)
-		if err != nil {
-			log.Error(err, "error checking permission for secret", "secret", secretRef.Name, "namespace", secretRef.Namespace)
-			return admission.Errored(http.StatusInternalServerError, fmt.Errorf("error checking permission for secret %s/%s: %w", secretRef.Namespace, secretRef.Name, err)), false, nil
-		}
-
-		if !hasPermission {
-			permissionErrors = append(permissionErrors, fmt.Sprintf("%s/%s", secretRef.Namespace, secretRef.Name))
-		}
-
-		secretRefs = append(secretRefs, secretRef)
+	// Validate each connection secret exists and the user has permission to get each secret
+	secretExistsErrors, permissionsErrors, err := w.checkSecretsExistsAndUserHasPermissions(ctx, req, connectionSecrets)
+	if err != nil {
+		log.Error(err, "error verifying secret(s) exist or confirming user has get permissions for the secret(s)", "connectionSecrets", connectionSecrets)
+		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("error verifying secret(s) exist/user has permissions for them %s: %w", connectionSecrets, err)), false, nil
 	}
 
-	if len(permissionErrors) > 0 {
-		return admission.Denied(fmt.Sprintf("user does not have permission to access the following connection secrets: %s", strings.Join(permissionErrors, ", "))), false, nil
+	if len(secretExistsErrors) > 0 {
+		return admission.Denied(fmt.Sprintf("some of the connection secret(s) do not exist: %s", strings.Join(secretExistsErrors, ", "))), false, nil
 	}
 
-	return admission.Allowed("Connection permissions validated successfully"), true, secretRefs
+	if len(permissionsErrors) > 0 {
+		return admission.Denied(fmt.Sprintf("user does not have permission to access the following connection secret(s): %s", strings.Join(permissionsErrors, ", "))), false, nil
+	}
+
+	return admission.Allowed("Connection permissions validated successfully"), true, connectionSecrets
 }
 
 // parseConnectionsAnnotation parses the connections annotation value into a list of secret references.
@@ -204,60 +182,69 @@ func parseConnectionsAnnotation(value string) ([]corev1.SecretReference, error) 
 	return secretRefs, nil
 }
 
-// checkSecretPermission checks if the user has permission to "get" the specified secret using SubjectAccessReview.
-func (w *NotebookWebhook) checkSecretPermission(ctx context.Context, req *admission.Request, secretRef corev1.SecretReference) (bool, error) {
+// checkSecretsExistsAndUserHasPermissions checks that each connection secret exists
+// It also verifies that the user has permission to "get" the specified secrets using SubjectAccessReviews.
+func (w *NotebookWebhook) checkSecretsExistsAndUserHasPermissions(ctx context.Context, req *admission.Request, secretRefs []corev1.SecretReference) ([]string, []string, error) {
 	log := logf.FromContext(ctx)
 
-	// Create a SubjectAccessReview to check if the user can "get" the secret
-	sar := &authorizationv1.SubjectAccessReview{
-		Spec: authorizationv1.SubjectAccessReviewSpec{
-			User:   req.UserInfo.Username,
-			Groups: req.UserInfo.Groups,
-			ResourceAttributes: &authorizationv1.ResourceAttributes{
-				Namespace: secretRef.Namespace,
-				Verb:      "get",
-				Group:     "",
-				Version:   "v1",
-				Resource:  "secrets",
-				Name:      secretRef.Name,
+	var secretExistsErrors []string
+	var permissionErrors []string
+
+	for _, secretRef := range secretRefs {
+		// First check if the secret even exists
+		log.V(1).Info("checking that secret exists", "secret", secretRef.Name, "namespace", secretRef.Namespace)
+		if err := w.Client.Get(ctx, client.ObjectKey{Namespace: secretRef.Namespace, Name: secretRef.Name}, &corev1.Secret{}); err != nil {
+			if k8serr.IsNotFound(err) {
+				secretExistsErrors = append(secretExistsErrors, fmt.Sprintf("%s/%s", secretRef.Namespace, secretRef.Name))
+				continue
+			}
+			log.Error(err, "failed to check if secret exists", "secret", secretRef.Name, "namespace", secretRef.Namespace)
+			return nil, nil, fmt.Errorf("failed to check if secret exists: %w", err)
+		}
+
+		// Create a SubjectAccessReview to check if the user can "get" the secret
+		log.V(1).Info("checking permission for secret", "secret", secretRef.Name, "namespace", secretRef.Namespace)
+		sar := &authorizationv1.SubjectAccessReview{
+			Spec: authorizationv1.SubjectAccessReviewSpec{
+				User:   req.UserInfo.Username,
+				Groups: req.UserInfo.Groups,
+				ResourceAttributes: &authorizationv1.ResourceAttributes{
+					Namespace: secretRef.Namespace,
+					Verb:      "get",
+					Group:     "",
+					Version:   "v1",
+					Resource:  "secrets",
+					Name:      secretRef.Name,
+				},
 			},
-		},
+		}
+
+		// Send the SubjectAccessReview to the API server to verify permission
+		if err := w.Client.Create(ctx, sar); err != nil {
+			log.Error(err, "failed to create SubjectAccessReview", "secret", secretRef.Name, "namespace", secretRef.Namespace)
+			return nil, nil, fmt.Errorf("failed to create SubjectAccessReview: %w", err)
+		}
+
+		// Check the result
+		if !sar.Status.Allowed {
+			log.V(1).Info("user does not have permission to access secret",
+				"secret", secretRef.Name,
+				"namespace", secretRef.Namespace,
+				"reason", sar.Status.Reason,
+				"evaluationError", sar.Status.EvaluationError,
+			)
+			permissionErrors = append(permissionErrors, fmt.Sprintf("%s/%s", secretRef.Namespace, secretRef.Name))
+		}
+
+		log.V(1).Info("user has permission to access secret", "secret", secretRef.Name, "namespace", secretRef.Namespace)
 	}
 
-	// Send the SubjectAccessReview to the API server
-	if err := w.Client.Create(ctx, sar); err != nil {
-		log.Error(err, "failed to create SubjectAccessReview", "secret", secretRef.Name, "namespace", secretRef.Namespace)
-		return false, fmt.Errorf("failed to create SubjectAccessReview: %w", err)
-	}
-
-	// Check the result
-	if !sar.Status.Allowed {
-		log.V(1).Info("user does not have permission to access secret",
-			"secret", secretRef.Name,
-			"namespace", secretRef.Namespace,
-			"reason", sar.Status.Reason,
-			"evaluationError", sar.Status.EvaluationError,
-		)
-
-		return false, nil
-	}
-
-	log.V(1).Info("user has permission to access secret", "secret", secretRef.Name, "namespace", secretRef.Namespace)
-	return true, nil
+	return secretExistsErrors, permissionErrors, nil
 }
 
-func (w *NotebookWebhook) performConnectionInjection(req admission.Request, secretRefs []corev1.SecretReference) (bool, *unstructured.Unstructured, error) {
-	obj := &unstructured.Unstructured{}
-	if err := w.Decoder.Decode(req, obj); err != nil {
-		return false, nil, fmt.Errorf("failed to decode Notebook object: %w", err)
-	}
-
-	if len(secretRefs) == 0 {
-		return false, obj, nil
-	}
-
+func (w *NotebookWebhook) performConnectionInjection(nb *unstructured.Unstructured, secretRefs []corev1.SecretReference) (bool, *unstructured.Unstructured, error) {
 	// Get the notebook containers
-	containers, found, err := unstructured.NestedSlice(obj.Object, NotebookContainersPath...)
+	containers, found, err := unstructured.NestedSlice(nb.Object, NotebookContainersPath...)
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to get containers array: %w", err)
 	}
@@ -302,9 +289,9 @@ func (w *NotebookWebhook) performConnectionInjection(req admission.Request, secr
 	containers[0] = container
 
 	// Set the modified containers array back to the object
-	if err := unstructured.SetNestedSlice(obj.Object, containers, NotebookContainersPath...); err != nil {
+	if err := unstructured.SetNestedSlice(nb.Object, containers, NotebookContainersPath...); err != nil {
 		return false, nil, fmt.Errorf("failed to set containers array: %w", err)
 	}
 
-	return true, obj, nil
+	return true, nb, nil
 }

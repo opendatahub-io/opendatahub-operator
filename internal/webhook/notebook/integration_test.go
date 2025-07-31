@@ -83,6 +83,13 @@ func TestNotebookWebhook_Integration(t *testing.T) {
 			expectAllowed:        true,
 			validateInjection:    true,
 		},
+		{
+			name:                 "mixed valid and invalid secrets - should deny",
+			setupSecrets:         []string{"secret-1", "secret-2"},
+			connectionAnnotation: "BAD-NS/secret-1,NAMESPACE/secret-2", // NAMESPACE will be replaced
+			expectAllowed:        false,
+			expectDeniedError:    "some of the connection secret(s) do not exist",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -104,11 +111,7 @@ func TestNotebookWebhook_Integration(t *testing.T) {
 			k8sClient := env.Client()
 			ns := xid.New().String()
 
-			// Create test namespace
-			testNamespace := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{Name: ns},
-			}
-			g.Expect(k8sClient.Create(ctx, testNamespace)).To(Succeed())
+			g.Expect(k8sClient.Create(ctx, envtestutil.NewNamespace(ns, map[string]string{}))).To(Succeed())
 
 			// Create secrets if specified in test case
 			for _, secretName := range tc.setupSecrets {

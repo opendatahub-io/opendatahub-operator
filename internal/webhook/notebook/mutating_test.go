@@ -8,6 +8,7 @@ import (
 	"gomodules.xyz/jsonpatch/v2"
 	admissionv1 "k8s.io/api/admission/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -217,6 +218,7 @@ func TestNotebookWebhook_Handle_Permissions(t *testing.T) {
 		expectedMessage   string
 		shouldHavePatches bool
 		forbiddenSecrets  []string
+		secretsToCreate   []string
 	}{
 		{
 			name:        "successful injection with single secret",
@@ -226,6 +228,7 @@ func TestNotebookWebhook_Handle_Permissions(t *testing.T) {
 			},
 			expectedAllowed:   true,
 			shouldHavePatches: true,
+			secretsToCreate:   []string{testSecret1},
 		},
 		{
 			name:        "permission denied for single secret",
@@ -234,9 +237,10 @@ func TestNotebookWebhook_Handle_Permissions(t *testing.T) {
 				testSecret1: false,
 			},
 			expectedAllowed:   false,
-			expectedMessage:   "user does not have permission to access the following connection secrets",
+			expectedMessage:   "user does not have permission to access the following connection secret(s)",
 			shouldHavePatches: false,
 			forbiddenSecrets:  []string{fmt.Sprintf("%s/%s", testNamespace, testSecret1)},
+			secretsToCreate:   []string{testSecret1},
 		},
 		{
 			name:        "mixed permissions for multiple secrets",
@@ -246,7 +250,20 @@ func TestNotebookWebhook_Handle_Permissions(t *testing.T) {
 				testSecret2: false,
 			},
 			expectedAllowed:   false,
-			expectedMessage:   "user does not have permission to access the following connection secrets",
+			expectedMessage:   "user does not have permission to access the following connection secret(s)",
+			shouldHavePatches: false,
+			forbiddenSecrets:  []string{fmt.Sprintf("%s/%s", testNamespace, testSecret2)},
+			secretsToCreate:   []string{testSecret1, testSecret2},
+		},
+		{
+			name:        "secret does not exist",
+			connections: fmt.Sprintf("%s/%s,%s/%s", testNamespace, testSecret1, testNamespace, testSecret2),
+			allowPermissions: map[string]bool{
+				testSecret1: false,
+				testSecret2: false,
+			},
+			expectedAllowed:   false,
+			expectedMessage:   "some of the connection secret(s) do not exist",
 			shouldHavePatches: false,
 			forbiddenSecrets:  []string{fmt.Sprintf("%s/%s", testNamespace, testSecret2)},
 		},
@@ -261,6 +278,15 @@ func TestNotebookWebhook_Handle_Permissions(t *testing.T) {
 			cli := &mockClient{
 				Client:           baseCli,
 				allowPermissions: tt.allowPermissions,
+			}
+
+			for _, secretName := range tt.secretsToCreate {
+				g.Expect(cli.Create(context.Background(), &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      secretName,
+						Namespace: testNamespace,
+					},
+				})).Should(Succeed())
 			}
 
 			webhook := createTestWebhook(t, cli)
@@ -334,6 +360,13 @@ func TestNotebookWebhook_Handle_Operations(t *testing.T) {
 				},
 			}
 
+			g.Expect(cli.Create(context.Background(), &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSecret1,
+					Namespace: testNamespace,
+				},
+			})).Should(Succeed())
+
 			webhook := createTestWebhook(t, cli)
 
 			notebook := createNotebook(withAnnotations(map[string]string{
@@ -360,6 +393,7 @@ func TestNotebookWebhook_Handle_Operations(t *testing.T) {
 
 func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 	t.Parallel()
+	g := NewWithT(t)
 
 	baseCli := fake.NewClientBuilder().Build()
 	cli := &mockClient{
@@ -369,6 +403,19 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 			testSecret2: true,
 		},
 	}
+
+	g.Expect(cli.Create(context.Background(), &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testSecret1,
+			Namespace: testNamespace,
+		},
+	})).Should(Succeed())
+	g.Expect(cli.Create(context.Background(), &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testSecret2,
+			Namespace: testNamespace,
+		},
+	})).Should(Succeed())
 
 	webhook := createTestWebhook(t, cli)
 
