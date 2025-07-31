@@ -35,9 +35,10 @@ var (
 
 // Validator implements webhook.AdmissionHandler for Notebook connection validation webhooks.
 type NotebookWebhook struct {
-	Client  client.Client
-	Decoder admission.Decoder
-	Name    string
+	Client    client.Client // used to create SubjectAccessReview
+	APIReader client.Reader // used to read secrets in namespaces that are not cached
+	Decoder   admission.Decoder
+	Name      string
 }
 
 // Assert that NotebookWebhook implements admission.Handler interface.
@@ -191,9 +192,9 @@ func (w *NotebookWebhook) checkSecretsExistsAndUserHasPermissions(ctx context.Co
 	var permissionErrors []string
 
 	for _, secretRef := range secretRefs {
-		// First check if the secret even exists
+		// First check if the secret even exists using APIReader to bypass cache
 		log.V(1).Info("checking that secret exists", "secret", secretRef.Name, "namespace", secretRef.Namespace)
-		if err := w.Client.Get(ctx, client.ObjectKey{Namespace: secretRef.Namespace, Name: secretRef.Name}, &corev1.Secret{}); err != nil {
+		if err := w.APIReader.Get(ctx, client.ObjectKey{Namespace: secretRef.Namespace, Name: secretRef.Name}, &corev1.Secret{}); err != nil {
 			if k8serr.IsNotFound(err) {
 				secretExistsErrors = append(secretExistsErrors, fmt.Sprintf("%s/%s", secretRef.Namespace, secretRef.Name))
 				continue

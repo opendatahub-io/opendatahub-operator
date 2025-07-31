@@ -42,9 +42,10 @@ func createTestWebhook(t *testing.T, cli client.Client) *notebook.NotebookWebhoo
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	return &notebook.NotebookWebhook{
-		Client:  cli,
-		Decoder: admission.NewDecoder(sch),
-		Name:    "test-webhook",
+		Client:    cli,
+		APIReader: cli,
+		Decoder:   admission.NewDecoder(sch),
+		Name:      "test-webhook",
 	}
 }
 

@@ -55,9 +55,10 @@ func RegisterWebhooks(mgr manager.Manager) error {
 
 	// Register Connection webhook for Notebook
 	notebookConnectionWebhook := &notebookwebhook.NotebookWebhook{
-		Client:  mgr.GetClient(),
-		Decoder: admission.NewDecoder(mgr.GetScheme()),
-		Name:    "notebook-webhook",
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		Decoder:   admission.NewDecoder(mgr.GetScheme()),
+		Name:      "notebook-webhook",
 	}
 	if err := notebookConnectionWebhook.SetupWithManager(mgr); err != nil {
 		return err
