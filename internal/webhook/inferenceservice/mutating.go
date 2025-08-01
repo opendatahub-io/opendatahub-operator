@@ -86,6 +86,10 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 			return admission.Errored(http.StatusInternalServerError, err)
 		}
 
+		if !obj.GetDeletionTimestamp().IsZero() {
+			return admission.Allowed("Object marked for deletion, skipping connection logic")
+		}
+
 		// allowed connection types for connection validation on isvc.
 		allowedTypes := []string{
 			ConnectionTypeURI.String(),

@@ -443,6 +443,7 @@ func (tc *KserveTestCtx) ValidateConnectionWebhookInjection(t *testing.T) {
 	t.Cleanup(func() {
 		tc.DeleteResource(
 			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: testNamespace}),
+			WithWaitForDeletion(true),
 		)
 	})
 
