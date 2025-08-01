@@ -317,7 +317,7 @@ func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name str
 func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unstructured.Unstructured, hwp *hwpv1alpha1.HardwareProfile) error {
 	log := logf.FromContext(ctx)
 
-	log.Info("applying hardware profile to workload", "workload", obj.GetName(), "kind", obj.GetKind(), "hardwareProfile", hwp.Name)
+	log.V(1).Info("applying hardware profile to workload", "workload", obj.GetName(), "kind", obj.GetKind(), "hardwareProfile", hwp.Name)
 
 	// Apply resource requirements to containers (only if there are identifiers)
 	if len(hwp.Spec.Identifiers) > 0 {
