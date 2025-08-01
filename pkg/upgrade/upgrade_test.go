@@ -249,9 +249,9 @@ func TestCleanupDeprecatedKueueVAPB(t *testing.T) {
 		interceptorFuncs := interceptor.Funcs{
 			Delete: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
 				return &meta.NoKindMatchError{
-					GroupKind:        schema.GroupKind{
+					GroupKind: schema.GroupKind{
 						Group: "admissionregistration.k8s.io",
-						Kind: "ValidatingAdmissionPolicyBinding",
+						Kind:  "ValidatingAdmissionPolicyBinding",
 					},
 					SearchedVersions: []string{"v1beta1"},
 				}
