@@ -8,10 +8,13 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/operator-framework/api/pkg/lib/version"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -200,7 +203,7 @@ func TestCleanupDeprecatedKueueVAPB(t *testing.T) {
 		g.Expect(err.Error()).To(ContainSubstring("not found"))
 	})
 
-	t.Run("should handle non-existent ValidatingAdmissionPolicyBinding gracefully during upgrade cleanup", func(t *testing.T) {
+	t.Run("should handle NotFound error gracefully during upgrade deletion", func(t *testing.T) {
 		g := NewWithT(t)
 
 		// Create a DSCI to provide the application namespace
@@ -211,16 +214,28 @@ func TestCleanupDeprecatedKueueVAPB(t *testing.T) {
 		err := unstructured.SetNestedField(dsci.Object, "test-app-ns", "spec", "applicationsNamespace")
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(dsci))
+		interceptorFuncs := interceptor.Funcs{
+			Delete: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				return errors.NewNotFound(schema.GroupResource{
+					Group:    "admissionregistration.k8s.io",
+					Resource: "validatingadmissionpolicybindings",
+				}, "kueue-validating-admission-policy-binding")
+			},
+		}
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(dsci),
+			fakeclient.WithInterceptorFuncs(interceptorFuncs),
+		)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// Call CleanupExistingResource when the VAPB doesn't exist
+		// Call CleanupExistingResource when the VAPB doesn't exist (NotFound error)
 		oldRelease := common.Release{Version: version.OperatorVersion{Version: semver.MustParse("2.28.0")}}
 		err = upgrade.CleanupExistingResource(ctx, cli, cluster.ManagedRhoai, oldRelease)
-		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(err).ShouldNot(HaveOccurred(), "Should handle NotFound error gracefully")
 	})
 
-	t.Run("should handle API version mismatch error", func(t *testing.T) {
+	t.Run("should handle NoMatch API error gracefully during upgrade deletion", func(t *testing.T) {
 		g := NewWithT(t)
 
 		// Create a DSCI to provide the application namespace
@@ -231,22 +246,27 @@ func TestCleanupDeprecatedKueueVAPB(t *testing.T) {
 		err := unstructured.SetNestedField(dsci.Object, "test-app-ns", "spec", "applicationsNamespace")
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// Create a VAPB with a different API version that would cause NoMatchError
-		// This simulates a cluster that doesn't support admissionregistration.k8s.io/v1
-		vapb := &unstructured.Unstructured{}
-		vapb.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   "admissionregistration.k8s.io",
-			Version: "v1beta1", // Using an older API version
-			Kind:    "ValidatingAdmissionPolicyBinding",
-		})
-		vapb.SetName("kueue-validating-admission-policy-binding")
+		interceptorFuncs := interceptor.Funcs{
+			Delete: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				return &meta.NoKindMatchError{
+					GroupKind:        schema.GroupKind{
+						Group: "admissionregistration.k8s.io",
+						Kind: "ValidatingAdmissionPolicyBinding",
+					},
+					SearchedVersions: []string{"v1beta1"},
+				}
+			},
+		}
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(dsci, vapb))
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(dsci),
+			fakeclient.WithInterceptorFuncs(interceptorFuncs),
+		)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// The NoMatchError occurs when trying to delete the VAPB with an unsupported API version
+		// Call CleanupExistingResource when the VAPB API v1beta1 is not available (NoMatch error)
 		oldRelease := common.Release{Version: version.OperatorVersion{Version: semver.MustParse("2.28.0")}}
 		err = upgrade.CleanupExistingResource(ctx, cli, cluster.ManagedRhoai, oldRelease)
-		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(err).ShouldNot(HaveOccurred(), "Should handle NoMatch error gracefully")
 	})
 }
