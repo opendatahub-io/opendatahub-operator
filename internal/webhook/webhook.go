@@ -11,6 +11,7 @@ import (
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	isvc "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/inferenceservice"
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
+	notebookwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/notebook"
 )
 
 // RegisterAllWebhooks registers all webhook setup functions with the given manager.
@@ -23,6 +24,7 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 		hardwareprofilewebhook.RegisterWebhooks,
 		kueuewebhook.RegisterWebhooks,
 		isvc.RegisterWebhooks,
+		notebookwebhook.RegisterWebhooks,
 	}
 	for _, reg := range webhookRegistrations {
 		if err := reg(mgr); err != nil {
