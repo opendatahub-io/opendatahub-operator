@@ -10,6 +10,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -214,6 +215,36 @@ func TestCleanupDeprecatedKueueVAPB(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Call CleanupExistingResource when the VAPB doesn't exist
+		oldRelease := common.Release{Version: version.OperatorVersion{Version: semver.MustParse("2.28.0")}}
+		err = upgrade.CleanupExistingResource(ctx, cli, cluster.ManagedRhoai, oldRelease)
+		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	t.Run("should handle API version mismatch error", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Create a DSCI to provide the application namespace
+		dsci := &unstructured.Unstructured{}
+		dsci.SetGroupVersionKind(gvk.DSCInitialization)
+		dsci.SetName("test-dsci")
+		dsci.SetNamespace("test-namespace")
+		err := unstructured.SetNestedField(dsci.Object, "test-app-ns", "spec", "applicationsNamespace")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Create a VAPB with a different API version that would cause NoMatchError
+		// This simulates a cluster that doesn't support admissionregistration.k8s.io/v1
+		vapb := &unstructured.Unstructured{}
+		vapb.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "admissionregistration.k8s.io",
+			Version: "v1beta1", // Using an older API version
+			Kind:    "ValidatingAdmissionPolicyBinding",
+		})
+		vapb.SetName("kueue-validating-admission-policy-binding")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsci, vapb))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// The NoMatchError occurs when trying to delete the VAPB with an unsupported API version
 		oldRelease := common.Release{Version: version.OperatorVersion{Version: semver.MustParse("2.28.0")}}
 		err = upgrade.CleanupExistingResource(ctx, cli, cluster.ManagedRhoai, oldRelease)
 		g.Expect(err).ShouldNot(HaveOccurred())
