@@ -138,7 +138,7 @@ func (w *ConnectionWebhook) performConnectionInjection(
 ) (bool, error) {
 	log := logf.FromContext(ctx)
 
-	log.Info("Decoded InferenceService object", "connectionType", connectionType, "operation", req.Operation)
+	log.V(1).Info("Decoded InferenceService object", "connectionType", connectionType, "operation", req.Operation)
 
 	// injection based on connection type
 	switch ConnectionType(connectionType) {
@@ -146,25 +146,25 @@ func (w *ConnectionWebhook) performConnectionInjection(
 		if err := w.injectOCIImagePullSecrets(decodedObj, secretName); err != nil {
 			return false, fmt.Errorf("failed to inject OCI imagePullSecrets: %w", err)
 		}
-		log.Info("Successfully injected OCI imagePullSecrets", "secretName", secretName)
+		log.V(1).Info("Successfully injected OCI imagePullSecrets", "secretName", secretName)
 		return true, nil
 
 	case ConnectionTypeURI:
 		if err := w.injectURIStorageUri(ctx, decodedObj, secretName, req.Namespace); err != nil {
 			return false, fmt.Errorf("failed to inject URI storageUri: %w", err)
 		}
-		log.Info("Successfully injected URI storageUri from secret", "secretName", secretName)
+		log.V(1).Info("Successfully injected URI storageUri from secret", "secretName", secretName)
 		return true, nil
 
 	case ConnectionTypeS3:
 		if err := w.injectS3StorageKey(decodedObj, secretName); err != nil {
 			return false, fmt.Errorf("failed to inject S3 storage.key: %w", err)
 		}
-		log.Info("Successfully injected S3 storage key", "secretName", secretName)
+		log.V(1).Info("Successfully injected S3 storage key", "secretName", secretName)
 		return true, nil
 
 	default: // this should not enter since ValidateConnectionAnnotation ensures valid types, but keep it for safety
-		log.Info("Unknown connection type, skipping injection", "connectionType", connectionType)
+		log.V(1).Info("Unknown connection type, skipping injection", "connectionType", connectionType)
 		return false, nil
 	}
 }
