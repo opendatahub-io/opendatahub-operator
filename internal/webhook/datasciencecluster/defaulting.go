@@ -82,7 +82,7 @@ func (d *Defaulter) applyDefaults(ctx context.Context, dsc *dscv1.DataScienceClu
 	modelRegistry := &dsc.Spec.Components.ModelRegistry
 	if modelRegistry.ManagementState == operatorv1.Managed {
 		if modelRegistry.RegistriesNamespace == "" {
-			log.Info("Setting default RegistriesNamespace for ModelRegistry", "default", modelregistryctrl.DefaultModelRegistriesNamespace)
+			log.V(1).Info("Setting default RegistriesNamespace for ModelRegistry", "default", modelregistryctrl.DefaultModelRegistriesNamespace)
 			modelRegistry.RegistriesNamespace = modelregistryctrl.DefaultModelRegistriesNamespace
 		}
 	}
