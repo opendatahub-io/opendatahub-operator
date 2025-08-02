@@ -559,6 +559,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `eval` _[TrustyAIEvalSpec](#trustyaievalspec)_ | Eval configuration for TrustyAI evaluations |  |  |
 
 
 #### DSCTrustyAIStatus
@@ -2003,6 +2004,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `eval` _[TrustyAIEvalSpec](#trustyaievalspec)_ | Eval configuration for TrustyAI evaluations |  |  |
 
 
 #### TrustyAICommonStatus
@@ -2020,6 +2022,41 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
+
+
+#### TrustyAIEvalSpec
+
+
+
+TrustyAIEvalSpec defines evaluation configuration for TrustyAI
+
+
+
+_Appears in:_
+- [DSCTrustyAI](#dsctrustyai)
+- [TrustyAICommonSpec](#trustyaicommonspec)
+- [TrustyAISpec](#trustyaispec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `lmeval` _[TrustyAILMEvalSpec](#trustyailmevalspec)_ | LMEval configuration for model evaluations |  |  |
+
+
+#### TrustyAILMEvalSpec
+
+
+
+TrustyAILMEvalSpec defines configuration for LMEval evaluations
+
+
+
+_Appears in:_
+- [TrustyAIEvalSpec](#trustyaievalspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `allowCodeExecution` _boolean_ | AllowCodeExecution controls whether code execution is allowed during evaluations | false |  |
+| `allowOnline` _boolean_ | AllowOnline controls whether online access is allowed during evaluations | false |  |
 
 
 #### TrustyAIList
@@ -2056,6 +2093,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `eval` _[TrustyAIEvalSpec](#trustyaievalspec)_ | Eval configuration for TrustyAI evaluations |  |  |
 
 
 #### TrustyAIStatus
