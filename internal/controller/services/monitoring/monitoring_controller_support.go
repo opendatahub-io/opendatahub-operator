@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/go-multierror"
+	"gopkg.in/yaml.v3"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -23,6 +25,14 @@ const (
 	clusterObservabilityOperator = "cluster-observability-operator"
 	tempoOperator                = "tempo-operator"
 )
+
+func isReservedName(n string) bool {
+	reservedNames := map[string]bool{
+		"otlp/tempo": true,
+		"prometheus": true,
+	}
+	return reservedNames[n]
+}
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
@@ -115,6 +125,31 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		case "s3", "gcs":
 			templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempostack-gateway.%s.svc.cluster.local:4317", monitoring.Spec.Namespace)
 			templateData["Secret"] = traces.Storage.Secret
+		}
+
+		// Validate and add custom exporters
+		if traces.Exporters != nil {
+			validatedExporters := make(map[string]string)
+			for name, rawConfig := range traces.Exporters {
+				if isReservedName(name) {
+					return nil, fmt.Errorf("exporter name '%s' is reserved and cannot be used", name)
+				}
+
+				// Convert RawExtension to a map for validation and YAML conversion
+				var config map[string]interface{}
+				if err := yaml.Unmarshal(rawConfig.Raw, &config); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal exporter config for '%s': %w", name, err)
+				}
+
+				// Convert config back to YAML string for template rendering
+				configYAML, err := yaml.Marshal(config)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal exporter config for '%s': %w", name, err)
+				}
+				// Store the YAML string for template rendering with sprig indent function
+				validatedExporters[name] = strings.TrimSpace(string(configYAML))
+			}
+			templateData["TracesExporters"] = validatedExporters
 		}
 	}
 

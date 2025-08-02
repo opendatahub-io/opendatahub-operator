@@ -264,6 +264,69 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorTracesConfiguration(t
 	)
 }
 
+func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorCustomTracesExporters(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Set traces configuration with custom exporters
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = %s`, `{
+			storage: {backend: "pv"},
+			exporters: {
+				"jaeger": {
+					endpoint: "http://jaeger-collector:14250",
+					tls: {
+						insecure: true
+					}
+				},
+				"otlp/custom": {
+					endpoint: "http://custom-endpoint:4317",
+					headers: {
+						"api-key": "secret-key"
+					}
+				}
+			}
+		}`)),
+	)
+
+	// Validate that the OpenTelemetry collector has the custom exporters configured
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: "data-science-collector", Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(jq.Match(`.spec.config.exporters | has("jaeger")`)),
+		WithCondition(jq.Match(`.spec.config.exporters | has("otlp/custom")`)),
+		WithCondition(jq.Match(`.spec.config.exporters | has("otlp/tempo")`)), // Default tempo exporter should still exist
+		WithCondition(jq.Match(`.spec.config.service.pipelines.traces.exporters | contains(["jaeger"])`)),
+		WithCondition(jq.Match(`.spec.config.service.pipelines.traces.exporters | contains(["otlp/custom"])`)),
+		WithCondition(jq.Match(`.spec.config.service.pipelines.traces.exporters | contains(["otlp/tempo"])`)),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateTracesExportersReservedNameValidation(t *testing.T) {
+	t.Helper()
+
+	// Attempt to set traces configuration with a reserved exporter name
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = %s`, `{
+			storage: {backend: "pv"},
+			exporters: {
+				"otlp/tempo": {
+					endpoint: "http://malicious-endpoint:4317"
+				}
+			}
+		}`)),
+	)
+
+	// Validate that the Monitoring resource reports an error condition due to reserved name
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse)),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("reserved")`, status.ConditionTypeProvisioningSucceeded)),
+	)
+}
+
 func getTempoMonolithicName(dsci *dsciv1.DSCInitialization) string {
 	return "data-science-tempomonolithic"
 }

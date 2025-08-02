@@ -152,7 +152,7 @@ func deployMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 }
 
 func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	mon, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
 	}
@@ -175,7 +175,7 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 		status.ConditionOpenTelemetryCollectorAvailable,
 	)
 
-	if monitoring.Spec.Metrics != nil {
+	if mon.Spec.Metrics != nil || mon.Spec.Traces != nil {
 		template := []odhtypes.TemplateInfo{
 			{
 				FS:   resourcesFS,
@@ -192,11 +192,11 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 		}
 		rr.Templates = append(rr.Templates, template...)
 	} else {
-		// No metrics configuration - skip OpenTelemetry collector deployment for metrics
+		// No metrics or traces configuration - skip OpenTelemetry collector deployment
 		rr.Conditions.MarkFalse(
 			status.ConditionOpenTelemetryCollectorAvailable,
 			conditions.WithReason(status.MetricsNotConfiguredReason),
-			conditions.WithMessage(status.MetricsNotConfiguredMessage),
+			conditions.WithMessage("Neither metrics nor traces are configured"),
 		)
 	}
 
