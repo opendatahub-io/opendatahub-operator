@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -44,7 +45,6 @@ const (
 //
 // The function will return an error if:
 //   - Creating the SelfSubjectRulesReview fails
-//   - The SelfSubjectRulesReview returns an evaluation error
 func RetrieveSelfSubjectRules(
 	ctx context.Context,
 	cli client.Client,
@@ -62,7 +62,9 @@ func RetrieveSelfSubjectRules(
 	}
 
 	if rulesReview.Status.EvaluationError != "" {
-		return nil, fmt.Errorf("error occurred during rule evaluation: %s", rulesReview.Status.EvaluationError)
+		// NOTE: the EvaluationError is unreliable and may report wrong error that could
+		// potentially cause misbehavior of the GC logic.
+		logf.FromContext(ctx).Info("error occurred during rule evaluation: " + rulesReview.Status.EvaluationError)
 	}
 
 	return rulesReview.Status.ResourceRules, nil
