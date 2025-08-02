@@ -48,7 +48,8 @@ var (
 	}
 
 	imagesMap = map[string]string{
-		"odh-dashboard-image": "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+		"odh-dashboard-image":     "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
+		"model-registry-ui-image": "RELATED_IMAGE_ODH_MODEL_REGISTRY_MOD_ARCH_IMAGE",
 	}
 
 	conditionTypes = []string{
@@ -61,6 +62,14 @@ func defaultManifestInfo(p common.Platform) odhtypes.ManifestInfo {
 		Path:       odhdeploy.DefaultManifestPath,
 		ContextDir: ComponentName,
 		SourcePath: overlaysSourcePaths[p],
+	}
+}
+
+func bffManifestsPath() odhtypes.ManifestInfo {
+	return odhtypes.ManifestInfo{
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: ComponentName,
+		SourcePath: "modular-architecture",
 	}
 }
 
