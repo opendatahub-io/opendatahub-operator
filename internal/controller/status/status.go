@@ -100,6 +100,7 @@ const (
 	ConditionArgoWorkflowAvailable           = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady             = "ComponentsReady"
 	ConditionServingAvailable                = "ServingAvailable"
+	ConditionMonitoringAvailable             = "MonitoringAvailable"
 	ConditionMonitoringStackAvailable        = "MonitoringStackAvailable"
 	ConditionTempoAvailable                  = "TempoAvailable"
 	ConditionOpenTelemetryCollectorAvailable = "OpenTelemetryCollectorCRDAvailable"
@@ -176,23 +177,16 @@ const (
 	ISVCMissingCRDMessage = "InferenceServices CRD does not exist, please enable serving component first"
 )
 
-// For Monitoring service missing operators.
+// For Monitoring service checks.
 const (
-	MonitoringStackOperatorMissingReason      = "ClusterObservabilityOperatorMissing"
-	MonitoringStackOperatorMissingMessage     = "ClusterObservability operator must be installed for metrics configuration"
-	TempoOperatorMissingReason                = "TempoOperatorMissing"
-	TempoOperatorMissingMessage               = "Tempo operator must be installed for traces configuration"
-	OpenTelemetryCollectorCRDNotFoundReason   = "OpenTelemetryCollector CRD Not Found"
-	OpenTelemetryCollectorCRDNotFoundMessage  = "OpenTelemetryCollector CRD not found. Dependent operator missing."
-	OpenTelemetryCollectorCRDAvailableReason  = "OpenTelemetryCollector CRD Found"
-	OpenTelemetryCollectorCRDAvailableMessage = "OpenTelemetryCollector CRD found"
-	InstrumentationCRDNotFoundReason          = "Instrumentation CRD Not Found"
-	InstrumentationCRDNotFoundMessage         = "Instrumentation CRD not found. OpenTelemetry operator missing."
-
 	MetricsNotConfiguredReason  = "MetricsNotConfigured"
 	MetricsNotConfiguredMessage = "Metrics not configured in DSCI CR"
 	TracesNotConfiguredReason   = "TracesNotConfigured"
 	TracesNotConfiguredMessage  = "Traces not configured in DSCI CR"
+
+	TempoOperatorMissingMessage                  = "Tempo operator must be installed for traces configuration"
+	COOMissingMessage                            = "ClusterObservability operator must be installed for metrics configuration"
+	OpenTelemetryCollectorOperatorMissingMessage = "OpenTelemetryCollector operator must be installed for OpenTelemetry configuration"
 )
 
 // setConditions is a helper function to set multiple conditions at once.
