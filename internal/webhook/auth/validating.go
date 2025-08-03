@@ -113,14 +113,14 @@ func (v *Validator) validateAuthGroups(ctx context.Context, req admission.Reques
 	if invalidAdminGroups := validateAdminGroups(auth.Spec.AdminGroups); len(invalidAdminGroups) > 0 {
 		msg := fmt.Sprintf("Invalid groups found in AdminGroups: %s. Groups cannot be '%s' or empty string",
 			strings.Join(invalidAdminGroups, ", "), SystemAuthenticatedGroup)
-		log.Info("Rejecting Auth resource due to invalid AdminGroups", "invalidGroups", invalidAdminGroups)
+		log.V(1).Info("Rejecting Auth resource due to invalid AdminGroups", "invalidGroups", invalidAdminGroups)
 		return admission.Denied(msg)
 	}
 
 	if invalidAllowedGroups := validateAllowedGroups(auth.Spec.AllowedGroups); len(invalidAllowedGroups) > 0 {
 		msg := fmt.Sprintf("Invalid groups found in AllowedGroups: %s. Groups cannot be empty string",
 			strings.Join(invalidAllowedGroups, ", "))
-		log.Info("Rejecting Auth resource due to invalid AllowedGroups", "invalidGroups", invalidAllowedGroups)
+		log.V(1).Info("Rejecting Auth resource due to invalid AllowedGroups", "invalidGroups", invalidAllowedGroups)
 		return admission.Denied(msg)
 	}
 
