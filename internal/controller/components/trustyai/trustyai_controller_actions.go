@@ -23,7 +23,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -93,20 +92,14 @@ func createConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 			// TrustyAI's own default ConfigMap name is "trustyai-service-operator-config"
 			Name:      "trustyai-dsc-config",
 			Namespace: rr.DSCI.Spec.ApplicationsNamespace,
-			Annotations: map[string]string{
-				"opendatahub.io/managed-by":    "dsc-trustyai-controller",
-				"opendatahub.io/config-source": "datasciencecluster",
-			},
 		},
 		Data: make(map[string]string),
 	}
 
-	// Always set the values since they have defaults
 	configMap.Data["eval.lmeval.permitCodeExecution"] =
 		strconv.FormatBool(trustyai.Spec.Eval.LMEval.PermitCodeExecution)
 	configMap.Data["eval.lmeval.permitOnline"] =
 		strconv.FormatBool(trustyai.Spec.Eval.LMEval.PermitOnline)
 
-	return rr.Client.Patch(ctx, configMap, client.Apply,
-		client.ForceOwnership, client.FieldOwner("trustyai-dsc-controller"))
+	return rr.AddResources(configMap)
 }
