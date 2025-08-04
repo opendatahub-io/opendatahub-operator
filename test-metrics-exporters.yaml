@@ -1,0 +1,26 @@
+apiVersion: dscinitialization.opendatahub.io/v1
+kind: DSCInitialization
+metadata:
+  name: test-metrics-exporters
+spec:
+  applicationsNamespace: opendatahub
+  monitoring:
+    managementState: Managed
+    namespace: opendatahub
+    metrics:
+      storage:
+        size: "5Gi"
+        retention: "1d"
+      exporters:
+        "otlp/jaeger": |
+          endpoint: "http://jaeger-collector:4317"
+          tls:
+            insecure: true
+        "logging": |
+          loglevel: debug
+        "prometheus/remote": |
+          endpoint: "http://prometheus-remote:9090/api/v1/write"
+  serviceMesh:
+    managementState: Removed
+  trustedCABundle:
+    managementState: Managed

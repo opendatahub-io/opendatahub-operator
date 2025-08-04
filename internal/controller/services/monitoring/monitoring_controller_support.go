@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/go-multierror"
+	"gopkg.in/yaml.v3"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -99,6 +100,35 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 			replicas = metrics.Replicas
 		}
 		templateData["Replicas"] = strconv.Itoa(int(replicas))
+
+		// Handle custom metrics exporters
+		if metrics.Exporters != nil {
+			// Validate exporters don't use reserved names
+			reservedExporters := map[string]bool{
+				"prometheus": true,
+			}
+
+			validExporters := make(map[string]interface{})
+			var exporterNames []string
+
+			for name, configYAML := range metrics.Exporters {
+				if reservedExporters[name] {
+					return nil, fmt.Errorf("exporter name '%s' is reserved and cannot be used", name)
+				}
+
+				// Parse YAML configuration string
+				var config interface{}
+				if err := yaml.Unmarshal([]byte(configYAML), &config); err != nil {
+					return nil, fmt.Errorf("invalid YAML configuration for exporter '%s': %w", name, err)
+				}
+
+				validExporters[name] = config
+				exporterNames = append(exporterNames, name)
+			}
+
+			templateData["CustomMetricsExporters"] = validExporters
+			templateData["CustomMetricsExporterNames"] = exporterNames
+		}
 	}
 
 	// Add traces-related data if traces are configured
