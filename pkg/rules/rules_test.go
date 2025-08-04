@@ -2,6 +2,7 @@ package rules_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	gTypes "github.com/onsi/gomega/types"
@@ -16,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/rules"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
@@ -255,6 +257,72 @@ func TestListAuthorizedDeletableResources(t *testing.T) {
 
 			g.Expect(err).ShouldNot(HaveOccurred())
 			g.Expect(items).Should(tc.resourcesMatcher)
+		})
+	}
+}
+
+func TestRetrieveSelfSubjectRules(t *testing.T) {
+	testCases := []struct {
+		name          string
+		createFn      func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.CreateOption) error
+		expectedError bool
+	}{
+		{
+			name: "should return error when create fails",
+			createFn: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+				if _, ok := obj.(*authorizationv1.SelfSubjectRulesReview); ok {
+					return errors.New("create failed")
+				}
+				return client.Create(ctx, obj, opts...)
+			},
+			expectedError: true,
+		},
+		{
+			name: "should not return error when EvaluationError is set",
+			createFn: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+				if s, ok := obj.(*authorizationv1.SelfSubjectRulesReview); ok {
+					s.Status.EvaluationError = "some evaluation error"
+					s.Status.ResourceRules = []authorizationv1.ResourceRule{}
+					return nil
+				}
+				return client.Create(ctx, obj, opts...)
+			},
+			expectedError: false,
+		},
+		{
+			name: "should return rules successfully",
+			createFn: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+				if s, ok := obj.(*authorizationv1.SelfSubjectRulesReview); ok {
+					s.Status.ResourceRules = []authorizationv1.ResourceRule{}
+					return nil
+				}
+				return client.Create(ctx, obj, opts...)
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := context.Background()
+
+			cli, err := fakeclient.New(fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+				Create: tc.createFn,
+			}))
+
+			g.Expect(err).ShouldNot(HaveOccurred())
+			g.Expect(cli).ShouldNot(BeNil())
+
+			result, err := rules.RetrieveSelfSubjectRules(ctx, cli, "")
+
+			if tc.expectedError {
+				g.Expect(err).Should(HaveOccurred())
+				g.Expect(result).Should(BeNil())
+			} else {
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(result).ShouldNot(BeNil())
+			}
 		})
 	}
 }

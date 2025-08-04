@@ -93,8 +93,8 @@ type Traces struct {
 }
 
 // TracesStorage defines the storage configuration for tracing.
-// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? has(self.secret) : true",message="When backend is not 'pv', the 'secret' field must be specified and non-empty"
-// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? !has(self.size) : true",message="Size is not supported when backend is not 'pv'"
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? has(self.secret) : true", message="When backend is s3 or gcs, the 'secret' field must be specified and non-empty"
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? !has(self.size) : true", message="Size is supported when backend is pv only"
 type TracesStorage struct {
 	// Backend defines the storage backend type.
 	// Valid values are "pv", "s3", and "gcs".

@@ -387,6 +387,18 @@ var (
 		Kind:    "Notebook",
 	}
 
+	LLMInferenceServiceConfigV1Alpha1 = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha1",
+		Kind:    "LLMInferenceServiceConfig",
+	}
+
+	LLMInferenceServiceV1Alpha1 = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha1",
+		Kind:    "LLMInferenceService",
+	}
+
 	OperatorCondition = schema.GroupVersionKind{
 		Group:   "operators.coreos.com",
 		Version: "v2",
@@ -445,5 +457,11 @@ var (
 		Group:   "opentelemetry.io",
 		Version: "v1alpha1",
 		Kind:    "Instrumentation",
+	}
+
+	ServiceMonitor = schema.GroupVersionKind{
+		Group:   "monitoring.rhobs",
+		Version: "v1",
+		Kind:    "ServiceMonitor",
 	}
 )

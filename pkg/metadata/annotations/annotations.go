@@ -24,3 +24,9 @@ const (
 	InstanceName       = "platform.opendatahub.io/instance.name"
 	InstanceUID        = "platform.opendatahub.io/instance.uid"
 )
+
+// Connection annotation for referencing secrets containing connection information.
+const Connection = "opendatahub.io/connections"
+
+// ConnectionTypeRef annotation for specifying the type of connection.
+const ConnectionTypeRef = "opendatahub.io/connections-type-ref"
