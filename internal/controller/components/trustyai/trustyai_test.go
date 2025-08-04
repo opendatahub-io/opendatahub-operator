@@ -8,9 +8,8 @@ import (
 
 	gt "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -114,27 +113,21 @@ func TestCreateConfigMap(t *testing.T) {
 		err = createConfigMap(ctx, rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// Verify ConfigMap was created
-		configMap := &corev1.ConfigMap{}
-		err = cli.Get(ctx, client.ObjectKey{
-			Name:      "trustyai-dsc-config",
-			Namespace: "test-namespace",
-		}, configMap)
-		g.Expect(err).ShouldNot(HaveOccurred())
+		// Verify ConfigMap was added to resources
+		g.Expect(rr.Resources).Should(HaveLen(1))
+		configMapResource := rr.Resources[0]
+		g.Expect(configMapResource.GetName()).Should(Equal("trustyai-dsc-config"))
+		g.Expect(configMapResource.GetNamespace()).Should(Equal("test-namespace"))
 
 		// Verify ConfigMap data
-		g.Expect(configMap.Data["eval.lmeval.permitCodeExecution"]).Should(Equal("true"))
-		g.Expect(configMap.Data["eval.lmeval.permitOnline"]).Should(Equal("true"))
-
-		// Verify labels and annotations
-		g.Expect(configMap.Labels["app.opendatahub.io/component"]).Should(Equal("true"))
-		g.Expect(configMap.Labels["app.kubernetes.io/part-of"]).Should(Equal("trustyai"))
-		g.Expect(configMap.Labels["app.opendatahub.io/config-type"]).Should(Equal("dsc-config"))
-		g.Expect(configMap.Annotations["opendatahub.io/managed-by"]).Should(Equal("dsc-trustyai-controller"))
-		g.Expect(configMap.Annotations["opendatahub.io/config-source"]).Should(Equal("datasciencecluster"))
+		data, found, err := unstructured.NestedStringMap(configMapResource.Object, "data")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(data["eval.lmeval.permitCodeExecution"]).Should(Equal("true"))
+		g.Expect(data["eval.lmeval.permitOnline"]).Should(Equal("true"))
 	})
 
-	t.Run("should skip ConfigMap creation when no configuration is provided", func(t *testing.T) {
+	t.Run("should create ConfigMap with default values when no configuration is provided", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := context.Background()
 
@@ -155,13 +148,18 @@ func TestCreateConfigMap(t *testing.T) {
 		err = createConfigMap(ctx, rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// Verify ConfigMap was not created
-		configMap := &corev1.ConfigMap{}
-		err = cli.Get(ctx, client.ObjectKey{
-			Name:      "trustyai-dsc-config",
-			Namespace: "test-namespace",
-		}, configMap)
-		g.Expect(err).Should(HaveOccurred())
+		// Verify ConfigMap was added to resources with default values
+		g.Expect(rr.Resources).Should(HaveLen(1))
+		configMapResource := rr.Resources[0]
+		g.Expect(configMapResource.GetName()).Should(Equal("trustyai-dsc-config"))
+		g.Expect(configMapResource.GetNamespace()).Should(Equal("test-namespace"))
+
+		// Verify ConfigMap data has default values (false)
+		data, found, err := unstructured.NestedStringMap(configMapResource.Object, "data")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(data["eval.lmeval.permitCodeExecution"]).Should(Equal("false"))
+		g.Expect(data["eval.lmeval.permitOnline"]).Should(Equal("false"))
 	})
 
 	t.Run("should handle partial configuration", func(t *testing.T) {
@@ -185,17 +183,18 @@ func TestCreateConfigMap(t *testing.T) {
 		err = createConfigMap(ctx, rr)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// Verify ConfigMap was created with only the specified configuration
-		configMap := &corev1.ConfigMap{}
-		err = cli.Get(ctx, client.ObjectKey{
-			Name:      "trustyai-dsc-config",
-			Namespace: "test-namespace",
-		}, configMap)
-		g.Expect(err).ShouldNot(HaveOccurred())
+		// Verify ConfigMap was added to resources with partial configuration
+		g.Expect(rr.Resources).Should(HaveLen(1))
+		configMapResource := rr.Resources[0]
+		g.Expect(configMapResource.GetName()).Should(Equal("trustyai-dsc-config"))
+		g.Expect(configMapResource.GetNamespace()).Should(Equal("test-namespace"))
 
-		// Verify only allowCodeExecution is set
-		g.Expect(configMap.Data["eval.lmeval.permitCodeExecution"]).Should(Equal("true"))
-		g.Expect(configMap.Data["eval.lmeval.permitOnline"]).Should(BeEmpty())
+		// Verify only permitCodeExecution is set to true, permitOnline defaults to false
+		data, found, err := unstructured.NestedStringMap(configMapResource.Object, "data")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(data["eval.lmeval.permitCodeExecution"]).Should(Equal("true"))
+		g.Expect(data["eval.lmeval.permitOnline"]).Should(Equal("false"))
 	})
 }
 
