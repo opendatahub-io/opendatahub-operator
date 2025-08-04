@@ -62,12 +62,12 @@ type TrustyAIEvalSpec struct {
 
 // TrustyAILMEvalSpec defines configuration for LMEval evaluations
 type TrustyAILMEvalSpec struct {
-	// AllowCodeExecution controls whether code execution is allowed during evaluations
+	// PermitCodeExecution controls whether code execution is allowed during evaluations
 	// +kubebuilder:default=false
-	AllowCodeExecution *bool `json:"allowCodeExecution,omitempty"`
-	// AllowOnline controls whether online access is allowed during evaluations
+	PermitCodeExecution bool `json:"permitCodeExecution,omitempty"`
+	// PermitOnline controls whether online access is allowed during evaluations
 	// +kubebuilder:default=false
-	AllowOnline *bool `json:"allowOnline,omitempty"`
+	PermitOnline bool `json:"permitOnline,omitempty"`
 }
 
 type TrustyAICommonSpec struct {

@@ -123,8 +123,8 @@ func TestCreateConfigMap(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Verify ConfigMap data
-		g.Expect(configMap.Data["eval.lmeval.allowCodeExecution"]).Should(Equal("true"))
-		g.Expect(configMap.Data["eval.lmeval.allowOnline"]).Should(Equal("true"))
+		g.Expect(configMap.Data["eval.lmeval.permitCodeExecution"]).Should(Equal("true"))
+		g.Expect(configMap.Data["eval.lmeval.permitOnline"]).Should(Equal("true"))
 
 		// Verify labels and annotations
 		g.Expect(configMap.Labels["app.opendatahub.io/component"]).Should(Equal("true"))
@@ -194,8 +194,8 @@ func TestCreateConfigMap(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Verify only allowCodeExecution is set
-		g.Expect(configMap.Data["eval.lmeval.allowCodeExecution"]).Should(Equal("true"))
-		g.Expect(configMap.Data["eval.lmeval.allowOnline"]).Should(BeEmpty())
+		g.Expect(configMap.Data["eval.lmeval.permitCodeExecution"]).Should(Equal("true"))
+		g.Expect(configMap.Data["eval.lmeval.permitOnline"]).Should(BeEmpty())
 	})
 }
 
@@ -329,15 +329,15 @@ func createTrustyAICR(ready bool) *componentApi.TrustyAI {
 	return &c
 }
 
-func createTrustyAICRWithConfig(allowCodeExecution, allowOnline bool) *componentApi.TrustyAI {
+func createTrustyAICRWithConfig(permitCodeExecution, permitOnline bool) *componentApi.TrustyAI {
 	c := createTrustyAICR(true)
-	c.Spec.Eval.LMEval.AllowCodeExecution = &allowCodeExecution
-	c.Spec.Eval.LMEval.AllowOnline = &allowOnline
+	c.Spec.Eval.LMEval.PermitCodeExecution = permitCodeExecution
+	c.Spec.Eval.LMEval.PermitOnline = permitOnline
 	return c
 }
 
 func createTrustyAICRWithPartialConfig(allowCodeExecution bool) *componentApi.TrustyAI {
 	c := createTrustyAICR(true)
-	c.Spec.Eval.LMEval.AllowCodeExecution = &allowCodeExecution
+	c.Spec.Eval.LMEval.PermitCodeExecution = allowCodeExecution
 	return c
 }

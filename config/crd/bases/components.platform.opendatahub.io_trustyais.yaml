@@ -80,14 +80,14 @@ spec:
                   lmeval:
                     description: LMEval configuration for model evaluations
                     properties:
-                      allowCodeExecution:
+                      permitCodeExecution:
                         default: false
-                        description: AllowCodeExecution controls whether code execution
+                        description: PermitCodeExecution controls whether code execution
                           is allowed during evaluations
                         type: boolean
-                      allowOnline:
+                      permitOnline:
                         default: false
-                        description: AllowOnline controls whether online access is
+                        description: PermitOnline controls whether online access is
                           allowed during evaluations
                         type: boolean
                     type: object

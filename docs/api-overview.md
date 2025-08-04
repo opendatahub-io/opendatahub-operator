@@ -2055,8 +2055,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `allowCodeExecution` _boolean_ | AllowCodeExecution controls whether code execution is allowed during evaluations | false |  |
-| `allowOnline` _boolean_ | AllowOnline controls whether online access is allowed during evaluations | false |  |
+| `permitCodeExecution` _boolean_ | PermitCodeExecution controls whether code execution is allowed during evaluations | false |  |
+| `permitOnline` _boolean_ | PermitOnline controls whether online access is allowed during evaluations | false |  |
 
 
 #### TrustyAIList

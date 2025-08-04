@@ -32,7 +32,6 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -84,12 +83,6 @@ func createConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		return fmt.Errorf("resource instance %v is not a componentApi.TrustyAI)", rr.Instance)
 	}
 
-	// Skip ConfigMap creation if no configuration is specified
-	if trustyai.Spec.Eval.LMEval.AllowCodeExecution == nil &&
-		trustyai.Spec.Eval.LMEval.AllowOnline == nil {
-		return nil
-	}
-
 	// Create extra ConfigMap for DSC configuration
 	configMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
@@ -100,11 +93,6 @@ func createConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 			// TrustyAI's own default ConfigMap name is "trustyai-service-operator-config"
 			Name:      "trustyai-dsc-config",
 			Namespace: rr.DSCI.Spec.ApplicationsNamespace,
-			Labels: map[string]string{
-				labels.ODH.Component(ComponentName): labels.True,
-				labels.K8SCommon.PartOf:             ComponentName,
-				"app.opendatahub.io/config-type":    "dsc-config",
-			},
 			Annotations: map[string]string{
 				"opendatahub.io/managed-by":    "dsc-trustyai-controller",
 				"opendatahub.io/config-source": "datasciencecluster",
@@ -113,14 +101,11 @@ func createConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		Data: make(map[string]string),
 	}
 
-	if trustyai.Spec.Eval.LMEval.AllowCodeExecution != nil {
-		configMap.Data["eval.lmeval.allowCodeExecution"] =
-			strconv.FormatBool(*trustyai.Spec.Eval.LMEval.AllowCodeExecution)
-	}
-	if trustyai.Spec.Eval.LMEval.AllowOnline != nil {
-		configMap.Data["eval.lmeval.allowOnline"] =
-			strconv.FormatBool(*trustyai.Spec.Eval.LMEval.AllowOnline)
-	}
+	// Always set the values since they have defaults
+	configMap.Data["eval.lmeval.permitCodeExecution"] =
+		strconv.FormatBool(trustyai.Spec.Eval.LMEval.PermitCodeExecution)
+	configMap.Data["eval.lmeval.permitOnline"] =
+		strconv.FormatBool(trustyai.Spec.Eval.LMEval.PermitOnline)
 
 	return rr.Client.Patch(ctx, configMap, client.Apply,
 		client.ForceOwnership, client.FieldOwner("trustyai-dsc-controller"))
