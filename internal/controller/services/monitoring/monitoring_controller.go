@@ -22,6 +22,8 @@ import (
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -84,12 +86,18 @@ func monitoringNamespace(_ context.Context, rr *odhtypes.ReconciliationRequest) 
 
 func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.Monitoring{}).
+		Owns(&rbacv1.Role{}).
+		Owns(&rbacv1.RoleBinding{}).
+		// operands - openshift
+		Owns(&routev1.Route{}).
 		// operands - owned dynmically depends on external operators are installed for monitoring
 		// TODO: add more here later when enable other operator
 		OwnsGVK(gvk.MonitoringStack, reconciler.Dynamic(reconciler.CrdExists(gvk.MonitoringStack))).
 		OwnsGVK(gvk.TempoMonolithic, reconciler.Dynamic(reconciler.CrdExists(gvk.TempoMonolithic))).
 		OwnsGVK(gvk.TempoStack, reconciler.Dynamic(reconciler.CrdExists(gvk.TempoStack))).
 		OwnsGVK(gvk.Instrumentation, reconciler.Dynamic(reconciler.CrdExists(gvk.Instrumentation))).
+		OwnsGVK(gvk.OpenTelemetryCollector, reconciler.Dynamic(reconciler.CrdExists(gvk.OpenTelemetryCollector))).
+		OwnsGVK(gvk.ServiceMonitor, reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMonitor))).
 		// operands - watched
 		//
 		// By default the Watches functions adds:
@@ -113,13 +121,15 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(
 				handlers.ToNamed(serviceApi.MonitoringInstanceName)),
 		).
-		WithAction(addMonitoringCapability).
+		// These are only for SRE Monitoring
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).
-		WithAction(createMonitoringStack).
+		// These are only for new monitoring stack dependent Operators
+		WithAction(addMonitoringCapability).
+		WithAction(deployMonitoringStack).
 		WithAction(deployTempo).
-		WithAction(createOpenTelemetryCollector).
-		WithAction(handleInstrumentationCR).
+		WithAction(deployOpenTelemetryCollector).
+		WithAction(deployInstrumentation).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).

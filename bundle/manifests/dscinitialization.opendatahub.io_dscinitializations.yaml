@@ -227,10 +227,10 @@ spec:
                         - backend
                         type: object
                         x-kubernetes-validations:
-                        - message: When backend is not 'pv', the 'secret' field must
+                        - message: When backend is s3 or gcs, the 'secret' field must
                             be specified and non-empty
                           rule: 'self.backend != ''pv'' ? has(self.secret) : true'
-                        - message: Size is not supported when backend is not 'pv'
+                        - message: Size is supported when backend is pv only
                           rule: 'self.backend != ''pv'' ? !has(self.size) : true'
                     required:
                     - storage
