@@ -5,7 +5,6 @@ package webhook
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	authwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/auth"
 	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
 	dsciwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
@@ -20,7 +19,6 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 	webhookRegistrations := []func(ctrl.Manager) error{
 		dscwebhook.RegisterWebhooks,
 		dsciwebhook.RegisterWebhooks,
-		authwebhook.RegisterWebhooks,
 		hardwareprofilewebhook.RegisterWebhooks,
 		kueuewebhook.RegisterWebhooks,
 		isvc.RegisterWebhooks,
