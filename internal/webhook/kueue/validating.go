@@ -93,11 +93,23 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	// Decode the object to check deletion timestamp
+	obj := &unstructured.Unstructured{}
+	if err := v.Decoder.Decode(req, obj); err != nil {
+		log.Error(err, "failed to decode object")
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode object: %w", err))
+	}
+
+	// Skip processing if object is marked for deletion
+	if !obj.GetDeletionTimestamp().IsZero() {
+		return admission.Allowed("Object marked for deletion, skipping Kueue label validation")
+	}
+
 	var resp admission.Response
 
 	switch req.Operation {
 	case admissionv1.Create, admissionv1.Update:
-		resp = v.performLabelValidation(ctx, &req)
+		resp = v.performLabelValidation(ctx, &req, obj)
 	default:
 		resp = admission.Allowed(fmt.Sprintf("Operation %s on %s allowed", req.Operation, req.Kind.Kind))
 	}
@@ -229,17 +241,11 @@ func validateKueueLabels(labels map[string]string) error {
 //
 // Returns:
 //   - admission.Response: The result of the label validation, indicating whether the operation is allowed or denied
-func (v *Validator) performLabelValidation(ctx context.Context, req *admission.Request) admission.Response {
+func (v *Validator) performLabelValidation(ctx context.Context, req *admission.Request, obj *unstructured.Unstructured) admission.Response {
 	log := logf.FromContext(ctx)
 	namespace := req.Namespace
 
-	// Decode the object using the injected decoder
-	// We use unstructured.Unstructured since we handle multiple resource types
-	obj := &unstructured.Unstructured{}
-	if err := v.Decoder.Decode(*req, obj); err != nil {
-		log.Error(err, "failed to decode object")
-		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode object: %w", err))
-	}
+	// Object already decoded in Handle method and passed as parameter
 
 	// Check if the namespace is labeled for Kueue management
 	// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-27558
