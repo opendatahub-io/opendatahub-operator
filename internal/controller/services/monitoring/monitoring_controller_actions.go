@@ -8,6 +8,7 @@ import (
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -50,6 +51,7 @@ var componentRules = map[string]string{
 }
 
 //go:embed resources
+//go:embed monitoring
 var resourcesFS embed.FS
 
 // initialize handles all pre-deployment configurations.
@@ -303,6 +305,117 @@ func deployInstrumentation(ctx context.Context, rr *odhtypes.ReconciliationReque
 		},
 	}
 	rr.Templates = append(rr.Templates, template...)
+
+	return nil
+}
+
+func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Alerting == nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionAlertingAvailable,
+			conditions.WithReason(status.AlertingNotConfiguredReason),
+			conditions.WithMessage(status.AlertingNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	// Check required CRD for alerting
+	exists, err := cluster.HasCRD(ctx, rr.Client, gvk.PrometheusRule)
+	if err != nil {
+		return fmt.Errorf("failed to check if %s CRD exists: %w", gvk.PrometheusRule.Kind, err)
+	}
+	if !exists {
+		rr.Conditions.MarkFalse(
+			status.ConditionAlertingAvailable,
+			conditions.WithReason(gvk.PrometheusRule.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage(gvk.PrometheusRule.Kind+" CRD Not Found"),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionAlertingAvailable)
+	// Add operator prometheus rules, we can deploy operator alerts without any components
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: "monitoring/operator-prometheusrules.tmpl.yaml",
+		},
+	}
+	rr.Templates = append(rr.Templates, templates...)
+
+	dsc, err := cluster.GetDSC(ctx, rr.Client)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			// DSC doesn't exist
+			return nil
+		}
+		return fmt.Errorf("failed to retrieve DataScienceCluster: %w", err)
+	}
+
+	// Add component prometheus rules for each enabled and ready component.
+	// Collect errors for each component and report them at the end.
+	// Component A could succeed, component B could fail and component C could succeed.
+	// Log which components actually failed rather than just bailing out early.
+	var addErrors []error
+	var cleanupErrors []error
+
+	forEachErr := cr.ForEach(func(ch cr.ComponentHandler) error {
+		componentName := ch.GetName()
+		ci := ch.NewCRObject(dsc)
+
+		if ch.IsEnabled(dsc) {
+			ready, err := isComponentReady(ctx, rr.Client, ci)
+			if err != nil {
+				addErrors = append(addErrors, fmt.Errorf("failed to get status for component %s: %w", componentName, err))
+				return nil // Continue processing other components
+			}
+			if !ready {
+				return nil
+			}
+			// component is ready, add alerting rules
+			if err := addPrometheusRules(componentName, rr); err != nil {
+				addErrors = append(addErrors, fmt.Errorf("failed to add prometheus rules for component %s: %w", componentName, err))
+				return nil // Continue processing other components
+			}
+		} else {
+			// component is not enabled, check if prometheus rules exist and cleanup if they do
+			if err := cleanupPrometheusRules(ctx, componentName, rr); err != nil {
+				cleanupErrors = append(cleanupErrors, fmt.Errorf("failed to cleanup prometheus rules for component %s: %w", componentName, err))
+				return nil // Continue processing other components
+			}
+		}
+		return nil
+	})
+
+	// Handle registry iteration errors separately - something is wrong with the component registry itself
+	if forEachErr != nil {
+		return fmt.Errorf("failed to iterate components: %w", forEachErr)
+	}
+
+	// If we fail to add prometheus rules for a component.
+	if len(addErrors) > 0 {
+		// Log errors but don't fail the reconciliation
+		for _, addErr := range addErrors {
+			logf.FromContext(ctx).Error(addErr, "Failed to add prometheus rules for component")
+		}
+	}
+
+	// If we fail to clean up prometheus rules for a component.
+	if len(cleanupErrors) > 0 {
+		// Log errors but don't fail the reconciliation
+		for _, cleanupErr := range cleanupErrors {
+			logf.FromContext(ctx).Error(cleanupErr, "Failed to cleanup prometheus rules for component")
+		}
+	}
+
+	if len(addErrors) > 0 || len(cleanupErrors) > 0 {
+		return errors.New("errors occurred while adding or cleaning up prometheus rules for components")
+	}
 
 	return nil
 }
