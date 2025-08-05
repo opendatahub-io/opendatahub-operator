@@ -78,17 +78,19 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusInternalServerError, errors.New("webhook decoder not initialized"))
 	}
 
+	// Decode the object once
+	obj, err := webhookutils.DecodeUnstructured(w.Decoder, req)
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+
+	// Skip processing if object is marked for deletion
+	if !obj.GetDeletionTimestamp().IsZero() {
+		return admission.Allowed("Object marked for deletion, skipping connection logic")
+	}
+
 	switch req.Operation {
 	case admissionv1.Create, admissionv1.Update:
-		// Decode the object once
-		obj, err := webhookutils.DecodeUnstructured(w.Decoder, req)
-		if err != nil {
-			return admission.Errored(http.StatusInternalServerError, err)
-		}
-
-		if !obj.GetDeletionTimestamp().IsZero() {
-			return admission.Allowed("Object marked for deletion, skipping connection logic")
-		}
 
 		// allowed connection types for connection validation on isvc.
 		allowedTypes := []string{

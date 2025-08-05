@@ -68,6 +68,11 @@ func (w *NotebookWebhook) Handle(ctx context.Context, req admission.Request) adm
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode object: %w", err))
 	}
 
+	// Skip processing if object is marked for deletion
+	if !notebook.GetDeletionTimestamp().IsZero() {
+		return admission.Allowed("Object marked for deletion, skipping connection logic")
+	}
+
 	var resp admission.Response
 
 	switch req.Operation {
