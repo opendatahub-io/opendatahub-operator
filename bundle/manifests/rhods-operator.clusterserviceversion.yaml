@@ -1099,6 +1099,7 @@ spec:
           - monitoring.rhobs
           resources:
           - monitoringstacks
+          - prometheusrules
           - servicemonitors
           verbs:
           - create
@@ -1112,6 +1113,7 @@ spec:
           - monitoring.rhobs
           resources:
           - monitoringstacks/finalizers
+          - prometheusrules/finalizers
           - servicemonitors/finalizers
           verbs:
           - update
@@ -1119,6 +1121,7 @@ spec:
           - monitoring.rhobs
           resources:
           - monitoringstacks/status
+          - prometheusrules/status
           - servicemonitors/status
           verbs:
           - get
