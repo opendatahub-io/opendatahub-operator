@@ -105,6 +105,7 @@ const (
 	ConditionTempoAvailable                  = "TempoAvailable"
 	ConditionOpenTelemetryCollectorAvailable = "OpenTelemetryCollectorAvailable"
 	ConditionInstrumentationAvailable        = "InstrumentationAvailable"
+	ConditionAlertingAvailable               = "AlertingAvailable"
 )
 
 const (
@@ -183,6 +184,9 @@ const (
 	MetricsNotConfiguredMessage = "Metrics not configured in DSCI CR"
 	TracesNotConfiguredReason   = "TracesNotConfigured"
 	TracesNotConfiguredMessage  = "Traces not configured in DSCI CR"
+
+	AlertingNotConfiguredReason  = "AlertingNotConfigured"
+	AlertingNotConfiguredMessage = "Alerting not configured in DSCI CR"
 
 	TempoOperatorMissingMessage                  = "Tempo operator must be installed for traces configuration"
 	COOMissingMessage                            = "ClusterObservability operator must be installed for metrics configuration"
