@@ -1,0 +1,224 @@
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  name: datasciencepipelines-prometheusrules
+  namespace: {{.Namespace}}
+spec:
+  groups:
+      - name: SLOs-haproxy_backend_http_responses_dsp
+        rules:
+        - alert: Data Science Pipelines Application Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: Data Science Pipelines Application Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate5m{component="dsp"}) by (exported_namespace) > (14.40 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate1h{component="dsp"}) by (exported_namespace) > (14.40 * (1-0.99950))
+          for: 2m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipelines Application Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: Data Science Pipelines Application Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate30m{component="dsp"}) by (exported_namespace) > (6.00 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate6h{component="dsp"}) by (exported_namespace) > (6.00 * (1-0.99950))
+          for: 15m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipelines Application Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: Data Science Pipelines Application Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate2h{component="dsp"}) by (exported_namespace) > (3.00 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate1d{component="dsp"}) by (exported_namespace) > (3.00 * (1-0.99950))
+          for: 1h
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipelines Application Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: Data Science Pipelines Application Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate6h{component="dsp"}) by (exported_namespace) > (1.00 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate3d{component="dsp"}) by (exported_namespace) > (1.00 * (1-0.99950))
+          for: 3h
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+      - name: SLOs-probe_success_dsp
+        rules:
+        - alert: Data Science Pipelines Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: Data Science Pipelines Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"data-science-pipelines-operator"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"data-science-pipelines-operator"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipelines Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: Data Science Pipelines Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"data-science-pipelines-operator"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"data-science-pipelines-operator"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipelines Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: Data Science Pipelines Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"data-science-pipelines-operator"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"data-science-pipelines-operator"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
+            namespace: redhat-ods-applications
+      - name: RHODS Data Science Pipelines
+        rules:
+        - alert: Data Science Pipeline Application Unavailable
+          annotations:
+            message: 'Data Science Pipelines Application is down!'
+            summary: The Data Science Pipelines Application CustomResource "{{`{{`}} $labels.dspa_name {{`}}`}}" in namespace "{{`{{`}} $labels.dspa_namespace {{`}}`}}" has been NotReady for more than 5 minutes
+          expr: min(max_over_time(data_science_pipelines_application_ready[3m])) by (dspa_name, dspa_namespace) == 0
+          for: 2m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipeline APIServer Unavailable
+          annotations:
+            message: 'Data Science Pipelines APIServer component is down!'
+            summary: A Data Science Pipelines APIServer pod owned by DSPA "{{`{{`}} $labels.dspa_name {{`}}`}}" in namespace "{{`{{`}} $labels.dspa_namespace {{`}}`}}" has been NotReady for more than 5 minutes
+          expr: min(max_over_time(data_science_pipelines_application_apiserver_ready[3m])) by (dspa_name, dspa_namespace) == 0
+          for: 2m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipeline PersistenceAgent Unavailable
+          annotations:
+            message: 'Data Science Pipelines PersistenceAgent component is down!'
+            summary: A Data Science Pipelines PersistenceAgent pod owned by DSPA "{{`{{`}} $labels.dspa_name {{`}}`}}" in namespace "{{`{{`}} $labels.dspa_namespace {{`}}`}}" has been NotReady for more than 5 minutes
+          expr: min(max_over_time(data_science_pipelines_application_persistenceagent_ready[3m])) by (dspa_name, dspa_namespace) == 0
+          for: 2m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+        - alert: Data Science Pipeline ScheduledWorkflows Unavailable
+          annotations:
+            message: 'Data Science Pipelines ScheduledWorkflows component is down!'
+            summary: A Data Science Pipelines ScheduledWorkflow controller pod owned by DSPA "{{`{{`}} $labels.dspa_name {{`}}`}}" in namespace "{{`{{`}} $labels.dspa_namespace {{`}}`}}" has been NotReady for more than 5 minutes
+          expr: min(max_over_time(data_science_pipelines_application_scheduledworkflow_ready[3m])) by (dspa_name, dspa_namespace) == 0
+          for: 2m
+          labels:
+            severity: info
+            namespace: redhat-ods-applications
+
+      # RecordingRules for Data Science Pipelines Operator
+      - name: SLOs - Data Science Pipelines Operator
+        rules:
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[1d])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[1h])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[2h])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[30m])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[3d])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[5m])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"data-science-pipelines-operator-.*", job="user_facing_endpoints_status_dsp"}[6h])
+          labels:
+            instance: data-science-pipelines-operator
+          record: probe_success:burnrate6h
+
+      - name: SLOs - Data Science Pipelines Application
+        rules:
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[1d])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[1d])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate1d
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[1h])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[1h])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate1h
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[2h])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[2h])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate2h
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[30m])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[30m])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate30m
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[3d])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[3d])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate3d
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[5m])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[5m])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate5m
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*",code=~"5.."}[6h])) by (exported_namespace)
+            /
+            sum(rate(haproxy_backend_http_responses_total{route=~"ds-pipeline-.*"}[6h])) by (exported_namespace)
+          labels:
+            component: dsp
+          record: haproxy_backend_http_responses_total:burnrate6h

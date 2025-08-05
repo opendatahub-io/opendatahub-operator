@@ -52,6 +52,9 @@ spec:
           spec:
             description: MonitoringSpec defines the desired state of Monitoring
             properties:
+              alerting:
+                description: Alerting configuration for Prometheus
+                type: object
               metrics:
                 description: metrics collection
                 properties:
@@ -189,6 +192,9 @@ spec:
                 - storage
                 type: object
             type: object
+            x-kubernetes-validations:
+            - message: Alerting configuration requires metrics to be configured
+              rule: 'has(self.alerting) ? has(self.metrics) : true'
           status:
             description: MonitoringStatus defines the observed state of Monitoring
             properties:
