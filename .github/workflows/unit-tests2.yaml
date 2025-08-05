@@ -6,6 +6,10 @@ on:
       - incubation
       - main
   pull_request:
+      paths:
+      - 'internal/**'
+      - 'pkg/**'
+      - 'cmd/main.go'
 jobs:
   unit-test:
     name: Run tests and collect coverage on internal and pkg

@@ -69,7 +69,7 @@ func (r *ServiceMeshReconciler) configureServiceMesh(ctx context.Context, instan
 		if err := r.removeServiceMesh(ctx, instance); err != nil {
 			return err
 		}
-		// RUpdate status ServiceMesh when DSCI has removed
+		// Update status ServiceMesh when DSCI has removed
 		conditions := instance.Status.Conditions
 		status.SetCondition(&conditions, status.CapabilityServiceMesh, status.RemovedReason,
 			"ServiceMesh is Removed in DSCI", metav1.ConditionFalse)
