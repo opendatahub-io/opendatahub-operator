@@ -55,7 +55,7 @@ type MetricsStorage struct {
 	// +kubebuilder:default="5Gi"
 	Size resource.Quantity `json:"size,omitempty"`
 	// Retention specifies how long metrics data should be retained (e.g., "1d", "2w")
-	// +kubebuilder:default="1d"
+	// +kubebuilder:default="90d"
 	Retention string `json:"retention,omitempty"`
 }
 
