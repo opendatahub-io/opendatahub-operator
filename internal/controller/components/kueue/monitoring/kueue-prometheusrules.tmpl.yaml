@@ -1,0 +1,17 @@
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  name: kueue-alerts
+  namespace: {{.Namespace}}
+spec:
+  groups:
+    - name: Distributed Workloads Kueue
+      interval: 1m
+      rules:
+        - alert: Kueue Operator is not running
+          expr: absent(up{job=~'Kueue Operator'}) or up{job=~'Kueue Operator'} != 1
+          labels:
+            severity: warning
+          annotations:
+            description: This alert fires when the Kueue Operator is not running.
+            summary: Alerting for Kueue Operator
