@@ -156,13 +156,13 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 		return errors.New("instance is not of type *services.Monitoring")
 	}
 
-	// Read metrics configuration directly from Monitoring CR
-	if monitoring.Spec.Metrics == nil {
-		// No metrics configuration - skip OpenTelemetry collector deployment for metrics
+	// Read metrics and traces configuration directly from Monitoring CR
+	if monitoring.Spec.Metrics == nil && monitoring.Spec.Traces == nil {
+		// No metrics and traces configuration - skip OpenTelemetry collector deployment
 		rr.Conditions.MarkFalse(
 			status.ConditionOpenTelemetryCollectorAvailable,
-			conditions.WithReason(status.MetricsNotConfiguredReason),
-			conditions.WithMessage(status.MetricsNotConfiguredMessage),
+			conditions.WithReason(status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason),
+			conditions.WithMessage(status.MetricsNotConfiguredMessage+"\n"+status.TracesNotConfiguredMessage),
 		)
 		return nil
 	}
