@@ -42,6 +42,9 @@ type ModelRegistryCommonSpec struct {
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
 	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
+
+	// Model catalog settings
+	ModelCatalog ModelCatalogSpec `json:"modelCatalog,omitempty"`
 }
 
 // ModelRegistrySpec defines the desired state of ModelRegistry
@@ -101,6 +104,11 @@ func (c *ModelRegistry) GetReleaseStatus() *[]common.ComponentRelease {
 
 func (c *ModelRegistry) SetReleaseStatus(releases []common.ComponentRelease) {
 	c.Status.Releases = releases
+}
+
+// ModelCatalogSpec describes the desired state of model catalog.
+type ModelCatalogSpec struct {
+	common.ManagementSpec `json:",inline"`
 }
 
 // +kubebuilder:object:root=true

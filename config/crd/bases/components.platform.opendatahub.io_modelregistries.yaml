@@ -74,6 +74,24 @@ spec:
                       type: object
                     type: array
                 type: object
+              modelCatalog:
+                description: Model catalog settings
+                properties:
+                  managementState:
+                    description: |-
+                      Set to one of the following values:
+
+                      - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                    It will only upgrade the component if it is safe to do so
+
+                      - "Removed" : the operator is actively managing the component and will not install it,
+                                    or if it is installed, the operator will try to remove it
+                    enum:
+                    - Managed
+                    - Removed
+                    pattern: ^(Managed|Unmanaged|Force|Removed)$
+                    type: string
+                type: object
               registriesNamespace:
                 default: odh-model-registries
                 description: Namespace for model registries to be installed, configurable

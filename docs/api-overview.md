@@ -460,6 +460,7 @@ _Appears in:_
 | `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `modelCatalog` _[ModelCatalogSpec](#modelcatalogspec)_ | Model catalog settings |  |  |
 
 
 #### DSCModelRegistryStatus
@@ -1350,6 +1351,24 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
+#### ModelCatalogSpec
+
+
+
+ModelCatalogSpec describes the desired state of model catalog.
+
+
+
+_Appears in:_
+- [DSCModelRegistry](#dscmodelregistry)
+- [ModelRegistryCommonSpec](#modelregistrycommonspec)
+- [ModelRegistrySpec](#modelregistryspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+
+
 #### ModelController
 
 
@@ -1628,6 +1647,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `modelCatalog` _[ModelCatalogSpec](#modelcatalogspec)_ | Model catalog settings |  |  |
 
 
 #### ModelRegistryCommonStatus
@@ -1683,6 +1703,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `modelCatalog` _[ModelCatalogSpec](#modelcatalogspec)_ | Model catalog settings |  |  |
 
 
 #### ModelRegistryStatus
