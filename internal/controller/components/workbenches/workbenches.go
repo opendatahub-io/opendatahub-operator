@@ -106,9 +106,9 @@ func (s *componentHandler) Init(platform common.Platform) error {
 		"odh-pipeline-runtime-datascience-cpu-py312-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_DATASCIENCE_CPU_PY312_IMAGE",
 		"odh-pipeline-runtime-minimal-cpu-py311-ubi9-n":     "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY311_IMAGE",
 		"odh-pipeline-runtime-minimal-cpu-py312-ubi9-n":     "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY312_IMAGE",
-		"odh-pipeline-runtime-tensorflow-cuda-py311":        "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_CUDA_PY311_IMAGE",
-		"odh-pipeline-runtime-tensorflow-cuda-py312":        "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_CUDA_PY312_IMAGE",
-		"odh-pipeline-runtime-tensorflow-rocm-py311":        "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY311_IMAGE",
+		"odh-pipeline-runtime-tensorflow-cuda-py311-ubi9-n":        "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_CUDA_PY311_IMAGE",
+		"odh-pipeline-runtime-tensorflow-cuda-py312-ubi9-n":        "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_CUDA_PY312_IMAGE",
+		"odh-pipeline-runtime-tensorflow-rocm-py311-ubi9-n":        "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY311_IMAGE",
 		// Pipeline Runtime Images - PyTorch CUDA
 		"odh-pipeline-runtime-pytorch-cuda-py311-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_CUDA_PY311_IMAGE",
 		"odh-pipeline-runtime-pytorch-cuda-py312-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_CUDA_PY312_IMAGE",
@@ -116,7 +116,7 @@ func (s *componentHandler) Init(platform common.Platform) error {
 		"odh-pipeline-runtime-pytorch-rocm-py311-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_ROCM_PY311_IMAGE",
 		"odh-pipeline-runtime-pytorch-rocm-py312-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_ROCM_PY312_IMAGE",
 	}); err != nil {
-		return fmt.Errorf("failed to update params.env from %s : %w", nbImgsManifestInfo.String(), err)
+		return fmt.Errorf("failed to update params-latest.env from %s : %w", nbImgsManifestInfo.String(), err)
 	}
 
 	return nil
