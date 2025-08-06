@@ -5,7 +5,6 @@ on:
     types: [ synchronize, reopened ]
     paths:
       - 'bundle/**'
-      - 'cmd/**'
       - 'config/**'
       - 'Dockerfiles/**'
       - 'internal/**'
