@@ -127,11 +127,23 @@ func (i *Injector) Handle(ctx context.Context, req admission.Request) admission.
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	// Decode the object to check deletion timestamp
+	obj := &unstructured.Unstructured{}
+	if err := i.Decoder.Decode(req, obj); err != nil {
+		log.Error(err, "Failed to decode object")
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	// Skip processing if object is marked for deletion
+	if !obj.GetDeletionTimestamp().IsZero() {
+		return admission.Allowed("Object marked for deletion, skipping hardware profile injection")
+	}
+
 	var resp admission.Response
 
 	switch req.Operation {
 	case admissionv1.Create, admissionv1.Update:
-		resp = i.performHardwareProfileInjection(ctx, &req)
+		resp = i.performHardwareProfileInjection(ctx, &req, obj)
 	default:
 		resp = admission.Allowed(fmt.Sprintf("Operation %s on %s allowed", req.Operation, req.Kind.Kind))
 	}
@@ -197,15 +209,8 @@ func isExpectedKind(kind metav1.GroupVersionKind) bool {
 //
 // Returns:
 //   - admission.Response: Success response with object patch or error response with details
-func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *admission.Request) admission.Response {
+func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *admission.Request, obj *unstructured.Unstructured) admission.Response {
 	log := logf.FromContext(ctx)
-
-	// Decode the object from the request
-	obj := &unstructured.Unstructured{}
-	if err := i.Decoder.Decode(*req, obj); err != nil {
-		log.Error(err, "Failed to decode object")
-		return admission.Errored(http.StatusBadRequest, err)
-	}
 
 	// Check if the object has hardware profile annotations
 	profileName := resources.GetAnnotation(obj, HardwareProfileNameAnnotation)
@@ -317,7 +322,7 @@ func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name str
 func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unstructured.Unstructured, hwp *hwpv1alpha1.HardwareProfile) error {
 	log := logf.FromContext(ctx)
 
-	log.Info("applying hardware profile to workload", "workload", obj.GetName(), "kind", obj.GetKind(), "hardwareProfile", hwp.Name)
+	log.V(1).Info("applying hardware profile to workload", "workload", obj.GetName(), "kind", obj.GetKind(), "hardwareProfile", hwp.Name)
 
 	// Apply resource requirements to containers (only if there are identifiers)
 	if len(hwp.Spec.Identifiers) > 0 {

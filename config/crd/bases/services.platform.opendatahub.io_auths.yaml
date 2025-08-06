@@ -49,13 +49,27 @@ spec:
             description: AuthSpec defines the desired state of Auth
             properties:
               adminGroups:
+                description: AdminGroups cannot contain 'system:authenticated' (security
+                  risk) or empty strings, and must not be empty
                 items:
                   type: string
                 type: array
+                x-kubernetes-validations:
+                - message: AdminGroups cannot be empty
+                  rule: size(self) > 0
+                - message: AdminGroups cannot contain 'system:authenticated' or empty
+                    strings
+                  rule: self.all(group, group != 'system:authenticated' && group !=
+                    '')
               allowedGroups:
+                description: AllowedGroups cannot contain empty strings, but 'system:authenticated'
+                  is allowed for general access
                 items:
                   type: string
                 type: array
+                x-kubernetes-validations:
+                - message: AllowedGroups cannot contain empty strings
+                  rule: self.all(group, group != '')
             required:
             - adminGroups
             - allowedGroups

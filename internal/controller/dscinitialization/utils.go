@@ -45,8 +45,7 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 		return err
 	}
 
-	// Patch monitoring namespace: only for Managed cluster
-	if platform == cluster.ManagedRhoai {
+	if dscInit.Spec.Monitoring.ManagementState == operatorv1.Managed || platform == cluster.ManagedRhoai {
 		if err := PatchMonitoringNS(ctx, r.Client, dscInit); err != nil {
 			log.Error(err, "error patch monitoring namespace")
 			return err

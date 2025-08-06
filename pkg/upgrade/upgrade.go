@@ -748,7 +748,8 @@ func cleanupDeprecatedKueueVAPB(ctx context.Context, cli client.Client) error {
 
 	// Attempt to delete the resource
 	err := cli.Delete(ctx, vapb)
-	if client.IgnoreNotFound(err) != nil {
+	// VAPB is not a CRD but a core type from k8s, we wanna ensure API version is correct
+	if client.IgnoreNotFound(err) != nil && !meta.IsNoMatchError(err) {
 		return fmt.Errorf("failed to delete deprecated ValidatingAdmissionPolicyBinding: %w", err)
 	}
 

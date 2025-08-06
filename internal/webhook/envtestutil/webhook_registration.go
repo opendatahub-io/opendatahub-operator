@@ -7,6 +7,7 @@ import (
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	inferenceservicewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/inferenceservice"
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
+	notebookwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/notebook"
 )
 
 // RegisterWebhooks registers hardware profile, Kueue, and connection webhooks for integration testing.
@@ -18,7 +19,7 @@ import (
 //
 // Use this function when:
 //   - Testing hardware profile injection functionality (which creates Notebooks)
-//   - Testing InferenceService creation with hardware profiles
+//   - Testing InferenceService or Notebook creation with hardware profiles
 //   - Testing any workflow that creates resources matching multiple webhook selectors
 //   - You need all webhooks to be available to avoid "webhook endpoint not found" errors
 func RegisterWebhooks(mgr manager.Manager) error {
@@ -49,6 +50,17 @@ func RegisterWebhooks(mgr manager.Manager) error {
 		Name:    "connection-isvc",
 	}
 	if err := isvcConnectionWebhook.SetupWithManager(mgr); err != nil {
+		return err
+	}
+
+	// Register Connection webhook for Notebook
+	notebookConnectionWebhook := &notebookwebhook.NotebookWebhook{
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		Decoder:   admission.NewDecoder(mgr.GetScheme()),
+		Name:      "notebook-webhook",
+	}
+	if err := notebookConnectionWebhook.SetupWithManager(mgr); err != nil {
 		return err
 	}
 
