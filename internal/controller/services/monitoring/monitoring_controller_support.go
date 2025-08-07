@@ -38,6 +38,10 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["Traces"] = monitoring.Spec.Traces != nil
 	templateData["Metrics"] = monitoring.Spec.Metrics != nil
 
+	// Always set custom metrics exporters data (even if empty)
+	templateData["CustomMetricsExporters"] = make(map[string]interface{})
+	templateData["CustomMetricsExporterNames"] = []string{}
+
 	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {
 		// Handle Resources fields - provide defaults if Resources is nil

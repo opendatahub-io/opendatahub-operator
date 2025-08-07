@@ -63,6 +63,13 @@ func TestCustomMetricsExporters(t *testing.T) {
 			expectedNames:        []string{},
 		},
 		{
+			name:                 "nil exporters (metrics defined but no exporters)",
+			exporters:            nil,
+			expectError:          false,
+			expectedParsedConfig: map[string]interface{}{},
+			expectedNames:        []string{},
+		},
+		{
 			name: "reserved name prometheus",
 			exporters: map[string]string{
 				"prometheus": "endpoint: http://example.com",
