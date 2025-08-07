@@ -82,7 +82,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 			retention := metrics.Storage.Retention
 			if retention == "" {
-				retention = "1d"
+				retention = "90d"
 			}
 			templateData["StorageRetention"] = retention
 		} else {

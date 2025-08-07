@@ -2904,7 +2904,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `size` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi") | 5Gi |  |
-| `retention` _string_ | Retention specifies how long metrics data should be retained (e.g., "1d", "2w") | 1d |  |
+| `retention` _string_ | Retention specifies how long metrics data should be retained (e.g., "1d", "2w") | 90d |  |
 
 
 #### Monitoring
