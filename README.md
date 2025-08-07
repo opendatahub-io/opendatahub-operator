@@ -309,7 +309,7 @@ spec:
         memorylimit: 512Mi
         memoryrequest: 256Mi
       storage:
-        retention: 1d
+        retention: 90d
         size: 5Gi
     traces:
       storage:
