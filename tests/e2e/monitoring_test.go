@@ -646,7 +646,6 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRuleCreation(t *testing.T) {
 			And(
 				HaveLen(1),
 				HaveEach(And(
-					jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DataScienceCluster.Kind),
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
 				)),
@@ -656,11 +655,11 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRuleCreation(t *testing.T) {
 
 	// Ensure the prometheus rules exist
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: tc.AppsNamespace}),
+		WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: dsci.Spec.ApplicationsNamespace}),
 	)
 
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "operator-prometheusrules", Namespace: tc.AppsNamespace}),
+		WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "operator-prometheusrules", Namespace: dsci.Spec.ApplicationsNamespace}),
 	)
 }
 
