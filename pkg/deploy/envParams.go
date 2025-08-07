@@ -72,8 +72,8 @@ priority of image values (from high to low):
 - image values set in manifests params.env if manifestsURI is not set.
 extraParamsMaps is used to set extra parameters which are not carried from ENV variable. this can be passed per component.
 */
-func ApplyParams(componentPath string, imageParamsMap map[string]string, extraParamsMaps ...map[string]string) error {
-	paramsFile := filepath.Join(componentPath, "params.env")
+func ApplyParams(componentPath string, file string, imageParamsMap map[string]string, extraParamsMaps ...map[string]string) error {
+	paramsFile := filepath.Join(componentPath, file)
 	// Require params.env at the root folder
 
 	paramsEnvMap, err := parseParams(paramsFile)

@@ -149,7 +149,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *te
 			// Validate storage size is set to 5Gi
 			jq.Match(`.spec.prometheusConfig.persistentVolumeClaim.resources.requests.storage == "%s"`, "5Gi"),
 			// Validate storage retention is set to 1d
-			jq.Match(`.spec.retention == "%s"`, "1d"),
+			jq.Match(`.spec.retention == "%s"`, "90d"),
 			// Validate CPU request is set to 250m
 			jq.Match(`.spec.resources.requests.cpu == "%s"`, "250m"),
 			// Validate memory request is set to 350Mi
@@ -177,7 +177,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsReplicasUpdate(t *t
 	// Update DSCI to set replicas to 1 (must include either storage or resources due to CEL validation rule)
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: "5Gi", retention: "1d"}, replicas: 1}`)),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{storage: {size: "5Gi", retention: "90d"}, replicas: 1}`)),
 	)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: "data-science-monitoringstack", Namespace: dsci.Spec.Monitoring.Namespace}),
@@ -278,7 +278,7 @@ func setMonitoringMetrics() testf.TransformFn {
 		metricsConfig := map[string]interface{}{
 			"storage": map[string]interface{}{
 				"size":      "5Gi",
-				"retention": "1d",
+				"retention": "90d",
 			},
 			"resources": map[string]interface{}{
 				"cpurequest":    "250m",
