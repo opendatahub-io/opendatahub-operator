@@ -16,6 +16,7 @@ const (
 
 	notebooksPath                    = "notebooks"
 	notebookImagesManifestSourcePath = "overlays/additional"
+	notebookImagesParamsPath         = "base"
 
 	notebookControllerPath               = "odh-notebook-controller"
 	notebookControllerManifestSourcePath = "base"

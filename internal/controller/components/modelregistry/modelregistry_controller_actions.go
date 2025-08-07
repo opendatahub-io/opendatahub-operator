@@ -57,7 +57,7 @@ func customizeManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	}
 
 	// update registries namespace in manifests
-	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), nil, map[string]string{
+	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, map[string]string{
 		"REGISTRIES_NAMESPACE": mr.Spec.RegistriesNamespace,
 	}); err != nil {
 		return fmt.Errorf("failed to update params on path %s: %w", rr.Manifests[0].String(), err)
