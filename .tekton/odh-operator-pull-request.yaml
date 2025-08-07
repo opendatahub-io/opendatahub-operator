@@ -1,0 +1,70 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/red-hat-data-services/rhods-operator?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    build.appstudio.redhat.com/pull_request_number: "{{pull_request_number}}"
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    pipelinesascode.tekton.dev/on-comment: "^/build-konflux"
+    pipelinesascode.tekton.dev/on-event: "[pull_request]"
+    pipelinesascode.tekton.dev/cancel-in-progress: "true"
+  labels:
+    appstudio.openshift.io/application: automation
+    appstudio.openshift.io/component: pull-request-pipelines-odh-operator
+    pipelines.appstudio.openshift.io/type: build
+  name: odh-operator-on-pull-request
+  namespace: rhoai-tenant
+spec:
+  timeouts:
+    pipeline: 4h
+  params:
+  - name: git-url
+    value: '{{source_url}}'
+  - name: revision
+    value: '{{revision}}'
+  - name: additional-tags
+    value:
+    - 'pr-{{pull_request_number}}-into-{{target_branch}}'
+  - name: additional-labels
+    value:
+    - version=on-pr-{{revision}}
+    - io.openshift.tags=odh-operator
+  - name: output-image
+    value: quay.io/rhoai/pull-request-pipelines:odh-operator-{{revision}}
+  - name: build-platforms
+    value:
+    - linux/x86_64
+    - linux/ppc64le
+    - linux/s390x
+    - linux-m2xlarge/arm64
+  - name: image-expires-after
+    value: 5d
+  - name: dockerfile
+    value: Dockerfiles/Dockerfile.konflux
+  - name: path-context
+    value: .
+  - name: hermetic
+    value: true
+  - name: prefetch-input
+    value: |
+      {"type": "gomod", "path": "."}
+  - name: build-image-index
+    value: true
+  pipelineRef:
+    resolver: git
+    params:
+    - name: url
+      value: https://github.com/red-hat-data-services/konflux-central.git
+    - name: revision
+      value: '{{ target_branch }}'
+    - name: pathInRepo
+      value: pipelines/multi-arch-container-build.yaml
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-pull-request-pipelines
+  workspaces:
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'
+status: {}
