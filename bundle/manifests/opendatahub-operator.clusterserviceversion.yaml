@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.33.0
-    createdAt: "2025-08-05T12:08:02Z"
+    createdAt: "2025-08-07T12:44:29Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -1582,7 +1582,6 @@ spec:
       component: opendatahub-operator
   version: 2.33.0
   webhookdefinitions:
-
   - admissionReviewVersions:
     - v1
     containerPort: 443
