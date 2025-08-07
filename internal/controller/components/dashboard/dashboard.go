@@ -39,7 +39,7 @@ func (s *componentHandler) Init(platform common.Platform) error {
 	}
 
 	extra := bffManifestsPath()
-	if err := odhdeploy.ApplyParams(extra.String(), imagesMap); err != nil {
+	if err := odhdeploy.ApplyParams(extra.String(), "params.env", imagesMap); err != nil {
 		return fmt.Errorf("failed to update modular-architecture images on path %s: %w", extra, err)
 	}
 
