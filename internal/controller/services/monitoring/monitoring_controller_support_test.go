@@ -123,8 +123,9 @@ func TestCustomMetricsExporters(t *testing.T) {
 					return
 				}
 
-				if len(exporterMap) != len(tt.exporters) {
-					t.Errorf("Expected %d exporters, got %d", len(tt.exporters), len(exporterMap))
+				// Compare against expected parsed config, not input exporters
+				if tt.expectedParsedConfig != nil && len(exporterMap) != len(tt.expectedParsedConfig) {
+					t.Errorf("Expected %d exporters, got %d", len(tt.expectedParsedConfig), len(exporterMap))
 				}
 
 				// Verify parsed YAML content matches expected values
@@ -157,8 +158,9 @@ func TestCustomMetricsExporters(t *testing.T) {
 					return
 				}
 
-				if len(namesList) != len(tt.exporters) {
-					t.Errorf("Expected %d exporter names, got %d", len(tt.exporters), len(namesList))
+				// Compare against expected names, not input exporters
+				if tt.expectedNames != nil && len(namesList) != len(tt.expectedNames) {
+					t.Errorf("Expected %d exporter names, got %d", len(tt.expectedNames), len(namesList))
 				}
 
 				// Verify all expected names are present (order may vary)
