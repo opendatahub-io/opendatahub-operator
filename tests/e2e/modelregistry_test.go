@@ -3,10 +3,12 @@ package e2e_test
 import (
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/types"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 )
@@ -33,6 +35,7 @@ func modelRegistryTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate deployment", componentCtx.ValidateDeployment},
 		// TODO: Disabled until these tests have been hardened (RHOAIENG-27721)
 		// {"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
 		// {"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
@@ -53,10 +56,14 @@ func (tc *ModelRegistryTestCtx) ValidateSpec(t *testing.T) {
 	// Retrieve the DataScienceCluster instance.
 	dsc := tc.FetchDataScienceCluster()
 
-	// Validate that the registriesNamespace in ModelRegistry matches the corresponding value in DataScienceCluster spec.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ModelRegistry, types.NamespacedName{Name: componentApi.ModelRegistryInstanceName}),
+
+		// Validate that the registriesNamespace in ModelRegistry matches the corresponding value in DataScienceCluster spec.
 		WithCondition(jq.Match(`.spec.registriesNamespace == "%s"`, dsc.Spec.Components.ModelRegistry.RegistriesNamespace)),
+
+		// Validate that the modelCatalog state in ModelRegistry matches the corresponding value in DataScienceCluster spec.
+		WithCondition(jq.Match(`.spec.modelCatalog.managementState == "%s"`, dsc.Spec.Components.ModelRegistry.ModelCatalog.ManagementState)),
 	)
 }
 
@@ -69,4 +76,23 @@ func (tc *ModelRegistryTestCtx) ValidateCRDReinstated(t *testing.T) {
 	}
 
 	tc.ValidateCRDsReinstated(t, crds)
+}
+
+// ValidateDeployment checks the ModelRegistry deployment against the DataScienceCluster instance.
+func (tc *ModelRegistryTestCtx) ValidateDeployment(t *testing.T) {
+	t.Helper()
+
+	// Retrieve the DataScienceCluster instance.
+	dsc := tc.FetchDataScienceCluster()
+
+	mcEnabled := "false"
+	if dsc.Spec.Components.ModelRegistry.ModelCatalog.ManagementState == operatorv1.Managed {
+		mcEnabled = "true"
+	}
+
+	// Validate that the ENABLE_MODEL_CATALOG env var in ModelRegistry matches the corresponding value in DataScienceCluster spec.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace, Name: modelregistry.LegacyComponentName + "-controller-manager"}),
+		WithCondition(jq.Match(`.spec.template.spec.containers[] | select(.name=="manager") | .env[] | select(.name == "ENABLE_MODEL_CATALOG") | .value == %q`, mcEnabled)),
+	)
 }

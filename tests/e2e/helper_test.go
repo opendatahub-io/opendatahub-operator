@@ -239,6 +239,11 @@ func CreateDSC(name string) *dscv1.DataScienceCluster {
 					},
 					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
 						RegistriesNamespace: modelregistryctrl.DefaultModelRegistriesNamespace,
+						ModelCatalog: componentApi.ModelCatalogSpec{
+							ManagementSpec: common.ManagementSpec{
+								ManagementState: operatorv1.Removed,
+							},
+						},
 					},
 				},
 				TrainingOperator: componentApi.DSCTrainingOperator{
