@@ -282,7 +282,8 @@ func (w *NotebookWebhook) performConnectionInjection(nb *unstructured.Unstructur
 	for _, secretRef := range secretRefs {
 		secretEntry := map[string]interface{}{
 			"secretRef": map[string]interface{}{
-				"name": secretRef.Name,
+				"name":      secretRef.Name,
+				"namespace": secretRef.Namespace,
 			},
 		}
 		newEnvFrom = append(newEnvFrom, secretEntry)

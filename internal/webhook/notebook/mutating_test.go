@@ -26,6 +26,7 @@ import (
 
 const (
 	testNamespace    = "test-namespace"
+	testNamespace2   = "test-namespace2"
 	testNotebook     = "test-notebook"
 	testSecret1      = "secret1"
 	testSecret2      = "secret2"
@@ -414,21 +415,23 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 	g.Expect(cli.Create(context.Background(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testSecret2,
-			Namespace: testNamespace,
+			Namespace: testNamespace2,
 		},
 	})).Should(Succeed())
 
 	webhook := createTestWebhook(t, cli)
 
-	// Helper function to check if a patch value contains a secretRef with the given name
-	containsSecretRef := func(value interface{}, secretName string) bool {
+	// Helper function to check if a patch value contains a secretRef with the given name and namespace
+	containsSecretRef := func(value interface{}, secretName, secretNamespace string) bool {
 		if envFromArray, ok := value.([]interface{}); ok {
 			for _, entry := range envFromArray {
 				if entryMap, ok := entry.(map[string]interface{}); ok {
 					if secretRef, hasSecret := entryMap["secretRef"]; hasSecret {
 						if secretRefMap, ok := secretRef.(map[string]interface{}); ok {
 							if name, hasName := secretRefMap["name"]; hasName && name == secretName {
-								return true
+								if namespace, hasNamespace := secretRefMap["namespace"]; hasNamespace && namespace == secretNamespace {
+									return true
+								}
 							}
 						}
 					}
@@ -438,7 +441,9 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 			if secretRef, hasSecret := entryMap["secretRef"]; hasSecret {
 				if secretRefMap, ok := secretRef.(map[string]interface{}); ok {
 					if name, hasName := secretRefMap["name"]; hasName && name == secretName {
-						return true
+						if namespace, hasNamespace := secretRefMap["namespace"]; hasNamespace && namespace == secretNamespace {
+							return true
+						}
 					}
 				}
 			}
@@ -460,21 +465,21 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 				func(patch jsonpatch.JsonPatchOperation) bool {
 					return patch.Operation == addOperation &&
 						patch.Path == "/spec/template/spec/containers/0/envFrom" &&
-						containsSecretRef(patch.Value, testSecret1)
+						containsSecretRef(patch.Value, testSecret1, testNamespace)
 				},
 			},
 		},
 		{
 			name: "inject multiple secrets",
 			notebook: createNotebook(withAnnotations(map[string]string{
-				annotations.Connection: fmt.Sprintf("%s/%s,%s/%s", testNamespace, testSecret1, testNamespace, testSecret2),
+				annotations.Connection: fmt.Sprintf("%s/%s,%s/%s", testNamespace, testSecret1, testNamespace2, testSecret2),
 			})),
 			expectedChecks: []func(jsonpatch.JsonPatchOperation) bool{
 				func(patch jsonpatch.JsonPatchOperation) bool {
 					return patch.Operation == addOperation &&
 						patch.Path == "/spec/template/spec/containers/0/envFrom" &&
-						containsSecretRef(patch.Value, testSecret1) &&
-						containsSecretRef(patch.Value, testSecret2)
+						containsSecretRef(patch.Value, testSecret1, testNamespace) &&
+						containsSecretRef(patch.Value, testSecret2, testNamespace2)
 				},
 			},
 		},
@@ -496,7 +501,7 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 				func(patch jsonpatch.JsonPatchOperation) bool {
 					return patch.Operation == addOperation &&
 						patch.Path == "/spec/template/spec/containers/0/envFrom/1" &&
-						containsSecretRef(patch.Value, testSecret1)
+						containsSecretRef(patch.Value, testSecret1, testNamespace)
 				},
 			},
 		},
@@ -519,6 +524,11 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 					return patch.Operation == replaceOperation &&
 						patch.Path == "/spec/template/spec/containers/0/envFrom/0/secretRef/name" &&
 						patch.Value == testSecret1
+				},
+				func(patch jsonpatch.JsonPatchOperation) bool {
+					return patch.Operation == addOperation &&
+						patch.Path == "/spec/template/spec/containers/0/envFrom/0/secretRef/namespace" &&
+						patch.Value == testNamespace
 				},
 			},
 		},
