@@ -437,7 +437,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesWhenSet(t *testing.T
 		WithCondition(
 			And(
 				jq.Match(`.spec.traces != null`),
-				jq.Match(`.spec.traces.storage.retention == "2160h"`),
+				jq.Match(`.spec.traces.storage.retention == "2160h0m0s"`),
 			),
 		),
 		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
