@@ -10,6 +10,7 @@ require (
 	github.com/itchyny/gojq v0.12.16
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.36.3
+	github.com/kuadrant/authorino-operator v0.18.0
 	github.com/openshift/api v0.0.0-20230823114715-5fdd7511b790
 	github.com/operator-framework/api v0.31.0
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.68.0
