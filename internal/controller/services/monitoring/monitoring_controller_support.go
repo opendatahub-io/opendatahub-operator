@@ -213,7 +213,7 @@ func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.Reconciliati
 	return allErrors.ErrorOrNil()
 }
 
-// isReservedExporterName checks if an exporter name conflicts with built-in exporters
+// isReservedExporterName checks if an exporter name conflicts with built-in exporters.
 func isReservedExporterName(name string) bool {
 	reservedNames := map[string]bool{
 		"prometheus": true,
