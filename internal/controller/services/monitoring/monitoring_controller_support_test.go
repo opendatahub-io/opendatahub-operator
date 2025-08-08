@@ -70,6 +70,13 @@ func TestCustomMetricsExporters(t *testing.T) {
 			expectedNames:        []string{},
 		},
 		{
+			name:                 "valid case - empty exporters with other config",
+			exporters:            map[string]string{}, // explicitly empty
+			expectError:          false,
+			expectedParsedConfig: map[string]interface{}{},
+			expectedNames:        []string{},
+		},
+		{
 			name: "reserved name prometheus",
 			exporters: map[string]string{
 				"prometheus": "endpoint: http://example.com",
@@ -118,9 +125,9 @@ func TestCustomMetricsExporters(t *testing.T) {
 				}
 
 				// Verify template data structure
-				exporters, ok := templateData["CustomMetricsExporters"]
+				exporters, ok := templateData["MetricsExporters"]
 				if !ok {
-					t.Error("CustomMetricsExporters should be in template data")
+					t.Error("MetricsExporters should be in template data")
 					return
 				}
 
@@ -152,16 +159,16 @@ func TestCustomMetricsExporters(t *testing.T) {
 					}
 				}
 
-				// Verify CustomMetricsExporterNames
-				exporterNames, ok := templateData["CustomMetricsExporterNames"]
+				// Verify MetricsExporterNames
+				exporterNames, ok := templateData["MetricsExporterNames"]
 				if !ok {
-					t.Error("CustomMetricsExporterNames should be in template data")
+					t.Error("MetricsExporterNames should be in template data")
 					return
 				}
 
 				namesList, ok := exporterNames.([]string)
 				if !ok {
-					t.Error("CustomMetricsExporterNames should be a []string")
+					t.Error("MetricsExporterNames should be a []string")
 					return
 				}
 

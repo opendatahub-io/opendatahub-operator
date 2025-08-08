@@ -38,9 +38,9 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["Traces"] = monitoring.Spec.Traces != nil
 	templateData["Metrics"] = monitoring.Spec.Metrics != nil
 
-	// Always set custom metrics exporters data (even if empty)
-	templateData["CustomMetricsExporters"] = make(map[string]interface{})
-	templateData["CustomMetricsExporterNames"] = []string{}
+	// Always set metrics exporters data (even if empty to allow clean template logic)
+	templateData["MetricsExporters"] = make(map[string]interface{})
+	templateData["MetricsExporterNames"] = []string{}
 
 	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {
@@ -107,16 +107,11 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 		// Handle custom metrics exporters
 		if metrics.Exporters != nil {
-			// Validate exporters don't use reserved names
-			reservedExporters := map[string]bool{
-				"prometheus": true,
-			}
-
 			validExporters := make(map[string]interface{})
 			var exporterNames []string
 
 			for name, configYAML := range metrics.Exporters {
-				if reservedExporters[name] {
+				if isReservedExporterName(name) {
 					return nil, fmt.Errorf("exporter name '%s' is reserved and cannot be used", name)
 				}
 
@@ -130,8 +125,8 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 				exporterNames = append(exporterNames, name)
 			}
 
-			templateData["CustomMetricsExporters"] = validExporters
-			templateData["CustomMetricsExporterNames"] = exporterNames
+			templateData["MetricsExporters"] = validExporters
+			templateData["MetricsExporterNames"] = exporterNames
 		}
 	}
 
@@ -216,4 +211,13 @@ func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.Reconciliati
 	}
 
 	return allErrors.ErrorOrNil()
+}
+
+// isReservedExporterName checks if an exporter name conflicts with built-in exporters
+func isReservedExporterName(name string) bool {
+	reservedNames := map[string]bool{
+		"prometheus": true,
+		// Add other reserved names as needed
+	}
+	return reservedNames[name]
 }
