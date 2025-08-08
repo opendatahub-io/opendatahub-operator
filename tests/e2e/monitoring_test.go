@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -255,7 +254,10 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorTracesConfiguration(t
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = %s`, `{storage: {backend: "pv"}}`)),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringTraces("pv", "", "", "720h"), // Use 30 days retention for this test
+		)),
 	)
 
 	tc.EnsureResourceExists(
@@ -264,11 +266,11 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorTracesConfiguration(t
 	)
 }
 
-func getTempoMonolithicName(dsci *dsciv1.DSCInitialization) string {
+func getTempoMonolithicName() string {
 	return "data-science-tempomonolithic"
 }
 
-func getTempoStackName(dsci *dsciv1.DSCInitialization) string {
+func getTempoStackName() string {
 	return "data-science-tempostack"
 }
 
@@ -291,7 +293,7 @@ func setMonitoringMetrics() testf.TransformFn {
 }
 
 // setMonitoringTraces creates a transformation function that sets the monitoring traces configuration.
-func setMonitoringTraces(backend, secret, size string) testf.TransformFn {
+func setMonitoringTraces(backend, secret, size, retention string) testf.TransformFn {
 	return func(obj *unstructured.Unstructured) error {
 		tracesConfig := map[string]interface{}{
 			"storage": map[string]interface{}{
@@ -308,6 +310,12 @@ func setMonitoringTraces(backend, secret, size string) testf.TransformFn {
 		if secret != "" {
 			if storage, ok := tracesConfig["storage"].(map[string]interface{}); ok {
 				storage["secret"] = secret
+			}
+		}
+
+		if retention != "" {
+			if storage, ok := tracesConfig["storage"].(map[string]interface{}); ok {
+				storage["retention"] = retention
 			}
 		}
 
@@ -340,19 +348,19 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRDefaultTracesContent(t *testing
 	)
 }
 
-// ValidateTempoMonolithicCRCreation tests creation of TempoMonolithic CR with PV backend.
+// ValidateTempoMonolithicCRCreation tests creation of TempoMonolithic CR with PV backend and custom retention.
 func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRCreation(t *testing.T) {
 	t.Helper()
 
 	dsci := tc.FetchDSCInitialization()
-	tempoMonolithicName := getTempoMonolithicName(dsci)
+	tempoMonolithicName := getTempoMonolithicName()
 
 	// Update DSCI to set traces with PV backend
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
-			setMonitoringTraces("pv", "", "10Gi"),
+			setMonitoringTraces("pv", "", "10Gi", "24h"),
 		)),
 	)
 
@@ -375,6 +383,8 @@ func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRCreation(t *testing.T) {
 				jq.Match(`.spec.storage.traces.size == "10Gi"`),
 				// Validate the backend is set to pv
 				jq.Match(`.spec.storage.traces.backend == "pv"`),
+				// Validate retention is set to 24h
+				jq.Match(`.spec.extraConfig.tempo.compactor.compaction.block_retention == "24h0m0s"`),
 			),
 		),
 		WithCustomErrorMsg("TempoMonolithic CR should be created when traces are configured"),
@@ -417,14 +427,19 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesWhenSet(t *testing.T
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
-			setMonitoringTraces("pv", "", ""),
+			setMonitoringTraces("pv", "", "", ""),
 		)),
 	)
 
 	// Wait for the Monitoring resource to be updated by DSCInitialization controller
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
-		WithCondition(jq.Match(`.spec.traces != null`)),
+		WithCondition(
+			And(
+				jq.Match(`.spec.traces != null`),
+				jq.Match(`.spec.traces.storage.retention == "2160h"`),
+			),
+		),
 		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
 	)
 
@@ -501,14 +516,14 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(
 	t.Helper()
 
 	dsci := tc.FetchDSCInitialization()
-	tempoStackName := getTempoStackName(dsci)
+	tempoStackName := getTempoStackName()
 
 	// Update DSCI to set traces with specified backend
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
-			setMonitoringTraces(backend, secretName, ""),
+			setMonitoringTraces(backend, secretName, "", "100m"),
 		)),
 	)
 
@@ -534,6 +549,8 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(
 				// Validate the backend is set correctly
 				jq.Match(`.spec.storage.secret.type == "%s"`, backend),
 				jq.Match(`.spec.storage.secret.name == "%s"`, secretName),
+				// Validate retention is set correctly
+				jq.Match(`.spec.retention.global.traces == "%s"`, "1h40m0s"), // to match 100m
 				// Validate that the Tempo operator has accepted and reconciled the resource
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
 			),
