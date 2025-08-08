@@ -53,6 +53,11 @@ spec:
         endpoint: 0.0.0.0:8889
         resource_to_telemetry_conversion:
           enabled: true # by default resource attributes are dropped
+          {{- if .MetricsExporters }}
+    {{- range $name, $config := .MetricsExporters }}
+      {{ $name }}: {{ $config }}
+      {{- end }}
+      {{- end }}
       {{- end }}
       {{- if .Traces }}
       otlp/tempo:
@@ -79,6 +84,6 @@ spec:
         metrics:
           receivers: [prometheus, otlp]
           processors: [memory_limiter, k8sattributes, resourcedetection, batch]
-          exporters: [prometheus]
+          exporters: [prometheus{{- if .MetricsExporterNames }}{{- range .MetricsExporterNames }}, {{ . }}{{- end }}{{- end }}]
       {{- end }}
       {{- end }}
