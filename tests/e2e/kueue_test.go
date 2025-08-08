@@ -34,11 +34,14 @@ import (
 )
 
 const (
-	kueueOcpOperatorNamespace    = "openshift-kueue-operator" // Namespace for the Kueue Operator
-	kueueOcpOperatorChannel      = "stable-v0.2"
-	kueueTestManagedNamespace    = "test-kueue-managed-ns"
-	kueueDefaultClusterQueueName = "default"
-	kueueDefaultLocalQueueName   = "default"
+	kueueOcpOperatorNamespace           = "openshift-kueue-operator" // Namespace for the Kueue Operator
+	kueueOcpOperatorChannel             = "stable-v0.2"
+	kueueTestManagedNamespace           = "test-kueue-managed-ns"
+	kueueTestLegacyManagedNamespace     = "test-legacy-kueue-managed-ns"
+	kueueTestWebhookNonManagedNamespace = "test-kueue-webhook-non-managed-ns"
+	kueueTestHardwareProfileNamespace   = "test-kueue-hardware-profile-ns"
+	kueueDefaultClusterQueueName        = "default"
+	kueueDefaultLocalQueueName          = "default"
 )
 
 type KueueTestCtx struct {
@@ -406,8 +409,8 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 		// ... and then cleanup tests resources
 		cleanupKueueTestResources(t, tc.TestContext)
 
-		// Create a test namespace with Kueue management annotation
-		tc.setupKueueManagedNamespace()
+		// Create a test namespace with Kueue legacy management annotation
+		tc.setupKueueLegacyManagedNamespace()
 
 		// MANAGED
 		stateManaged := operatorv1.Managed
@@ -426,7 +429,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 		)
 
 		// During Managed state, validate that default Kueue resources are created
-		ensureClusterAndLocalQueueExist(tc)
+		tc.ensureClusterAndLocalQueueExist(kueueTestLegacyManagedNamespace)
 
 		if migrateConfig {
 			// before changing the embedded Kueue management state, ensure the related configuration
@@ -456,7 +459,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 		)
 
 		// During Removed state, validate that default Kueue resources are left untouched.
-		ensureClusterAndLocalQueueExist(tc)
+		tc.ensureClusterAndLocalQueueExist(kueueTestLegacyManagedNamespace)
 
 		if migrateConfig {
 			// Validate that Kueue's ConfigMap still exists
@@ -493,7 +496,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 		)
 
 		// During Unmanaged state, resources should still exist since our action creates them for both states
-		ensureClusterAndLocalQueueExist(tc)
+		tc.ensureClusterAndLocalQueueExist(kueueTestLegacyManagedNamespace)
 
 		opts := []ResourceOpts{
 			WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
@@ -524,16 +527,15 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 	tc.setupKueueManagedNamespace()
 
 	// Create a non-managed namespace for testing
-	nonManagedNamespace := "kueue-webhook-non-managed"
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nonManagedNamespace}),
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: kueueTestWebhookNonManagedNamespace}),
 		WithCustomErrorMsg("Failed to create non-managed test namespace"),
 	)
 
 	// Setup cleanup for non-managed namespace
 	t.Cleanup(func() {
 		tc.DeleteResource(
-			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nonManagedNamespace}),
+			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: kueueTestWebhookNonManagedNamespace}),
 		)
 	})
 
@@ -594,7 +596,7 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 			name: "allows workload without queue label in non-managed namespace",
 			testFn: testNotebook(
 				"notebook-non-managed",
-				nonManagedNamespace,
+				kueueTestWebhookNonManagedNamespace,
 				"",
 				"Expected notebook in non-managed namespace to be allowed",
 				nil,
@@ -626,13 +628,12 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 	t.Helper()
 
 	// Create a non-managed namespace for hardware profile testing (avoids Kueue validation interference)
-	hardwareProfileTestNamespace := "test-hardware-profile-ns"
-	tc.setupNamespace(hardwareProfileTestNamespace, false)
+	tc.setupNamespace(kueueTestHardwareProfileNamespace, false, false)
 
 	// Setup cleanup for the test namespace
 	t.Cleanup(func() {
 		tc.DeleteResource(
-			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: hardwareProfileTestNamespace}),
+			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: kueueTestHardwareProfileNamespace}),
 		)
 	})
 
@@ -721,7 +722,7 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 			t.Helper()
 
 			// Use the dedicated hardware profile test namespace (non-managed to avoid Kueue validation)
-			testNamespace := hardwareProfileTestNamespace
+			testNamespace := kueueTestHardwareProfileNamespace
 
 			// Create hardware profile if spec is provided
 			if testCase.profileSpec != nil {
@@ -901,7 +902,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 	)
 
 	// During Unmanaged state, resources should still exist since our action creates them for both states
-	ensureClusterAndLocalQueueExist(tc)
+	tc.ensureClusterAndLocalQueueExist(kueueTestManagedNamespace)
 
 	// Validate that Kueue configuration is created
 	tc.EnsureResourceExists(
@@ -940,7 +941,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 	)
 
 	// Validate default resources are still there
-	ensureClusterAndLocalQueueExist(tc)
+	tc.ensureClusterAndLocalQueueExist(kueueTestManagedNamespace)
 
 	// Validate that Kueue configuration is still there
 	tc.EnsureResourceExists(
@@ -955,8 +956,8 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 // and LocalQueue resources exist in the cluster.
 //
 // Parameters:
-//   - tc: The KueueTestCtx instance containing test context and client
-func ensureClusterAndLocalQueueExist(tc *KueueTestCtx) {
+//   - localQueueNamsepaceName: The LocalQueue namespaced name
+func (tc *KueueTestCtx) ensureClusterAndLocalQueueExist(localQueueNamsepaceName string) {
 	// Validate that ClusterQueue still exists
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName, Namespace: metav1.NamespaceAll}),
@@ -964,7 +965,7 @@ func ensureClusterAndLocalQueueExist(tc *KueueTestCtx) {
 
 	// Validate that LocalQueue still exists for the managed namespace
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.LocalQueue, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: kueueTestManagedNamespace}),
+		WithMinimalObject(gvk.LocalQueue, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: localQueueNamsepaceName}),
 	)
 }
 
@@ -1036,17 +1037,25 @@ func (tc *KueueTestCtx) setManagedAnnotation(gvk schema.GroupVersionKind, name t
 // Parameters:
 //   - namespaceName: The name of the namespace to create
 //   - isKueueManaged: Whether to add Kueue management labels to the namespace
-func (tc *KueueTestCtx) setupNamespace(namespaceName string, isKueueManaged bool) {
+//   - isKueueLegacyManaged: Whether to add Kueue legacy management labels to the namespace
+func (tc *KueueTestCtx) setupNamespace(namespaceName string, isKueueManaged bool, isKueueLegacyManaged bool) {
 	// Create test namespace
 	testNamespace := &unstructured.Unstructured{}
 	testNamespace.SetGroupVersionKind(gvk.Namespace)
 	testNamespace.SetName(namespaceName)
 
+	// Labels
+	namespaceLabels := map[string]string{}
 	// Add Kueue managed label only if requested
 	if isKueueManaged {
-		testNamespace.SetLabels(map[string]string{
-			cluster.KueueManagedLabelKey: "true",
-		})
+		namespaceLabels[cluster.KueueManagedLabelKey] = "true"
+	}
+	// Add Kueue legacy managed label only if requested
+	if isKueueLegacyManaged {
+		namespaceLabels[cluster.KueueLegacyManagedLabelKey] = "true"
+	}
+	if len(namespaceLabels) > 0 {
+		testNamespace.SetLabels(namespaceLabels)
 	}
 
 	tc.EventuallyResourceCreatedOrUpdated(
@@ -1057,5 +1066,10 @@ func (tc *KueueTestCtx) setupNamespace(namespaceName string, isKueueManaged bool
 
 // setupKueueManagedNamespace is a convenience wrapper for creating Kueue-managed namespaces.
 func (tc *KueueTestCtx) setupKueueManagedNamespace() {
-	tc.setupNamespace(kueueTestManagedNamespace, true)
+	tc.setupNamespace(kueueTestManagedNamespace, true, false)
+}
+
+// setupKueueLegacyManagedNamespace is a convenience wrapper for creating Kueue-managed namespaces.
+func (tc *KueueTestCtx) setupKueueLegacyManagedNamespace() {
+	tc.setupNamespace(kueueTestLegacyManagedNamespace, false, true)
 }
