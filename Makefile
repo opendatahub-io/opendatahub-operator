@@ -3,7 +3,6 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 2.33.0
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -19,18 +18,68 @@ IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
+# default platform type
+ODH_PLATFORM_TYPE ?= OpenDataHub
+
+ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
+	VERSION ?= 2.33.0
+	OPERATOR_NAMESPACE ?= opendatahub-operator-system
+	CHANNELS=fast
+	ROLE_NAME=controller-manager-role
+	BUNDLE_DIR ?= bundle
+	BUNDLE_DOCKERFILE_FILENAME=bundle.Dockerfile
+	OPERATOR_PACKAGE=opendatahub-operator
+	CONTROLLER_GEN_TAGS=--load-build-tags=odh
+	KUSTOMIZE_BASE=config/default
+	KUSTOMIZE_DIR=config/manifests
+	MANAGER_DIR=config/manager
+	GO_RUN_ARGS=-tags=odh
+	CRD_BASE_DIR=config/crd/bases
+	RBAC_DIR=config/rbac
+else
+	VERSION ?= 2.23.0
+	OPERATOR_NAMESPACE ?= redhat-ods-operator
+	CHANNELS=alpha,stable,fast
+	DEFAULT_CHANNEL=stable
+	ROLE_NAME=rhods-operator-role
+	BUNDLE_DIR ?= bundle.rhoai
+	BUNDLE_DOCKERFILE_FILENAME=bundle.rhoai.Dockerfile
+	OPERATOR_PACKAGE=rhods-operator
+	CONTROLLER_GEN_TAGS=--load-build-tags=rhoai
+	KUSTOMIZE_BASE=config/default.rhoai
+	KUSTOMIZE_DIR=config/manifests.rhoai
+	MANAGER_DIR=config/manager.rhoai
+	GO_RUN_ARGS=-tags=rhoai
+	CRD_BASE_DIR=config/crd.rhoai/bases
+	RBAC_DIR=config/rbac.rhoai
+endif
+
 IMAGE_BUILDER ?= podman
-OPERATOR_NAMESPACE ?= opendatahub-operator-system
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
 CGO_ENABLED ?= 1
 USE_LOCAL = false
 
-# BUNDLE_CHANNELS defines the bundle channel used in the bundle
-BUNDLE_CHANNELS := --channels=fast
+# CHANNELS define the bundle channels used in the bundle.
+# Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
+# To re-generate a bundle for other specific channels without changing the standard setup, you can:
+# - use the CHANNELS as arg of the bundle target (e.g make bundle CHANNELS=candidate,fast,stable)
+# - use environment variables to overwrite this value (e.g export CHANNELS="candidate,fast,stable")
+ifneq ($(origin CHANNELS), undefined)
+BUNDLE_CHANNELS := --channels=$(CHANNELS)
+endif
 
+# DEFAULT_CHANNEL defines the default channel used in the bundle.
+# Add a new line here if you would like to change its default config. (E.g DEFAULT_CHANNEL = "stable")
+# To re-generate a bundle for any other default channel without changing the default setup, you can:
+# - use the DEFAULT_CHANNEL as arg of the bundle target (e.g make bundle DEFAULT_CHANNEL=stable)
+# - use environment variables to overwrite this value (e.g export DEFAULT_CHANNEL="stable")
+ifneq ($(origin DEFAULT_CHANNEL), undefined)
+BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
+endif
+
+BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
-BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_CHANNELS)
-
+BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
 # USE_IMAGE_DIGESTS defines if images are resolved via tags or digests
 # You can enable this value if you would like to use SHA Based Digests
 # To enable set flag to true
@@ -53,7 +102,7 @@ YQ ?= $(LOCALBIN)/yq
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.4.3
-CONTROLLER_TOOLS_VERSION ?= v0.16.1
+CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
 GOLANGCI_LINT_VERSION ?= v2.1.2
 YQ_VERSION ?= v4.12.2
@@ -143,7 +192,7 @@ endef
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CRD_BASE_DIR) output:rbac:artifacts:config=$(RBAC_DIR)
 	$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	$(call fetch-external-crds,github.com/openshift/api,user/v1)
 
@@ -174,7 +223,7 @@ lint-fix: golangci-lint ## Run golangci-lint against code.
 
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
-	./get_all_manifests.sh
+	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) VERSION=$(VERSION) ./get_all_manifests.sh
 CLEANFILES += opt/manifests/*
 
 .PHONY: api-docs
@@ -228,8 +277,8 @@ prepare: manifests kustomize manager-kustomization
 
 # phony target for the case of changing IMG variable
 .PHONY: manager-kustomization
-manager-kustomization: config/manager/kustomization.yaml.in
-	cd config/manager \
+manager-kustomization: $(MANAGER_DIR)/kustomization.yaml.in
+	cd $(MANAGER_DIR) \
 		&& cp -f kustomization.yaml.in kustomization.yaml \
 		&& $(KUSTOMIZE) edit set image controller=$(IMG)
 
@@ -243,11 +292,11 @@ uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/c
 
 .PHONY: deploy
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(KUSTOMIZE) build $(KUSTOMIZE_BASE) | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
 undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(KUSTOMIZE_BASE) | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
@@ -301,19 +350,19 @@ new-component: $(LOCALBIN)/component-codegen
 $(LOCALBIN)/component-codegen: | $(LOCALBIN)
 	cd ./cmd/component-codegen && go mod tidy && go build -o $@
 
-BUNDLE_DIR ?= "bundle"
 WARNINGMSG = "provided API should have an example annotation"
 .PHONY: bundle
 bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
-	$(OPERATOR_SDK) generate kustomize manifests -q
-	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) 2>&1 | grep -v $(WARNINGMSG)
+	$(OPERATOR_SDK) generate kustomize manifests --package $(OPERATOR_PACKAGE) --input-dir $(KUSTOMIZE_DIR) --output-dir $(KUSTOMIZE_DIR) -q
+	$(KUSTOMIZE) build $(KUSTOMIZE_DIR) | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) --package $(OPERATOR_PACKAGE) --kustomize-dir $(KUSTOMIZE_DIR) --output-dir $(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
-	mv bundle.Dockerfile Dockerfiles/
-	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
+	mv bundle.Dockerfile Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME)
+	rm -f $(BUNDLE_DIR)/manifests/opendatahub-operator-webhook-service_v1_service.yaml
+	rm -f $(BUNDLE_DIR)/manifests/rhods-operator-webhook-service_v1_service.yaml
 
 .PHONY: bundle-build
 bundle-build: bundle
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile --platform $(PLATFORM) -t $(BUNDLE_IMG) .
+	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME) --platform $(PLATFORM) -t $(BUNDLE_IMG) .
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
@@ -359,7 +408,7 @@ endif
 .PHONY: catalog-clean
 catalog-clean: ## Clean up catalog files and Dockerfile
 	rm -rf catalog
-	
+
 .PHONY: catalog-prepare
 catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel. It requires BUNDLE_IMG exists before running the target"
 	mkdir -p catalog
