@@ -35,25 +35,25 @@ import (
 
 //nolint:gochecknoinits
 func init() {
-	sr.Add(&serviceHandler{})
+	sr.Add(&ServiceHandler{})
 }
 
-type serviceHandler struct {
+type ServiceHandler struct {
 }
 
-func (h *serviceHandler) Init(_ common.Platform) error {
+func (h *ServiceHandler) Init(_ common.Platform) error {
 	return nil
 }
 
-func (h *serviceHandler) GetName() string {
+func (h *ServiceHandler) GetName() string {
 	return ServiceName
 }
 
-func (h *serviceHandler) GetManagementState(platform common.Platform, _ *dsciv1.DSCInitialization) operatorv1.ManagementState {
+func (h *ServiceHandler) GetManagementState(platform common.Platform, _ *dsciv1.DSCInitialization) operatorv1.ManagementState {
 	return operatorv1.Managed
 }
 
-func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
+func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.Auth{}).
 		// operands - owned
 		Owns(&rbacv1.ClusterRoleBinding{}).

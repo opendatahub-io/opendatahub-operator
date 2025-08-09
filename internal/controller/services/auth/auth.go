@@ -19,9 +19,9 @@ const (
 	ServiceName = serviceApi.AuthServiceName
 )
 
-// isDefaultAuthMethod returns true if the default authentication method is IntegratedOAuth or empty.
+// IsDefaultAuthMethod returns true if the default authentication method is IntegratedOAuth or empty.
 // This will give indication that Operator should create userGroups or not in the cluster.
-func isDefaultAuthMethod(ctx context.Context, cli client.Client) (bool, error) {
+func IsDefaultAuthMethod(ctx context.Context, cli client.Client) (bool, error) {
 	authenticationobj := &configv1.Authentication{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: cluster.ClusterAuthenticationObj, Namespace: ""}, authenticationobj); err != nil {
 		if errors.Is(err, &meta.NoKindMatchError{}) { // when CRD is missing, convert error type

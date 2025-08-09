@@ -2810,8 +2810,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `adminGroups` _string array_ |  |  |  |
-| `allowedGroups` _string array_ |  |  |  |
+| `adminGroups` _string array_ | AdminGroups cannot contain 'system:authenticated' (security risk) or empty strings, and must not be empty |  |  |
+| `allowedGroups` _string array_ | AllowedGroups cannot contain empty strings, but 'system:authenticated' is allowed for general access |  |  |
 
 
 #### AuthStatus
