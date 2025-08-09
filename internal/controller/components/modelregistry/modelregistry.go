@@ -34,7 +34,7 @@ func (s *componentHandler) GetName() string {
 func (s *componentHandler) Init(_ common.Platform) error {
 	mi := baseManifestInfo(BaseManifestsSourcePath)
 
-	if err := odhdeploy.ApplyParams(mi.String(), imagesMap, extraParamsMap); err != nil {
+	if err := odhdeploy.ApplyParams(mi.String(), "params.env", imagesMap, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params on path %s: %w", mi, err)
 	}
 

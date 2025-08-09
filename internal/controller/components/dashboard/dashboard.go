@@ -34,7 +34,7 @@ func (s *componentHandler) GetName() string {
 func (s *componentHandler) Init(platform common.Platform) error {
 	mi := defaultManifestInfo(platform)
 
-	if err := odhdeploy.ApplyParams(mi.String(), imagesMap); err != nil {
+	if err := odhdeploy.ApplyParams(mi.String(), "params.env", imagesMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mi, err)
 	}
 

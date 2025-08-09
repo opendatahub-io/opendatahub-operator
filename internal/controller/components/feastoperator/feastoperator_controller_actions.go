@@ -10,7 +10,7 @@ import (
 )
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	rr.Manifests = append(rr.Manifests, manifestPath())
+	rr.Manifests = append(rr.Manifests, manifestPath(rr.Release.Name))
 	return nil
 }
 
