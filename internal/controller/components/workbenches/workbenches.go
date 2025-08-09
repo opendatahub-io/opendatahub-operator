@@ -54,6 +54,7 @@ func (s *componentHandler) Init(platform common.Platform) error {
 	nbcManifestInfo := notebookControllerManifestInfo(notebookControllerManifestSourcePath)
 	if err := odhdeploy.ApplyParams(nbcManifestInfo.String(), "params.env", map[string]string{
 		"odh-notebook-controller-image": "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
+		"oauth-proxy-image":             "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
 	}); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", nbcManifestInfo.String(), err)
 	}
