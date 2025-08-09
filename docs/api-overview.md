@@ -3040,5 +3040,6 @@ _Appears in:_
 | `backend` _string_ | Backend defines the storage backend type.<br />Valid values are "pv", "s3", and "gcs". | pv | Enum: [pv s3 gcs] <br /> |
 | `size` _string_ | Size specifies the size of the storage.<br />This field is optional. |  |  |
 | `secret` _string_ | Secret specifies the secret name for storage credentials.<br />This field is required when the backend is not "pv". |  |  |
+| `retention` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | Retention specifies how long trace data should be retained globally (e.g., "60m", "10h") | 2160h |  |
 
 

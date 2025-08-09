@@ -111,6 +111,10 @@ type TracesStorage struct {
 	// This field is required when the backend is not "pv".
 	// +optional
 	Secret string `json:"secret,omitempty"`
+
+	// Retention specifies how long trace data should be retained globally (e.g., "60m", "10h")
+	// +kubebuilder:default="2160h"
+	Retention metav1.Duration `json:"retention,omitempty"`
 }
 
 //+kubebuilder:object:root=true
