@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.33.0
-    createdAt: "2025-08-05T12:08:02Z"
+    createdAt: "2025-08-07T13:13:32Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -1015,6 +1015,7 @@ spec:
           - monitoring.rhobs
           resources:
           - monitoringstacks
+          - prometheusrules
           - servicemonitors
           verbs:
           - create
@@ -1028,6 +1029,7 @@ spec:
           - monitoring.rhobs
           resources:
           - monitoringstacks/finalizers
+          - prometheusrules/finalizers
           - servicemonitors/finalizers
           verbs:
           - update
@@ -1035,6 +1037,7 @@ spec:
           - monitoring.rhobs
           resources:
           - monitoringstacks/status
+          - prometheusrules/status
           - servicemonitors/status
           verbs:
           - get
@@ -1492,7 +1495,7 @@ spec:
                   value: /opt/manifests
                 - name: ODH_PLATFORM_TYPE
                   value: OpenDataHub
-                image: REPLACE_IMAGE:latest
+                image: quay.io/opendatahub/opendatahub-operator:latest
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -1582,7 +1585,6 @@ spec:
       component: opendatahub-operator
   version: 2.33.0
   webhookdefinitions:
-
   - admissionReviewVersions:
     - v1
     containerPort: 443
