@@ -521,10 +521,7 @@ func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...cli
 	unstructured.RemoveNestedField(u.Object, "status")
 
 	err = cli.Patch(ctx, u, client.Apply, opts...)
-	switch {
-	case k8serr.IsNotFound(err):
-		return nil
-	case err != nil:
+	if err != nil {
 		return fmt.Errorf("unable to patch object %s: %w", u, err)
 	}
 
@@ -574,7 +571,7 @@ func ApplyStatus(ctx context.Context, cli client.Client, in client.Object, opts 
 
 	err = cli.Status().Patch(ctx, u, client.Apply, opts...)
 	switch {
-	case k8serr.IsNotFound(err):
+	case k8serr.IsNotFound(err): // Cannot be removed like in Apply func because reconciler_finalizer_test.go would then throw an error, needs extensive test rewrite
 		return nil
 	case err != nil:
 		return fmt.Errorf("unable to patch object status %s: %w", u, err)

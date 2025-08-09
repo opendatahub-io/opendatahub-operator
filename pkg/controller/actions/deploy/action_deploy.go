@@ -308,7 +308,7 @@ func (a *Action) deploy(
 		}
 
 		if err != nil {
-			return false, client.IgnoreNotFound(err)
+			return false, err
 		}
 	}
 
