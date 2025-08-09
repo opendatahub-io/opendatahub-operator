@@ -122,6 +122,12 @@ func cleanupKueueTestResources(t *testing.T, tc *TestContext) {
 	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueue.KueueCRName}, gvk.KueueConfigV1, false)
 	// Delete test managed namespace if present
 	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueTestManagedNamespace}, gvk.Namespace, false)
+	// Delete test legacy managed namespace if present
+	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueTestLegacyManagedNamespace}, gvk.Namespace, false)
+	// Delete test webhook non managed namespace if present
+	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueTestWebhookNonManagedNamespace}, gvk.Namespace, false)
+	// Delete test hardware profile namespace if present
+	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueTestHardwareProfileNamespace}, gvk.Namespace, false)
 
 	// Delete embedded Kueue configmap
 	// Note: can't use cleanupResourceIgnoringMissing as it check for CRDs, but ConfigMap is a core type
