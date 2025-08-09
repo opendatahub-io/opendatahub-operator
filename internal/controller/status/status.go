@@ -103,7 +103,7 @@ const (
 	ConditionMonitoringAvailable             = "MonitoringAvailable"
 	ConditionMonitoringStackAvailable        = "MonitoringStackAvailable"
 	ConditionTempoAvailable                  = "TempoAvailable"
-	ConditionOpenTelemetryCollectorAvailable = "OpenTelemetryCollectorCRDAvailable"
+	ConditionOpenTelemetryCollectorAvailable = "OpenTelemetryCollectorAvailable"
 	ConditionInstrumentationAvailable        = "InstrumentationAvailable"
 )
 
