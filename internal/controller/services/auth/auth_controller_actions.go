@@ -177,7 +177,7 @@ func addUserGroup(ctx context.Context, rr *odhtypes.ReconciliationRequest, userG
 }
 
 func createDefaultGroup(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	ok, err := isDefaultAuthMethod(ctx, rr.Client)
+	ok, err := IsDefaultAuthMethod(ctx, rr.Client)
 	if err != nil {
 		return err
 	}
