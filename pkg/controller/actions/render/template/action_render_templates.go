@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"strings"
 	gt "text/template"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -22,6 +23,28 @@ const (
 	ComponentKey   = "Component"
 	DSCIKey        = "DSCI"
 )
+
+// indent adds the specified number of spaces to each line of the input string.
+func indent(spaces int, text string) string {
+	if text == "" {
+		return text
+	}
+	prefix := strings.Repeat(" ", spaces)
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		if line != "" {
+			lines[i] = prefix + line
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// templateFuncMap returns a map of custom template functions.
+func templateFuncMap() gt.FuncMap {
+	return gt.FuncMap{
+		"indent": indent,
+	}
+}
 
 // Action takes a set of template locations and render them as Unstructured resources for
 // further processing. The Action can eventually cache the results in memory to avoid doing
@@ -126,7 +149,7 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (r
 	var buffer bytes.Buffer
 
 	for i := range rr.Templates {
-		tmpl, err := gt.ParseFS(rr.Templates[i].FS, rr.Templates[i].Path)
+		tmpl, err := gt.New("").Funcs(templateFuncMap()).ParseFS(rr.Templates[i].FS, rr.Templates[i].Path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse template from: %w", err)
 		}
