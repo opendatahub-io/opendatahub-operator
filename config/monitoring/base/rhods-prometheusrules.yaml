@@ -14,25 +14,58 @@ metadata:
   namespace: redhat-ods-monitoring
 spec:
   groups:
-  - name: rhods-usage.rules
-    rules:
-    - record: cluster:usage:consumption:rhods:cpu:seconds:rate1h
-      expr: sum(rate(container_cpu_usage_seconds_total{container="",pod=~"jupyter-nb.*",namespace="rhods-notebooks"}[1h]))
-      labels:
-        instance: jupyter-notebooks
-    - record: cluster:usage:consumption:rhods:pod:up
-      expr: count(kube_pod_container_status_ready{namespace="rhods-notebooks", pod=~"jupyter-nb.*",container=~"jupyter-nb-.*"}==1)
-      labels:
-        instance: jupyter-notebooks
-    - record: cluster:usage:consumption:rhods:active_users
-      expr: count(kube_statefulset_replicas{namespace=~"rhods-notebooks", statefulset=~"jupyter-nb-.*"} ==1)
-      labels:
-        instance: jupyter-notebooks
-    - record: cluster:usage:consumption:rhods:cpu_requests_runtime
-      expr: sum(kube_pod_container_resource_requests{namespace="rhods-notebooks",resource="cpu", container=~"jupyter-nb-.*"} * on(pod) kube_pod_status_phase{phase="Running", namespace="rhods-notebooks"})
-      labels:
-        instance: jupyter-notebooks
-    - record: cluster:usage:consumption:rhods:cpu_limits_runtime
-      expr: sum(kube_pod_container_resource_limits{namespace="rhods-notebooks",resource="cpu", container=~"jupyter-nb-.*"} * on(pod) kube_pod_status_phase{phase="Running", namespace="rhods-notebooks"})
-      labels:
-        instance: jupyter-notebooks
+    - name: rhods-usage.rules
+      rules:
+        - record: cluster:usage:consumption:rhods:cpu:seconds:rate1h
+          expr: sum(rate(container_cpu_usage_seconds_total{container="",pod=~"jupyter-nb.*",namespace="rhods-notebooks"}[1h]))
+          labels:
+            instance: jupyter-notebooks
+        - record: cluster:usage:consumption:rhods:pod:up
+          expr: count(kube_pod_container_status_ready{namespace="rhods-notebooks", pod=~"jupyter-nb.*",container=~"jupyter-nb-.*"}==1)
+          labels:
+            instance: jupyter-notebooks
+        - record: cluster:usage:consumption:rhods:active_users
+          expr: count(kube_statefulset_replicas{namespace=~"rhods-notebooks", statefulset=~"jupyter-nb-.*"} ==1)
+          labels:
+            instance: jupyter-notebooks
+        - record: cluster:usage:consumption:rhods:cpu_requests_runtime
+          expr: sum(kube_pod_container_resource_requests{namespace="rhods-notebooks",resource="cpu", container=~"jupyter-nb-.*"} * on(pod) kube_pod_status_phase{phase="Running", namespace="rhods-notebooks"})
+          labels:
+            instance: jupyter-notebooks
+        - record: cluster:usage:consumption:rhods:cpu_limits_runtime
+          expr: sum(kube_pod_container_resource_limits{namespace="rhods-notebooks",resource="cpu", container=~"jupyter-nb-.*"} * on(pod) kube_pod_status_phase{phase="Running", namespace="rhods-notebooks"})
+          labels:
+            instance: jupyter-notebooks
+    - name: rhods-accelerator-usage.rules
+      interval: 30s
+      rules:
+        # Accelerator utilization
+        - record: cluster:usage:consumption:rhods:accelerator:utilization:avg
+          expr: avg(nvidia_gpu_utilization_ratio{job="rhoai-accelerator-metrics"})
+          labels:
+            instance: rhoai-accelerators
+        # Accelerator memory utilization
+        - record: cluster:usage:consumption:rhods:accelerator:memory_utilization:avg
+          expr: avg(nvidia_gpu_memory_utilization_ratio{job="rhoai-accelerator-metrics"})
+          labels:
+            instance: rhoai-accelerators
+        # Accelerator temperature maximum
+        - record: cluster:usage:consumption:rhods:accelerator:temperature:max
+          expr: max(nvidia_gpu_temperature_celsius{job="rhoai-accelerator-metrics"})
+          labels:
+            instance: rhoai-accelerators
+        # Total accelerator memory usage
+        - record: cluster:usage:consumption:rhods:accelerator:memory_used:sum
+          expr: sum(nvidia_gpu_memory_used_bytes{job="rhoai-accelerator-metrics"})
+          labels:
+            instance: rhoai-accelerators
+        # Total accelerator power consumption
+        - record: cluster:usage:consumption:rhods:accelerator:power:sum
+          expr: sum(nvidia_gpu_power_usage_watts{job="rhoai-accelerator-metrics"})
+          labels:
+            instance: rhoai-accelerators
+        # Count of active accelerators
+        - record: cluster:usage:consumption:rhods:accelerator:count
+          expr: count(nvidia_gpu_utilization_ratio{job="rhoai-accelerator-metrics"})
+          labels:
+            instance: rhoai-accelerators

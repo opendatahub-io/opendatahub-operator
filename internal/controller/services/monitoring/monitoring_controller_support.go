@@ -36,8 +36,8 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	templateData["Traces"] = monitoring.Spec.Traces != nil
 	templateData["Metrics"] = monitoring.Spec.Metrics != nil
+	templateData["AcceleratorMetrics"] = monitoring.Spec.Metrics != nil
 
-	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {
 		// Handle Resources fields - provide defaults if Resources is nil
 		if metrics.Resources != nil {
