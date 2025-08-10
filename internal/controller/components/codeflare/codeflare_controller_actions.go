@@ -12,7 +12,7 @@ import (
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = append(rr.Manifests, manifestsPath())
 
-	if err := odhdeploy.ApplyParams(paramsPath, nil, map[string]string{"namespace": rr.DSCI.Spec.ApplicationsNamespace}); err != nil {
+	if err := odhdeploy.ApplyParams(paramsPath, "params.env", nil, map[string]string{"namespace": rr.DSCI.Spec.ApplicationsNamespace}); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", paramsPath, err)
 	}
 

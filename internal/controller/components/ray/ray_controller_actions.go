@@ -28,7 +28,7 @@ import (
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = append(rr.Manifests, manifestPath())
 
-	if err := odhdeploy.ApplyParams(manifestPath().String(), nil, map[string]string{"namespace": rr.DSCI.Spec.ApplicationsNamespace}); err != nil {
+	if err := odhdeploy.ApplyParams(manifestPath().String(), "params.env", nil, map[string]string{"namespace": rr.DSCI.Spec.ApplicationsNamespace}); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", manifestPath(), err)
 	}
 	return nil
