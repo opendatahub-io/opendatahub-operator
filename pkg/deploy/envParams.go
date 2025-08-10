@@ -19,9 +19,9 @@ func parseParams(fileName string) (map[string]string, error) {
 	scanner := bufio.NewScanner(paramsEnv)
 	for scanner.Scan() {
 		line := scanner.Text()
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) == 2 {
-			paramsEnvMap[parts[0]] = parts[1]
+		key, value, found := strings.Cut(line, "=")
+		if found {
+			paramsEnvMap[key] = value
 		}
 	}
 	if err := scanner.Err(); err != nil {
