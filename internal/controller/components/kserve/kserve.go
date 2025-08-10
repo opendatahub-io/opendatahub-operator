@@ -63,7 +63,7 @@ func init() { //nolint:gochecknoinits
 func (s *componentHandler) Init(platform common.Platform) error {
 	mp := kserveManifestInfo(kserveManifestSourcePath)
 
-	if err := odhdeploy.ApplyParams(mp.String(), imageParamMap); err != nil {
+	if err := odhdeploy.ApplyParams(mp.String(), "params.env", imageParamMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mp, err)
 	}
 	return nil

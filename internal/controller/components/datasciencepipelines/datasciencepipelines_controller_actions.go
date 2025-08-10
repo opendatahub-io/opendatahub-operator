@@ -159,7 +159,7 @@ func argoWorkflowsControllersOptions(ctx context.Context, rr *odhtypes.Reconcili
 
 	paramsPath := path.Join(odhdeploy.DefaultManifestPath, ComponentName, "base")
 
-	if err := odhdeploy.ApplyParams(paramsPath, imageParamMap, extraParams); err != nil {
+	if err := odhdeploy.ApplyParams(paramsPath, "params.env", imageParamMap, extraParams); err != nil {
 		return fmt.Errorf("failed to update params.env: %w", err)
 	}
 

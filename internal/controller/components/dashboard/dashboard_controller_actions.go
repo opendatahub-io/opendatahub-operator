@@ -100,7 +100,7 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return errors.New("failed to set variable for url, section-title etc")
 	}
 
-	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), nil, extraParamsMap); err != nil {
+	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[0].String(), err)
 	}
 	return nil

@@ -40,8 +40,8 @@ func (s *componentHandler) Init(_ common.Platform) error {
 		platformVersionParamsKey: release.Version.String(),
 		fipsEnabledParamsKey:     strconv.FormatBool(clusterInfo.FipsEnabled),
 	}
-	if err := deploy.ApplyParams(paramsPath, imageParamMap, extraParams); err != nil {
-		return fmt.Errorf("failed to apply params on path %s: %w", paramsPath, err)
+	if err := deploy.ApplyParams(paramsPath, "params.env", imageParamMap, extraParams); err != nil {
+		return fmt.Errorf("failed to update images on path %s: %w", paramsPath, err)
 	}
 
 	return nil

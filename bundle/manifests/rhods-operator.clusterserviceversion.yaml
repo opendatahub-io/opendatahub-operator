@@ -1670,26 +1670,7 @@ spec:
     name: Red Hat
   version: 2.24.0
   webhookdefinitions:
-  - admissionReviewVersions:
-    - v1
-    containerPort: 443
-    deploymentName: rhods-operator
-    failurePolicy: Fail
-    generateName: auth-validator.opendatahub.io
-    rules:
-    - apiGroups:
-      - services.platform.opendatahub.io
-      apiVersions:
-      - v1alpha1
-      operations:
-      - CREATE
-      - UPDATE
-      resources:
-      - auths
-    sideEffects: None
-    targetPort: 9443
-    type: ValidatingAdmissionWebhook
-    webhookPath: /validate-auth
+
   - admissionReviewVersions:
     - v1
     containerPort: 443

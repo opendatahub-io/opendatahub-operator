@@ -108,45 +108,44 @@ func deployMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return errors.New("instance is not of type *services.Monitoring")
 	}
 
-	if monitoring.Spec.Metrics != nil && (monitoring.Spec.Metrics.Resources != nil || monitoring.Spec.Metrics.Storage != nil) {
-		msExists, err := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack)
-		if err != nil {
-			return fmt.Errorf("failed to check if CRD MonitoringStack exists: %w", err)
-		}
-		if !msExists {
-			// CRD not available, skip monitoring stack deployment (this is expected when monitoring stack operator is not installed)
-			rr.Conditions.MarkFalse(
-				status.ConditionMonitoringStackAvailable,
-				conditions.WithReason(gvk.MonitoringStack.Kind+"CRDNotFoundReason"),
-				conditions.WithMessage(gvk.MonitoringStack.Kind+" CRD Not Found"),
-			)
-			return nil
-		}
-
-		rr.Conditions.MarkTrue(status.ConditionMonitoringStackAvailable)
-
-		template := []odhtypes.TemplateInfo{
-			{
-				FS:   resourcesFS,
-				Path: MonitoringStackTemplate,
-			},
-			{
-				FS:   resourcesFS,
-				Path: PrometheusRouteTemplate,
-			},
-		}
-
-		rr.Templates = append(rr.Templates, template...)
-
+	// No monitoring stack configuration
+	if monitoring.Spec.Metrics == nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionMonitoringStackAvailable,
+			conditions.WithReason(status.MetricsNotConfiguredReason),
+			conditions.WithMessage(status.MetricsNotConfiguredMessage),
+		)
 		return nil
 	}
 
-	// No monitoring stack configuration
-	rr.Conditions.MarkFalse(
-		status.ConditionMonitoringStackAvailable,
-		conditions.WithReason(status.MetricsNotConfiguredReason),
-		conditions.WithMessage(status.MetricsNotConfiguredMessage),
-	)
+	msExists, err := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD MonitoringStack exists: %w", err)
+	}
+	if !msExists {
+		// CRD not available, skip monitoring stack deployment (this is expected when monitoring stack operator is not installed)
+		rr.Conditions.MarkFalse(
+			status.ConditionMonitoringStackAvailable,
+			conditions.WithReason(gvk.MonitoringStack.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage(gvk.MonitoringStack.Kind+" CRD Not Found"),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionMonitoringStackAvailable)
+
+	template := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: MonitoringStackTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: PrometheusRouteTemplate,
+		},
+	}
+
+	rr.Templates = append(rr.Templates, template...)
 
 	return nil
 }
@@ -155,6 +154,17 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	// Read metrics and traces configuration directly from Monitoring CR
+	if monitoring.Spec.Metrics == nil && monitoring.Spec.Traces == nil {
+		// No metrics and traces configuration - skip OpenTelemetry collector deployment
+		rr.Conditions.MarkFalse(
+			status.ConditionOpenTelemetryCollectorAvailable,
+			conditions.WithReason(status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason),
+			conditions.WithMessage(status.MetricsNotConfiguredMessage+"\n"+status.TracesNotConfiguredMessage),
+		)
+		return nil
 	}
 
 	otcExists, err := cluster.HasCRD(ctx, rr.Client, gvk.OpenTelemetryCollector)
@@ -175,30 +185,21 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 		status.ConditionOpenTelemetryCollectorAvailable,
 	)
 
-	if monitoring.Spec.Metrics != nil {
-		template := []odhtypes.TemplateInfo{
-			{
-				FS:   resourcesFS,
-				Path: OpenTelemetryCollectorTemplate,
-			},
-			{
-				FS:   resourcesFS,
-				Path: CollectorRBACTemplate,
-			},
-			{
-				FS:   resourcesFS,
-				Path: CollectorServiceMonitorsTemplate,
-			},
-		}
-		rr.Templates = append(rr.Templates, template...)
-	} else {
-		// No metrics configuration - skip OpenTelemetry collector deployment for metrics
-		rr.Conditions.MarkFalse(
-			status.ConditionOpenTelemetryCollectorAvailable,
-			conditions.WithReason(status.MetricsNotConfiguredReason),
-			conditions.WithMessage(status.MetricsNotConfiguredMessage),
-		)
+	template := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: OpenTelemetryCollectorTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: CollectorRBACTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: CollectorServiceMonitorsTemplate,
+		},
 	}
+	rr.Templates = append(rr.Templates, template...)
 
 	return nil
 }
