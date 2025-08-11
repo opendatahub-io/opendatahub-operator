@@ -26,8 +26,7 @@ import (
 )
 
 var (
-	resourceInterval = 10 * time.Second
-	resourceTimeout  = 1 * time.Minute
+	resourceInterval = 2 * time.Second
 )
 
 // createOperatorResource include steps:
@@ -238,7 +237,13 @@ func ReconcileDefaultNetworkPolicy(
 
 func (r *DSCInitializationReconciler) waitForManagedSecret(ctx context.Context, name string, namespace string) (*corev1.Secret, error) {
 	managedSecret := &corev1.Secret{}
-	err := wait.PollUntilContextTimeout(ctx, resourceInterval, resourceTimeout, false, func(ctx context.Context) (bool, error) {
+	backoff := wait.Backoff{
+		Duration: resourceInterval,
+		Factor:   2.0,
+		Steps:    5,
+	}
+
+	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
 		err := r.Client.Get(ctx, client.ObjectKey{
 			Namespace: namespace,
 			Name:      name,
