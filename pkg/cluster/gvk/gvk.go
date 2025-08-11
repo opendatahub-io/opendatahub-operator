@@ -92,6 +92,12 @@ var (
 		Kind:    "Deployment",
 	}
 
+	Group = schema.GroupVersionKind{
+		Group:   rbacv1.SchemeGroupVersion.Group,
+		Version: rbacv1.SchemeGroupVersion.Version,
+		Kind:    "Group",
+	}
+
 	ClusterRole = schema.GroupVersionKind{
 		Group:   rbacv1.SchemeGroupVersion.Group,
 		Version: rbacv1.SchemeGroupVersion.Version,

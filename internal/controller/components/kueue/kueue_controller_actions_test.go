@@ -20,6 +20,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -579,7 +580,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-managed-ns",
 			Labels: map[string]string{
-				KueueManagedLabelKey: "true",
+				cluster.KueueManagedLabelKey: "true",
 			},
 		},
 	}
@@ -589,7 +590,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-legacy-managed-ns",
 			Labels: map[string]string{
-				KueueLegacyManagedLabelKey: "true",
+				cluster.KueueLegacyManagedLabelKey: "true",
 			},
 		},
 	}
@@ -599,8 +600,8 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-both-managed-ns",
 			Labels: map[string]string{
-				KueueManagedLabelKey:       "true",
-				KueueLegacyManagedLabelKey: "true",
+				cluster.KueueManagedLabelKey:       "true",
+				cluster.KueueLegacyManagedLabelKey: "true",
 			},
 		},
 	}

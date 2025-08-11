@@ -119,7 +119,7 @@ func cleanupKueueTestResources(t *testing.T, tc *TestContext) {
 	// Delete kueue local queue if present
 	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: kueueTestManagedNamespace}, gvk.LocalQueue, true)
 	// Delete kueue cluster config if present
-	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueue.KueueConfigCRName}, gvk.KueueConfigV1, false)
+	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueue.KueueCRName}, gvk.KueueConfigV1, false)
 	// Delete test managed namespace if present
 	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueTestManagedNamespace}, gvk.Namespace, false)
 	// Delete test legacy managed namespace if present
