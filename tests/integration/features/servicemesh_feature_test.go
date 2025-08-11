@@ -188,7 +188,7 @@ var _ = Describe("Service Mesh setup", func() {
 					Expect(featuresHandler.Apply(ctx, envTestClient)).To(Succeed())
 				})
 
-				It("should fail to find Service Mesh Control Plane if not present", func(ctx context.Context) {
+				It("should fail to find Service Mesh Control Plane if not ready", func(ctx context.Context) {
 					// given
 					dsci.Spec.ServiceMesh.ControlPlane.Name = "test-name"
 					dsci.Spec.ServiceMesh.ControlPlane.Namespace = "test-namespace"
@@ -206,7 +206,8 @@ var _ = Describe("Service Mesh setup", func() {
 					})
 
 					// then
-					Expect(featuresHandler.Apply(ctx, envTestClient)).To(MatchError(ContainSubstring("failed to find Service Mesh Control Plane")))
+					expectedError := "service mesh control plane is not ready"
+					Expect(featuresHandler.Apply(ctx, envTestClient)).To(MatchError(ContainSubstring(expectedError)))
 				})
 
 			})
