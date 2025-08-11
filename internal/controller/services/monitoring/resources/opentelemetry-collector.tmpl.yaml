@@ -5,6 +5,15 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   mode: deployment
+  volumeMounts:
+    - name: tls-certs
+      mountPath: /etc/otel-collector/tls
+      readOnly: true
+  volumes:
+    - name: tls-certs
+      secret:
+        secretName: data-science-collector-tls
+        optional: true
   config:
     extensions:
       bearertokenauth:
@@ -51,6 +60,9 @@ spec:
       {{- if .Metrics }}
       prometheus:
         endpoint: 0.0.0.0:8889
+        tls:
+          cert_file: "/etc/otel-collector/tls/tls.crt"
+          key_file: "/etc/otel-collector/tls/tls.key"
         resource_to_telemetry_conversion:
           enabled: true # by default resource attributes are dropped
       {{- end }}
@@ -66,6 +78,12 @@ spec:
           X-Scope-OrgID: {{.Namespace}}
       {{- end }}
     service:
+      telemetry:
+        metrics:
+          address: 0.0.0.0:8888
+          tls:
+            cert_file: "/etc/otel-collector/tls/tls.crt"
+            key_file: "/etc/otel-collector/tls/tls.key"
       extensions: [bearertokenauth]
       {{- if or .Traces .Metrics }}
       pipelines:
@@ -82,3 +100,52 @@ spec:
           exporters: [prometheus]
       {{- end }}
       {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-science-collector-metrics
+  namespace: {{.Namespace}}
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: data-science-collector-tls
+  labels:
+    app.kubernetes.io/component: opentelemetry-collector
+    app.kubernetes.io/instance: {{.Namespace}}.data-science-collector
+    app.kubernetes.io/managed-by: opentelemetry-operator
+    app.kubernetes.io/part-of: opentelemetry
+spec:
+  ports:
+    - name: prometheus
+      port: 8889
+      protocol: TCP
+      targetPort: 8889
+  selector:
+    app.kubernetes.io/component: opentelemetry-collector
+    app.kubernetes.io/instance: {{.Namespace}}.data-science-collector
+    app.kubernetes.io/managed-by: opentelemetry-operator
+    app.kubernetes.io/part-of: opentelemetry
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-science-collector-monitoring
+  namespace: {{.Namespace}}
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: data-science-collector-tls
+  labels:
+    app.kubernetes.io/component: opentelemetry-collector
+    app.kubernetes.io/instance: {{.Namespace}}.data-science-collector
+    app.kubernetes.io/managed-by: opentelemetry-operator
+    app.kubernetes.io/part-of: opentelemetry
+    operator.opentelemetry.io/collector-service-type: monitoring
+spec:
+  ports:
+    - name: monitoring
+      port: 8888
+      protocol: TCP
+      targetPort: 8888
+  selector:
+    app.kubernetes.io/component: opentelemetry-collector
+    app.kubernetes.io/instance: {{.Namespace}}.data-science-collector
+    app.kubernetes.io/managed-by: opentelemetry-operator
+    app.kubernetes.io/part-of: opentelemetry
