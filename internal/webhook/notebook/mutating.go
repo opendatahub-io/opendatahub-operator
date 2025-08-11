@@ -140,7 +140,8 @@ func (w *NotebookWebhook) validateNotebookConnectionAnnotation(
 	}
 
 	if len(secretExistsErrors) > 0 {
-		return admission.Denied(fmt.Sprintf("some of the connection secret(s) do not exist: %s", strings.Join(secretExistsErrors, ", "))), false, nil
+		return admission.Denied(fmt.Sprintf("some of the connection secret(s) do not exist or are outside the Notebook's namespace: %s",
+			strings.Join(secretExistsErrors, ", "))), false, nil
 	}
 
 	if len(permissionsErrors) > 0 {
