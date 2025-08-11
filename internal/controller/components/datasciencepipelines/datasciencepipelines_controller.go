@@ -67,7 +67,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(argoWorkflowsControllersOptions).
 		WithAction(releases.NewAction()).
 		WithAction(kustomize.NewAction(
-			kustomize.WithCache(),
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).

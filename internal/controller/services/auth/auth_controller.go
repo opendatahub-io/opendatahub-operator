@@ -62,9 +62,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		Owns(&rbacv1.RoleBinding{}).
 		// actions
 		WithAction(initialize).
-		WithAction(template.NewAction(
-			template.WithCache(),
-		)).
+		WithAction(template.NewAction()).
 		WithAction(createDefaultGroup).
 		WithAction(managePermissions).
 		WithAction(deploy.NewAction(
