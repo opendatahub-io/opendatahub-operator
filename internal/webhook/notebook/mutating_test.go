@@ -277,7 +277,7 @@ func TestNotebookWebhook_Handle_Permissions(t *testing.T) {
 				testSecret2: true,
 			},
 			expectedAllowed:   false,
-			expectedMessage:   "some of the connection secret(s) do not exist",
+			expectedMessage:   "some of the connection secret(s) do not exist or are outside the Notebook's namespace:",
 			shouldHavePatches: false,
 			forbiddenSecrets:  []string{fmt.Sprintf("%s/%s", testNamespace2, testSecret2)},
 		},
