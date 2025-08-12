@@ -12,3 +12,8 @@ spec:
       {{- if .Size }}
       size: "{{.Size}}"
       {{- end }}
+  extraConfig:
+    tempo:
+      compactor:
+        compaction:
+          block_retention: {{.TracesRetention}}  # default 90days
