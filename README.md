@@ -315,6 +315,7 @@ spec:
       storage:
         backend: pv
         size: 5Gi
+        retention: 2160h
   serviceMesh:
     controlPlane:
       metricsCollection: Istio
