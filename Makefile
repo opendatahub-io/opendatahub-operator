@@ -34,7 +34,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	KUSTOMIZE_DIR=config/manifests
 	MANAGER_DIR=config/manager
 	GO_RUN_ARGS=-tags=odh
-	CRD_BASE_DIR=config/crd/bases
+	CRD_DIR=config/crd
 	RBAC_DIR=config/rbac
 else
 	VERSION ?= 2.23.0
@@ -50,7 +50,7 @@ else
 	KUSTOMIZE_DIR=config/manifests.rhoai
 	MANAGER_DIR=config/manager.rhoai
 	GO_RUN_ARGS=-tags=rhoai
-	CRD_BASE_DIR=config/crd.rhoai/bases
+	CRD_DIR=config/crd.rhoai
 	RBAC_DIR=config/rbac.rhoai
 endif
 
@@ -192,7 +192,7 @@ endef
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CRD_BASE_DIR) output:rbac:artifacts:config=$(RBAC_DIR)
+	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CRD_DIR)/bases output:rbac:artifacts:config=$(RBAC_DIR)
 	$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	$(call fetch-external-crds,github.com/openshift/api,user/v1)
 
@@ -284,11 +284,11 @@ manager-kustomization: $(MANAGER_DIR)/kustomization.yaml.in
 
 .PHONY: install
 install: prepare ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+	$(KUSTOMIZE) build $(CRD_DIR) | kubectl apply -f -
 
 .PHONY: uninstall
 uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(CRD_DIR) | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
