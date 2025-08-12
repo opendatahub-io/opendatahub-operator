@@ -55,6 +55,11 @@ spec:
               alerting:
                 description: Alerting configuration for Prometheus
                 type: object
+              collectorReplicas:
+                description: CollectorReplicas specifies the number of replicas in
+                  opentelemetry-collector, default is 2 if not set
+                format: int32
+                type: integer
               metrics:
                 description: metrics collection
                 properties:
@@ -243,6 +248,10 @@ spec:
                 to be configured
               rule: 'has(self.alerting) ? has(self.metrics.storage) || has(self.metrics.resources)
                 : true'
+            - message: CollectorReplicas can only be set when metrics or traces are
+                enabled, and must be > 0
+              rule: '!has(self.collectorReplicas) || (self.collectorReplicas > 0 &&
+                (self.metrics != null || self.traces != null))'
           status:
             description: MonitoringStatus defines the observed state of Monitoring
             properties:
