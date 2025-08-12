@@ -453,6 +453,15 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 	defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
 	defaultMonitoring.Spec.Alerting = dsci.Spec.Monitoring.Alerting
 
+	// if metrics or traces is set, we set collector replicas to the value set in the DSCInitialization resource
+	if dsci.Spec.Monitoring.Metrics != nil || dsci.Spec.Monitoring.Traces != nil {
+		replicas := dsci.Spec.Monitoring.CollectorReplicas
+		if replicas == 0 {
+			replicas = 2
+		}
+		defaultMonitoring.Spec.CollectorReplicas = replicas
+	}
+
 	if err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme()); err != nil {
 		return err
 	}

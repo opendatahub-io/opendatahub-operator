@@ -56,6 +56,7 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test TempoStack CR Creation with GCS backend", monitoringServiceCtx.ValidateTempoStackCRCreationWithGCS},
 		{"Test OpenTelemetry Collector Deployment", monitoringServiceCtx.ValidateOpenTelemetryCollectorDeployment},
 		{"Test OpenTelemetry Collector Traces Configuration", monitoringServiceCtx.ValidateOpenTelemetryCollectorTracesConfiguration},
+		{"Test Monitoring CR CollectorReplicas", monitoringServiceCtx.ValidateMonitoringCRCollectorReplicas},
 		{"Test Instrumentation CR Traces Creation", monitoringServiceCtx.ValidateInstrumentationCRTracesWhenSet},
 		{"Test Instrumentation CR Traces Configuration", monitoringServiceCtx.ValidateInstrumentationCRTracesConfiguration},
 		{"Test MonitoringStack CR Deletion", monitoringServiceCtx.ValidateMonitoringStackCRDeleted},
@@ -677,5 +678,26 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRuleDeletion(t *testing.T) {
 	// Ensure the dashboard-prometheusrules is deleted
 	tc.EnsureResourceGone(
 		WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: tc.AppsNamespace}),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateMonitoringCRCollectorReplicas(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	if dsci.Spec.Monitoring.CollectorReplicas != 2 {
+		tc.g.Fail(fmt.Sprintf("CollectorReplicas is not set to default value of 2, it is set to %d", dsci.Spec.Monitoring.CollectorReplicas))
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.collectorReplicas = 3`)),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.spec.collectorReplicas == 3`)),
+		WithCustomErrorMsg("CollectorReplicas should be set to 3"),
 	)
 }
