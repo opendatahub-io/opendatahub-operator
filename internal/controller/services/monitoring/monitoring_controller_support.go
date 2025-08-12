@@ -88,7 +88,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		} else {
 			// Use defaults when Storage is nil
 			templateData["StorageSize"] = "5Gi"
-			templateData["StorageRetention"] = "1d"
+			templateData["StorageRetention"] = "90d"
 		}
 
 		// only when either storage or resources is set, we take replicas into account
@@ -106,6 +106,9 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		templateData["OtlpEndpoint"] = fmt.Sprintf("http://data-science-collector.%s.svc.cluster.local:4317", monitoring.Spec.Namespace)
 		templateData["SampleRatio"] = traces.SampleRatio
 		templateData["Backend"] = traces.Storage.Backend // backend has default "pv" set in API
+
+		// Add retention for all backends (both TempoMonolithic and TempoStack)
+		templateData["TracesRetention"] = traces.Storage.Retention.Duration.String()
 
 		// Add tempo-related data from traces.Storage fields (Storage is a struct, not a pointer)
 		switch traces.Storage.Backend {

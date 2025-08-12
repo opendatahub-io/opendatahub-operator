@@ -213,6 +213,11 @@ spec:
                             - s3
                             - gcs
                             type: string
+                          retention:
+                            default: 2160h
+                            description: Retention specifies how long trace data should
+                              be retained globally (e.g., "60m", "10h")
+                            type: string
                           secret:
                             description: |-
                               Secret specifies the secret name for storage credentials.
