@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.33.0
-    createdAt: "2025-08-08T13:41:13Z"
+    createdAt: "2025-08-12T09:24:49Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -1773,6 +1773,7 @@ spec:
       - ray.io
       apiVersions:
       - v1
+      - v1alpha1
       operations:
       - CREATE
       - UPDATE
