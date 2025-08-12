@@ -1670,7 +1670,6 @@ spec:
     name: Red Hat
   version: 2.24.0
   webhookdefinitions:
-
   - admissionReviewVersions:
     - v1
     containerPort: 443
@@ -1862,6 +1861,7 @@ spec:
       - ray.io
       apiVersions:
       - v1
+      - v1alpha1
       operations:
       - CREATE
       - UPDATE
