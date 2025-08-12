@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -86,4 +88,22 @@ func TestMatcherWithType(t *testing.T) {
 		Should(
 			WithTransform(json.Marshal, jq.Match(`.a == 1`)),
 		)
+}
+
+func TestUnstructuredSliceMatcher(t *testing.T) {
+	t.Parallel()
+
+	g := NewWithT(t)
+
+	u := []unstructured.Unstructured{{
+		Object: map[string]interface{}{
+			"a": 1,
+		}},
+	}
+
+	g.Expect(u).Should(
+		jq.Match(`.[0] | .a == 1`))
+
+	g.Expect(unstructured.UnstructuredList{Items: u}).Should(
+		jq.Match(`.[0] | .a == 1`))
 }
