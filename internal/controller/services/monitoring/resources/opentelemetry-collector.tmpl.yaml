@@ -4,6 +4,7 @@ metadata:
   name: data-science-collector
   namespace: {{.Namespace}}
 spec:
+  replicas: {{.CollectorReplicas}}
   mode: deployment
   config:
     extensions:
