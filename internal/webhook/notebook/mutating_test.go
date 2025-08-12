@@ -26,6 +26,7 @@ import (
 
 const (
 	testNamespace    = "test-namespace"
+	testNamespace2   = "test-namespace2"
 	testNotebook     = "test-notebook"
 	testSecret1      = "secret1"
 	testSecret2      = "secret2"
@@ -267,6 +268,18 @@ func TestNotebookWebhook_Handle_Permissions(t *testing.T) {
 			expectedMessage:   "some of the connection secret(s) do not exist",
 			shouldHavePatches: false,
 			forbiddenSecrets:  []string{fmt.Sprintf("%s/%s", testNamespace, testSecret2)},
+		},
+		{
+			name:        "secret in a different namespace than Notebook CR's",
+			connections: fmt.Sprintf("%s/%s,%s/%s", testNamespace, testSecret1, testNamespace2, testSecret2),
+			allowPermissions: map[string]bool{
+				testSecret1: true,
+				testSecret2: true,
+			},
+			expectedAllowed:   false,
+			expectedMessage:   "some of the connection secret(s) do not exist or are outside the Notebook's namespace:",
+			shouldHavePatches: false,
+			forbiddenSecrets:  []string{fmt.Sprintf("%s/%s", testNamespace2, testSecret2)},
 		},
 	}
 

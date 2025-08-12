@@ -176,29 +176,57 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 			},
 		},
 		{
-			name: "RayJob",
-			gvk:  gvk.RayJob,
+			name: "RayJob v1alpha1",
+			gvk:  gvk.RayJobV1Alpha1,
 			resource: metav1.GroupVersionResource{
-				Group:    gvk.RayJob.Group,
-				Version:  gvk.RayJob.Version,
+				Group:    gvk.RayJobV1Alpha1.Group,
+				Version:  gvk.RayJobV1Alpha1.Version,
 				Resource: "rayjobs",
 			},
 			objFunc: func() client.Object {
-				return envtestutil.NewNotebook("test-rayjob", testNamespace, func(obj client.Object) {
+				return envtestutil.NewNotebook("test-rayjob-v1alpha1", testNamespace, func(obj client.Object) {
 					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
 				})
 			},
 		},
 		{
-			name: "RayCluster",
-			gvk:  gvk.RayCluster,
+			name: "RayCluster v1alpha1",
+			gvk:  gvk.RayClusterV1Alpha1,
 			resource: metav1.GroupVersionResource{
-				Group:    gvk.RayCluster.Group,
-				Version:  gvk.RayCluster.Version,
+				Group:    gvk.RayClusterV1Alpha1.Group,
+				Version:  gvk.RayClusterV1Alpha1.Version,
 				Resource: "rayclusters",
 			},
 			objFunc: func() client.Object {
-				return envtestutil.NewNotebook("test-raycluster", testNamespace, func(obj client.Object) {
+				return envtestutil.NewNotebook("test-raycluster-v1alpha1", testNamespace, func(obj client.Object) {
+					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
+				})
+			},
+		},
+		{
+			name: "RayJob v1",
+			gvk:  gvk.RayJobV1,
+			resource: metav1.GroupVersionResource{
+				Group:    gvk.RayJobV1.Group,
+				Version:  gvk.RayJobV1.Version,
+				Resource: "rayjobs",
+			},
+			objFunc: func() client.Object {
+				return envtestutil.NewNotebook("test-rayjob-v1", testNamespace, func(obj client.Object) {
+					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
+				})
+			},
+		},
+		{
+			name: "RayCluster v1",
+			gvk:  gvk.RayClusterV1,
+			resource: metav1.GroupVersionResource{
+				Group:    gvk.RayClusterV1.Group,
+				Version:  gvk.RayClusterV1.Version,
+				Resource: "rayclusters",
+			},
+			objFunc: func() client.Object {
+				return envtestutil.NewNotebook("test-raycluster-v1", testNamespace, func(obj client.Object) {
 					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
 				})
 			},

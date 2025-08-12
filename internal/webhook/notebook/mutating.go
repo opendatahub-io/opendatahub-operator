@@ -140,7 +140,8 @@ func (w *NotebookWebhook) validateNotebookConnectionAnnotation(
 	}
 
 	if len(secretExistsErrors) > 0 {
-		return admission.Denied(fmt.Sprintf("some of the connection secret(s) do not exist: %s", strings.Join(secretExistsErrors, ", "))), false, nil
+		return admission.Denied(fmt.Sprintf("some of the connection secret(s) do not exist or are outside the Notebook's namespace: %s",
+			strings.Join(secretExistsErrors, ", "))), false, nil
 	}
 
 	if len(permissionsErrors) > 0 {
@@ -197,7 +198,14 @@ func (w *NotebookWebhook) checkSecretsExistsAndUserHasPermissions(ctx context.Co
 	var permissionErrors []string
 
 	for _, secretRef := range secretRefs {
-		// First check if the secret even exists using APIReader to bypass cache
+		// First check if the secret is in the same namespace as the notebook
+		// TODO: this can be removed once we support cross-namespace secret references.
+		log.V(1).Info("checking that secret in the same namespace as the notebook CR")
+		if secretRef.Namespace != req.Namespace {
+			secretExistsErrors = append(secretExistsErrors, fmt.Sprintf("%s/%s", secretRef.Namespace, secretRef.Name))
+			continue
+		}
+		// Second check if the secret even exists using APIReader to bypass cache
 		log.V(1).Info("checking that secret exists", "secret", secretRef.Name, "namespace", secretRef.Namespace)
 		if err := w.APIReader.Get(ctx, client.ObjectKey{Namespace: secretRef.Namespace, Name: secretRef.Name}, &corev1.Secret{}); err != nil {
 			if k8serr.IsNotFound(err) {
