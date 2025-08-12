@@ -217,6 +217,25 @@ func WithInferenceService() CRDSetupOption {
 	}
 }
 
+// WithLlmInferenceService enables LlmInferenceService CRD registration in the test environment.
+func WithLlmInferenceService() CRDSetupOption {
+	return func(ctx context.Context, t *testing.T, env *envt.EnvT) error {
+		t.Helper()
+
+		// Register LlmInferenceService types
+		env.Scheme().AddKnownTypeWithName(gvk.LLMInferenceServiceConfigV1Alpha1, &unstructured.Unstructured{})
+		env.Scheme().AddKnownTypeWithName(gvk.LLMInferenceServiceConfigV1Alpha1.GroupVersion().WithKind("LlmInferenceServiceList"), &unstructured.UnstructuredList{})
+
+		// Create LlmInferenceService CRD
+		crd := MockLlmInferenceServiceCRD()
+		if err := createAndWaitForCRD(ctx, env, crd); err != nil {
+			return fmt.Errorf("failed to create and wait for LlmInferenceService CRD: %w", err)
+		}
+
+		return nil
+	}
+}
+
 // =============================================================================
 // Object Creation Functions
 // =============================================================================
@@ -782,6 +801,38 @@ func MockInferenceServiceCRD() *apiextensionsv1.CustomResourceDefinition {
 			Scope: "Namespaced",
 			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
 				Name:    "v1beta1",
+				Served:  true,
+				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+						Type: "object",
+						// This allows any structure
+						XPreserveUnknownFields: &preserveUnknownFields,
+					},
+				},
+			}},
+		},
+	}
+}
+
+// MockLlmInferenceServiceCRD creates a mock LLMInferenceService CRD for testing.
+func MockLlmInferenceServiceCRD() *apiextensionsv1.CustomResourceDefinition {
+	preserveUnknownFields := true
+
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "llminferenceservices.serving.kserve.io",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "serving.kserve.io",
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Plural:   "llminferenceservices",
+				Singular: "llminferenceservice",
+				Kind:     "LLMInferenceService",
+			},
+			Scope: "Namespaced",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    "v1alpha1",
 				Served:  true,
 				Storage: true,
 				Schema: &apiextensionsv1.CustomResourceValidation{
