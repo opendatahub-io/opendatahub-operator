@@ -5,10 +5,10 @@ kind: Kustomization
 
 resources:
 - bases/rhods-operator.clusterserviceversion.yaml
-- ../default.rhoai
-- ../prometheus
-- ../samples.rhoai # to generate CSV alm-example
-- ../scorecard
+- ../default
+- ../../odh-config/prometheus
+- ../samples # to generate CSV alm-example
+- ../../odh-config/scorecard
 
 patches:
 - path: description-patch.yml

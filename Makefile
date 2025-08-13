@@ -26,32 +26,24 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
 	CHANNELS=fast
 	ROLE_NAME=controller-manager-role
-	BUNDLE_DIR ?= bundle
-	BUNDLE_DOCKERFILE_FILENAME=bundle.Dockerfile
+	BUNDLE_DIR ?= odh-bundle
+	BUNDLE_DOCKERFILE_FILENAME=odh-bundle.Dockerfile
 	OPERATOR_PACKAGE=opendatahub-operator
 	CONTROLLER_GEN_TAGS=--load-build-tags=odh
-	KUSTOMIZE_BASE=config/default
-	KUSTOMIZE_DIR=config/manifests
-	MANAGER_DIR=config/manager
+	CONFIG_DIR=odh-config
 	GO_RUN_ARGS=-tags=odh
-	CRD_DIR=config/crd
-	RBAC_DIR=config/rbac
 else
 	VERSION ?= 2.23.0
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
 	CHANNELS=alpha,stable,fast
 	DEFAULT_CHANNEL=stable
 	ROLE_NAME=rhods-operator-role
-	BUNDLE_DIR ?= bundle.rhoai
-	BUNDLE_DOCKERFILE_FILENAME=bundle.rhoai.Dockerfile
+	BUNDLE_DIR ?= rhoai-bundle
+	BUNDLE_DOCKERFILE_FILENAME=rhoai-bundle.Dockerfile
 	OPERATOR_PACKAGE=rhods-operator
 	CONTROLLER_GEN_TAGS=--load-build-tags=rhoai
-	KUSTOMIZE_BASE=config/default.rhoai
-	KUSTOMIZE_DIR=config/manifests.rhoai
-	MANAGER_DIR=config/manager.rhoai
+	CONFIG_DIR=rhoai-config
 	GO_RUN_ARGS=-tags=rhoai
-	CRD_DIR=config/crd.rhoai
-	RBAC_DIR=config/rbac.rhoai
 endif
 
 IMAGE_BUILDER ?= podman
@@ -187,12 +179,12 @@ endef
 define fetch-external-crds
 GOFLAGS="-mod=readonly" $(CONTROLLER_GEN) crd \
 paths=$(shell go env GOPATH)/pkg/mod/$(1)@$(call go-mod-version,$(1))/$(2)/... \
-output:crd:artifacts:config=config/crd/external
+output:crd:artifacts:config=$(CONFIG_DIR)/crd/external
 endef
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CRD_DIR)/bases output:rbac:artifacts:config=$(RBAC_DIR)
+	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CONFIG_DIR)/crd/bases output:rbac:artifacts:config=$(CONFIG_DIR)/rbac output:webhook:artifacts:config=$(CONFIG_DIR)/webhook
 	$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	$(call fetch-external-crds,github.com/openshift/api,user/v1)
 
@@ -277,26 +269,26 @@ prepare: manifests kustomize manager-kustomization
 
 # phony target for the case of changing IMG variable
 .PHONY: manager-kustomization
-manager-kustomization: $(MANAGER_DIR)/kustomization.yaml.in
-	cd $(MANAGER_DIR) \
+manager-kustomization: $(CONFIG_DIR)/manager/kustomization.yaml.in
+	cd $(CONFIG_DIR)/manager \
 		&& cp -f kustomization.yaml.in kustomization.yaml \
 		&& $(KUSTOMIZE) edit set image controller=$(IMG)
 
 .PHONY: install
 install: prepare ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build $(CRD_DIR) | kubectl apply -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/crd | kubectl apply -f -
 
 .PHONY: uninstall
 uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build $(CRD_DIR) | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build $(KUSTOMIZE_BASE) | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
 undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build $(KUSTOMIZE_BASE) | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
@@ -353,8 +345,8 @@ $(LOCALBIN)/component-codegen: | $(LOCALBIN)
 WARNINGMSG = "provided API should have an example annotation"
 .PHONY: bundle
 bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
-	$(OPERATOR_SDK) generate kustomize manifests --package $(OPERATOR_PACKAGE) --input-dir $(KUSTOMIZE_DIR) --output-dir $(KUSTOMIZE_DIR) -q
-	$(KUSTOMIZE) build $(KUSTOMIZE_DIR) | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) --package $(OPERATOR_PACKAGE) --kustomize-dir $(KUSTOMIZE_DIR) --output-dir $(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
+	$(OPERATOR_SDK) generate kustomize manifests --package $(OPERATOR_PACKAGE) --input-dir $(CONFIG_DIR)/manifests --output-dir $(CONFIG_DIR)/manifests -q
+	$(KUSTOMIZE) build $(CONFIG_DIR)/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) --package $(OPERATOR_PACKAGE) --kustomize-dir $(CONFIG_DIR)/manifests --output-dir $(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	mv bundle.Dockerfile Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME)
 	rm -f $(BUNDLE_DIR)/manifests/opendatahub-operator-webhook-service_v1_service.yaml

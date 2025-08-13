@@ -55,7 +55,8 @@ opt/manifests/
 
 cover.out
 
-config/manager/kustomization.yaml
+odh-config/manager/kustomization.yaml
+rhoai-config/manager/kustomization.yaml
 
 # Ignore any local.mk files that would be consumed by the Makefile
 local.mk
