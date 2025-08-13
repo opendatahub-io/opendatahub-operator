@@ -23,13 +23,13 @@ RUN rm -rf /opt/manifests/*/e2e /opt/manifests/*/scorecard /opt/manifests/*/test
 
 # Copy monitoring config removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/monitoring
-COPY config/monitoring/ /opt/manifests/monitoring
+COPY odh-config/monitoring/ /opt/manifests/monitoring
 # Copy ods-configs removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/osd-configs
-COPY config/osd-configs/ /opt/manifests/osd-configs
+COPY odh-config/osd-configs/ /opt/manifests/osd-configs
 # Copy kueue-configs removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/kueue-configs
-COPY config/kueue-configs/ /opt/manifests/kueue-configs
+COPY odh-config/kueue-configs/ /opt/manifests/kueue-configs
 
 ################################################################################
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder

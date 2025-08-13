@@ -133,8 +133,8 @@ IMAGE_BUILD_FLAGS += --build-arg CGO_ENABLED=$(CGO_ENABLED)
 IMAGE_BUILD_FLAGS += --platform $(PLATFORM)
 
 # Prometheus-Unit Tests Parameters
-PROMETHEUS_CONFIG_YAML = ./config/monitoring/prometheus/apps/prometheus-configs.yaml
-PROMETHEUS_CONFIG_DIR = ./config/monitoring/prometheus/apps
+PROMETHEUS_CONFIG_YAML = ./odh-config/monitoring/prometheus/apps/prometheus-configs.yaml
+PROMETHEUS_CONFIG_DIR = ./odh-config/monitoring/prometheus/apps
 PROMETHEUS_TEST_DIR = ./tests/prometheus_unit_tests
 PROMETHEUS_ALERT_TESTS = $(wildcard $(PROMETHEUS_TEST_DIR)/*.unit-tests.yaml)
 
@@ -404,7 +404,7 @@ catalog-clean: ## Clean up catalog files and Dockerfile
 .PHONY: catalog-prepare
 catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel. It requires BUNDLE_IMG exists before running the target"
 	mkdir -p catalog
-	cp config/catalog/fbc-basic-template.yaml catalog/fbc-basic-template.yaml
+	cp odh-config/catalog/fbc-basic-template.yaml catalog/fbc-basic-template.yaml
 	./hack/update-catalog-template.sh catalog/fbc-basic-template.yaml $(BUNDLE_IMGS)
 	$(OPM) alpha render-template basic \
 		--migrate-level=bundle-object-to-csv-metadata \

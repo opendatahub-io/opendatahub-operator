@@ -59,9 +59,9 @@ declare -A COMPONENT_MANIFESTS=(
 # they can be easily modified during development, but during a container build, they must be copied into the proper
 # location instead, as this script DOES NOT manage platform manifest files for a container build.
 declare -A PLATFORM_MANIFESTS=(
-    ["osd-configs"]="config/osd-configs"
-    ["monitoring"]="config/monitoring"
-    ["kueue-configs"]="config/kueue-configs"
+    ["osd-configs"]="odh-config/osd-configs"
+    ["monitoring"]="odh-config/monitoring"
+    ["kueue-configs"]="odh-config/kueue-configs"
 )
 
 # Allow overwriting repo using flags component=repo
