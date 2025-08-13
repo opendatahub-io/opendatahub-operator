@@ -62,7 +62,11 @@ The general outline of the integration test process is:
 For precise step-by-step user guide, please refer to [the section below](#user-guide).
 
 ## User Guide
-**To run the integration tests pipeline on a PR, please follow the steps below:**
+The user is in control of enabling and disabling the integration tests pipeline on their PR.
+Once enabled, the test pipeline will trigger on any new commit push into the PR branch.
+Step-by-step guide for enabling/disabling the test pipeline is provided below.
+
+**To enable running the integration tests pipeline on a PR, please follow the steps below:**
 
 1. **Label the PR as ready for integration tests**: comment `/label run-integration-tests` on the PR
 2. **Wait for the bot**: `openshift-ci bot` will add the label to your PR
@@ -73,8 +77,24 @@ Once this action succeeds,
    - **Troubleshooting:** please refer to [the dedicated troubleshooting section](#image-buildpush-action-issues)
 5. **Monitor the test process**: Once test pipeline starts in Jenkins, `rhods-ci-bot` will comment that the 
 tests have started, and provide a link to the Jenkins pipeline run details page
-   - **Note:** Accessing the Jenkins pipeline run details requires active Red Hat VPN connection and login via SSO
+   - **Note:** Accessing the Jenkins pipeline run details requires active Red Hat VPN connection
    - **Troubleshooting:** please refer to [the dedicated troubleshooting sections](#jenkins-pipeline-not-triggering)
+6. **Review the test pipeline results**: Once integration tests pipeline finishes in Jenkins, `rhods-ci-bot` will post the summary of test results as a PR comment. This comment includes:
+   - links to the completed Jenkins jobs' details
+     - **Note**: requires active Red Hat VPN connection to access
+   - an overall test pipeline result and test pass rate
+     - possible pipeline results:
+       - `SUCCESS`: all executed tests passed
+       - `UNSTABLE`: 80% <= test pass rate < 100%
+       - `FAILED`: test pass rate < 80%
+   - passed/failed/errors/skipped test counts
+   - a link to the full test report
+     - **Note**: requires active Red Hat VPN connection to access
+
+**To disable running integration tests pipeline:**
+1. **Remove the integration test PR label**: comment `/remove-label run-integration-tests` on the PR
+2. **Wait for the bot**: `openshift-ci bot` will remove the label from your PR
+3. Integration tests pipeline is now disabled and won't be triggered on future pushes (until re-enabled)
 
 ## Troubleshooting Common Issues
 
