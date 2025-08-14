@@ -107,6 +107,14 @@ spec:
                   metrics:
                     description: metrics collection
                     properties:
+                      exporters:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          Exporters defines custom metrics exporters for sending metrics to external observability tools.
+                          Each key-value pair represents an exporter name and its configuration.
+                          Reserved names 'prometheus' cannot be used as they conflict with built-in exporters.
+                        type: object
                       replicas:
                         description: Replicas specifies the number of replicas in
                           monitoringstack, default is 2 if not set

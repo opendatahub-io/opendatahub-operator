@@ -47,6 +47,11 @@ type Metrics struct {
 	Resources *MetricsResources `json:"resources,omitempty"`
 	// Replicas specifies the number of replicas in monitoringstack, default is 2 if not set
 	Replicas int32 `json:"replicas,omitempty"`
+	// Exporters defines custom metrics exporters for sending metrics to external observability tools.
+	// Each key-value pair represents an exporter name and its configuration.
+	// Reserved names 'prometheus' cannot be used as they conflict with built-in exporters.
+	// +optional
+	Exporters map[string]string `json:"exporters,omitempty"`
 }
 
 // MetricsStorage defines the storage configuration for the monitoring service
