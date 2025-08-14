@@ -98,7 +98,7 @@ spec:
         - alert: Data Science Pipeline Application Unavailable
           annotations:
             message: 'Data Science Pipelines Application is down!'
-            summary: The Data Science Pipelines Application CustomResource "{{ $labels.dspa_name }}" in namespace "{{ $labels.dspa_namespace }}" has been NotReady for more than 5 minutes
+            summary: The Data Science Pipelines Application CustomResource "{{`{{`}} $labels.dspa_name {{`}}`}}" in namespace "{{`{{`}} $labels.dspa_namespace {{`}}`}}" has been NotReady for more than 5 minutes
           expr: min(max_over_time(data_science_pipelines_application_ready[3m])) by (dspa_name, dspa_namespace) == 0
           for: 2m
           labels:
@@ -107,7 +107,7 @@ spec:
         - alert: Data Science Pipeline APIServer Unavailable
           annotations:
             message: 'Data Science Pipelines APIServer component is down!'
-            summary: A Data Science Pipelines APIServer pod owned by DSPA "{{ $labels.dspa_name }}" in namespace "{{ $labels.dspa_namespace }}" has been NotReady for more than 5 minutes
+            summary: A Data Science Pipelines APIServer pod owned by DSPA "{{`{{`}} $labels.dspa_name {{`}}`}}" in namespace "{{`{{`}} $labels.dspa_namespace {{`}}`}}" has been NotReady for more than 5 minutes
           expr: min(max_over_time(data_science_pipelines_application_apiserver_ready[3m])) by (dspa_name, dspa_namespace) == 0
           for: 2m
           labels:
@@ -116,7 +116,7 @@ spec:
         - alert: Data Science Pipeline PersistenceAgent Unavailable
           annotations:
             message: 'Data Science Pipelines PersistenceAgent component is down!'
-            summary: A Data Science Pipelines PersistenceAgent pod owned by DSPA "{{ $labels.dspa_name }}" in namespace "{{ $labels.dspa_namespace }}" has been NotReady for more than 5 minutes
+            summary: A Data Science Pipelines PersistenceAgent pod owned by DSPA "{{`{{`}} $labels.dspa_name {{`}}`}}" in namespace "{{`{{`}} $labels.dspa_namespace {{`}}`}}" has been NotReady for more than 5 minutes
           expr: min(max_over_time(data_science_pipelines_application_persistenceagent_ready[3m])) by (dspa_name, dspa_namespace) == 0
           for: 2m
           labels:
@@ -125,7 +125,7 @@ spec:
         - alert: Data Science Pipeline ScheduledWorkflows Unavailable
           annotations:
             message: 'Data Science Pipelines ScheduledWorkflows component is down!'
-            summary: A Data Science Pipelines ScheduledWorkflow controller pod owned by DSPA "{{ $labels.dspa_name }}" in namespace "{{ $labels.dspa_namespace }}" has been NotReady for more than 5 minutes
+            summary: A Data Science Pipelines ScheduledWorkflow controller pod owned by DSPA "{{`{{`}} $labels.dspa_name {{`}}`}}" in namespace "{{`{{`}} $labels.dspa_namespace {{`}}`}}" has been NotReady for more than 5 minutes
           expr: min(max_over_time(data_science_pipelines_application_scheduledworkflow_ready[3m])) by (dspa_name, dspa_namespace) == 0
           for: 2m
           labels:
