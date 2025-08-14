@@ -1156,7 +1156,6 @@ rules:
   - get
   - list
   - patch
-  - update
   - watch
 - apiGroups:
   - user.openshift.io
