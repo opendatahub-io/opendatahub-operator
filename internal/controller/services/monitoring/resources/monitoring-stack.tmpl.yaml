@@ -13,7 +13,9 @@ spec:
       resources:
         requests:
           storage: {{.StorageSize}}
+{{- if .Replicas }}
     replicas: {{.Replicas}}
+{{- end }}
   resourceSelector: {}
   resources:
     limits:
