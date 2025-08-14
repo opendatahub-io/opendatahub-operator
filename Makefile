@@ -27,7 +27,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	CHANNELS=fast
 	ROLE_NAME=controller-manager-role
 	BUNDLE_DIR ?= odh-bundle
-	BUNDLE_DOCKERFILE_FILENAME=odh-bundle.Dockerfile
+	BUNDLE_DOCKERFILE_FILENAME=bundle.Dockerfile
 	OPERATOR_PACKAGE=opendatahub-operator
 	CONTROLLER_GEN_TAGS=--load-build-tags=odh
 	CONFIG_DIR=odh-config
