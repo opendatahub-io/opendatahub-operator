@@ -92,6 +92,12 @@ var (
 		Kind:    "Deployment",
 	}
 
+	Group = schema.GroupVersionKind{
+		Group:   rbacv1.SchemeGroupVersion.Group,
+		Version: rbacv1.SchemeGroupVersion.Version,
+		Kind:    "Group",
+	}
+
 	ClusterRole = schema.GroupVersionKind{
 		Group:   rbacv1.SchemeGroupVersion.Group,
 		Version: rbacv1.SchemeGroupVersion.Version,
@@ -398,15 +404,27 @@ var (
 		Kind:    "PyTorchJob",
 	}
 
-	RayJob = schema.GroupVersionKind{
+	RayJobV1Alpha1 = schema.GroupVersionKind{
 		Group:   "ray.io",
 		Version: "v1alpha1",
 		Kind:    "RayJob",
 	}
 
-	RayCluster = schema.GroupVersionKind{
+	RayJobV1 = schema.GroupVersionKind{
+		Group:   "ray.io",
+		Version: "v1",
+		Kind:    "RayJob",
+	}
+
+	RayClusterV1Alpha1 = schema.GroupVersionKind{
 		Group:   "ray.io",
 		Version: "v1alpha1",
+		Kind:    "RayCluster",
+	}
+
+	RayClusterV1 = schema.GroupVersionKind{
+		Group:   "ray.io",
+		Version: "v1",
 		Kind:    "RayCluster",
 	}
 

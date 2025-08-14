@@ -256,12 +256,15 @@ func ExecuteOnAllNamespaces(ctx context.Context, cli client.Client, processFunc 
 	return nil
 }
 
-func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object, timeoutMin int) error {
+func CreateWithRetry(ctx context.Context, cli client.Client, obj client.Object) error {
 	log := logf.FromContext(ctx)
-	interval := time.Second * 5 // arbitrary value
-	timeout := time.Duration(timeoutMin) * time.Minute
-
-	return wait.PollUntilContextTimeout(ctx, interval, timeout, true, func(ctx context.Context) (bool, error) {
+	backoff := wait.Backoff{
+		Duration: 2 * time.Second,
+		Factor:   2.0,
+		Steps:    5,
+	}
+	// 1 minute timeout
+	return wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
 		// Create can return:
 		// If webhook enabled:
 		//   - no error (err == nil)
