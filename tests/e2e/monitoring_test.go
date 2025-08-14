@@ -36,9 +36,15 @@ func monitoringTestSuite(t *testing.T) {
 		TestContext: tc,
 	}
 
+	// Reset monitoring to default state to ensure clean test environment
+	// This handles cases where previous tests (like restrictive quota test) modified monitoring config
+	dsci := tc.FetchDSCInitialization()
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed)),
+		WithMutateFunc(testf.Transform(
+			`.spec.monitoring = {managementState: "Managed", namespace: "%s"}`,
+			dsci.Spec.Monitoring.Namespace,
+		)),
 	)
 
 	// Define test cases.
@@ -288,6 +294,7 @@ func setMonitoringMetrics() testf.TransformFn {
 				"cpurequest":    "250m",
 				"memoryrequest": "350Mi",
 			},
+			"replicas": int64(2),
 		}
 
 		return unstructured.SetNestedField(obj.Object, metricsConfig, "spec", "monitoring", "metrics")
