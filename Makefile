@@ -349,6 +349,7 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	$(KUSTOMIZE) build $(CONFIG_DIR)/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) --package $(OPERATOR_PACKAGE) --kustomize-dir $(CONFIG_DIR)/manifests --output-dir $(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	mv bundle.Dockerfile Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME)
+	sed -i 's#quay.io/opendatahub/opendatahub-operator:.*#REPLACE_IMAGE:latest#' $(BUNDLE_DIR)/manifests/*clusterserviceversion*
 	rm -f $(BUNDLE_DIR)/manifests/opendatahub-operator-webhook-service_v1_service.yaml
 	rm -f $(BUNDLE_DIR)/manifests/rhods-operator-webhook-service_v1_service.yaml
 
