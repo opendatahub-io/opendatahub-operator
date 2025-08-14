@@ -1,7 +1,7 @@
 apiVersion: monitoring.rhobs/v1
 kind: PrometheusRule
 metadata:
-  name: modelmeshservice-prometheusrules
+  name: modelmeshserving-prometheusrules
   namespace: {{.Namespace}}
 spec:
   groups:
