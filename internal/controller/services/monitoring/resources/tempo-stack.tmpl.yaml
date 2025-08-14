@@ -6,6 +6,9 @@ metadata:
 spec:
   tenants:
     mode: openshift
+  retention:
+    global:
+      traces: {{.TracesRetention}} # default 90days
   storage:
     secret:
       name: {{.Secret}}
