@@ -205,7 +205,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
 	// Set metrics to empty object
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{}`)),
+		WithMutateFunc(testf.Transform(`.spec.monitoring = %s`, `{metrics: {}, managementState: "Managed"}`)),
 	)
 
 	// Verify MonitoringStack CR is deleted by gc
