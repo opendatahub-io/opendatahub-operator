@@ -29,4 +29,4 @@ const (
 const Connection = "opendatahub.io/connections"
 
 // ConnectionTypeRef annotation for specifying the type of connection.
-const ConnectionTypeRef = "opendatahub.io/connections-type-ref"
+const ConnectionTypeRef = "opendatahub.io/connection-type-ref"
