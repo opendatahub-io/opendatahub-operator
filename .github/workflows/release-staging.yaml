@@ -53,8 +53,8 @@ jobs:
 
     - name: Clean up bundle files
       run: |
-        sed -i -e "s|image: quay.io/opendatahub/opendatahub-operator:latest.*|image: REPLACE_IMAGE:latest|g" bundle/manifests/opendatahub-operator.clusterserviceversion.yaml
-        rm -f ./config/manager/kustomization.yaml
+        sed -i -e "s|image: quay.io/opendatahub/opendatahub-operator:latest.*|image: REPLACE_IMAGE:latest|g" odh-bundle/manifests/opendatahub-operator.clusterserviceversion.yaml
+        rm -f ./odh-config/manager/kustomization.yaml
 
     - name: Update branches in get_all_manifest.sh
       uses: actions/github-script@v7
