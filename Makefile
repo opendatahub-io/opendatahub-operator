@@ -24,7 +24,7 @@ ODH_PLATFORM_TYPE ?= OpenDataHub
 ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	VERSION ?= 2.33.0
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
-	CHANNELS=fast
+	CHANNELS ?= fast
 	ROLE_NAME=controller-manager-role
 	BUNDLE_DIR ?= odh-bundle
 	BUNDLE_DOCKERFILE_FILENAME=bundle.Dockerfile
@@ -35,8 +35,8 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 else
 	VERSION ?= 2.23.0
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
-	CHANNELS=alpha,stable,fast
-	DEFAULT_CHANNEL=stable
+	CHANNELS ?= alpha,stable,fast
+	DEFAULT_CHANNEL ?= stable
 	ROLE_NAME=rhods-operator-role
 	BUNDLE_DIR ?= rhoai-bundle
 	BUNDLE_DOCKERFILE_FILENAME=rhoai-bundle.Dockerfile
