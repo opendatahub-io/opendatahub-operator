@@ -195,6 +195,34 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
 	})
+
+	t.Run("should handle empty management state as Removed", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := context.Background()
+
+		dsc := createDSCWithKserve("")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.installedComponents."%s" == false`, LegacyComponentName),
+			jq.Match(`.status.components.kserve.managementState == "%s"`, operatorv1.Removed),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, operatorv1.Removed),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`, ReadyConditionType, common.ConditionSeverityInfo),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, ReadyConditionType)),
+		))
+	})
 }
 
 func createDSCWithKserve(managementState operatorv1.ManagementState) *dscv1.DataScienceCluster {
