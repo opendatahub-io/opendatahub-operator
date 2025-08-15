@@ -13,6 +13,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -141,8 +142,10 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
+	ms := components.NormalizeManagementState(dsc.Spec.Components.Workbenches.ManagementState)
+
 	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.Workbenches.ManagementState = dsc.Spec.Components.Workbenches.ManagementState
+	dsc.Status.Components.Workbenches.ManagementState = ms
 	dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
@@ -160,8 +163,8 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	} else {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
-			conditions.WithReason(string(dsc.Spec.Components.Workbenches.ManagementState)),
-			conditions.WithMessage("Component ManagementState is set to %s", dsc.Spec.Components.Workbenches.ManagementState),
+			conditions.WithReason(string(ms)),
+			conditions.WithMessage("Component ManagementState is set to %s", string(ms)),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
 	}

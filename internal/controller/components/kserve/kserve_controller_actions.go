@@ -42,7 +42,7 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 			status.ConditionServingAvailable,
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 			conditions.WithReason(string(k.Spec.Serving.ManagementState)),
-			conditions.WithMessage("Serving management state is set to: %s", k.Spec.Serving.ManagementState))
+			conditions.WithMessage("Serving management state is set to: %s", string(k.Spec.Serving.ManagementState)))
 
 		return nil
 	}
