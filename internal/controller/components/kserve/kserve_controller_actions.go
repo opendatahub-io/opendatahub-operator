@@ -375,6 +375,15 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 			// if the default mode is explicitly specified, respect that
 			defaultmode = k.Spec.DefaultDeploymentMode
 		}
+
+		// Warn about suboptimal configuration when using RawDeployment with Managed serving
+		if defaultmode == componentApi.RawDeployment && k.Spec.Serving.ManagementState == operatorv1.Managed {
+			logger.Info("KServe configuration may be suboptimal",
+				"defaultDeploymentMode", string(defaultmode),
+				"serving.managementState", string(k.Spec.Serving.ManagementState),
+				"recommendation", "Consider setting serving.managementState to Removed to save resources")
+		}
+
 		if err := updateInferenceCM(&kserveConfigMap, defaultmode, serviceClusterIPNone); err != nil {
 			return err
 		}

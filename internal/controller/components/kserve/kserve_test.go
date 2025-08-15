@@ -174,6 +174,27 @@ func TestUpdateDSCStatus(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, ReadyConditionType)),
 		))
 	})
+
+	t.Run("should handle enabled component with conflicting deployment mode", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := context.Background()
+
+		dsc := createDSCWithKserve(operatorv1.Managed)
+		dsc.Spec.Components.Kserve.DefaultDeploymentMode = componentApi.RawDeployment
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		}
+
+		cs, err := handler.UpdateDSCStatus(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+	})
 }
 
 func createDSCWithKserve(managementState operatorv1.ManagementState) *dscv1.DataScienceCluster {
