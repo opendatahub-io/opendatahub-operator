@@ -15,6 +15,11 @@ const (
 	// DefaultNotebooksNamespaceRHOAI defines default namespace for notebooks.
 	DefaultNotebooksNamespaceRHOAI = "rhods-notebooks"
 
+	// DefaultMonitoringNamespaceODH defines default namespace for monitoring.
+	DefaultMonitoringNamespaceODH = "opendatahub"
+	// DefaultMonitoringNamespaceRHOAI defines default namespace for monitoring.
+	DefaultMonitoringNamespaceRHOAI = "redhat-ods-monitoring"
+
 	// Default cluster-scope Authentication CR name.
 	ClusterAuthenticationObj = "cluster"
 
