@@ -32,6 +32,90 @@ spec:
               scrape_timeout: 10s
               tls_config:
                 insecure_skip_verify: true
+            {{- if .AcceleratorMetrics }}
+            - job_name: 'dcgm-exporter-accelerator-metrics'
+              bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+              kubernetes_sd_configs:
+                - role: pod
+                  namespaces:
+                    names:
+                      - nvidia-gpu-operator
+              metrics_path: /metrics
+              relabel_configs:
+                - action: keep
+                  regex: ^nvidia-dcgm-exporter.*$
+                  source_labels: [__meta_kubernetes_pod_name]
+                - action: replace
+                  regex: '([^:]+)(?::\d+)?'
+                  replacement: '$1:9400'
+                  source_labels: [__address__]
+                  target_label: __address__
+                - action: replace
+                  source_labels: [__meta_kubernetes_pod_node_name]
+                  target_label: node
+                - action: replace
+                  regex: 'DCGM_FI_DEV_GPU_TEMP'
+                  replacement: 'nvidia_gpu_temperature_celsius'
+                  source_labels: [__name__]
+                  target_label: __name__
+                - action: replace
+                  regex: 'DCGM_FI_DEV_GPU_UTIL'
+                  replacement: 'nvidia_gpu_utilization_ratio'
+                  source_labels: [__name__]
+                  target_label: __name__
+                - action: replace
+                  regex: 'DCGM_FI_DEV_MEM_COPY_UTIL'
+                  replacement: 'nvidia_gpu_memory_utilization_ratio'
+                  source_labels: [__name__]
+                  target_label: __name__
+                - action: replace
+                  regex: 'DCGM_FI_DEV_FB_USED'
+                  replacement: 'nvidia_gpu_memory_used_bytes'
+                  source_labels: [__name__]
+                  target_label: __name__
+                - action: replace
+                  regex: 'DCGM_FI_DEV_FB_FREE'
+                  replacement: 'nvidia_gpu_memory_free_bytes'
+                  source_labels: [__name__]
+                  target_label: __name__
+                - action: replace
+                  regex: 'DCGM_FI_DEV_POWER_USAGE'
+                  replacement: 'nvidia_gpu_power_usage_watts'
+                  source_labels: [__name__]
+                  target_label: __name__
+                - action: replace
+                  regex: 'DCGM_FI_DEV_SM_CLOCK'
+                  replacement: 'nvidia_gpu_sm_clock_mhz'
+                  source_labels: [__name__]
+                  target_label: __name__
+                - action: replace
+                  regex: 'DCGM_FI_DEV_MEM_CLOCK'
+                  replacement: 'nvidia_gpu_memory_clock_mhz'
+                  source_labels: [__name__]
+                  target_label: __name__
+                - action: replace
+                  source_labels: [__meta_kubernetes_pod_label_app]
+                  target_label: component
+                - action: replace
+                  replacement: 'rhoai-accelerator-metrics'
+                  target_label: job
+              metric_relabel_configs:
+                - source_labels: [__name__]
+                  regex: 'DCGM_FI_DEV_GPU_UTIL|DCGM_FI_DEV_MEM_COPY_UTIL'
+                  action: drop
+                # Convert DCGM percentage metrics to ratios (0-1 scale) for OCP compatibility
+                - source_labels: [__name__]
+                  regex: 'nvidia_gpu_(utilization|memory_utilization)_ratio'
+                  target_label: __tmp_scale_needed
+                  replacement: 'true'
+                - source_labels: [__name__]
+                  regex: '(nvidia_gpu_temperature_celsius|nvidia_gpu_utilization_ratio|nvidia_gpu_memory_utilization_ratio|nvidia_gpu_memory_used_bytes|nvidia_gpu_memory_free_bytes|nvidia_gpu_power_usage_watts|nvidia_gpu_sm_clock_mhz|nvidia_gpu_memory_clock_mhz|DCGM_FI_DEV_GPU_TEMP|DCGM_FI_DEV_FB_USED|DCGM_FI_DEV_FB_FREE|DCGM_FI_DEV_POWER_USAGE|DCGM_FI_DEV_SM_CLOCK|DCGM_FI_DEV_MEM_CLOCK)'
+                  action: keep
+              scrape_interval: 30s
+              scrape_timeout: 10s
+              tls_config:
+                insecure_skip_verify: true
+            {{- end }}
       {{- end }}
       otlp:
         protocols:
