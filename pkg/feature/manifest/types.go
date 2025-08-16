@@ -16,6 +16,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/resource"
+	templateutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/template"
 )
 
 func Create(fsys fs.FS, path string) *Manifest {
@@ -109,6 +110,7 @@ func (m *Manifest) Process(data any) ([]*unstructured.Unstructured, error) {
 
 	if isTemplate(m.path) {
 		tmpl, err := template.New(m.name).
+			Funcs(templateutils.HTMLTemplateFuncMap()).
 			Option("missingkey=error").
 			Parse(resources)
 		if err != nil {
