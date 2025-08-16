@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -56,10 +57,19 @@ func customizeManifests(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return fmt.Errorf("resource instance %v is not a componentApi.ModelRegistry)", rr.Instance)
 	}
 
-	// update registries namespace in manifests
-	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, map[string]string{
+	params := map[string]string{
 		"REGISTRIES_NAMESPACE": mr.Spec.RegistriesNamespace,
-	}); err != nil {
+	}
+
+	switch mr.Spec.ModelCatalog.ManagementState {
+	case operatorv1.Managed:
+		params["ENABLE_MODEL_CATALOG"] = "true"
+	default:
+		params["ENABLE_MODEL_CATALOG"] = "false"
+	}
+
+	// update registries namespace in manifests
+	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, params); err != nil {
 		return fmt.Errorf("failed to update params on path %s: %w", rr.Manifests[0].String(), err)
 	}
 	return nil
