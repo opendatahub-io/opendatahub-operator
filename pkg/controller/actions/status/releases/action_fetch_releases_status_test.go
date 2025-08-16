@@ -1,7 +1,6 @@
 package releases_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,7 +19,7 @@ func TestFetchReleasesStatusAction(t *testing.T) {
 	t.Helper()
 
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Root directory for temporary test files - automatically cleaned up when test ends
 	tempDir := t.TempDir()

@@ -2,7 +2,6 @@
 package kueue
 
 import (
-	"context"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -537,7 +536,7 @@ func runKueueCRTest(t *testing.T, configMapYAML string, expectedCRYAML string) {
 	t.Helper()
 
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	fakeClient, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -583,7 +582,7 @@ invalid: yaml: content: [
 `
 	// This test does not use 'kueueCR' since it expects an error.
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Setup fake client with scheme
 	s, err := scheme.New()

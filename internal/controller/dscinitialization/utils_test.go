@@ -1,7 +1,6 @@
 package dscinitialization_test
 
 import (
-	"context"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -23,7 +22,7 @@ import (
 func TestPatchMonitoringNS(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	monitoringNS := xid.New().String()
 	appsNS := xid.New().String()
 
@@ -63,7 +62,7 @@ func TestPatchMonitoringNS(t *testing.T) {
 func TestPatchExistingMonitoringNS(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	monitoringNS := xid.New().String()
 	appsNS := xid.New().String()
 

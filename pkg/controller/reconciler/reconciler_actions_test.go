@@ -118,7 +118,7 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			g := NewWithT(t)
-			ctx := context.Background()
+			ctx := t.Context()
 
 			watches := []watchInput{{
 				object:      resources.GvkToUnstructured(gvk.ConfigMap),
@@ -151,7 +151,7 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 
 func TestDynamicWatchAction_Inputs(t *testing.T) {
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mockFn := func(_ client.Object, _ handler.EventHandler, _ ...predicate.Predicate) error {
 		return nil
@@ -200,7 +200,7 @@ func TestDynamicWatchAction_Inputs(t *testing.T) {
 
 func TestDynamicWatchAction_NotTwice(t *testing.T) {
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	mockFn := func(_ client.Object, _ handler.EventHandler, _ ...predicate.Predicate) error {
 		return nil

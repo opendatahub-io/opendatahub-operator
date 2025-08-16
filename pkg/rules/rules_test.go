@@ -221,7 +221,7 @@ func TestListAuthorizedDeletableResources(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
-			ctx := context.Background()
+			ctx := t.Context()
 
 			s, err := scheme.New()
 			g.Expect(err).ShouldNot(HaveOccurred())
@@ -305,7 +305,7 @@ func TestRetrieveSelfSubjectRules(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
-			ctx := context.Background()
+			ctx := t.Context()
 
 			cli, err := fakeclient.New(fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 				Create: tc.createFn,

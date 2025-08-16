@@ -1,7 +1,6 @@
 package resources_test
 
 import (
-	"context"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -161,7 +160,7 @@ func TestRemoveOwnerRef(t *testing.T) {
 	g := NewWithT(t)
 	s := runtime.NewScheme()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 
 	utilruntime.Must(corev1.AddToScheme(s))
@@ -317,7 +316,7 @@ func TestObjectFromUnstructured(t *testing.T) {
 
 func TestHasCRD(t *testing.T) {
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	crdGVK := schema.GroupVersionKind{Group: "example.com", Version: "v1alpha1", Kind: "Foo"}
 	crdOtherVer := "v2alpha1"

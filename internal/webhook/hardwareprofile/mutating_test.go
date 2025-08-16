@@ -43,7 +43,7 @@ func setupTestEnvironment(t *testing.T) (*runtime.Scheme, context.Context) {
 	err = hwpv1alpha1.AddToScheme(sch)
 	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
-	return sch, context.Background()
+	return sch, t.Context()
 }
 
 // createWebhookInjector creates a webhook injector with the given client and scheme.
@@ -204,7 +204,7 @@ func TestHardwareProfile_DeniesWhenDecoderNotInitialized(t *testing.T) {
 	)
 
 	// Handle the request
-	ctx := context.Background()
+	ctx := t.Context()
 	resp := injector.Handle(ctx, req)
 
 	// Should deny the request due to nil decoder

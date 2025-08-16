@@ -92,7 +92,7 @@ func createReconciler(cli client.Client) *Reconciler {
 }
 
 func TestConditions(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	g := NewWithT(t)
 	s := runtime.NewScheme()

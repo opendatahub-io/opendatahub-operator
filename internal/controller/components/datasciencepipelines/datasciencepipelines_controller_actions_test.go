@@ -2,7 +2,6 @@
 package datasciencepipelines
 
 import (
-	"context"
 	"os"
 	"path"
 	"testing"
@@ -29,7 +28,7 @@ import (
 )
 
 func TestCheckPreConditions(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	tests := []struct {
@@ -279,7 +278,7 @@ func TestCheckPreConditions(t *testing.T) {
 }
 
 func TestCheckPreConditions_WrongInstanceType(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -310,7 +309,7 @@ func TestArgoWorkflowsControllersOptions(t *testing.T) {
 		odhdeploy.DefaultManifestPath = oldDeployPath
 	}()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name                                   string

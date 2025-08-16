@@ -2,7 +2,6 @@
 package kserve
 
 import (
-	"context"
 	"testing"
 
 	"github.com/onsi/gomega/gstruct"
@@ -28,7 +27,7 @@ import (
 )
 
 func TestCheckPreConditions_ServerlessUnmanaged(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -52,7 +51,7 @@ func TestCheckPreConditions_ServerlessUnmanaged(t *testing.T) {
 }
 
 func TestCheckPreConditions_ServiceMeshUnmanaged(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -85,7 +84,7 @@ func TestCheckPreConditions_ServiceMeshUnmanaged(t *testing.T) {
 }
 
 func TestCheckPreConditions_ServiceMeshManaged_NoOperators(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -120,7 +119,7 @@ func TestCheckPreConditions_ServiceMeshManaged_NoOperators(t *testing.T) {
 }
 
 func TestCheckPreConditions_ServiceMeshManaged_NoServerlessOperator(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New(
@@ -162,7 +161,7 @@ func TestCheckPreConditions_ServiceMeshManaged_NoServerlessOperator(t *testing.T
 }
 
 func TestCheckPreConditions_ServiceMeshManaged_NoServiceMeshOperator(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New(
@@ -204,7 +203,7 @@ func TestCheckPreConditions_ServiceMeshManaged_NoServiceMeshOperator(t *testing.
 }
 
 func TestCheckPreConditions_ServiceMeshManaged_AllOperator(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New(
@@ -253,7 +252,7 @@ func TestCheckPreConditions_ServiceMeshManaged_AllOperator(t *testing.T) {
 }
 
 func TestCheckPreConditions_ServiceMeshConditionNotTrue(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New(
@@ -306,7 +305,7 @@ func TestCheckPreConditions_ServiceMeshConditionNotTrue(t *testing.T) {
 }
 
 func TestCheckPreConditions_RawServiceConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -357,7 +356,7 @@ func TestCheckPreConditions_RawServiceConfig(t *testing.T) {
 }
 
 func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New(
@@ -421,7 +420,7 @@ func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
 }
 
 func TestCleanUpTemplatedResources_withoutAuthorino(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New(

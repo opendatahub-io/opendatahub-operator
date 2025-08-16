@@ -1,7 +1,6 @@
 package deployments_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -28,7 +27,7 @@ import (
 func TestDeploymentsAvailableActionNotReady(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 
 	cl, err := fakeclient.New(
@@ -102,7 +101,7 @@ func TestDeploymentsAvailableActionNotReady(t *testing.T) {
 func TestDeploymentsAvailableActionReady(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 
 	cl, err := fakeclient.New(
@@ -176,7 +175,7 @@ func TestDeploymentsAvailableActionReady(t *testing.T) {
 func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 
 	cl, err := fakeclient.New(
@@ -248,7 +247,7 @@ func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 func TestDeploymentsAvailableActionNotReadyNotFound(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 
 	cl, err := fakeclient.New(

@@ -1,7 +1,6 @@
 package kustomize_test
 
 import (
-	"context"
 	"path"
 	"testing"
 
@@ -100,7 +99,7 @@ spec:
 func TestRenderResourcesAction(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 	id := xid.New().String()
 	fs := filesys.MakeFsInMemory()
@@ -190,7 +189,7 @@ spec:
 func TestRenderResourcesWithCacheAction(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 	id := xid.New().String()
 	fs := filesys.MakeFsInMemory()

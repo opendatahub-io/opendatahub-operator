@@ -93,7 +93,7 @@ func SetupEnvAndClient(
 ) (context.Context, *envt.EnvT, func()) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
 
 	env, err := envt.New(
 		envt.WithRegisterWebhooks(registerWebhooks...),

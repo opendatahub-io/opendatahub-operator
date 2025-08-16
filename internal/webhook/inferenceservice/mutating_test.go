@@ -50,7 +50,7 @@ func setupTestEnvironment(t *testing.T) (*runtime.Scheme, context.Context) {
 	sch, err := scheme.New()
 	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
-	return sch, context.Background()
+	return sch, t.Context()
 }
 
 func createWebhook(cli client.Client, sch *runtime.Scheme) *inferenceservice.ConnectionWebhook {
