@@ -201,7 +201,7 @@ func TestNotebookWebhook_Handle_BasicValidation(t *testing.T) {
 			notebook := createNotebook(withAnnotations(tt.annotations))
 			req := createAdmissionRequest(t, admissionv1.Create, notebook)
 
-			resp := webhook.Handle(context.Background(), req)
+			resp := webhook.Handle(t.Context(), req)
 
 			g.Expect(resp.Allowed).Should(Equal(tt.expectedAllowed))
 			g.Expect(resp.Patches).Should(HaveLen(tt.expectedPatchesLen))
@@ -295,7 +295,7 @@ func TestNotebookWebhook_Handle_Permissions(t *testing.T) {
 			}
 
 			for _, secretName := range tt.secretsToCreate {
-				g.Expect(cli.Create(context.Background(), &corev1.Secret{
+				g.Expect(cli.Create(t.Context(), &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secretName,
 						Namespace: testNamespace,
@@ -310,7 +310,7 @@ func TestNotebookWebhook_Handle_Permissions(t *testing.T) {
 			}))
 			req := createAdmissionRequest(t, admissionv1.Create, notebook)
 
-			resp := webhook.Handle(context.Background(), req)
+			resp := webhook.Handle(t.Context(), req)
 
 			g.Expect(resp.Allowed).Should(Equal(tt.expectedAllowed))
 
@@ -374,7 +374,7 @@ func TestNotebookWebhook_Handle_Operations(t *testing.T) {
 				},
 			}
 
-			g.Expect(cli.Create(context.Background(), &corev1.Secret{
+			g.Expect(cli.Create(t.Context(), &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testSecret1,
 					Namespace: testNamespace,
@@ -388,7 +388,7 @@ func TestNotebookWebhook_Handle_Operations(t *testing.T) {
 			}))
 			req := createAdmissionRequest(t, tt.operation, notebook)
 
-			resp := webhook.Handle(context.Background(), req)
+			resp := webhook.Handle(t.Context(), req)
 
 			g.Expect(resp.Allowed).Should(Equal(tt.expectedAllowed))
 
@@ -418,13 +418,13 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 		},
 	}
 
-	g.Expect(cli.Create(context.Background(), &corev1.Secret{
+	g.Expect(cli.Create(t.Context(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testSecret1,
 			Namespace: testNamespace,
 		},
 	})).Should(Succeed())
-	g.Expect(cli.Create(context.Background(), &corev1.Secret{
+	g.Expect(cli.Create(t.Context(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testSecret2,
 			Namespace: testNamespace,
@@ -543,7 +543,7 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 			g := NewWithT(t)
 
 			req := createAdmissionRequest(t, admissionv1.Create, tt.notebook)
-			resp := webhook.Handle(context.Background(), req)
+			resp := webhook.Handle(t.Context(), req)
 
 			g.Expect(resp.Allowed).Should(BeTrue())
 			g.Expect(resp.Patches).ShouldNot(BeEmpty())

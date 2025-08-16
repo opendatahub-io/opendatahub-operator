@@ -168,7 +168,7 @@ invalid: yaml`,
 			}
 
 			// Call the function under test
-			ctx := context.Background()
+			ctx := t.Context()
 			result, err := cluster.IsFipsEnabled(ctx, fakeClient)
 
 			// Check the result

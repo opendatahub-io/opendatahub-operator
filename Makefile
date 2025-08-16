@@ -61,7 +61,7 @@ YQ_VERSION ?= v4.12.2
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 #ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.20)
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
-CRD_REF_DOCS_VERSION = 0.1.0
+CRD_REF_DOCS_VERSION = 0.2.0
 # Add to tool versions section
 GINKGO_VERSION ?= v2.23.4
 
@@ -385,7 +385,7 @@ catalog-build: catalog-prepare
 catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
 
-TOOLBOX_GOLANG_VERSION := 1.23.8
+TOOLBOX_GOLANG_VERSION := 1.24.5
 
 # Generate a Toolbox container for locally testing changes easily
 .PHONY: toolbox
