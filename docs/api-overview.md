@@ -2849,6 +2849,7 @@ _Appears in:_
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
+| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
 
 
 #### Metrics
@@ -2933,7 +2934,7 @@ _Appears in:_
 
 
 
-MonitoringCommonSpec spec defines the shared desired state of Dashboard
+MonitoringCommonSpec spec defines the shared desired state of Monitoring
 
 
 
@@ -2946,6 +2947,7 @@ _Appears in:_
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
+| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
 
 
 #### MonitoringList
@@ -2984,6 +2986,7 @@ _Appears in:_
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
+| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
 
 
 #### MonitoringStatus

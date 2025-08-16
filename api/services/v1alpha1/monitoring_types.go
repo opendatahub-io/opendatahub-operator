@@ -134,7 +134,8 @@ type Monitoring struct {
 	Status MonitoringStatus `json:"status,omitempty"`
 }
 
-// MonitoringCommonSpec spec defines the shared desired state of Dashboard
+// MonitoringCommonSpec spec defines the shared desired state of Monitoring
+// +kubebuilder:validation:XValidation:rule="!has(self.collectorReplicas) || (self.collectorReplicas > 0 && (self.metrics != null || self.traces != null))",message="CollectorReplicas can only be set when metrics or traces are enabled, and must be > 0"
 type MonitoringCommonSpec struct {
 	// monitoring spec exposed to DSCI api
 	// Namespace for monitoring if it is enabled
@@ -145,9 +146,10 @@ type MonitoringCommonSpec struct {
 	Namespace string `json:"namespace,omitempty"`
 	// metrics collection
 	Metrics *Metrics `json:"metrics,omitempty"`
-
 	// Tracing configuration for OpenTelemetry instrumentation
 	Traces *Traces `json:"traces,omitempty"`
+	// CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set
+	CollectorReplicas int32 `json:"collectorReplicas,omitempty"`
 }
 
 //+kubebuilder:object:root=true
