@@ -7,7 +7,10 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/go-multierror"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/yaml"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -92,13 +95,21 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		}
 
 		// only when either storage or resources is set, we take replicas into account
-		// - if user did not set it / zero-value "0", we use default value of 2
+		// - if user did not set it / zero-value "0", we choose default based on cluster size (1 for SNO, else 2)
 		// - if user set it to Y, we pass Y to template
-		var replicas int32 = 2 // default value to match monitoringstack CRD's default
-		if (metrics.Storage != nil || metrics.Resources != nil) && metrics.Replicas != 0 {
-			replicas = metrics.Replicas
+		allowedByConfig := metrics.Storage != nil || metrics.Resources != nil
+		isSNO := isSingleNodeCluster(ctx, rr)
+
+		switch {
+		case metrics.Replicas != 0 && allowedByConfig:
+			templateData["Replicas"] = strconv.Itoa(int(metrics.Replicas))
+		case isSNO: // enforce 1 replica on single-node even if Storage/Resources are not set
+			templateData["Replicas"] = "1"
+		case allowedByConfig: // multi-node and config provided but no explicit replicas -> default to 2
+			templateData["Replicas"] = "2"
+		default:
+			// Do not set .Replicas; rely on MonitoringStack CRD defaults (2) when nothing configured
 		}
-		templateData["Replicas"] = strconv.Itoa(int(replicas))
 	}
 
 	// Add traces-related data if traces are configured
@@ -122,6 +133,45 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	return templateData, nil
+}
+
+func isSingleNodeCluster(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
+	cm := &corev1.ConfigMap{}
+	namespacedName := types.NamespacedName{
+		Name:      "cluster-config-v1",
+		Namespace: "kube-system",
+	}
+	if err := rr.Client.Get(ctx, namespacedName, cm); err != nil {
+		logf.FromContext(ctx).Info("could not read cluster-config-v1, defaulting to multi-node behavior", "error", err)
+		return false
+	}
+
+	installConfigStr := cm.Data["install-config"]
+	if installConfigStr == "" {
+		logf.FromContext(ctx).Info("install-config not found in cluster-config-v1, defaulting to multi-node behavior")
+		return false
+	}
+
+	type replicaGroup struct {
+		Replicas int32 `json:"replicas"`
+	}
+	type minimalInstallConfig struct {
+		ControlPlane replicaGroup   `json:"controlPlane"`
+		Compute      []replicaGroup `json:"compute"`
+	}
+
+	var ic minimalInstallConfig
+	if err := yaml.Unmarshal([]byte(installConfigStr), &ic); err != nil {
+		logf.FromContext(ctx).Info("failed to parse install-config, defaulting to multi-node behavior", "error", err)
+		return false
+	}
+
+	totalNodes := ic.ControlPlane.Replicas
+	for i := range ic.Compute {
+		totalNodes += ic.Compute[i].Replicas
+	}
+
+	return totalNodes <= 1
 }
 
 func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {

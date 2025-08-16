@@ -2868,7 +2868,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `storage` _[MetricsStorage](#metricsstorage)_ |  |  |  |
 | `resources` _[MetricsResources](#metricsresources)_ |  |  |  |
-| `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack, default is 2 if not set |  |  |
+| `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  | Minimum: 0 <br /> |
 
 
 #### MetricsResources
