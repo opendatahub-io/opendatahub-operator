@@ -469,7 +469,7 @@ func updateAllComponentsTransform(components []string, state operatorv1.Manageme
 		transformParts[i] = fmt.Sprintf(`.spec.components.%s.managementState = "%s"`, component, state)
 	}
 
-	return testf.Transform(strings.Join(transformParts, " | "))
+	return testf.Transform("%s", strings.Join(transformParts, " | "))
 }
 
 func createRestrictiveQuotaForOperator(namespace string) *corev1.ResourceQuota {
@@ -500,7 +500,7 @@ func (tc *DSCTestCtx) verifyDeploymentsStuckDueToQuota(t *testing.T, allControll
 
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithCondition(jq.Match(fmt.Sprintf(`
+		WithCondition(jq.Match("%s", fmt.Sprintf(`
 			map(
 				select(.metadata.name | test("%s"; "i")) |
 				select(

@@ -2,7 +2,6 @@
 package modelcontroller
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -179,7 +178,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 
 	t.Run("should handle enabled component with ready ModelController CR", func(t *testing.T) {
 		g := NewWithT(t)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		dsc := createDSCWithModelController(operatorv1.Managed, operatorv1.Removed, operatorv1.Removed)
 		modelcontroller := createModelControllerCR(true)
@@ -205,7 +204,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 
 	t.Run("should handle enabled component with not ready ModelController CR", func(t *testing.T) {
 		g := NewWithT(t)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		dsc := createDSCWithModelController(operatorv1.Removed, operatorv1.Managed, operatorv1.Removed)
 		modelcontroller := createModelControllerCR(false)
@@ -231,7 +230,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 
 	t.Run("should handle disabled component", func(t *testing.T) {
 		g := NewWithT(t)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		dsc := createDSCWithModelController(operatorv1.Removed, operatorv1.Removed, operatorv1.Removed)
 

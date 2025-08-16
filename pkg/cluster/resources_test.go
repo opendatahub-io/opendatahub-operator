@@ -22,7 +22,7 @@ import (
 )
 
 func TestGetSingletonWithConfigMap(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("should return not found error when no ConfigMap exists", func(t *testing.T) {
 		g := NewWithT(t)
@@ -151,7 +151,7 @@ func TestGetClusterSingletons(t *testing.T) {
 			cli, err := fakeclient.New(fakeclient.WithObjects(tt.objs...))
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			ctx := context.Background()
+			ctx := t.Context()
 
 			result, err := tt.fn(ctx, cli)
 
@@ -168,7 +168,7 @@ func TestGetClusterSingletons(t *testing.T) {
 }
 
 func TestHasCRDWithVersion(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("should succeed if version is present", func(t *testing.T) {
 		g := NewWithT(t)

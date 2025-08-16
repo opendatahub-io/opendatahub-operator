@@ -1,7 +1,6 @@
 package deleteresource_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/onsi/gomega/gstruct"
@@ -23,7 +22,7 @@ import (
 func TestDeleteResourcesAction(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 
 	cl, err := fakeclient.New(

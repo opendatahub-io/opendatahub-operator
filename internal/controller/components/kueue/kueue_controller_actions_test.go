@@ -2,7 +2,6 @@
 package kueue
 
 import (
-	"context"
 	"slices"
 	"testing"
 
@@ -34,7 +33,7 @@ import (
 )
 
 func TestCheckPreConditions_Unknown_State(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -58,7 +57,7 @@ func TestCheckPreConditions_Unknown_State(t *testing.T) {
 }
 
 func TestCheckPreConditions_CRD_MultiKueueConfigV1Alpha1(t *testing.T) { //nolint:dupl
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	fakeMultiKueueConfigV1Alpha1 := mocks.NewMockCRD("kueue.x-k8s.io", "v1alpha1", "MultiKueueConfig", "fakeName")
@@ -90,7 +89,7 @@ func TestCheckPreConditions_CRD_MultiKueueConfigV1Alpha1(t *testing.T) { //nolin
 }
 
 func TestCheckPreConditions_CRD_MultikueueClusterV1Alpha1(t *testing.T) { //nolint:dupl
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	fakeMultikueueClusterV1Alpha1 := mocks.NewMockCRD("kueue.x-k8s.io", "v1alpha1", "MultiKueueCluster", "fakeName")
@@ -122,7 +121,7 @@ func TestCheckPreConditions_CRD_MultikueueClusterV1Alpha1(t *testing.T) { //noli
 }
 
 func TestCheckPreConditions_CRD_MultiKueueConfigV1Alpha1_and_MultikueueClusterV1Alpha1(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	fakeMultiKueueConfigV1Alpha1 := mocks.NewMockCRD("kueue.x-k8s.io", "v1alpha1", "MultiKueueConfig", "fakeName")
@@ -158,7 +157,7 @@ func TestCheckPreConditions_CRD_MultiKueueConfigV1Alpha1_and_MultikueueClusterV1
 }
 
 func TestCheckPreConditions_Managed_KueueOperatorAlreadyInstalled(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New(
@@ -190,7 +189,7 @@ func TestCheckPreConditions_Managed_KueueOperatorAlreadyInstalled(t *testing.T) 
 }
 
 func TestCheckPreConditions_Unmanaged_KueueOperatorNotInstalled(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -216,7 +215,7 @@ func TestCheckPreConditions_Unmanaged_KueueOperatorNotInstalled(t *testing.T) {
 }
 
 func TestConfigureClusterQueueViewerRoleAction_RoleNotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -270,7 +269,7 @@ func TestConfigureClusterQueueViewerRoleAction(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			g := NewWithT(t)
 
 			cli, err := fakeclient.New(fakeclient.WithObjects(test.clusterRole))
@@ -294,7 +293,7 @@ func TestConfigureClusterQueueViewerRoleAction(t *testing.T) {
 }
 
 func TestInitializeAction_Managed(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -320,7 +319,7 @@ func TestInitializeAction_Managed(t *testing.T) {
 }
 
 func TestInitializeAction_Unmanaged(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -346,7 +345,7 @@ func TestInitializeAction_Unmanaged(t *testing.T) {
 }
 
 func TestManageKueueAdminRoleBinding_AuthCRNotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -368,7 +367,7 @@ func TestManageKueueAdminRoleBinding_AuthCRNotFound(t *testing.T) {
 }
 
 func TestManageKueueAdminRoleBinding_WithValidAdminGroups(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	authCR := &serviceApi.Auth{
@@ -416,7 +415,7 @@ func TestManageKueueAdminRoleBinding_WithValidAdminGroups(t *testing.T) {
 }
 
 func TestManageKueueAdminRoleBinding_WithFilteredAdminGroups(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	// Simulate upgrade scenario where Auth CR might contain invalid groups
@@ -457,7 +456,7 @@ func TestManageKueueAdminRoleBinding_WithFilteredAdminGroups(t *testing.T) {
 }
 
 func TestManageKueueAdminRoleBinding_WithOnlyInvalidAdminGroups(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	// Simulate upgrade scenario where Auth CR contains only invalid groups
@@ -497,7 +496,7 @@ func TestManageKueueAdminRoleBinding_WithOnlyInvalidAdminGroups(t *testing.T) {
 }
 
 func TestManageKueueAdminRoleBinding_WithEmptyAdminGroups(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	// Create Auth CR with empty admin groups
@@ -546,7 +545,7 @@ func TestManageDefaultKueueResourcesAction_NotKueueInstance(t *testing.T) {
 		Instance: &componentApi.Dashboard{}, // Wrong type
 	}
 
-	err := manageDefaultKueueResourcesAction(context.Background(), rr)
+	err := manageDefaultKueueResourcesAction(t.Context(), rr)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(ContainSubstring("is not a componentApi.Kueue"))
 }
@@ -566,7 +565,7 @@ func TestManageDefaultKueueResourcesAction_RemovedState(t *testing.T) {
 		Instance: kueue,
 	}
 
-	err := manageDefaultKueueResourcesAction(context.Background(), rr)
+	err := manageDefaultKueueResourcesAction(t.Context(), rr)
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
@@ -652,7 +651,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 				Resources: []unstructured.Unstructured{}, // Initialize empty resources
 			}
 
-			err := manageDefaultKueueResourcesAction(context.Background(), rr)
+			err := manageDefaultKueueResourcesAction(t.Context(), rr)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Should have added ClusterQueue and LocalQueue resources

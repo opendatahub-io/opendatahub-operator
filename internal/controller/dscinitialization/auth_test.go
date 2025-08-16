@@ -1,7 +1,6 @@
 package dscinitialization_test
 
 import (
-	"context"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -136,7 +135,7 @@ func TestCreateAuth(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			ctx := context.Background()
+			ctx := t.Context()
 
 			// Setup fake client
 			var objects []client.Object
@@ -186,7 +185,7 @@ func TestCreateAuth(t *testing.T) {
 func TestCreateAuth_ErrorHandling(t *testing.T) {
 	t.Run("Succeeds with clean fakeclient", func(t *testing.T) {
 		g := NewWithT(t)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create a clean fakeclient for testing successful CreateAuth flow
 		cli, err := fakeclient.New()
@@ -206,7 +205,7 @@ func TestCreateAuth_ErrorHandling(t *testing.T) {
 
 	t.Run("Maintains idempotency on multiple calls", func(t *testing.T) {
 		g := NewWithT(t)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		cli, err := fakeclient.New()
 		g.Expect(err).ShouldNot(HaveOccurred())
