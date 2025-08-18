@@ -2925,6 +2925,7 @@ _Appears in:_
 | `storage` _[MetricsStorage](#metricsstorage)_ |  |  |  |
 | `resources` _[MetricsResources](#metricsresources)_ |  |  |  |
 | `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack, default is 2 if not set |  |  |
+| `exporters` _object (keys:string, values:string)_ | Exporters defines custom metrics exporters for sending metrics to external observability tools.<br />Each key-value pair represents an exporter name and its configuration.<br />Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters. |  |  |
 
 
 #### MetricsResources

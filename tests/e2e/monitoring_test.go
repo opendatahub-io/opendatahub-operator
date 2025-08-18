@@ -56,6 +56,7 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test TempoStack CR Creation with GCS backend", monitoringServiceCtx.ValidateTempoStackCRCreationWithGCS},
 		{"Test OpenTelemetry Collector Deployment", monitoringServiceCtx.ValidateOpenTelemetryCollectorDeployment},
 		{"Test OpenTelemetry Collector Traces Configuration", monitoringServiceCtx.ValidateOpenTelemetryCollectorTracesConfiguration},
+		{"Test OpenTelemetry Collector Custom Metrics Exporters", monitoringServiceCtx.ValidateOpenTelemetryCollectorCustomMetricsExporters},
 		{"Test Instrumentation CR Traces Creation", monitoringServiceCtx.ValidateInstrumentationCRTracesWhenSet},
 		{"Test Instrumentation CR Traces Configuration", monitoringServiceCtx.ValidateInstrumentationCRTracesConfiguration},
 		{"Test MonitoringStack CR Deletion", monitoringServiceCtx.ValidateMonitoringStackCRDeleted},
@@ -680,4 +681,64 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRuleDeletion(t *testing.T) {
 	tc.EnsureResourceGone(
 		WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: dsci.Spec.Monitoring.Namespace}),
 	)
+}
+
+func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorCustomMetricsExporters(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Configure DSCI with custom metrics exporters
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringMetricsWithCustomExporters(),
+		)),
+	)
+
+	// First verify the Monitoring service is ready
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
+	)
+
+	// Verify OpenTelemetry Collector has custom exporters configured
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: "data-science-collector", Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(And(
+			jq.Match(`.spec.config.exporters | has("prometheus")`),  // Built-in exporter
+			jq.Match(`.spec.config.exporters | has("logging")`),     // Custom exporter 1
+			jq.Match(`.spec.config.exporters | has("otlp/custom")`), // Custom exporter 2
+			jq.Match(`.spec.config.exporters.logging.loglevel == "debug"`),
+			jq.Match(`.spec.config.exporters."otlp/custom".endpoint == "http://custom-backend:4317"`),
+			jq.Match(`.spec.config.exporters."otlp/custom".tls.insecure == true`),
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | length == 3`), // prometheus + 2 custom
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | contains(["prometheus"])`),
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | contains(["logging"])`),
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | contains(["otlp/custom"])`),
+		)),
+	)
+}
+
+// setMonitoringMetricsWithCustomExporters creates a transformation function that sets monitoring metrics with custom exporters.
+func setMonitoringMetricsWithCustomExporters() testf.TransformFn {
+	return func(obj *unstructured.Unstructured) error {
+		metricsConfig := map[string]interface{}{
+			"storage": map[string]interface{}{
+				"size":      "5Gi",
+				"retention": "90d",
+			},
+			"resources": map[string]interface{}{
+				"cpurequest":    "250m",
+				"memoryrequest": "350Mi",
+			},
+			"exporters": map[string]interface{}{
+				"logging":     "loglevel: debug",
+				"otlp/custom": "endpoint: http://custom-backend:4317\ntls:\n  insecure: true",
+			},
+		}
+
+		return unstructured.SetNestedField(obj.Object, metricsConfig, "spec", "monitoring", "metrics")
+	}
 }
