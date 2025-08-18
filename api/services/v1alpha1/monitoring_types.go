@@ -117,6 +117,10 @@ type TracesStorage struct {
 	Retention metav1.Duration `json:"retention,omitempty"`
 }
 
+// Alerting configuration for Prometheus
+type Alerting struct {
+}
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
@@ -135,6 +139,7 @@ type Monitoring struct {
 }
 
 // MonitoringCommonSpec spec defines the shared desired state of Dashboard
+// +kubebuilder:validation:XValidation:rule="has(self.alerting) ? has(self.metrics) : true",message="Alerting configuration requires metrics to be configured"
 type MonitoringCommonSpec struct {
 	// monitoring spec exposed to DSCI api
 	// Namespace for monitoring if it is enabled
@@ -145,9 +150,10 @@ type MonitoringCommonSpec struct {
 	Namespace string `json:"namespace,omitempty"`
 	// metrics collection
 	Metrics *Metrics `json:"metrics,omitempty"`
-
 	// Tracing configuration for OpenTelemetry instrumentation
 	Traces *Traces `json:"traces,omitempty"`
+	// Alerting configuration for Prometheus
+	Alerting *Alerting `json:"alerting,omitempty"`
 }
 
 //+kubebuilder:object:root=true

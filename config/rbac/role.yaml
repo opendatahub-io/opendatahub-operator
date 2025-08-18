@@ -758,6 +758,7 @@ rules:
   - monitoring.rhobs
   resources:
   - monitoringstacks
+  - prometheusrules
   - servicemonitors
   verbs:
   - create
@@ -771,6 +772,7 @@ rules:
   - monitoring.rhobs
   resources:
   - monitoringstacks/finalizers
+  - prometheusrules/finalizers
   - servicemonitors/finalizers
   verbs:
   - update
@@ -778,6 +780,7 @@ rules:
   - monitoring.rhobs
   resources:
   - monitoringstacks/status
+  - prometheusrules/status
   - servicemonitors/status
   verbs:
   - get
