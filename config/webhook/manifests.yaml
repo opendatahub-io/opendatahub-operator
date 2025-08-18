@@ -90,6 +90,26 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /platform-connection-notebook
+  failurePolicy: Fail
+  name: connection-notebook.opendatahub.io
+  rules:
+  - apiGroups:
+    - kubeflow.org
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - notebooks
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /platform-connection-isvc
   failurePolicy: Fail
   name: connection-isvc.opendatahub.io
@@ -110,20 +130,20 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /platform-connection-notebook
+      path: /platform-connection-llmisvc
   failurePolicy: Fail
-  name: connection-notebook.opendatahub.io
+  name: connection-llmisvc.opendatahub.io
   rules:
   - apiGroups:
-    - kubeflow.org
+    - serving.kserve.io
     apiVersions:
-    - v1
+    - v1alpha1
     operations:
     - CREATE
     - UPDATE
     resources:
-    - notebooks
-  sideEffects: None
+    - llminferenceservices
+  sideEffects: NoneOnDryRun
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
