@@ -13,8 +13,12 @@ IMAGE_TAG_BASE ?= quay.io/opendatahub/opendatahub-operator
 
 # keep the name based on IMG which already used from command line
 IMG_TAG ?= latest
-# Update IMG to a variable, to keep it consistent across versions for OpenShift CI
-IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
+# Set image to REPLACE_IMAGE:latest unless IMAGE_TAG_BASE is provided
+ifeq ($(origin IMAGE_TAG_BASE), file)
+	IMG ?= REPLACE_IMAGE:latest
+else
+	IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
+endif
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
@@ -329,7 +333,9 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
-	mv bundle.Dockerfile Dockerfiles/
+	sed -i 's#COPY #COPY --from=builder /workspace/#' bundle.Dockerfile
+	cat Dockerfiles/build-bundle.Dockerfile bundle.Dockerfile > Dockerfiles/bundle.Dockerfile
+	rm bundle.Dockerfile
 	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
 
 .PHONY: bundle-build
