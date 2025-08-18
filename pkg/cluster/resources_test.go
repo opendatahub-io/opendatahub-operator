@@ -85,7 +85,6 @@ func TestGetSingletonWithConfigMap(t *testing.T) {
 
 func TestGetClusterSingletons(t *testing.T) {
 	g := NewWithT(t)
-
 	dsciFn := func(ctx context.Context, c client.Client) (client.Object, error) {
 		return cluster.GetDSCI(ctx, c)
 	}

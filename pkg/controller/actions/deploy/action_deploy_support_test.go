@@ -14,9 +14,6 @@ import (
 
 func TestIsLegacyOwnerRef(t *testing.T) {
 	t.Parallel()
-
-	g := NewWithT(t)
-
 	tests := []struct {
 		name     string
 		ownerRef metav1.OwnerReference
@@ -73,6 +70,7 @@ func TestIsLegacyOwnerRef(t *testing.T) {
 		tt := tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 
 			result := isLegacyOwnerRef(tt.ownerRef)
 			g.Expect(result).To(tt.matcher)

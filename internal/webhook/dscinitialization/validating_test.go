@@ -117,6 +117,7 @@ func TestDSCInitialization_ValidatingWebhook(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(tc.existingObjs...).Build()
 			validator := &dscinitialization.Validator{
 				Client: cli,

@@ -129,7 +129,6 @@ func hasResourcePatches(patches []jsonpatch.JsonPatchOperation) bool {
 // TestHardwareProfile_AllowsRequests tests various scenarios where the webhook should allow requests without processing.
 func TestHardwareProfile_AllowsRequests(t *testing.T) {
 	t.Parallel()
-	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
 	testCases := []struct {
@@ -157,6 +156,7 @@ func TestHardwareProfile_AllowsRequests(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 			cli := fake.NewClientBuilder().WithScheme(sch).Build()
 			injector := createWebhookInjector(cli, sch)
 
@@ -240,7 +240,6 @@ func TestHardwareProfile_DeniesWhenProfileNotFound(t *testing.T) {
 // TestHardwareProfile_ResourceInjection tests that hardware profiles with resource requirements are applied correctly to both Notebook and InferenceService workloads.
 func TestHardwareProfile_ResourceInjection(t *testing.T) {
 	t.Parallel()
-	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
 	// Create hardware profile with CPU and memory identifiers
@@ -260,6 +259,7 @@ func TestHardwareProfile_ResourceInjection(t *testing.T) {
 	for _, config := range workloadConfigs {
 		t.Run(config.ResourceName, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 
 			testCases := []struct {
 				name                string
@@ -482,7 +482,6 @@ func TestHardwareProfile_SetsNamespaceAnnotation(t *testing.T) {
 // scheduling configurations are applied correctly to both Notebook and InferenceService workloads.
 func TestHardwareProfile_SchedulingConfiguration(t *testing.T) {
 	t.Parallel()
-	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
 	workloadConfigs := []WorkloadTestConfig{
@@ -493,7 +492,7 @@ func TestHardwareProfile_SchedulingConfiguration(t *testing.T) {
 	for _, config := range workloadConfigs {
 		t.Run(config.ResourceName, func(t *testing.T) {
 			t.Parallel()
-
+			g := NewWithT(t)
 			testCases := []struct {
 				name          string
 				hwpOptions    []envtestutil.ObjectOption
@@ -594,7 +593,6 @@ func TestHardwareProfile_SchedulingConfiguration(t *testing.T) {
 // TestHardwareProfile_SupportsCrossNamespaceAccess tests that hardware profiles can be accessed from different namespaces for both Notebook and InferenceService workloads.
 func TestHardwareProfile_SupportsCrossNamespaceAccess(t *testing.T) {
 	t.Parallel()
-	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
 	hwpNamespace := "hwp-namespace"
@@ -616,6 +614,7 @@ func TestHardwareProfile_SupportsCrossNamespaceAccess(t *testing.T) {
 	for _, config := range workloadConfigs {
 		t.Run(config.ResourceName, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 
 			var workload client.Object
 			if config.GVK.Kind == gvk.Notebook.Kind {
@@ -805,7 +804,6 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 // TestHardwareProfile_ConvertIntOrStringToQuantity tests the quantity conversion utility.
 func TestHardwareProfile_ConvertIntOrStringToQuantity(t *testing.T) {
 	t.Parallel()
-
 	testCases := []struct {
 		name        string
 		input       intstr.IntOrString

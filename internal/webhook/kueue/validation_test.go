@@ -250,6 +250,7 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 			testObj := tc.objFunc()
 
 			req := envtestutil.NewAdmissionRequest(
@@ -497,6 +498,7 @@ func TestKueueWebhook_ValidatingWebhook(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(tc.existingObjs...).Build()
 			decoder := admission.NewDecoder(sch)
 			validator := &kueuewebhook.Validator{

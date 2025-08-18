@@ -90,6 +90,7 @@ func TestDataScienceCluster_ValidatingWebhook(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 			objs := append([]client.Object{}, tc.existingObjs...)
 			objs = append(objs, envtestutil.NewDSCI("dsci-for-dsc", ns))
 			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(objs...).Build()

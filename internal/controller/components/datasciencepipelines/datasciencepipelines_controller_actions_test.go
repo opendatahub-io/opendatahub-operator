@@ -304,7 +304,6 @@ func TestCheckPreConditions_WrongInstanceType(t *testing.T) {
 
 func TestArgoWorkflowsControllersOptions(t *testing.T) {
 	g := NewWithT(t)
-
 	oldDeployPath := odhdeploy.DefaultManifestPath
 	defer func() {
 		odhdeploy.DefaultManifestPath = oldDeployPath

@@ -78,10 +78,9 @@ func haveType(kind reflect.Kind) func(in any) bool {
 
 func TestToType(t *testing.T) {
 	t.Parallel()
+	g := NewWithT(t)
 
 	typeTestData := []byte(`{ "foo": "bar" }`)
-
-	g := NewWithT(t)
 
 	tests := []struct {
 		name        string
@@ -182,6 +181,7 @@ func TestToType(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 
 			convertedType, err := toType(tt.fn())
 

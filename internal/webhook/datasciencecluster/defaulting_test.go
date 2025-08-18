@@ -32,7 +32,7 @@ func ptrString(s string) *string {
 //   - No defaulting occurs if ModelRegistry is not set at all (upgrade case).
 func TestDefaulter_DefaultingLogic(t *testing.T) {
 	t.Parallel()
-	g := NewWithT(t)
+
 	ctx := context.Background()
 
 	testCases := []struct {
@@ -70,6 +70,7 @@ func TestDefaulter_DefaultingLogic(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			g := NewWithT(t)
 			dsc := &dscv1.DataScienceCluster{}
 			if tc.managementState != nil || tc.registriesNamespace != nil {
 				// Only set ModelRegistry if at least one field is set

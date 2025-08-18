@@ -18,7 +18,6 @@ import (
 
 func TestFetchReleasesStatusAction(t *testing.T) {
 	t.Helper()
-
 	g := NewWithT(t)
 	ctx := context.Background()
 
