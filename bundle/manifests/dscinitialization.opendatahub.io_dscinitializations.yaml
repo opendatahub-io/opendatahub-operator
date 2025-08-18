@@ -158,7 +158,7 @@ spec:
                           for the monitoring service
                         properties:
                           retention:
-                            default: 1d
+                            default: 90d
                             description: Retention specifies how long metrics data
                               should be retained (e.g., "1d", "2w")
                             type: string
