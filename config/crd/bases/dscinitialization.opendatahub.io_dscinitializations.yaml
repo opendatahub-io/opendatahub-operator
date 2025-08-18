@@ -110,6 +110,24 @@ spec:
                   metrics:
                     description: metrics collection
                     properties:
+                      exporters:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          Exporters defines custom metrics exporters for sending metrics to external observability tools.
+                          Each key-value pair represents an exporter name and its configuration.
+                          Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.
+                        type: object
+                        x-kubernetes-validations:
+                        - message: exporter name 'prometheus' is reserved and cannot
+                            be used
+                          rule: '!(''prometheus'' in self)'
+                        - message: exporter name 'otlp/tempo' is reserved and cannot
+                            be used
+                          rule: '!(''otlp/tempo'' in self)'
+                        - message: exporter configuration values must be non-empty
+                            strings
+                          rule: self.all(k, self[k] != '')
                       replicas:
                         description: Replicas specifies the number of replicas in
                           monitoringstack, default is 2 if not set
