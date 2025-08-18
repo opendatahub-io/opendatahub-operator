@@ -12,6 +12,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/operator-framework/api/pkg/lib/version"
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -63,8 +64,11 @@ func Init(ctx context.Context, cli client.Client) error {
 		return err
 	}
 
+	err = setManagedMonitoringNamespace(ctx, cli)
+	if err != nil {
+		return err
+	}
 	printClusterConfig(log)
-
 	return nil
 }
 
@@ -109,7 +113,7 @@ func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	return domain, err
 }
 
-// This is an openshift speicifc implementation.
+// This is an Openshift specific implementation.
 func getOCPVersion(ctx context.Context, c client.Client) (version.OperatorVersion, error) {
 	clusterVersion := &configv1.ClusterVersion{}
 	if err := c.Get(ctx, client.ObjectKey{
@@ -319,4 +323,21 @@ func IsFipsEnabled(ctx context.Context, cli client.Client) (bool, error) {
 	}
 
 	return installConfig.FIPS, nil
+}
+
+func setManagedMonitoringNamespace(ctx context.Context, cli client.Client) error {
+	platform, err := getPlatform(ctx, cli)
+	if err != nil {
+		return err
+	}
+
+	switch platform {
+	case ManagedRhoai:
+		viper.Set("dsc-monitoring-namespace", DefaultMonitoringNamespaceRHOAI)
+	case SelfManagedRhoai:
+		viper.Set("dsc-monitoring-namespace", DefaultMonitoringNamespaceRHOAI)
+	default:
+		viper.Set("dsc-monitoring-namespace", DefaultMonitoringNamespaceODH)
+	}
+	return nil
 }
