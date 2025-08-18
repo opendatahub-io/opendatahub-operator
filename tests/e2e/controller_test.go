@@ -79,6 +79,7 @@ type TestContextConfig struct {
 	deletionPolicy      DeletionPolicy
 
 	operatorControllerTest bool
+	operatorResilienceTest bool
 	webhookTest            bool
 	TestTimeouts           TestTimeouts
 }
@@ -249,6 +250,11 @@ func TestOdhOperator(t *testing.T) {
 	// Run DSCI/DSC test suites
 	mustRun(t, "DSCInitialization and DataScienceCluster management E2E Tests", dscManagementTestSuite)
 
+	// Run operator resilience test suites
+	if testOpts.operatorResilienceTest {
+		mustRun(t, "Operator Resilience E2E Tests", operatorResilienceTestSuite)
+	}
+
 	// Run components and services test suites
 	mustRun(t, Components.String(), Components.Run)
 	mustRun(t, Services.String(), Services.Run)
@@ -315,6 +321,8 @@ func TestMain(m *testing.M) {
 
 	pflag.Bool("test-operator-controller", true, "run operator controller tests")
 	checkEnvVarBindingError(viper.BindEnv("test-operator-controller", viper.GetEnvPrefix()+"_OPERATOR_CONTROLLER"))
+	pflag.Bool("test-operator-resilience", true, "run operator resilience tests")
+	checkEnvVarBindingError(viper.BindEnv("test-operator-resilience", viper.GetEnvPrefix()+"_OPERATOR_RESILIENCE"))
 	pflag.Bool("test-webhook", true, "run webhook tests")
 	checkEnvVarBindingError(viper.BindEnv("test-webhook", viper.GetEnvPrefix()+"_WEBHOOK"))
 
@@ -363,6 +371,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	testOpts.operatorControllerTest = viper.GetBool("test-operator-controller")
+	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
 	testOpts.webhookTest = viper.GetBool("test-webhook")
 	Components.enabled = viper.GetBool("test-components")
 	Components.flags = viper.GetStringSlice("test-component")
