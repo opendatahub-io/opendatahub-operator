@@ -178,9 +178,10 @@ get-manifests: ## Fetch components manifests from remote git repo
 CLEANFILES += opt/manifests/*
 
 .PHONY: api-docs
-api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
+api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs, render managementstate with marker
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
-	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
+	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
+	sed -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)|g" ./docs/api-overview.md
 
 .PHONY: ginkgo
 ginkgo: $(GINKGO)
