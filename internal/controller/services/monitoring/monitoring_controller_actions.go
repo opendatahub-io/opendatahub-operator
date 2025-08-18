@@ -129,7 +129,7 @@ func deployMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 		rr.Conditions.MarkFalse(
 			status.ConditionMonitoringStackAvailable,
 			conditions.WithReason(gvk.MonitoringStack.Kind+"CRDNotFoundReason"),
-			conditions.WithMessage("%s", gvk.MonitoringStack.Kind+" CRD Not Found"),
+			conditions.WithMessage("%s CRD Not Found", gvk.MonitoringStack.Kind),
 		)
 		return nil
 	}
@@ -177,7 +177,7 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 		rr.Conditions.MarkFalse(
 			status.ConditionOpenTelemetryCollectorAvailable,
 			conditions.WithReason(gvk.OpenTelemetryCollector.Kind+"CRDNotFoundReason"),
-			conditions.WithMessage("%s", gvk.OpenTelemetryCollector.Kind+" CRD Not Found"),
+			conditions.WithMessage("%s CRD Not Found", gvk.OpenTelemetryCollector.Kind),
 		)
 		return nil
 	}
@@ -245,7 +245,7 @@ func deployTempo(ctx context.Context, rr *odhtypes.ReconciliationRequest) error 
 		rr.Conditions.MarkFalse(
 			status.ConditionTempoAvailable,
 			conditions.WithReason(requiredCRD.Kind+"CRDNotFoundReason"),
-			conditions.WithMessage("%s", requiredCRD.Kind+" CRD Not Found"),
+			conditions.WithMessage("%s CRD Not Found", requiredCRD.Kind),
 		)
 		return nil
 	}
@@ -290,7 +290,7 @@ func deployInstrumentation(ctx context.Context, rr *odhtypes.ReconciliationReque
 		rr.Conditions.MarkFalse(
 			status.ConditionInstrumentationAvailable,
 			conditions.WithReason(gvk.Instrumentation.Kind+"CRDNotFoundReason"),
-			conditions.WithMessage("%s", gvk.Instrumentation.Kind+" CRD Not Found"),
+			conditions.WithMessage("%s CRD Not Found", gvk.Instrumentation.Kind),
 		)
 		return nil
 	}
