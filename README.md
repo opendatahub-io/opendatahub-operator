@@ -31,8 +31,8 @@ and configure these applications.
   - [Run functional Tests](#run-functional-tests)
   - [Run e2e Tests](#run-e2e-tests)
     - [Configuring e2e Tests](#configuring-e2e-tests)
-- [Run Integration tests (Jenkins pipeline)](#run-integration-tests-jenkins-pipeline)
-- [Run Prometheus Unit Tests for Alerts](#run-prometheus-unit-tests-for-alerts)
+  - [Run Integration tests (Jenkins pipeline)](#run-integration-tests-jenkins-pipeline)
+  - [Run Prometheus Unit Tests for Alerts](#run-prometheus-unit-tests-for-alerts)
   - [API Overview](#api-overview)
   - [Component Integration](#component-integration)
   - [Troubleshooting](#troubleshooting)
@@ -508,11 +508,11 @@ Additionally specific env vars can be used to configure tests timeouts
 | E2E_TEST_DEFAULTCONSISTENTLYTIMEOUT      | Duration used for Consistently; overrides Gomega's default of 2 seconds.                | `10s`         |
 | E2E_TEST_DEFAULTCONSISTENTLYPOLLINTERVAL | Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.       | `2s`          |
 
-## Run Integration tests (Jenkins pipeline)
+### Run Integration tests (Jenkins pipeline)
 
 For instructions on how to run the integration test Jenkins pipeline, please refer to [the following document](docs/integration-testing.md)
 
-## Run Prometheus Unit Tests for Alerts
+### Run Prometheus Unit Tests for Alerts
 
 Unit tests for Prometheus alerts are included in the repository. You can run them using the following command:
 
