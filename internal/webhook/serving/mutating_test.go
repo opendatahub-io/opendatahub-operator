@@ -1,4 +1,4 @@
-package inferenceservice_test
+package serving_test
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/inferenceservice"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/serving"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
@@ -63,12 +63,26 @@ func setupTestEnvironment(t *testing.T) (*runtime.Scheme, context.Context) {
 	return sch, t.Context()
 }
 
-func createWebhook(cli client.Client, reader client.Reader, sch *runtime.Scheme) *inferenceservice.ConnectionWebhook {
-	webhook := &inferenceservice.ConnectionWebhook{
-		Client:    cli,
-		APIReader: reader,
-		Decoder:   admission.NewDecoder(sch),
-		Name:      "glueisvc-test",
+func createISVCWebhook(cli client.Client, reader client.Reader, sch *runtime.Scheme) *serving.ISVCConnectionWebhook {
+	webhook := &serving.ISVCConnectionWebhook{
+		Webhook: webhookutils.BaseServingConnectionWebhook{
+			Client:    cli,
+			APIReader: reader,
+			Decoder:   admission.NewDecoder(sch),
+			Name:      "glueisvc-test",
+		},
+	}
+	return webhook
+}
+
+func createLLMISVCWebhook(cli client.Client, reader client.Reader, sch *runtime.Scheme) *serving.LLMISVCConnectionWebhook {
+	webhook := &serving.LLMISVCConnectionWebhook{
+		Webhook: webhookutils.BaseServingConnectionWebhook{
+			Client:    cli,
+			APIReader: reader,
+			Decoder:   admission.NewDecoder(sch),
+			Name:      "glueisvc-test",
+		},
 	}
 	return webhook
 }
@@ -87,7 +101,7 @@ func createTestSecret(name, namespace, connectionType string, data map[string][]
 	return secret
 }
 
-func createTestInferenceService(name, namespace string, annotations map[string]string, predictorSpec map[string]interface{}) (*unstructured.Unstructured, error) {
+func createTestInferenceService(name, namespace string, annotations map[string]string, spec map[string]interface{}) (*unstructured.Unstructured, error) {
 	isvc := envtestutil.NewInferenceService(name, namespace)
 	unstructuredISVC, ok := isvc.(*unstructured.Unstructured)
 	if !ok {
@@ -98,8 +112,8 @@ func createTestInferenceService(name, namespace string, annotations map[string]s
 		unstructuredISVC.SetAnnotations(annotations)
 	}
 
-	if len(predictorSpec) > 0 {
-		if err := unstructured.SetNestedMap(unstructuredISVC.Object, predictorSpec, "spec", "predictor"); err != nil {
+	if len(spec) > 0 {
+		if err := unstructured.SetNestedMap(unstructuredISVC.Object, spec, "spec", "predictor"); err != nil {
 			return nil, fmt.Errorf("failed to set nested map: %w", err)
 		}
 	}
@@ -107,7 +121,27 @@ func createTestInferenceService(name, namespace string, annotations map[string]s
 	return unstructuredISVC, nil
 }
 
-func runTestCase(t *testing.T, tc TestCase) {
+func createTestLLMInferenceService(name, namespace string, annotations map[string]string, spec map[string]interface{}) (*unstructured.Unstructured, error) {
+	llmISVC := envtestutil.NewLLMInferenceService(name, namespace)
+	unstructuredLLMISVC, ok := llmISVC.(*unstructured.Unstructured)
+	if !ok {
+		return nil, errors.New("failed to cast LLMInferenceService to unstructured")
+	}
+
+	if annotations != nil {
+		unstructuredLLMISVC.SetAnnotations(annotations)
+	}
+
+	if len(spec) > 0 {
+		if err := unstructured.SetNestedMap(unstructuredLLMISVC.Object, spec, "spec"); err != nil {
+			return nil, fmt.Errorf("failed to set nested map: %w", err)
+		}
+	}
+
+	return unstructuredLLMISVC, nil
+}
+
+func runISVCTestCase(t *testing.T, tc TestCase) {
 	t.Helper()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
@@ -151,7 +185,7 @@ func runTestCase(t *testing.T, tc TestCase) {
 		reader = fake.NewClientBuilder().WithScheme(sch).Build()
 	}
 
-	webhook := createWebhook(cli, reader, sch)
+	webhook := createISVCWebhook(cli, reader, sch)
 
 	isvc, err := createTestInferenceService(testInferenceService, testNamespace, tc.annotations, tc.predictorSpec)
 	if err != nil {
@@ -159,7 +193,7 @@ func runTestCase(t *testing.T, tc TestCase) {
 	}
 	isvcRaw, err := json.Marshal(isvc)
 	if err != nil {
-		t.Fatalf("failed to marshal InferenceService: %v", err)
+		t.Fatalf("failed to marshal test InferenceService: %v", err)
 	}
 
 	req := admission.Request{
@@ -204,6 +238,68 @@ func runTestCase(t *testing.T, tc TestCase) {
 	}
 }
 
+func runLLMISVCTestCase(t *testing.T, tc TestCase) {
+	t.Helper()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	var cli client.Client
+	var reader client.Reader
+	if tc.secretType != "" {
+		// Extract secret name from annotations, default to testSecret if not specified
+		secretName := testSecret
+		if tc.annotations != nil {
+			if name, exists := tc.annotations[annotations.Connection]; exists {
+				secretName = name
+			}
+		}
+
+		secret := createTestSecret(secretName, tc.secretNamespace, tc.secretType, tc.secretData)
+		cli = fake.NewClientBuilder().WithScheme(sch).WithObjects(secret).Build()
+		reader = fake.NewClientBuilder().WithScheme(sch).WithObjects(secret).Build()
+	} else {
+		cli = fake.NewClientBuilder().WithScheme(sch).Build()
+		reader = fake.NewClientBuilder().WithScheme(sch).WithObjects().Build()
+	}
+
+	webhook := createLLMISVCWebhook(cli, reader, sch)
+
+	llmisvc, err := createTestLLMInferenceService(testInferenceService, testNamespace, tc.annotations, tc.predictorSpec)
+	if err != nil {
+		t.Fatalf("failed to create test LLMInferenceService: %v", err)
+	}
+	llmisvcRaw, err := json.Marshal(llmisvc)
+	if err != nil {
+		t.Fatalf("failed to marshal test LLMInferenceService: %v", err)
+	}
+
+	req := admission.Request{
+		AdmissionRequest: admissionv1.AdmissionRequest{
+			Operation: tc.operation,
+			Namespace: testNamespace,
+			Object: runtime.RawExtension{
+				Raw: llmisvcRaw,
+			},
+			Kind: metav1.GroupVersionKind{
+				Group:   gvk.LLMInferenceServiceV1Alpha1.Group,
+				Version: gvk.LLMInferenceServiceV1Alpha1.Version,
+				Kind:    gvk.LLMInferenceServiceV1Alpha1.Kind,
+			},
+		},
+	}
+
+	resp := webhook.Handle(ctx, req)
+	g.Expect(resp.Allowed).To(Equal(tc.expectedAllowed))
+
+	if tc.expectedMessage != "" {
+		g.Expect(resp.Result.Message).To(ContainSubstring(tc.expectedMessage))
+	}
+
+	if tc.expectedPatchCheck != nil {
+		g.Expect(tc.expectedPatchCheck(resp.Patches)).To(BeTrue())
+	}
+}
+
 // oci-v1 - simple case for new injection without existing secrets.
 func hasImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
@@ -223,7 +319,7 @@ func hasImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch.JsonPa
 	}
 }
 
-// uri-v1.
+// uri-v1 for isvc.
 func hasStorageUriPatch(expectedUri string) func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
@@ -231,6 +327,17 @@ func hasStorageUriPatch(expectedUri string) func([]jsonpatch.JsonPatchOperation)
 				if expectedUri == "" {
 					return true
 				}
+			}
+		}
+		return false
+	}
+}
+
+// uri-v1 for llvisvc.
+func hasUriPath(expectedUri string) func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		for _, patch := range patches {
+			if patch.Path == "/spec/model/uri" {
 				return patch.Value == expectedUri
 			}
 		}
@@ -275,7 +382,7 @@ func hasImagePullSecretsCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool
 	}
 }
 
-// uri-v1.
+// uri-v1 for isvc.
 func hasStorageUriCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
@@ -287,6 +394,19 @@ func hasStorageUriCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
 	}
 }
 
+// uri-v1 for llmisvc.
+func hasLLMISVCUriCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		for _, patch := range patches {
+			if patch.Path == "/spec/model/uri" && patch.Operation == OperationRemove {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// s3.
 func hasS3CleanupPatches() func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		hasStorageCleanup := false
@@ -341,7 +461,7 @@ func TestServiceAccountNamePatching(t *testing.T) {
 				return !hasServiceAccountNamePatch()(patches)
 			},
 		}
-		runTestCase(t, tc)
+		runISVCTestCase(t, tc)
 	})
 	t.Run("serviceAccountName is not injected on create with URI", func(t *testing.T) {
 		tc := TestCase{
@@ -357,7 +477,7 @@ func TestServiceAccountNamePatching(t *testing.T) {
 				return !hasServiceAccountNamePatch()(patches)
 			},
 		}
-		runTestCase(t, tc)
+		runISVCTestCase(t, tc)
 	})
 	t.Run("serviceAccountName is injected on create with S3", func(t *testing.T) {
 		tc := TestCase{
@@ -374,7 +494,7 @@ func TestServiceAccountNamePatching(t *testing.T) {
 				return hasServiceAccountNamePatch()(patches)
 			},
 		}
-		runTestCase(t, tc)
+		runISVCTestCase(t, tc)
 	})
 	t.Run("serviceAccountName is injected on update with S3", func(t *testing.T) {
 		tc := TestCase{
@@ -391,7 +511,7 @@ func TestServiceAccountNamePatching(t *testing.T) {
 				return hasServiceAccountNamePatch()(patches)
 			},
 		}
-		runTestCase(t, tc)
+		runISVCTestCase(t, tc)
 	})
 	t.Run("serviceAccountName is removed on annotation removal", func(t *testing.T) {
 		tc := TestCase{
@@ -412,11 +532,11 @@ func TestServiceAccountNamePatching(t *testing.T) {
 				return hasServiceAccountNameRemovePatch()(patches)
 			},
 		}
-		runTestCase(t, tc)
+		runISVCTestCase(t, tc)
 	})
 }
 
-func TestConnectionWebhook(t *testing.T) {
+func TestISVCConnectionWebhook(t *testing.T) {
 	testCases := []TestCase{
 		// general cases
 		{
@@ -451,7 +571,7 @@ func TestConnectionWebhook(t *testing.T) {
 			annotations:     map[string]string{annotations.Connection: testSecret},
 			operation:       admissionv1.Create,
 			expectedAllowed: false,
-			expectedMessage: "not found",
+			expectedMessage: "not found in namespace",
 		},
 		// type cases for new creation
 		{
@@ -494,7 +614,7 @@ func TestConnectionWebhook(t *testing.T) {
 			expectedPatchCheck: hasStorageKeyPatch(testSecret),
 		},
 		{
-			name:            "annotation as URI type without data.URI set, ISVC should not be allowed to create",
+			name:            "annotation as URI type without data.URI/.data.https-host set in secret, ISVC should not be allowed to create",
 			secretType:      webhookutils.ConnectionTypeURI.String(),
 			secretNamespace: testNamespace,
 			secretData:      map[string][]byte{},
@@ -502,7 +622,7 @@ func TestConnectionWebhook(t *testing.T) {
 			predictorSpec:   map[string]interface{}{"model": map[string]interface{}{}},
 			operation:       admissionv1.Create,
 			expectedAllowed: false,
-			expectedMessage: "secret does not contain 'URI' data key",
+			expectedMessage: "secret does not contain either 'https-host' or 'URI' data key",
 		},
 		// type cases for update
 		{
@@ -550,7 +670,7 @@ func TestConnectionWebhook(t *testing.T) {
 
 		// Cleanup tests when annotation is removed
 		{
-			name:            "annotation removed, OCI filed is cleanup",
+			name:            "annotation removed, imagePullSecrets is cleanup",
 			secretType:      "",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{}, // no annotation
@@ -571,7 +691,7 @@ func TestConnectionWebhook(t *testing.T) {
 			expectedPatchCheck: hasImagePullSecretsCleanupPatch(),
 		},
 		{
-			name:            "annotation removed, URI is cleanup",
+			name:            "annotation removed, storageUri is cleanup",
 			secretType:      "",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{}, // no annotation
@@ -592,7 +712,7 @@ func TestConnectionWebhook(t *testing.T) {
 			expectedPatchCheck: hasStorageUriCleanupPatch(),
 		},
 		{
-			name:            "annotation removed, S3 is cleanup",
+			name:            "annotation removed, storage is cleanup",
 			secretType:      "",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{}, // no annotation
@@ -617,7 +737,93 @@ func TestConnectionWebhook(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			runTestCase(t, tc)
+			runISVCTestCase(t, tc)
+		})
+	}
+}
+
+func TestLLMISVCConnectionWebhook(t *testing.T) {
+	testCases := []TestCase{
+		// general cases
+		{
+			name:            "no connection annotation set, LLMISVC should be allowed to create",
+			secretType:      "",
+			annotations:     nil,
+			operation:       admissionv1.Create,
+			expectedAllowed: true,
+			expectedMessage: "no action needed",
+		},
+		{
+			name:            "secret not found regardless not exist or in a different namespace, LLMISVC should not be allowed",
+			secretType:      "",
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			operation:       admissionv1.Create,
+			expectedAllowed: false,
+			expectedMessage: "not found in namespace",
+		},
+		// type cases for create
+		{
+			name:               "annotation as URI type with model in spec, LLMISVC creation allowed with injection done",
+			secretType:         serving.ConnectionTypeURI.String(),
+			secretNamespace:    testNamespace,
+			secretData:         map[string][]byte{"https-host": []byte("hf://facebook/opt-125m")},
+			annotations:        map[string]string{annotations.Connection: testSecret},
+			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
+			operation:          admissionv1.Create,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasUriPath("hf://facebook/opt-125m"),
+		},
+		{
+			name:            "secret exists but has no allowed connection type annotation, LLMISVC should be allowed to create with no injection",
+			secretType:      serving.ConnectionTypeS3.String(),
+			secretNamespace: testNamespace,
+			secretData:      map[string][]byte{"key": []byte("value")},
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			operation:       admissionv1.Create,
+			expectedAllowed: true,
+			expectedMessage: "no action needed",
+		},
+		{
+			name:            "annotation as URI type without data.URI/.data.https-host set in secret, LLMISVC should not be allowed to create",
+			secretType:      serving.ConnectionTypeURI.String(),
+			secretNamespace: testNamespace,
+			secretData:      map[string][]byte{},
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			predictorSpec:   map[string]interface{}{"model": map[string]interface{}{}},
+			operation:       admissionv1.Create,
+			expectedAllowed: false,
+			expectedMessage: "secret does not contain either in 'https-host' or 'URI' data key",
+		},
+		{
+			name:               "annotation as URI type with new host value, LLMISVC should overwrite with new value in the patch",
+			secretType:         serving.ConnectionTypeURI.String(),
+			secretNamespace:    testNamespace,
+			secretData:         map[string][]byte{"URI": []byte("hf://facebook/new")},
+			annotations:        map[string]string{annotations.Connection: testSecret},
+			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{"URI": "hf://facebook/old"}},
+			operation:          admissionv1.Update,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasUriPath("hf://facebook/new"),
+		},
+		// cleanup tests
+		{
+			name:            "annotation removed, uri is cleanup",
+			secretType:      "",
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{}, // no annotation
+			predictorSpec: map[string]interface{}{
+				"model": map[string]interface{}{
+					"uri": testSecret,
+				},
+			},
+			operation:          admissionv1.Update,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasLLMISVCUriCleanupPatch(),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			runLLMISVCTestCase(t, tc)
 		})
 	}
 }

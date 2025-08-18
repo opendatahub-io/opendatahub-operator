@@ -23,6 +23,14 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
+// BaseServingConnectionWebhook provides common type for both isvc and llmisvc webhooks.
+type BaseServingConnectionWebhook struct {
+	APIReader client.Reader
+	Client    client.Client
+	Decoder   admission.Decoder
+	Name      string
+}
+
 type ConnectionAction string
 
 const (
@@ -49,6 +57,8 @@ const (
 	ConnectionTypeS3 ConnectionType = "s3"
 	// ConnectionTypeOCI represents oci connections.
 	ConnectionTypeOCI ConnectionType = "oci-v1"
+	// ConnectionTypeHF represents hf connections.
+	ConnectionTypeHF ConnectionType = "hf-v1"
 )
 
 func (ct ConnectionType) String() string {
@@ -204,7 +214,7 @@ func DecodeUnstructured(decoder admission.Decoder, req admission.Request) (*unst
 	return obj, nil
 }
 
-// ValidateInferenceServiceConnectionAnnotation validates the connection annotation  "opendatahub.io/connections"
+// ValidateServingConnectionAnnotation validates the connection annotation  "opendatahub.io/connections"
 // If the annotation exists and has a non-empty value, it validates that the value references
 // a valid secret in the same namespace. Additionally, it checks the secret's connection type
 // annotation and rejects requests with invalid configurations. (see allowedTypes)
@@ -221,7 +231,7 @@ func DecodeUnstructured(decoder admission.Decoder, req admission.Request) (*unst
 //   - admission.Response: The validation result
 //   - string: The validated secret name (empty if no annotation or validation failed)
 //   - string: The connection type (empty if no annotation or validation failed)
-func ValidateInferenceServiceConnectionAnnotation(ctx context.Context,
+func ValidateServingConnectionAnnotation(ctx context.Context,
 	cli client.Reader,
 	decodedObj *unstructured.Unstructured,
 	req admission.Request,
@@ -347,4 +357,79 @@ func SetNestedValue(obj map[string]interface{}, value interface{}, path []string
 	default:
 		return fmt.Errorf("unsupported value type %T for SetNestedValue", value)
 	}
+}
+
+// GetOldConnectionInfo extracts connection information from the old object in an admission request.
+// This is used during UPDATE operations to determine if connection type has changed.
+//
+// Parameters:
+//   - ctx: Context for the API call (logger is extracted from here).
+//   - decoder: The admission decoder to decode the old object.
+//   - apiReader: The controller-runtime reader to use for getting secrets.
+//   - req: The admission request containing the old object.
+//
+// Returns:
+//   - string: The old secret name (empty if no old connection).
+//   - string: The old connection type (empty if no old connection).
+//   - error: Any error encountered during the operation.
+func GetOldConnectionInfo(ctx context.Context, decoder admission.Decoder, apiReader client.Reader, req admission.Request) (string, string, error) {
+	log := logf.FromContext(ctx)
+
+	// Decode the old object
+	oldObj := &unstructured.Unstructured{}
+	if err := decoder.DecodeRaw(req.OldObject, oldObj); err != nil {
+		log.Error(err, "failed to decode old object")
+		return "", "", fmt.Errorf("failed to decode old object: %w", err)
+	}
+
+	// Get old annotation value
+	oldAnnotationValue := resources.GetAnnotation(oldObj, annotations.Connection)
+	if oldAnnotationValue == "" {
+		return "", "", nil // No old connection
+	}
+
+	// Get old connection type from the secret
+	secretMeta := resources.GvkToPartial(gvk.Secret)
+	if err := apiReader.Get(ctx, types.NamespacedName{Name: oldAnnotationValue, Namespace: req.Namespace}, secretMeta); err != nil {
+		if k8serr.IsNotFound(err) {
+			log.V(1).Info("Old secret not found, treating as no old connection", "secretName", oldAnnotationValue)
+			return "", "", nil
+		}
+		return "", "", fmt.Errorf("failed to get old secret metadata: %w", err)
+	}
+
+	oldConnectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
+	return oldAnnotationValue, oldConnectionType, nil
+}
+
+// GetOldConnectionInfo extracts connection information from the old object in an admission request.
+// This is used during UPDATE operations to determine if connection type has changed.
+func (w *BaseServingConnectionWebhook) GetOldConnectionInfo(ctx context.Context, req admission.Request) (string, string, error) {
+	log := logf.FromContext(ctx)
+
+	// Decode the old object
+	oldObj := &unstructured.Unstructured{}
+	if err := w.Decoder.DecodeRaw(req.OldObject, oldObj); err != nil {
+		log.Error(err, "failed to decode old object")
+		return "", "", fmt.Errorf("failed to decode old object: %w", err)
+	}
+
+	// Get old annotation value
+	oldAnnotationValue := resources.GetAnnotation(oldObj, annotations.Connection)
+	if oldAnnotationValue == "" {
+		return "", "", nil // No old connection
+	}
+
+	// Get old connection type from the secret
+	secretMeta := resources.GvkToPartial(gvk.Secret)
+	if err := w.APIReader.Get(ctx, types.NamespacedName{Name: oldAnnotationValue, Namespace: req.Namespace}, secretMeta); err != nil {
+		if k8serr.IsNotFound(err) {
+			log.V(1).Info("Old secret not found, treating as no old connection", "secretName", oldAnnotationValue)
+			return "", "", nil
+		}
+		return "", "", fmt.Errorf("failed to get old secret metadata: %w", err)
+	}
+
+	oldConnectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
+	return oldAnnotationValue, oldConnectionType, nil
 }

@@ -435,6 +435,36 @@ func NewInferenceService(name, namespace string, opts ...ObjectOption) client.Ob
 	return inferenceService
 }
 
+// NewLLMInferenceService creates an LLMInferenceService object with the given name and namespace for use in tests.
+//
+// Parameters:
+//   - name: The name of the LLMInferenceService object.
+//   - namespace: The namespace for the object.
+//
+// Returns:
+//   - client.Object: The constructed InferenceService object as an unstructured object.
+func NewLLMInferenceService(name, namespace string, opts ...ObjectOption) client.Object {
+	llmInferenceService := resources.GvkToUnstructured(gvk.LLMInferenceServiceV1Alpha1)
+	llmInferenceService.SetName(name)
+	llmInferenceService.SetNamespace(namespace)
+
+	// this is set in case HWprofile require resource changes, it is not necessary for Connection API
+	containers := []interface{}{
+		map[string]interface{}{
+			"name":  "llm-cpu",
+			"image": "kserve/llm-cpu:latest",
+		},
+	}
+	if err := unstructured.SetNestedSlice(llmInferenceService.Object, containers, "spec", "template", "containers"); err != nil {
+		panic(fmt.Sprintf("failed to set LLMInference service containers: %v", err))
+	}
+
+	for _, opt := range opts {
+		opt(llmInferenceService)
+	}
+	return llmInferenceService
+}
+
 // =============================================================================
 // Object Configuration Options
 // =============================================================================
