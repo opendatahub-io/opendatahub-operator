@@ -18,7 +18,7 @@ spec:
           for: 2m
           labels:
             severity: info
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: Data Science Pipelines Application Route Error Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -30,7 +30,7 @@ spec:
           for: 15m
           labels:
             severity: info
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: Data Science Pipelines Application Route Error Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -42,7 +42,7 @@ spec:
           for: 1h
           labels:
             severity: info
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: Data Science Pipelines Application Route Error Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -54,7 +54,7 @@ spec:
           for: 3h
           labels:
             severity: info
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
       - name: SLOs-probe_success_dsp
         rules:
         - alert: Data Science Pipelines Operator Probe Success Burn Rate
@@ -68,7 +68,7 @@ spec:
           for: 2m
           labels:
             severity: critical
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: Data Science Pipelines Operator Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -80,7 +80,7 @@ spec:
           for: 15m
           labels:
             severity: critical
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: Data Science Pipelines Operator Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -92,7 +92,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
       - name: RHODS Data Science Pipelines
         rules:
         - alert: Data Science Pipeline Application Unavailable
@@ -103,7 +103,7 @@ spec:
           for: 2m
           labels:
             severity: info
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: Data Science Pipeline APIServer Unavailable
           annotations:
             message: 'Data Science Pipelines APIServer component is down!'
@@ -112,7 +112,7 @@ spec:
           for: 2m
           labels:
             severity: info
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: Data Science Pipeline PersistenceAgent Unavailable
           annotations:
             message: 'Data Science Pipelines PersistenceAgent component is down!'
@@ -121,7 +121,7 @@ spec:
           for: 2m
           labels:
             severity: info
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: Data Science Pipeline ScheduledWorkflows Unavailable
           annotations:
             message: 'Data Science Pipelines ScheduledWorkflows component is down!'
@@ -130,7 +130,7 @@ spec:
           for: 2m
           labels:
             severity: info
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
 
       # RecordingRules for Data Science Pipelines Operator
       - name: SLOs - Data Science Pipelines Operator

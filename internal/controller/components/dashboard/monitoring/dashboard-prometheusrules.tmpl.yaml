@@ -18,7 +18,7 @@ spec:
           for: 2m
           labels:
             severity: critical
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: RHODS Dashboard Route Error Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -30,7 +30,7 @@ spec:
           for: 15m
           labels:
             severity: critical
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: RHODS Dashboard Route Error Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -42,7 +42,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: RHODS Dashboard Route Error Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -54,7 +54,7 @@ spec:
           for: 3h
           labels:
             severity: warning
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
       - name: SLOs-probe_success_dashboard
         rules:
         - alert: RHODS Dashboard Probe Success Burn Rate
@@ -68,7 +68,7 @@ spec:
           for: 2m
           labels:
             severity: critical
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: RHODS Dashboard Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.name{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -80,7 +80,7 @@ spec:
           for: 15m
           labels:
             severity: critical
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: RHODS Dashboard Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.name{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -92,7 +92,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: RHODS Dashboard Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.name{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -104,7 +104,7 @@ spec:
           for: 3h
           labels:
             severity: warning
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
 
       # RecordingRules for ODH Dashboard
       - name: SLOs - ODH Dashboard
