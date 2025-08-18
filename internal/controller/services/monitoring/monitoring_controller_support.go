@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/go-multierror"
+	"gopkg.in/yaml.v3"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -44,6 +47,11 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["AcceleratorMetrics"] = monitoring.Spec.Metrics != nil
 	templateData["ApplicationNamespace"] = rr.DSCI.Spec.ApplicationsNamespace
 
+	// Always set metrics exporters data (even if empty to allow clean template logic)
+	templateData["MetricsExporters"] = make(map[string]interface{})
+	templateData["MetricsExporterNames"] = []string{}
+
+	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {
 		// Handle Resources fields - provide defaults if Resources is nil
 		if metrics.Resources != nil {
@@ -105,6 +113,39 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 			replicas = metrics.Replicas
 		}
 		templateData["Replicas"] = strconv.Itoa(int(replicas))
+
+		// Handle custom metrics exporters
+		if metrics.Exporters != nil {
+			validExporters := make(map[string]interface{})
+			var exporterNames []string
+
+			for name, configYAML := range metrics.Exporters {
+				if isReservedExporterName(name) {
+					return nil, fmt.Errorf("exporter name '%s' is reserved and cannot be used", name)
+				}
+
+				// Trim and parse YAML configuration string
+				cfgStr := strings.TrimSpace(configYAML)
+				var cfg interface{}
+				if err := yaml.Unmarshal([]byte(cfgStr), &cfg); err != nil {
+					return nil, fmt.Errorf("invalid YAML configuration for exporter '%s': %w", name, err)
+				}
+
+				// Require a mapping/object to avoid invalid collector config
+				cfgMap, ok := cfg.(map[string]interface{})
+				if !ok {
+					return nil, fmt.Errorf("exporter '%s' configuration must be a YAML mapping/object", name)
+				}
+
+				validExporters[name] = cfgMap
+				exporterNames = append(exporterNames, name)
+			}
+
+			// Ensure deterministic order in templates/pipelines
+			sort.Strings(exporterNames)
+			templateData["MetricsExporters"] = validExporters
+			templateData["MetricsExporterNames"] = exporterNames
+		}
 	}
 
 	// Add traces-related data if traces are configured
@@ -224,4 +265,14 @@ func cleanupPrometheusRules(ctx context.Context, componentName string, rr *odhty
 	}
 
 	return nil
+}
+
+// isReservedExporterName checks if an exporter name conflicts with built-in exporters.
+func isReservedExporterName(name string) bool {
+	switch name {
+	case "prometheus", "otlp/tempo":
+		return true
+	default:
+		return false
+	}
 }
