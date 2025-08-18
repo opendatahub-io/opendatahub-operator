@@ -1,0 +1,17 @@
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  name: ray-prometheusrules
+  namespace: {{.Namespace}}
+spec:
+  groups:
+    - name: Distributed Workloads Kuberay
+      interval: 1m
+      rules:
+        - alert: KubeRay Operator is not running
+          expr: absent(up{job=~'KubeRay Operator'}) or up{job=~'KubeRay Operator'} != 1
+          labels:
+            severity: warning
+          annotations:
+            description: This alert fires when the KubeRay Operator is not running.
+            summary: Alerting for KubeRay Operator

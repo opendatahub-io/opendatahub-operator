@@ -7,11 +7,16 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/go-multierror"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	componentMonitoring "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -37,6 +42,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	templateData["Traces"] = monitoring.Spec.Traces != nil
 	templateData["Metrics"] = monitoring.Spec.Metrics != nil
 	templateData["AcceleratorMetrics"] = monitoring.Spec.Metrics != nil
+	templateData["ApplicationNamespace"] = rr.DSCI.Spec.ApplicationsNamespace
 
 	if metrics := monitoring.Spec.Metrics; metrics != nil {
 		// Handle Resources fields - provide defaults if Resources is nil
@@ -185,4 +191,37 @@ func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.Reconciliati
 	}
 
 	return allErrors.ErrorOrNil()
+}
+
+func addPrometheusRules(componentName string, rr *odhtypes.ReconciliationRequest) error {
+	componentRules := fmt.Sprintf("%s/monitoring/%s-prometheusrules.tmpl.yaml", componentName, componentName)
+
+	if !common.FileExists(componentMonitoring.ComponentRulesFS, componentRules) {
+		return fmt.Errorf("prometheus rules file for component %s not found", componentName)
+	}
+
+	rr.Templates = append(rr.Templates, odhtypes.TemplateInfo{
+		FS:   componentMonitoring.ComponentRulesFS,
+		Path: componentRules,
+	})
+
+	return nil
+}
+
+// if a component is disabled, we need to delete the prometheus rules. If the DSCI is deleted
+// the rules will be gc'd automatically.
+func cleanupPrometheusRules(ctx context.Context, componentName string, rr *odhtypes.ReconciliationRequest) error {
+	pr := &unstructured.Unstructured{}
+	pr.SetGroupVersionKind(gvk.PrometheusRule)
+	pr.SetName(fmt.Sprintf("%s-prometheusrules", componentName))
+	pr.SetNamespace(rr.DSCI.Spec.Monitoring.Namespace)
+
+	if err := rr.Client.Delete(ctx, pr); err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to delete prometheus rule for component %s: %w", componentName, err)
+	}
+
+	return nil
 }
