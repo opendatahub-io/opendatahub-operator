@@ -36,7 +36,7 @@ spec:
           for: 5m
           labels:
             severity: warning
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: ODH notebook controller pod is not running
           annotations:
             message: 'ODH notebook controller is down!'
@@ -45,7 +45,7 @@ spec:
           for: 5m
           labels:
             severity: warning
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
 
       
       - name: SLOs-probe_success_workbench

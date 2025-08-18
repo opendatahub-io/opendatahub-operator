@@ -18,7 +18,7 @@ spec:
           for: 2m
           labels:
             severity: critical
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: Model Registry Operator Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -30,7 +30,7 @@ spec:
           for: 15m
           labels:
             severity: critical
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: Model Registry Operator Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -42,7 +42,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
 
       # RecordingRules for Model Registry Operator
       - name: SLOs - Model Registry Operator
