@@ -18,7 +18,7 @@ spec:
           for: 2m
           labels:
             severity: info
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: CodeFlare Operator Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -30,7 +30,7 @@ spec:
           for: 15m
           labels:
             severity: info
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
         - alert: CodeFlare Operator Probe Success Burn Rate
           annotations:
             message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
@@ -42,7 +42,7 @@ spec:
           for: 1h
           labels:
             severity: info
-            namespace: redhat-ods-applications
+            namespace: {{.ApplicationNamespace}}
 
       - name: Distributed Workloads CodeFlare
         interval: 1m
@@ -51,7 +51,7 @@ spec:
             expr: absent(up{job=~'CodeFlare Operator'}) or up{job=~'CodeFlare Operator'} != 1
             labels:
               severity: info
-              namespace: redhat-ods-applications
+              namespace: {{.ApplicationNamespace}}
             annotations:
               description: This alert fires when the CodeFlare Operator is not running.
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-availability.md'
@@ -60,7 +60,7 @@ spec:
             expr: absent_over_time(up{job="CodeFlare Operator"}[2m]) == 1
             labels:
               severity: info
-              namespace: redhat-ods-applications
+              namespace: {{.ApplicationNamespace}}
             annotations:
               description: This alert fires when the CodeFlare Operator takes over 2 min. to come back online. Either CodeFlare Operator is not running and failing to become ready, is misconfigured, or the metrics endpoint is not responding.
               triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-absent-over-time.md'
