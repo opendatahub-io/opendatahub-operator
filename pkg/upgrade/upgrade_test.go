@@ -38,7 +38,7 @@ func createOdhDashboardConfig() *unstructured.Unstructured {
 }
 
 func TestPatchOdhDashboardConfig(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	releaseV1 := common.Release{Version: version.OperatorVersion{Version: semver.MustParse("1.0.0")}}
 	releaseV2 := common.Release{Version: version.OperatorVersion{Version: semver.MustParse("1.1.0")}}
 	t.Run("should skip patch if current version is not greated than previous version", func(t *testing.T) {
@@ -168,7 +168,7 @@ func TestPatchOdhDashboardConfig(t *testing.T) {
 }
 
 func TestCleanupDeprecatedKueueVAPB(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("should delete existing ValidatingAdmissionPolicyBinding during upgrade cleanup", func(t *testing.T) {
 		g := NewWithT(t)

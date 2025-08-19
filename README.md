@@ -130,7 +130,7 @@ To enable it:
 
 #### Pre-requisites
 
-- Go version **go1.23**
+- Go version **go1.24**
 - operator-sdk version can be updated to **v1.37.0**
 
 #### Download manifests

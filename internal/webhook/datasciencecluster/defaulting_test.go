@@ -1,7 +1,6 @@
 package datasciencecluster_test
 
 import (
-	"context"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -33,7 +32,7 @@ func ptrString(s string) *string {
 func TestDefaulter_DefaultingLogic(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	testCases := []struct {
 		name                string

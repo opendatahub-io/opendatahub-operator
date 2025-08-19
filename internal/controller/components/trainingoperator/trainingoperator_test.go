@@ -2,7 +2,6 @@
 package trainingoperator
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -94,7 +93,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 
 	t.Run("should handle enabled component with ready TrainingOperator CR", func(t *testing.T) {
 		g := NewWithT(t)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		dsc := createDSCWithTrainingOperator(operatorv1.Managed)
 		trainingoperator := createTrainingOperatorCR(true)
@@ -122,7 +121,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 
 	t.Run("should handle enabled component with not ready TrainingOperator CR", func(t *testing.T) {
 		g := NewWithT(t)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		dsc := createDSCWithTrainingOperator(operatorv1.Managed)
 		trainingoperator := createTrainingOperatorCR(false)
@@ -150,7 +149,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 
 	t.Run("should handle disabled component", func(t *testing.T) {
 		g := NewWithT(t)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		dsc := createDSCWithTrainingOperator(operatorv1.Removed)
 
@@ -177,7 +176,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 
 	t.Run("should handle empty management state as Removed", func(t *testing.T) {
 		g := NewWithT(t)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		dsc := createDSCWithTrainingOperator("")
 

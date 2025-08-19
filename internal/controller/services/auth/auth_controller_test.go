@@ -1,7 +1,6 @@
 package auth_test
 
 import (
-	"context"
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -125,7 +124,7 @@ func TestServiceHandler_Init(t *testing.T) {
 // This is critical for security because it determines whether the operator will
 // automatically create admin groups that could grant elevated access.
 func TestIsDefaultAuthMethod(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name           string
