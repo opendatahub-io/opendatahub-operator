@@ -166,6 +166,7 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 			conditions.WithReason(status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason),
 			conditions.WithMessage(status.MetricsNotConfiguredMessage+"\n"+status.TracesNotConfiguredMessage),
 		)
+
 		return nil
 	}
 
