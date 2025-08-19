@@ -330,14 +330,14 @@ func setManagedMonitoringNamespace(ctx context.Context, cli client.Client) error
 	if err != nil {
 		return err
 	}
-
-	switch platform {
-	case ManagedRhoai:
-		viper.Set("dsc-monitoring-namespace", DefaultMonitoringNamespaceRHOAI)
-	case SelfManagedRhoai:
-		viper.Set("dsc-monitoring-namespace", DefaultMonitoringNamespaceRHOAI)
-	default:
-		viper.Set("dsc-monitoring-namespace", DefaultMonitoringNamespaceODH)
+	ok := viper.IsSet("dsc-monitoring-namespace")
+	if !ok {
+		switch platform {
+		case ManagedRhoai, SelfManagedRhoai:
+			viper.Set("dsc-monitoring-namespace", DefaultMonitoringNamespaceRHOAI)
+		default:
+			viper.Set("dsc-monitoring-namespace", DefaultMonitoringNamespaceODH)
+		}
 	}
 	return nil
 }
