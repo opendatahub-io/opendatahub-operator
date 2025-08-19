@@ -43,6 +43,7 @@ var (
 	conditionTypes = []string{
 		status.ConditionServingAvailable,
 		status.ConditionDeploymentsAvailable,
+		status.ConditionKserveConfigurationOptimal,
 	}
 )
 

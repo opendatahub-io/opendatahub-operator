@@ -479,3 +479,27 @@ func TestCleanUpTemplatedResources_withoutAuthorino(t *testing.T) {
 		),
 	)
 }
+func TestCheckConfigurationOptimal(t *testing.T) {
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ks := componentApi.Kserve{}
+	ks.Spec.DefaultDeploymentMode = componentApi.RawDeployment
+	ks.Spec.Serving.ManagementState = operatorv1.Managed
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &ks,
+		Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+	}
+
+	checkConfigurationOptimal(ctx, &rr, &ks, componentApi.RawDeployment)
+	g.Expect(&ks).Should(
+		WithTransform(resources.ToUnstructured, And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionKserveConfigurationOptimal, metav1.ConditionFalse),
+		)),
+	)
+}
