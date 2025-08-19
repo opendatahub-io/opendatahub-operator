@@ -72,4 +72,5 @@ catalog/
 config/crd/bases
 config/crd/role.yaml
 config/crd/external
+config/webhook/manifests.yaml
 bundle/
