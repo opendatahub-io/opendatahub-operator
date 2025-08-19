@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -307,7 +306,7 @@ func (tc *AuthControllerTestCtx) ValidateCELBlocksInvalidGroupsViaUpdate(t *test
 			invalidAuth.Spec.AllowedGroups = testCase.allowedGroups
 
 			// Try to update with invalid values - this should fail
-			ctx := context.Background()
+			ctx := t.Context()
 			err = tc.Client().Update(ctx, invalidAuth)
 
 			// The update should fail with CEL validation error
@@ -371,7 +370,7 @@ func (tc *AuthControllerTestCtx) ValidateCELAllowsValidGroups(t *testing.T) {
 			// Test that CEL validation allows this valid update
 			tc.EventuallyResourceCreatedOrUpdated(
 				WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
-				WithMutateFunc(testf.Transform(testCase.transform)),
+				WithMutateFunc(testf.Transform("%s", testCase.transform)),
 				WithCustomErrorMsg(testCase.description),
 			)
 		})

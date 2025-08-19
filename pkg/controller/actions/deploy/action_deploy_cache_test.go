@@ -1,7 +1,6 @@
 package deploy_test
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -123,7 +122,7 @@ func testResourceNotReDeployed(t *testing.T, cli client.Client, obj client.Objec
 	t.Helper()
 
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	in, err := resources.ToUnstructured(obj)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -204,7 +203,7 @@ func testCacheTTL(t *testing.T, cli client.Client, obj client.Object) {
 	t.Helper()
 
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	in, err := resources.ToUnstructured(obj)
 	g.Expect(err).ShouldNot(HaveOccurred())
