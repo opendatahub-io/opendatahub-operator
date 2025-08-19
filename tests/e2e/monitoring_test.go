@@ -51,12 +51,12 @@ func monitoringTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Auto creation of Monitoring CR", monitoringServiceCtx.ValidateMonitoringCRCreation},
 		{"Test Monitoring CR content default value", monitoringServiceCtx.ValidateMonitoringCRDefaultContent},
+		{"Test Traces default content", monitoringServiceCtx.ValidateMonitoringCRDefaultTracesContent},
 		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringStackCRMetricsWhenSet},
 		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsConfiguration},
 		{"Test Metrics Replicas Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsReplicasUpdate},
 		{"Test Prometheus Rule Creation", monitoringServiceCtx.ValidatePrometheusRuleCreation},
 		{"Test Prometheus Rule Deletion", monitoringServiceCtx.ValidatePrometheusRuleDeletion},
-		{"Test Traces default content", monitoringServiceCtx.ValidateMonitoringCRDefaultTracesContent},
 		{"Test TempoMonolithic CR Creation with PV backend", monitoringServiceCtx.ValidateTempoMonolithicCRCreation},
 		{"Test TempoStack CR Creation with S3 backend", monitoringServiceCtx.ValidateTempoStackCRCreationWithS3},
 		{"Test TempoStack CR Creation with GCS backend", monitoringServiceCtx.ValidateTempoStackCRCreationWithGCS},
@@ -65,6 +65,8 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test OpenTelemetry Collector Custom Metrics Exporters", monitoringServiceCtx.ValidateOpenTelemetryCollectorCustomMetricsExporters},
 		{"Test Instrumentation CR Traces Creation", monitoringServiceCtx.ValidateInstrumentationCRTracesWhenSet},
 		{"Test Instrumentation CR Traces Configuration", monitoringServiceCtx.ValidateInstrumentationCRTracesConfiguration},
+		{"Test OpenTelemetry Collector Custom Traces Exporters", monitoringServiceCtx.ValidateOpenTelemetryCollectorCustomTracesExporters},
+		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
 		{"Test MonitoringStack CR Deletion", monitoringServiceCtx.ValidateMonitoringStackCRDeleted},
 		{"Test Monitoring CR Deletion", monitoringServiceCtx.ValidateMonitoringCRDeleted},
 	}
@@ -156,7 +158,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *te
 		WithCondition(And(
 			// Validate storage size is set to 5Gi
 			jq.Match(`.spec.prometheusConfig.persistentVolumeClaim.resources.requests.storage == "%s"`, "5Gi"),
-			// Validate storage retention is set to 1d
+			// Validate storage retention is set to 90d
 			jq.Match(`.spec.retention == "%s"`, "90d"),
 			// Validate CPU request is set to 250m
 			jq.Match(`.spec.resources.requests.cpu == "%s"`, "250m"),
@@ -212,7 +214,12 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
 	// Set metrics to empty object
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring = %s`, `{metrics: {}, managementState: "Managed"}`)),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, "Managed"),
+			testf.Transform(`.spec.monitoring.metrics = null`),
+			testf.Transform(`.spec.monitoring.traces = null`),
+			testf.Transform(`.spec.monitoring.namespace = "%s"`, dsci.Spec.Monitoring.Namespace),
+		)),
 	)
 
 	// Verify MonitoringStack CR is deleted by gc
@@ -273,6 +280,84 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorTracesConfiguration(t
 		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: "data-science-collector", Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithCondition(jq.Match(`.spec.config.service.pipelines | has("traces")`)),
 	)
+
+	// Cleanup: Reset DSCInitialization traces configuration to prevent state contamination
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorCustomTracesExporters(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Set traces configuration with custom exporters
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = %s`, `{
+			storage: {backend: "pv"},
+			exporters: {
+				"debug": {
+					verbosity: "detailed"
+				},
+				"otlphttp/custom": {
+					endpoint: "http://custom-endpoint:4318",
+					headers: {
+						"api-key": "secret-key"
+					}
+				}
+			}
+		}`)),
+	)
+
+	// Validate that the OpenTelemetry collector has the custom exporters configured
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: "data-science-collector", Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(jq.Match(`.spec.config.exporters | has("debug")`)),
+		WithCondition(jq.Match(`.spec.config.exporters | has("otlphttp/custom")`)),
+		WithCondition(jq.Match(`.spec.config.exporters | has("otlp/tempo")`)), // Default tempo exporter should still exist
+		WithCondition(jq.Match(`.spec.config.service.pipelines.traces.exporters | contains(["debug"])`)),
+		WithCondition(jq.Match(`.spec.config.service.pipelines.traces.exporters | contains(["otlphttp/custom"])`)),
+		WithCondition(jq.Match(`.spec.config.service.pipelines.traces.exporters | contains(["otlp/tempo"])`)),
+	)
+
+	// Cleanup: Reset DSCInitialization traces configuration to prevent state contamination
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateTracesExportersReservedNameValidation(t *testing.T) {
+	t.Helper()
+
+	// Attempt to set traces configuration with a reserved exporter name
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = %s`, `{
+			storage: {backend: "pv"},
+			exporters: {
+				"otlp/tempo": {
+					endpoint: "http://malicious-endpoint:4317"
+				}
+			}
+		}`)),
+	)
+
+	// Validate that the Monitoring resource reports an error condition due to reserved name
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse)),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("reserved")`, status.ConditionTypeProvisioningSucceeded)),
+	)
+
+	// Cleanup: Reset DSCInitialization traces configuration to clear the error state
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
+	)
 }
 
 func getTempoMonolithicName() string {
@@ -309,6 +394,7 @@ func setMonitoringTraces(backend, secret, size, retention string) testf.Transfor
 			"storage": map[string]interface{}{
 				"backend": backend,
 			},
+			"exporters": map[string]interface{}{},
 		}
 
 		if size != "" {
@@ -399,6 +485,18 @@ func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRCreation(t *testing.T) {
 		),
 		WithCustomErrorMsg("TempoMonolithic CR should be created when traces are configured"),
 	)
+
+	// Cleanup: Reset DSCInitialization traces configuration and delete TempoMonolithic
+	// This ensures proper test isolation and prevents state contamination between tests
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
+	)
+
+	tc.DeleteResource(
+		WithMinimalObject(gvk.TempoMonolithic, types.NamespacedName{Name: tempoMonolithicName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithWaitForDeletion(true),
+	)
 }
 
 // ValidateTempoStackCRCreationWithS3 tests creation of TempoStack CR with S3 backend.
@@ -458,6 +556,12 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesWhenSet(t *testing.T
 		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: "data-science-instrumentation", Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithCustomErrorMsg("Instrumentation CR should be created when traces are configured"),
 	)
+
+	// Cleanup: Reset DSCInitialization traces configuration to prevent state contamination
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
+	)
 }
 
 // ValidateInstrumentationCRTracesConfiguration validates the content of the Instrumentation CR with Traces.
@@ -503,6 +607,12 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesConfiguration(t *tes
 				jq.Match(`.metadata.ownerReferences[0].name == "%s"`, "default-monitoring"),
 			),
 		),
+	)
+
+	// Cleanup: Reset DSCInitialization traces configuration to prevent state contamination
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
 	)
 }
 
@@ -571,7 +681,17 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(
 		),
 	)
 
-	// Making sure it get deleted at the end of the test
+	// Cleanup: Reset DSCInitialization traces configuration, delete TempoStack and secret
+	// This ensures proper test isolation and prevents state contamination between tests
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
+	)
+
+	tc.DeleteResource(
+		WithMinimalObject(gvk.TempoStack, types.NamespacedName{Name: tempoStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithWaitForDeletion(true),
+	)
 	tc.DeleteResource(
 		WithMinimalObject(gvk.Secret, types.NamespacedName{Name: secretName, Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithWaitForDeletion(true),
@@ -630,11 +750,12 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRuleCreation(t *testing.T) {
 
 	dsci := tc.FetchDSCInitialization()
 
-	// Update DSCI to enable alerting
+	// Update DSCI to enable alerting (requires metrics to be configured per validation rule)
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringMetrics(),
 			testf.Transform(`.spec.monitoring.alerting = {}`),
 		)),
 	)
@@ -687,6 +808,13 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRuleDeletion(t *testing.T) {
 	// Ensure the dashboard-prometheusrules is deleted
 	tc.EnsureResourceGone(
 		WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: dsci.Spec.Monitoring.Namespace}),
+	)
+
+	// Cleanup: Remove alerting configuration from DSCInitialization to prevent validation issues
+	// This ensures that subsequent tests can set metrics=null without violating the validation rule
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.alerting = null`)),
 	)
 }
 
