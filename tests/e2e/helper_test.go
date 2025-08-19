@@ -128,7 +128,7 @@ func ExtractAndExpectValue[T any](g Gomega, in any, expression string, matchers 
 }
 
 // CreateDSCI creates a DSCInitialization CR.
-func CreateDSCI(name, appNamespace string) *dsciv1.DSCInitialization {
+func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv1.DSCInitialization {
 	return &dsciv1.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
@@ -144,7 +144,7 @@ func CreateDSCI(name, appNamespace string) *dsciv1.DSCInitialization {
 					ManagementState: operatorv1.Removed, // keep rhoai branch to Managed so we can test it
 				},
 				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
-					Namespace: appNamespace,
+					Namespace: monitoringNamespace,
 				},
 			},
 			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
