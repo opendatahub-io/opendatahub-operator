@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -e
 
+# Check if we should skip manifest fetching (used in Docker builds when manifests are pre-populated)
+if [[ "${SKIP_MANIFESTS_FETCH:-false}" == "true" ]]; then
+    echo "SKIP_MANIFESTS_FETCH is set to true, skipping manifest fetching"
+    exit 0
+fi
+
 GITHUB_URL="https://github.com"
 
 # COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
@@ -94,6 +100,13 @@ download_manifest() {
 
     repo_url="${GITHUB_URL}/${repo_org}/${repo_name}"
     repo_dir=${TMP_DIR}/${key}
+
+    if [[ -v LOCAL_MODE ]] && [[ -e ../${repo_name} ]]; then
+        echo "copying from adjacent checkout ..."
+        mkdir -p ./opt/manifests/${target_path}
+        cp -rf "../${repo_name}/${source_path}"/* ./opt/manifests/${target_path}
+        return
+    fi
 
     git_fetch_ref ${repo_url} ${repo_ref} ${repo_dir}
 
