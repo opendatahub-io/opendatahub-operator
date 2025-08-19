@@ -71,4 +71,5 @@ catalog/
 # Ignore generated files
 config/crd/bases
 config/crd/role.yaml
+config/crd/external
 bundle/
