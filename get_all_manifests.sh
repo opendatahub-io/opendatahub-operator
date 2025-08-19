@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-# Check if we should skip manifest fetching (used in Docker builds when manifests are pre-populated)
-if [[ "${SKIP_MANIFESTS_FETCH:-false}" == "true" ]]; then
-    echo "SKIP_MANIFESTS_FETCH is set to true, skipping manifest fetching"
-    exit 0
-fi
-
 GITHUB_URL="https://github.com"
 
 # COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
