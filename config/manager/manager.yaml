@@ -73,7 +73,7 @@ spec:
         args:
         - --leader-elect
         - --operator-name=opendatahub
-        image: controller:latest
+        image: REPLACE_IMAGE:latest
         imagePullPolicy: Always
         name: manager
         ports:
