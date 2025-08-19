@@ -43,6 +43,7 @@ var (
 	conditionTypes = []string{
 		status.ConditionServingAvailable,
 		status.ConditionDeploymentsAvailable,
+		status.ConditionKserveConfigurationOptimal,
 	}
 )
 
@@ -123,16 +124,6 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	if s.IsEnabled(dsc) {
 		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.Kserve.KserveCommonStatus = c.Status.KserveCommonStatus.DeepCopy()
-
-		if dsc.Spec.Components.Kserve.Serving.ManagementState == operatorv1.Managed &&
-			dsc.Spec.Components.Kserve.DefaultDeploymentMode == componentApi.RawDeployment {
-			rr.Conditions.MarkFalse(
-				"ConfigurationOptimal",
-				conditions.WithReason("ConflictingDeploymentMode"),
-				conditions.WithMessage("Serving is managed but defaultDeploymentMode is set to RawDeployment - this may not provide the expected serverless experience"),
-				conditions.WithSeverity(common.ConditionSeverityWarning),
-			)
-		}
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
 			rr.Conditions.MarkFrom(ReadyConditionType, *rc)

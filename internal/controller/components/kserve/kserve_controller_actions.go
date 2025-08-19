@@ -376,13 +376,8 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 			defaultmode = k.Spec.DefaultDeploymentMode
 		}
 
-		// Warn about suboptimal configuration when using RawDeployment with Managed serving
-		if defaultmode == componentApi.RawDeployment && k.Spec.Serving.ManagementState == operatorv1.Managed {
-			logger.Info("KServe configuration may be suboptimal",
-				"defaultDeploymentMode", string(defaultmode),
-				"serving.managementState", string(k.Spec.Serving.ManagementState),
-				"recommendation", "Consider setting serving.managementState to Removed to save resources")
-		}
+		// Check configuration optimality for managed/unmanaged serving
+		checkConfigurationOptimal(ctx, rr, k, defaultmode)
 
 		if err := updateInferenceCM(&kserveConfigMap, defaultmode, serviceClusterIPNone); err != nil {
 			return err
@@ -452,4 +447,26 @@ func setStatusFields(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		k.Status.ServerlessMode = operatorv1.Managed
 	}
 	return nil
+}
+
+// checkConfigurationOptimal evaluates KServe configuration optimality and sets the ConfigurationOptimal condition.
+// It logs warnings and sets condition to False when serving is managed but using RawDeployment mode,
+// which wastes resources on unused serverless components. Otherwise, it sets the condition to True.
+func checkConfigurationOptimal(ctx context.Context, rr *odhtypes.ReconciliationRequest, k *componentApi.Kserve, deploymentMode componentApi.DefaultDeploymentMode) {
+	logger := logf.FromContext(ctx)
+
+	// Check for suboptimal configuration: managed serving with RawDeployment mode
+	if deploymentMode == componentApi.RawDeployment && k.Spec.Serving.ManagementState == operatorv1.Managed {
+		logger.Info("KServe configuration may be suboptimal",
+			"defaultDeploymentMode", string(deploymentMode),
+			"serving.managementState", string(k.Spec.Serving.ManagementState),
+			"recommendation", "Consider setting serving.managementState to Removed to save resources")
+
+		rr.Conditions.MarkFalse(
+			status.ConditionKserveConfigurationOptimal,
+			conditions.WithReason(status.ConfigurationSubOptimalReason),
+			conditions.WithMessage(status.ConfigurationSubOptimalMessage),
+			conditions.WithSeverity(common.ConditionSeverityWarning),
+		)
+	}
 }
