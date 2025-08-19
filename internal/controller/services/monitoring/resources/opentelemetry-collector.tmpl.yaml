@@ -148,13 +148,17 @@ spec:
       otlp/tempo:
         endpoint: {{.TempoEndpoint}}
         tls:
-          ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
-        auth:
-          authenticator: bearertokenauth
+          insecure: true # needs to be changed to include tls
         headers:
           # must be set to the tenant name from tempo CR
-          X-Scope-OrgID: {{.Namespace}}
+          X-Scope-OrgID: {{ .Namespace }}
+      {{- if .TracesExporters }}
+      {{- range $name, $yamlConfig := .TracesExporters }}
+      {{ $name }}:
+{{ $yamlConfig | indent 8 }}
       {{- end }}
+      {{- end }}
+      {{ end }}
     service:
       telemetry:
         metrics:
@@ -171,9 +175,9 @@ spec:
         traces:
           receivers: [otlp]
           processors: [memory_limiter, k8sattributes, resourcedetection, batch]
-          exporters: [otlp/tempo]
-      {{- end }}
-      {{- if .Metrics }}
+          exporters: [otlp/tempo{{ if .TracesExporters }}{{ range $name, $config := .TracesExporters }}, {{ $name }}{{ end }}{{ end }}]
+      {{ end }}
+      {{ if .Metrics }}
         metrics:
           receivers: [prometheus, otlp]
           processors: [memory_limiter, k8sattributes, resourcedetection, batch]

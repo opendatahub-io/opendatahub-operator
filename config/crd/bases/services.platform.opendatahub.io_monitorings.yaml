@@ -160,6 +160,15 @@ spec:
               traces:
                 description: Tracing configuration for OpenTelemetry instrumentation
                 properties:
+                  exporters:
+                    additionalProperties:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: |-
+                      Exporters defines custom trace exporters for sending traces to external observability tools.
+                      Each key represents the exporter name, and the value contains the exporter configuration.
+                      The configuration follows the OpenTelemetry Collector exporter format.
+                    type: object
                   sampleRatio:
                     default: "0.1"
                     description: |-

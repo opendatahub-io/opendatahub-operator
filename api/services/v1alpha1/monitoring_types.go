@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
 const (
@@ -98,6 +99,11 @@ type Traces struct {
 	// +kubebuilder:default="0.1"
 	// +kubebuilder:validation:Pattern="^(0(\\.[0-9]+)?|1(\\.0+)?)$"
 	SampleRatio string `json:"sampleRatio,omitempty"`
+	// Exporters defines custom trace exporters for sending traces to external observability tools.
+	// Each key represents the exporter name, and the value contains the exporter configuration.
+	// The configuration follows the OpenTelemetry Collector exporter format.
+	// +optional
+	Exporters map[string]runtime.RawExtension `json:"exporters,omitempty"`
 }
 
 // TracesStorage defines the storage configuration for tracing.
