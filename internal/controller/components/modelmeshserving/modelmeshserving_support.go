@@ -24,7 +24,8 @@ var (
 		"odh-modelmesh-runtime-adapter": "RELATED_IMAGE_ODH_MODELMESH_RUNTIME_ADAPTER_IMAGE",
 		"odh-modelmesh":                 "RELATED_IMAGE_ODH_MODELMESH_IMAGE",
 		"odh-modelmesh-controller":      "RELATED_IMAGE_ODH_MODELMESH_CONTROLLER_IMAGE",
-		"ose-etcd":                      "RELATED_IMAGE_OSE_ETCD_IMAGE",
+		"etcd":                          "RELATED_IMAGE_ETCD_IMAGE",
+		"ose-cli":                       "RELATED_IMAGE_OSE_CLI_IMAGE",
 	}
 
 	conditionTypes = []string{
