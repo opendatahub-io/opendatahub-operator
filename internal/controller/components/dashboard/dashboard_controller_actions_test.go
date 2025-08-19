@@ -2,7 +2,6 @@
 package dashboard
 
 import (
-	"context"
 	"testing"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,7 +20,7 @@ import (
 )
 
 func TestMigrateHardwareProfiles(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	fakeSchema, err := scheme.New()
@@ -84,7 +83,7 @@ func TestMigrateHardwareProfiles(t *testing.T) {
 }
 
 func TestCreateInfraHardwareProfile(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	fakeSchema, err := scheme.New()
