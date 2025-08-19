@@ -1,7 +1,6 @@
 package dscinitialization_test
 
 import (
-	"context"
 	"testing"
 
 	admissionv1 "k8s.io/api/admission/v1"
@@ -24,7 +23,7 @@ import (
 func TestDSCInitialization_ValidatingWebhook(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	sch, err := scheme.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
