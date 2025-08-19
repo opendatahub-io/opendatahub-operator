@@ -5,18 +5,17 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"strings"
 	gt "text/template"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"sigs.k8s.io/yaml"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/resourcecacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	templateutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/template"
 )
 
 const (
@@ -128,32 +127,7 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (r
 	var buffer bytes.Buffer
 
 	for i := range rr.Templates {
-		// Register custom helpers before parsing so templates can reference them
-		funcMap := gt.FuncMap{
-			"toYaml": func(v any) (string, error) {
-				out, err := yaml.Marshal(v)
-				if err != nil {
-					return "", fmt.Errorf("toYaml: %w", err)
-				}
-				return strings.TrimSuffix(string(out), "\n"), nil
-			},
-			// nindent indents an already-rendered multiline string (e.g. output of toYaml)
-			"nindent": func(indent int, s string) string {
-				if s == "" {
-					return ""
-				}
-				indentStr := strings.Repeat(" ", indent)
-				lines := strings.Split(strings.TrimSuffix(s, "\n"), "\n")
-				for i := range lines {
-					if lines[i] != "" { // Don't indent empty lines
-						lines[i] = indentStr + lines[i]
-					}
-				}
-				return strings.Join(lines, "\n")
-			},
-		}
-		base := gt.New("collector").Funcs(funcMap).Option("missingkey=error")
-		tmpl, err := base.ParseFS(rr.Templates[i].FS, rr.Templates[i].Path)
+		tmpl, err := gt.New("").Option("missingkey=error").Funcs(templateutils.TextTemplateFuncMap()).ParseFS(rr.Templates[i].FS, rr.Templates[i].Path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse template from: %w", err)
 		}
