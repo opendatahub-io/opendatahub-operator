@@ -44,7 +44,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	GO_RUN_ARGS=-tags=odh
 else
 	ifeq ($(VERSION), )
-		VERSION ?= 2.23.0
+		VERSION ?= 2.24.0
 	endif
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
 	CHANNELS ?= alpha,stable,fast
