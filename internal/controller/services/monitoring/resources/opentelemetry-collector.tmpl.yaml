@@ -6,6 +6,22 @@ metadata:
 spec:
   replicas: {{.CollectorReplicas}}
   mode: deployment
+  resources:
+    limits:
+      cpu: {{.CollectorCPULimit}}
+      memory: {{.CollectorMemoryLimit}}
+    requests:
+      cpu: {{.CollectorCPURequest}}
+      memory: {{.CollectorMemoryRequest}}
+  volumeMounts:
+    - name: tls-certs
+      mountPath: /etc/otel-collector/tls
+      readOnly: true
+  volumes:
+    - name: tls-certs
+      secret:
+        secretName: data-science-collector-collector-headless-tls
+        optional: true
   config:
     extensions:
       bearertokenauth:

@@ -3348,6 +3348,7 @@ _Appears in:_
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
+| `resources` _[SharedResources](#sharedresources)_ | Resources defines the resource requests and limits for shared monitoring components |  |  |
 
 
 #### GatewayConfig
@@ -3462,10 +3463,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `cpulimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPULimit specifies the maximum CPU allocation (e.g., "500m", "2") | 500m |  |
-| `memorylimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi") | 512Mi |  |
-| `cpurequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5") | 100m |  |
-| `memoryrequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi") | 256Mi |  |
+| `monitoringStackCPULimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPULimit specifies the maximum CPU allocation (e.g., "500m", "2") | 500m |  |
+| `monitoringStackCPURequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5") | 100m |  |
+| `monitoringStackMemoryLimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi") | 512Mi |  |
+| `monitoringStackMemoryRequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi") | 256Mi |  |
 
 
 #### MetricsStorage
@@ -3526,6 +3527,7 @@ _Appears in:_
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
+| `resources` _[SharedResources](#sharedresources)_ | Resources defines the resource requests and limits for shared monitoring components |  |  |
 
 
 #### MonitoringList
@@ -3566,6 +3568,7 @@ _Appears in:_
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
+| `resources` _[SharedResources](#sharedresources)_ | Resources defines the resource requests and limits for shared monitoring components |  |  |
 
 
 #### MonitoringStatus
@@ -3718,6 +3721,46 @@ _Appears in:_
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
+#### SharedResources
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
+- [MonitoringSpec](#monitoringspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `collectorCPULimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CollectorCPULimit specifies the maximum CPU allocation for the opentelemetry-collector (e.g., "1", "2") | 1 |  |
+| `collectorCPURequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CollectorCPURequest specifies the minimum CPU allocation for the opentelemetry-collector (e.g., "100m", "0.5") | 100m |  |
+| `collectorMemoryLimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CollectorMemoryLimit specifies the maximum memory allocation for the opentelemetry-collector (e.g., "256Mi", "512Mi") | 256Mi |  |
+| `collectorMemoryRequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CollectorMemoryRequest specifies the minimum memory allocation for the opentelemetry-collector (e.g., "256Mi", "1Gi") | 256Mi |  |
+
+
+#### TempoResources
+
+
+
+
+
+
+
+_Appears in:_
+- [Traces](#traces)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `tempoStackCPULimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | TempoStackCPULimit specifies the maximum CPU allocation for the tempo-stack (e.g., "1", "2") | 1 |  |
+| `tempoStackCPURequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | TempoStackCPURequest specifies the minimum CPU allocation for the tempo-stack (e.g., "100m", "0.5") | 100m |  |
+| `tempoStackMemoryLimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | TempoStackMemoryLimit specifies the maximum memory allocation for the tempo-stack (e.g., "1Gi", "512Mi") | 256Mi |  |
+| `tempoStackMemoryRequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | TempoStackMemoryRequest specifies the minimum memory allocation for the tempo-stack (e.g., "256Mi", "1Gi") | 256Mi |  |
+
+
 #### Traces
 
 
@@ -3737,6 +3780,7 @@ _Appears in:_
 | `sampleRatio` _string_ | SampleRatio determines the sampling rate for traces<br />Value should be between 0.0 (no sampling) and 1.0 (sample all traces) | 0.1 | Pattern: `^(0(\.[0-9]+)?\|1(\.0+)?)$` <br /> |
 | `tls` _[TracesTLS](#tracestls)_ | TLS configuration for Tempo gRPC connections |  |  |
 | `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines custom trace exporters for sending traces to external observability tools.<br />Each key represents the exporter name, and the value contains the exporter configuration.<br />The configuration follows the OpenTelemetry Collector exporter format. |  |  |
+| `tempoResources` _[TempoResources](#temporesources)_ | TempoResources defines the resource requests and limits for the tempo-stack |  |  |
 
 
 #### TracesStorage

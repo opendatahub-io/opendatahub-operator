@@ -342,13 +342,13 @@ func TestGetTemplateDataAcceleratorMetricsWithMetricsConfiguration(t *testing.T)
 		},
 		Spec: serviceApi.MonitoringSpec{
 			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+				Resources: &serviceApi.SharedResources{},
 				Namespace: "test-namespace",
 				Metrics: &serviceApi.Metrics{
 					Replicas: 2,
 					Storage: &serviceApi.MetricsStorage{
 						Retention: "7d",
 					},
-					Resources: &serviceApi.MetricsResources{},
 				},
 			},
 		},

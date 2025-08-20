@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	k8sResource "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -34,13 +35,31 @@ const (
 	clusterObservabilityOperator = "cluster-observability-operator"
 	tempoOperator                = "tempo-operator"
 
-	defaultCPULimit      = "500m"
-	defaultMemoryLimit   = "512Mi"
-	defaultCPURequest    = "100m"
-	defaultMemoryRequest = "256Mi"
-	defaultStorageSize   = "5Gi"
-	defaultRetention     = "90d"
+	defaultStorageSize = "5Gi"
+	defaultRetention   = "90d"
 )
+
+// Define default values for when resource is nil.
+var defaultResources = map[string]map[string]string{
+	"MonitoringStack": {
+		"CPULimit":      "1",
+		"CPURequest":    "100m",
+		"MemoryLimit":   "512Mi",
+		"MemoryRequest": "512Mi",
+	},
+	"Collector": {
+		"CPULimit":      "1",
+		"CPURequest":    "100m",
+		"MemoryLimit":   "256Mi",
+		"MemoryRequest": "256Mi",
+	},
+	"TempoStack": {
+		"CPULimit":      "1",
+		"CPURequest":    "100m",
+		"MemoryLimit":   "256Mi",
+		"MemoryRequest": "256Mi",
+	},
+}
 
 var componentIDRE = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z0-9][A-Za-z0-9_-]*)?$`)
 
@@ -162,6 +181,9 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		if err := addMetricsData(ctx, rr, metrics, templateData); err != nil {
 			return nil, err
 		}
+		if err := setResourceValues(monitoring, templateData, "MonitoringStack"); err != nil {
+			return nil, err
+		}
 	}
 
 	// Add traces-related data if traces are configured
@@ -170,9 +192,20 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		if err := addTracesTemplateData(templateData, traces, monitoring.Spec.Namespace); err != nil {
 			return nil, err
 		}
+		if err := setResourceValues(monitoring, templateData, "TempoStack"); err != nil {
+			return nil, err
+		}
 	}
 
-	templateData["CollectorReplicas"] = monitoring.Spec.CollectorReplicas
+	if err := setResourceValues(monitoring, templateData, "Collector"); err != nil {
+		return nil, err
+	}
+
+	// if metrics or traces are configured, set collector replicas
+	if (monitoring.Spec.Metrics != nil && (monitoring.Spec.Metrics.Storage != nil || monitoring.Spec.Metrics.Resources != nil)) ||
+		monitoring.Spec.Traces != nil {
+		templateData["CollectorReplicas"] = monitoring.Spec.CollectorReplicas
+	}
 
 	return templateData, nil
 }
@@ -304,26 +337,9 @@ func cleanupPrometheusRules(ctx context.Context, componentName string, rr *odhty
 
 // addMetricsData adds metrics configuration data to the template data map.
 func addMetricsData(ctx context.Context, rr *odhtypes.ReconciliationRequest, metrics *serviceApi.Metrics, templateData map[string]any) error {
-	addResourceData(metrics, templateData)
 	addStorageData(metrics, templateData)
 	addReplicasData(ctx, rr, metrics, templateData)
 	return addExportersData(metrics, templateData)
-}
-
-// addResourceData adds resource configuration data to the template data map.
-func addResourceData(metrics *serviceApi.Metrics, templateData map[string]any) {
-	if metrics.Resources != nil {
-		templateData["CPULimit"] = getResourceValueOrDefault(metrics.Resources.CPULimit.String(), defaultCPULimit)
-		templateData["MemoryLimit"] = getResourceValueOrDefault(metrics.Resources.MemoryLimit.String(), defaultMemoryLimit)
-		templateData["CPURequest"] = getResourceValueOrDefault(metrics.Resources.CPURequest.String(), defaultCPURequest)
-		templateData["MemoryRequest"] = getResourceValueOrDefault(metrics.Resources.MemoryRequest.String(), defaultMemoryRequest)
-	} else {
-		// Use defaults when Resources is nil
-		templateData["CPULimit"] = defaultCPULimit
-		templateData["MemoryLimit"] = defaultMemoryLimit
-		templateData["CPURequest"] = defaultCPURequest
-		templateData["MemoryRequest"] = defaultMemoryRequest
-	}
 }
 
 // addStorageData adds storage configuration data to the template data map.
@@ -467,4 +483,58 @@ func isReservedExporterName(name string) bool {
 	default:
 		return false
 	}
+}
+func setResourceValues(monitoring *serviceApi.Monitoring, templateData map[string]any, component string) error {
+	// Define resource getters for each monitoring component
+	resourceGetters := map[string]func() (cpu_limit, cpu_req, mem_limit, mem_req k8sResource.Quantity, hasResources bool){
+		"MonitoringStack": func() (k8sResource.Quantity, k8sResource.Quantity, k8sResource.Quantity, k8sResource.Quantity, bool) {
+			if monitoring.Spec.Metrics != nil && monitoring.Spec.Metrics.Resources != nil {
+				r := monitoring.Spec.Metrics.Resources
+				return r.MonitoringStackCPULimit, r.MonitoringStackCPURequest,
+					r.MonitoringStackMemoryLimit, r.MonitoringStackMemoryRequest, true
+			}
+			return k8sResource.Quantity{}, k8sResource.Quantity{}, k8sResource.Quantity{}, k8sResource.Quantity{}, false
+		},
+		"Collector": func() (k8sResource.Quantity, k8sResource.Quantity, k8sResource.Quantity, k8sResource.Quantity, bool) {
+			if monitoring.Spec.Resources != nil {
+				r := monitoring.Spec.Resources
+				return r.CollectorCPULimit, r.CollectorCPURequest,
+					r.CollectorMemoryLimit, r.CollectorMemoryRequest, true
+			}
+			return k8sResource.Quantity{}, k8sResource.Quantity{}, k8sResource.Quantity{}, k8sResource.Quantity{}, false
+		},
+		"TempoStack": func() (k8sResource.Quantity, k8sResource.Quantity, k8sResource.Quantity, k8sResource.Quantity, bool) {
+			if monitoring.Spec.Traces != nil && monitoring.Spec.Traces.TempoResources != nil {
+				r := monitoring.Spec.Traces.TempoResources
+				return r.TempoStackCPULimit, r.TempoStackCPURequest,
+					r.TempoStackMemoryLimit, r.TempoStackMemoryRequest, true
+			}
+			return k8sResource.Quantity{}, k8sResource.Quantity{}, k8sResource.Quantity{}, k8sResource.Quantity{}, false
+		},
+	}
+
+	getter, exists := resourceGetters[component]
+	if !exists {
+		return fmt.Errorf("monitoring component %s not found in resourceGetters", component)
+	}
+
+	cpuLimit, cpuReq, memLimit, memReq, hasResources := getter()
+
+	if !hasResources {
+		// Use defaults when resources are not configured
+		if componentDefaults, exists := defaultResources[component]; exists {
+			for key, value := range componentDefaults {
+				templateData[component+key] = value
+			}
+		}
+		return nil
+	}
+
+	// Use the configured resource values
+	templateData[component+"CPULimit"] = cpuLimit.String()
+	templateData[component+"CPURequest"] = cpuReq.String()
+	templateData[component+"MemoryLimit"] = memLimit.String()
+	templateData[component+"MemoryRequest"] = memReq.String()
+
+	return nil
 }
