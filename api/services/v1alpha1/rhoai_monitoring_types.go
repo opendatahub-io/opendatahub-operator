@@ -57,7 +57,7 @@ type MetricsStorage struct {
 	// +kubebuilder:default="5Gi"
 	Size resource.Quantity `json:"size,omitempty"`
 	// Retention specifies how long metrics data should be retained (e.g., "1d", "2w")
-	// +kubebuilder:default="1d"
+	// +kubebuilder:default="90d"
 	Retention string `json:"retention,omitempty"`
 }
 
@@ -95,8 +95,8 @@ type Traces struct {
 }
 
 // TracesStorage defines the storage configuration for tracing.
-// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? has(self.secret) : true",message="When backend is not 'pv', the 'secret' field must be specified and non-empty"
-// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? !has(self.size) : true",message="Size is not supported when backend is not 'pv'"
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? has(self.secret) : true", message="When backend is s3 or gcs, the 'secret' field must be specified and non-empty"
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? !has(self.size) : true", message="Size is supported when backend is pv only"
 type TracesStorage struct {
 	// Backend defines the storage backend type.
 	// Valid values are "pv", "s3", and "gcs".
@@ -113,6 +113,10 @@ type TracesStorage struct {
 	// This field is required when the backend is not "pv".
 	// +optional
 	Secret string `json:"secret,omitempty"`
+
+	// Retention specifies how long trace data should be retained globally (e.g., "60m", "10h")
+	// +kubebuilder:default="2160h"
+	Retention metav1.Duration `json:"retention,omitempty"`
 }
 
 //+kubebuilder:object:root=true
