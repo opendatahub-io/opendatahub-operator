@@ -37,7 +37,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	CONFIG_DIR=odh-config
 	GO_RUN_ARGS=-tags=odh
 else
-	VERSION ?= 2.23.0
+	VERSION ?= 2.24.0
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
 	CHANNELS ?= alpha,stable,fast
 	DEFAULT_CHANNEL ?= stable
