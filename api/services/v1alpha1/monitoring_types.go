@@ -60,6 +60,52 @@ type Metrics struct {
 	Exporters map[string]string `json:"exporters,omitempty"`
 }
 
+// MetricsResources defines the resource requests and limits for the monitoring service
+type MetricsResources struct {
+	// CPULimit specifies the maximum CPU allocation (e.g., "500m", "2")
+	// +kubebuilder:default="500m"
+	MonitoringStackCPULimit resource.Quantity `json:"monitoringStackCPULimit,omitempty"`
+	// CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5")
+	// +kubebuilder:default="100m"
+	MonitoringStackCPURequest resource.Quantity `json:"monitoringStackCPURequest,omitempty"`
+	// MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi")
+	// +kubebuilder:default="512Mi"
+	MonitoringStackMemoryLimit resource.Quantity `json:"monitoringStackMemoryLimit,omitempty"`
+	// MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi")
+	// +kubebuilder:default="256Mi"
+	MonitoringStackMemoryRequest resource.Quantity `json:"monitoringStackMemoryRequest,omitempty"`
+}
+
+type SharedResources struct {
+	// CollectorCPULimit specifies the maximum CPU allocation for the opentelemetry-collector (e.g., "1", "2")
+	// +kubebuilder:default="1"
+	CollectorCPULimit resource.Quantity `json:"collectorCPULimit,omitempty"`
+	// CollectorCPURequest specifies the minimum CPU allocation for the opentelemetry-collector (e.g., "100m", "0.5")
+	// +kubebuilder:default="100m"
+	CollectorCPURequest resource.Quantity `json:"collectorCPURequest,omitempty"`
+	// CollectorMemoryLimit specifies the maximum memory allocation for the opentelemetry-collector (e.g., "256Mi", "512Mi")
+	// +kubebuilder:default="256Mi"
+	CollectorMemoryLimit resource.Quantity `json:"collectorMemoryLimit,omitempty"`
+	// CollectorMemoryRequest specifies the minimum memory allocation for the opentelemetry-collector (e.g., "256Mi", "1Gi")
+	// +kubebuilder:default="256Mi"
+	CollectorMemoryRequest resource.Quantity `json:"collectorMemoryRequest,omitempty"`
+}
+
+type TempoResources struct {
+	// TempoStackCPULimit specifies the maximum CPU allocation for the tempo-stack (e.g., "1", "2")
+	// +kubebuilder:default="1"
+	TempoStackCPULimit resource.Quantity `json:"tempoStackCPULimit,omitempty"`
+	// TempoStackCPURequest specifies the minimum CPU allocation for the tempo-stack (e.g., "100m", "0.5")
+	// +kubebuilder:default="100m"
+	TempoStackCPURequest resource.Quantity `json:"tempoStackCPURequest,omitempty"`
+	// TempoStackMemoryLimit specifies the maximum memory allocation for the tempo-stack (e.g., "1Gi", "512Mi")
+	// +kubebuilder:default="256Mi"
+	TempoStackMemoryLimit resource.Quantity `json:"tempoStackMemoryLimit,omitempty"`
+	// TempoStackMemoryRequest specifies the minimum memory allocation for the tempo-stack (e.g., "256Mi", "1Gi")
+	// +kubebuilder:default="256Mi"
+	TempoStackMemoryRequest resource.Quantity `json:"tempoStackMemoryRequest,omitempty"`
+}
+
 // MetricsStorage defines the storage configuration for the monitoring service
 type MetricsStorage struct {
 	// Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi")
@@ -68,22 +114,6 @@ type MetricsStorage struct {
 	// Retention specifies how long metrics data should be retained (e.g., "1d", "2w")
 	// +kubebuilder:default="90d"
 	Retention string `json:"retention,omitempty"`
-}
-
-// MetricsResources defines the resource requests and limits for the monitoring service
-type MetricsResources struct {
-	// CPULimit specifies the maximum CPU allocation (e.g., "500m", "2")
-	// +kubebuilder:default="500m"
-	CPULimit resource.Quantity `json:"cpulimit,omitempty"`
-	// MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi")
-	// +kubebuilder:default="512Mi"
-	MemoryLimit resource.Quantity `json:"memorylimit,omitempty"`
-	// CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5")
-	// +kubebuilder:default="100m"
-	CPURequest resource.Quantity `json:"cpurequest,omitempty"`
-	// MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi")
-	// +kubebuilder:default="256Mi"
-	MemoryRequest resource.Quantity `json:"memoryrequest,omitempty"`
 }
 
 // MonitoringStatus defines the observed state of Monitoring
@@ -108,6 +138,8 @@ type Traces struct {
 	// The configuration follows the OpenTelemetry Collector exporter format.
 	// +optional
 	Exporters map[string]runtime.RawExtension `json:"exporters,omitempty"`
+	// TempoResources defines the resource requests and limits for the tempo-stack
+	TempoResources *TempoResources `json:"tempoResources,omitempty"`
 }
 
 // TracesTLS defines TLS configuration for traces collection
@@ -188,6 +220,8 @@ type MonitoringCommonSpec struct {
 	Alerting *Alerting `json:"alerting,omitempty"`
 	// CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set
 	CollectorReplicas int32 `json:"collectorReplicas,omitempty"`
+	// Resources defines the resource requests and limits for shared monitoring components
+	Resources *SharedResources `json:"resources,omitempty"`
 }
 
 //+kubebuilder:object:root=true

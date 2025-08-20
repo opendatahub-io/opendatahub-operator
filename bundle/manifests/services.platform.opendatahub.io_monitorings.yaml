@@ -91,7 +91,7 @@ spec:
                     description: MetricsResources defines the resource requests and
                       limits for the monitoring service
                     properties:
-                      cpulimit:
+                      monitoringStackCPULimit:
                         anyOf:
                         - type: integer
                         - type: string
@@ -100,7 +100,7 @@ spec:
                           (e.g., "500m", "2")
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
-                      cpurequest:
+                      monitoringStackCPURequest:
                         anyOf:
                         - type: integer
                         - type: string
@@ -109,7 +109,7 @@ spec:
                           (e.g., "100m", "0.5")
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
-                      memorylimit:
+                      monitoringStackMemoryLimit:
                         anyOf:
                         - type: integer
                         - type: string
@@ -118,7 +118,7 @@ spec:
                           (e.g., "1Gi", "512Mi")
                         pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                         x-kubernetes-int-or-string: true
-                      memoryrequest:
+                      monitoringStackMemoryRequest:
                         anyOf:
                         - type: integer
                         - type: string
@@ -164,6 +164,47 @@ spec:
                 x-kubernetes-validations:
                 - message: MonitoringNamespace is immutable
                   rule: self == oldSelf
+              resources:
+                description: Resources defines the resource requests and limits for
+                  monitoring service components
+                properties:
+                  collectorCPULimit:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    default: "1"
+                    description: CollectorCPULimit specifies the maximum CPU allocation
+                      for the opentelemetry-collector (e.g., "1", "2")
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  collectorCPURequest:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    default: 100m
+                    description: CollectorCPURequest specifies the minimum CPU allocation
+                      for the opentelemetry-collector (e.g., "100m", "0.5")
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  collectorMemoryLimit:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    default: 256Mi
+                    description: CollectorMemoryLimit specifies the maximum memory
+                      allocation for the opentelemetry-collector (e.g., "256Mi", "512Mi")
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  collectorMemoryRequest:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    default: 256Mi
+                    description: CollectorMemoryRequest specifies the minimum memory
+                      allocation for the opentelemetry-collector (e.g., "256Mi", "1Gi")
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                type: object
               traces:
                 description: Tracing configuration for OpenTelemetry instrumentation
                 properties:
@@ -238,6 +279,46 @@ spec:
                         default: true
                         description: Enabled enables TLS for Tempo gRPC connections
                         type: boolean
+                  tempoResources:
+                    description: TempoResources defines the resource requests and
+                      limits for the tempo-stack
+                    properties:
+                      tempoStackCPULimit:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        default: "1"
+                        description: TempoStackCPULimit specifies the maximum CPU
+                          allocation for the tempo-stack (e.g., "1", "2")
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      tempoStackCPURequest:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        default: 100m
+                        description: TempoStackCPURequest specifies the minimum CPU
+                          allocation for the tempo-stack (e.g., "100m", "0.5")
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      tempoStackMemoryLimit:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        default: 256Mi
+                        description: TempoStackMemoryLimit specifies the maximum memory
+                          allocation for the tempo-stack (e.g., "1Gi", "512Mi")
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      tempoStackMemoryRequest:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        default: 256Mi
+                        description: TempoStackMemoryRequest specifies the minimum
+                          memory allocation for the tempo-stack (e.g., "256Mi", "1Gi")
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
                     type: object
                 required:
                 - storage
