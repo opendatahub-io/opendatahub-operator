@@ -26,3 +26,4 @@ Please complete the following sections for a smooth review.
 - [ ] Pull Request contains a description of the solution, a link to the JIRA issue, and to any dependent or related Pull Request.
 - [ ] Testing instructions have been added in the PR body (for PRs involving changes that are not immediately obvious).
 - [ ] The developer has manually tested the changes and verified that the changes work
+- [ ] The developer has run the integration test pipeline and verified that it passed successfully

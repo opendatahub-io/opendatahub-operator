@@ -2,7 +2,6 @@
 package auth
 
 import (
-	"context"
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -24,7 +23,7 @@ import (
 // - AdminGroupClusterRoleTemplate: ClusterRole for admin groups (cluster-wide access).
 func TestInitialize(t *testing.T) {
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create a basic reconciliation request
 	rr := &odhtypes.ReconciliationRequest{
@@ -54,7 +53,7 @@ func TestInitialize(t *testing.T) {
 // Security Note: Allowing system:authenticated in admin roles would grant admin access
 // to all authenticated users in the cluster, which is a major security vulnerability.
 func TestBindRoleValidation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create a fake client with proper scheme
 	scheme := runtime.NewScheme()
@@ -138,7 +137,7 @@ func TestBindRoleValidation(t *testing.T) {
 // - ClusterRoleBinding for admin groups (cluster permissions).
 func TestManagePermissionsBasic(t *testing.T) {
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create a fake client with proper scheme
 	scheme := runtime.NewScheme()
@@ -204,7 +203,7 @@ func TestManagePermissionsBasic(t *testing.T) {
 // programming mistakes during development.
 func TestManagePermissionsInvalidInstance(t *testing.T) {
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create a fake client with proper scheme
 	scheme := runtime.NewScheme()
@@ -234,7 +233,7 @@ func TestManagePermissionsInvalidInstance(t *testing.T) {
 // - Managed RHOAI: "rhods-admins".
 func TestCreateDefaultGroupBasic(t *testing.T) {
 	g := NewWithT(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create a fake client with proper scheme
 	scheme := runtime.NewScheme()

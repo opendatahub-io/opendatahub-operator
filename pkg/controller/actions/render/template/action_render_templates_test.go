@@ -31,7 +31,7 @@ var testFS embed.FS
 func TestRenderTemplate(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 
 	cl, err := fakeclient.New()
@@ -90,7 +90,7 @@ func TestRenderTemplate(t *testing.T) {
 func TestRenderTemplateWithData(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 	id := xid.New().String()
 	name := xid.New().String()
@@ -159,7 +159,7 @@ func TestRenderTemplateWithData(t *testing.T) {
 func TestRenderTemplateWithDataErr(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 
 	cl, err := fakeclient.New()
@@ -192,7 +192,7 @@ func TestRenderTemplateWithDataErr(t *testing.T) {
 func TestRenderTemplateWithCache(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 
 	cl, err := fakeclient.New()
@@ -265,7 +265,7 @@ func TestRenderTemplateWithCache(t *testing.T) {
 func TestRenderTemplateWithGlob(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 	id := xid.New().String()
 
@@ -333,7 +333,7 @@ func TestRenderTemplateWithGlob(t *testing.T) {
 func TestRenderTemplateWithCustomInfo(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 	id := xid.New().String()
 
