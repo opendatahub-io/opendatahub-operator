@@ -95,6 +95,13 @@ download_manifest() {
     repo_url="${GITHUB_URL}/${repo_org}/${repo_name}"
     repo_dir=${TMP_DIR}/${key}
 
+    if [[ -v USE_LOCAL ]] && [[ -e ../${repo_name} ]]; then
+        echo "copying from adjacent checkout ..."
+        mkdir -p ./opt/manifests/${target_path}
+        cp -rf "../${repo_name}/${source_path}"/* ./opt/manifests/${target_path}
+        return
+    fi
+
     git_fetch_ref ${repo_url} ${repo_ref} ${repo_dir}
 
     mkdir -p ./opt/manifests/${target_path}
