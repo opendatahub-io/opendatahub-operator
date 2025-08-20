@@ -84,6 +84,10 @@ type ResourceOptions struct {
 	// If true, the DeleteResource function will block until the resource is confirmed to be gone.
 	WaitForDeletion bool
 
+	// GracePeriod specifies a waiting period before starting resource existence checks.
+	// This helps avoid race conditions where controllers need time to process deletion events.
+	GracePeriod time.Duration
+
 	// Webhook validation fields for testing
 	// InvalidValue holds the description of the invalid value being tested in webhook validation
 	InvalidValue string
@@ -186,6 +190,14 @@ func WithClientDeleteOptions(deleteOptions *client.DeleteOptions) ResourceOpts {
 func WithWaitForDeletion(wait bool) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.WaitForDeletion = wait
+	}
+}
+
+// WithGracePeriod adds a grace period before starting to check for resource existence.
+// This helps avoid race conditions where controllers need time to process deletion events.
+func WithGracePeriod(duration time.Duration) ResourceOpts {
+	return func(ro *ResourceOptions) {
+		ro.GracePeriod = duration
 	}
 }
 
