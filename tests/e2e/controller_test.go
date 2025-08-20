@@ -73,9 +73,10 @@ func ParseDeletionPolicy(dp string) (DeletionPolicy, error) {
 
 // Struct to store test configurations.
 type TestContextConfig struct {
-	operatorNamespace string
-	appsNamespace     string
-	deletionPolicy    DeletionPolicy
+	operatorNamespace   string
+	appsNamespace       string
+	monitoringNamespace string
+	deletionPolicy      DeletionPolicy
 
 	operatorControllerTest bool
 	webhookTest            bool
@@ -306,6 +307,8 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("operator-namespace", viper.GetEnvPrefix()+"_OPERATOR_NAMESPACE"))
 	pflag.String("applications-namespace", "opendatahub", "Namespace where the odh applications are deployed")
 	checkEnvVarBindingError(viper.BindEnv("applications-namespace", viper.GetEnvPrefix()+"_APPLICATIONS_NAMESPACE"))
+	pflag.String("dsc-monitoring-namespace", "opendatahub", "Namespace where the odh monitoring is deployed")
+	checkEnvVarBindingError(viper.BindEnv("dsc-monitoring-namespace", viper.GetEnvPrefix()+"_DSC_MONITORING_NAMESPACE"))
 	pflag.String("deletion-policy", "always",
 		"Specify when to delete DataScienceCluster, DSCInitialization, and controllers. Options: always, on-failure, never.")
 	checkEnvVarBindingError(viper.BindEnv("deletion-policy", viper.GetEnvPrefix()+"_DELETION_POLICY"))
@@ -353,6 +356,7 @@ func TestMain(m *testing.M) {
 	}
 	testOpts.operatorNamespace = viper.GetString("operator-namespace")
 	testOpts.appsNamespace = viper.GetString("applications-namespace")
+	testOpts.monitoringNamespace = viper.GetString("dsc-monitoring-namespace")
 	var err error
 	if testOpts.deletionPolicy, err = ParseDeletionPolicy(viper.GetString("deletion-policy")); err != nil {
 		fmt.Print(err.Error())
