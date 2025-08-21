@@ -149,7 +149,7 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 	}
 }
 
-func TestDynamicWatchAction_Inputs(t *testing.T) {
+func TestDynamicWatchActionInputs(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
@@ -195,7 +195,7 @@ func TestDynamicWatchAction_Inputs(t *testing.T) {
 		)
 }
 
-func TestDynamicWatchAction_NotTwice(t *testing.T) {
+func TestDynamicWatchActionNotTwice(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 

@@ -44,17 +44,27 @@ import (
 // InvalidManager is a deterministic stubbed manager that implements the manager.Manager interface
 // and intentionally returns errors to test error handling paths.
 //
-// IMPORTANT: This test relies on the reconciler constructor calling mgr.GetClient() during
-// construction (specifically in ReconcilerFor when calling GroupVersionKindFor). If the
-// reconciler framework changes to defer client access until runtime, this test will need
-// to be updated accordingly.
+// This test uses a unique sentinel panic message to ensure reliable detection regardless
+// of constructor call order. The panic contains "INVALID_MANAGER_SENTINEL_PANIC" which
+// is checked using gomega.ContainSubstring for robust assertion.
 type InvalidManager struct {
 	scheme *runtime.Scheme
 }
 
+// Compile-time interface conformance check to ensure InvalidManager implements manager.Manager.
+var _ manager.Manager = (*InvalidManager)(nil)
+
+// MetricsServerHandler defines the interface for adding metrics server handlers.
+type MetricsServerHandler interface {
+	AddMetricsServerExtraHandler(path string, handler http.Handler) error
+}
+
+// Compile-time interface conformance check to ensure InvalidManager implements metrics server handler interface.
+var _ MetricsServerHandler = (*InvalidManager)(nil)
+
 // NewInvalidManager creates a new InvalidManager that will cause the reconciler to fail
-// during construction by panicking when GetClient() is called, providing a deterministic
-// way to test error paths.
+// by panicking with a unique sentinel when GetClient() is called, providing a deterministic
+// and robust way to test error paths regardless of constructor call order.
 func NewInvalidManager() manager.Manager { //nolint:ireturn // Test mock intentionally returns interface
 	return &InvalidManager{
 		scheme: runtime.NewScheme(),
@@ -63,7 +73,7 @@ func NewInvalidManager() manager.Manager { //nolint:ireturn // Test mock intenti
 
 // GetClient returns nil to cause a panic when the reconciler tries to access it.
 func (m *InvalidManager) GetClient() client.Client {
-	panic("nil client") // Explicit panic with stable sentinel for testing
+	panic("INVALID_MANAGER_SENTINEL_PANIC: nil client") // Unique sentinel panic for testing
 }
 
 // GetScheme returns an empty scheme that won't have required types.
@@ -169,8 +179,11 @@ func TestInvalidManagerWithReconciler(t *testing.T) {
 	invalidMgr := NewInvalidManager()
 	ctx := t.Context()
 
-	// This should panic because GetClient() explicitly panics with "nil client"
+	// This should panic because GetClient() explicitly panics with our sentinel
+	// "INVALID_MANAGER_SENTINEL_PANIC: nil client". We use a custom matcher to check
+	// for the sentinel substring, making the test more robust against changes in
+	// constructor call order
 	g.Expect(func() {
 		_ = datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, invalidMgr, "test-invalid-manager")
-	}).To(gomega.PanicWith("nil client"))
+	}).To(gomega.PanicWith(gomega.ContainSubstring("INVALID_MANAGER_SENTINEL_PANIC")))
 }

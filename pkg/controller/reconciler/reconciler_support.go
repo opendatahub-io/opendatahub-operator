@@ -451,40 +451,7 @@ func (b *ReconcilerBuilder[T]) processWatch(watch *watchInput, c *builder.Builde
 	}
 
 	if watch.dynamic {
-		// Extract identifying information for debug logging
-		var watchName, resourceKind, namespace string
-
-		// Get GVK information
-		if kinds, _, err := b.mgr.GetScheme().ObjectKinds(watch.object); err == nil && len(kinds) > 0 {
-			resourceKind = kinds[0].String()
-		} else {
-			resourceKind = "unknown"
-		}
-
-		// Get namespace information
-		if watch.object != nil {
-			namespace = watch.object.GetNamespace()
-			if namespace == "" {
-				namespace = "cluster-scoped"
-			}
-		} else {
-			namespace = "unknown"
-		}
-
-		// Generate a watch identifier
-		if watch.object != nil {
-			watchName = fmt.Sprintf("%s/%s", resourceKind, watch.object.GetName())
-		} else {
-			watchName = resourceKind
-		}
-
-		r.Log.V(1).Info("Dynamic watch configured but being skipped",
-			"watchName", watchName,
-			"resourceKind", resourceKind,
-			"namespace", namespace,
-			"reason", "dynamic watches not yet implemented")
-
-		return nil // Skip dynamic watches for now
+		return b.handleDynamicWatch(watch, r)
 	}
 
 	c.Watches(
@@ -493,6 +460,48 @@ func (b *ReconcilerBuilder[T]) processWatch(watch *watchInput, c *builder.Builde
 		builder.WithPredicates(watch.predicates...),
 	)
 	return nil
+}
+
+func (b *ReconcilerBuilder[T]) handleDynamicWatch(watch *watchInput, r *Reconciler) error {
+	watchName, resourceKind, namespace := b.extractWatchInfo(watch)
+
+	r.Log.V(1).Info("Dynamic watch configured but being skipped",
+		"watchName", watchName,
+		"resourceKind", resourceKind,
+		"namespace", namespace,
+		"reason", "dynamic watches not yet implemented")
+
+	return nil // Skip dynamic watches for now
+}
+
+func (b *ReconcilerBuilder[T]) extractWatchInfo(watch *watchInput) (string, string, string) {
+	var watchName, resourceKind, namespace string
+
+	// Get GVK information
+	if kinds, _, err := b.mgr.GetScheme().ObjectKinds(watch.object); err == nil && len(kinds) > 0 {
+		resourceKind = kinds[0].String()
+	} else {
+		resourceKind = "unknown"
+	}
+
+	// Get namespace information
+	if watch.object != nil {
+		namespace = watch.object.GetNamespace()
+		if namespace == "" {
+			namespace = "cluster-scoped"
+		}
+	} else {
+		namespace = "unknown"
+	}
+
+	// Generate a watch identifier
+	if watch.object != nil {
+		watchName = fmt.Sprintf("%s/%s", resourceKind, watch.object.GetName())
+	} else {
+		watchName = resourceKind
+	}
+
+	return watchName, resourceKind, namespace
 }
 
 func (b *ReconcilerBuilder[T]) addOwnedTypes(watch *watchInput, r *Reconciler) error {

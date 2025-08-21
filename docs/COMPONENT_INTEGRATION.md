@@ -32,48 +32,48 @@ You can use the following pseudo-implementation for reference:
 package v1alpha1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+    "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
-  	// example new component name
-	ExampleComponentName         = "examplecomponent"
+    // example new component name
+    ExampleComponentName         = "examplecomponent"
 
-	// ExampleComponentInstanceName is the name of the new component instance singleton
-	// value should match what is set in the kubebuilder markers for XValidation defined below
-	ExampleComponentInstanceName = "default-examplecomponent"
+    // ExampleComponentInstanceName is the name of the new component instance singleton
+    // value should match what is set in the kubebuilder markers for XValidation defined below
+    ExampleComponentInstanceName = "default-examplecomponent"
 
-  	// kubernetes kind of the new component
-	ExampleComponentKind         = "ExampleComponent"
+    // kubernetes kind of the new component
+    ExampleComponentKind         = "ExampleComponent"
 )
 
 type ExampleComponentCommonSpec struct {
-	// new component spec exposed to DSC api
-	common.DevFlagsSpec `json:",inline"`
+    // new component spec exposed to DSC api
+    common.DevFlagsSpec `json:",inline"`
 
-	// new component spec shared with DSC api
-  	// ( refer/define here if applicable to the new component )
+    // new component spec shared with DSC api
+    // ( refer/define here if applicable to the new component )
 }
 
 // ExampleComponentSpec defines the desired state of ExampleComponent
 type ExampleComponentSpec struct {
-	// new component spec exposed to DSC api
-	ExampleComponentCommonSpec `json:",inline"`
+    // new component spec exposed to DSC api
+    ExampleComponentCommonSpec `json:",inline"`
 
-	// new component spec exposed only to internal api
-  	// ( refer/define here if applicable to the new component )
+    // new component spec exposed only to internal api
+    // ( refer/define here if applicable to the new component )
 }
 
 // ExampleComponentCommonStatus defines the shared observed state of ExampleComponent
 type ExampleComponentCommonStatus struct {
-	// add fields/attributes if needed
+    // add fields/attributes if needed
 }
 
 // ExampleComponentStatus defines the observed state of ExampleComponent
 type ExampleComponentStatus struct {
-	common.Status `json:",inline"`
-	ExampleComponentCommonStatus `json:",inline"`
+    common.Status `json:",inline"`
+    ExampleComponentCommonStatus `json:",inline"`
 }
 
 // default kubebuilder markers for the new component
@@ -86,67 +86,67 @@ type ExampleComponentStatus struct {
 
 // ExampleComponent is the Schema for the new component API
 type ExampleComponent struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+    metav1.TypeMeta   `json:",inline"`
+    metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ExampleComponentSpec   `json:"spec,omitempty"`
-	Status ExampleComponentStatus `json:"status,omitempty"`
+    Spec   ExampleComponentSpec   `json:"spec,omitempty"`
+    Status ExampleComponentStatus `json:"status,omitempty"`
 }
 
 // getter for devFlags
 func (c *ExampleComponent) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
+    return c.Spec.DevFlags
 }
 
 // status getter
 func (c *ExampleComponent) GetStatus() *common.Status {
-	return &c.Status.Status
+    return &c.Status.Status
 }
 
 func (c *TrainingOperator) GetConditions() []common.Condition {
-	return c.Status.GetConditions()
+    return c.Status.GetConditions()
 }
 
 func (c *TrainingOperator) SetConditions(conditions []common.Condition) {
-	c.Status.SetConditions(conditions)
+    c.Status.SetConditions(conditions)
 }
 
 func (c *TrainingOperator) GetReleaseStatus() *[]common.ComponentRelease {
-	return &c.Status.Releases
+    return &c.Status.Releases
 }
 
 func (c *TrainingOperator) SetReleaseStatus(releases []common.ComponentRelease) {
-	c.Status.Releases = releases
+    c.Status.Releases = releases
 }
 
 // +kubebuilder:object:root=true
 
 // ExampleComponentList contains a list of ExampleComponent
 type ExampleComponentList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ExampleComponent `json:"items"`
+    metav1.TypeMeta `json:",inline"`
+    metav1.ListMeta `json:"metadata,omitempty"`
+    Items           []ExampleComponent `json:"items"`
 }
 
 // register the defined schemas
 func init() {
-	SchemeBuilder.Register(&ExampleComponent{}, &ExampleComponentList{})
+    SchemeBuilder.Register(&ExampleComponent{}, &ExampleComponentList{})
 }
 
 // DSCExampleComponent contains all the configuration exposed in DSC instance for ExampleComponent component
 // ( utilize DSC prefix here for naming consistency with the other integrated components )
 type DSCExampleComponent struct {
-	// configuration fields common across components
-	common.ManagementSpec `json:",inline"`
+    // configuration fields common across components
+    common.ManagementSpec `json:",inline"`
 
-	// new component-specific fields
-	ExampleComponentCommonSpec `json:",inline"`
+    // new component-specific fields
+    ExampleComponentCommonSpec `json:",inline"`
 }
 
 // DSCExampleComponentStatus struct holds the status for the ExampleComponent component exposed in the DSC
 type DSCExampleComponentStatus struct {
-	common.ManagementSpec    `json:",inline"`
-	*ExampleComponentCommonStatus `json:",inline"`
+    common.ManagementSpec    `json:",inline"`
+    *ExampleComponentCommonStatus `json:",inline"`
 }
 ```
 
@@ -159,16 +159,16 @@ To introduce the newly defined component API, extend the `Components` struct wit
 
 ```diff
 type Components struct {
-	// Dashboard component configuration.
-	Dashboard componentApi.DSCDashboard `json:"dashboard,omitempty"`
+    // Dashboard component configuration.
+    Dashboard componentApi.DSCDashboard `json:"dashboard,omitempty"`
 
-	// Workbenches component configuration.
-	Workbenches componentApi.DSCWorkbenches `json:"workbenches,omitempty"`
+    // Workbenches component configuration.
+    Workbenches componentApi.DSCWorkbenches `json:"workbenches,omitempty"`
 
-	// ... other currently integrated components ...
+    // ... other currently integrated components ...
 
-	// add the new component as follows
-+	ExampleComponent componentApi.DSCExampleComponent `json:"examplecomponent,omitempty"`
+    // add the new component as follows
++    ExampleComponent componentApi.DSCExampleComponent `json:"examplecomponent,omitempty"`
 }
 ```
 
@@ -177,16 +177,16 @@ Additionally, extend the `ComponentsStatus` struct within the same file to inclu
 ```diff
 // ComponentsStatus defines the custom status of DataScienceCluster components.
 type ComponentsStatus struct {
-	// Dashboard component status.
-	Dashboard componentApi.DSCDashboardStatus `json:"dashboard,omitempty"`
+    // Dashboard component status.
+    Dashboard componentApi.DSCDashboardStatus `json:"dashboard,omitempty"`
 
-	// Workbenches component status.
-	Workbenches componentApi.DSCWorkbenchesStatus `json:"workbenches,omitempty"`
+    // Workbenches component status.
+    Workbenches componentApi.DSCWorkbenchesStatus `json:"workbenches,omitempty"`
 
-	// ... other currently integrated component statuses ...
+    // ... other currently integrated component statuses ...
 
-	// add the new component status as follows
-+	ExampleComponent componentApi.DSCExampleComponentStatus `json:"examplecomponent,omitempty"`
+    // add the new component status as follows
++    ExampleComponent componentApi.DSCExampleComponentStatus `json:"examplecomponent,omitempty"`
 }
 ```
 
@@ -197,9 +197,11 @@ Add kubebuilder RBAC permissions intended for the new component into `internal/c
 #### Update the dependent files
 
 To fully reflect the API changes brought by the addition of the new component, run the following command:
+
 ```make
 make generate manifests api-docs bundle
 ```
+
 This command will (re-)generate the necessary kubebuilder functions, and update both the API documentation and the operator bundle manifests.
 
 ### 2. Create a module for the new component reconciliation logic
@@ -217,7 +219,7 @@ To do so, create a dedicated `<example_component_name>.go` file within the newly
 type componentHandler struct{}
 
 func init() { //nolint:gochecknoinits
-	cr.Add(&componentHandler{})
+    cr.Add(&componentHandler{})
 }
 
 func (s *componentHandler) GetName() string
@@ -239,30 +241,32 @@ Create a dedicated `<example_component_name>_controller.go` file and implement t
 This function will be responsible for creating the reconciler for the previously introduced `<ExampleComponent>` API.
 
 `NewControllerReconciler` utilizes a generic builder pattern, that supports defining various types of relationships and functionality:
+
 - resource ownership - using `.Owns()`
 - watching a resource - using `.Watches()`
 - reconciler actions - using `.WithAction()`
-	- this includes pre-implemented actions used commonly across components (e.g. manifests rendering), as well as customized, component-specific actions
-	- more details on actions are provided [below](#actions)
+  - this includes pre-implemented actions used commonly across components (e.g. manifests rendering), as well as customized, component-specific actions
+  - more details on actions are provided [below](#actions)
 
 The example pseudo-implementation should look like as follows:
+
 ```go
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ReconcilerFor(mgr, &componentApi.ExampleComponent{}).
-		Owns(...).
-		// ... add other necessary resource ownerships
-		Watches(...).
-		// ... add other necessary resource watches
-		WithAction(...).
-		// ... add custom actions if needed
-		// ... add mandatory common actions (e.g. manifest rendering, deployment, garbage collection)
-		Build(ctx)
+    _, err := reconciler.ReconcilerFor(mgr, &componentApi.ExampleComponent{}).
+        Owns(...).
+        // ... add other necessary resource ownerships
+        Watches(...).
+        // ... add other necessary resource watches
+        WithAction(...).
+        // ... add custom actions if needed
+        // ... add mandatory common actions (e.g. manifest rendering, deployment, garbage collection)
+        Build(ctx)
 
-	if err != nil {
-		return err
-	}
+    if err != nil {
+        return err
+    }
 
-	return nil
+    return nil
 }
 ```
 
@@ -278,18 +282,20 @@ Such actions can be then introduced to the reconciler builder using `.WithAction
 As seen in the existing component reconciler implementations, it would be recommended to include the action implementations in a separate file within the module, such as `<example_component_name>_controller_actions.go`.
 
 "Generic"/commonly-implemented actions for each of the currently integrated components include:
+
 - `initialize()` - to register paths to the component manifests
-- `devFlags()` - to override the component manifest paths according to the Dev Flags configuration 
+- `devFlags()` - to override the component manifest paths according to the Dev Flags configuration
 
 In addition, proper generic actions, intended to be used across the components, are provided as part of the operator implementation (located in `pkg/controller/actions`).
 These support:
+
 - manifest rendering
-    - can additionally utilize caching
+  - can additionally utilize caching
 - manifest deployment
-    - can additionally utilize caching
+  - can additionally utilize caching
 - status updating
 - garbage collection
-	- **additional requirement - garbage collection action must always be called as the last action before the final `.Build()` call**
+  - **additional requirement - garbage collection action must always be called as the last action before the final `.Build()` call**
 
 If the new component requires additional custom logic, custom actions can also be added to the builder via the respective `.WithAction()` calls.
 
@@ -303,10 +309,10 @@ Import the newly added component:
 package main
 
 import (
-	// ... existing imports ...
+    // ... existing imports ...
 
-	// ... component imports for the integrated components ...
-+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/<example_component>"
+    // ... component imports for the integrated components ...
++   _ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/<example_component>"
 )
 ```
 
@@ -319,6 +325,7 @@ the e2e test suite to capture deployments introduced by the new component.
 Existing e2e test suites for the integrated components can be also found there.
 
 Lastly, please update the following files to fully integrate new component tests into the overall test suite:
+
 - update `setupDSCInstance()` function in `tests/e2e/helper_test.go` to set new component in DSC
 - update `newDSC()` function in `/internal/webhook/webhook_suite_test.go` to update creation of DSC include the new component
 - update `componentsTestSuites` map in `tests/e2e/controller_test.go` to include the reference for the new component e2e test suite
@@ -326,9 +333,9 @@ Lastly, please update the following files to fully integrate new component tests
 ### 4. Update Prometheus config and tests
 
 If the component is planned to be released for downstream, Prometheus rules and promtest need to be updated for the component.
-- Rules are located in `config/monitoring/prometheus/app/prometheus-configs.yaml` file
-- Tests are grouped in `tests/prometheus_unit_tests` <component>_unit_tests.yam file
 
+- Rules are located in `config/monitoring/prometheus/app/prometheus-configs.yaml` file
+- Tests are grouped in `tests/prometheus_unit_tests` `<component>_unit_tests.yam` file
 
 ## Integrated components
 

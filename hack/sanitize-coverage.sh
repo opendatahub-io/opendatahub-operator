@@ -55,8 +55,7 @@ sanitize_file() {
     sed -i.bak 's|C:/Users/[^/]*|C:/Users/REDACTED|g' "$temp_file"
     
     # Replace email-like patterns
-    sed -i.bak 's|[a-zA-Z0-9._%+-]\+@[a-zA-Z0-9.-]\+\.[a-zA-Z]\{2,\}|REDACTED_EMAIL|g' "$temp_file"
-    
+    sed -i.bak 's|[a-zA-Z0-9._%+-]\{1,\}@[a-zA-Z0-9.-]\{1,\}\.[a-zA-Z]\{2,\}|REDACTED_EMAIL|g' "$temp_file"
     # Replace any remaining absolute paths that might contain usernames
     sed -i.bak 's|/[a-zA-Z0-9._-]*/[^/]*/[^/]*|/REDACTED_PATH|g' "$temp_file"
     
@@ -84,29 +83,8 @@ sanitize_html_coverage() {
     
     print_status "Sanitizing HTML coverage report $input_file -> $output_file"
     
-    # Create a temporary file for processing
-    local temp_file=$(mktemp)
-    
-    # Copy the original file
-    cp "$input_file" "$temp_file"
-    
-    # Replace absolute paths in HTML content
-    sed -i.bak 's|/Users/[^/]*|/Users/REDACTED|g' "$temp_file"
-    sed -i.bak 's|/home/[^/]*|/home/REDACTED|g' "$temp_file"
-    sed -i.bak 's|C:\\Users\\[^\\]*|C:\\Users\\REDACTED|g' "$temp_file"
-    sed -i.bak 's|C:/Users/[^/]*|C:/Users/REDACTED|g' "$temp_file"
-    
-    # Replace email-like patterns in HTML
-    sed -i.bak 's|[a-zA-Z0-9._%+-]\+@[a-zA-Z0-9.-]\+\.[a-zA-Z]\{2,\}|REDACTED_EMAIL|g' "$temp_file"
-    
-    # Replace any machine-specific paths
-    sed -i.bak 's|/[a-zA-Z0-9._-]*/[^/]*/[^/]*|/REDACTED_PATH|g' "$temp_file"
-    
-    # Move the sanitized file to the output location
-    mv "$temp_file" "$output_file"
-    
-    # Clean up backup files
-    rm -f "$temp_file.bak"
+    # Use the centralized sanitize_file function to ensure consistent behavior
+    sanitize_file "$input_file" "$output_file"
     
     print_status "HTML sanitization complete for $output_file"
 }

@@ -22,7 +22,7 @@ When these reports are committed to version control or shared publicly, they can
 
 Coverage files are excluded from version control by adding them to `.gitignore`:
 
-```
+```gitignore
 # Coverage reports - may contain sensitive information
 coverage.html
 combined-cover.out

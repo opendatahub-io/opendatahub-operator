@@ -422,25 +422,47 @@ unit-test: envtest ginkgo # directly use ginkgo since the framework is not compa
         		--randomize-suites \
         		--fail-fast \
         		--cover \
+        		--cover \
         		--covermode=atomic \
+        		--keep-going \
         		--succinct \
-        		$(TEST_SRC) || true
+        		$(TEST_SRC)
 	@echo "Coverage reports generated in individual directories"
+# Clean up individual coverage files
 CLEANFILES += cover.out
 
 .PHONY: coverage-report
 coverage-report: unit-test ## Generate combined coverage report
 	@echo "Combining coverage reports..."
-	@find . -name "cover.out" -type f -exec echo "Found: {}" \;
-	@find . -name "coverprofile.out" -type f -exec echo "Found: {}" \;
 	@echo "mode: atomic" > combined-cover.out
-	@find . -name "cover.out" -type f -exec grep -h -v "^mode:" {} \; >> combined-cover.out || true
-	@find . -name "coverprofile.out" -type f -exec grep -h -v "^mode:" {} \; >> combined-cover.out || true
+	@echo "Scanning for coverage files (excluding vendor, bin, bundle, catalog directories)..."
+	@COVER_FILES=$(find . \
+		-type d \( -path "./vendor" -o -path "./bin" -o -path "./bundle*" -o -path "./catalog" \) -prune -o \
+		-type f -name "cover.out" -print) && \
+	COVERPROFILE_FILES=$(find . \
+		-type d \( -path "./vendor" -o -path "./bin" -o -path "./bundle*" -o -path "./catalog" \) -prune -o \
+		-type f -name "coverprofile.out" -print) && \
+	echo "Found cover.out files: $COVER_FILES" && \
+	echo "Found coverprofile.out files: $COVERPROFILE_FILES" && \
+	for file in $COVER_FILES $COVERPROFILE_FILES; do \
+		if [ -f "$file" ]; then \
+			FIRST_LINE=$(head -n 1 "$file" | tr -d '[:space:]') && \
+			if [ "$FIRST_LINE" != "mode:atomic" ]; then \
+				echo "WARNING: Skipping $file - expected 'mode:atomic' but found '$FIRST_LINE'" >&2; \
+			else \
+				echo "Processing $file..." && \
+				grep -h -v "^mode:" "$file" >> combined-cover.out; \
+			fi; \
+		fi; \
+	done
 	@echo "Combined coverage report generated: combined-cover.out"
 	@echo "To view HTML report: go tool cover -html=combined-cover.out -o coverage.html"
-	@echo "Sanitizing coverage reports to remove sensitive information..."
-	@./hack/sanitize-coverage.sh
-CLEANFILES += combined-cover.out coverage.html coverage-sanitized.html combined-cover-sanitized.out cover-sanitized.out
+# Add scattered coverage files to cleanup
+CLEANFILES += $(shell find . -type d \( -path "./vendor" -o -path "./bin" -o -path "./bundle*" -o -path "./catalog" \) -prune -o -type f -name "cover.out" -print 2>/dev/null || true)
+CLEANFILES += $(shell find . -type d \( -path "./vendor" -o -path "./bin" -o -path "./bundle*" -o -path "./catalog" \) -prune -o -type f -name "coverprofile.out" -print 2>/dev/null || true)
+# Add scattered coverage files to cleanup
+CLEANFILES += $(shell find . -name "cover.out" -type f \( -path "./vendor" -prune -o -path "./bin" -prune -o -path "./bundle*" -prune -o -path "./catalog" -prune -o -print \) 2>/dev/null || true)
+CLEANFILES += $(shell find . -name "coverprofile.out" -type f \( -path "./vendor" -prune -o -path "./bin" -prune -o -path "./bundle*" -prune -o -path "./catalog" -prune -o -print \) 2>/dev/null || true)
 
 .PHONY: coverage-report-sanitized
 coverage-report-sanitized: coverage-report ## Generate sanitized coverage report for CI
