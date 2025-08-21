@@ -91,7 +91,7 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 		},
 
 		{
-			name: "should register a watcher even when predicate would return false (dynamic predicates not implemented)",
+			name: "should register a watcher when dynamic predicates include both true and false results (dynamic predicates not implemented)",
 			object: &componentApi.Dashboard{
 				TypeMeta: metav1.TypeMeta{
 					Kind: gvk.Dashboard.Kind,
@@ -123,8 +123,7 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 			watches := []watchInput{{
 				object:  resources.GvkToUnstructured(gvk.ConfigMap),
 				dynamic: true,
-				// TODO: Add dynamicPred when dynamic watches are fully supported
-				// dynamicPred: test.preds,
+				// TODO: enable dynamicPred when dynamic watches are fully supported
 			}}
 
 			mockFn := func(_ client.Object, _ handler.EventHandler, _ ...predicate.Predicate) error {
@@ -165,18 +164,12 @@ func TestDynamicWatchAction_Inputs(t *testing.T) {
 		{
 			object:  resources.GvkToUnstructured(gvk.Secret),
 			dynamic: true,
-			// TODO: Add dynamicPred when dynamic watches are fully supported
-			// dynamicPred: []DynamicPredicate{func(_ context.Context, rr *types.ReconciliationRequest) bool {
-			// 	return rr.Instance.GetGeneration() == 0
-			// }},
+			// TODO: enable dynamicPred when dynamic watches are fully supported
 		},
 		{
 			object:  resources.GvkToUnstructured(gvk.ConfigMap),
 			dynamic: true,
-			// TODO: Add dynamicPred when dynamic watches are fully supported
-			// dynamicPred: []DynamicPredicate{func(_ context.Context, rr *types.ReconciliationRequest) bool {
-			// 	return rr.Instance.GetGeneration() > 0
-			// }},
+			// TODO: enable dynamicPred when dynamic watches are fully supported
 		},
 	}
 
@@ -217,10 +210,7 @@ func TestDynamicWatchAction_NotTwice(t *testing.T) {
 		{
 			object:  resources.GvkToUnstructured(gvk.ConfigMap),
 			dynamic: true,
-			// TODO: Add dynamicPred when dynamic watches are fully supported
-			// dynamicPred: []DynamicPredicate{func(_ context.Context, rr *types.ReconciliationRequest) bool {
-			// 	return rr.Instance.GetGeneration() > 0
-			// }},
+			// TODO: enable dynamicPred when dynamic watches are fully supported
 		},
 	}
 

@@ -1,3 +1,28 @@
+// Package reconciler provides a fluent API for building Kubernetes controllers with support
+// for both static and dynamic predicates. Dynamic predicates enable conditional watching
+// based on runtime state rather than static configuration.
+//
+// Key Features:
+// - Dynamic predicates that are evaluated at runtime during reconciliation
+// - Thread-safe predicate storage with read-write locks
+// - Fluent API for building reconcilers with watches, predicates, actions, and finalizers
+// - Support for conditional watching based on CRD existence and other runtime conditions
+// - Configurable predicate behavior with restrictive default (generation changes only)
+// - Opt-in broader predicate behavior for label and annotation changes
+//
+// Example Usage:
+//
+//	// Default behavior - only generation changes trigger reconciliation
+//	builder := ReconcilerFor(mgr, &MyObject{})
+//	builder.Watches(
+//	    &SomeResource{},
+//	    Dynamic(CrdExists(schema.GroupVersionKind{Group: "example.com", Version: "v1", Kind: "MyCRD"})),
+//	)
+//	reconciler, err := builder.Build(ctx)
+//
+//	// Opt-in broader behavior - generation, label, and annotation changes trigger reconciliation
+//	builder := ReconcilerFor(mgr, &MyObject{}).WithBroadPredicate()
+//	reconciler, err := builder.Build(ctx)
 package reconciler
 
 import (
@@ -6,6 +31,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/go-multierror"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -39,14 +65,22 @@ type forInput struct {
 	gvk     schema.GroupVersionKind
 }
 
+// DynamicPredicate is a function type that evaluates whether a watch should be active
+// based on the current reconciliation context. It receives the context and reconciliation
+// request, and returns true if the watch should be active, false otherwise.
+// Dynamic predicates are evaluated at runtime during each reconciliation cycle.
 type DynamicPredicate func(context.Context, *types.ReconciliationRequest) bool
 
+// watchInput contains the configuration for a single watch operation.
+// It includes both static predicates (evaluated at watch creation time) and
+// dynamic predicates (evaluated at runtime during reconciliation).
 type watchInput struct {
-	object       client.Object
-	eventHandler handler.EventHandler
-	predicates   []predicate.Predicate
-	owned        bool
-	dynamic      bool
+	object            client.Object
+	eventHandler      handler.EventHandler
+	predicates        []predicate.Predicate
+	dynamicPredicates []DynamicPredicate
+	owned             bool
+	dynamic           bool
 }
 
 type WatchOpts func(*watchInput)
@@ -69,15 +103,22 @@ func WithEventMapper(value handler.MapFunc) WatchOpts {
 	}
 }
 
+// Dynamic creates a WatchOpts function that marks a watch as dynamic and stores
+// the provided dynamic predicates for runtime evaluation. Dynamic predicates are
+// evaluated during reconciliation to determine if a watch should be active.
+// This enables conditional watching based on runtime state rather than static configuration.
 func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 	return func(a *watchInput) {
 		a.dynamic = true
-		// TODO: Implement dynamic predicates when dynamic watches are fully supported
-		// a.dynamicPred = slices.Clone(predicates)
+		a.dynamicPredicates = append(a.dynamicPredicates, predicates...)
 	}
 }
 
 // CrdExists is a DynamicPredicate that checks if a given CRD identified by its GVK exists.
+// This is useful for conditionally watching resources that depend on CRDs being installed.
+// Example usage:
+//
+//	builder.Watches(object, Dynamic(CrdExists(schema.GroupVersionKind{Group: "example.com", Version: "v1", Kind: "MyCRD"})))
 func CrdExists(crdGvk schema.GroupVersionKind) DynamicPredicate {
 	return func(ctx context.Context, request *types.ReconciliationRequest) bool {
 		if hasCrd, err := cluster.HasCRD(ctx, request.Client, crdGvk); err != nil {
@@ -88,6 +129,9 @@ func CrdExists(crdGvk schema.GroupVersionKind) DynamicPredicate {
 	}
 }
 
+// ReconcilerBuilder provides a fluent API for building reconcilers with watches,
+// predicates, actions, and finalizers. It supports both static and dynamic predicates
+// for flexible watch configuration.
 type ReconcilerBuilder[T common.PlatformObject] struct {
 	mgr                 ctrl.Manager
 	input               forInput
@@ -100,8 +144,12 @@ type ReconcilerBuilder[T common.PlatformObject] struct {
 	happyCondition      string
 	dependantConditions []string
 	// Cached clients to avoid recreation
-	discoveryClient discovery.DiscoveryInterface
-	dynamicClient   dynamic.Interface
+	discoveryClient   discovery.DiscoveryInterface
+	dynamicClient     dynamic.Interface
+	dynamicPredicates []DynamicPredicate
+	mu                sync.RWMutex
+	// Control predicate behavior - when true, uses broader predicate including label/annotation changes
+	useBroadPredicate bool
 }
 
 func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
@@ -139,6 +187,16 @@ func (b *ReconcilerBuilder[T]) WithConditions(dependants ...string) *ReconcilerB
 
 func (b *ReconcilerBuilder[T]) WithInstanceName(instanceName string) *ReconcilerBuilder[T] {
 	b.instanceName = instanceName
+	return b
+}
+
+// WithBroadPredicate enables the broader predicate behavior that includes
+// label and annotation changes in addition to generation changes.
+// By default, only generation changes trigger reconciliation to reduce
+// reconciliation frequency. Use this method to opt into the broader behavior
+// when label or annotation changes should trigger reconciliation.
+func (b *ReconcilerBuilder[T]) WithBroadPredicate() *ReconcilerBuilder[T] {
+	b.useBroadPredicate = true
 	return b
 }
 
@@ -214,6 +272,34 @@ func (b *ReconcilerBuilder[T]) Owns(object client.Object, opts ...WatchOpts) *Re
 
 func (b *ReconcilerBuilder[T]) WithEventFilter(p predicate.Predicate) *ReconcilerBuilder[T] {
 	b.predicates = append(b.predicates, p)
+	return b
+}
+
+// AddDynamicPredicate adds a dynamic predicate to the reconciler builder.
+// Dynamic predicates are evaluated at runtime during reconciliation and can be used
+// to conditionally enable or disable watches based on the current state.
+// This method is thread-safe and can be called concurrently.
+func (b *ReconcilerBuilder[T]) AddDynamicPredicate(predicate DynamicPredicate) *ReconcilerBuilder[T] {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.dynamicPredicates = append(b.dynamicPredicates, predicate)
+	return b
+}
+
+// GetDynamicPredicates returns a copy of all registered dynamic predicates.
+// This method is thread-safe and can be called concurrently.
+func (b *ReconcilerBuilder[T]) GetDynamicPredicates() []DynamicPredicate {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return slices.Clone(b.dynamicPredicates)
+}
+
+// ClearDynamicPredicates removes all registered dynamic predicates.
+// This method is thread-safe and can be called concurrently.
+func (b *ReconcilerBuilder[T]) ClearDynamicPredicates() *ReconcilerBuilder[T] {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.dynamicPredicates = nil
 	return b
 }
 
@@ -328,17 +414,22 @@ func (b *ReconcilerBuilder[T]) buildController(name string) (*builder.Builder, e
 }
 
 // getForOptions provides default watch options when none are specified.
-// The default uses predicate.Or with GenerationChangedPredicate, LabelChangedPredicate, and AnnotationChangedPredicate.
-// This broadens event triggering behavior to ensure reconciliation triggers on generation, label, or annotation changes.
-// Monitor controller performance as this may increase reconciliation frequency compared to previous defaults.
+// By default, only GenerationChangedPredicate is used to reduce reconciliation frequency.
+// Use WithBroadPredicate() to opt into broader behavior that includes label and annotation changes.
 func (b *ReconcilerBuilder[T]) getForOptions() []builder.ForOption {
 	forOpts := slices.Clone(b.input.options)
 	if len(forOpts) == 0 {
-		forOpts = append(forOpts, builder.WithPredicates(predicate.Or(
-			predicate.GenerationChangedPredicate{},
-			predicate.LabelChangedPredicate{},
-			predicate.AnnotationChangedPredicate{},
-		)))
+		if b.useBroadPredicate {
+			// Opt-in broader predicate that includes label and annotation changes
+			forOpts = append(forOpts, builder.WithPredicates(predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.LabelChangedPredicate{},
+				predicate.AnnotationChangedPredicate{},
+			)))
+		} else {
+			// Default restrictive predicate - only generation changes
+			forOpts = append(forOpts, builder.WithPredicates(predicate.GenerationChangedPredicate{}))
+		}
 	}
 	return forOpts
 }

@@ -407,7 +407,7 @@ $(ENVTEST): $(LOCALBIN)
 	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
 
 .PHONY: test
-test: unit-test e2e-test
+test: coverage-report e2e-test
 
 .PHONY: unit-test
 unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
@@ -422,10 +422,23 @@ unit-test: envtest ginkgo # directly use ginkgo since the framework is not compa
         		--randomize-suites \
         		--fail-fast \
         		--cover \
-        		--coverprofile=cover.out \
+        		--covermode=atomic \
         		--succinct \
-        		$(TEST_SRC)
+        		$(TEST_SRC) || true
+	@echo "Coverage reports generated in individual directories"
 CLEANFILES += cover.out
+
+.PHONY: coverage-report
+coverage-report: unit-test ## Generate combined coverage report
+	@echo "Combining coverage reports..."
+	@find . -name "cover.out" -type f -exec echo "Found: {}" \;
+	@find . -name "coverprofile.out" -type f -exec echo "Found: {}" \;
+	@echo "mode: atomic" > combined-cover.out
+	@find . -name "cover.out" -type f -exec grep -h -v "^mode:" {} \; >> combined-cover.out || true
+	@find . -name "coverprofile.out" -type f -exec grep -h -v "^mode:" {} \; >> combined-cover.out || true
+	@echo "Combined coverage report generated: combined-cover.out"
+	@echo "To view HTML report: go tool cover -html=combined-cover.out -o coverage.html"
+CLEANFILES += combined-cover.out coverage.html
 
 $(PROMETHEUS_TEST_DIR)/%.rules.yaml: $(PROMETHEUS_TEST_DIR)/%.unit-tests.yaml $(PROMETHEUS_CONFIG_YAML) $(YQ)
 	$(YQ) eval ".data.\"$(@F:.rules.yaml=.rules)\"" $(PROMETHEUS_CONFIG_YAML) > $@

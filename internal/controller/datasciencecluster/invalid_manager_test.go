@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright 2023-2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,25 +43,27 @@ import (
 
 // InvalidManager is a deterministic stubbed manager that implements the manager.Manager interface
 // and intentionally returns errors to test error handling paths.
+//
+// IMPORTANT: This test relies on the reconciler constructor calling mgr.GetClient() during
+// construction (specifically in ReconcilerFor when calling GroupVersionKindFor). If the
+// reconciler framework changes to defer client access until runtime, this test will need
+// to be updated accordingly.
 type InvalidManager struct {
-	client client.Client
 	scheme *runtime.Scheme
-	mapper meta.RESTMapper
 }
 
 // NewInvalidManager creates a new InvalidManager that will cause the reconciler to fail
-// during client creation, providing a deterministic way to test error paths.
+// during construction by panicking when GetClient() is called, providing a deterministic
+// way to test error paths.
 func NewInvalidManager() manager.Manager { //nolint:ireturn // Test mock intentionally returns interface
 	return &InvalidManager{
-		client: nil, // Will cause panic when accessed
 		scheme: runtime.NewScheme(),
-		mapper: nil,
 	}
 }
 
 // GetClient returns nil to cause a panic when the reconciler tries to access it.
 func (m *InvalidManager) GetClient() client.Client {
-	return nil // This will cause a panic in the reconciler
+	panic("nil client") // Explicit panic with stable sentinel for testing
 }
 
 // GetScheme returns an empty scheme that won't have required types.
@@ -71,7 +73,7 @@ func (m *InvalidManager) GetScheme() *runtime.Scheme {
 
 // GetRESTMapper returns nil to cause failures.
 func (m *InvalidManager) GetRESTMapper() meta.RESTMapper { //nolint:ireturn // Test mock must return interface
-	return m.mapper
+	return nil
 }
 
 // GetConfig returns an invalid config that will fail client creation.
@@ -130,7 +132,7 @@ func (m *InvalidManager) AddHealthzCheck(name string, check healthz.Checker) err
 }
 
 // AddMetricsServerExtraHandler returns an error to simulate metrics failure.
-func (m *InvalidManager) AddMetricsServerExtraHandler(name string, handler http.Handler) error {
+func (m *InvalidManager) AddMetricsServerExtraHandler(path string, handler http.Handler) error {
 	return errors.New("invalid manager: cannot add metrics handler")
 }
 
@@ -160,14 +162,15 @@ func (m *InvalidManager) GetWebhookServer() webhook.Server { //nolint:ireturn //
 }
 
 func TestInvalidManagerWithReconciler(t *testing.T) {
+	t.Parallel()
 	g := gomega.NewWithT(t)
 
 	// Test that calling the reconciler with our InvalidManager causes a panic
 	invalidMgr := NewInvalidManager()
 	ctx := t.Context()
 
-	// This should panic because GetClient() returns nil
+	// This should panic because GetClient() explicitly panics with "nil client"
 	g.Expect(func() {
 		_ = datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, invalidMgr, "test-invalid-manager")
-	}).To(gomega.Panic())
+	}).To(gomega.PanicWith("nil client"))
 }

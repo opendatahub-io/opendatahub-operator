@@ -1,0 +1,27 @@
+mode: atomic
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/addAnnotationsplugin.go:9.103,20.2 1 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/addLabelsplugin.go:18.83,23.2 1 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/addLabelsplugin.go:25.87,46.2 1 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/namespacePlugin.go:11.96,67.2 1 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:39.58,45.2 2 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:48.71,57.2 4 5
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:66.77,68.2 1 5
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:70.69,72.18 2 5
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:72.18,74.3 1 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:76.2,76.43 1 5
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:79.110,81.18 2 5
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:81.18,83.3 1 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:85.2,91.16 3 5
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:91.16,93.3 1 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:95.2,95.31 1 5
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:95.31,97.3 1 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:99.2,104.16 5 5
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:104.16,106.3 1 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:108.2,109.33 1 5
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:109.33,111.4 1 7
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:114.78,116.18 2 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:116.18,118.3 1 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:120.2,125.16 5 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:125.16,127.3 1 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:129.2,130.33 1 0
+github.com/opendatahub-io/opendatahub-operator/v2/pkg/plugins/removerplugin.go:130.33,132.4 1 0
