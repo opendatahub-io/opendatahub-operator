@@ -67,3 +67,10 @@ local.mk
 
 # Ignore catalog related files
 catalog/
+
+# Coverage reports - may contain sensitive information
+coverage.html
+combined-cover.out
+cover.out
+*.cover.out
+*.coverprofile.out

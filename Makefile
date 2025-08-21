@@ -438,7 +438,17 @@ coverage-report: unit-test ## Generate combined coverage report
 	@find . -name "coverprofile.out" -type f -exec grep -h -v "^mode:" {} \; >> combined-cover.out || true
 	@echo "Combined coverage report generated: combined-cover.out"
 	@echo "To view HTML report: go tool cover -html=combined-cover.out -o coverage.html"
-CLEANFILES += combined-cover.out coverage.html
+	@echo "Sanitizing coverage reports to remove sensitive information..."
+	@./hack/sanitize-coverage.sh
+CLEANFILES += combined-cover.out coverage.html coverage-sanitized.html combined-cover-sanitized.out cover-sanitized.out
+
+.PHONY: coverage-report-sanitized
+coverage-report-sanitized: coverage-report ## Generate sanitized coverage report for CI
+	@echo "Sanitized coverage reports generated:"
+	@echo "  - coverage-sanitized.html"
+	@echo "  - combined-cover-sanitized.out"
+	@echo "  - cover-sanitized.out"
+	@echo "These files are safe to commit and share."
 
 $(PROMETHEUS_TEST_DIR)/%.rules.yaml: $(PROMETHEUS_TEST_DIR)/%.unit-tests.yaml $(PROMETHEUS_CONFIG_YAML) $(YQ)
 	$(YQ) eval ".data.\"$(@F:.rules.yaml=.rules)\"" $(PROMETHEUS_CONFIG_YAML) > $@
