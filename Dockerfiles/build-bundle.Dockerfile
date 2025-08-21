@@ -2,6 +2,10 @@
 ARG GOLANG_VERSION=1.24
 
 FROM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder
+ARG IMAGE_TAG_BASE
+ARG IMG_TAG
+ARG OPERATOR_VERSION
+ARG BUNDLE_IMG
 USER root
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -29,5 +33,4 @@ COPY PROJECT PROJECT
 COPY config/ config/
 COPY Dockerfiles/ Dockerfiles/
 
-# NOTE: unset VERSION here otherwise, the bundle is built with the version from the go-toolset container
-RUN unset VERSION && make bundle
+RUN VERSION=$OPERATOR_VERSION make bundle
