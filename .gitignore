@@ -70,7 +70,11 @@ catalog/
 
 # Coverage reports - may contain sensitive information
 coverage.html
+coverage-sanitized.html
 combined-cover.out
+combined-cover-sanitized.out
 cover.out
+cover-sanitized.out
 *.cover.out
 *.coverprofile.out
+*.sanitized
