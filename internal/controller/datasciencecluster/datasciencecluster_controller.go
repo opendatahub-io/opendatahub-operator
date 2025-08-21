@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright 2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,9 +37,15 @@ import (
 )
 
 func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	return NewDataScienceClusterReconcilerWithName(ctx, mgr, "")
+}
+
+// NewDataScienceClusterReconcilerWithName creates a DataScienceCluster reconciler with a custom instance name.
+// This is useful for testing to avoid controller name conflicts.
+func NewDataScienceClusterReconcilerWithName(ctx context.Context, mgr ctrl.Manager, instanceName string) error {
 	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
-	_, err := reconciler.ReconcilerFor(mgr, &dscv1.DataScienceCluster{}).
+	builder := reconciler.ReconcilerFor(mgr, &dscv1.DataScienceCluster{}).
 		Owns(&componentApi.Dashboard{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Workbenches{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Ray{}, reconciler.WithPredicates(componentsPredicate)).
@@ -73,8 +79,12 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 				},
 			),
 		)).
-		WithConditions(status.ConditionTypeComponentsReady).
-		Build(ctx)
+		WithConditions(status.ConditionTypeComponentsReady)
+
+	// Always set instance name - use provided name or default to lowercase GVK Kind
+	builder = builder.WithInstanceName(instanceName)
+
+	_, err := builder.Build(ctx)
 
 	if err != nil {
 		return err

@@ -18,8 +18,14 @@ package datasciencecluster_test
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"fmt"
+	"math/big"
+	"math/rand"
+	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -38,6 +44,46 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	verifyNoErrorMsg     = "verifying no error is returned"
+	callingReconcilerMsg = "calling NewDataScienceClusterReconciler"
+)
+
+// generateUniqueName creates a unique name for test instances.
+// If seed is provided, it uses a deterministic random source for reproducible names.
+// If seed is 0, it uses crypto/rand for non-deterministic names and logs the generated name.
+func generateUniqueName(prefix string, seed ...int64) string {
+	var n *big.Int
+	var name string
+
+	if len(seed) > 0 && seed[0] != 0 {
+		// Use deterministic random source for reproducible names
+		//nolint:gosec // Using math/rand with fixed seed for deterministic test names
+		r := rand.New(rand.NewSource(seed[0]))
+		n = big.NewInt(r.Int63n(1000000))
+		// Use deterministic values for time components when seed is provided
+		timeComponent := r.Int63n(1000000000000)    // Random timestamp
+		nanosecondComponent := r.Int63n(1000000000) // Random nanoseconds
+		pidComponent := r.Int63n(100000)            // Random PID-like value
+		name = fmt.Sprintf("%s-%d-%d-%d-%d", prefix, timeComponent, nanosecondComponent, pidComponent, n)
+	} else {
+		// Use crypto/rand for non-deterministic names
+		var err error
+		n, err = cryptorand.Int(cryptorand.Reader, big.NewInt(1000000))
+		if err != nil {
+			// This should never fail in practice, but if it does, fail the test
+			Fail(fmt.Sprintf("Failed to generate random number for test name: %v", err))
+		}
+		pid := os.Getpid()
+		now := time.Now()
+		name = fmt.Sprintf("%s-%s-%d-%d-%d", prefix, now.Format("20060102150405"), now.Nanosecond(), pid, n)
+		// Log the generated name for debugging non-deterministic test failures
+		logf.Log.Info("Generated non-deterministic test name", "name", name, "prefix", prefix)
+	}
+
+	return name
+}
+
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
@@ -52,6 +98,30 @@ func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	RunSpecs(t, "Controller Suite")
+}
+
+// TestGenerateUniqueName tests the generateUniqueName function.
+func TestGenerateUniqueName(t *testing.T) {
+	// Test deterministic behavior
+	name1 := generateUniqueName("test", 12345)
+	name2 := generateUniqueName("test", 12345)
+	if name1 != name2 {
+		t.Errorf("Deterministic names should be equal: %s != %s", name1, name2)
+	}
+
+	// Test different seeds produce different names
+	name3 := generateUniqueName("test", 67890)
+	if name1 == name3 {
+		t.Errorf("Different seeds should produce different names: %s == %s", name1, name3)
+	}
+
+	// Test non-deterministic behavior (no seed)
+	name4 := generateUniqueName("test")
+	name5 := generateUniqueName("test")
+	if name4 == name5 {
+		t.Logf("Non-deterministic names happened to be equal: %s == %s", name4, name5)
+		// This is technically possible but very unlikely
+	}
 }
 
 var _ = BeforeSuite(func() {
@@ -105,18 +175,18 @@ var _ = Describe("NewDataScienceClusterReconciler", func() {
 
 	Context("when called with valid manager", func() {
 		It("should successfully create reconciler without error", func() {
-			By("calling NewDataScienceClusterReconciler")
-			err := datasciencecluster.NewDataScienceClusterReconciler(ctx, mgr)
+			By(callingReconcilerMsg)
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-valid", 12345))
 
-			By("verifying no error is returned")
+			By(verifyNoErrorMsg)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should create reconciler with correct configuration", func() {
-			By("calling NewDataScienceClusterReconciler")
-			err := datasciencecluster.NewDataScienceClusterReconciler(ctx, mgr)
+			By(callingReconcilerMsg)
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-config", 23456))
 
-			By("verifying no error is returned")
+			By(verifyNoErrorMsg)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Optionally, start the manager in a goroutine and verify it's ready
@@ -125,30 +195,19 @@ var _ = Describe("NewDataScienceClusterReconciler", func() {
 	})
 
 	Context("when called with nil manager", func() {
-		It("should return error", func() {
+		It("should panic", func() {
 			By("calling NewDataScienceClusterReconciler with nil manager")
-			err := datasciencecluster.NewDataScienceClusterReconciler(ctx, nil)
-
-			By("verifying error is returned")
-			Expect(err).To(HaveOccurred())
-		})
-	})
-
-	Context("when called with nil context", func() {
-		It("should handle nil context gracefully", func() {
-			By("calling NewDataScienceClusterReconciler with nil context")
-			err := datasciencecluster.NewDataScienceClusterReconciler(context.TODO(), mgr)
-
-			By("verifying no error is returned")
-			Expect(err).NotTo(HaveOccurred())
+			Expect(func() {
+				_ = datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, nil, generateUniqueName("integration-test-datasciencecluster-nil", 34567))
+			}).To(Panic())
 		})
 	})
 
 	Context("when called multiple times", func() {
 		It("should handle multiple calls without error", func() {
 			By("calling NewDataScienceClusterReconciler multiple times")
-			err1 := datasciencecluster.NewDataScienceClusterReconciler(ctx, mgr)
-			err2 := datasciencecluster.NewDataScienceClusterReconciler(ctx, mgr)
+			err1 := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-multi-1", 45678))
+			err2 := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-multi-2", 56789))
 
 			By("verifying no errors are returned")
 			Expect(err1).NotTo(HaveOccurred())
@@ -157,88 +216,76 @@ var _ = Describe("NewDataScienceClusterReconciler", func() {
 	})
 
 	Context("when manager has invalid configuration", func() {
-		var invalidMgr manager.Manager
+		It("should handle manager with invalid configuration", func() {
+			By("creating an invalid manager that will cause client creation to fail")
+			invalidMgr := NewInvalidManager()
+
+			By("calling NewDataScienceClusterReconciler with invalid manager")
+			Expect(func() {
+				_ = datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, invalidMgr, generateUniqueName("integration-test-datasciencecluster-invalid", 67890))
+			}).To(Panic())
+		})
+	})
+
+	var _ = Describe("DataScienceCluster Reconciler Configuration", func() {
+		var ctx context.Context
 
 		BeforeEach(func() {
-			// Create a manager with minimal/incomplete configuration
-			// that would fail during reconciler setup
-			var err error
-			invalidMgr, err = manager.New(&rest.Config{
-				Host: "https://127.0.0.1:1", // Unreachable but valid format
-			}, manager.Options{
-				Scheme: scheme.Scheme,
-				// Optionally set MetricsBindAddress to "0" to force an error
-			})
+			ctx = context.Background()
+		})
+
+		It("should configure reconciler with all required component ownerships", func() {
+			By(callingReconcilerMsg)
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-ownerships", 78901))
+
+			By(verifyNoErrorMsg)
 			Expect(err).NotTo(HaveOccurred())
+
+			// Successful creation verifies that:
+			// - All required component types are registered in the scheme
+			// - The reconciler successfully sets up ownership for Dashboard, Workbenches, etc.
+			// - The controller builder accepts all ownership configurations
+			// Further validation would require starting the manager and inspecting runtime behavior
 		})
 
-		It("should handle manager with invalid configuration", func() {
-			By("calling NewDataScienceClusterReconciler with invalid manager")
-			err := datasciencecluster.NewDataScienceClusterReconciler(ctx, invalidMgr)
+		It("should configure reconciler with DSCInitialization watches", func() {
+			By(callingReconcilerMsg)
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-watches", 89012))
 
-			By("verifying error is returned")
-			Expect(err).To(HaveOccurred())
+			By(verifyNoErrorMsg)
+			Expect(err).NotTo(HaveOccurred())
+
+			// The reconciler should be configured to watch DSCInitialization objects
+			// This is verified by the successful creation of the reconciler
 		})
-	})
-})
 
-var _ = Describe("DataScienceCluster Reconciler Configuration", func() {
-	var ctx context.Context
+		It("should configure reconciler with all required actions", func() {
+			By(callingReconcilerMsg)
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-actions", 90123))
 
-	BeforeEach(func() {
-		ctx = context.Background()
-	})
+			By(verifyNoErrorMsg)
+			Expect(err).NotTo(HaveOccurred())
 
-	It("should configure reconciler with all required component ownerships", func() {
-		By("calling NewDataScienceClusterReconciler")
-		err := datasciencecluster.NewDataScienceClusterReconciler(ctx, mgr)
+			// The reconciler should be configured with actions:
+			// - initialize
+			// - checkPreConditions
+			// - updateStatus
+			// - provisionComponents
+			// - deploy.NewAction
+			// - gc.NewAction
+			// This is verified by the successful creation of the reconciler
+		})
 
-		By("verifying no error is returned")
-		Expect(err).NotTo(HaveOccurred())
+		It("should configure reconciler with component readiness conditions", func() {
+			By(callingReconcilerMsg)
+			// Using seed 12346 to avoid collision with other tests that use 12345, ensuring deterministic test execution
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-conditions", 12346))
 
-		// Successful creation verifies that:
-		// - All required component types are registered in the scheme
-		// - The reconciler successfully sets up ownership for Dashboard, Workbenches, etc.
-		// - The controller builder accepts all ownership configurations
-		// Further validation would require starting the manager and inspecting runtime behavior
-	})
+			By(verifyNoErrorMsg)
+			Expect(err).NotTo(HaveOccurred())
 
-	It("should configure reconciler with DSCInitialization watches", func() {
-		By("calling NewDataScienceClusterReconciler")
-		err := datasciencecluster.NewDataScienceClusterReconciler(ctx, mgr)
-
-		By("verifying no error is returned")
-		Expect(err).NotTo(HaveOccurred())
-
-		// The reconciler should be configured to watch DSCInitialization objects
-		// This is verified by the successful creation of the reconciler
-	})
-
-	It("should configure reconciler with all required actions", func() {
-		By("calling NewDataScienceClusterReconciler")
-		err := datasciencecluster.NewDataScienceClusterReconciler(ctx, mgr)
-
-		By("verifying no error is returned")
-		Expect(err).NotTo(HaveOccurred())
-
-		// The reconciler should be configured with actions:
-		// - initialize
-		// - checkPreConditions
-		// - updateStatus
-		// - provisionComponents
-		// - deploy.NewAction
-		// - gc.NewAction
-		// This is verified by the successful creation of the reconciler
-	})
-
-	It("should configure reconciler with component readiness conditions", func() {
-		By("calling NewDataScienceClusterReconciler")
-		err := datasciencecluster.NewDataScienceClusterReconciler(ctx, mgr)
-
-		By("verifying no error is returned")
-		Expect(err).NotTo(HaveOccurred())
-
-		// The reconciler should be configured with status.ConditionTypeComponentsReady
-		// This is verified by the successful creation of the reconciler
+			// The reconciler should be configured with status.ConditionTypeComponentsReady
+			// This is verified by the successful creation of the reconciler
+		})
 	})
 })

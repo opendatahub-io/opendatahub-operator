@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
@@ -55,8 +56,13 @@ func createTestManager() manager.Manager {
 	err = componentApi.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	mgr, err := manager.New(&rest.Config{}, manager.Options{
-		Scheme: testScheme,
+	// Create a unique manager for each test to avoid controller name conflicts
+	mgr, err := manager.New(&rest.Config{
+		Host: "http://127.0.0.1:65535",
+	}, manager.Options{
+		Scheme:                 testScheme,
+		Metrics:                server.Options{BindAddress: "0"},
+		HealthProbeBindAddress: "0",
 	})
 	Expect(err).NotTo(HaveOccurred())
 	return mgr
@@ -73,7 +79,7 @@ var _ = Describe("NewDataScienceClusterReconciler", func() {
 		It("should successfully create reconciler without error", func() {
 			By("calling NewDataScienceClusterReconciler")
 			mgr := createTestManager()
-			err := datasciencecluster.NewDataScienceClusterReconciler(ctx, mgr)
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, "test-datasciencecluster")
 
 			By("verifying no error is returned")
 			Expect(err).NotTo(HaveOccurred())
@@ -84,7 +90,7 @@ var _ = Describe("NewDataScienceClusterReconciler", func() {
 		It("should panic", func() {
 			By("calling NewDataScienceClusterReconciler with nil manager")
 			Expect(func() {
-				_ = datasciencecluster.NewDataScienceClusterReconciler(ctx, nil)
+				_ = datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, nil, "test-datasciencecluster")
 			}).To(Panic())
 		})
 	})

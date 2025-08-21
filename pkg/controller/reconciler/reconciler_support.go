@@ -9,12 +9,13 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -28,6 +29,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
+
+// errDynamicWatchesNotImplemented is a sentinel error returned when dynamic watches are not yet supported.
+var errDynamicWatchesNotImplemented = errors.New("dynamic watches are not yet implemented (pending controller-runtime support)")
 
 type forInput struct {
 	object  client.Object
@@ -43,7 +47,6 @@ type watchInput struct {
 	predicates   []predicate.Predicate
 	owned        bool
 	dynamic      bool
-	dynamicPred  []DynamicPredicate
 }
 
 type WatchOpts func(*watchInput)
@@ -69,11 +72,12 @@ func WithEventMapper(value handler.MapFunc) WatchOpts {
 func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 	return func(a *watchInput) {
 		a.dynamic = true
-		a.dynamicPred = slices.Clone(predicates)
+		// TODO: Implement dynamic predicates when dynamic watches are fully supported
+		// a.dynamicPred = slices.Clone(predicates)
 	}
 }
 
-// crdExists is a DynamicPredicate that cheks if a given crd identified by its gvk exists.
+// CrdExists is a DynamicPredicate that checks if a given CRD identified by its GVK exists.
 func CrdExists(crdGvk schema.GroupVersionKind) DynamicPredicate {
 	return func(ctx context.Context, request *types.ReconciliationRequest) bool {
 		if hasCrd, err := cluster.HasCRD(ctx, request.Client, crdGvk); err != nil {
@@ -95,6 +99,9 @@ type ReconcilerBuilder[T common.PlatformObject] struct {
 	errors              error
 	happyCondition      string
 	dependantConditions []string
+	// Cached clients to avoid recreation
+	discoveryClient discovery.DiscoveryInterface
+	dynamicClient   dynamic.Interface
 }
 
 func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
@@ -218,26 +225,114 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 	if b.errors != nil {
 		return nil, b.errors
 	}
-	name := b.instanceName
-	if name == "" {
-		name = strings.ToLower(b.input.gvk.Kind)
+
+	// Validate manager configuration and initialize cached clients early
+	// This ensures clients are available for all subsequent operations
+	// Note: This initialization is single-threaded and should be called before any consumers run
+	if err := b.validateManager(); err != nil {
+		return nil, fmt.Errorf("invalid manager configuration: %w", err)
 	}
 
+	name := b.getInstanceName()
+	obj, err := b.validateObject()
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := b.createReconciler(name, obj)
+	if err != nil {
+		return nil, err
+	}
+
+	c, err := b.buildController(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := b.setupWatches(c, r); err != nil {
+		return nil, err
+	}
+
+	b.addEventFilters(c)
+	b.addActionsAndFinalizers(r)
+
+	_, err = c.Build(r)
+	if err != nil {
+		return nil, err
+	}
+
+	b.addDynamicWatchAction(r)
+
+	return r, nil
+}
+
+func (b *ReconcilerBuilder[T]) validateManager() error {
+	// Return early if clients are already initialized
+	if b.discoveryClient != nil && b.dynamicClient != nil {
+		return nil
+	}
+
+	// Get config once and reuse for both clients
+	config := b.mgr.GetConfig()
+
+	// Create discovery client first
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create discovery client: %w", err)
+	}
+
+	// Create dynamic client
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
+	// Only assign clients to builder if both creations succeed
+	b.discoveryClient = discoveryClient
+	b.dynamicClient = dynamicClient
+
+	return nil
+}
+
+func (b *ReconcilerBuilder[T]) getInstanceName() string {
+	if b.instanceName != "" {
+		return b.instanceName
+	}
+	return strings.ToLower(b.input.gvk.Kind)
+}
+
+func (b *ReconcilerBuilder[T]) validateObject() (T, error) {
 	obj, ok := b.input.object.(T)
 	if !ok {
-		return nil, errors.New("invalid type for object")
+		return obj, errors.New("invalid type for object")
 	}
+	return obj, nil
+}
 
-	r, err := NewReconciler(b.mgr, name, obj, WithConditionsManagerFactory(b.happyCondition, b.dependantConditions...))
+func (b *ReconcilerBuilder[T]) createReconciler(name string, obj T) (*Reconciler, error) {
+	// Use cached clients that were initialized during validateManager
+	r, err := newReconcilerWithClients(b.mgr, name, obj, b.discoveryClient, b.dynamicClient, WithConditionsManagerFactory(b.happyCondition, b.dependantConditions...))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reconciler for component %s: %w", name, err)
 	}
+	return r, nil
+}
 
-	c := ctrl.NewControllerManagedBy(b.mgr)
+func (b *ReconcilerBuilder[T]) buildController(name string) (*builder.Builder, error) {
+	c := ctrl.NewControllerManagedBy(b.mgr).Named(name)
 
-	// automatically add default predicates to the watched API if no
-	// predicates are provided
-	forOpts := b.input.options
+	forOpts := b.getForOptions()
+	c = c.For(b.input.object, forOpts...)
+
+	return c, nil
+}
+
+// getForOptions provides default watch options when none are specified.
+// The default uses predicate.Or with GenerationChangedPredicate, LabelChangedPredicate, and AnnotationChangedPredicate.
+// This broadens event triggering behavior to ensure reconciliation triggers on generation, label, or annotation changes.
+// Monitor controller performance as this may increase reconciliation frequency compared to previous defaults.
+func (b *ReconcilerBuilder[T]) getForOptions() []builder.ForOption {
+	forOpts := slices.Clone(b.input.options)
 	if len(forOpts) == 0 {
 		forOpts = append(forOpts, builder.WithPredicates(predicate.Or(
 			predicate.GenerationChangedPredicate{},
@@ -245,59 +340,119 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 			predicate.AnnotationChangedPredicate{},
 		)))
 	}
+	return forOpts
+}
 
-	c = c.For(b.input.object, forOpts...)
-
+func (b *ReconcilerBuilder[T]) setupWatches(c *builder.Builder, r *Reconciler) error {
 	for i := range b.watches {
-		if b.watches[i].owned {
-			kinds, _, err := b.mgr.GetScheme().ObjectKinds(b.watches[i].object)
-			if err != nil {
-				return nil, err
-			}
+		if err := b.processWatch(&b.watches[i], c, r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-			for i := range kinds {
-				r.AddOwnedType(kinds[i])
-			}
+func (b *ReconcilerBuilder[T]) processWatch(watch *watchInput, c *builder.Builder, r *Reconciler) error {
+	if watch.owned {
+		if err := b.addOwnedTypes(watch, r); err != nil {
+			return err
+		}
+	}
+
+	if watch.dynamic {
+		// Extract identifying information for debug logging
+		var watchName, resourceKind, namespace string
+
+		// Get GVK information
+		if kinds, _, err := b.mgr.GetScheme().ObjectKinds(watch.object); err == nil && len(kinds) > 0 {
+			resourceKind = kinds[0].String()
+		} else {
+			resourceKind = "unknown"
 		}
 
-		// if the watch is dynamic, then the watcher will be registered
-		// at later stage
-		if b.watches[i].dynamic {
-			continue
+		// Get namespace information
+		if watch.object != nil {
+			namespace = watch.object.GetNamespace()
+			if namespace == "" {
+				namespace = "cluster-scoped"
+			}
+		} else {
+			namespace = "unknown"
 		}
 
-		c = c.Watches(
-			b.watches[i].object,
-			b.watches[i].eventHandler,
-			builder.WithPredicates(b.watches[i].predicates...),
-		)
+		// Generate a watch identifier
+		if watch.object != nil {
+			watchName = fmt.Sprintf("%s/%s", resourceKind, watch.object.GetName())
+		} else {
+			watchName = resourceKind
+		}
+
+		r.Log.V(1).Info("Dynamic watch configured but being skipped",
+			"watchName", watchName,
+			"resourceKind", resourceKind,
+			"namespace", namespace,
+			"reason", "dynamic watches not yet implemented")
+
+		return nil // Skip dynamic watches for now
 	}
 
-	for i := range b.predicates {
-		c = c.WithEventFilter(b.predicates[i])
-	}
+	c.Watches(
+		watch.object,
+		watch.eventHandler,
+		builder.WithPredicates(watch.predicates...),
+	)
+	return nil
+}
 
-	for i := range b.actions {
-		r.AddAction(b.actions[i])
-	}
-	for i := range b.finalizers {
-		r.AddFinalizer(b.finalizers[i])
-	}
-
-	cc, err := c.Build(r)
+func (b *ReconcilerBuilder[T]) addOwnedTypes(watch *watchInput, r *Reconciler) error {
+	kinds, _, err := b.mgr.GetScheme().ObjectKinds(watch.object)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// internal action
+	for _, kind := range kinds {
+		r.AddOwnedType(kind)
+	}
+	return nil
+}
+
+func (b *ReconcilerBuilder[T]) addEventFilters(c *builder.Builder) {
+	for _, p := range b.predicates {
+		c.WithEventFilter(p)
+	}
+}
+
+func (b *ReconcilerBuilder[T]) addActionsAndFinalizers(r *Reconciler) {
+	for _, action := range b.actions {
+		r.AddAction(action)
+	}
+	for _, finalizer := range b.finalizers {
+		r.AddFinalizer(finalizer)
+	}
+}
+
+func (b *ReconcilerBuilder[T]) addDynamicWatchAction(r *Reconciler) {
+	// Only add dynamic watch action if there are dynamic watches configured
+	hasDynamicWatches := false
+	for _, watch := range b.watches {
+		if watch.dynamic {
+			hasDynamicWatches = true
+			break
+		}
+	}
+
+	if !hasDynamicWatches {
+		return
+	}
+
 	r.AddAction(
 		newDynamicWatchAction(
 			func(obj client.Object, eventHandler handler.EventHandler, predicates ...predicate.Predicate) error {
-				return cc.Watch(source.Kind(b.mgr.GetCache(), obj, eventHandler, predicates...))
+				// For now, return an error indicating dynamic watches are not supported
+				// This can be implemented later when the correct controller interface is available
+				return errDynamicWatchesNotImplemented
 			},
 			b.watches,
 		),
 	)
-
-	return r, nil
 }

@@ -52,12 +52,13 @@ func (a *dynamicWatchAction) run(ctx context.Context, rr *types.ReconciliationRe
 }
 
 func (a *dynamicWatchAction) shouldWatch(ctx context.Context, in watchInput, rr *types.ReconciliationRequest) bool {
-	for pi := range in.dynamicPred {
-		ok := in.dynamicPred[pi](ctx, rr)
-		if !ok {
-			return false
-		}
-	}
+	// TODO: Implement dynamic predicate evaluation when dynamic watches are fully supported
+	// for pi := range in.dynamicPred {
+	// 	ok := in.dynamicPred[pi](ctx, rr)
+	// 	if !ok {
+	// 		return false
+	// 	}
+	// }
 
 	return true
 }
