@@ -361,7 +361,12 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 
 .PHONY: bundle-build
 bundle-build: bundle
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME) --platform $(PLATFORM) -t $(BUNDLE_IMG) .
+	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME) --platform $(PLATFORM) -t $(BUNDLE_IMG) \
+	--build-arg BUNDLE_IMG=$(BUNDLE_IMG) \
+	--build-arg IMAGE_TAG_BASE=$(IMAGE_TAG_BASE) \
+	--build-arg IMG_TAG=$(IMG_TAG) \
+	--build-arg OPERATOR_VERSION=$(VERSION) \
+	.
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
