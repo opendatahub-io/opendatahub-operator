@@ -137,7 +137,7 @@ var _ = Describe("NewDataScienceClusterReconciler", func() {
 	Context("when called with nil context", func() {
 		It("should handle nil context gracefully", func() {
 			By("calling NewDataScienceClusterReconciler with nil context")
-			err := datasciencecluster.NewDataScienceClusterReconciler(nil, mgr)
+			err := datasciencecluster.NewDataScienceClusterReconciler(context.TODO(), mgr)
 
 			By("verifying no error is returned")
 			Expect(err).NotTo(HaveOccurred())

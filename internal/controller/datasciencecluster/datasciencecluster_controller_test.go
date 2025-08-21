@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package datasciencecluster
+package datasciencecluster_test
 
 import (
 	"context"
@@ -27,6 +27,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -37,6 +38,9 @@ func TestNewDataScienceClusterReconciler(t *testing.T) {
 	RunSpecs(t, "DataScienceCluster Controller Unit Tests")
 }
 
+// createTestManager returns a manager.Manager interface for testing.
+// This is acceptable here since we're testing the reconciler's interaction with the manager interface,
+// not the concrete implementation details.
 func createTestManager() manager.Manager {
 	// Create a new scheme for each test to avoid conflicts
 	testScheme := runtime.NewScheme()
@@ -67,7 +71,7 @@ var _ = Describe("NewDataScienceClusterReconciler", func() {
 		It("should successfully create reconciler without error", func() {
 			By("calling NewDataScienceClusterReconciler")
 			mgr := createTestManager()
-			err := NewDataScienceClusterReconciler(ctx, mgr)
+			err := datasciencecluster.NewDataScienceClusterReconciler(ctx, mgr)
 
 			By("verifying no error is returned")
 			Expect(err).NotTo(HaveOccurred())
@@ -78,7 +82,7 @@ var _ = Describe("NewDataScienceClusterReconciler", func() {
 		It("should panic", func() {
 			By("calling NewDataScienceClusterReconciler with nil manager")
 			Expect(func() {
-				NewDataScienceClusterReconciler(ctx, nil)
+				_ = datasciencecluster.NewDataScienceClusterReconciler(ctx, nil)
 			}).To(Panic())
 		})
 	})
