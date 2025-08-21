@@ -1,0 +1,14 @@
+# Default ClusterIssuer for OpenDataHub Gateway API certificates
+# Uses self-signed certificates suitable for development and testing
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: odh-gateway-issuer
+  labels:
+    app.kubernetes.io/name: odh-gateway
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/managed-by: opendatahub-operator
+  annotations:
+    opendatahub.io/managed: "true"
+spec:
+  selfSigned: {} 

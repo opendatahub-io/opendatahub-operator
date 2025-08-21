@@ -1,0 +1,11 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: odh-gateway-class
+spec:
+  # The controller name must be exactly as shown for the Ingress Operator to manage it.
+  # If you set this field to anything else, the Ingress Operator ignores the GatewayClass 
+  # object and all associated Gateway, GRPCRoute, and HTTPRoute objects. The controller name 
+  # is tied to the implementation of Gateway API in OpenShift Container Platform, 
+  # and openshift.io/gateway-controller/v1 is the only controller name allowed.
+  controllerName: openshift.io/gateway-controller/v1 
