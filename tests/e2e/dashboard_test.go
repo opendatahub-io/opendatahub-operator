@@ -43,13 +43,12 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate hardware profile reconcilliation", componentCtx.ValidateHardwareProfileReconciliation},
-		// TODO: Disabled until these tests have been hardened (RHOAIENG-27721)
-		// {"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		// {"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		// {"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
-		// {"Validate route deletion recovery", componentCtx.ValidateRouteDeletionRecovery},
-		// {"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		{"Validate route deletion recovery", componentCtx.ValidateRouteDeletionRecovery},
 		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
+		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
