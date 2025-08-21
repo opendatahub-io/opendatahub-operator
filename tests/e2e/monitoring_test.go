@@ -288,6 +288,7 @@ func setMonitoringMetrics() testf.TransformFn {
 				"cpurequest":    "250m",
 				"memoryrequest": "350Mi",
 			},
+			"replicas": int64(2),
 		}
 
 		return unstructured.SetNestedField(obj.Object, metricsConfig, "spec", "monitoring", "metrics")

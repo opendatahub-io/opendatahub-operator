@@ -45,7 +45,9 @@ type MonitoringSpec struct {
 type Metrics struct {
 	Storage   *MetricsStorage   `json:"storage,omitempty"`
 	Resources *MetricsResources `json:"resources,omitempty"`
-	// Replicas specifies the number of replicas in monitoringstack, default is 2 if not set
+	// Replicas specifies the number of replicas in monitoringstack. If not set, it defaults
+	// to 1 on single-node clusters and 2 on multi-node clusters.
+	// +kubebuilder:validation:Minimum=0
 	Replicas int32 `json:"replicas,omitempty"`
 }
 
