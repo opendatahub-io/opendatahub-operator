@@ -41,6 +41,8 @@ func TestNewDataScienceClusterReconciler(t *testing.T) {
 // createTestManager returns a manager.Manager interface for testing.
 // This is acceptable here since we're testing the reconciler's interaction with the manager interface,
 // not the concrete implementation details.
+//
+//nolint:ireturn
 func createTestManager() manager.Manager {
 	// Create a new scheme for each test to avoid conflicts
 	testScheme := runtime.NewScheme()
