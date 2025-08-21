@@ -68,3 +68,6 @@ package dscinitialization
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=instrumentations,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=instrumentations/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=instrumentations/finalizers,verbs=update
+
+/* Permissions for determining SNO */
+//+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
