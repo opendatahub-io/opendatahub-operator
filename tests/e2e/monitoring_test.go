@@ -56,6 +56,7 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test TempoStack CR Creation with GCS backend", monitoringServiceCtx.ValidateTempoStackCRCreationWithGCS},
 		{"Test OpenTelemetry Collector Deployment", monitoringServiceCtx.ValidateOpenTelemetryCollectorDeployment},
 		{"Test OpenTelemetry Collector Traces Configuration", monitoringServiceCtx.ValidateOpenTelemetryCollectorTracesConfiguration},
+		{"Test Opentelemetry CollectorReplicas", monitoringServiceCtx.ValidateMonitoringCRCollectorReplicas},
 		{"Test Instrumentation CR Traces Creation", monitoringServiceCtx.ValidateInstrumentationCRTracesWhenSet},
 		{"Test Instrumentation CR Traces Configuration", monitoringServiceCtx.ValidateInstrumentationCRTracesConfiguration},
 		{"Test MonitoringStack CR Deletion", monitoringServiceCtx.ValidateMonitoringStackCRDeleted},
@@ -677,5 +678,33 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRuleDeletion(t *testing.T) {
 	// Ensure the dashboard-prometheusrules is deleted
 	tc.EnsureResourceGone(
 		WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: tc.AppsNamespace}),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateMonitoringCRCollectorReplicas(t *testing.T) {
+	t.Helper()
+
+	// collectorreplicas should already be set to the default value of 2
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(
+			And(
+				jq.Match(`.spec.collectorReplicas == 2`),
+			),
+		),
+		WithCustomErrorMsg("CollectorReplicas should be set to the default value of 2"),
+	)
+
+	// set collectorreplicas to 3
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.collectorReplicas = 3`)),
+	)
+
+	// collectorreplicas should be set to 3 by DSCInitialization controller
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.spec.collectorReplicas == 3`)),
+		WithCustomErrorMsg("CollectorReplicas should be set to 3 by DSCInitialization controller"),
 	)
 }
