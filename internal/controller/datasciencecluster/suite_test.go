@@ -128,9 +128,15 @@ var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
 	By("bootstrapping test environment")
+	binaryAssetsDir := os.Getenv("KUBEBUILDER_ASSETS")
+	if binaryAssetsDir == "" {
+		// Fallback to default location if not set
+		binaryAssetsDir = filepath.Join("..", "..", "..", "bin", "k8s", "1.32.0-darwin-arm64")
+	}
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
+		BinaryAssetsDirectory: binaryAssetsDir,
 	}
 
 	var err error

@@ -55,7 +55,6 @@ scripts/gke/build/**
 
 opt/manifests/
 
-cover.out
 
 config/manager/kustomization.yaml
 
@@ -77,4 +76,7 @@ cover.out
 cover-sanitized.out
 *.cover.out
 *.coverprofile.out
+**/coverprofile.out.*
+**/coverprofile.out
 *.sanitized
+/.unit-test-exit-code

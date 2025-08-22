@@ -399,7 +399,10 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/...
+UNIT_TEST_SRC ?=./internal/controller/components/... ./internal/controller/datasciencecluster/... ./internal/controller/dscinitialization/... ./internal/controller/services/... ./internal/webhook/... ./pkg/...
+INTEGRATION_TEST_SRC ?=./tests/integration/...
+# TEST_SRC combines both test sources for CI workflows that need to run all tests
+TEST_SRC ?=$(UNIT_TEST_SRC) $(INTEGRATION_TEST_SRC)
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
@@ -407,10 +410,33 @@ $(ENVTEST): $(LOCALBIN)
 	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
 
 .PHONY: test
-test: coverage-report e2e-test
+test: unit-test integration-test e2e-test ## Run all tests (unit, integration, and e2e)
+
+.PHONY: unit-test-exit-code
+unit-test-exit-code: ## Capture unit test exit code (file contains numeric exit code, 0=success)
+	# Use --keep-going to run all tests despite failures, then capture actual exit code
+	# Run without coverage to avoid combination issues when tests fail
+	set +e; \
+	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+    	${GINKGO} -r \
+        		--procs=8 \
+        		--compilers=2 \
+        		--timeout=15m \
+        		--poll-progress-after=30s \
+        		--poll-progress-interval=5s \
+        		--randomize-all \
+        		--randomize-suites \
+        		--keep-going \
+        		--succinct \
+        		--no-color \
+        		$(UNIT_TEST_SRC); \
+	exit_code=$$?; \
+	set -e; \
+	echo $$exit_code > .unit-test-exit-code
 
 .PHONY: unit-test
 unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
+	# Use --fail-fast to stop on first failure for CI efficiency
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
     	${GINKGO} -r \
         		--procs=8 \
@@ -421,21 +447,45 @@ unit-test: envtest ginkgo # directly use ginkgo since the framework is not compa
         		--randomize-all \
         		--randomize-suites \
         		--fail-fast \
-        		--cover \
-        		--cover \
-        		--covermode=atomic \
-        		--keep-going \
         		--succinct \
-        		$(TEST_SRC)
+        		--no-color \
+        		--cover \
+        		--coverpkg=./internal/...,./pkg/...,./api/... \
+        		--coverprofile=coverprofile.out \
+        		$(UNIT_TEST_SRC)
 	@echo "Coverage reports generated in individual directories"
+
+.PHONY: integration-test
+integration-test: envtest ginkgo ## Run integration tests
+	# Use --fail-fast to stop on first failure for CI efficiency
+	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+    	${GINKGO} -r \
+        		--procs=8 \
+        		--compilers=2 \
+        		--timeout=15m \
+        		--poll-progress-after=30s \
+        		--poll-progress-interval=5s \
+        		--randomize-all \
+        		--randomize-suites \
+        		--fail-fast \
+        		--succinct \
+        		--no-color \
+        		--cover \
+        		--coverpkg=./internal/...,./pkg/...,./api/... \
+        		--coverprofile=coverprofile.out \
+        		$(INTEGRATION_TEST_SRC)
+	@echo "Integration test coverage reports generated in individual directories"
 # Clean up individual coverage files
 CLEANFILES += cover.out
+CLEANFILES += .unit-test-exit-code
 
 .PHONY: coverage-report
-coverage-report: unit-test ## Generate combined coverage report
+coverage-report: unit-test integration-test ## Generate combined coverage report
 	@echo "Combining coverage reports..."
 	@echo "mode: atomic" > combined-cover.out
 	@echo "Scanning for coverage files (excluding vendor, bin, bundle, catalog directories)..."
+	# Clean up any incomplete coverage files that might cause combination issues
+	@find . -name "coverprofile.out.*" -type f -delete 2>/dev/null || true
 	@COVER_FILES=$(find . \
 		-type d \( -path "./vendor" -o -path "./bin" -o -path "./bundle*" -o -path "./catalog" \) -prune -o \
 		-type f -name "cover.out" -print) && \
@@ -470,7 +520,7 @@ coverage-report-sanitized: coverage-report ## Generate sanitized coverage report
 	@echo "  - coverage-sanitized.html"
 	@echo "  - combined-cover-sanitized.out"
 	@echo "  - cover-sanitized.out"
-	@echo "These files are safe to commit and share."
+	@echo "These files are safe to publish as CI artifacts and to share externally; they are ignored by .gitignore by default."
 
 $(PROMETHEUS_TEST_DIR)/%.rules.yaml: $(PROMETHEUS_TEST_DIR)/%.unit-tests.yaml $(PROMETHEUS_CONFIG_YAML) $(YQ)
 	$(YQ) eval ".data.\"$(@F:.rules.yaml=.rules)\"" $(PROMETHEUS_CONFIG_YAML) > $@
