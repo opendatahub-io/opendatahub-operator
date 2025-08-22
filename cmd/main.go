@@ -151,6 +151,8 @@ func initServices(_ context.Context, p common.Platform) error {
 	})
 }
 
+// commenttt
+
 // Create a config struct with viper's mapstructure.
 type OperatorConfig struct {
 	MetricsAddr         string `mapstructure:"metrics-bind-address"`
