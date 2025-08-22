@@ -399,10 +399,10 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-UNIT_TEST_SRC ?=./internal/controller/components/... ./internal/controller/datasciencecluster/... ./internal/controller/dscinitialization/... ./internal/controller/services/... ./internal/webhook/... ./pkg/...
-INTEGRATION_TEST_SRC ?=./tests/integration/...
+UNIT_TEST_SRC ?= ./internal/controller/components/... ./internal/controller/datasciencecluster/... ./internal/controller/dscinitialization/... ./internal/controller/services/... ./internal/webhook/... ./pkg/...
+INTEGRATION_TEST_SRC ?= ./tests/integration/...
 # TEST_SRC combines both test sources for CI workflows that need to run all tests
-TEST_SRC ?=$(UNIT_TEST_SRC) $(INTEGRATION_TEST_SRC)
+TEST_SRC ?= $(UNIT_TEST_SRC) $(INTEGRATION_TEST_SRC)
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
@@ -471,10 +471,33 @@ integration-test: envtest ginkgo ## Run integration tests
         		--succinct \
         		--no-color \
         		--cover \
+        		--covermode=atomic \
         		--coverpkg=./internal/...,./pkg/...,./api/... \
         		--coverprofile=coverprofile.out \
         		$(INTEGRATION_TEST_SRC)
 	@echo "Integration test coverage reports generated in individual directories"
+
+.PHONY: ci-test-sources
+ci-test-sources: envtest ginkgo ## Run all test sources (unit + integration) - primarily for CI workflows
+	# Use --fail-fast to stop on first failure for CI efficiency
+	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+    	${GINKGO} -r \
+        		--procs=8 \
+        		--compilers=2 \
+        		--timeout=15m \
+        		--poll-progress-after=30s \
+        		--poll-progress-interval=5s \
+        		--randomize-all \
+        		--randomize-suites \
+        		--fail-fast \
+        		--succinct \
+        		--no-color \
+        		--cover \
+        		--coverpkg=./internal/...,./pkg/...,./api/... \
+        		--coverprofile=coverprofile.out \
+        		$(TEST_SRC)
+	@echo "CI test sources coverage reports generated in individual directories"
+
 # Clean up individual coverage files
 CLEANFILES += cover.out
 CLEANFILES += .unit-test-exit-code

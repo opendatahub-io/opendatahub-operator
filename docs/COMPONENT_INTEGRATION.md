@@ -103,19 +103,19 @@ func (c *ExampleComponent) GetStatus() *common.Status {
     return &c.Status.Status
 }
 
-func (c *TrainingOperator) GetConditions() []common.Condition {
+func (c *ExampleComponent) GetConditions() []common.Condition {
     return c.Status.GetConditions()
 }
 
-func (c *TrainingOperator) SetConditions(conditions []common.Condition) {
+func (c *ExampleComponent) SetConditions(conditions []common.Condition) {
     c.Status.SetConditions(conditions)
 }
 
-func (c *TrainingOperator) GetReleaseStatus() *[]common.ComponentRelease {
+func (c *ExampleComponent) GetReleaseStatus() *[]common.ComponentRelease {
     return &c.Status.Releases
 }
 
-func (c *TrainingOperator) SetReleaseStatus(releases []common.ComponentRelease) {
+func (c *ExampleComponent) SetReleaseStatus(releases []common.ComponentRelease) {
     c.Status.Releases = releases
 }
 
@@ -335,7 +335,7 @@ Lastly, please update the following files to fully integrate new component tests
 If the component is planned to be released for downstream, Prometheus rules and promtest need to be updated for the component.
 
 - Rules are located in `config/monitoring/prometheus/app/prometheus-configs.yaml` file
-- Tests are grouped in `tests/prometheus_unit_tests` `<component>_unit_tests.yam` file
+- Tests are grouped in `tests/prometheus_unit_tests` as `<component>_unit_tests.yaml` files
 
 ## Integrated components
 

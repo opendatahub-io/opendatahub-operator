@@ -157,7 +157,7 @@ main() {
     
     # Check for any other coverage files
     local other_coverage_files
-    other_coverage_files=$(find . -path './vendor' -prune -o -path './vendor/bin/bundle/catalog' -prune -o -name "*.cover.out" -o -name "*.coverprofile.out" -print 2>/dev/null || true)
+    other_coverage_files=$(find . \( -path './vendor' -o -path './vendor/bin/bundle/catalog' \) -prune -o \( -name "*.cover.out" -o -name "*.coverprofile.out" \) -print 2>/dev/null || true)
     if [[ -n "$other_coverage_files" ]]; then
         has_coverage_files=true
         for file in $other_coverage_files; do
@@ -195,7 +195,7 @@ main() {
     
     # Check for sanitized-*.cover.out files
     local sanitized_cover_files
-    sanitized_cover_files=$(find . -path './vendor' -prune -o -path './vendor/bin/bundle/catalog' -prune -o -name "sanitized-*.cover.out" -print 2>/dev/null || true)
+    sanitized_cover_files=$(find . \( -path './vendor' -o -path './vendor/bin/bundle/catalog' \) -prune -o -name "sanitized-*.cover.out" -print 2>/dev/null || true)
     if [[ -n "$sanitized_cover_files" ]]; then
         for file in $sanitized_cover_files; do
             created_files+=("$file")
