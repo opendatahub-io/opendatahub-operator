@@ -53,7 +53,7 @@ YQ ?= $(LOCALBIN)/yq
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.4.3
-CONTROLLER_TOOLS_VERSION ?= v0.16.1
+CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
 GOLANGCI_LINT_VERSION ?= v2.1.2
 YQ_VERSION ?= v4.12.2
@@ -360,7 +360,7 @@ endif
 .PHONY: catalog-clean
 catalog-clean: ## Clean up catalog files and Dockerfile
 	rm -rf catalog
-	
+
 .PHONY: catalog-prepare
 catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel. It requires BUNDLE_IMG exists before running the target"
 	mkdir -p catalog
