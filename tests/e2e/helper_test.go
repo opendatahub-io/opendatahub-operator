@@ -286,7 +286,7 @@ func ParseTestFlags() error {
 }
 
 // getOperatorSelector returns selector based on platform.
-func (tc *OperatorTestCtx) getOperatorPodSelector() labels.Selector {
+func (tc *TestContext) getOperatorPodSelector() labels.Selector {
 	platform := tc.FetchPlatformRelease()
 	switch platform {
 	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
@@ -299,7 +299,7 @@ func (tc *OperatorTestCtx) getOperatorPodSelector() labels.Selector {
 }
 
 // getControllerDeploymentName returns deployment name based on platform.
-func (tc *OperatorTestCtx) getControllerDeploymentName() string {
+func (tc *TestContext) getControllerDeploymentName() string {
 	platform := tc.FetchPlatformRelease()
 	switch platform {
 	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
