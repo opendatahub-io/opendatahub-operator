@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.33.0
-    createdAt: "2025-08-18T14:56:18Z"
+    createdAt: "2025-08-20T16:03:16Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -261,6 +261,81 @@ spec:
     spec:
       clusterPermissions:
       - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - clusterversions
+          - rhmis
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          - events
+          - namespaces
+          - secrets
+          - secrets/finalizers
+          - serviceaccounts
+          - services/finalizers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps/status
+          verbs:
+          - delete
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - ""
+          resources:
+          - deployments
+          - persistentvolumeclaims
+          - persistentvolumes
+          - pods
+          - pods/exec
+          - pods/log
+          verbs:
+          - '*'
+        - apiGroups:
+          - ""
+          resources:
+          - endpoints
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - namespaces/finalizers
+          verbs:
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - services
+          verbs:
+          - '*'
         - apiGroups:
           - '*'
           resources:
@@ -547,88 +622,6 @@ spec:
           resources:
           - leases
           verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - clusterversions
-          - rhmis
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - configmaps
-          - events
-          - namespaces
-          - secrets
-          - secrets/finalizers
-          - serviceaccounts
-          - services/finalizers
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - configmaps/status
-          verbs:
-          - delete
-          - get
-          - patch
-          - update
-        - apiGroups:
-          - ""
-          resources:
-          - deployments
-          - persistentvolumeclaims
-          - persistentvolumes
-          - pods
-          - pods/exec
-          - pods/log
-          verbs:
-          - '*'
-        - apiGroups:
-          - ""
-          resources:
-          - endpoints
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - namespaces/finalizers
-          verbs:
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - services
-          verbs:
-          - '*'
           - create
           - delete
           - get
