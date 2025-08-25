@@ -41,6 +41,11 @@ func trustyAITestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate pre check", componentCtx.ValidateTrustyAIPreCheck},
+		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
+		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
