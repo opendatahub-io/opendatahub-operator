@@ -35,7 +35,7 @@ declare -A PLATFORM_MANIFESTS=(
 )
 
 # Allow overwriting repo using flags component=repo
-pattern="^[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_./-]+$"
+pattern="^[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_./-]+:[a-zA-Z0-9_./-]+$"
 if [ "$#" -ge 1 ]; then
     for arg in "$@"; do
         if [[ $arg == --* ]]; then
