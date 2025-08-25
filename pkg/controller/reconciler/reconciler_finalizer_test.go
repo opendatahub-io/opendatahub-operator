@@ -68,7 +68,7 @@ func (f *MockManager) Add(runnable manager.Runnable) error                      
 func (f *MockManager) Elected() <-chan struct{}                                 { ch := make(chan struct{}); close(ch); return ch }
 func (f *MockManager) Start(ctx context.Context) error                          { <-ctx.Done(); return nil }
 func (f *MockManager) AddHealthzCheck(name string, check healthz.Checker) error { return nil }
-func (f *MockManager) AddMetricsServerExtraHandler(name string, handler http.Handler) error {
+func (f *MockManager) AddMetricsServerExtraHandler(path string, handler http.Handler) error {
 	return nil
 }
 func (f *MockManager) AddReadyzCheck(name string, check healthz.Checker) error { return nil }

@@ -55,7 +55,6 @@ scripts/gke/build/**
 
 opt/manifests/
 
-cover.out
 
 config/manager/kustomization.yaml
 
@@ -67,3 +66,17 @@ local.mk
 
 # Ignore catalog related files
 catalog/
+
+# Coverage reports - may contain sensitive information
+coverage.html
+coverage-sanitized.html
+combined-cover.out
+combined-cover-sanitized.out
+cover.out
+cover-sanitized.out
+*.cover.out
+*.coverprofile.out
+**/coverprofile.out.*
+**/coverprofile.out
+*.sanitized
+/.unit-test-exit-code

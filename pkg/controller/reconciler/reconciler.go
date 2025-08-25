@@ -78,6 +78,28 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		return nil, fmt.Errorf("unable to construct a Dynamic client: %w", err)
 	}
 
+	return newReconcilerWithClients(mgr, name, object, discoveryCli, dynamicCli, opts...)
+}
+
+// newReconcilerWithClients creates a new reconciler with pre-initialized clients.
+// This is used internally to avoid recreating clients that were already validated.
+// discoveryClient and dynamicClient must be non-nil when injected.
+func newReconcilerWithClients[T common.PlatformObject](
+	mgr manager.Manager,
+	name string,
+	object T,
+	discoveryClient discovery.DiscoveryInterface,
+	dynamicClient dynamic.Interface,
+	opts ...ReconcilerOpt,
+) (*Reconciler, error) {
+	// Precondition checks: ensure required clients are non-nil
+	if discoveryClient == nil {
+		return nil, errors.New("discoveryClient cannot be nil")
+	}
+	if dynamicClient == nil {
+		return nil, errors.New("dynamicClient cannot be nil")
+	}
+
 	cc := Reconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
@@ -86,7 +108,11 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		Release:  cluster.GetRelease(),
 		name:     name,
 		instanceFactory: func() (common.PlatformObject, error) {
-			t := reflect.TypeOf(object).Elem()
+			t := reflect.TypeOf(object)
+			if t.Kind() != reflect.Ptr {
+				return nil, fmt.Errorf("expected pointer to type %v", t)
+			}
+			t = t.Elem()
 			res, ok := reflect.New(t).Interface().(T)
 			if !ok {
 				return res, fmt.Errorf("unable to construct instance of %v", t)
@@ -98,8 +124,8 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 			return conditions.NewManager(accessor, status.ConditionTypeReady)
 		},
 		gvks:            make(map[schema.GroupVersionKind]gvkInfo),
-		dynamicClient:   dynamicCli,
-		discoveryClient: discoveryCli,
+		dynamicClient:   dynamicClient,
+		discoveryClient: discoveryClient,
 	}
 
 	for _, opt := range opts {
