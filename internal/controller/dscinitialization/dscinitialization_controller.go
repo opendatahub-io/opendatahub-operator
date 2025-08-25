@@ -261,6 +261,19 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 
+		// handle changes to ServiceMesh section of DSCI spec
+		if err := r.handleServiceMesh(ctx, instance); err != nil {
+			log.Error(err, "failed to handle change to ServiceMesh spec in DSCI")
+			return ctrl.Result{}, err
+		}
+
+		// Sync ServiceMesh conditions to DSCI status
+		if instance.Spec.ServiceMesh != nil && instance.Spec.ServiceMesh.ManagementState != operatorv1.Removed {
+			if err := r.syncServiceMeshConditions(ctx, instance); err != nil {
+				log.Error(err, "failed to sync ServiceMesh conditions to DSCI")
+			}
+		}
+
 		// Create Auth
 		if err = r.CreateAuth(ctx, platform); err != nil {
 			log.Info("failed to create Auth")
@@ -328,6 +341,13 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.PersistentVolumeClaim{},
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&serviceApi.ServiceMesh{},
+			builder.WithPredicates(
+				predicate.Or(
+					predicate.GenerationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+					rp.ServiceMeshStatusCondition,
+				))).
 		Watches(
 			&dscv1.DataScienceCluster{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {

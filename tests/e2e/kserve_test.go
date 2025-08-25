@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,7 +36,7 @@ type KserveTestCtx struct {
 	*ComponentTestCtx
 }
 
-var templatedResources = []struct {
+var kserveTemplatedResources = []struct {
 	gvk schema.GroupVersionKind
 	nn  types.NamespacedName
 }{
@@ -79,7 +80,7 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate KnativeServing resource exists and is recreated upon deletion", componentCtx.ValidateKnativeServing},
 		{"Validate model controller", componentCtx.ValidateModelControllerInstance},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		{"Validate no FeatureTracker OwnerReferences", componentCtx.ValidateNoFeatureTrackerOwnerReferences},
+		{"Validate no FeatureTracker OwnerReferences", componentCtx.ValidateNoKServeFeatureTrackerOwnerReferences},
 		{"Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers},
 		{"Validate default certs", componentCtx.ValidateDefaultCertsAvailable},
 		// {"Validate DSCI DSC validation interaction", componentCtx.ValidateDSCIDSCValidationInteractionForKserve},
@@ -195,10 +196,10 @@ func (tc *KserveTestCtx) ValidateKnativeServing(t *testing.T) {
 }
 
 // ValidateNoFeatureTrackerOwnerReferences ensures no FeatureTrackers are owned by Kserve.
-func (tc *KserveTestCtx) ValidateNoFeatureTrackerOwnerReferences(t *testing.T) {
+func (tc *KserveTestCtx) ValidateNoKServeFeatureTrackerOwnerReferences(t *testing.T) {
 	t.Helper()
 
-	for _, child := range templatedResources {
+	for _, child := range kserveTemplatedResources {
 		tc.EnsureResourceExists(
 			WithMinimalObject(child.gvk, child.nn),
 			WithCondition(
@@ -216,20 +217,17 @@ func (tc *KserveTestCtx) ValidateNoFeatureTrackerOwnerReferences(t *testing.T) {
 func (tc *KserveTestCtx) ValidateNoKserveFeatureTrackers(t *testing.T) {
 	t.Helper()
 
-	tc.EnsureResourcesExist(
+	tc.EnsureResourcesDoNotExist(
 		WithMinimalObject(gvk.FeatureTracker, tc.NamespacedName),
-		WithCondition(
-			HaveEach(And(
-				jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-kserve-external-authz"),
-				jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-serverless-serving-gateways"),
-				jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-serverless-serving-deployment"),
-				jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-serverless-net-istio-secret-filtering"),
-
-				// there should be no FeatureTrackers owned by a Kserve
-				jq.Match(`.metadata.ownerReferences | all(.kind != "%s")`, tc.GVK.Kind),
-			)),
-		),
-		WithCustomErrorMsg(`Ensuring there are no Kserve FeatureTrackers`),
+		WithListOptions(&client.ListOptions{
+			Namespace: tc.AppsNamespace,
+			LabelSelector: k8slabels.SelectorFromSet(
+				k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				},
+			),
+		}),
+		WithCustomErrorMsg("Expected no KServe-related FeatureTracker resources to be present"),
 	)
 }
 
@@ -292,7 +290,7 @@ func (tc *KserveTestCtx) ValidateServingTransitionToRemoved(t *testing.T) {
 	tc.updateKserveDeploymentAndServingState(componentApi.RawDeployment, operatorv1.Removed)
 
 	// Ensure that the associated resources are removed from the cluster.
-	for _, child := range templatedResources {
+	for _, child := range kserveTemplatedResources {
 		tc.EnsureResourceGone(
 			WithMinimalObject(child.gvk, child.nn),
 			WithCustomErrorMsg(`Ensuring %s/%s in %s no longer exists`, child.gvk, child.nn.Name, child.nn.Namespace))
@@ -422,7 +420,7 @@ func (tc *KserveTestCtx) validateTemplatedResourceOwnerRefsAndLabels(expectOwned
 		msg = `Ensuring %s/%s in %s still exists but is de-owned`
 	}
 
-	for _, child := range templatedResources {
+	for _, child := range kserveTemplatedResources {
 		tc.EnsureResourceExists(
 			WithMinimalObject(child.gvk, child.nn),
 			WithCondition(condition),
