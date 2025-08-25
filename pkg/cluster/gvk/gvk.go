@@ -399,6 +399,18 @@ var (
 		Kind:    "LLMInferenceService",
 	}
 
+	InferencePoolV1alpha2 = schema.GroupVersionKind{
+		Group:   "inference.networking.x-k8s.io",
+		Version: "v1alpha2",
+		Kind:    "InferencePool",
+	}
+
+	InferenceModelV1alpha2 = schema.GroupVersionKind{
+		Group:   "inference.networking.x-k8s.io",
+		Version: "v1alpha2",
+		Kind:    "InferenceModel",
+	}
+
 	OperatorCondition = schema.GroupVersionKind{
 		Group:   "operators.coreos.com",
 		Version: "v2",
