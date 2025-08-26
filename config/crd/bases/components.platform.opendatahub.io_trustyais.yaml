@@ -74,6 +74,24 @@ spec:
                       type: object
                     type: array
                 type: object
+              eval:
+                description: Eval configuration for TrustyAI evaluations
+                properties:
+                  lmeval:
+                    description: LMEval configuration for model evaluations
+                    properties:
+                      permitCodeExecution:
+                        default: false
+                        description: PermitCodeExecution controls whether code execution
+                          is allowed during evaluations
+                        type: boolean
+                      permitOnline:
+                        default: false
+                        description: PermitOnline controls whether online access is
+                          allowed during evaluations
+                        type: boolean
+                    type: object
+                type: object
             type: object
           status:
             description: TrustyAIStatus defines the observed state of TrustyAI
