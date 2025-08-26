@@ -9,7 +9,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-2.24:manifests"
     ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.24:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-2.24:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-2.24:manifests"
+    ["workbenches/notebooks"]="red-hat-data-services:notebooks:main:manifests"
     ["modelmeshserving"]="red-hat-data-services:modelmesh-serving:rhoai-2.24:config"
     ["kserve"]="red-hat-data-services:kserve:main:config"
     ["kueue"]="red-hat-data-services:kueue:rhoai-2.24:config"
@@ -94,6 +94,13 @@ download_manifest() {
 
     repo_url="${GITHUB_URL}/${repo_org}/${repo_name}"
     repo_dir=${TMP_DIR}/${key}
+
+    if [[ -v USE_LOCAL ]] && [[ -e ../${repo_name} ]]; then
+        echo "copying from adjacent checkout ..."
+        mkdir -p ./opt/manifests/${target_path}
+        cp -rf "../${repo_name}/${source_path}"/* ./opt/manifests/${target_path}
+        return
+    fi
 
     git_fetch_ref ${repo_url} ${repo_ref} ${repo_dir}
 

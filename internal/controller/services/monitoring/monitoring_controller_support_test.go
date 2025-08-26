@@ -2,7 +2,6 @@
 package monitoring
 
 import (
-	"context"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -19,7 +18,7 @@ import (
 )
 
 func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	tests := []struct {
 		name                       string
@@ -104,7 +103,7 @@ func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 }
 
 func TestGetTemplateDataAcceleratorMetricsWithMetricsConfiguration(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Test with full metrics configuration
 	dsci := &dsciv1.DSCInitialization{
