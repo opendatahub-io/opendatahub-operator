@@ -22,7 +22,7 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 	if err := viper.BindEnv("leader-elect", envvarPrefix+"_LEADER_ELECT"); err != nil {
 		return err
 	}
-	pflag.String("dsc-monitoring-namespace", "redhat-ods-monitoring", "The namespace where data science cluster "+
+	pflag.String("dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster "+
 		"monitoring stack will be deployed")
 	if err := viper.BindEnv("dsc-monitoring-namespace", envvarPrefix+"_DSC_MONITORING_NAMESPACE"); err != nil {
 		return err
