@@ -31,6 +31,10 @@ COPY config/osd-configs/ /opt/manifests/osd-configs
 RUN rm -f /opt/manifests/kueue-configs
 COPY config/kueue-configs/ /opt/manifests/kueue-configs
 
+# Copy vap removing any possibly pre-existing symlinks
+RUN rm -f /opt/manifests/vap
+COPY config/vap/ /opt/manifests/vap
+
 ################################################################################
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder
 ARG CGO_ENABLED=1
