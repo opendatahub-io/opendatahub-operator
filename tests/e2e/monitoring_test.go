@@ -633,7 +633,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRuleCreation(t *testing.T) {
 
 	// Update DSC to enable dashboard component
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DataScienceCluster, types.NamespacedName{Name: "e2e-test-dsc", Namespace: tc.DSCInitializationNamespacedName.Namespace}),
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.components.dashboard.managementState = "%s"`, operatorv1.Managed),
 		)),
@@ -668,7 +668,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRuleDeletion(t *testing.T) {
 
 	// Update DSC to disable dashboard component
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DataScienceCluster, types.NamespacedName{Name: "e2e-test-dsc", Namespace: tc.DSCInitializationNamespacedName.Namespace}),
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.components.dashboard.managementState = "%s"`, operatorv1.Removed),
 		)),
