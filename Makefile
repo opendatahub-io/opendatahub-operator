@@ -3,16 +3,22 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 3.0.0
+ifeq ($(VERSION), )
+	VERSION = 3.0.0
+endif
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # opendatahub.io/opendatahub-operator-bundle:$VERSION and opendatahub.io/opendatahub-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= quay.io/opendatahub/opendatahub-operator
+ifeq ($(IMAGE_TAG_BASE), )
+	IMAGE_TAG_BASE = quay.io/opendatahub/opendatahub-operator
+endif
 
 # keep the name based on IMG which already used from command line
-IMG_TAG ?= latest
+ifeq ($(IMG_TAG), )
+	IMG_TAG = latest
+endif
 # Set image to REPLACE_IMAGE:latest unless IMAGE_TAG_BASE is provided
 ifeq ($(origin IMAGE_TAG_BASE), file)
 	IMG ?= REPLACE_IMAGE:latest
@@ -21,7 +27,9 @@ else
 endif
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
+ifeq ($(BUNDLE_IMG), )
+	BUNDLE_IMG = $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
+endif
 
 IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
