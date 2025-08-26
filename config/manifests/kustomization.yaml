@@ -9,6 +9,7 @@ resources:
 - ../prometheus
 - ../samples # to generate CSV alm-example
 - ../scorecard
+- ../hardwareprofiles
 
 patches:
 - path: description-patch.yml
