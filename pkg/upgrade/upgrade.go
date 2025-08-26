@@ -6,8 +6,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 
+	"github.com/blang/semver/v4"
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	templatev1 "github.com/openshift/api/template/v1"
@@ -23,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -35,6 +39,8 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -837,4 +843,91 @@ func updateSpecFields(obj *unstructured.Unstructured, updates map[string][]any) 
 	}
 
 	return updated, nil
+}
+
+func CreateVAP(ctx context.Context, cli client.Client, operatorNS string) error {
+	log := logf.FromContext(ctx)
+	// Skip VAP creation on OCP < 4.17 (VAP only available in 4.17+)
+	if cluster.GetClusterInfo().Version.LT(semver.MustParse("4.17.0")) {
+		log.V(1).Info("Skipping VAP creation for OCP < 4.17 (VAP not available)")
+		return nil
+	}
+	// first check if CRDs in cluster, if no, quick exit
+	// TODO: this need to go with dashboard change (removal shipping CRD from their side)
+	crd := &apiextv1.CustomResourceDefinition{}
+	apCRDExists := false
+	hpCRDExists := false
+
+	if err := cli.Get(ctx, client.ObjectKey{Name: "acceleratorprofiles.dashboard.opendatahub.io"}, crd); err == nil {
+		apCRDExists = true
+	}
+
+	if err := cli.Get(ctx, client.ObjectKey{Name: "hardwareprofiles.dashboard.opendatahub.io"}, crd); err == nil {
+		hpCRDExists = true
+	}
+	// proceed if any CRDs exist
+	if !apCRDExists && !hpCRDExists {
+		log.V(1).Info("Both CRD not exist, skipping creation")
+		return nil
+	}
+
+	// use ClusterServiceVersion as owner since VAP/VAPB are cluster-scoped resources
+	// and CSV is also cluster-scoped and exists from operator installation
+	// Get the CSV for this operator using existing utility function
+	csv, err := cluster.GetClusterServiceVersion(ctx, cli, operatorNS)
+	if err != nil {
+		return fmt.Errorf("failed to get ClusterServiceVersion: %w", err)
+	}
+
+	// Create owner reference with BlockOwnerDeletion: false since CSV doesn't support finalizers
+	ownerRef := &metav1.OwnerReference{
+		APIVersion:         "operators.coreos.com/v1alpha1",
+		Kind:               "ClusterServiceVersion",
+		Name:               csv.GetName(),
+		UID:                csv.GetUID(),
+		Controller:         ptr.To(true),
+		BlockOwnerDeletion: ptr.To(false),
+	}
+
+	vapPath := filepath.Join(deploy.DefaultManifestPath, "vap")
+
+	accelProfileData, err := os.ReadFile(filepath.Join(vapPath, "acceleratorprofile.yaml"))
+	if err != nil {
+		return fmt.Errorf("failed to read accelerator profile VAP: %w", err)
+	}
+
+	hwProfileData, err := os.ReadFile(filepath.Join(vapPath, "hardwareprofile.yaml"))
+	if err != nil {
+		return fmt.Errorf("failed to read hardware profile VAP: %w", err)
+	}
+
+	accelProfileObjs, err := conversion.StrToUnstructured(string(accelProfileData))
+	if err != nil {
+		return fmt.Errorf("failed to parse acceleratorprofile VAP: %w", err)
+	}
+	hwProfileObjs, err := conversion.StrToUnstructured(string(hwProfileData))
+	if err != nil {
+		return fmt.Errorf("failed to parse hardwareprofile VAP: %w", err)
+	}
+
+	// Apply all VAP objects with owner reference
+	allObjs := make([]*unstructured.Unstructured, 0, len(accelProfileObjs)+len(hwProfileObjs))
+	allObjs = append(allObjs, accelProfileObjs...)
+	allObjs = append(allObjs, hwProfileObjs...)
+
+	for _, obj := range allObjs {
+		obj.SetOwnerReferences([]metav1.OwnerReference{*ownerRef})
+
+		opts := []client.PatchOption{
+			client.ForceOwnership,
+			client.FieldOwner(resources.PlatformFieldOwner + "/vap"),
+		}
+
+		if err := resources.Apply(ctx, cli, obj, opts...); err != nil {
+			return fmt.Errorf("failed to apply VAP object %s: %w", obj.GetName(), err)
+		}
+	}
+
+	log.V(1).Info("Successfully applied VAP/VAPB resources")
+	return nil
 }

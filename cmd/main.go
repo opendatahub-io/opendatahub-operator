@@ -254,13 +254,19 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// get old release version before we create default DSCI CR
 	oldReleaseVersion, _ := upgrade.GetDeployedRelease(ctx, setupClient)
 
-	secretCache, err := createSecretCacheConfig(ctx, setupClient, platform)
+	operatorNs, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		setupLog.Error(err, "unable to get operator namespace")
+		os.Exit(1)
+	}
+
+	secretCache, err := createSecretCacheConfig(ctx, setupClient, platform, operatorNs)
 	if err != nil {
 		setupLog.Error(err, "unable to get application namespace into cache")
 		os.Exit(1)
 	}
 
-	oDHCache, err := createODHGeneralCacheConfig(ctx, setupClient, platform)
+	oDHCache, err := createODHGeneralCacheConfig(ctx, setupClient, platform, operatorNs)
 	if err != nil {
 		setupLog.Error(err, "unable to get application namespace into cache")
 		os.Exit(1)
@@ -438,6 +444,10 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			setupLog.Error(err, "Unable to patch the odhdashboardconfig")
 			return err
 		}
+		if err := upgrade.CreateVAP(ctx, setupClient, operatorNs); err != nil {
+			setupLog.Error(err, "Unable to create VAP/VAPB for HWProfile/AcceleratorProfile")
+			return err
+		}
 		return nil
 	}
 
@@ -475,16 +485,10 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 }
 
-func getCommonCache(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
+func getCommonCache(ctx context.Context, cli client.Client, platform common.Platform, operatorNS string) (map[string]cache.Config, error) {
 	namespaceConfigs := map[string]cache.Config{}
 
-	// networkpolicy need operator namespace
-	operatorNs, err := cluster.GetOperatorNamespace()
-	if err != nil {
-		return nil, err
-	}
-
-	namespaceConfigs[operatorNs] = cache.Config{}
+	namespaceConfigs[operatorNS] = cache.Config{}
 	namespaceConfigs["redhat-ods-monitoring"] = cache.Config{}
 
 	if platform == cluster.ManagedRhoai {
@@ -518,8 +522,8 @@ func getCommonCache(ctx context.Context, cli client.Client, platform common.Plat
 	}
 }
 
-func createSecretCacheConfig(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs, err := getCommonCache(ctx, cli, platform)
+func createSecretCacheConfig(ctx context.Context, cli client.Client, platform common.Platform, operatorNS string) (map[string]cache.Config, error) {
+	namespaceConfigs, err := getCommonCache(ctx, cli, platform, operatorNS)
 	if err != nil {
 		return nil, err
 	}
@@ -530,8 +534,8 @@ func createSecretCacheConfig(ctx context.Context, cli client.Client, platform co
 	return namespaceConfigs, nil
 }
 
-func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platform common.Platform) (map[string]cache.Config, error) {
-	namespaceConfigs, err := getCommonCache(ctx, cli, platform)
+func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platform common.Platform, operatorNS string) (map[string]cache.Config, error) {
+	namespaceConfigs, err := getCommonCache(ctx, cli, platform, operatorNS)
 	if err != nil {
 		return nil, err
 	}
