@@ -72,6 +72,12 @@ func kueueTestSuite(t *testing.T) {
 		{"Validate component managed to removed to unmanaged transition with config migration", componentCtx.ValidateKueueManagedToRemovedToUnmanagedTransition(true)},
 		{"Validate component managed to removed to unmanaged transition without config migration", componentCtx.ValidateKueueManagedToRemovedToUnmanagedTransition(false)},
 		{"Validate component unmanaged to managed transition", componentCtx.ValidateKueueUnmanagedToManagedTransition},
+		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		// TODO: disabled until RHOAIENG-32503 is resolved
+		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
+		// {"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
 	}
 
 	// Add webhook tests if enabled
