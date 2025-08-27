@@ -370,12 +370,6 @@ func (tc *ComponentTestCtx) ValidateDeploymentDeletionRecovery(t *testing.T) {
 		),
 	)
 
-	// Skip test if no deployments are found
-	if len(deployments) == 0 {
-		t.Skip("No deployments found for component, skipping deletion recovery test")
-		return
-	}
-
 	// For each Deployment, delete it and verify it gets recreated with robust deletion-recreation testing
 	for _, deployment := range deployments {
 		t.Run("deployment_"+deployment.GetName(), func(t *testing.T) {
