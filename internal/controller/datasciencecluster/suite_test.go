@@ -65,7 +65,7 @@ func generateUniqueName(prefix string, seed ...int64) string {
 		timeComponent := r.Int63n(1000000000000)    // Random timestamp
 		nanosecondComponent := r.Int63n(1000000000) // Random nanoseconds
 		pidComponent := r.Int63n(100000)            // Random PID-like value
-		name = fmt.Sprintf("%s-%d-%d-%d-%d", prefix, timeComponent, nanosecondComponent, pidComponent, n)
+		name = fmt.Sprintf("%s-%d-%d-%d-%s", prefix, timeComponent, nanosecondComponent, pidComponent, n.String())
 	} else {
 		// Use crypto/rand for non-deterministic names
 		var err error
@@ -76,7 +76,7 @@ func generateUniqueName(prefix string, seed ...int64) string {
 		}
 		pid := os.Getpid()
 		now := time.Now()
-		name = fmt.Sprintf("%s-%s-%d-%d-%d", prefix, now.Format("20060102150405"), now.Nanosecond(), pid, n)
+		name = fmt.Sprintf("%s-%s-%d-%d-%s", prefix, now.Format("20060102150405"), now.Nanosecond(), pid, n.String())
 		// Log the generated name for debugging non-deterministic test failures
 		logf.Log.Info("Generated non-deterministic test name", "name", name, "prefix", prefix)
 	}

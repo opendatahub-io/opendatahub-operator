@@ -36,6 +36,7 @@ import (
 
 func TestNewDataScienceClusterReconciler(t *testing.T) {
 	RegisterFailHandler(Fail)
+	RunSpecs(t, "DataScienceCluster Controller Suite")
 }
 
 // createTestManager returns a manager.Manager interface for testing.

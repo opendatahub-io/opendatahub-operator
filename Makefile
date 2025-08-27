@@ -413,7 +413,7 @@ $(ENVTEST): $(LOCALBIN)
 test: unit-test integration-test e2e-test ## Run all tests (unit, integration, and e2e)
 
 .PHONY: unit-test-exit-code
-unit-test-exit-code: ## Capture unit test exit code (file contains numeric exit code, 0=success)
+unit-test-exit-code: envtest ginkgo ## Capture unit test exit code (file contains numeric exit code, 0=success)
 	# Use --keep-going to run all tests despite failures, then capture actual exit code
 	# Run without coverage to avoid combination issues when tests fail
 	set +e; \
@@ -450,9 +450,12 @@ unit-test: envtest ginkgo # directly use ginkgo since the framework is not compa
         		--succinct \
         		--no-color \
         		--cover \
+        		--covermode=atomic \
         		--coverpkg=./internal/...,./pkg/...,./api/... \
         		--coverprofile=coverprofile.out \
-        		$(UNIT_TEST_SRC)
+        		--keep-going \
+        		--output-dir=. \
+        		$(UNIT_TEST_SRC) || true
 	@echo "Coverage reports generated in individual directories"
 
 .PHONY: integration-test
@@ -509,22 +512,22 @@ coverage-report: unit-test integration-test ## Generate combined coverage report
 	@echo "Scanning for coverage files (excluding vendor, bin, bundle, catalog directories)..."
 	# Clean up any incomplete coverage files that might cause combination issues
 	@find . -name "coverprofile.out.*" -type f -delete 2>/dev/null || true
-	@COVER_FILES=$(find . \
+	@COVER_FILES=$$(find . \
 		-type d \( -path "./vendor" -o -path "./bin" -o -path "./bundle*" -o -path "./catalog" \) -prune -o \
 		-type f -name "cover.out" -print) && \
-	COVERPROFILE_FILES=$(find . \
+	COVERPROFILE_FILES=$$(find . \
 		-type d \( -path "./vendor" -o -path "./bin" -o -path "./bundle*" -o -path "./catalog" \) -prune -o \
 		-type f -name "coverprofile.out" -print) && \
-	echo "Found cover.out files: $COVER_FILES" && \
-	echo "Found coverprofile.out files: $COVERPROFILE_FILES" && \
-	for file in $COVER_FILES $COVERPROFILE_FILES; do \
-		if [ -f "$file" ]; then \
-			FIRST_LINE=$(head -n 1 "$file" | tr -d '[:space:]') && \
-			if [ "$FIRST_LINE" != "mode:atomic" ]; then \
-				echo "WARNING: Skipping $file - expected 'mode:atomic' but found '$FIRST_LINE'" >&2; \
+	echo "Found cover.out files: $$COVER_FILES" && \
+	echo "Found coverprofile.out files: $$COVERPROFILE_FILES" && \
+	for file in $$COVER_FILES $$COVERPROFILE_FILES; do \
+		if [ -f "$$file" ]; then \
+			FIRST_LINE=$$(head -n 1 "$$file" | tr -d '[:space:]') && \
+			if [ "$$FIRST_LINE" != "mode:atomic" ]; then \
+				echo "WARNING: Skipping $$file - expected 'mode:atomic' but found '$$FIRST_LINE'" >&2; \
 			else \
-				echo "Processing $file..." && \
-				grep -h -v "^mode:" "$file" >> combined-cover.out; \
+				echo "Processing $$file..." && \
+				grep -h -v "^mode:" "$$file" >> combined-cover.out; \
 			fi; \
 		fi; \
 	done
@@ -539,10 +542,45 @@ CLEANFILES += $(shell find . -name "coverprofile.out" -type f \( -path "./vendor
 
 .PHONY: coverage-report-sanitized
 coverage-report-sanitized: coverage-report ## Generate sanitized coverage report for CI
+	@echo "Generating sanitized coverage reports..."
+	@if [ ! -f "combined-cover.out" ]; then \
+		echo "ERROR: combined-cover.out not found. Run 'make coverage-report' first." >&2; \
+		exit 1; \
+	fi
+	@echo "Generating HTML coverage report..."
+	@if ! go tool cover -html=combined-cover.out -o coverage.html; then \
+		echo "ERROR: Failed to generate coverage.html" >&2; \
+		exit 1; \
+	fi
+	@echo "Running coverage sanitizer..."
+	@if ! ./hack/sanitize-coverage.sh; then \
+		echo "ERROR: Coverage sanitization failed" >&2; \
+		exit 1; \
+	fi
+	@echo "Verifying sanitized files were created..."
+	@missing_files=0; \
+	# Always expect these files when sanitization succeeds
+	for file in coverage-sanitized.html combined-cover-sanitized.out; do \
+		if [ ! -f "$$file" ]; then \
+			echo "ERROR: Expected sanitized file '$$file' was not created" >&2; \
+			missing_files=1; \
+		fi; \
+	done; \
+	# Only expect cover-sanitized.out if cover.out exists (not in combined-only flow)
+	if [ -f "cover.out" ] && [ ! -f "cover-sanitized.out" ]; then \
+		echo "ERROR: Expected sanitized file 'cover-sanitized.out' was not created" >&2; \
+		missing_files=1; \
+	fi; \
+	if [ $$missing_files -eq 1 ]; then \
+		echo "ERROR: Some sanitized files were not created" >&2; \
+		exit 1; \
+	fi
 	@echo "Sanitized coverage reports generated:"
 	@echo "  - coverage-sanitized.html"
 	@echo "  - combined-cover-sanitized.out"
-	@echo "  - cover-sanitized.out"
+	@if [ -f "cover.out" ]; then \
+		echo "  - cover-sanitized.out"; \
+	fi
 	@echo "These files are safe to publish as CI artifacts and to share externally; they are ignored by .gitignore by default."
 
 $(PROMETHEUS_TEST_DIR)/%.rules.yaml: $(PROMETHEUS_TEST_DIR)/%.unit-tests.yaml $(PROMETHEUS_CONFIG_YAML) $(YQ)

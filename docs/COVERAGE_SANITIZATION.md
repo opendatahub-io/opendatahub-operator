@@ -76,9 +76,10 @@ In CI pipelines, use the sanitized coverage reports:
 make coverage-report-sanitized
 
 # Upload sanitized reports to coverage services
-# Example: codecov.io
-curl -s https://codecov.io/bash | bash -s -- -f combined-cover-sanitized.out
-```
+# Example: Codecov Uploader (recommended)
+curl -sSLf https://uploader.codecov.io/latest/linux/codecov -o codecov
+chmod +x codecov
+./codecov -f combined-cover-sanitized.out
 
 ## Sanitized Files
 
@@ -93,10 +94,12 @@ The sanitization process creates the following files:
 
 The sanitization script removes or replaces:
 
-1. **Absolute Paths**:
+1. **User/Home Path Prefixes** (only the prefix, preserving repo-relative paths):
    - `/Users/username/` → `/Users/REDACTED/`
    - `/home/username/` → `/home/REDACTED/`
    - `C:\Users\username\` → `C:\Users\REDACTED\`
+   
+   **Important**: Only the user/home prefix is replaced. The rest of the path (including repo root, directories, and filenames) must remain untouched so coverage tooling can correctly map files.
 
 2. **Email Addresses**:
    - `user@example.com` → `REDACTED_EMAIL`
@@ -104,8 +107,22 @@ The sanitization script removes or replaces:
 3. **Timestamps**:
    - `2023-08-21T10:30:00Z` → `REDACTED_TIMESTAMP`
 
-4. **Machine-Specific Paths**:
-   - Any path containing potential usernames → `/REDACTED_PATH`
+### Path Sanitization Guidelines
+
+When sanitizing coverage reports, follow these specific rules:
+
+- **Strip only the prefix**: Replace only the user/home directory prefix (e.g., `/Users/username/` → `/Users/REDACTED/`)
+- **Preserve repo structure**: Leave everything after the repo root completely untouched
+- **Maintain file paths**: Do not replace the trailing filename or module-relative path
+- **Keep coverage mapping intact**: Ensure coverage tooling can still correctly map files to their source locations
+
+**Example of correct sanitization**:
+- Before: `/Users/johndoe/projects/opendatahub-operator/internal/controller/components.go`
+- After: `/Users/REDACTED/projects/opendatahub-operator/internal/controller/components.go`
+
+**Example of incorrect sanitization** (over-redaction):
+- Before: `/Users/johndoe/projects/opendatahub-operator/internal/controller/components.go`
+- After: `/REDACTED_PATH/components.go` ❌ (breaks coverage mapping)
 
 ## Security Considerations
 

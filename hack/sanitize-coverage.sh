@@ -24,6 +24,33 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Cross-platform sed in-place replacement helper
+sed_inplace() {
+    local file="$1"
+    local pattern="$2"
+    
+    # Try BSD-style sed first (macOS)
+    if sed -i '' "$pattern" "$file" 2>/dev/null; then
+        return 0
+    fi
+    
+    # Fall back to GNU-style sed (Linux)
+    if sed -i "$pattern" "$file" 2>/dev/null; then
+        return 0
+    fi
+    
+    # If both fail, try with backup extension (some systems require it)
+    if sed -i.bak "$pattern" "$file" 2>/dev/null; then
+        # Clean up backup file
+        rm -f "${file}.bak"
+        return 0
+    fi
+    
+    # If all attempts fail, return error
+    print_error "Failed to perform sed in-place replacement on $file"
+    return 1
+}
+
 # Function to sanitize a file
 sanitize_file() {
     local input_file="$1"
@@ -49,37 +76,27 @@ sanitize_file() {
     # This handles various path patterns that might contain sensitive information
     
     # Replace absolute Unix paths (/Users/, /home/, etc.)
-    sed -i.bak 's|/Users/[^/]*|/Users/REDACTED|g' "$temp_file"
-    sed -i.bak 's|/home/[^/]*|/home/REDACTED|g' "$temp_file"
-    sed -i.bak 's|/tmp/[^/]*|/tmp/REDACTED|g' "$temp_file"
+    sed_inplace "$temp_file" 's|/Users/[^/]*|/Users/REDACTED|g'
+    sed_inplace "$temp_file" 's|/home/[^/]*|/home/REDACTED|g'
+    sed_inplace "$temp_file" 's|/tmp/[^/]*|/tmp/REDACTED|g'
     
     # Replace absolute Windows paths (C:\Users\, etc.)
-    sed -i.bak 's|C:\\Users\\[^\\]*|C:\\Users\\REDACTED|g' "$temp_file"
-    sed -i.bak 's|C:/Users/[^/]*|C:/Users/REDACTED|g' "$temp_file"
+    sed_inplace "$temp_file" 's|C:\\Users\\[^\\]*|C:\\Users\\REDACTED|g'
+    sed_inplace "$temp_file" 's|C:/Users/[^/]*|C:/Users/REDACTED|g'
     
     # Replace email-like patterns (including mailto: prefixes and HTML-escaped @ symbols)
-    sed -i.bak 's|\(mailto:\)\?[a-zA-Z0-9._%+-]\{1,\}\(@\|&commat;\|&#64;\)[a-zA-Z0-9.-]\{1,\}\.[a-zA-Z]\{2,\}|REDACTED_EMAIL|g' "$temp_file"
+    sed_inplace "$temp_file" 's|\(mailto:\)\?[a-zA-Z0-9._%+-]\{1,\}\(@\|&commat;\|&#64;\)[a-zA-Z0-9.-]\{1,\}\.[a-zA-Z]\{2,\}|REDACTED_EMAIL|g'
     # Replace any remaining absolute paths that might contain usernames
-    sed -i.bak 's|/[a-zA-Z0-9._-]*/[^/]*/[^/]*|/REDACTED_PATH|g' "$temp_file"
+    sed_inplace "$temp_file" 's|/[a-zA-Z0-9._-]*/[^/]*/[^/]*|/REDACTED_PATH|g'
     
     # Remove any build timestamps or machine-specific information
-    sed -i.bak 's|[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}Z|REDACTED_TIMESTAMP|g' "$temp_file"
+    sed_inplace "$temp_file" 's|[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}Z|REDACTED_TIMESTAMP|g'
     
     # HTML-specific sanitization if mode is "html"
     if [[ "$mode" == "html" ]]; then
         print_status "Applying HTML-specific sanitization patterns"
         
-        # Remove class attributes that might contain sensitive information
-        sed -i.bak 's/class="[^"]*"/class="REDACTED_CLASS"/g' "$temp_file"
-        
-        # Remove data-* attributes that might contain sensitive information
-        sed -i.bak 's/data-[a-zA-Z0-9_-]*="[^"]*"/data-REDACTED="REDACTED_VALUE"/g' "$temp_file"
-        
-        # Remove inline event handlers (onclick, onload, etc.)
-        sed -i.bak 's/on[a-zA-Z]*="[^"]*"/onREDACTED="REDACTED_HANDLER"/g' "$temp_file"
-        
-        # Remove script tag contents that might contain sensitive information
-        sed -i.bak 's|<script[^>]*>[^<]*</script>|<script>REDACTED_SCRIPT_CONTENT</script>|g' "$temp_file"
+        # Keep structure intact; only redact sensitive href/src/mailto/email patterns
         
         # Remove href/src attributes with absolute file paths
         sed -i.bak 's|href="[^"]*[a-zA-Z]:[^"]*"|href="REDACTED_ABSOLUTE_PATH"|g' "$temp_file"

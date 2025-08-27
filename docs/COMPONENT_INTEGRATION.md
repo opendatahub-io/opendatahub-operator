@@ -240,7 +240,7 @@ Please refer the existing component implementations in the `internal/controller/
 Create a dedicated `<example_component_name>_controller.go` file and implement the expected `NewComponentReconciler` function there.
 This function will be responsible for creating the reconciler for the previously introduced `<ExampleComponent>` API.
 
-`NewControllerReconciler` utilizes a generic builder pattern, that supports defining various types of relationships and functionality:
+`NewComponentReconciler` utilizes a generic builder pattern that supports defining various types of relationships and functionality:
 
 - resource ownership - using `.Owns()`
 - watching a resource - using `.Watches()`
@@ -289,13 +289,10 @@ As seen in the existing component reconciler implementations, it would be recomm
 In addition, proper generic actions, intended to be used across the components, are provided as part of the operator implementation (located in `pkg/controller/actions`).
 These support:
 
-- manifest rendering
-  - can additionally utilize caching
-- manifest deployment
-  - can additionally utilize caching
-- status updating
-- garbage collection
-  - **additional requirement - garbage collection action must always be called as the last action before the final `.Build()` call**
+- Manifest rendering — may use caching
+- Manifest deployment — may use caching
+- Status updating
+- Garbage collection — must be called last before the final `.Build()` call
 
 If the new component requires additional custom logic, custom actions can also be added to the builder via the respective `.WithAction()` calls.
 
@@ -334,8 +331,8 @@ Lastly, please update the following files to fully integrate new component tests
 
 If the component is planned to be released for downstream, Prometheus rules and promtest need to be updated for the component.
 
-- Rules are located in `config/monitoring/prometheus/app/prometheus-configs.yaml` file
-- Tests are grouped in `tests/prometheus_unit_tests` as `<component>_unit_tests.yaml` files
+- Rules are located in `config/monitoring/prometheus/apps/prometheus-configs.yaml` file
+- Tests are grouped in `tests/prometheus_unit_tests` as `<component>.unit-tests.yaml` files
 
 ## Integrated components
 
