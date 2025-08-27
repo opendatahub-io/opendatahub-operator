@@ -1,6 +1,6 @@
 //go:build !nowebhook
 
-package inferenceservice
+package serving
 
 import (
 	"context"
@@ -22,20 +22,10 @@ import (
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
-// create new type for connection types.
-type ConnectionType string
-
-const (
-	// ConnectionTypeURI represents uri connections.
-	ConnectionTypeURI ConnectionType = "uri-v1"
-	// ConnectionTypeS3 represents s3 connections.
-	ConnectionTypeS3 ConnectionType = "s3"
-	// ConnectionTypeOCI represents oci connections.
-	ConnectionTypeOCI ConnectionType = "oci-v1"
-)
-
-func (ct ConnectionType) String() string {
-	return string(ct)
+type ISVCConnectionWebhook struct {
+	Client  client.Reader
+	Decoder admission.Decoder
+	Name    string
 }
 
 type InferenceServingPath struct {
@@ -53,15 +43,9 @@ var IsvcConfigs = InferenceServingPath{
 //+kubebuilder:webhook:path=/platform-connection-isvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=connection-isvc.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
 //nolint:lll
 
-type ConnectionWebhook struct {
-	Client  client.Reader
-	Decoder admission.Decoder
-	Name    string
-}
+var _ admission.Handler = &ISVCConnectionWebhook{}
 
-var _ admission.Handler = &ConnectionWebhook{}
-
-func (w *ConnectionWebhook) SetupWithManager(mgr ctrl.Manager) error {
+func (w *ISVCConnectionWebhook) SetupWithManager(mgr ctrl.Manager) error {
 	hookServer := mgr.GetWebhookServer()
 	hookServer.Register("/platform-connection-isvc", &webhook.Admission{
 		Handler:        w,
@@ -70,7 +54,7 @@ func (w *ConnectionWebhook) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 
-func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (w *ISVCConnectionWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
 	log := logf.FromContext(ctx)
 
 	if w.Decoder == nil {
@@ -135,7 +119,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 	}
 }
 
-func (w *ConnectionWebhook) performConnectionInjection(
+func (w *ISVCConnectionWebhook) performConnectionInjection(
 	ctx context.Context,
 	req admission.Request,
 	secretName string,
@@ -176,7 +160,7 @@ func (w *ConnectionWebhook) performConnectionInjection(
 }
 
 // injectOCIImagePullSecrets injects imagePullSecrets into spec.predictor.imagePullSecrets for OCI connections.
-func (w *ConnectionWebhook) injectOCIImagePullSecrets(obj *unstructured.Unstructured, secretName string) error {
+func (w *ISVCConnectionWebhook) injectOCIImagePullSecrets(obj *unstructured.Unstructured, secretName string) error {
 	imagePullSecrets, err := webhookutils.GetOrCreateNestedSlice(obj.Object, IsvcConfigs.ImagePullSecretPath...)
 	if err != nil {
 		return fmt.Errorf("failed to get spec.predictor.imagePullSecrets: %w", err)
@@ -201,7 +185,7 @@ func (w *ConnectionWebhook) injectOCIImagePullSecrets(obj *unstructured.Unstruct
 }
 
 // injectURIStorageUri injects storageUri into spec.predictor.model.storageUri for URI connections.
-func (w *ConnectionWebhook) injectURIStorageUri(ctx context.Context, obj *unstructured.Unstructured, secretName, namespace string) error {
+func (w *ISVCConnectionWebhook) injectURIStorageUri(ctx context.Context, obj *unstructured.Unstructured, secretName, namespace string) error {
 	// Fetch the secret to get the URI data
 	secret := &corev1.Secret{}
 	if err := w.Client.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
@@ -221,7 +205,7 @@ func (w *ConnectionWebhook) injectURIStorageUri(ctx context.Context, obj *unstru
 }
 
 // injectS3StorageKey injects storage key into spec.predictor.model.storage.key for S3 connections.
-func (w *ConnectionWebhook) injectS3StorageKey(obj *unstructured.Unstructured, secretName string) error {
+func (w *ISVCConnectionWebhook) injectS3StorageKey(obj *unstructured.Unstructured, secretName string) error {
 	model, found, err := unstructured.NestedMap(obj.Object, IsvcConfigs.ModelPath...)
 	if err != nil {
 		return fmt.Errorf("failed to get spec.predictor.model: %w", err)
