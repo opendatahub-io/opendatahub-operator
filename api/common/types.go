@@ -42,17 +42,17 @@ type DevFlagsSpec struct {
 type ManifestsConfig struct {
 	// uri is the URI point to a git repo with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
 	// +optional
-	// +kubebuilder:default:=""
+	// +kubebuilder:default=""
 	URI string `json:"uri,omitempty"`
 
 	// contextDir is the relative path to the folder containing manifests in a repository, default value "manifests"
 	// +optional
-	// +kubebuilder:default:="manifests"
+	// +kubebuilder:default="manifests"
 	ContextDir string `json:"contextDir,omitempty"`
 
 	// sourcePath is the subpath within contextDir where kustomize builds start. Examples include any sub-folder or path: `base`, `overlays/dev`, `default`, `odh` etc.
 	// +optional
-	// +kubebuilder:default:=""
+	// +kubebuilder:default=""
 	SourcePath string `json:"sourcePath,omitempty"`
 }
 

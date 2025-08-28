@@ -207,6 +207,24 @@ spec:
                       rule: 'self.backend != ''pv'' ? has(self.secret) : true'
                     - message: Size is supported when backend is pv only
                       rule: 'self.backend != ''pv'' ? !has(self.size) : true'
+                  tls:
+                    description: TLS configuration for Tempo gRPC connections
+                    properties:
+                      caConfigMap:
+                        description: |-
+                          CAConfigMap specifies the name of the ConfigMap containing the CA certificate
+                          Required for mutual TLS authentication
+                        type: string
+                      certificateSecret:
+                        description: |-
+                          CertificateSecret specifies the name of the secret containing TLS certificates
+                          If not specified, OpenShift service serving certificates will be used
+                        type: string
+                      enabled:
+                        default: true
+                        description: Enabled enables TLS for Tempo gRPC connections
+                        type: boolean
+                    type: object
                 required:
                 - storage
                 type: object
