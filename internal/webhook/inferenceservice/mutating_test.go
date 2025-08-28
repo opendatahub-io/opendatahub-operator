@@ -30,6 +30,7 @@ const (
 	testNamespace        = "glue-ns"
 	testInferenceService = "glue-isvc"
 	testSecret           = "glue-secret"
+	OperationRemove      = "remove"
 )
 
 type TestCase struct {
@@ -146,7 +147,7 @@ func runTestCase(t *testing.T, tc TestCase) {
 	resp := webhook.Handle(ctx, req)
 	g.Expect(resp.Allowed).To(Equal(tc.expectedAllowed))
 
-	if tc.expectedMessage != "" {
+	if tc.expectedMessage != "" && resp.Result != nil {
 		g.Expect(resp.Result.Message).To(ContainSubstring(tc.expectedMessage))
 	}
 
@@ -214,6 +215,42 @@ func hasStorageKeyPatch(expectedStorageKey string) func([]jsonpatch.JsonPatchOpe
 	}
 }
 
+// oci-v1.
+func hasImagePullSecretsCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		for _, patch := range patches {
+			if patch.Path == "/spec/predictor/imagePullSecrets/0" && patch.Operation == OperationRemove {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// uri-v1.
+func hasStorageUriCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		for _, patch := range patches {
+			if patch.Path == "/spec/predictor/model/storageUri" && patch.Operation == OperationRemove {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// s3.
+func hasStorageKeyCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		for _, patch := range patches {
+			if patch.Path == "/spec/predictor/model/storage" && patch.Operation == OperationRemove {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 func TestConnectionWebhook(t *testing.T) {
 	testCases := []TestCase{
 		// general cases
@@ -223,7 +260,7 @@ func TestConnectionWebhook(t *testing.T) {
 			annotations:     nil,
 			operation:       admissionv1.Create,
 			expectedAllowed: true,
-			expectedMessage: "no injection needed",
+			expectedMessage: "no action needed",
 		},
 		{
 			name:            "secret exists but has no allowed connection type annotation, ISVC should be allowed to create with no injection",
@@ -233,7 +270,7 @@ func TestConnectionWebhook(t *testing.T) {
 			annotations:     map[string]string{annotations.Connection: testSecret},
 			operation:       admissionv1.Create,
 			expectedAllowed: true,
-			expectedMessage: "no injection needed",
+			expectedMessage: "no action needed",
 		},
 		{
 			name:            "to delete ISVC with allowed type should be passed",
@@ -259,7 +296,7 @@ func TestConnectionWebhook(t *testing.T) {
 			annotations:     map[string]string{annotations.Connection: testSecret},
 			operation:       admissionv1.Create,
 			expectedAllowed: true,
-			expectedMessage: "no injection needed",
+			expectedMessage: "no action needed",
 		},
 		{
 			name:               "annotation as OCI type, ISVC creation allowed with injection done",
@@ -343,6 +380,49 @@ func TestConnectionWebhook(t *testing.T) {
 			operation:          admissionv1.Update,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasStorageUriPatch("s3://new-bucket/new-model"),
+		},
+		// Cleanup tests when annotation is removed
+		{
+			name:            "annotation removed, OCI filed is cleanup",
+			secretType:      "",
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{}, // no annotation
+			predictorSpec: map[string]interface{}{
+				"imagePullSecrets": []interface{}{
+					map[string]interface{}{"name": testSecret},
+				},
+			},
+			operation:          admissionv1.Update,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasImagePullSecretsCleanupPatch(),
+		},
+		{
+			name:            "annotation removed, URI is cleanup",
+			secretType:      "",
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{}, // no annotation
+			predictorSpec: map[string]interface{}{
+				"model": map[string]interface{}{
+					"storageUri": testSecret,
+				},
+			},
+			operation:          admissionv1.Update,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasStorageUriCleanupPatch(),
+		},
+		{
+			name:            "annotation removed, S3 is cleanup",
+			secretType:      "",
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{}, // no annotation
+			predictorSpec: map[string]interface{}{
+				"model": map[string]interface{}{
+					"storage": map[string]interface{}{"key": testSecret},
+				},
+			},
+			operation:          admissionv1.Update,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasStorageKeyCleanupPatch(),
 		},
 	}
 
