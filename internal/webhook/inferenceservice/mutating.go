@@ -246,7 +246,7 @@ func hasOCIImagePullSecrets(obj *unstructured.Unstructured) bool {
 	if err != nil || !found {
 		return false
 	}
-	return len(imagePullSecrets) > 0 // if it is empty, we no need to delete the whoel shabang
+	return len(imagePullSecrets) > 0 // if it is empty, we don't need to delete the whole shabang
 }
 
 func hasURIStorageUri(obj *unstructured.Unstructured) bool {
