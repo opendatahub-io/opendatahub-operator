@@ -118,45 +118,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(mgr).NotTo(BeNil())
 
-	// Start manager in a goroutine with error channel
-	mgrErrChan := make(chan error, 1)
-	go func() {
-		defer GinkgoRecover()
-		if err := mgr.Start(ctx); err != nil {
-			mgrErrChan <- err
-		}
-	}()
-
-	// Wait for manager to be ready (cache sync and leader election) with configurable timeout
-	// Use a longer timeout to avoid CI flakiness
-	readinessTimeout := 30 * time.Second
-	if envTimeout := os.Getenv("TEST_MANAGER_READINESS_TIMEOUT"); envTimeout != "" {
-		if parsedTimeout, err := time.ParseDuration(envTimeout); err == nil {
-			readinessTimeout = parsedTimeout
-		}
-	}
-
-	readinessCtx, readinessCancel := context.WithTimeout(ctx, readinessTimeout)
-	defer readinessCancel()
-
-	// Wait for cache sync in a goroutine
-	cacheSyncDone := make(chan struct{})
-	go func() {
-		defer GinkgoRecover()
-		if mgr.GetCache().WaitForCacheSync(readinessCtx) {
-			close(cacheSyncDone)
-		}
-	}()
-
-	// Wait for either cache sync completion, manager error, or timeout
-	select {
-	case err := <-mgrErrChan:
-		Fail(fmt.Sprintf("Manager failed to start: %v", err))
-	case <-cacheSyncDone:
-		// Manager is ready - cache sync completed successfully
-	case <-readinessCtx.Done():
-		Fail(fmt.Sprintf("Manager readiness timeout after %v: %v", readinessTimeout, readinessCtx.Err()))
-	}
+	// Do not start the manager here; tests register controllers via Build(ctx).
 })
 
 var _ = AfterSuite(func() {
