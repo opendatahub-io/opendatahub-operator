@@ -6,11 +6,6 @@ metadata:
 spec:
   endpoints:
     - port: monitoring
-      scheme: https
-      tlsConfig:
-        caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
-        serverName: "data-science-collector-collector-monitoring.{{.Namespace}}.svc"
-      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
   namespaceSelector:
     matchNames:
       - {{.Namespace}}
@@ -20,7 +15,7 @@ spec:
       app.kubernetes.io/instance: {{.Namespace}}.data-science-collector
       app.kubernetes.io/managed-by: opentelemetry-operator
       app.kubernetes.io/part-of: opentelemetry
-      operator.opentelemetry.io/collector-service-type: base
+      operator.opentelemetry.io/collector-service-type: monitoring
 
 ---
 apiVersion: monitoring.rhobs/v1
@@ -31,11 +26,6 @@ metadata:
 spec:
   endpoints:
     - port: prometheus
-      scheme: https
-      tlsConfig:
-        caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
-        serverName: "data-science-collector-collector-monitoring.{{.Namespace}}.svc"
-      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
   namespaceSelector:
     matchNames:
       - {{.Namespace}}
