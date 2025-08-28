@@ -5,15 +5,6 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   mode: deployment
-  volumeMounts:
-    - name: tls-certs
-      mountPath: /etc/otel-collector/tls
-      readOnly: true
-  volumes:
-    - name: tls-certs
-      secret:
-        secretName: data-science-collector-tls
-        optional: true
   config:
     extensions:
       bearertokenauth:
@@ -144,9 +135,6 @@ spec:
       {{- if .Metrics }}
       prometheus:
         endpoint: 0.0.0.0:8889
-        tls:
-          cert_file: "/etc/otel-collector/tls/tls.crt"
-          key_file: "/etc/otel-collector/tls/tls.key"
         resource_to_telemetry_conversion:
           enabled: true # by default resource attributes are dropped
       {{- end }}
@@ -164,10 +152,12 @@ spec:
     service:
       telemetry:
         metrics:
-          address: 0.0.0.0:8888
-          tls:
-            cert_file: "/etc/otel-collector/tls/tls.crt"
-            key_file: "/etc/otel-collector/tls/tls.key"
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: '0.0.0.0'
+                    port: 8888
       extensions: [bearertokenauth]
       {{- if or .Traces .Metrics }}
       pipelines:
