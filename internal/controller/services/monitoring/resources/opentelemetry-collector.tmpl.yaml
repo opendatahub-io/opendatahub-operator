@@ -147,10 +147,15 @@ spec:
       {{- if .Traces }}
       otlp/tempo:
         endpoint: {{.TempoEndpoint}}
+        {{- if .TempoTLSEnabled }}
         tls:
           ca_file: "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
         auth:
           authenticator: bearertokenauth
+        {{- else }}
+        tls:
+          insecure: true
+        {{- end }}
         headers:
           # must be set to the tenant name from tempo CR
           X-Scope-OrgID: {{.Namespace}}
