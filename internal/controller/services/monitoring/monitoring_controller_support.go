@@ -113,6 +113,18 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		templateData["SampleRatio"] = traces.SampleRatio
 		templateData["Backend"] = traces.Storage.Backend // backend has default "pv" set in API
 
+		var tlsEnabled bool
+		if traces.TLS != nil {
+			tlsEnabled = traces.TLS.Enabled
+		} else {
+			tlsEnabled = true
+		}
+		templateData["TempoTLSEnabled"] = tlsEnabled
+		if tlsEnabled && traces.TLS != nil {
+			templateData["TempoCertificateSecret"] = traces.TLS.CertificateSecret
+			templateData["TempoCAConfigMap"] = traces.TLS.CAConfigMap
+		}
+
 		// Add retention for all backends (both TempoMonolithic and TempoStack)
 		templateData["TracesRetention"] = traces.Storage.Retention.Duration.String()
 

@@ -90,6 +90,21 @@ type Traces struct {
 	// +kubebuilder:default="0.1"
 	// +kubebuilder:validation:Pattern="^(0(\\.[0-9]+)?|1(\\.0+)?)$"
 	SampleRatio string `json:"sampleRatio,omitempty"`
+	// TLS configuration for Tempo gRPC connections
+	TLS *TracesTLS `json:"tls,omitempty"`
+}
+
+// TracesTLS defines TLS configuration for traces collection
+type TracesTLS struct {
+	// Enabled enables TLS for Tempo gRPC connections
+	// +kubebuilder:default=true
+	Enabled bool `json:"enabled,omitempty"`
+	// CertificateSecret specifies the name of the secret containing TLS certificates
+	// If not specified, OpenShift service serving certificates will be used
+	CertificateSecret string `json:"certificateSecret,omitempty"`
+	// CAConfigMap specifies the name of the ConfigMap containing the CA certificate
+	// Required for mutual TLS authentication
+	CAConfigMap string `json:"caConfigMap,omitempty"`
 }
 
 // TracesStorage defines the storage configuration for tracing.
