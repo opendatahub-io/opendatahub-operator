@@ -1,17 +1,23 @@
 package e2e_test
 
 import (
+	"io"
 	"strings"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -38,6 +44,8 @@ func operatorResilienceTestSuite(t *testing.T) {
 		{name: "Validate operator deployment health", testFn: resilienceTestCtx.ValidateOperatorDeployment},
 		{name: "Validate leader election behavior", testFn: resilienceTestCtx.ValidateLeaderElectionBehavior},
 		{name: "Validate pod recovery resilience", testFn: resilienceTestCtx.ValidatePodRecoveryResilience},
+		{name: "Validate missing CRD handling", testFn: resilienceTestCtx.ValidateMissingComponentsCRDHandling},
+		{name: "Validate RBAC restriction handlings", testFn: resilienceTestCtx.ValidateRBACRestrictionHandlings},
 	}
 
 	// Run the test suite.
@@ -114,6 +122,141 @@ func (tc *OperatorResilienceTestCtx) ValidatePodRecoveryResilience(t *testing.T)
 	tc.validateDeploymentHealth(t)
 	tc.validatePodHealth(t, selector)
 	tc.validateSystemHealth(t)
+}
+
+func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *testing.T) {
+	t.Helper()
+
+	// Get all CRDs
+	crds := tc.FetchResources(
+		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{}),
+	)
+
+	// Find first occurrence of a CRD with ".components.platform.opendatahub.io" in its name
+	componentCrd := unstructured.Unstructured{}
+	for _, crd := range crds {
+		if strings.Contains(strings.ToLower(crd.GetName()), ".components.platform.opendatahub.io") {
+			componentCrd = crd
+			break
+		}
+	}
+
+	// Save a backup copy of the CRD
+	crdBackup := tc.resourceBackup(t, &componentCrd)
+	t.Cleanup(func() {
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithObjectToCreate(crdBackup),
+			WithCustomErrorMsg("Failed to restore CRD from backup (cleanup)"),
+		)
+	})
+
+	// Delete the CRD to simulate missing CRD
+	propagationPolicy := metav1.DeletePropagationBackground
+	tc.DeleteResource(
+		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: componentCrd.GetName()}),
+		WithClientDeleteOptions(
+			&client.DeleteOptions{
+				PropagationPolicy: &propagationPolicy,
+			}),
+		WithWaitForDeletion(true),
+	)
+
+	// Validate pod health and system health
+	selector := tc.getOperatorPodSelector()
+	tc.validatePodHealth(t, selector)
+
+	// Manually restore the CRD from backup
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(crdBackup),
+		WithCustomErrorMsg("Failed to restore CRD from backup"),
+	)
+	tc.validateSystemHealth(t)
+}
+
+func (tc *OperatorResilienceTestCtx) ValidateRBACRestrictionHandlings(t *testing.T) {
+	t.Helper()
+
+	// Fetch the ClusterRoleBinding that exists and save a backup copy
+	crbName := tc.getControllerDeploymentName() + "-rolebinding"
+	crb := tc.FetchResource(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Name: crbName}),
+	)
+
+	// Check if ClusterRoleBinding exists
+	if crb == nil {
+		t.Logf("Available clusterrolebindings: %v", tc.FetchResources(WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{})))
+		t.Skipf("ClusterRoleBinding %s not found, skipping RBAC restriction test", crbName)
+		return
+	}
+
+	// Save a backup copy of the CRB (deep copy)
+	crbBackup := tc.resourceBackup(t, crb)
+
+	// Add cleanup to ensure CRB is restored even if test fails
+	t.Cleanup(func() {
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithObjectToCreate(crbBackup),
+			WithCustomErrorMsg("Failed to restore ClusterRoleBinding from backup (cleanup)"),
+			WithWaitForDeletion(true),
+		)
+	})
+
+	// Deleting ClusterRoleBinding to simulate RBAC restriction
+	tc.DeleteResource(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Name: crbName}),
+	)
+
+	// Trigger a reconciliation that would expose RBAC issues
+	t.Log("Triggering reconciliation to expose RBAC issues...")
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.metadata.labels.test = "rbac-restriction"`)),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	// Check Pod health and search logs for forbidden errors
+	selector := tc.getOperatorPodSelector()
+	tc.validatePodHealth(t, selector)
+	leaderPod := tc.findLeaderPodFromLeases()
+	tc.g.Expect(leaderPod).ShouldNot(BeEmpty(), "Failed to find leader pod")
+	tc.g.Expect(tc.searchPodLogs(t, leaderPod, tc.OperatorNamespace, "forbidden")).Should(BeTrue())
+
+	// Create CRB from backup
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(crbBackup),
+		WithCustomErrorMsg("Failed to restore ClusterRoleBinding from backup"),
+	)
+
+	// Ensure system still works
+	tc.validateSystemHealth(t)
+}
+
+func (tc *OperatorResilienceTestCtx) resourceBackup(t *testing.T, resource *unstructured.Unstructured) *unstructured.Unstructured {
+	t.Helper()
+
+	// Additional safety checks
+	if resource == nil {
+		t.Fatal("Cannot backup nil resource")
+		return nil
+	}
+
+	// Save a backup copy of the resource (deep copy)
+	backup := resource.DeepCopy()
+	// Remove fields that should not be restored
+	backup.SetUID("")
+	backup.SetSelfLink("")
+	backup.SetGeneration(0)
+	backup.SetResourceVersion("")
+	unstructured.RemoveNestedField(backup.Object, "metadata", "creationTimestamp")
+	unstructured.RemoveNestedField(backup.Object, "metadata", "managedFields")
+	unstructured.RemoveNestedField(backup.Object, "metadata", "resourceVersion")
+	unstructured.RemoveNestedField(backup.Object, "metadata", "finalizers")
+	unstructured.RemoveNestedField(backup.Object, "metadata", "ownerReferences")
+	unstructured.RemoveNestedField(backup.Object, "metadata", "annotations", "kubectl.kubernetes.io/last-applied-configuration")
+	unstructured.RemoveNestedField(backup.Object, "status")
+
+	return backup
 }
 
 // findLeaderPodFromLeases finds current leader pod name from lease resources.
@@ -252,4 +395,42 @@ func (tc *OperatorResilienceTestCtx) validateSystemHealth(t *testing.T) {
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("DSC should remain Ready after pod operations"),
 	)
+}
+
+// searchPodLogs gets pod logs and checks if they contain the specified pattern.
+func (tc *OperatorResilienceTestCtx) searchPodLogs(t *testing.T, podName, namespace, pattern string) bool {
+	t.Helper()
+
+	config, err := ctrl.GetConfig()
+	if err != nil {
+		t.Logf("Failed to get config: %v", err)
+		return false
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		t.Logf("Failed to create clientset: %v", err)
+		return false
+	}
+	tailLines := int64(500)
+	sinceSeconds := int64(600)
+	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, &corev1.PodLogOptions{
+		TailLines:    &tailLines,
+		SinceSeconds: &sinceSeconds,
+	})
+	logStream, err := req.Stream(t.Context())
+	if err != nil {
+		t.Logf("Failed to get logs: %v", err)
+		return false
+	}
+	defer logStream.Close()
+
+	logBytes, err := io.ReadAll(logStream)
+	if err != nil {
+		t.Logf("Failed to read logs: %v", err)
+		return false
+	}
+	logs := string(logBytes)
+
+	return strings.Contains(strings.ToLower(logs), strings.ToLower(pattern))
 }
