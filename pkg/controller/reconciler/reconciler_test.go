@@ -383,42 +383,42 @@ func TestReconcilerBuilderValidateManagerErrorPaths(t *testing.T) {
 		require.NoError(t, err, "validateManager should succeed and reuse cached clients")
 	})
 
-	t.Run("validateManager handles concurrent access safely", func(t *testing.T) {
-		t.Parallel()
+    t.Run("validateManager handles concurrent access safely", func(t *testing.T) {
+        t.Parallel()
 
-		// Create a manager with valid config
-		validConfig := &rest.Config{
-			Host: testHostURL, // Valid host but won't be contacted
-			TLSClientConfig: rest.TLSClientConfig{
-				Insecure: true,
-			},
-		}
-		mgr, err := ctrl.NewManager(validConfig, ctrl.Options{Scheme: s, Metrics: server.Options{BindAddress: "0"}})
-		require.NoError(t, err)
+        // Create a manager with valid config
+        validConfig := &rest.Config{
+            Host: testHostURL, // Valid host but won't be contacted
+            TLSClientConfig: rest.TLSClientConfig{
+                Insecure: true,
+            },
+        }
+        mgr, err := ctrl.NewManager(validConfig, ctrl.Options{Scheme: s, Metrics: server.Options{BindAddress: "0"}})
+        require.NoError(t, err)
 
-		// Create ReconcilerBuilder
-		builder := ReconcilerFor(mgr, obj)
+        // Create ReconcilerBuilder
+        builder := ReconcilerFor(mgr, obj)
 
-		// Test concurrent access to validateManager
-		const numGoroutines = 10
-		errors := make(chan error, numGoroutines)
+        // Test concurrent access to validateManager
+        const numGoroutines = 10
+        errs := make(chan error, numGoroutines)
 
-		for range numGoroutines {
-			go func() {
-				errors <- builder.validateManager()
-			}()
-		}
+        for i := 0; i < numGoroutines; i++ {
+            go func() {
+                errs <- builder.validateManager()
+            }()
+        }
 
-		// Collect all results
-		for range numGoroutines {
-			err := <-errors
-			require.NoError(t, err, "validateManager should succeed under concurrent access")
-		}
+        // Collect all results
+        for i := 0; i < numGoroutines; i++ {
+            err := <-errs
+            require.NoError(t, err, "validateManager should succeed under concurrent access")
+        }
 
-		// Verify clients are cached
-		require.NotNil(t, builder.discoveryClient, errDiscoveryClientCached+" after concurrent access")
-		require.NotNil(t, builder.dynamicClient, errDynamicClientCached+" after concurrent access")
-	})
+        // Verify clients are cached
+        require.NotNil(t, builder.discoveryClient, errDiscoveryClientCached+" after concurrent access")
+        require.NotNil(t, builder.dynamicClient, errDynamicClientCached+" after concurrent access")
+    })
 
 	t.Run("validateManager succeeds with different manager configurations", func(t *testing.T) {
 		t.Parallel()
