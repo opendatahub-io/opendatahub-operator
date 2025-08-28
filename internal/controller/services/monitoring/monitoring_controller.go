@@ -98,6 +98,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Instrumentation, reconciler.Dynamic(reconciler.CrdExists(gvk.Instrumentation))).
 		OwnsGVK(gvk.OpenTelemetryCollector, reconciler.Dynamic(reconciler.CrdExists(gvk.OpenTelemetryCollector))).
 		OwnsGVK(gvk.ServiceMonitor, reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMonitor))).
+		OwnsGVK(gvk.PrometheusRule, reconciler.Dynamic(reconciler.CrdExists(gvk.PrometheusRule))).
 		// operands - watched
 		//
 		// By default the Watches functions adds:
@@ -127,6 +128,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		// These are only for new monitoring stack dependent Operators
 		WithAction(addMonitoringCapability).
 		WithAction(deployMonitoringStack).
+		WithAction(deployAlerting).
 		WithAction(deployTempo).
 		WithAction(deployOpenTelemetryCollector).
 		WithAction(deployInstrumentation).

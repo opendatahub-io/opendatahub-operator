@@ -1,0 +1,89 @@
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  name: modelregistry-prometheusrules
+  namespace: {{.Namespace}}
+spec:
+  groups:
+      - name: SLOs-probe_success_model_controller
+        rules:
+        - alert: Model Registry Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: Model Registry Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"model-registry-operator"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"model-registry-operator"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+            namespace: {{.ApplicationNamespace}}
+        - alert: Model Registry Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: Model Registry Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"model-registry-operator"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"model-registry-operator"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+            namespace: {{.ApplicationNamespace}}
+        - alert: Model Registry Operator Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: Model Registry Operator Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"model-registry-operator"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"model-registry-operator"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
+            namespace: {{.ApplicationNamespace}}
+
+      # RecordingRules for Model Registry Operator
+      - name: SLOs - Model Registry Operator
+        rules:
+        - expr: |
+            absent(up{job=~'Model Registry Operator'}) * 0 or vector(1)
+          labels:
+            instance: model-registry-operator
+          record: probe_success
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[1d]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[1h]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[2h]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[30m]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[3d]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[5m]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="model-registry-operator"}[6h]))
+          labels:
+            instance: model-registry-operator
+          record: probe_success:burnrate6h

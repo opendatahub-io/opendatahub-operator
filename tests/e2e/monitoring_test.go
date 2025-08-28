@@ -48,6 +48,8 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Metrics MonitoringStack CR Creation", monitoringServiceCtx.ValidateMonitoringStackCRMetricsWhenSet},
 		{"Test Metrics MonitoringStack CR Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsConfiguration},
 		{"Test Metrics Replicas Configuration", monitoringServiceCtx.ValidateMonitoringStackCRMetricsReplicasUpdate},
+		{"Test Prometheus Rule Creation", monitoringServiceCtx.ValidatePrometheusRuleCreation},
+		{"Test Prometheus Rule Deletion", monitoringServiceCtx.ValidatePrometheusRuleDeletion},
 		{"Test Traces default content", monitoringServiceCtx.ValidateMonitoringCRDefaultTracesContent},
 		{"Test TempoMonolithic CR Creation with PV backend", monitoringServiceCtx.ValidateTempoMonolithicCRCreation},
 		{"Test TempoStack CR Creation with S3 backend", monitoringServiceCtx.ValidateTempoStackCRCreationWithS3},
@@ -203,7 +205,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
 	// Set metrics to empty object
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.metrics = %s`, `{}`)),
+		WithMutateFunc(testf.Transform(`.spec.monitoring = %s`, `{metrics: {}, managementState: "Managed", namespace: "`+dsci.Spec.Monitoring.Namespace+`"}`)),
 	)
 
 	// Verify MonitoringStack CR is deleted by gc
@@ -612,5 +614,68 @@ func (tc *MonitoringTestCtx) createDummySecret(backendType, secretName, namespac
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(secret),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidatePrometheusRuleCreation(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Update DSCI to enable alerting
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			testf.Transform(`.spec.monitoring.alerting = {}`),
+		)),
+	)
+
+	// Update DSC to enable dashboard component
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, types.NamespacedName{Name: "e2e-test-dsc", Namespace: tc.DSCInitializationNamespacedName.Namespace}),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.dashboard.managementState = "%s"`, operatorv1.Managed),
+		)),
+	)
+
+	// Ensure the dashboard resource exists and is marked "Ready".
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Dashboard, types.NamespacedName{Name: "default-dashboard", Namespace: dsci.Spec.ApplicationsNamespace}),
+		WithCondition(
+			And(
+				HaveLen(1),
+				HaveEach(And(
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+				)),
+			),
+		),
+	)
+
+	// Ensure the prometheus rules exist
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: dsci.Spec.ApplicationsNamespace}),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "operator-prometheusrules", Namespace: dsci.Spec.ApplicationsNamespace}),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidatePrometheusRuleDeletion(t *testing.T) {
+	t.Helper()
+
+	// Update DSC to disable dashboard component
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, types.NamespacedName{Name: "e2e-test-dsc", Namespace: tc.DSCInitializationNamespacedName.Namespace}),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.components.dashboard.managementState = "%s"`, operatorv1.Removed),
+		)),
+	)
+
+	// Ensure the dashboard-prometheusrules is deleted
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.PrometheusRule, types.NamespacedName{Name: "dashboard-prometheusrules", Namespace: tc.AppsNamespace}),
 	)
 }

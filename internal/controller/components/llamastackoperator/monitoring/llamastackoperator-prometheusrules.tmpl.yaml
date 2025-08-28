@@ -1,0 +1,98 @@
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  name: llamastackoperator-prometheusrules
+  namespace: {{.Namespace}}
+spec:
+  groups:
+      - name: SLOs-probe_success_llama_stack_k8s_operator
+        rules:
+          - alert: Llama Stack K8s Operator Probe Success Burn Rate
+            annotations:
+              message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+              summary: Llama Stack K8s Operator Probe Success Burn Rate
+            expr: |
+              sum(probe_success:burnrate5m{instance=~"llama-stack-k8s-operator-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+              and
+              sum(probe_success:burnrate1h{instance=~"llama-stack-k8s-operator-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+            for: 2m
+            labels:
+              severity: warning
+              instance: llama-stack-k8s-operator-controller-manager
+    
+          - alert: Llama Stack K8s Operator Probe Success Burn Rate
+            annotations:
+              message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+              summary: Llama Stack K8s Operator Probe Success Burn Rate
+            expr: |
+              sum(probe_success:burnrate30m{instance=~"llama-stack-k8s-operator-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+              and
+              sum(probe_success:burnrate6h{instance=~"llama-stack-k8s-operator-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+            for: 15m
+            labels:
+              severity: warning
+              instance: llama-stack-k8s-operator-controller-manager
+    
+          - alert: Llama Stack K8s Operator Probe Success Burn Rate
+            annotations:
+              message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+              summary: Llama Stack K8s Operator Probe Success Burn Rate
+            expr: |
+              sum(probe_success:burnrate2h{instance=~"llama-stack-k8s-operator-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+              and
+              sum(probe_success:burnrate1d{instance=~"llama-stack-k8s-operator-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+            for: 1h
+            labels:
+              severity: warning
+              instance: llama-stack-k8s-operator-controller-manager
+      
+      # RecordingRules for Llama Stack 
+      - name: SLOs - Llama Stack K8s Operator
+        rules:
+        - expr: |
+            absent(up{job="llama-stack-k8s-operator"}) * 0 or vector(1)
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[1d]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate1d
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[1h]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate1h
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[2h]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate2h
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[30m]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate30m
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[3d]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate3d
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[5m]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate5m
+    
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[6h]))
+          labels:
+            instance: llama-stack-k8s-operator-controller-manager
+          record: probe_success:burnrate6h
