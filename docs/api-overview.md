@@ -3194,6 +3194,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `storage` _[TracesStorage](#tracesstorage)_ |  |  |  |
 | `sampleRatio` _string_ | SampleRatio determines the sampling rate for traces<br />Value should be between 0.0 (no sampling) and 1.0 (sample all traces) | 0.1 | Pattern: `^(0(\.[0-9]+)?\|1(\.0+)?)$` <br /> |
+| `tls` _[TracesTLS](#tracestls)_ | TLS configuration for Tempo gRPC connections |  |  |
 
 
 #### TracesStorage
@@ -3213,5 +3214,23 @@ _Appears in:_
 | `size` _string_ | Size specifies the size of the storage.<br />This field is optional. |  |  |
 | `secret` _string_ | Secret specifies the secret name for storage credentials.<br />This field is required when the backend is not "pv". |  |  |
 | `retention` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | Retention specifies how long trace data should be retained globally (e.g., "60m", "10h") | 2160h |  |
+
+
+#### TracesTLS
+
+
+
+TracesTLS defines TLS configuration for traces collection
+
+
+
+_Appears in:_
+- [Traces](#traces)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ | Enabled enables TLS for Tempo gRPC connections | true |  |
+| `certificateSecret` _string_ | CertificateSecret specifies the name of the secret containing TLS certificates<br />If not specified, OpenShift service serving certificates will be used |  |  |
+| `caConfigMap` _string_ | CAConfigMap specifies the name of the ConfigMap containing the CA certificate<br />Required for mutual TLS authentication |  |  |
 
 
