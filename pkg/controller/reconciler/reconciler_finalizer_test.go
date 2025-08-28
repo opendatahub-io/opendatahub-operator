@@ -51,17 +51,13 @@ type MockManager struct {
 func (f *MockManager) GetClient() client.Client   { return f.client }
 func (f *MockManager) GetScheme() *runtime.Scheme { return f.scheme }
 
-//nolint:ireturn
 func (f *MockManager) GetRESTMapper() meta.RESTMapper { return f.mapper }
 func (f *MockManager) GetConfig() *rest.Config        { return &rest.Config{} }
 
-//nolint:ireturn
 func (f *MockManager) GetFieldIndexer() client.FieldIndexer { return nil }
 
-//nolint:ireturn
 func (f *MockManager) GetEventRecorderFor(name string) record.EventRecorder { return nil }
 
-//nolint:ireturn
 func (f *MockManager) GetCache() cache.Cache                                    { return nil }
 func (f *MockManager) GetLogger() logr.Logger                                   { return ctrl.Log }
 func (f *MockManager) Add(runnable manager.Runnable) error                      { return nil }
@@ -73,17 +69,14 @@ func (f *MockManager) AddMetricsServerExtraHandler(path string, handler http.Han
 }
 func (f *MockManager) AddReadyzCheck(name string, check healthz.Checker) error { return nil }
 
-//nolint:ireturn
 func (f *MockManager) GetAPIReader() client.Reader { return nil }
 func (f *MockManager) GetControllerOptions() config.Controller {
 	return config.Controller{SkipNameValidation: ptr.To(true)}
 }
 func (f *MockManager) GetHTTPClient() *http.Client { return &http.Client{} }
 
-//nolint:ireturn
 func (f *MockManager) GetWebhookServer() webhook.Server { return nil }
 
-//nolint:ireturn
 func setupTest(mockDashboard *componentApi.Dashboard) (context.Context, *MockManager, client.WithWatch) {
 	ctx := context.Background()
 
@@ -119,7 +112,7 @@ func setupTest(mockDashboard *componentApi.Dashboard) (context.Context, *MockMan
 	return ctx, mockMgr, mockClient
 }
 
-func TestFinalizer_Add(t *testing.T) {
+func TestFinalizerAdd(t *testing.T) {
 	g := gomega.NewWithT(t)
 
 	mockDashboard := &componentApi.Dashboard{
@@ -170,7 +163,7 @@ func TestFinalizer_Add(t *testing.T) {
 	g.Expect(controllerutil.ContainsFinalizer(d, finalizerName)).To(gomega.BeTrue())
 }
 
-func TestFinalizer_NotPresent(t *testing.T) {
+func TestFinalizerNotPresent(t *testing.T) {
 	g := gomega.NewWithT(t)
 
 	mockDashboard := &componentApi.Dashboard{
@@ -208,7 +201,7 @@ func TestFinalizer_NotPresent(t *testing.T) {
 	g.Expect(controllerutil.ContainsFinalizer(d, finalizerName)).To(gomega.BeFalse())
 }
 
-func TestFinalizer_Remove(t *testing.T) {
+func TestFinalizerRemove(t *testing.T) {
 	g := gomega.NewWithT(t)
 
 	mockDashboard := &componentApi.Dashboard{

@@ -43,20 +43,20 @@ A sanitization script (`hack/sanitize-coverage.sh`) has been implemented that:
 
 ### 3. Makefile Integration
 
-The Makefile has been updated to automatically sanitize coverage reports:
+The Makefile provides separate targets for coverage report generation and sanitization:
 
-- `make coverage-report`: Generates coverage reports and sanitizes them
-- `make coverage-report-sanitized`: Generates sanitized coverage reports for CI
+- `make coverage-report`: Combines and generates coverage reports (without sanitization)
+- `make coverage-report-sanitized`: Runs sanitization on existing coverage reports for CI use
 
 ## Usage
 
 ### For Local Development
 
 ```bash
-# Generate coverage reports (automatically sanitized)
+# Generate coverage reports (without sanitization)
 make coverage-report
 
-# Or generate only sanitized reports
+# Generate sanitized reports for CI (requires coverage-report first)
 make coverage-report-sanitized
 ```
 
@@ -72,13 +72,16 @@ make coverage-report-sanitized
 In CI pipelines, use the sanitized coverage reports:
 
 ```bash
-# Generate sanitized reports
+# Generate coverage reports first, then sanitize for CI
+make coverage-report
 make coverage-report-sanitized
 
 # Upload sanitized reports to coverage services
 # Example: Codecov Uploader (recommended)
 curl -sSLf https://uploader.codecov.io/latest/linux/codecov -o codecov
 chmod +x codecov
+curl -sSLf https://uploader.codecov.io/latest/linux/codecov.SHA256SUM -o codecov.SHA256SUM
+sha256sum --ignore-missing -c codecov.SHA256SUM
 ./codecov -f combined-cover-sanitized.out
 
 ## Sanitized Files
@@ -107,10 +110,16 @@ The sanitization script removes or replaces:
 3. **Timestamps**:
    - `2023-08-21T10:30:00Z` → `REDACTED_TIMESTAMP`
 
-### Path Sanitization Guidelines
+4. **Build and Temporary Paths**:
+   - `/tmp/` → `/REDACTED_TMP/`
+   - Non-repo build roots only (outside the repo root):
+     - `/var/build/...` → `/REDACTED_BUILD/...`
+     - `/var/tmp/dist/...` → `/REDACTED_DIST/...`
+     - `/work/target/...` → `/REDACTED_TARGET/...`
 
-When sanitizing coverage reports, follow these specific rules:
+**Note**: The sanitization script also redacts paths under `/tmp` and common build directories (e.g., `build/`, `dist/`, `target/`) to remove system-specific and build artifact paths. These redactions are intentional and do not break coverage mapping since they typically contain generated or temporary files that are not part of the source code being measured. In-repo directories named `build/`, `dist/`, or `target/` must NOT be redacted. Only redact absolute paths outside the repo root to preserve coverage mapping.
 
+**Important Guidelines**:
 - **Strip only the prefix**: Replace only the user/home directory prefix (e.g., `/Users/username/` → `/Users/REDACTED/`)
 - **Preserve repo structure**: Leave everything after the repo root completely untouched
 - **Maintain file paths**: Do not replace the trailing filename or module-relative path
@@ -164,4 +173,4 @@ When adding new coverage-related functionality:
 
 - [Go Coverage Documentation](https://golang.org/cmd/cover/)
 - [Go Test Coverage](https://blog.golang.org/cover)
-- [PII Protection Best Practices](https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure)
+- [OWASP Top 10 — 2021 (Cryptographic Failures)](https://owasp.org/Top10/A02_2021-Cryptographic_Failures/)

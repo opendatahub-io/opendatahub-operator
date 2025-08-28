@@ -83,7 +83,14 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 
 // newReconcilerWithClients creates a new reconciler with pre-initialized clients.
 // This is used internally to avoid recreating clients that were already validated.
-// discoveryClient and dynamicClient must be non-nil when injected.
+//
+// Preconditions:
+//   - discoveryClient must be non-nil (required for API discovery operations)
+//   - dynamicClient must be non-nil (required for dynamic resource operations)
+//
+// This is a breaking change for tests that previously injected nil clients.
+// If nil clients are needed for specific test scenarios, consider relaxing these
+// checks or providing mock implementations.
 func newReconcilerWithClients[T common.PlatformObject](
 	mgr manager.Manager,
 	name string,
@@ -94,10 +101,10 @@ func newReconcilerWithClients[T common.PlatformObject](
 ) (*Reconciler, error) {
 	// Precondition checks: ensure required clients are non-nil
 	if discoveryClient == nil {
-		return nil, errors.New("discoveryClient cannot be nil")
+		return nil, fmt.Errorf("reconciler %s: discoveryClient cannot be nil", name)
 	}
 	if dynamicClient == nil {
-		return nil, errors.New("dynamicClient cannot be nil")
+		return nil, fmt.Errorf("reconciler %s: dynamicClient cannot be nil", name)
 	}
 
 	cc := Reconciler{
@@ -109,10 +116,20 @@ func newReconcilerWithClients[T common.PlatformObject](
 		name:     name,
 		instanceFactory: func() (common.PlatformObject, error) {
 			t := reflect.TypeOf(object)
+			if t == nil {
+				return nil, errors.New("object must be a non-nil value implementing common.PlatformObject")
+			}
 			if t.Kind() != reflect.Ptr {
-				return nil, fmt.Errorf("expected pointer to type %v", t)
+				return nil, fmt.Errorf("expected pointer, got %T", object)
+			}
+			// Check if the pointer itself is nil
+			if reflect.ValueOf(object).IsNil() {
+				return nil, errors.New("object must be a non-nil pointer")
 			}
 			t = t.Elem()
+			if t.Kind() != reflect.Struct {
+				return nil, fmt.Errorf("expected pointer to struct, got pointer to %s", t.Kind())
+			}
 			res, ok := reflect.New(t).Interface().(T)
 			if !ok {
 				return res, fmt.Errorf("unable to construct instance of %v", t)

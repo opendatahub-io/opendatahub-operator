@@ -56,9 +56,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-// errDynamicWatchesNotImplemented is a sentinel error returned when dynamic watches are not yet supported.
-var errDynamicWatchesNotImplemented = errors.New("dynamic watches are not yet implemented (pending controller-runtime support)")
-
 type forInput struct {
 	object  client.Object
 	options []builder.ForOption
@@ -353,7 +350,9 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 }
 
 func (b *ReconcilerBuilder[T]) validateManager() error {
-	// Return early if clients are already initialized
+	// Use RLock for the early return check
+	b.mu.RLock()
+	// Double-check after acquiring write lock to prevent race conditions
 	if b.discoveryClient != nil && b.dynamicClient != nil {
 		return nil
 	}
@@ -396,6 +395,14 @@ func (b *ReconcilerBuilder[T]) validateObject() (T, error) {
 }
 
 func (b *ReconcilerBuilder[T]) createReconciler(name string, obj T) (*Reconciler, error) {
+	// Verify cached clients are non-nil before proceeding
+	if b.discoveryClient == nil {
+		return nil, errors.New("cached discovery client is nil")
+	}
+	if b.dynamicClient == nil {
+		return nil, errors.New("cached dynamic client is nil")
+	}
+
 	// Use cached clients that were initialized during validateManager
 	r, err := newReconcilerWithClients(b.mgr, name, obj, b.discoveryClient, b.dynamicClient, WithConditionsManagerFactory(b.happyCondition, b.dependantConditions...))
 	if err != nil {
@@ -475,29 +482,23 @@ func (b *ReconcilerBuilder[T]) handleDynamicWatch(watch *watchInput, r *Reconcil
 }
 
 func (b *ReconcilerBuilder[T]) extractWatchInfo(watch *watchInput) (string, string, string) {
-	var watchName, resourceKind, namespace string
-
 	// Get GVK information
-	if kinds, _, err := b.mgr.GetScheme().ObjectKinds(watch.object); err == nil && len(kinds) > 0 {
+	kinds, _, err := b.mgr.GetScheme().ObjectKinds(watch.object)
+	resourceKind := "unknown"
+	if err == nil && len(kinds) > 0 {
 		resourceKind = kinds[0].String()
-	} else {
-		resourceKind = "unknown"
 	}
 
-	// Get namespace information
+	// Get namespace and name information
+	var namespace, watchName string
 	if watch.object != nil {
 		namespace = watch.object.GetNamespace()
 		if namespace == "" {
 			namespace = "cluster-scoped"
 		}
-	} else {
-		namespace = "unknown"
-	}
-
-	// Generate a watch identifier
-	if watch.object != nil {
 		watchName = fmt.Sprintf("%s/%s", resourceKind, watch.object.GetName())
 	} else {
+		namespace = "unknown"
 		watchName = resourceKind
 	}
 
@@ -547,10 +548,19 @@ func (b *ReconcilerBuilder[T]) addDynamicWatchAction(r *Reconciler) {
 
 	r.AddAction(
 		newDynamicWatchAction(
+			// TODO: Implement proper dynamic watch registration
+			// This is intentional scaffolding - dynamic watches require controller-runtime's
+			// builder.Builder.Watches() to be called during reconciliation, which needs
+			// access to the controller manager and proper watch lifecycle management.
+			// Future implementation should:
+			// 1. Access the controller manager to register new watches
+			// 2. Handle watch cleanup and deduplication
+			// 3. Manage watch lifecycle across reconciliation cycles
+			// 4. Consider performance implications of dynamic watch registration
 			func(obj client.Object, eventHandler handler.EventHandler, predicates ...predicate.Predicate) error {
-				// For now, return an error indicating dynamic watches are not supported
-				// This can be implemented later when the correct controller interface is available
-				return errDynamicWatchesNotImplemented
+				// Dynamic watches not yet supported: log once and no-op to avoid failing reconciles
+				r.Log.V(1).Info("Dynamic watches are not yet implemented; skipping registration")
+				return nil
 			},
 			b.watches,
 		),

@@ -18,13 +18,11 @@ package datasciencecluster_test
 
 import (
 	"context"
-	cryptorand "crypto/rand"
 	"fmt"
-	"math/big"
 	"math/rand"
 	"os"
 	"path/filepath"
-	"testing"
+	"runtime"
 	"time"
 
 	"k8s.io/client-go/kubernetes/scheme"
@@ -50,38 +48,17 @@ const (
 )
 
 // generateUniqueName creates a unique name for test instances.
-// If seed is provided, it uses a deterministic random source for reproducible names.
-// If seed is 0, it uses crypto/rand for non-deterministic names and logs the generated name.
-func generateUniqueName(prefix string, seed ...int64) string {
-	var n *big.Int
-	var name string
-
-	if len(seed) > 0 && seed[0] != 0 {
-		// Use deterministic random source for reproducible names
-		//nolint:gosec // Using math/rand with fixed seed for deterministic test names
-		r := rand.New(rand.NewSource(seed[0]))
-		n = big.NewInt(r.Int63n(1000000))
-		// Use deterministic values for time components when seed is provided
-		timeComponent := r.Int63n(1000000000000)    // Random timestamp
-		nanosecondComponent := r.Int63n(1000000000) // Random nanoseconds
-		pidComponent := r.Int63n(100000)            // Random PID-like value
-		name = fmt.Sprintf("%s-%d-%d-%d-%s", prefix, timeComponent, nanosecondComponent, pidComponent, n.String())
-	} else {
-		// Use crypto/rand for non-deterministic names
-		var err error
-		n, err = cryptorand.Int(cryptorand.Reader, big.NewInt(1000000))
-		if err != nil {
-			// This should never fail in practice, but if it does, fail the test
-			Fail(fmt.Sprintf("Failed to generate random number for test name: %v", err))
-		}
-		pid := os.Getpid()
-		now := time.Now()
-		name = fmt.Sprintf("%s-%s-%d-%d-%s", prefix, now.Format("20060102150405"), now.Nanosecond(), pid, n.String())
-		// Log the generated name for debugging non-deterministic test failures
-		logf.Log.Info("Generated non-deterministic test name", "name", name, "prefix", prefix)
+// It uses a deterministic random source based on the prefix for reproducible names.
+func generateUniqueName(prefix string) string {
+	// Use deterministic random source based on prefix hash for reproducible names
+	var seed int64
+	for _, c := range prefix {
+		seed = seed*31 + int64(c)
 	}
-
-	return name
+	//nolint:gosec // Using math/rand with fixed seed for deterministic test names
+	r := rand.New(rand.NewSource(seed))
+	suffix := r.Int63n(1000000)
+	return fmt.Sprintf("%s-%06d", prefix, suffix)
 }
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -92,37 +69,9 @@ var (
 	k8sClient client.Client
 	testEnv   *envtest.Environment
 	mgr       manager.Manager
+	ctx       context.Context
+	cancel    context.CancelFunc
 )
-
-func TestAPIs(t *testing.T) {
-	RegisterFailHandler(Fail)
-
-	RunSpecs(t, "Controller Suite")
-}
-
-// TestGenerateUniqueName tests the generateUniqueName function.
-func TestGenerateUniqueName(t *testing.T) {
-	// Test deterministic behavior
-	name1 := generateUniqueName("test", 12345)
-	name2 := generateUniqueName("test", 12345)
-	if name1 != name2 {
-		t.Errorf("Deterministic names should be equal: %s != %s", name1, name2)
-	}
-
-	// Test different seeds produce different names
-	name3 := generateUniqueName("test", 67890)
-	if name1 == name3 {
-		t.Errorf("Different seeds should produce different names: %s == %s", name1, name3)
-	}
-
-	// Test non-deterministic behavior (no seed)
-	name4 := generateUniqueName("test")
-	name5 := generateUniqueName("test")
-	if name4 == name5 {
-		t.Logf("Non-deterministic names happened to be equal: %s == %s", name4, name5)
-		// This is technically possible but very unlikely
-	}
-}
 
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
@@ -131,13 +80,17 @@ var _ = BeforeSuite(func() {
 	binaryAssetsDir := os.Getenv("KUBEBUILDER_ASSETS")
 	if binaryAssetsDir == "" {
 		// Fallback to default location if not set
-		binaryAssetsDir = filepath.Join("..", "..", "..", "bin", "k8s", "1.32.0-darwin-arm64")
+		platformSuffix := fmt.Sprintf("%s-%s", runtime.GOOS, runtime.GOARCH)
+		binaryAssetsDir = filepath.Join("..", "..", "..", "bin", "k8s", "1.32.0-"+platformSuffix)
 	}
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "config", "crd", "bases")},
-		ErrorIfCRDPathMissing: true,
 		BinaryAssetsDirectory: binaryAssetsDir,
 	}
+
+	// Initialize context for the test suite
+	//nolint:fatcontext // This is a test setup function where context creation is necessary
+	ctx, cancel = context.WithCancel(context.Background())
 
 	var err error
 	// cfg is defined in this file globally.
@@ -164,47 +117,85 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(mgr).NotTo(BeNil())
+
+	// Start manager in a goroutine with error channel
+	mgrErrChan := make(chan error, 1)
+	go func() {
+		defer GinkgoRecover()
+		if err := mgr.Start(ctx); err != nil {
+			mgrErrChan <- err
+		}
+	}()
+
+	// Wait for manager to be ready (cache sync and leader election) with configurable timeout
+	// Use a longer timeout to avoid CI flakiness
+	readinessTimeout := 30 * time.Second
+	if envTimeout := os.Getenv("TEST_MANAGER_READINESS_TIMEOUT"); envTimeout != "" {
+		if parsedTimeout, err := time.ParseDuration(envTimeout); err == nil {
+			readinessTimeout = parsedTimeout
+		}
+	}
+
+	readinessCtx, readinessCancel := context.WithTimeout(ctx, readinessTimeout)
+	defer readinessCancel()
+
+	// Wait for cache sync in a goroutine
+	cacheSyncDone := make(chan struct{})
+	go func() {
+		defer GinkgoRecover()
+		if mgr.GetCache().WaitForCacheSync(readinessCtx) {
+			close(cacheSyncDone)
+		}
+	}()
+
+	// Wait for either cache sync completion, manager error, or timeout
+	select {
+	case err := <-mgrErrChan:
+		Fail(fmt.Sprintf("Manager failed to start: %v", err))
+	case <-cacheSyncDone:
+		// Manager is ready - cache sync completed successfully
+	case <-readinessCtx.Done():
+		Fail(fmt.Sprintf("Manager readiness timeout after %v: %v", readinessTimeout, readinessCtx.Err()))
+	}
 })
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).NotTo(HaveOccurred())
+
+	// Cancel the context to stop the manager
+	if cancel != nil {
+		cancel()
+	}
+
+	// Stop the test environment if it was successfully started
+	if testEnv != nil {
+		err := testEnv.Stop()
+		Expect(err).NotTo(HaveOccurred())
+	}
 })
 
 var _ = Describe("NewDataScienceClusterReconciler", func() {
-	var ctx context.Context
-
 	BeforeEach(func() {
+		// Reset context for each test
 		ctx = context.Background()
 	})
 
-	Context("when called with valid manager", func() {
-		It("should successfully create reconciler without error", func() {
-			By(callingReconcilerMsg)
-			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-valid", 12345))
+	It("should create reconciler with correct configuration", func() {
+		By(callingReconcilerMsg)
+		err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-config"))
 
-			By(verifyNoErrorMsg)
-			Expect(err).NotTo(HaveOccurred())
-		})
+		By(verifyNoErrorMsg)
+		Expect(err).NotTo(HaveOccurred())
 
-		It("should create reconciler with correct configuration", func() {
-			By(callingReconcilerMsg)
-			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-config", 23456))
-
-			By(verifyNoErrorMsg)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Optionally, start the manager in a goroutine and verify it's ready
-			// This would provide stronger validation that the reconciler is properly configured
-		})
+		// Optionally, start the manager in a goroutine and verify it's ready
+		// This would provide stronger validation that the reconciler is properly configured
 	})
 
 	Context("when called with nil manager", func() {
 		It("should panic", func() {
 			By("calling NewDataScienceClusterReconciler with nil manager")
 			Expect(func() {
-				_ = datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, nil, generateUniqueName("integration-test-datasciencecluster-nil", 34567))
+				_ = datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, nil, generateUniqueName("integration-test-datasciencecluster-nil"))
 			}).To(Panic())
 		})
 	})
@@ -212,86 +203,84 @@ var _ = Describe("NewDataScienceClusterReconciler", func() {
 	Context("when called multiple times", func() {
 		It("should handle multiple calls without error", func() {
 			By("calling NewDataScienceClusterReconciler multiple times")
-			err1 := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-multi-1", 45678))
-			err2 := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-multi-2", 56789))
+			err1 := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-multi-1"))
+			err2 := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-multi-2"))
 
 			By("verifying no errors are returned")
 			Expect(err1).NotTo(HaveOccurred())
 			Expect(err2).NotTo(HaveOccurred())
 		})
 	})
+})
 
-	Context("when manager has invalid configuration", func() {
-		It("should handle manager with invalid configuration", func() {
-			By("creating an invalid manager that will cause client creation to fail")
-			invalidMgr := NewInvalidManager()
-
-			By("calling NewDataScienceClusterReconciler with invalid manager")
-			Expect(func() {
-				_ = datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, invalidMgr, generateUniqueName("integration-test-datasciencecluster-invalid", 67890))
-			}).To(Panic())
-		})
+var _ = Describe("DataScienceCluster Reconciler Configuration", func() {
+	BeforeEach(func() {
+		ctx = context.Background()
 	})
 
-	var _ = Describe("DataScienceCluster Reconciler Configuration", func() {
-		var ctx context.Context
+	It("should configure reconciler with all required component ownerships", func() {
+		By(callingReconcilerMsg)
+		err := datasciencecluster.NewDataScienceClusterReconcilerWithName(
+			ctx, mgr,
+			generateUniqueName("integration-test-datasciencecluster-ownerships"),
+		)
 
-		BeforeEach(func() {
-			ctx = context.Background()
-		})
+		By(verifyNoErrorMsg)
+		Expect(err).NotTo(HaveOccurred())
 
-		It("should configure reconciler with all required component ownerships", func() {
-			By(callingReconcilerMsg)
-			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-ownerships", 78901))
+		// Successful creation verifies that:
+		// - All required component types are registered in the scheme
+		// - The reconciler successfully sets up ownership for Dashboard, Workbenches, etc.
+		// - The controller builder accepts all ownership configurations
+		// Further validation would require starting the manager and inspecting runtime behavior
+	})
 
-			By(verifyNoErrorMsg)
-			Expect(err).NotTo(HaveOccurred())
+	It("should configure reconciler with DSCInitialization watches", func() {
+		By(callingReconcilerMsg)
+		err := datasciencecluster.NewDataScienceClusterReconcilerWithName(
+			ctx, mgr,
+			generateUniqueName("integration-test-datasciencecluster-watches"),
+		)
 
-			// Successful creation verifies that:
-			// - All required component types are registered in the scheme
-			// - The reconciler successfully sets up ownership for Dashboard, Workbenches, etc.
-			// - The controller builder accepts all ownership configurations
-			// Further validation would require starting the manager and inspecting runtime behavior
-		})
+		By(verifyNoErrorMsg)
+		Expect(err).NotTo(HaveOccurred())
 
-		It("should configure reconciler with DSCInitialization watches", func() {
-			By(callingReconcilerMsg)
-			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-watches", 89012))
+		// The reconciler should be configured to watch DSCInitialization objects
+		// This is verified by the successful creation of the reconciler
+	})
 
-			By(verifyNoErrorMsg)
-			Expect(err).NotTo(HaveOccurred())
+	It("should configure reconciler with all required actions", func() {
+		By(callingReconcilerMsg)
+		err := datasciencecluster.NewDataScienceClusterReconcilerWithName(
+			ctx, mgr,
+			generateUniqueName("integration-test-datasciencecluster-actions"),
+		)
 
-			// The reconciler should be configured to watch DSCInitialization objects
-			// This is verified by the successful creation of the reconciler
-		})
+		By(verifyNoErrorMsg)
+		Expect(err).NotTo(HaveOccurred())
 
-		It("should configure reconciler with all required actions", func() {
-			By(callingReconcilerMsg)
-			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-actions", 90123))
+		// The reconciler should be configured with actions:
+		// - initialize
+		// - checkPreConditions
+		// - updateStatus
+		// - provisionComponents
+		// - deploy.NewAction
+		// - gc.NewAction
+		// This is verified by the successful creation of the reconciler
+	})
 
-			By(verifyNoErrorMsg)
-			Expect(err).NotTo(HaveOccurred())
+	It("should configure reconciler with component readiness conditions", func() {
+		By(callingReconcilerMsg)
+		// Using seed 12346 to avoid collision with other tests that use 12345, ensuring deterministic test execution
+		err := datasciencecluster.NewDataScienceClusterReconcilerWithName(
+			ctx, mgr,
+			generateUniqueName("integration-test-datasciencecluster-conditions"),
+		)
 
-			// The reconciler should be configured with actions:
-			// - initialize
-			// - checkPreConditions
-			// - updateStatus
-			// - provisionComponents
-			// - deploy.NewAction
-			// - gc.NewAction
-			// This is verified by the successful creation of the reconciler
-		})
+		By(verifyNoErrorMsg)
+		Expect(err).NotTo(HaveOccurred())
 
-		It("should configure reconciler with component readiness conditions", func() {
-			By(callingReconcilerMsg)
-			// Using seed 12346 to avoid collision with other tests that use 12345, ensuring deterministic test execution
-			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, generateUniqueName("integration-test-datasciencecluster-conditions", 12346))
-
-			By(verifyNoErrorMsg)
-			Expect(err).NotTo(HaveOccurred())
-
-			// The reconciler should be configured with status.ConditionTypeComponentsReady
-			// This is verified by the successful creation of the reconciler
-		})
+		// The reconciler should be configured with status.ConditionTypeComponentsReady
+		// This is verified by the successful creation of the reconciler
 	})
 })

@@ -78,16 +78,18 @@ sanitize_file() {
     # Replace absolute Unix paths (/Users/, /home/, etc.)
     sed_inplace "$temp_file" 's|/Users/[^/]*|/Users/REDACTED|g'
     sed_inplace "$temp_file" 's|/home/[^/]*|/home/REDACTED|g'
-    sed_inplace "$temp_file" 's|/tmp/[^/]*|/tmp/REDACTED|g'
+   sed_inplace "$temp_file" 's|/tmp/|/REDACTED_TMP/|g'
     
     # Replace absolute Windows paths (C:\Users\, etc.)
     sed_inplace "$temp_file" 's|C:\\Users\\[^\\]*|C:\\Users\\REDACTED|g'
     sed_inplace "$temp_file" 's|C:/Users/[^/]*|C:/Users/REDACTED|g'
-    
     # Replace email-like patterns (including mailto: prefixes and HTML-escaped @ symbols)
     sed_inplace "$temp_file" 's|\(mailto:\)\?[a-zA-Z0-9._%+-]\{1,\}\(@\|&commat;\|&#64;\)[a-zA-Z0-9.-]\{1,\}\.[a-zA-Z]\{2,\}|REDACTED_EMAIL|g'
-    # Replace any remaining absolute paths that might contain usernames
-    sed_inplace "$temp_file" 's|/[a-zA-Z0-9._-]*/[^/]*/[^/]*|/REDACTED_PATH|g'
+    
+    # Add targeted patterns for known safe prefixes that might contain temporary paths
+    # macOS temporary directories
+    sed_inplace "$temp_file" 's|/var/folders/[^/]*/[^/]*/[^/]*|/var/folders/REDACTED|g'
+    # Additional targeted patterns can be added here as needed
     
     # Remove any build timestamps or machine-specific information
     sed_inplace "$temp_file" 's|[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}Z|REDACTED_TIMESTAMP|g'
@@ -99,16 +101,27 @@ sanitize_file() {
         # Keep structure intact; only redact sensitive href/src/mailto/email patterns
         
         # Remove href/src attributes with absolute file paths
-        sed -i.bak 's|href="[^"]*[a-zA-Z]:[^"]*"|href="REDACTED_ABSOLUTE_PATH"|g' "$temp_file"
-        sed -i.bak 's|src="[^"]*[a-zA-Z]:[^"]*"|src="REDACTED_ABSOLUTE_PATH"|g' "$temp_file"
-        sed -i.bak 's|href="[^"]*/Users/[^"]*"|href="REDACTED_ABSOLUTE_PATH"|g' "$temp_file"
-        sed -i.bak 's|src="[^"]*/Users/[^"]*"|src="REDACTED_ABSOLUTE_PATH"|g' "$temp_file"
-        sed -i.bak 's|href="[^"]*/home/[^"]*"|href="REDACTED_ABSOLUTE_PATH"|g' "$temp_file"
-        sed -i.bak 's|src="[^"]*/home/[^"]*"|src="REDACTED_ABSOLUTE_PATH"|g' "$temp_file"
+        sed_inplace "$temp_file" 's|href="/Users/[^"]*"|href="REDACTED_ABSOLUTE_PATH"|g'
+        sed_inplace "$temp_file" 's|src="/Users/[^"]*"|src="REDACTED_ABSOLUTE_PATH"|g'
+        sed_inplace "$temp_file" 's|href="/home/[^"]*"|href="REDACTED_ABSOLUTE_PATH"|g'
+        sed_inplace "$temp_file" 's|src="/home/[^"]*"|src="REDACTED_ABSOLUTE_PATH"|g'
+        # Windows drive paths - match only single letter drive followed by colon and slash/backslash
+        # Avoid matching http: or https: by requiring the pattern to start immediately after the quote
+        sed_inplace "$temp_file" 's|href="\(file://\)\?[A-Za-z]:[\\/][^"]*"|href="REDACTED_ABSOLUTE_PATH"|g'
+        sed_inplace "$temp_file" 's|src="\(file://\)\?[A-Za-z]:[\\/][^"]*"|src="REDACTED_ABSOLUTE_PATH"|g'
         
         # Remove mailto links and email patterns in href
-        sed -i.bak 's|href="mailto:[^"]*"|href="mailto:REDACTED_EMAIL"|g' "$temp_file"
-        sed -i.bak 's|href="[^"]*@[^"]*"|href="REDACTED_EMAIL_LINK"|g' "$temp_file"
+        sed_inplace "$temp_file" 's|href="mailto:[^"]*"|href="mailto:REDACTED_EMAIL"|g'
+        sed_inplace "$temp_file" 's|href="[^"]*@[^"]*"|href="REDACTED_EMAIL_LINK"|g'
+    fi
+    
+    # Ensure the destination directory exists
+    local output_dir
+    output_dir=$(dirname "$output_file")
+    if ! mkdir -p "$output_dir"; then
+        print_error "Failed to create destination directory: $output_dir"
+        rm -f "$temp_file" "$temp_file.bak"
+        return 1
     fi
     
     # Move the sanitized file to the output location
@@ -153,39 +166,37 @@ main() {
         # Generate coverage.html from combined-cover.out if it doesn't exist
         if [[ ! -f "coverage.html" ]]; then
             print_status "Generating coverage.html from combined-cover.out"
-            if go tool cover -html=combined-cover.out -o coverage.html; then
-                print_status "Successfully generated coverage.html"
-                sanitize_html_coverage "coverage.html" "coverage-sanitized.html"
+            
+            # Pre-check: verify go tool cover is available
+            if ! command -v go >/dev/null 2>&1; then
+                print_warning "Go is not installed or not in PATH. Skipping coverage.html generation."
+                print_warning "To install Go, visit: https://golang.org/doc/install"
+            elif ! go tool -n cover >/dev/null 2>&1; then
+                print_warning "Go tool 'cover' is not available. Skipping coverage.html generation."
+                print_warning "To enable the cover tool, run: go install golang.org/x/tools/cmd/cover@latest"
             else
-                print_warning "Failed to generate coverage.html from combined-cover.out"
+                if go tool cover -html=combined-cover.out -o coverage.html >/dev/null 2>&1; then
+                    print_status "Successfully generated coverage.html"
+                    sanitize_html_coverage "coverage.html" "coverage-sanitized.html"
+                else
+                    print_warning "Failed to generate coverage.html from combined-cover.out"
+                fi
             fi
         else
             sanitize_html_coverage "coverage.html" "coverage-sanitized.html"
         fi
-    elif [[ -f "coverage.html" ]]; then
-        has_coverage_files=true
-        sanitize_html_coverage "coverage.html" "coverage-sanitized.html"
     fi
     
-    if [[ -f "cover.out" ]]; then
+    # Find and process other coverage files safely
+    while IFS= read -r -d '' file; do
         has_coverage_files=true
-        sanitize_file "cover.out" "cover-sanitized.out"
-    fi
-    
-    # Check for any other coverage files
-    local other_coverage_files
-    other_coverage_files=$(find . \( -path './vendor' -o -path './vendor/bin/bundle/catalog' \) -prune -o \( -name "*.cover.out" -o -name "*.coverprofile.out" \) -print 2>/dev/null || true)
-    if [[ -n "$other_coverage_files" ]]; then
-        has_coverage_files=true
-        for file in $other_coverage_files; do
-            local dir
-            dir=$(dirname "$file")
-            local base
-            base=$(basename "$file")
-            local sanitized_name="sanitized-${base}"
-            sanitize_file "$file" "${dir}/${sanitized_name}"
-        done
-    fi
+        local dir
+        dir=$(dirname "$file")
+        local base
+        base=$(basename "$file")
+        local sanitized_name="sanitized-${base}"
+        sanitize_file "$file" "${dir}/${sanitized_name}"
+    done < <(find . \( -path './vendor' -prune -o -path './vendor/bin/bundle/catalog' -prune -o \( -name "*.cover.out" -o -name "*.coverprofile.out" \) \) -print0 2>/dev/null || true)
     
     if [[ "$has_coverage_files" == "false" ]]; then
         print_warning "No coverage files found to sanitize"
@@ -201,23 +212,10 @@ main() {
     if [[ -f "coverage-sanitized.html" ]]; then
         created_files+=("coverage-sanitized.html")
     fi
-    
-    if [[ -f "combined-cover-sanitized.out" ]]; then
-        created_files+=("combined-cover-sanitized.out")
-    fi
-    
-    if [[ -f "cover-sanitized.out" ]]; then
-        created_files+=("cover-sanitized.out")
-    fi
-    
-    # Check for sanitized-*.cover.out files
-    local sanitized_cover_files
-    sanitized_cover_files=$(find . \( -path './vendor' -o -path './vendor/bin/bundle/catalog' \) -prune -o -name "sanitized-*.cover.out" -print 2>/dev/null || true)
-    if [[ -n "$sanitized_cover_files" ]]; then
-        for file in $sanitized_cover_files; do
-            created_files+=("$file")
-        done
-    fi
+    # Check for sanitized-*.cover.out and sanitized-*.coverprofile.out files
+    while IFS= read -r -d '' file; do
+        created_files+=("$file")
+    done < <(find . \( -path './vendor' -prune -o -path './vendor/bin/bundle/catalog' -prune -o \( -name "sanitized-*.cover.out" -o -name "sanitized-*.coverprofile.out" \) \) -print0 2>/dev/null || true)
     
     # Print the list of actually created files
     if [[ ${#created_files[@]} -gt 0 ]]; then
@@ -234,3 +232,4 @@ main() {
 
 # Run main function
 main "$@"
+

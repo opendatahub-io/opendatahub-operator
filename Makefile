@@ -50,6 +50,7 @@ GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
 GINKGO ?= $(LOCALBIN)/ginkgo
 YQ ?= $(LOCALBIN)/yq
+GOCOVMERGE ?= $(LOCALBIN)/gocovmerge
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.7.0
@@ -64,6 +65,10 @@ ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller
 CRD_REF_DOCS_VERSION = 0.2.0
 # Add to tool versions section
 GINKGO_VERSION ?= v2.23.4
+# GOCOVMERGE_VERSION is pinned to a specific commit for reproducibility
+# The gocovmerge repository hasn't been updated since 2016, so we use the latest commit
+# To override this version, set GOCOVMERGE_VERSION to a different commit hash or tag
+GOCOVMERGE_VERSION ?= b5bfa59ec0adc420475f97f89b58045c721d761c
 
 
 PLATFORM ?= linux/amd64
@@ -187,6 +192,11 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 ginkgo: $(GINKGO)
 $(GINKGO): $(LOCALBIN)
 	$(call go-install-tool,$(GINKGO),github.com/onsi/ginkgo/v2/ginkgo,$(GINKGO_VERSION))
+
+.PHONY: gocovmerge
+gocovmerge: $(GOCOVMERGE) ## Download gocovmerge locally if necessary.
+$(GOCOVMERGE): $(LOCALBIN)
+	$(call go-install-tool,$(GOCOVMERGE),github.com/wadey/gocovmerge,$(GOCOVMERGE_VERSION))
 
 ##@ Build
 
@@ -440,7 +450,7 @@ unit-test: envtest ginkgo # directly use ginkgo since the framework is not compa
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
     	${GINKGO} -r \
         		--procs=8 \
-        		--compilers=2 \
+        		--nodes=2 \
         		--timeout=15m \
         		--poll-progress-after=30s \
         		--poll-progress-interval=5s \
@@ -453,9 +463,8 @@ unit-test: envtest ginkgo # directly use ginkgo since the framework is not compa
         		--covermode=atomic \
         		--coverpkg=./internal/...,./pkg/...,./api/... \
         		--coverprofile=coverprofile.out \
-        		--keep-going \
         		--output-dir=. \
-        		$(UNIT_TEST_SRC) || true
+        		$(UNIT_TEST_SRC)
 	@echo "Coverage reports generated in individual directories"
 
 .PHONY: integration-test
@@ -464,7 +473,7 @@ integration-test: envtest ginkgo ## Run integration tests
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
     	${GINKGO} -r \
         		--procs=8 \
-        		--compilers=2 \
+        		--nodes=2 \
         		--timeout=15m \
         		--poll-progress-after=30s \
         		--poll-progress-interval=5s \
@@ -486,7 +495,7 @@ ci-test-sources: envtest ginkgo ## Run all test sources (unit + integration) - p
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
     	${GINKGO} -r \
         		--procs=8 \
-        		--compilers=2 \
+        		--nodes=2 \
         		--timeout=15m \
         		--poll-progress-after=30s \
         		--poll-progress-interval=5s \
@@ -496,6 +505,7 @@ ci-test-sources: envtest ginkgo ## Run all test sources (unit + integration) - p
         		--succinct \
         		--no-color \
         		--cover \
+        		--covermode=atomic \
         		--coverpkg=./internal/...,./pkg/...,./api/... \
         		--coverprofile=coverprofile.out \
         		$(TEST_SRC)
@@ -504,84 +514,7 @@ ci-test-sources: envtest ginkgo ## Run all test sources (unit + integration) - p
 # Clean up individual coverage files
 CLEANFILES += cover.out
 CLEANFILES += .unit-test-exit-code
-
-.PHONY: coverage-report
-coverage-report: unit-test integration-test ## Generate combined coverage report
-	@echo "Combining coverage reports..."
-	@echo "mode: atomic" > combined-cover.out
-	@echo "Scanning for coverage files (excluding vendor, bin, bundle, catalog directories)..."
-	# Clean up any incomplete coverage files that might cause combination issues
-	@find . -name "coverprofile.out.*" -type f -delete 2>/dev/null || true
-	@COVER_FILES=$$(find . \
-		-type d \( -path "./vendor" -o -path "./bin" -o -path "./bundle*" -o -path "./catalog" \) -prune -o \
-		-type f -name "cover.out" -print) && \
-	COVERPROFILE_FILES=$$(find . \
-		-type d \( -path "./vendor" -o -path "./bin" -o -path "./bundle*" -o -path "./catalog" \) -prune -o \
-		-type f -name "coverprofile.out" -print) && \
-	echo "Found cover.out files: $$COVER_FILES" && \
-	echo "Found coverprofile.out files: $$COVERPROFILE_FILES" && \
-	for file in $$COVER_FILES $$COVERPROFILE_FILES; do \
-		if [ -f "$$file" ]; then \
-			FIRST_LINE=$$(head -n 1 "$$file" | tr -d '[:space:]') && \
-			if [ "$$FIRST_LINE" != "mode:atomic" ]; then \
-				echo "WARNING: Skipping $$file - expected 'mode:atomic' but found '$$FIRST_LINE'" >&2; \
-			else \
-				echo "Processing $$file..." && \
-				grep -h -v "^mode:" "$$file" >> combined-cover.out; \
-			fi; \
-		fi; \
-	done
-	@echo "Combined coverage report generated: combined-cover.out"
-	@echo "To view HTML report: go tool cover -html=combined-cover.out -o coverage.html"
-# Add scattered coverage files to cleanup
-CLEANFILES += $(shell find . -type d \( -path "./vendor" -o -path "./bin" -o -path "./bundle*" -o -path "./catalog" \) -prune -o -type f -name "cover.out" -print 2>/dev/null || true)
-CLEANFILES += $(shell find . -type d \( -path "./vendor" -o -path "./bin" -o -path "./bundle*" -o -path "./catalog" \) -prune -o -type f -name "coverprofile.out" -print 2>/dev/null || true)
-# Add scattered coverage files to cleanup
-CLEANFILES += $(shell find . -name "cover.out" -type f \( -path "./vendor" -prune -o -path "./bin" -prune -o -path "./bundle*" -prune -o -path "./catalog" -prune -o -print \) 2>/dev/null || true)
-CLEANFILES += $(shell find . -name "coverprofile.out" -type f \( -path "./vendor" -prune -o -path "./bin" -prune -o -path "./bundle*" -prune -o -path "./catalog" -prune -o -print \) 2>/dev/null || true)
-
-.PHONY: coverage-report-sanitized
-coverage-report-sanitized: coverage-report ## Generate sanitized coverage report for CI
-	@echo "Generating sanitized coverage reports..."
-	@if [ ! -f "combined-cover.out" ]; then \
-		echo "ERROR: combined-cover.out not found. Run 'make coverage-report' first." >&2; \
-		exit 1; \
-	fi
-	@echo "Generating HTML coverage report..."
-	@if ! go tool cover -html=combined-cover.out -o coverage.html; then \
-		echo "ERROR: Failed to generate coverage.html" >&2; \
-		exit 1; \
-	fi
-	@echo "Running coverage sanitizer..."
-	@if ! ./hack/sanitize-coverage.sh; then \
-		echo "ERROR: Coverage sanitization failed" >&2; \
-		exit 1; \
-	fi
-	@echo "Verifying sanitized files were created..."
-	@missing_files=0; \
-	# Always expect these files when sanitization succeeds
-	for file in coverage-sanitized.html combined-cover-sanitized.out; do \
-		if [ ! -f "$$file" ]; then \
-			echo "ERROR: Expected sanitized file '$$file' was not created" >&2; \
-			missing_files=1; \
-		fi; \
-	done; \
-	# Only expect cover-sanitized.out if cover.out exists (not in combined-only flow)
-	if [ -f "cover.out" ] && [ ! -f "cover-sanitized.out" ]; then \
-		echo "ERROR: Expected sanitized file 'cover-sanitized.out' was not created" >&2; \
-		missing_files=1; \
-	fi; \
-	if [ $$missing_files -eq 1 ]; then \
-		echo "ERROR: Some sanitized files were not created" >&2; \
-		exit 1; \
-	fi
-	@echo "Sanitized coverage reports generated:"
-	@echo "  - coverage-sanitized.html"
-	@echo "  - combined-cover-sanitized.out"
-	@if [ -f "cover.out" ]; then \
-		echo "  - cover-sanitized.out"; \
-	fi
-	@echo "These files are safe to publish as CI artifacts and to share externally; they are ignored by .gitignore by default."
+CLEANFILES += combined-cover.out
 
 $(PROMETHEUS_TEST_DIR)/%.rules.yaml: $(PROMETHEUS_TEST_DIR)/%.unit-tests.yaml $(PROMETHEUS_CONFIG_YAML) $(YQ)
 	$(YQ) eval ".data.\"$(@F:.rules.yaml=.rules)\"" $(PROMETHEUS_CONFIG_YAML) > $@

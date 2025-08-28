@@ -3,6 +3,7 @@ package reconciler
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	gTypes "github.com/onsi/gomega/types"
@@ -22,7 +23,12 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestDynamicWatchAction_Run(t *testing.T) {
+const errFailedToGetKind = "failed to get kind from test object: %v"
+
+func TestDynamicWatchActionRun(t *testing.T) {
+	// Note: Dynamic predicates are currently not evaluated in the test implementation.
+	// The watchInput objects are created without dynamicPredicates field populated,
+	// so the shouldWatch method always returns true regardless of the preds field in test cases.
 	tests := []struct {
 		name       string
 		object     common.PlatformObject
@@ -78,20 +84,20 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 		},
 
 		{
-			name:   "should register a watcher even when predicate would return false (dynamic predicates not implemented)",
+			name:   "should register a watcher even when dynamic predicates are supplied but not evaluated",
 			object: &componentApi.Dashboard{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
 			preds: []DynamicPredicate{
 				func(_ context.Context, rr *types.ReconciliationRequest) bool {
-					return false
+					return false // This predicate is not evaluated in the current implementation
 				},
 			},
 			errMatcher: Not(HaveOccurred()),
-			cntMatcher: BeNumerically("==", 1), // Always registers since dynamic predicates are not implemented
+			cntMatcher: BeNumerically("==", 1), // Always registers since dynamic predicates are not evaluated
 			keyMatcher: HaveKey(gvk.ConfigMap),
 		},
 
 		{
-			name: "should register a watcher when dynamic predicates include both true and false results (dynamic predicates not implemented)",
+			name: "should register a watcher when dynamic predicates are supplied (dynamic predicates are ignored/not implemented)",
 			object: &componentApi.Dashboard{
 				TypeMeta: metav1.TypeMeta{
 					Kind: gvk.Dashboard.Kind,
@@ -103,14 +109,14 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 			},
 			preds: []DynamicPredicate{
 				func(_ context.Context, rr *types.ReconciliationRequest) bool {
-					return rr.Instance.GetGeneration() > 0
+					return rr.Instance.GetGeneration() > 0 // This predicate is not evaluated in the current implementation
 				},
 				func(_ context.Context, rr *types.ReconciliationRequest) bool {
-					return rr.Instance.GetResourceVersion() != ""
+					return rr.Instance.GetResourceVersion() != "" // This predicate is not evaluated in the current implementation
 				},
 			},
 			errMatcher: Not(HaveOccurred()),
-			cntMatcher: BeNumerically("==", 1), // Always registers since dynamic predicates are not implemented
+			cntMatcher: BeNumerically("==", 1), // Always registers since dynamic predicates are not evaluated
 			keyMatcher: HaveKey(gvk.ConfigMap),
 		},
 	}
@@ -123,15 +129,22 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 			watches := []watchInput{{
 				object:  resources.GvkToUnstructured(gvk.ConfigMap),
 				dynamic: true,
-				// TODO: enable dynamicPred when dynamic watches are fully supported
+				// Note: dynamicPredicates field is intentionally not populated in this test
+				// to demonstrate that predicates are not evaluated in the current implementation
 			}}
 
 			mockFn := func(_ client.Object, _ handler.EventHandler, _ ...predicate.Predicate) error {
 				return nil
 			}
 
+			kind, kindErr := resources.KindForObject(nil, test.object)
+			if kindErr != nil {
+				t.Fatalf(errFailedToGetKind, kindErr)
+			}
+			kindLabel := strings.ToLower(kind)
+
 			DynamicWatchResourcesTotal.Reset()
-			DynamicWatchResourcesTotal.WithLabelValues("dashboard").Add(0)
+			DynamicWatchResourcesTotal.WithLabelValues(kindLabel).Add(0)
 
 			action := newDynamicWatch(mockFn, watches)
 			err := action.run(ctx, &types.ReconciliationRequest{Instance: test.object})
@@ -140,7 +153,7 @@ func TestDynamicWatchAction_Run(t *testing.T) {
 				g.Expect(err).To(test.errMatcher)
 			}
 			if test.cntMatcher != nil {
-				g.Expect(testutil.ToFloat64(DynamicWatchResourcesTotal)).To(test.cntMatcher)
+				g.Expect(testutil.ToFloat64(DynamicWatchResourcesTotal.WithLabelValues(kindLabel))).To(test.cntMatcher)
 			}
 			if test.keyMatcher != nil {
 				g.Expect(action.watched).Should(test.keyMatcher)
@@ -157,19 +170,25 @@ func TestDynamicWatchActionInputs(t *testing.T) {
 		return nil
 	}
 
+	kind, kindErr := resources.KindForObject(nil, &componentApi.Dashboard{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}})
+	if kindErr != nil {
+		t.Fatalf(errFailedToGetKind, kindErr)
+	}
+	kindLabel := strings.ToLower(kind)
+
 	DynamicWatchResourcesTotal.Reset()
-	DynamicWatchResourcesTotal.WithLabelValues("dashboard").Add(0)
+	DynamicWatchResourcesTotal.WithLabelValues(kindLabel).Add(0)
 
 	watches := []watchInput{
 		{
 			object:  resources.GvkToUnstructured(gvk.Secret),
 			dynamic: true,
-			// TODO: enable dynamicPred when dynamic watches are fully supported
+			// Note: dynamicPredicates field is intentionally not populated in this test
 		},
 		{
 			object:  resources.GvkToUnstructured(gvk.ConfigMap),
 			dynamic: true,
-			// TODO: enable dynamicPred when dynamic watches are fully supported
+			// Note: dynamicPredicates field is intentionally not populated in this test
 		},
 	}
 
@@ -185,8 +204,8 @@ func TestDynamicWatchActionInputs(t *testing.T) {
 
 	g.Expect(err).
 		ShouldNot(HaveOccurred())
-	g.Expect(testutil.ToFloat64(DynamicWatchResourcesTotal)).
-		Should(BeNumerically("==", 2)) // Both watches register since dynamic predicates are not implemented
+	g.Expect(testutil.ToFloat64(DynamicWatchResourcesTotal.WithLabelValues(kindLabel))).
+		Should(BeNumerically("==", 2)) // Both watches register since dynamic predicates are not evaluated
 	g.Expect(action.watched).
 		Should(And(
 			HaveLen(2),
@@ -199,18 +218,26 @@ func TestDynamicWatchActionNotTwice(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
+	callCount := 0
 	mockFn := func(_ client.Object, _ handler.EventHandler, _ ...predicate.Predicate) error {
+		callCount++
 		return nil
 	}
 
+	kind, kindErr := resources.KindForObject(nil, &componentApi.Dashboard{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}})
+	if kindErr != nil {
+		t.Fatalf(errFailedToGetKind, kindErr)
+	}
+	kindLabel := strings.ToLower(kind)
+
 	DynamicWatchResourcesTotal.Reset()
-	DynamicWatchResourcesTotal.WithLabelValues("dashboard").Add(0)
+	DynamicWatchResourcesTotal.WithLabelValues(kindLabel).Add(0)
 
 	watches := []watchInput{
 		{
 			object:  resources.GvkToUnstructured(gvk.ConfigMap),
 			dynamic: true,
-			// TODO: enable dynamicPred when dynamic watches are fully supported
+			// Note: dynamicPredicates field is intentionally not populated in this test
 		},
 	}
 
@@ -240,11 +267,12 @@ func TestDynamicWatchActionNotTwice(t *testing.T) {
 	g.Expect(err2).
 		ShouldNot(HaveOccurred())
 
-	g.Expect(testutil.ToFloat64(DynamicWatchResourcesTotal)).
+	g.Expect(testutil.ToFloat64(DynamicWatchResourcesTotal.WithLabelValues(kindLabel))).
 		Should(BeNumerically("==", 1))
 	g.Expect(action.watched).
 		Should(And(
 			HaveLen(1),
 			HaveKey(gvk.ConfigMap)),
 		)
+	g.Expect(callCount).Should(BeNumerically("==", 1))
 }

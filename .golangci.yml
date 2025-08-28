@@ -91,6 +91,17 @@ linters:
         - kubernetes.Interface
         - gomega.AsyncAssertion
         - labels.Selector
+        - manager.Manager
+        - sigs.k8s.io/controller-runtime.Manager
+        - client.StatusWriter
+        - meta.RESTMapper
+        - client.SubResourceClient
+        - client.FieldIndexer
+        - cache.Cache
+        - record.EventRecorder
+        - client.Reader
+        - webhook.Server
+        - client.WithWatch
     lll:
       line-length: 180
     nolintlint:

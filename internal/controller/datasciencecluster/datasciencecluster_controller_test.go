@@ -34,6 +34,14 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	verifyingNoErrorReturned = "verifying no error is returned"
+	callingWithInvalidName   = "calling NewDataScienceClusterReconciler with invalid instanceName"
+	verifyingErrorReturned   = "verifying error is returned"
+	dns1123ErrorSubstring    = "invalid instanceName"
+	callingWithValidName     = "calling NewDataScienceClusterReconciler with valid instanceName"
+)
+
 func TestNewDataScienceClusterReconciler(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "DataScienceCluster Controller Suite")
@@ -42,8 +50,6 @@ func TestNewDataScienceClusterReconciler(t *testing.T) {
 // createTestManager returns a manager.Manager interface for testing.
 // This is acceptable here since we're testing the reconciler's interaction with the manager interface,
 // not the concrete implementation details.
-//
-//nolint:ireturn
 func createTestManager() manager.Manager {
 	// Create a new scheme for each test to avoid conflicts
 	testScheme := runtime.NewScheme()
@@ -81,7 +87,7 @@ var _ = Describe("NewDataScienceClusterReconciler", func() {
 			mgr := createTestManager()
 			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, "test-datasciencecluster")
 
-			By("verifying no error is returned")
+			By(verifyingNoErrorReturned)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
@@ -92,6 +98,105 @@ var _ = Describe("NewDataScienceClusterReconciler", func() {
 			Expect(func() {
 				_ = datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, nil, "test-datasciencecluster")
 			}).To(Panic())
+		})
+	})
+
+	Context("when called with invalid instanceName", func() {
+		It("should return error for instanceName starting with hyphen", func() {
+			By(callingWithInvalidName)
+			mgr := createTestManager()
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, "-invalid-name")
+
+			By(verifyingErrorReturned)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(dns1123ErrorSubstring))
+		})
+
+		It("should return error for instanceName ending with hyphen", func() {
+			By(callingWithInvalidName)
+			mgr := createTestManager()
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, "invalid-name-")
+
+			By(verifyingErrorReturned)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(dns1123ErrorSubstring))
+		})
+
+		It("should return error for instanceName with uppercase letters", func() {
+			By(callingWithInvalidName)
+			mgr := createTestManager()
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, "Invalid-Name")
+
+			By(verifyingErrorReturned)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(dns1123ErrorSubstring))
+		})
+
+		It("should return error for instanceName with special characters", func() {
+			By(callingWithInvalidName)
+			mgr := createTestManager()
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, "invalid@name")
+
+			By(verifyingErrorReturned)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(dns1123ErrorSubstring))
+		})
+
+		It("should return error for instanceName with underscores", func() {
+			By(callingWithInvalidName)
+			mgr := createTestManager()
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, "invalid_name")
+
+			By(verifyingErrorReturned)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(dns1123ErrorSubstring))
+		})
+	})
+
+	Context("when called with valid instanceName", func() {
+		It("should succeed with empty instanceName", func() {
+			By("calling NewDataScienceClusterReconciler with empty instanceName")
+			mgr := createTestManager()
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, "")
+
+			By(verifyingNoErrorReturned)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should succeed with lowercase alphanumeric instanceName", func() {
+			By(callingWithValidName)
+			mgr := createTestManager()
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, "validname")
+
+			By(verifyingNoErrorReturned)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should succeed with lowercase alphanumeric and hyphens instanceName", func() {
+			By(callingWithValidName)
+			mgr := createTestManager()
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, "valid-name")
+
+			By(verifyingNoErrorReturned)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should succeed with single character instanceName", func() {
+			By(callingWithValidName)
+			mgr := createTestManager()
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, "a")
+
+			By(verifyingNoErrorReturned)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should succeed with numeric instanceName", func() {
+			By(callingWithValidName)
+			mgr := createTestManager()
+			err := datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, mgr, "123")
+
+			By(verifyingNoErrorReturned)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 })

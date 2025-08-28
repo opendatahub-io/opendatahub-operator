@@ -79,11 +79,6 @@ func cleanupListResources(t *testing.T, tc *TestContext, kind schema.GroupVersio
 	}
 }
 
-// uninstallOperator delete an operator install subscription for the stable channel if exists.
-func uninstallOperator(t *testing.T, tc *TestContext, operatorNamespacedName types.NamespacedName) { //nolint:thelper,unused
-	uninstallOperatorWithChannel(t, tc, operatorNamespacedName, defaultOperatorChannel)
-}
-
 // uninstallOperatorWithChannel delete an operator install subscription to a specific channel if exists.
 func uninstallOperatorWithChannel(t *testing.T, tc *TestContext, operatorNamespacedName types.NamespacedName, channel string) { //nolint:thelper,unparam
 	if found, err := tc.CheckOperatorExists(operatorNamespacedName.Name); found && err == nil {

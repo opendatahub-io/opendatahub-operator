@@ -157,7 +157,10 @@ func TestGcAction(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gc.CyclesTotal.Reset()
-			gc.CyclesTotal.WithLabelValues("dashboard").Add(0)
+
+			// Derive the controller name from the resource Kind, same as the actual implementation
+			controllerName := strings.ToLower(componentApi.DashboardKind)
+			gc.CyclesTotal.WithLabelValues(controllerName).Add(0)
 
 			g := NewWithT(t)
 			id := xid.New().String()
@@ -339,7 +342,7 @@ func TestGcAction(t *testing.T) {
 			}
 
 			if tt.metricsMatcher != nil {
-				ct := testutil.ToFloat64(gc.CyclesTotal)
+				ct := testutil.ToFloat64(gc.CyclesTotal.WithLabelValues(controllerName))
 				g.Expect(ct).Should(tt.metricsMatcher)
 			}
 		})
@@ -386,7 +389,10 @@ func TestGcActionOwn(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gc.CyclesTotal.Reset()
-			gc.CyclesTotal.WithLabelValues("dashboard").Add(0)
+
+			// Derive the controller name from the resource Kind, same as the actual implementation
+			controllerName := strings.ToLower(componentApi.DashboardKind)
+			gc.CyclesTotal.WithLabelValues(controllerName).Add(0)
 
 			g := NewWithT(t)
 			nsn := xid.New().String()
@@ -609,7 +615,10 @@ func TestGcActionCluster(t *testing.T) {
 	a := gc.NewAction(gc.WithDeletePropagationPolicy(metav1.DeletePropagationBackground), gc.InNamespace(nsn))
 
 	gc.DeletedTotal.Reset()
-	gc.DeletedTotal.WithLabelValues("dashboard").Add(0)
+
+	// Derive the controller name from the resource Kind, same as the actual implementation
+	controllerName := strings.ToLower(componentApi.DashboardKind)
+	gc.DeletedTotal.WithLabelValues(controllerName).Add(0)
 
 	err = a(ctx, &rr)
 	g.Expect(err).NotTo(HaveOccurred())
@@ -626,7 +635,7 @@ func TestGcActionCluster(t *testing.T) {
 	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cr2), &rbacv1.ClusterRole{})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	ct := testutil.ToFloat64(gc.DeletedTotal)
+	ct := testutil.ToFloat64(gc.DeletedTotal.WithLabelValues(controllerName))
 	g.Expect(ct).Should(BeNumerically("==", 2))
 }
 
@@ -717,11 +726,14 @@ func TestGcActionOnce(t *testing.T) {
 	a := gc.NewAction(gc.WithDeletePropagationPolicy(metav1.DeletePropagationBackground), gc.InNamespace(nsn))
 
 	gc.DeletedTotal.Reset()
-	gc.DeletedTotal.WithLabelValues("dashboard").Add(0)
+
+	// Derive the controller name from the resource Kind, same as the actual implementation
+	controllerName := strings.ToLower(componentApi.DashboardKind)
+	gc.DeletedTotal.WithLabelValues(controllerName).Add(0)
 
 	g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
-	g.Expect(testutil.ToFloat64(gc.DeletedTotal)).Should(BeNumerically("==", 1))
+	g.Expect(testutil.ToFloat64(gc.DeletedTotal.WithLabelValues(controllerName))).Should(BeNumerically("==", 1))
 
 	g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
-	g.Expect(testutil.ToFloat64(gc.DeletedTotal)).Should(BeNumerically("==", 1))
+	g.Expect(testutil.ToFloat64(gc.DeletedTotal.WithLabelValues(controllerName))).Should(BeNumerically("==", 1))
 }

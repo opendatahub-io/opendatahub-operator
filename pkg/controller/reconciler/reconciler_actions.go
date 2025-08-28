@@ -54,17 +54,25 @@ func (a *dynamicWatchAction) run(ctx context.Context, rr *types.ReconciliationRe
 
 func (a *dynamicWatchAction) shouldWatch(ctx context.Context, in watchInput, rr *types.ReconciliationRequest) bool {
 	logger := log.FromContext(ctx)
+	objectGVK := in.object.GetObjectKind().GroupVersionKind()
+
+	// Create a prefixed logger with common fields
+	prefixedLogger := logger.WithValues(
+		"objectGVK", objectGVK,
+		"instanceName", rr.Instance.GetName(),
+		"instanceNamespace", rr.Instance.GetNamespace(),
+	)
+
 	// Evaluate all dynamic predicates for this watch
 	for i, pred := range in.dynamicPredicates {
 		if pred == nil {
+			prefixedLogger.V(1).Info("nil predicate",
+				"predicateIndex", i)
 			continue
 		}
 		if !pred(ctx, rr) {
-			logger.V(1).Info("watch blocked by predicate",
-				"predicateIndex", i,
-				"objectGVK", in.object.GetObjectKind().GroupVersionKind(),
-				"instanceName", rr.Instance.GetName(),
-				"instanceNamespace", rr.Instance.GetNamespace())
+			prefixedLogger.V(1).Info("watch blocked by predicate",
+				"predicateIndex", i)
 			return false
 		}
 	}
