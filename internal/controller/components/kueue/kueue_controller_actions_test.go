@@ -766,25 +766,9 @@ func assertClusterQueueCorrectness(g *WithT, clusterQueue *unstructured.Unstruct
 			},
 		},
 	}
-	g.Expect(resourceGroups).To(ContainElement(defaultResourceGroup))
+	g.Expect(resourceGroups[0]).To(Equal(defaultResourceGroup))
 
 	if withGPU {
-		nvidiaResourceGroup := map[string]any{
-			"coveredResources": []any{NvidiaGPUResourceKey},
-			"flavors": []any{
-				map[string]any{
-					"name": "nvidia-gpu-flavor",
-					"resources": []any{
-						map[string]any{
-							"name":         NvidiaGPUResourceKey,
-							"nominalQuota": "4",
-						},
-					},
-				},
-			},
-		}
-		g.Expect(resourceGroups).To(ContainElement(nvidiaResourceGroup))
-
 		amdResourceGroup := map[string]any{
 			"coveredResources": []any{AMDGPUResourceKey},
 			"flavors": []any{
@@ -799,7 +783,23 @@ func assertClusterQueueCorrectness(g *WithT, clusterQueue *unstructured.Unstruct
 				},
 			},
 		}
-		g.Expect(resourceGroups).To(ContainElement(amdResourceGroup))
+		g.Expect(resourceGroups[1]).To(Equal(amdResourceGroup))
+
+		nvidiaResourceGroup := map[string]any{
+			"coveredResources": []any{NvidiaGPUResourceKey},
+			"flavors": []any{
+				map[string]any{
+					"name": "nvidia-gpu-flavor",
+					"resources": []any{
+						map[string]any{
+							"name":         NvidiaGPUResourceKey,
+							"nominalQuota": "4",
+						},
+					},
+				},
+			},
+		}
+		g.Expect(resourceGroups[2]).To(Equal(nvidiaResourceGroup))
 	}
 }
 

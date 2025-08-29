@@ -47,7 +47,6 @@ const (
 	AMDGPUResourceKey    = "amd.com/gpu"
 	// Flavor names.
 	DefaultFlavorName = "default-flavor"
-	GPUFlavorSuffix   = "-gpu-flavor"
 )
 
 var (
@@ -57,6 +56,11 @@ var (
 
 	conditionTypes = []string{
 		status.ConditionDeploymentsAvailable,
+	}
+
+	supportedGPUMap = map[string]string{
+		NvidiaGPUResourceKey: "nvidia-gpu-flavor",
+		AMDGPUResourceKey:    "amd-gpu-flavor",
 	}
 )
 
@@ -212,10 +216,12 @@ func createDefaultClusterQueue(name string, clusterInfo ClusterResourceInfo) *un
 		}),
 	}
 
-	for label, gpuInfo := range clusterInfo.GPUInfo {
+	clusterGPU := slices.Sorted(maps.Keys(clusterInfo.GPUInfo))
+	for _, label := range clusterGPU {
+		gpuInfo := clusterInfo.GPUInfo[label]
 		resourceGroups = append(resourceGroups, createResourceGroup([]Flavors{
 			{
-				Name: getFlavorName(label),
+				Name: supportedGPUMap[label],
 				Resources: []FlavorResource{
 					{Name: label, Value: gpuInfo.Allocatable.String()},
 				},
@@ -289,7 +295,7 @@ func createDefaultResourceFlavors(clusterInfo ClusterResourceInfo) []unstructure
 			"apiVersion": gvk.ResourceFlavor.GroupVersion().String(),
 			"kind":       gvk.ResourceFlavor.Kind,
 			"metadata": map[string]any{
-				"name": getFlavorName(label),
+				"name": supportedGPUMap[label],
 				"annotations": map[string]any{
 					annotations.ManagedByODHOperator: "false",
 				},
@@ -316,21 +322,19 @@ func (info *ClusterResourceInfo) extractGPUInfo(node corev1.Node) {
 		info.GPUInfo = make(map[string]*ResourceQuantity)
 	}
 
-	for resourceKey, value := range node.Status.Allocatable {
-		resourceName := resourceKey.String()
-		entry := info.GPUInfo[resourceName]
+	for resourceKey := range supportedGPUMap {
+		value, ok := node.Status.Allocatable[corev1.ResourceName(resourceKey)]
+		if !ok {
+			continue
+		}
+
+		entry := info.GPUInfo[resourceKey]
 		if entry == nil {
 			entry = &ResourceQuantity{}
 		}
 
-		switch resourceName {
-		case NvidiaGPUResourceKey:
-			entry.Allocatable.Add(value)
-			info.GPUInfo[resourceName] = entry
-		case AMDGPUResourceKey:
-			entry.Allocatable.Add(value)
-			info.GPUInfo[resourceName] = entry
-		}
+		entry.Allocatable.Add(value)
+		info.GPUInfo[resourceKey] = entry
 	}
 }
 
@@ -359,19 +363,6 @@ func getClusterResourceInfo(ctx context.Context, c client.Client) (ClusterResour
 	}
 
 	return info, nil
-}
-
-var gpuToFlavorNameMap = map[string]string{
-	NvidiaGPUResourceKey: "nvidia",
-	AMDGPUResourceKey:    "amd",
-}
-
-func getFlavorName(name string) string {
-	flavorName, ok := gpuToFlavorNameMap[name]
-	if !ok {
-		return ""
-	}
-	return fmt.Sprintf("%s%s", flavorName, GPUFlavorSuffix)
 }
 
 func isNodeReady(node *corev1.Node) bool {
