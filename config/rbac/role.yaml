@@ -645,7 +645,6 @@ rules:
   resources:
   - clusterqueues/status
   - localqueues/status
-  - resourceflavors/status
   verbs:
   - get
   - patch
