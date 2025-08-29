@@ -16,3 +16,14 @@ spec:
   template:
     gateway:
       enabled: true # Required for OpenShift mode
+    {{- if .TempoTLSEnabled }}
+    distributor:
+      tls:
+        enabled: true
+        {{- if .TempoCertificateSecret }}
+        certName: {{.TempoCertificateSecret}}
+        {{- end }}
+        {{- if .TempoCAConfigMap }}
+        caName: {{.TempoCAConfigMap}}
+        {{- end }}
+    {{- end }}
