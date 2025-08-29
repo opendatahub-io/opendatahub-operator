@@ -86,6 +86,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				handlers.ToNamed(componentApi.KueueInstanceName),
 			),
 			reconciler.Dynamic(reconciler.CrdExists(gvk.ClusterQueue))).
+		WatchesGVK(gvk.ResourceFlavor,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KueueInstanceName),
+			),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ResourceFlavor))).
 		WatchesGVK(gvk.KueueConfigV1,
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.KueueInstanceName),
@@ -126,6 +131,12 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.KueueInstanceName),
 			),
+		).
+		Watches(&corev1.Node{},
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KueueInstanceName),
+			),
+			reconciler.WithPredicates(resources.NodeAllocatableChangePredicate()),
 		).
 		WithAction(checkPreConditions).
 		WithAction(initialize).
