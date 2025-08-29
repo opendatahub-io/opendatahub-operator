@@ -631,6 +631,7 @@ rules:
   resources:
   - clusterqueues
   - localqueues
+  - resourceflavors
   verbs:
   - create
   - delete
@@ -644,6 +645,7 @@ rules:
   resources:
   - clusterqueues/status
   - localqueues/status
+  - resourceflavors/status
   verbs:
   - get
   - patch
