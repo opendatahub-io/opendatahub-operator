@@ -388,6 +388,10 @@ func (tc *DSCTestCtx) ValidateComponentsDeploymentFailure(t *testing.T) {
 			"Please update the allComponents list when adding new components.",
 		expectedComponentCount, componentsLength)
 
+	// Force monitoring to use 2 replicas for consistent quota test behavior
+	t.Log("Configuring monitoring to use 2 replicas for consistent quota test")
+	tc.ensureConsistentMonitoringForQuotaTest(t)
+
 	restrictiveQuota := createRestrictiveQuotaForOperator(tc.AppsNamespace)
 
 	t.Log("Creating restrictive resource quota in operator namespace")
@@ -399,6 +403,10 @@ func (tc *DSCTestCtx) ValidateComponentsDeploymentFailure(t *testing.T) {
 	t.Cleanup(func() {
 		t.Log("Cleaning up restrictive quota")
 		tc.DeleteResource(WithObjectToCreate(restrictiveQuota))
+
+		// Reset monitoring configuration to default state to avoid affecting other tests
+		t.Log("Resetting monitoring configuration to default state")
+		tc.resetMonitoringToDefault(t)
 	})
 
 	t.Log("Enabling all components in DataScienceCluster")
@@ -506,4 +514,52 @@ func (tc *DSCTestCtx) verifyDeploymentsStuckDueToQuota(t *testing.T, allControll
 		WithCustomErrorMsg(fmt.Sprintf("Expected all %d component deployments to have quota error messages", expectedCount)),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 	)
+}
+
+// ensureConsistentMonitoringForQuotaTest forces monitoring to use 2 replicas regardless of cluster type.
+// This maintains consistent resource pressure for the restrictive quota test, ensuring the test
+// behaves predictably whether running on single-node or multi-node clusters.
+func (tc *DSCTestCtx) ensureConsistentMonitoringForQuotaTest(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Force monitoring to use 2 replicas with explicit storage and resources configuration
+	// This overrides the single-node optimization
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(
+			`.spec.monitoring = {`+
+				`managementState: "Managed", `+
+				`namespace: "%s", `+
+				`metrics: {`+
+				`storage: {size: "5Gi", retention: "90d"}, `+
+				`resources: {cpurequest: "250m", memoryrequest: "350Mi"}, `+
+				`replicas: 2`+
+				`}`+
+				`}`,
+			dsci.Spec.Monitoring.Namespace,
+		)),
+	)
+
+	t.Log("Forced monitoring to use 2 replicas for consistent quota test behavior")
+}
+
+// resetMonitoringToDefault resets monitoring configuration to default state (no metrics).
+// This ensures that changes made for the restrictive quota test don't affect other tests.
+func (tc *DSCTestCtx) resetMonitoringToDefault(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Reset monitoring to default state (managementState: Managed, no metrics configuration)
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(
+			`.spec.monitoring = {managementState: "Managed", namespace: "%s"}`,
+			dsci.Spec.Monitoring.Namespace,
+		)),
+	)
+
+	t.Log("Reset monitoring configuration to default state")
 }
