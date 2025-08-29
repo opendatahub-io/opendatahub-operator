@@ -375,6 +375,7 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 			// if the default mode is explicitly specified, respect that
 			defaultmode = k.Spec.DefaultDeploymentMode
 		}
+
 		if err := updateInferenceCM(&kserveConfigMap, defaultmode, serviceClusterIPNone); err != nil {
 			return err
 		}
@@ -442,5 +443,35 @@ func setStatusFields(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 	if serverlessEnabled && serviceMeshEnabled {
 		k.Status.ServerlessMode = operatorv1.Managed
 	}
+	return nil
+}
+
+// checkConfigurationOptimal evaluates KServe configuration optimality and sets the ConfigurationOptimal condition.
+// It logs warnings and sets condition to False when serving is managed but using RawDeployment mode,
+// which wastes resources on unused serverless components. Otherwise, it sets the condition to True.
+func checkConfigurationOptimality(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
+	}
+
+	// Handle suboptimal case first and return early
+	if k.Spec.Serving.ManagementState == operatorv1.Managed &&
+		k.Spec.DefaultDeploymentMode == componentApi.RawDeployment {
+		rr.Conditions.MarkFalse(
+			status.ConditionConfigurationOptimal,
+			conditions.WithSeverity(common.ConditionSeverityWarning),
+			conditions.WithReason(status.ConfigurationSubOptimalReason),
+			conditions.WithMessage(status.KServeConfigurationSubOptimalMessage),
+		)
+		return nil
+	}
+
+	// Default case - configuration is optimal
+	rr.Conditions.MarkTrue(
+		status.ConditionConfigurationOptimal,
+		conditions.WithReason(status.ConfigurationOptimalReason),
+		conditions.WithMessage(status.ConfigurationOptimalMessage),
+	)
 	return nil
 }
