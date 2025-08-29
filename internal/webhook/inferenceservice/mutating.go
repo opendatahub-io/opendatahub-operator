@@ -39,24 +39,27 @@ func (ct ConnectionType) String() string {
 }
 
 type InferenceServingPath struct {
-	ModelPath           []string
-	ImagePullSecretPath []string
-	StorageUriPath      []string
+	ModelPath              []string
+	ImagePullSecretPath    []string
+	StorageUriPath         []string
+	ServiceAccountNamePath []string
 }
 
 var IsvcConfigs = InferenceServingPath{
-	ModelPath:           []string{"spec", "predictor", "model"},               // used by S3, has map
-	ImagePullSecretPath: []string{"spec", "predictor", "imagePullSecrets"},    // used by OCI, has slice
-	StorageUriPath:      []string{"spec", "predictor", "model", "storageUri"}, // used by URI, has string
+	ModelPath:              []string{"spec", "predictor", "model"},               // used by S3, has map
+	ImagePullSecretPath:    []string{"spec", "predictor", "imagePullSecrets"},    // used by OCI, has slice
+	StorageUriPath:         []string{"spec", "predictor", "model", "storageUri"}, // used by URI, has string
+	ServiceAccountNamePath: []string{"spec", "predictor", "serviceAccountName"},  // used by all, has string
 }
 
 //+kubebuilder:webhook:path=/platform-connection-isvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=connection-isvc.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
 //nolint:lll
 
 type ConnectionWebhook struct {
-	Client  client.Reader
-	Decoder admission.Decoder
-	Name    string
+	Client     client.Reader
+	APICreater client.Client // used to create ServiceAccount
+	Decoder    admission.Decoder
+	Name       string
 }
 
 var _ admission.Handler = &ConnectionWebhook{}
@@ -108,6 +111,11 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		// Handle different actions based on the ConnectionAction value
 		switch action {
 		case webhookutils.ConnectionActionInject:
+			// create ServiceAccount first
+			if err := webhookutils.CreateServiceAccount(ctx, w.APICreater, secretName, req.Namespace); err != nil {
+				log.Error(err, "Failed to create ServiceAccount")
+				return admission.Errored(http.StatusInternalServerError, err)
+			}
 			// Perform injection for valid connection types
 			injectionPerformed, err := w.performConnectionInjection(ctx, req, secretName, connectionType, obj)
 			if err != nil {
@@ -127,7 +135,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 			return admission.Allowed(fmt.Sprintf("No connection injection performed for %s in namespace %s", req.Kind.Kind, req.Namespace))
 
 		case webhookutils.ConnectionActionRemove:
-			// Perform cleanup when annotation is removed
+			// Perform cleanup when annotation is removed, we do not delete SA but only remove injection part
 			cleanupPerformed, err := w.performConnectionCleanup(ctx, req, obj)
 			if err != nil {
 				log.Error(err, "Failed to perform connection cleanup")
@@ -166,6 +174,13 @@ func (w *ConnectionWebhook) performConnectionInjection(
 	decodedObj *unstructured.Unstructured,
 ) (bool, error) {
 	log := logf.FromContext(ctx)
+
+	// inject ServiceAccount as common part
+	if err := w.injectSA(decodedObj, secretName+"-sa"); err != nil {
+		log.Error(err, "Failed to inject ServiceAccount")
+		return false, fmt.Errorf("failed to inject ServiceAccount: %w", err)
+	}
+	log.V(1).Info("Successfully injected ServiceAccount", "ServiceAccountName", secretName+"-sa")
 
 	// injection based on connection type
 	switch ConnectionType(connectionType) {
@@ -206,7 +221,12 @@ func (w *ConnectionWebhook) performConnectionCleanup(
 	log := logf.FromContext(ctx)
 	log.V(1).Info("Performing connection cleanup for removed annotation", "name", req.Name, "namespace", req.Namespace)
 
-	cleanupPerformed := false
+	// remove ServiceAccountName injection
+	if err := w.injectSA(decodedObj, ""); err != nil {
+		log.Error(err, "Failed to cleanup ServiceAccountName")
+		return false, fmt.Errorf("failed to cleanup ServiceAccountName: %w", err)
+	}
+	cleanupPerformed := true // ServiceAccount cleanup was performed
 
 	// Check for OCI imagePullSecrets
 	if hasOCIImagePullSecrets(decodedObj) {
@@ -299,6 +319,17 @@ func (w *ConnectionWebhook) cleanupS3StorageKey(obj *unstructured.Unstructured) 
 
 	err = webhookutils.SetNestedValue(obj.Object, model, IsvcConfigs.ModelPath)
 	return true, err
+}
+
+// injectSA injects serviceaccount into spec.predictor.serviceAccountName.
+// if saName is "", it is removal.
+func (w *ConnectionWebhook) injectSA(obj *unstructured.Unstructured, saName string) error {
+	if saName == "" {
+		// Remove the field entirely
+		unstructured.RemoveNestedField(obj.Object, IsvcConfigs.ServiceAccountNamePath...)
+		return nil
+	}
+	return webhookutils.SetNestedValue(obj.Object, saName, IsvcConfigs.ServiceAccountNamePath)
 }
 
 // injectOCIImagePullSecrets injects imagePullSecrets into spec.predictor.imagePullSecrets for OCI connections.
