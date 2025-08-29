@@ -47,6 +47,14 @@ type Metrics struct {
 	Resources *MetricsResources `json:"resources,omitempty"`
 	// Replicas specifies the number of replicas in monitoringstack, default is 2 if not set
 	Replicas int32 `json:"replicas,omitempty"`
+	// Exporters defines custom metrics exporters for sending metrics to external observability tools.
+	// Each key-value pair represents an exporter name and its configuration.
+	// Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="!('prometheus' in self)",message="exporter name 'prometheus' is reserved and cannot be used"
+	// +kubebuilder:validation:XValidation:rule="!('otlp/tempo' in self)",message="exporter name 'otlp/tempo' is reserved and cannot be used"
+	// +kubebuilder:validation:XValidation:rule="self.all(k, self[k] != '')",message="exporter configuration values must be non-empty strings"
+	Exporters map[string]string `json:"exporters,omitempty"`
 }
 
 // MetricsStorage defines the storage configuration for the monitoring service
