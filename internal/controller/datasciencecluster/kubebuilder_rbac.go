@@ -193,7 +193,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="kueue.x-k8s.io",resources=localqueues,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="kueue.x-k8s.io",resources=localqueues/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="kueue.x-k8s.io",resources=resourceflavors,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="kueue.x-k8s.io",resources=resourceflavors/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="kueue.openshift.io",resources=kueues,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="kueue.openshift.io",resources=kueues/status,verbs=get;update;patch
 
