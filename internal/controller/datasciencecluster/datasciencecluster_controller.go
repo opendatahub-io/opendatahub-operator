@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright 2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,10 +19,14 @@ package datasciencecluster
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -36,10 +40,27 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
+// ValidateInstanceName validates instanceName as a DNS-1123 subdomain using k8s apimachinery.
+func ValidateInstanceName(instanceName string) error {
+	if instanceName == "" {
+		return nil // Empty means "use default" – validated after defaulting.
+	}
+	if errs := validation.IsDNS1123Subdomain(instanceName); len(errs) > 0 {
+		return fmt.Errorf("invalid instanceName %q: %s", instanceName, strings.Join(errs, "; "))
+	}
+	return nil
+}
+
 func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	return NewDataScienceClusterReconcilerWithName(ctx, mgr, "")
+}
+
+// NewDataScienceClusterReconcilerWithName creates a DataScienceCluster reconciler with a custom instance name.
+// This is useful for testing to avoid controller name conflicts.
+func NewDataScienceClusterReconcilerWithName(ctx context.Context, mgr ctrl.Manager, instanceName string) error {
 	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
-	_, err := reconciler.ReconcilerFor(mgr, &dscv1.DataScienceCluster{}).
+	builder := reconciler.ReconcilerFor(mgr, &dscv1.DataScienceCluster{}).
 		Owns(&componentApi.Dashboard{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Workbenches{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Ray{}, reconciler.WithPredicates(componentsPredicate)).
@@ -73,8 +94,27 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 				},
 			),
 		)).
-		WithConditions(status.ConditionTypeComponentsReady).
-		Build(ctx)
+		WithConditions(status.ConditionTypeComponentsReady)
+
+	// Default instanceName to lowercase GVK Kind when empty
+	if instanceName == "" {
+		gvk, err := apiutil.GVKForObject(&dscv1.DataScienceCluster{}, mgr.GetScheme())
+		if err != nil {
+			return fmt.Errorf("failed to get GVK for DataScienceCluster: %w", err)
+		}
+		instanceName = strings.ToLower(gvk.Kind)
+		ctrl.Log.Info("defaulted instanceName", "instanceName", instanceName)
+	}
+
+	// Validate instanceName after defaulting
+	if err := ValidateInstanceName(instanceName); err != nil {
+		return err
+	}
+
+	// Always set instance name - use provided name or default to lowercase GVK Kind
+	builder = builder.WithInstanceName(instanceName)
+
+	_, err := builder.Build(ctx)
 
 	if err != nil {
 		return err

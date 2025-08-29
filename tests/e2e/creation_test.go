@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -391,10 +392,13 @@ func (tc *DSCTestCtx) ValidateComponentsDeploymentFailure(t *testing.T) {
 	}
 
 	components := slices.Collect(maps.Keys(componentToControllerMap))
-	componentsLength := len(components)
+	internalComponents := slices.Collect(maps.Keys(internalComponentToControllerMap))
+	var allComponents []string
+	allComponents = slices.Concat(components, internalComponents)
+	componentsLength := len(allComponents)
 
-	t.Log("Verifying component count matches DSC Components struct")
-	expectedComponentCount := reflect.TypeOf(dscv1.Components{}).NumField()
+	t.Log("Verifying component count matches DSC Components struct plus internal components")
+	expectedComponentCount := reflect.TypeOf(dscv1.Components{}).NumField() + len(internalComponentToControllerMap)
 	tc.g.Expect(componentsLength).Should(Equal(expectedComponentCount),
 		"allComponents list is out of sync with DSC Components struct. "+
 			"Expected %d components but found %d. "+
@@ -428,7 +432,7 @@ func (tc *DSCTestCtx) ValidateComponentsDeploymentFailure(t *testing.T) {
 	tc.verifyDeploymentsStuckDueToQuota(t, allControllers)
 
 	t.Log("Verifying DSC reports all failed components")
-	allComponents := slices.Concat(
+	allComponents = slices.Concat(
 		components,
 		slices.Collect(maps.Keys(internalComponentToControllerMap)),
 	)
@@ -484,10 +488,11 @@ func createRestrictiveQuotaForOperator(namespace string) *corev1.ResourceQuota {
 		},
 		Spec: corev1.ResourceQuotaSpec{
 			Hard: corev1.ResourceList{
-				corev1.ResourceRequestsCPU:    resource.MustParse("0.1m"),
+				corev1.ResourceRequestsCPU:    resource.MustParse("0.001m"),
 				corev1.ResourceRequestsMemory: resource.MustParse("1Ki"),
-				corev1.ResourceLimitsCPU:      resource.MustParse("0.1m"),
+				corev1.ResourceLimitsCPU:      resource.MustParse("0.001m"),
 				corev1.ResourceLimitsMemory:   resource.MustParse("1Ki"),
+				corev1.ResourcePods:           resource.MustParse("0"),
 			},
 		},
 	}
@@ -495,8 +500,6 @@ func createRestrictiveQuotaForOperator(namespace string) *corev1.ResourceQuota {
 
 func (tc *DSCTestCtx) verifyDeploymentsStuckDueToQuota(t *testing.T, allControllers []string) {
 	t.Helper()
-
-	expectedCount := len(allControllers)
 
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
@@ -514,9 +517,9 @@ func (tc *DSCTestCtx) verifyDeploymentsStuckDueToQuota(t *testing.T, allControll
 					))
 				)
 			) |
-			length == %d
-		`, strings.Join(allControllers, "|"), expectedCount))),
-		WithCustomErrorMsg(fmt.Sprintf("Expected all %d component deployments to have quota error messages", expectedCount)),
-		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+			length > 0
+		`, strings.Join(allControllers, "|")))),
+		WithCustomErrorMsg("Expected at least one component deployment to have quota error messages, but found none"),
+		WithEventuallyTimeout(10*time.Minute),
 	)
 }

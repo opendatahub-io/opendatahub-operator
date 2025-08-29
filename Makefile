@@ -50,6 +50,7 @@ GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
 GINKGO ?= $(LOCALBIN)/ginkgo
 YQ ?= $(LOCALBIN)/yq
+GOCOVMERGE ?= $(LOCALBIN)/gocovmerge
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.7.0
@@ -64,6 +65,10 @@ ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller
 CRD_REF_DOCS_VERSION = 0.2.0
 # Add to tool versions section
 GINKGO_VERSION ?= v2.23.4
+# GOCOVMERGE_VERSION is pinned to a specific commit for reproducibility
+# The gocovmerge repository hasn't been updated since 2016, so we use the latest commit
+# To override this version, set GOCOVMERGE_VERSION to a different commit hash or tag
+GOCOVMERGE_VERSION ?= b5bfa59ec0adc420475f97f89b58045c721d761c
 
 
 PLATFORM ?= linux/amd64
@@ -187,6 +192,11 @@ api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-
 ginkgo: $(GINKGO)
 $(GINKGO): $(LOCALBIN)
 	$(call go-install-tool,$(GINKGO),github.com/onsi/ginkgo/v2/ginkgo,$(GINKGO_VERSION))
+
+.PHONY: gocovmerge
+gocovmerge: $(GOCOVMERGE) ## Download gocovmerge locally if necessary.
+$(GOCOVMERGE): $(LOCALBIN)
+	$(call go-install-tool,$(GOCOVMERGE),github.com/wadey/gocovmerge,$(GOCOVMERGE_VERSION))
 
 ##@ Build
 
@@ -399,7 +409,10 @@ toolbox: ## Create a toolbox instance with the proper Golang and Operator SDK ve
 	toolbox create opendatahub-toolbox --image localhost/opendatahub-toolbox:latest
 
 # Run tests.
-TEST_SRC ?=./internal/... ./tests/integration/... ./pkg/...
+UNIT_TEST_SRC ?= ./internal/controller/components/... ./internal/controller/datasciencecluster/... ./internal/controller/dscinitialization/... ./internal/controller/services/... ./internal/webhook/... ./pkg/...
+INTEGRATION_TEST_SRC ?= ./tests/integration/...
+# TEST_SRC combines both test sources for CI workflows that need to run all tests
+TEST_SRC ?= $(UNIT_TEST_SRC) $(INTEGRATION_TEST_SRC)
 
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download setup-envtest locally if necessary.
@@ -407,10 +420,13 @@ $(ENVTEST): $(LOCALBIN)
 	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
 
 .PHONY: test
-test: unit-test e2e-test
+test: unit-test integration-test e2e-test ## Run all tests (unit, integration, and e2e)
 
-.PHONY: unit-test
-unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
+.PHONY: unit-test-exit-code
+unit-test-exit-code: envtest ginkgo ## Capture unit test exit code (file contains numeric exit code, 0=success)
+	# Use --keep-going to run all tests despite failures, then capture actual exit code
+	# Run without coverage to avoid combination issues when tests fail
+	set +e; \
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
     	${GINKGO} -r \
         		--procs=8 \
@@ -420,12 +436,85 @@ unit-test: envtest ginkgo # directly use ginkgo since the framework is not compa
         		--poll-progress-interval=5s \
         		--randomize-all \
         		--randomize-suites \
-        		--fail-fast \
-        		--cover \
-        		--coverprofile=cover.out \
+        		--keep-going \
         		--succinct \
+        		--no-color \
+        		$(UNIT_TEST_SRC); \
+	exit_code=$$?; \
+	set -e; \
+	echo $$exit_code > .unit-test-exit-code
+
+.PHONY: unit-test
+unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
+	# Use --fail-fast to stop on first failure for CI efficiency
+	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+    	${GINKGO} -r \
+        		--procs=8 \
+        		--nodes=2 \
+        		--timeout=15m \
+        		--poll-progress-after=30s \
+        		--poll-progress-interval=5s \
+        		--randomize-all \
+        		--randomize-suites \
+        		--fail-fast \
+        		--succinct \
+        		--no-color \
+        		--cover \
+        		--covermode=atomic \
+        		--coverpkg=./internal/...,./pkg/...,./api/... \
+        		--coverprofile=coverprofile.out \
+        		--output-dir=. \
+        		$(UNIT_TEST_SRC)
+	@echo "Coverage reports generated in individual directories"
+
+.PHONY: integration-test
+integration-test: envtest ginkgo ## Run integration tests
+	# Use --fail-fast to stop on first failure for CI efficiency
+	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+    	${GINKGO} -r \
+        		--procs=8 \
+        		--nodes=2 \
+        		--timeout=15m \
+        		--poll-progress-after=30s \
+        		--poll-progress-interval=5s \
+        		--randomize-all \
+        		--randomize-suites \
+        		--fail-fast \
+        		--succinct \
+        		--no-color \
+        		--cover \
+        		--covermode=atomic \
+        		--coverpkg=./internal/...,./pkg/...,./api/... \
+        		--coverprofile=coverprofile.out \
+        		$(INTEGRATION_TEST_SRC)
+	@echo "Integration test coverage reports generated in individual directories"
+
+.PHONY: ci-test-sources
+ci-test-sources: envtest ginkgo ## Run all test sources (unit + integration) - primarily for CI workflows
+	# Use --fail-fast to stop on first failure for CI efficiency
+	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+    	${GINKGO} -r \
+        		--procs=8 \
+        		--nodes=2 \
+        		--timeout=15m \
+        		--poll-progress-after=30s \
+        		--poll-progress-interval=5s \
+        		--randomize-all \
+        		--randomize-suites \
+        		--fail-fast \
+        		--succinct \
+        		--no-color \
+        		--cover \
+        		--covermode=atomic \
+        		--coverpkg=./internal/...,./pkg/...,./api/... \
+        		--coverprofile=coverprofile.out \
         		$(TEST_SRC)
+	@echo "CI test sources coverage reports generated in individual directories"
+
+# Clean up individual coverage files
 CLEANFILES += cover.out
+CLEANFILES += .unit-test-exit-code
+CLEANFILES += combined-cover.out
 
 $(PROMETHEUS_TEST_DIR)/%.rules.yaml: $(PROMETHEUS_TEST_DIR)/%.unit-tests.yaml $(PROMETHEUS_CONFIG_YAML) $(YQ)
 	$(YQ) eval ".data.\"$(@F:.rules.yaml=.rules)\"" $(PROMETHEUS_CONFIG_YAML) > $@
