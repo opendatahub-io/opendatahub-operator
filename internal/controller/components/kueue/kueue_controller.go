@@ -86,6 +86,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				handlers.ToNamed(componentApi.KueueInstanceName),
 			),
 			reconciler.Dynamic(reconciler.CrdExists(gvk.ClusterQueue))).
+		WatchesGVK(gvk.ResourceFlavor,
+			reconciler.WithEventHandler(
+				handlers.ToNamed(componentApi.KueueInstanceName),
+			),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ResourceFlavor))).
 		WatchesGVK(gvk.KueueConfigV1,
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.KueueInstanceName),

@@ -203,8 +203,17 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 		rr.Resources = append(rr.Resources, *defaultKueueConfig)
 	}
 
+	clusterInfo, err := getClusterResourceInfo(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to get cluster resource info: %w", err)
+	}
+
+	// Generate default ResourceFlavor.
+	resourcesFlavors := createDefaultResourceFlavors(clusterInfo)
+	rr.Resources = append(rr.Resources, resourcesFlavors...)
+
 	// Generate default ClusterQueue.
-	clusterQueue := createDefaultClusterQueue(kueueCRInstance.Spec.DefaultClusterQueueName)
+	clusterQueue := createDefaultClusterQueue(kueueCRInstance.Spec.DefaultClusterQueueName, clusterInfo)
 	rr.Resources = append(rr.Resources, *clusterQueue)
 
 	// Get all managed namespaces (i.e. the one opterd in with the addition of the proper labels).
