@@ -2750,6 +2750,8 @@ Package v1 contains API Schema definitions for the services v1 API group
 ### Resource Types
 - [Auth](#auth)
 - [AuthList](#authlist)
+- [Gateway](#gateway)
+- [GatewayList](#gatewaylist)
 - [Monitoring](#monitoring)
 - [MonitoringList](#monitoringlist)
 
@@ -2865,6 +2867,137 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+
+
+#### Gateway
+
+
+
+Gateway is the Schema for the gateways API
+
+
+
+_Appears in:_
+- [GatewayList](#gatewaylist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `Gateway` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[GatewaySpec](#gatewayspec)_ |  |  |  |
+| `status` _[GatewayStatus](#gatewaystatus)_ |  |  |  |
+
+
+#### GatewayCertificate
+
+
+
+GatewayCertificate defines TLS certificate configuration for the gateway
+
+
+
+_Appears in:_
+- [GatewaySpec](#gatewayspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _[GatewayCertificateType](#gatewaycertificatetype)_ | Type of certificate management | CertManager | Enum: [CertManager Provided SelfSigned] <br /> |
+| `secretName` _string_ | SecretName is the name of the secret containing the certificate<br />When Type is CertManager, this will be the name of the secret created by cert-manager<br />When Type is Provided, this should be the name of an existing secret |  |  |
+| `issuerRef` _[GatewayIssuerRef](#gatewayissuerref)_ | IssuerRef is a reference to the cert-manager Issuer or ClusterIssuer<br />Only used when Type is CertManager |  |  |
+
+
+#### GatewayCertificateType
+
+_Underlying type:_ _string_
+
+GatewayCertificateType defines the type of certificate management
+
+
+
+_Appears in:_
+- [GatewayCertificate](#gatewaycertificate)
+
+| Field | Description |
+| --- | --- |
+| `CertManager` | CertManagerCertificate uses cert-manager to automatically generate and manage certificates<br /> |
+| `Provided` | ProvidedCertificate uses a pre-existing secret with certificate data<br /> |
+| `SelfSigned` | SelfSignedCertificate generates a self-signed certificate<br /> |
+
+
+#### GatewayIssuerRef
+
+
+
+GatewayIssuerRef references a cert-manager Issuer or ClusterIssuer
+
+
+
+_Appears in:_
+- [GatewayCertificate](#gatewaycertificate)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name of the Issuer or ClusterIssuer |  |  |
+| `kind` _string_ | Kind of the issuer (Issuer or ClusterIssuer) | ClusterIssuer | Enum: [Issuer ClusterIssuer] <br /> |
+| `group` _string_ | Group of the issuer | cert-manager.io |  |
+
+
+#### GatewayList
+
+
+
+GatewayList contains a list of Gateway
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `GatewayList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[Gateway](#gateway) array_ |  |  |  |
+
+
+#### GatewaySpec
+
+
+
+GatewaySpec defines the desired state of Gateway
+
+
+
+_Appears in:_
+- [Gateway](#gateway)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `domain` _string_ | Domain is the domain name for the gateway |  |  |
+| `certificate` _[GatewayCertificate](#gatewaycertificate)_ | Certificate contains certificate configuration for TLS |  |  |
+
+
+#### GatewayStatus
+
+
+
+GatewayStatus defines the observed state of Gateway
+
+
+
+_Appears in:_
+- [Gateway](#gateway)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
 #### Metrics
