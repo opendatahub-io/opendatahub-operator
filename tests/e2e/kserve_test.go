@@ -184,8 +184,8 @@ func (tc *KserveTestCtx) ValidateKnativeServing(t *testing.T) {
 		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
 	)
 
-	// Check eventually got recreated.
-	tc.EnsureResourceExistsConsistently(
+	// Check eventually got recreated
+	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
 	)
 }
