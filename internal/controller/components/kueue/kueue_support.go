@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"sort"
-	"strings"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -43,10 +42,10 @@ const (
 
 	NSListLimit = 500
 
-	// GPU resource keys
+	// GPU resource keys.
 	NvidiaGPUResourceKey = "nvidia.com/gpu"
 	AMDGPUResourceKey    = "amd.com/gpu"
-	// Flavor names
+	// Flavor names.
 	DefaultFlavorName = "default-flavor"
 	GPUFlavorSuffix   = "-gpu-flavor"
 )
@@ -186,13 +185,11 @@ func createResourceGroup(flavors []Flavors) map[string]interface{} {
 		groupFlavors = append(groupFlavors, groupFlavor)
 	}
 
-	coveredResources := []any{}
-	for key := range resourceMap {
-		coveredResources = append(coveredResources, key)
+	resourceKeys := slices.Sorted(maps.Keys(resourceMap))
+	coveredResources := make([]any, len(resourceKeys))
+	for i, key := range resourceKeys {
+		coveredResources[i] = key
 	}
-	sort.Slice(coveredResources, func(i, j int) bool {
-		return coveredResources[i].(string) < coveredResources[j].(string)
-	})
 
 	return map[string]any{
 		"coveredResources": coveredResources,
@@ -306,14 +303,14 @@ func createDefaultResourceFlavors(clusterInfo ClusterResourceInfo) []unstructure
 	return resourceFlavors
 }
 
-// ClusterResourceInfo contains information about a node's resources and GPU capabilities
+// ClusterResourceInfo contains information about a node's resources and GPU capabilities.
 type ClusterResourceInfo struct {
 	CPU     ResourceQuantity
 	Memory  ResourceQuantity
 	GPUInfo map[string]*ResourceQuantity
 }
 
-// extractGPUInfo extracts GPU information from a node's allocatable and capacity resources
+// extractGPUInfo extracts GPU information from a node's allocatable and capacity resources.
 func (info *ClusterResourceInfo) extractGPUInfo(node corev1.Node) {
 	if info.GPUInfo == nil {
 		info.GPUInfo = make(map[string]*ResourceQuantity)
@@ -326,23 +323,23 @@ func (info *ClusterResourceInfo) extractGPUInfo(node corev1.Node) {
 			entry = &ResourceQuantity{}
 		}
 
-		switch true {
-		case resourceName == NvidiaGPUResourceKey || strings.HasPrefix(resourceName, NvidiaGPUResourceKey):
+		switch resourceName {
+		case NvidiaGPUResourceKey:
 			entry.Allocatable.Add(value)
 			info.GPUInfo[resourceName] = entry
-		case resourceName == AMDGPUResourceKey:
+		case AMDGPUResourceKey:
 			entry.Allocatable.Add(value)
 			info.GPUInfo[resourceName] = entry
 		}
 	}
 }
 
-// ResourceQuantity represents a resource with its allocatable values
+// ResourceQuantity represents a resource with its allocatable values.
 type ResourceQuantity struct {
 	Allocatable resource.Quantity
 }
 
-// getClusterNodes retrieves information about all cluster nodes including GPU resources
+// getClusterNodes retrieves information about all cluster nodes including GPU resources.
 func getClusterResourceInfo(ctx context.Context, c client.Client) (ClusterResourceInfo, error) {
 	nodeList := &corev1.NodeList{}
 	if err := c.List(ctx, nodeList); err != nil {
@@ -364,14 +361,17 @@ func getClusterResourceInfo(ctx context.Context, c client.Client) (ClusterResour
 	return info, nil
 }
 
+var gpuToFlavorNameMap = map[string]string{
+	NvidiaGPUResourceKey: "nvidia",
+	AMDGPUResourceKey:    "amd",
+}
+
 func getFlavorName(name string) string {
-	switch true {
-	case name == NvidiaGPUResourceKey:
-		return fmt.Sprintf("%s%s", "nvidia", GPUFlavorSuffix)
-	case name == AMDGPUResourceKey:
-		return fmt.Sprintf("%s%s", "amd", GPUFlavorSuffix)
+	flavorName, ok := gpuToFlavorNameMap[name]
+	if !ok {
+		return ""
 	}
-	return ""
+	return fmt.Sprintf("%s%s", flavorName, GPUFlavorSuffix)
 }
 
 func isNodeReady(node *corev1.Node) bool {
