@@ -209,8 +209,8 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 	}
 
 	// Generate default ResourceFlavor.
-	resourcesFlavours := createDefaultResourceFlavors(clusterInfo)
-	rr.Resources = append(rr.Resources, resourcesFlavours...)
+	resourcesFlavors := createDefaultResourceFlavors(clusterInfo)
+	rr.Resources = append(rr.Resources, resourcesFlavors...)
 
 	// Generate default ClusterQueue.
 	clusterQueue := createDefaultClusterQueue(kueueCRInstance.Spec.DefaultClusterQueueName, clusterInfo)
