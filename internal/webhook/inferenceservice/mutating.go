@@ -52,12 +52,12 @@ var IsvcConfigs = InferenceServingPath{
 	ServiceAccountNamePath: []string{"spec", "predictor", "serviceAccountName"},  // used by all, has string
 }
 
-//+kubebuilder:webhook:path=/platform-connection-isvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=connection-isvc.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/platform-connection-isvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=connection-isvc.opendatahub.io,sideEffects=NoneOnDryRun,admissionReviewVersions=v1
 //nolint:lll
 
 type ConnectionWebhook struct {
 	Client     client.Reader
-	APICreater client.Client // used to create ServiceAccount
+	APICreator client.Client // used to create ServiceAccount
 	Decoder    admission.Decoder
 	Name       string
 }
@@ -111,10 +111,14 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		// Handle different actions based on the ConnectionAction value
 		switch action {
 		case webhookutils.ConnectionActionInject:
-			// create ServiceAccount first
-			if err := webhookutils.CreateServiceAccount(ctx, w.APICreater, secretName, req.Namespace); err != nil {
-				log.Error(err, "Failed to create ServiceAccount")
-				return admission.Errored(http.StatusInternalServerError, err)
+			// create ServiceAccount first (skip if it is dry-run)
+			if req.DryRun == nil || !*req.DryRun {
+				if err := webhookutils.CreateServiceAccount(ctx, w.APICreator, secretName, req.Namespace); err != nil {
+					log.Error(err, "Failed to create ServiceAccount")
+					return admission.Errored(http.StatusInternalServerError, err)
+				}
+			} else {
+				log.V(1).Info("Skipping ServiceAccount creation in dry-run mode", "secretName", secretName)
 			}
 			// Perform injection for valid connection types
 			injectionPerformed, err := w.performConnectionInjection(ctx, req, secretName, connectionType, obj)

@@ -57,7 +57,7 @@ func setupTestEnvironment(t *testing.T) (*runtime.Scheme, context.Context) {
 func createWebhook(cli client.Client, sch *runtime.Scheme) *inferenceservice.ConnectionWebhook {
 	webhook := &inferenceservice.ConnectionWebhook{
 		Client:     cli,
-		APICreater: cli, // Ensure ServiceAccount creation works in tests
+		APICreator: cli, // Ensure ServiceAccount creation works in tests
 		Decoder:    admission.NewDecoder(sch),
 		Name:       "glueisvc-test",
 	}

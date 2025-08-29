@@ -83,7 +83,7 @@ webhooks:
     - UPDATE
     resources:
     - inferenceservices
-  sideEffects: None
+  sideEffects: NoneOnDryRun
 - admissionReviewVersions:
   - v1
   clientConfig:
