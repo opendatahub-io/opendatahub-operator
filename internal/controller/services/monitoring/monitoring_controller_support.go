@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v3"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -105,14 +106,23 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 			templateData["StorageRetention"] = "90d"
 		}
 
-		// only when either storage or resources is set, we take replicas into account
-		// - if user did not set it / zero-value "0", we use default value of 2
-		// - if user set it to Y, we pass Y to template
-		var replicas int32 = 2 // default value to match monitoringstack CRD's default
-		if (metrics.Storage != nil || metrics.Resources != nil) && metrics.Replicas != 0 {
-			replicas = metrics.Replicas
+		// - if user explicitly set replicas, use their value
+		// - if metrics is configured (storage or resources) but no explicit replicas, use SNO-aware defaults
+		// - otherwise, rely on MonitoringStack CRD defaults
+		allowedByConfig := metrics.Storage != nil || metrics.Resources != nil
+		isSNO := isSingleNodeCluster(ctx, rr)
+
+		switch {
+		case metrics.Replicas != 0 && allowedByConfig:
+			templateData["Replicas"] = strconv.Itoa(int(metrics.Replicas))
+		case allowedByConfig:
+			if isSNO {
+				templateData["Replicas"] = "1"
+			} else {
+				templateData["Replicas"] = "2"
+			}
+		default:
 		}
-		templateData["Replicas"] = strconv.Itoa(int(replicas))
 
 		// Handle custom metrics exporters
 		if metrics.Exporters != nil {
@@ -169,6 +179,35 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	return templateData, nil
+}
+
+// isSingleNodeCluster determines if the cluster is a single-node cluster by counting the actual nodes.
+func isSingleNodeCluster(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
+	nodeList := &corev1.NodeList{}
+	if err := rr.Client.List(ctx, nodeList); err != nil {
+		logf.FromContext(ctx).Info("could not list nodes, defaulting to multi-node behavior", "error", err)
+		return false
+	}
+
+	// Count only nodes that are ready and not marked for deletion
+	// We only need to know if there are more than 1 ready nodes, so we can break early
+	var readyNodeCount int
+	for _, node := range nodeList.Items {
+		if node.DeletionTimestamp == nil {
+			for _, condition := range node.Status.Conditions {
+				if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
+					readyNodeCount++
+					break
+				}
+			}
+		}
+		if readyNodeCount > 1 {
+			break
+		}
+	}
+
+	logf.FromContext(ctx).V(1).Info("detected cluster size", "totalNodes", len(nodeList.Items), "readyNodes", readyNodeCount)
+	return readyNodeCount <= 1
 }
 
 func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
