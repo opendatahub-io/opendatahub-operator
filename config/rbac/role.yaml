@@ -8,6 +8,7 @@ rules:
   - ""
   resources:
   - clusterversions
+  - nodes
   - rhmis
   verbs:
   - get
@@ -542,6 +543,19 @@ rules:
   - registry/metrics
   verbs:
   - get
+- apiGroups:
+  - inference.networking.x-k8s.io
+  resources:
+  - inferencemodels
+  - inferencemodels/finalizers
+  - inferencemodels/status
+  - inferencepools
+  - inferencepools/finalizers
+  - inferencepools/status
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - infrastructure.opendatahub.io
   resources:
@@ -1115,6 +1129,16 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - llminferenceservices
+  - llminferenceservices/finalizers
+  - llminferenceservices/status
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - serving.kserve.io
   resources:

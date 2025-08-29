@@ -233,6 +233,16 @@ package datasciencecluster
 /* LLM-d */
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=llminferenceserviceconfigs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=llminferenceserviceconfigs/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=llminferenceservices,verbs=get;list;watch
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=llminferenceservices/status,verbs=get;list;watch
+// +kubebuilder:rbac:groups="serving.kserve.io",resources=llminferenceservices/finalizers,verbs=get;list;watch
+/* Inference Pool and Model resources */
+// +kubebuilder:rbac:groups="inference.networking.x-k8s.io",resources=inferencepools,verbs=get;list;watch
+// +kubebuilder:rbac:groups="inference.networking.x-k8s.io",resources=inferencepools/status,verbs=get;list;watch
+// +kubebuilder:rbac:groups="inference.networking.x-k8s.io",resources=inferencepools/finalizers,verbs=get;list;watch
+// +kubebuilder:rbac:groups="inference.networking.x-k8s.io",resources=inferencemodels,verbs=get;list;watch
+// +kubebuilder:rbac:groups="inference.networking.x-k8s.io",resources=inferencemodels/status,verbs=get;list;watch
+// +kubebuilder:rbac:groups="inference.networking.x-k8s.io",resources=inferencemodels/finalizers,verbs=get;list;watch
 
 // WB
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=workbenches,verbs=get;list;watch;create;update;patch;delete
