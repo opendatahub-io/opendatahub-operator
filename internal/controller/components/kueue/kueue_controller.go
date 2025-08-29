@@ -132,12 +132,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				handlers.ToNamed(componentApi.KueueInstanceName),
 			),
 		).
-		Watches(&corev1.Node{},
-			reconciler.WithEventHandler(
-				handlers.ToNamed(componentApi.KueueInstanceName),
-			),
-			reconciler.WithPredicates(resources.NodeAllocatableChangePredicate()),
-		).
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(devFlags).
