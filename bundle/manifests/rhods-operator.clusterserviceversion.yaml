@@ -1704,7 +1704,7 @@ spec:
       - UPDATE
       resources:
       - inferenceservices
-    sideEffects: None
+    sideEffects: NoneOnDryRun
     targetPort: 9443
     type: MutatingAdmissionWebhook
     webhookPath: /platform-connection-isvc
