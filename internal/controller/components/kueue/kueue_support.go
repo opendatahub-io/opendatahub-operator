@@ -47,6 +47,8 @@ const (
 	AMDGPUResourceKey    = "amd.com/gpu"
 	// Flavor names.
 	DefaultFlavorName = "default-flavor"
+	NvidiaFlavorName  = "nvidia-gpu-flavor"
+	AMDFlavorName     = "amd-gpu-flavor"
 )
 
 var (
@@ -59,8 +61,8 @@ var (
 	}
 
 	supportedGPUMap = map[string]string{
-		NvidiaGPUResourceKey: "nvidia-gpu-flavor",
-		AMDGPUResourceKey:    "amd-gpu-flavor",
+		NvidiaGPUResourceKey: NvidiaFlavorName,
+		AMDGPUResourceKey:    AMDFlavorName,
 	}
 )
 
@@ -353,23 +355,10 @@ func getClusterResourceInfo(ctx context.Context, c client.Client) (ClusterResour
 	info := ClusterResourceInfo{}
 
 	for _, node := range nodeList.Items {
-		if !isNodeReady(&node) || node.Spec.Unschedulable {
-			continue
-		}
-
 		info.CPU.Allocatable.Add(*node.Status.Allocatable.Cpu())
 		info.Memory.Allocatable.Add(*node.Status.Allocatable.Memory())
 		info.extractGPUInfo(node)
 	}
 
 	return info, nil
-}
-
-func isNodeReady(node *corev1.Node) bool {
-	for _, condition := range node.Status.Conditions {
-		if condition.Type == corev1.NodeReady {
-			return condition.Status == corev1.ConditionTrue
-		}
-	}
-	return false
 }

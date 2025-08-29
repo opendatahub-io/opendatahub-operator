@@ -697,7 +697,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 
 			flavorNames := []string{DefaultFlavorName}
 			if test.withGPU {
-				flavorNames = append(flavorNames, "nvidia-gpu-flavor", "amd-gpu-flavor")
+				flavorNames = append(flavorNames, NvidiaFlavorName, AMDFlavorName)
 			}
 			g.Expect(resourceFlavors).To(HaveLen(len(flavorNames)))
 			for _, rf := range resourceFlavors {
@@ -773,7 +773,7 @@ func assertClusterQueueCorrectness(g *WithT, clusterQueue *unstructured.Unstruct
 			"coveredResources": []any{AMDGPUResourceKey},
 			"flavors": []any{
 				map[string]any{
-					"name": "amd-gpu-flavor",
+					"name": AMDFlavorName,
 					"resources": []any{
 						map[string]any{
 							"name":         AMDGPUResourceKey,
@@ -789,7 +789,7 @@ func assertClusterQueueCorrectness(g *WithT, clusterQueue *unstructured.Unstruct
 			"coveredResources": []any{NvidiaGPUResourceKey},
 			"flavors": []any{
 				map[string]any{
-					"name": "nvidia-gpu-flavor",
+					"name": NvidiaFlavorName,
 					"resources": []any{
 						map[string]any{
 							"name":         NvidiaGPUResourceKey,
@@ -806,11 +806,6 @@ func assertClusterQueueCorrectness(g *WithT, clusterQueue *unstructured.Unstruct
 func getClusterNodes(t *testing.T, withGPU bool) []runtime.Object {
 	t.Helper()
 
-	nodeReadyCondition := corev1.NodeCondition{
-		Type:   corev1.NodeReady,
-		Status: corev1.ConditionTrue,
-	}
-
 	node1 := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "node-01",
@@ -820,63 +815,12 @@ func getClusterNodes(t *testing.T, withGPU bool) []runtime.Object {
 				corev1.ResourceCPU:    resource.MustParse("1000m"),
 				corev1.ResourceMemory: resource.MustParse("1000Mi"),
 			},
-			Conditions: []corev1.NodeCondition{nodeReadyCondition},
 		},
 	}
 
 	node2 := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "node-02",
-		},
-		Status: corev1.NodeStatus{
-			Allocatable: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("1500m"),
-				corev1.ResourceMemory: resource.MustParse("1500Mi"),
-			},
-			Conditions: []corev1.NodeCondition{nodeReadyCondition},
-		},
-	}
-
-	nodeNotReady := &corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "node-not-ready",
-		},
-		Status: corev1.NodeStatus{
-			Allocatable: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("1500m"),
-				corev1.ResourceMemory: resource.MustParse("1500Mi"),
-			},
-			Conditions: []corev1.NodeCondition{
-				{
-					Type:   corev1.NodeReady,
-					Status: corev1.ConditionFalse,
-				},
-			},
-		},
-	}
-
-	nodeUnschedulable := &corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "node-unschedulable",
-		},
-		Spec: corev1.NodeSpec{
-			Unschedulable: true,
-		},
-		Status: corev1.NodeStatus{
-			Allocatable: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("1500m"),
-				corev1.ResourceMemory: resource.MustParse("1500Mi"),
-			},
-			Conditions: []corev1.NodeCondition{nodeReadyCondition},
-		},
-	}
-
-	nodeWithoutReadyCondition := &corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "node-without-ready-condition",
-		},
-		Spec: corev1.NodeSpec{
-			Unschedulable: true,
 		},
 		Status: corev1.NodeStatus{
 			Allocatable: corev1.ResourceList{
@@ -897,7 +841,6 @@ func getClusterNodes(t *testing.T, withGPU bool) []runtime.Object {
 				NvidiaGPUResourceKey:  resource.MustParse("1"),
 				AMDGPUResourceKey:     resource.MustParse("2"),
 			},
-			Conditions: []corev1.NodeCondition{nodeReadyCondition},
 		},
 	}
 
@@ -912,24 +855,17 @@ func getClusterNodes(t *testing.T, withGPU bool) []runtime.Object {
 				NvidiaGPUResourceKey:  resource.MustParse("3"),
 				AMDGPUResourceKey:     resource.MustParse("5"),
 			},
-			Conditions: []corev1.NodeCondition{nodeReadyCondition},
 		},
 	}
 
-	commonNodes := []runtime.Object{
-		nodeNotReady,
-		nodeUnschedulable,
-		nodeWithoutReadyCondition,
-	}
-
 	if withGPU {
-		return append(commonNodes,
+		return []runtime.Object{
 			node1WithGPU,
 			node2WithGPU,
-		)
+		}
 	}
-	return append(commonNodes,
+	return []runtime.Object{
 		node1,
 		node2,
-	)
+	}
 }
