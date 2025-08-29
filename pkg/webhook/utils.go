@@ -7,7 +7,9 @@ import (
 	"slices"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -20,6 +22,28 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
+
+// CreateServiceAccount creates a ServiceAccount and links the secret.
+func CreateServiceAccount(ctx context.Context, cli client.Client, secretName, namespace string) error {
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName + "-sa",
+			Namespace: namespace,
+		},
+		Secrets: []corev1.ObjectReference{
+			{
+				Name: secretName,
+			},
+		},
+	}
+
+	// only create if not exist, we do not reconcile object, as secret and SA can be both user managed
+	err := cli.Create(ctx, sa)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create ServiceAccount: %w", err)
+	}
+	return nil
+}
 
 type ConnectionAction string
 
