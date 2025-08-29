@@ -615,12 +615,203 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 		},
 	}
 
+	var tests = []struct {
+		name                      string
+		managedState              operatorv1.ManagementState
+		totalResourceCount        int
+		expectKueueConfigResource bool
+		withGPU                   bool
+	}{
+		{"managed", operatorv1.Managed, 5, false, false},
+		{"unmanaged", operatorv1.Unmanaged, 6, true, false},
+		{"managedWithGPU", operatorv1.Managed, 7, false, true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			g := NewWithT(t)
+			kueue := &componentApi.Kueue{
+				Spec: componentApi.KueueSpec{
+					KueueManagementSpec: componentApi.KueueManagementSpec{
+						ManagementState: test.managedState,
+					},
+					KueueDefaultQueueSpec: componentApi.KueueDefaultQueueSpec{
+						DefaultLocalQueueName:   defaultLocalQueueName,
+						DefaultClusterQueueName: defaultClusterQueueName,
+					},
+				},
+			}
+
+			runtimeObjects := []runtime.Object{
+				managedNamespace,
+				legacyManagedNamespace,
+				bothManagedNamespace,
+				unmanagedNamespace,
+			}
+
+			clusterNodes := getClusterNodes(t, test.withGPU)
+			runtimeObjects = append(runtimeObjects, clusterNodes...)
+
+			client := fake.NewClientBuilder().
+				WithRuntimeObjects(runtimeObjects...).
+				Build()
+
+			rr := &types.ReconciliationRequest{
+				Instance: kueue,
+				DSCI: &dsciv1.DSCInitialization{
+					Spec: dsciv1.DSCInitializationSpec{
+						ApplicationsNamespace: xid.New().String(),
+					},
+				},
+				Client:    client,
+				Resources: []unstructured.Unstructured{}, // Initialize empty resources
+			}
+
+			err := manageDefaultKueueResourcesAction(t.Context(), rr)
+			g.Expect(err).ToNot(HaveOccurred())
+
+			// Should have added ClusterQueue and LocalQueue resources
+			g.Expect(rr.Resources).To(HaveLen(test.totalResourceCount))
+
+			// Verify ClusterQueue was added
+			var clusterQueue *unstructured.Unstructured
+			var localQueues []*unstructured.Unstructured
+			var kueueConfig *unstructured.Unstructured
+			var resourceFlavors []*unstructured.Unstructured
+			for i := range rr.Resources {
+				switch rr.Resources[i].GetKind() {
+				case gvk.ClusterQueue.Kind:
+					clusterQueue = &rr.Resources[i]
+				case gvk.LocalQueue.Kind:
+					localQueues = append(localQueues, &rr.Resources[i])
+				case gvk.KueueConfigV1.Kind:
+					kueueConfig = &rr.Resources[i]
+				case gvk.ResourceFlavor.Kind:
+					resourceFlavors = append(resourceFlavors, &rr.Resources[i])
+				}
+			}
+
+			if test.expectKueueConfigResource {
+				g.Expect(kueueConfig).ToNot(BeNil())
+				g.Expect(kueueConfig.GetName()).To(Equal(kueueConfigName))
+			}
+
+			flavorNames := []string{DefaultFlavorName}
+			if test.withGPU {
+				flavorNames = append(flavorNames, "nvidia-gpu-flavor", "amd-gpu-flavor")
+			}
+			g.Expect(resourceFlavors).To(HaveLen(len(flavorNames)))
+			for _, rf := range resourceFlavors {
+				g.Expect(rf.GetName()).To(BeElementOf(flavorNames))
+				g.Expect(rf.GetNamespace()).To(BeEmpty()) // ResourceFlavor is cluster-scoped
+				g.Expect(rf.GetAnnotations()).To(Equal(map[string]string{
+					annotations.ManagedByODHOperator: "false",
+				}))
+			}
+
+			assertClusterQueueCorrectness(g, clusterQueue, test.withGPU, defaultClusterQueueName, flavorNames)
+
+			g.Expect(localQueues).To(HaveLen(3))
+			namespacesNames := []string{}
+			for _, lc := range localQueues {
+				g.Expect(lc).ToNot(BeNil())
+				g.Expect(lc.GetName()).To(Equal(defaultLocalQueueName))
+				namespacesNames = append(namespacesNames, lc.GetNamespace())
+			}
+			g.Expect(namespacesNames).To(HaveLen(3))
+			g.Expect(slices.Contains(namespacesNames, "test-managed-ns")).Should(BeTrue())
+			g.Expect(slices.Contains(namespacesNames, "test-legacy-managed-ns")).Should(BeTrue())
+			g.Expect(slices.Contains(namespacesNames, "test-both-managed-ns")).Should(BeTrue())
+		})
+	}
+}
+
+func assertClusterQueueCorrectness(g *WithT, clusterQueue *unstructured.Unstructured, withGPU bool, expectedClusterQueueName string, expectedFlavorNames []string) {
+	g.Expect(clusterQueue).ToNot(BeNil())
+	g.Expect(clusterQueue.GetName()).To(Equal(expectedClusterQueueName))
+	g.Expect(clusterQueue.GetAnnotations()).To(Equal(map[string]string{
+		annotations.ManagedByODHOperator: "false",
+	}))
+	g.Expect(clusterQueue.GetNamespace()).To(BeEmpty()) // ClusterQueue is cluster-scoped
+	namespaceSelector, ok, err := unstructured.NestedMap(clusterQueue.Object, "spec", "namespaceSelector")
+	g.Expect(ok).To(BeTrue())
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(namespaceSelector).To(Equal(map[string]any{
+		"matchLabels": map[string]any{
+			cluster.KueueManagedLabelKey: "true",
+		},
+	}))
+	resourceGroups, ok, err := unstructured.NestedSlice(clusterQueue.Object, "spec", "resourceGroups")
+	g.Expect(ok).To(BeTrue())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	g.Expect(resourceGroups).To(HaveLen(len(expectedFlavorNames)))
+	defaultResourceGroup := map[string]any{
+		"coveredResources": []any{
+			"cpu",
+			"memory",
+		},
+		"flavors": []any{
+			map[string]any{
+				"name": DefaultFlavorName,
+				"resources": []any{
+					map[string]any{
+						"name":         "cpu",
+						"nominalQuota": "2500m",
+					},
+					map[string]any{
+						"name":         "memory",
+						"nominalQuota": "2500Mi",
+					},
+				},
+			},
+		},
+	}
+	g.Expect(resourceGroups).To(ContainElement(defaultResourceGroup))
+
+	if withGPU {
+		nvidiaResourceGroup := map[string]any{
+			"coveredResources": []any{NvidiaGPUResourceKey},
+			"flavors": []any{
+				map[string]any{
+					"name": "nvidia-gpu-flavor",
+					"resources": []any{
+						map[string]any{
+							"name":         NvidiaGPUResourceKey,
+							"nominalQuota": "4",
+						},
+					},
+				},
+			},
+		}
+		g.Expect(resourceGroups).To(ContainElement(nvidiaResourceGroup))
+
+		amdResourceGroup := map[string]any{
+			"coveredResources": []any{AMDGPUResourceKey},
+			"flavors": []any{
+				map[string]any{
+					"name": "amd-gpu-flavor",
+					"resources": []any{
+						map[string]any{
+							"name":         AMDGPUResourceKey,
+							"nominalQuota": "7",
+						},
+					},
+				},
+			},
+		}
+		g.Expect(resourceGroups).To(ContainElement(amdResourceGroup))
+	}
+}
+
+func getClusterNodes(t *testing.T, withGPU bool) []runtime.Object {
+	t.Helper()
+
 	nodeReadyCondition := corev1.NodeCondition{
 		Type:   corev1.NodeReady,
 		Status: corev1.ConditionTrue,
 	}
 
-	node1Response := &corev1.Node{
+	node1 := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "node-01",
 		},
@@ -633,7 +824,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 		},
 	}
 
-	node2Response := &corev1.Node{
+	node2 := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "node-02",
 		},
@@ -725,192 +916,20 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 		},
 	}
 
-	var tests = []struct {
-		name                      string
-		managedState              operatorv1.ManagementState
-		totalResourceCount        int
-		expectKueueConfigResource bool
-		withGPU                   bool
-	}{
-		{"managed", operatorv1.Managed, 5, false, false},
-		{"unmanaged", operatorv1.Unmanaged, 6, true, false},
-		{"managedWithGPU", operatorv1.Managed, 7, false, true},
+	commonNodes := []runtime.Object{
+		nodeNotReady,
+		nodeUnschedulable,
+		nodeWithoutReadyCondition,
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			g := NewWithT(t)
-			kueue := &componentApi.Kueue{
-				Spec: componentApi.KueueSpec{
-					KueueManagementSpec: componentApi.KueueManagementSpec{
-						ManagementState: test.managedState,
-					},
-					KueueDefaultQueueSpec: componentApi.KueueDefaultQueueSpec{
-						DefaultLocalQueueName:   defaultLocalQueueName,
-						DefaultClusterQueueName: defaultClusterQueueName,
-					},
-				},
-			}
 
-			runtimeObjects := []runtime.Object{
-				managedNamespace,
-				legacyManagedNamespace,
-				bothManagedNamespace,
-				unmanagedNamespace,
-				nodeNotReady,
-				nodeUnschedulable,
-				nodeWithoutReadyCondition,
-			}
-
-			if test.withGPU {
-				runtimeObjects = append(runtimeObjects, node1WithGPU, node2WithGPU)
-			} else {
-				runtimeObjects = append(runtimeObjects, node1Response, node2Response)
-			}
-
-			client := fake.NewClientBuilder().
-				WithRuntimeObjects(runtimeObjects...).
-				Build()
-
-			rr := &types.ReconciliationRequest{
-				Instance: kueue,
-				DSCI: &dsciv1.DSCInitialization{
-					Spec: dsciv1.DSCInitializationSpec{
-						ApplicationsNamespace: xid.New().String(),
-					},
-				},
-				Client:    client,
-				Resources: []unstructured.Unstructured{}, // Initialize empty resources
-			}
-
-			err := manageDefaultKueueResourcesAction(t.Context(), rr)
-			g.Expect(err).ToNot(HaveOccurred())
-
-			// Should have added ClusterQueue and LocalQueue resources
-			g.Expect(rr.Resources).To(HaveLen(test.totalResourceCount))
-
-			// Verify ClusterQueue was added
-			var clusterQueue *unstructured.Unstructured
-			var localQueues []*unstructured.Unstructured
-			var kueueConfig *unstructured.Unstructured
-			var resourceFlavors []*unstructured.Unstructured
-			for i := range rr.Resources {
-				switch rr.Resources[i].GetKind() {
-				case gvk.ClusterQueue.Kind:
-					clusterQueue = &rr.Resources[i]
-				case gvk.LocalQueue.Kind:
-					localQueues = append(localQueues, &rr.Resources[i])
-				case gvk.KueueConfigV1.Kind:
-					kueueConfig = &rr.Resources[i]
-				case gvk.ResourceFlavor.Kind:
-					resourceFlavors = append(resourceFlavors, &rr.Resources[i])
-				}
-			}
-
-			if test.expectKueueConfigResource {
-				g.Expect(kueueConfig).ToNot(BeNil())
-				g.Expect(kueueConfig.GetName()).To(Equal(kueueConfigName))
-			}
-
-			flavorNames := []string{DefaultFlavorName}
-			if test.withGPU {
-				flavorNames = append(flavorNames, "nvidia-gpu-flavor", "amd-gpu-flavor")
-			}
-			g.Expect(resourceFlavors).To(HaveLen(len(flavorNames)))
-			for _, rf := range resourceFlavors {
-				g.Expect(rf.GetName()).To(BeElementOf(flavorNames))
-				g.Expect(rf.GetNamespace()).To(BeEmpty()) // ResourceFlavor is cluster-scoped
-				g.Expect(rf.GetAnnotations()).To(Equal(map[string]string{
-					annotations.ManagedByODHOperator: "false",
-				}))
-			}
-
-			g.Expect(clusterQueue).ToNot(BeNil())
-			g.Expect(clusterQueue.GetName()).To(Equal(defaultClusterQueueName))
-			g.Expect(clusterQueue.GetAnnotations()).To(Equal(map[string]string{
-				annotations.ManagedByODHOperator: "false",
-			}))
-			g.Expect(clusterQueue.GetNamespace()).To(BeEmpty()) // ClusterQueue is cluster-scoped
-			namespaceSelector, ok, err := unstructured.NestedMap(clusterQueue.Object, "spec", "namespaceSelector")
-			g.Expect(ok).To(BeTrue())
-			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(namespaceSelector).To(Equal(map[string]any{
-				"matchLabels": map[string]any{
-					cluster.KueueManagedLabelKey: "true",
-				},
-			}))
-			resourceGroups, ok, err := unstructured.NestedSlice(clusterQueue.Object, "spec", "resourceGroups")
-			g.Expect(ok).To(BeTrue())
-			g.Expect(err).ToNot(HaveOccurred())
-
-			g.Expect(resourceGroups).To(HaveLen(len(flavorNames)))
-			defaultResourceGroup := map[string]any{
-				"coveredResources": []any{
-					"cpu",
-					"memory",
-				},
-				"flavors": []any{
-					map[string]any{
-						"name": DefaultFlavorName,
-						"resources": []any{
-							map[string]any{
-								"name":         "cpu",
-								"nominalQuota": "2500m",
-							},
-							map[string]any{
-								"name":         "memory",
-								"nominalQuota": "2500Mi",
-							},
-						},
-					},
-				},
-			}
-			g.Expect(resourceGroups).To(ContainElement(defaultResourceGroup))
-
-			if test.withGPU {
-				nvidiaResourceGroup := map[string]any{
-					"coveredResources": []any{NvidiaGPUResourceKey},
-					"flavors": []any{
-						map[string]any{
-							"name": "nvidia-gpu-flavor",
-							"resources": []any{
-								map[string]any{
-									"name":         NvidiaGPUResourceKey,
-									"nominalQuota": "4",
-								},
-							},
-						},
-					},
-				}
-				g.Expect(resourceGroups).To(ContainElement(nvidiaResourceGroup))
-
-				amdResourceGroup := map[string]any{
-					"coveredResources": []any{AMDGPUResourceKey},
-					"flavors": []any{
-						map[string]any{
-							"name": "amd-gpu-flavor",
-							"resources": []any{
-								map[string]any{
-									"name":         AMDGPUResourceKey,
-									"nominalQuota": "7",
-								},
-							},
-						},
-					},
-				}
-				g.Expect(resourceGroups).To(ContainElement(amdResourceGroup))
-			}
-
-			g.Expect(localQueues).To(HaveLen(3))
-			namespacesNames := []string{}
-			for _, lc := range localQueues {
-				g.Expect(lc).ToNot(BeNil())
-				g.Expect(lc.GetName()).To(Equal(defaultLocalQueueName))
-				namespacesNames = append(namespacesNames, lc.GetNamespace())
-			}
-			g.Expect(namespacesNames).To(HaveLen(3))
-			g.Expect(slices.Contains(namespacesNames, "test-managed-ns")).Should(BeTrue())
-			g.Expect(slices.Contains(namespacesNames, "test-legacy-managed-ns")).Should(BeTrue())
-			g.Expect(slices.Contains(namespacesNames, "test-both-managed-ns")).Should(BeTrue())
-		})
+	if withGPU {
+		return append(commonNodes,
+			node1WithGPU,
+			node2WithGPU,
+		)
 	}
+	return append(commonNodes,
+		node1,
+		node2,
+	)
 }
