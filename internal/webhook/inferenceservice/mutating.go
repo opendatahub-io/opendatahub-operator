@@ -81,6 +81,22 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusInternalServerError, errors.New("webhook decoder not initialized"))
 	}
 
+	if w.Client == nil {
+		log.Error(nil, "Client is nil - webhook not properly initialized")
+		return admission.Errored(http.StatusInternalServerError, errors.New("webhook client not initialized"))
+	}
+
+	if w.APICreator == nil {
+		log.Error(nil, "APICreator is nil - webhook not properly initialized")
+		return admission.Errored(http.StatusInternalServerError, errors.New("webhook APICreator not initialized"))
+	}
+
+	// Check if request object is valid
+	if req.Object.Raw == nil {
+		log.Error(nil, "Request object is nil")
+		return admission.Errored(http.StatusBadRequest, errors.New("request object is nil"))
+	}
+
 	// Decode the object once
 	obj, err := webhookutils.DecodeUnstructured(w.Decoder, req)
 	if err != nil {
@@ -112,7 +128,8 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		switch action {
 		case webhookutils.ConnectionActionInject:
 			// create ServiceAccount first (skip if it is dry-run)
-			if req.DryRun == nil || !*req.DryRun {
+			isDryRun := req.DryRun != nil && *req.DryRun
+			if !isDryRun {
 				if err := webhookutils.CreateServiceAccount(ctx, w.APICreator, secretName, req.Namespace); err != nil {
 					log.Error(err, "Failed to create ServiceAccount")
 					return admission.Errored(http.StatusInternalServerError, err)
