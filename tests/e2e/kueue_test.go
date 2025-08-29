@@ -901,6 +901,11 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
 	)
 
+	// Validate that default resource flavor is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ResourceFlavor, types.NamespacedName{Name: kueue.DefaultFlavorName}),
+	)
+
 	// MANAGED
 	stateManaged := operatorv1.Managed
 	conditionsManagedNotReady := []gTypes.GomegaMatcher{
@@ -938,6 +943,11 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 	// Validate that Kueue configuration is still there
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
+	)
+
+	// Validate that default resource flavor is still there
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ResourceFlavor, types.NamespacedName{Name: kueue.DefaultFlavorName}),
 	)
 
 	// Remove Kueue test resources

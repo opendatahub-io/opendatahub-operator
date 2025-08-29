@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"sort"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -39,6 +42,13 @@ const (
 	KueueConfigMapEntry = "controller_manager_config.yaml"
 
 	NSListLimit = 500
+
+	// GPU resource keys
+	NvidiaGPUResourceKey = "nvidia.com/gpu"
+	AMDGPUResourceKey    = "amd.com/gpu"
+	// Flavor names
+	DefaultFlavorName = "default-flavor"
+	GPUFlavorSuffix   = "-gpu-flavor"
 )
 
 var (
@@ -143,8 +153,78 @@ func ensureKueueLabelsOnManagedNamespaces(ctx context.Context, c client.Client, 
 	return nil
 }
 
-func createDefaultClusterQueue(name string) *unstructured.Unstructured {
+type FlavorResource struct {
+	Name  string
+	Value string
+}
+
+type Flavors struct {
+	Name      string
+	Resources []FlavorResource
+}
+
+func createResourceGroup(flavors []Flavors) map[string]interface{} {
+	resourceMap := make(map[string]any)
+	groupFlavors := make([]any, 0, len(flavors))
+
+	for _, flavor := range flavors {
+		resources := make([]any, 0, len(flavor.Resources))
+
+		for _, resource := range flavor.Resources {
+			resources = append(resources, map[string]any{
+				"name":         resource.Name,
+				"nominalQuota": resource.Value,
+			})
+
+			resourceMap[resource.Name] = true
+		}
+
+		groupFlavor := map[string]any{
+			"name":      flavor.Name,
+			"resources": resources,
+		}
+		groupFlavors = append(groupFlavors, groupFlavor)
+	}
+
+	coveredResources := []any{}
+	for key := range resourceMap {
+		coveredResources = append(coveredResources, key)
+	}
+	sort.Slice(coveredResources, func(i, j int) bool {
+		return coveredResources[i].(string) < coveredResources[j].(string)
+	})
+
+	return map[string]any{
+		"coveredResources": coveredResources,
+		"flavors":          groupFlavors,
+	}
+}
+
+func createDefaultClusterQueue(name string, clusterInfo ClusterResourceInfo) *unstructured.Unstructured {
 	clusterQueue := &unstructured.Unstructured{}
+
+	resourceGroups := []any{
+		createResourceGroup([]Flavors{
+			{
+				Name: DefaultFlavorName,
+				Resources: []FlavorResource{
+					{Name: "cpu", Value: clusterInfo.CPU.Allocatable.String()},
+					{Name: "memory", Value: clusterInfo.Memory.Allocatable.String()},
+				},
+			},
+		}),
+	}
+
+	for label, gpuInfo := range clusterInfo.GPUInfo {
+		resourceGroups = append(resourceGroups, createResourceGroup([]Flavors{
+			{
+				Name: getFlavorName(label),
+				Resources: []FlavorResource{
+					{Name: label, Value: gpuInfo.Allocatable.String()},
+				},
+			},
+		}))
+	}
 
 	clusterQueue.Object = map[string]interface{}{
 		"apiVersion": gvk.ClusterQueue.GroupVersion().String(),
@@ -156,7 +236,12 @@ func createDefaultClusterQueue(name string) *unstructured.Unstructured {
 			},
 		},
 		"spec": map[string]interface{}{
-			"namespaceSelector": map[string]interface{}{},
+			"namespaceSelector": map[string]interface{}{
+				"matchLabels": map[string]interface{}{
+					cluster.KueueManagedLabelKey: "true",
+				},
+			},
+			"resourceGroups": resourceGroups,
 		},
 	}
 
@@ -182,4 +267,118 @@ func createDefaultLocalQueue(name string, clusterQueueName string, namespace str
 	}
 
 	return localQueue
+}
+
+func createDefaultResourceFlavors(clusterInfo ClusterResourceInfo) []unstructured.Unstructured {
+	resourceFlavors := []unstructured.Unstructured{}
+
+	resourceFlavors = append(resourceFlavors, unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": gvk.ResourceFlavor.GroupVersion().String(),
+			"kind":       gvk.ResourceFlavor.Kind,
+			"metadata": map[string]any{
+				"name": DefaultFlavorName,
+				"annotations": map[string]any{
+					annotations.ManagedByODHOperator: "false",
+				},
+			},
+			"spec": map[string]any{},
+		},
+	})
+
+	for label := range clusterInfo.GPUInfo {
+		resourceFlavor := unstructured.Unstructured{}
+		resourceFlavor.Object = map[string]any{
+			"apiVersion": gvk.ResourceFlavor.GroupVersion().String(),
+			"kind":       gvk.ResourceFlavor.Kind,
+			"metadata": map[string]any{
+				"name": getFlavorName(label),
+				"annotations": map[string]any{
+					annotations.ManagedByODHOperator: "false",
+				},
+			},
+			"spec": map[string]any{},
+		}
+
+		resourceFlavors = append(resourceFlavors, resourceFlavor)
+	}
+
+	return resourceFlavors
+}
+
+// ClusterResourceInfo contains information about a node's resources and GPU capabilities
+type ClusterResourceInfo struct {
+	CPU     ResourceQuantity
+	Memory  ResourceQuantity
+	GPUInfo map[string]*ResourceQuantity
+}
+
+// extractGPUInfo extracts GPU information from a node's allocatable and capacity resources
+func (info *ClusterResourceInfo) extractGPUInfo(node corev1.Node) {
+	if info.GPUInfo == nil {
+		info.GPUInfo = make(map[string]*ResourceQuantity)
+	}
+
+	for resourceKey, value := range node.Status.Allocatable {
+		resourceName := resourceKey.String()
+		entry := info.GPUInfo[resourceName]
+		if entry == nil {
+			entry = &ResourceQuantity{}
+		}
+
+		switch true {
+		case resourceName == NvidiaGPUResourceKey || strings.HasPrefix(resourceName, NvidiaGPUResourceKey):
+			entry.Allocatable.Add(value)
+			info.GPUInfo[resourceName] = entry
+		case resourceName == AMDGPUResourceKey:
+			entry.Allocatable.Add(value)
+			info.GPUInfo[resourceName] = entry
+		}
+	}
+}
+
+// ResourceQuantity represents a resource with its allocatable values
+type ResourceQuantity struct {
+	Allocatable resource.Quantity
+}
+
+// getClusterNodes retrieves information about all cluster nodes including GPU resources
+func getClusterResourceInfo(ctx context.Context, c client.Client) (ClusterResourceInfo, error) {
+	nodeList := &corev1.NodeList{}
+	if err := c.List(ctx, nodeList); err != nil {
+		return ClusterResourceInfo{}, fmt.Errorf("failed to list cluster nodes: %w", err)
+	}
+
+	info := ClusterResourceInfo{}
+
+	for _, node := range nodeList.Items {
+		if !isNodeReady(&node) || node.Spec.Unschedulable {
+			continue
+		}
+
+		info.CPU.Allocatable.Add(*node.Status.Allocatable.Cpu())
+		info.Memory.Allocatable.Add(*node.Status.Allocatable.Memory())
+		info.extractGPUInfo(node)
+	}
+
+	return info, nil
+}
+
+func getFlavorName(name string) string {
+	switch true {
+	case name == NvidiaGPUResourceKey:
+		return fmt.Sprintf("%s%s", "nvidia", GPUFlavorSuffix)
+	case name == AMDGPUResourceKey:
+		return fmt.Sprintf("%s%s", "amd", GPUFlavorSuffix)
+	}
+	return ""
+}
+
+func isNodeReady(node *corev1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == corev1.NodeReady {
+			return condition.Status == corev1.ConditionTrue
+		}
+	}
+	return false
 }
