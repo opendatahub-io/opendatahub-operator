@@ -45,9 +45,10 @@ func RegisterWebhooks(mgr manager.Manager) error {
 
 	// Register Connection webhook for InferenceService
 	isvcConnectionWebhook := &inferenceservicewebhook.ConnectionWebhook{
-		Client:  mgr.GetAPIReader(),
-		Decoder: admission.NewDecoder(mgr.GetScheme()),
-		Name:    "connection-isvc",
+		Client:     mgr.GetAPIReader(),
+		APICreator: mgr.GetClient(),
+		Decoder:    admission.NewDecoder(mgr.GetScheme()),
+		Name:       "connection-isvc",
 	}
 	if err := isvcConnectionWebhook.SetupWithManager(mgr); err != nil {
 		return err
