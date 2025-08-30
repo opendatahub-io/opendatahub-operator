@@ -1,0 +1,32 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: block-dashboard-acceleratorprofile-cr
+  annotations:
+    description: "Blocks creation and updates of AcceleratorProfile CRs from dashboard.opendatahub.io"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups: ["dashboard.opendatahub.io"]
+      apiVersions: ["*"]
+      operations: ["CREATE", "UPDATE"]
+      resources: ["acceleratorprofiles"]
+  validations:
+  - expression: "false"
+    message: "Creation and updates of AcceleratorProfile CRs from dashboard.opendatahub.io is not allowed"
+    reason: "Forbidden"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: block-dashboard-acceleratorprofile-cr-binding
+spec:
+  policyName: block-dashboard-acceleratorprofile-cr
+  validationActions: ["Deny"]
+  matchResources:
+    resourceRules:
+    - apiGroups: ["dashboard.opendatahub.io"]
+      apiVersions: ["*"]
+      operations: ["CREATE", "UPDATE"]
+      resources: ["acceleratorprofiles"]
