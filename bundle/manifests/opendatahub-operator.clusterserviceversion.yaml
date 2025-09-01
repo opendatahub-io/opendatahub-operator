@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.33.0
-    createdAt: "2025-08-24T22:30:00Z"
+    createdAt: "2025-09-01T13:44:19Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -800,6 +800,15 @@ spec:
           verbs:
           - get
         - apiGroups:
+          - inference.networking.x-k8s.io
+          resources:
+          - inferencemodels
+          - inferencepools
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
           - infrastructure.opendatahub.io
           resources:
           - hardwareprofiles
@@ -1372,6 +1381,15 @@ spec:
           - get
           - patch
           - update
+        - apiGroups:
+          - serving.kserve.io
+          resources:
+          - llminferenceservices
+          - llminferenceservices/status
+          verbs:
+          - get
+          - list
+          - watch
         - apiGroups:
           - serving.kserve.io
           resources:
