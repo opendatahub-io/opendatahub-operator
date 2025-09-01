@@ -96,9 +96,10 @@ metadata:
       "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
       "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
-      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",  "workbenches.components.platform.opendatahub.io",
-      "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
-      "llamastackoperators.components.platform.opendatahub.io"]
+      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
+      "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
+      "servicemeshes.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
+      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
@@ -182,6 +183,11 @@ spec:
       displayName: Ray
       kind: Ray
       name: rays.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: ServiceMesh is the Schema for the servicemesh API
+      displayName: Service Mesh
+      kind: ServiceMesh
+      name: servicemeshes.services.platform.opendatahub.io
       version: v1alpha1
     - description: TrainingOperator is the Schema for the trainingoperators API
       displayName: Training Operator

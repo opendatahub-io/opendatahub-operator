@@ -163,4 +163,12 @@ resources:
   kind: HardwareProfile
   path: github.com/opendatahub-io/opendatahub-operator/api/infrastructure/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1alpha1
+  controller: true
+  domain: platform.opendatahub.io
+  group: services
+  kind: ServiceMesh
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1
+  version: v1alpha1
 version: "3"

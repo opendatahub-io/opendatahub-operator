@@ -3,6 +3,10 @@ kind: ServiceMeshControlPlane
 metadata:
   name: {{ .ControlPlane.Name }}
   namespace: {{ .ControlPlane.Namespace }}
+  annotations:
+    # this was added to avoid automatically claiming ownership of SMCP during deploy
+    # conflict with ServiceMesh operator happens without this annotation
+    opendatahub.io/managed: "false"
 spec:
   tracing:
     type: None
