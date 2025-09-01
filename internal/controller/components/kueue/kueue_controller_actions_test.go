@@ -13,9 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
@@ -641,7 +639,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 				},
 			}
 
-			runtimeObjects := []runtime.Object{
+			runtimeObjects := []client.Object{
 				managedNamespace,
 				legacyManagedNamespace,
 				bothManagedNamespace,
@@ -651,9 +649,10 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 			clusterNodes := getClusterNodes(t, test.withGPU)
 			runtimeObjects = append(runtimeObjects, clusterNodes...)
 
-			client := fake.NewClientBuilder().
-				WithRuntimeObjects(runtimeObjects...).
-				Build()
+			client, err := fakeclient.New(
+				fakeclient.WithObjects(runtimeObjects...),
+			)
+			g.Expect(err).ToNot(HaveOccurred())
 
 			rr := &types.ReconciliationRequest{
 				Instance: kueue,
@@ -666,7 +665,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 				Resources: []unstructured.Unstructured{}, // Initialize empty resources
 			}
 
-			err := manageDefaultKueueResourcesAction(t.Context(), rr)
+			err = manageDefaultKueueResourcesAction(t.Context(), rr)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Should have added ClusterQueue and LocalQueue resources
@@ -803,7 +802,7 @@ func assertClusterQueueCorrectness(g *WithT, clusterQueue *unstructured.Unstruct
 	}
 }
 
-func getClusterNodes(t *testing.T, withGPU bool) []runtime.Object {
+func getClusterNodes(t *testing.T, withGPU bool) []client.Object {
 	t.Helper()
 
 	node1 := &corev1.Node{
@@ -859,12 +858,12 @@ func getClusterNodes(t *testing.T, withGPU bool) []runtime.Object {
 	}
 
 	if withGPU {
-		return []runtime.Object{
+		return []client.Object{
 			node1WithGPU,
 			node2WithGPU,
 		}
 	}
-	return []runtime.Object{
+	return []client.Object{
 		node1,
 		node2,
 	}
