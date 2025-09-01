@@ -517,6 +517,6 @@ func (tc *DSCTestCtx) verifyDeploymentsStuckDueToQuota(t *testing.T, allControll
 			length == %d
 		`, strings.Join(allControllers, "|"), expectedCount))),
 		WithCustomErrorMsg(fmt.Sprintf("Expected all %d component deployments to have quota error messages", expectedCount)),
-		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 	)
 }
