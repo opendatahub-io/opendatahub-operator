@@ -54,12 +54,12 @@ func setupTestEnvironment(t *testing.T) (*runtime.Scheme, context.Context) {
 	return sch, t.Context()
 }
 
-func createWebhook(cli client.Client, sch *runtime.Scheme) *inferenceservice.ConnectionWebhook {
+func createWebhook(cli client.Client, reader client.Reader, sch *runtime.Scheme) *inferenceservice.ConnectionWebhook {
 	webhook := &inferenceservice.ConnectionWebhook{
-		Client:     cli,
-		APICreator: cli, // Ensure ServiceAccount creation works in tests
-		Decoder:    admission.NewDecoder(sch),
-		Name:       "glueisvc-test",
+		Client:    cli,
+		APIReader: reader,
+		Decoder:   admission.NewDecoder(sch),
+		Name:      "glueisvc-test",
 	}
 	return webhook
 }
@@ -104,6 +104,7 @@ func runTestCase(t *testing.T, tc TestCase) {
 	sch, ctx := setupTestEnvironment(t)
 
 	var cli client.Client
+	var reader client.Reader
 	if tc.secretType != "" {
 		// Extract secret name from annotations, default to testSecret if not specified
 		secretName := testSecret
@@ -115,11 +116,13 @@ func runTestCase(t *testing.T, tc TestCase) {
 
 		secret := createTestSecret(secretName, tc.secretNamespace, tc.secretType, tc.secretData)
 		cli = fake.NewClientBuilder().WithScheme(sch).WithObjects(secret).Build()
+		reader = fake.NewClientBuilder().WithScheme(sch).WithObjects(secret).Build()
 	} else {
 		cli = fake.NewClientBuilder().WithScheme(sch).Build()
+		reader = fake.NewClientBuilder().WithScheme(sch).Build()
 	}
 
-	webhook := createWebhook(cli, sch)
+	webhook := createWebhook(cli, reader, sch)
 
 	isvc, err := createTestInferenceService(testInferenceService, testNamespace, tc.annotations, tc.predictorSpec)
 	if err != nil {
