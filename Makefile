@@ -177,11 +177,22 @@ get-manifests: ## Fetch components manifests from remote git repo
 	./get_all_manifests.sh
 CLEANFILES += opt/manifests/*
 
+# Detect OS for sed in-place flag differences
+ifeq ($(shell uname -s),Darwin)
+    # Check if gsed is installed on macOS
+    ifeq ($(shell which gsed),)
+        $(error gsed not found. Please install it using: brew install gnu-sed)
+    endif
+    SED_COMMAND = gsed
+else
+    SED_COMMAND = sed
+endif
+
 .PHONY: api-docs
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs, render managementstate with marker
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
-	sed -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)|g" ./docs/api-overview.md
+	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)|g" ./docs/api-overview.md
 
 .PHONY: ginkgo
 ginkgo: $(GINKGO)
