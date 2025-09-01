@@ -56,10 +56,10 @@ var IsvcConfigs = InferenceServingPath{
 //nolint:lll
 
 type ConnectionWebhook struct {
-	Client     client.Reader
-	APICreator client.Client // used to create ServiceAccount
-	Decoder    admission.Decoder
-	Name       string
+	APIReader client.Reader
+	Client    client.Client // used to create ServiceAccount
+	Decoder   admission.Decoder
+	Name      string
 }
 
 var _ admission.Handler = &ConnectionWebhook{}
@@ -76,9 +76,10 @@ func (w *ConnectionWebhook) SetupWithManager(mgr ctrl.Manager) error {
 func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
 	log := logf.FromContext(ctx)
 
-	if w.Decoder == nil {
-		log.Error(nil, "Decoder is nil - webhook not properly initialized")
-		return admission.Errored(http.StatusInternalServerError, errors.New("webhook decoder not initialized"))
+	// Check if request object is valid
+	if req.Object.Raw == nil {
+		log.Error(nil, "Request object is nil")
+		return admission.Errored(http.StatusBadRequest, errors.New("request object is nil"))
 	}
 
 	if w.Client == nil {
@@ -86,17 +87,15 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusInternalServerError, errors.New("webhook client not initialized"))
 	}
 
-	if w.APICreator == nil {
-		log.Error(nil, "APICreator is nil - webhook not properly initialized")
-		return admission.Errored(http.StatusInternalServerError, errors.New("webhook APICreator not initialized"))
+	if w.APIReader == nil {
+		log.Error(nil, "APIReader is nil - webhook not properly initialized")
+		return admission.Errored(http.StatusInternalServerError, errors.New("webhook APIReader not initialized"))
 	}
 
-	// Check if request object is valid
-	if req.Object.Raw == nil {
-		log.Error(nil, "Request object is nil")
-		return admission.Errored(http.StatusBadRequest, errors.New("request object is nil"))
+	if w.Decoder == nil {
+		log.Error(nil, "Decoder is nil - webhook not properly initialized")
+		return admission.Errored(http.StatusInternalServerError, errors.New("webhook decoder not initialized"))
 	}
-
 	// Decode the object once
 	obj, err := webhookutils.DecodeUnstructured(w.Decoder, req)
 	if err != nil {
@@ -130,7 +129,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 			// create ServiceAccount first (skip if it is dry-run)
 			isDryRun := req.DryRun != nil && *req.DryRun
 			if !isDryRun {
-				if err := webhookutils.CreateServiceAccount(ctx, w.APICreator, secretName, req.Namespace); err != nil {
+				if err := webhookutils.CreateServiceAccount(ctx, w.Client, secretName, req.Namespace); err != nil {
 					log.Error(err, "Failed to create ServiceAccount")
 					return admission.Errored(http.StatusInternalServerError, err)
 				}
@@ -197,7 +196,7 @@ func (w *ConnectionWebhook) performConnectionInjection(
 	log := logf.FromContext(ctx)
 
 	// inject ServiceAccount as common part
-	if err := w.injectSA(decodedObj, secretName+"-sa"); err != nil {
+	if err := w.handleSA(decodedObj, secretName+"-sa"); err != nil {
 		log.Error(err, "Failed to inject ServiceAccount")
 		return false, fmt.Errorf("failed to inject ServiceAccount: %w", err)
 	}
@@ -243,11 +242,11 @@ func (w *ConnectionWebhook) performConnectionCleanup(
 	log.V(1).Info("Performing connection cleanup for removed annotation", "name", req.Name, "namespace", req.Namespace)
 
 	// remove ServiceAccountName injection
-	if err := w.injectSA(decodedObj, ""); err != nil {
+	if err := w.handleSA(decodedObj, ""); err != nil {
 		log.Error(err, "Failed to cleanup ServiceAccountName")
 		return false, fmt.Errorf("failed to cleanup ServiceAccountName: %w", err)
 	}
-	cleanupPerformed := true // ServiceAccount cleanup was performed
+	cleanupPerformed := true
 
 	// Check for OCI imagePullSecrets
 	if hasOCIImagePullSecrets(decodedObj) {
@@ -256,7 +255,6 @@ func (w *ConnectionWebhook) performConnectionCleanup(
 			return false, fmt.Errorf("failed to cleanup OCI imagePullSecrets: %w", err)
 		}
 		log.V(1).Info("Successfully cleaned up OCI imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
-		cleanupPerformed = true
 	}
 
 	// Check for URI storageUri
@@ -342,9 +340,9 @@ func (w *ConnectionWebhook) cleanupS3StorageKey(obj *unstructured.Unstructured) 
 	return true, err
 }
 
-// injectSA injects serviceaccount into spec.predictor.serviceAccountName.
+// handleSA injects serviceaccount into spec.predictor.serviceAccountName.
 // if saName is "", it is removal.
-func (w *ConnectionWebhook) injectSA(obj *unstructured.Unstructured, saName string) error {
+func (w *ConnectionWebhook) handleSA(obj *unstructured.Unstructured, saName string) error {
 	if saName == "" {
 		// Remove the field entirely
 		unstructured.RemoveNestedField(obj.Object, IsvcConfigs.ServiceAccountNamePath...)
