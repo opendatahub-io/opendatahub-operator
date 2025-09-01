@@ -195,17 +195,17 @@ get-manifests: ## Fetch components manifests from remote git repo
 	./get_all_manifests.sh
 CLEANFILES += opt/manifests/*
 
-# Detect OS for sed in-place flag differences
+# Default to standard sed command
+SED_COMMAND = sed
+
+# macOS requires GNU sed due to BSD sed syntax differences
 ifeq ($(shell uname -s),Darwin)
-    # Check if gsed is installed on macOS
+    # Verify gsed is available, fail with a helpful message if not installed
     ifeq ($(shell which gsed),)
-        $(error gsed not found. Please install it using: brew install gnu-sed)
+        $(error gsed not found. Install with: brew install gnu-sed)
     endif
     SED_COMMAND = gsed
-else
-    SED_COMMAND = sed
 endif
-
 .PHONY: api-docs
 api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
