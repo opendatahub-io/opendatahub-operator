@@ -2223,7 +2223,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `namespace` _string_ | Namespace where it is deployed. If not provided, the default is to<br />use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI. |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
-| `audiences` _string_ | Audiences is a list of the identifiers that the resource server presented<br />with the token identifies as. Audience-aware token authenticators will verify<br />that the token was intended for at least one of the audiences in this list.<br />If no audiences are provided, the audience will default to the audience of the<br />Kubernetes apiserver (kubernetes.default.svc). | [https://kubernetes.default.svc] |  |
+| `audiences` _string array_ | Audiences is a list of the identifiers that the resource server presented<br />with the token identifies as. Audience-aware token authenticators will verify<br />that the token was intended for at least one of the audiences in this list.<br />If no audiences are provided, the audience will default to the audience of the<br />Kubernetes apiserver (kubernetes.default.svc). | [https://kubernetes.default.svc] |  |
 
 
 #### CertType
@@ -2752,6 +2752,8 @@ Package v1 contains API Schema definitions for the services v1 API group
 - [AuthList](#authlist)
 - [Monitoring](#monitoring)
 - [MonitoringList](#monitoringlist)
+- [ServiceMesh](#servicemesh)
+- [ServiceMeshList](#servicemeshlist)
 
 
 
@@ -3022,6 +3024,119 @@ _Appears in:_
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `url` _string_ |  |  |  |
+
+
+#### ServiceMesh
+
+
+
+ServiceMesh is the Schema for the servicemesh API
+
+
+
+_Appears in:_
+- [ServiceMeshList](#servicemeshlist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `ServiceMesh` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[ServiceMeshSpec](#servicemeshspec)_ |  |  |  |
+| `status` _[ServiceMeshStatus](#servicemeshstatus)_ |  |  |  |
+
+
+#### ServiceMeshAuthSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [ServiceMeshSpec](#servicemeshspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `namespace` _string_ | Namespace where it is deployed. If not provided, the default is to<br />use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI. |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `audiences` _string array_ | Audiences is a list of the identifiers that the resource server presented<br />with the token identifies as. Audience-aware token authenticators will verify<br />that the token was intended for at least one of the audiences in this list.<br />If no audiences are provided, the audience will default to the audience of the<br />Kubernetes apiserver (kubernetes.default.svc). | [https://kubernetes.default.svc] |  |
+
+
+#### ServiceMeshControlPlaneSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [ServiceMeshSpec](#servicemeshspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is a name Service Mesh Control Plane. Defaults to "data-science-smcp". | data-science-smcp |  |
+| `namespace` _string_ | Namespace is a namespace where Service Mesh is deployed. Defaults to "istio-system". | istio-system | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `metricsCollection` _string_ | MetricsCollection specifies if metrics from components on the Mesh namespace<br />should be collected. Setting the value to "Istio" will collect metrics from the<br />control plane and any proxies on the Mesh namespace (like gateway pods). Setting<br />to "None" will disable metrics collection. | Istio | Enum: [Istio None] <br /> |
+
+
+#### ServiceMeshList
+
+
+
+ServiceMeshList contains a list of ServiceMesh
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `ServiceMeshList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[ServiceMesh](#servicemesh) array_ |  |  |  |
+
+
+#### ServiceMeshSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [ServiceMesh](#servicemesh)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Unmanaged Removed] <br /> |
+| `controlPlane` _[ServiceMeshControlPlaneSpec](#servicemeshcontrolplanespec)_ | servicemesh spec exposed to DSCI api<br />ControlPlane holds configuration of Service Mesh used by Opendatahub. |  |  |
+| `auth` _[ServiceMeshAuthSpec](#servicemeshauthspec)_ | Auth holds configuration of authentication and authorization services<br />used by Service Mesh in Opendatahub. |  |  |
+
+
+#### ServiceMeshStatus
+
+
+
+ServiceMeshStatus defines the observed state of ServiceMesh
+
+
+
+_Appears in:_
+- [ServiceMesh](#servicemesh)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
 #### Traces

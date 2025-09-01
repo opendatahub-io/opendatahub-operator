@@ -19,6 +19,7 @@ resources:
 - bases/components.platform.opendatahub.io_trainingoperators.yaml
 - bases/services.platform.opendatahub.io_monitorings.yaml
 - bases/services.platform.opendatahub.io_auths.yaml
+- bases/services.platform.opendatahub.io_servicemeshes.yaml
 - bases/components.platform.opendatahub.io_feastoperators.yaml
 - bases/components.platform.opendatahub.io_llamastackoperators.yaml
 - bases/infrastructure.opendatahub.io_hardwareprofiles.yaml
