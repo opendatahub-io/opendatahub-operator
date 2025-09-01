@@ -2,235 +2,273 @@ package servicemesh
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"path"
+	"strings"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
-	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-func (r *ServiceMeshReconciler) configureServiceMesh(ctx context.Context, instance *dsciv1.DSCInitialization) error {
-	log := logf.FromContext(ctx)
-	serviceMeshManagementState := operatorv1.Removed
-	if instance.Spec.ServiceMesh != nil {
-		serviceMeshManagementState = instance.Spec.ServiceMesh.ManagementState
-	} else {
-		log.Info("ServiceMesh is not configured in DSCI, same as default to 'Removed'")
+type AuthorinoDeploymentPredicate struct {
+	predicate.Funcs
+}
+
+func (AuthorinoDeploymentPredicate) Update(e event.UpdateEvent) bool {
+	if e.ObjectOld == nil || e.ObjectNew == nil {
+		return false
 	}
 
-	switch serviceMeshManagementState {
-	case operatorv1.Managed:
+	oldDeployment, ok := e.ObjectOld.(*appsv1.Deployment)
+	if !ok {
+		return false
+	}
 
-		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
-			r.serviceMeshCapability(instance, serviceMeshCondition(status.ConfiguredReason, "Service Mesh configured")),
-		}
+	newDeployment, ok := e.ObjectNew.(*appsv1.Deployment)
+	if !ok {
+		return false
+	}
 
-		authzCapability, err := r.authorizationCapability(ctx, instance, authorizationCondition(status.ConfiguredReason, "Service Mesh Authorization configured"))
-		if err != nil {
-			return err
-		}
-		capabilities = append(capabilities, authzCapability)
+	if newDeployment.GetName() != "authorino" {
+		return false
+	}
 
-		for _, capability := range capabilities {
-			capabilityErr := capability.Apply(ctx, r.Client)
-			if capabilityErr != nil {
-				log.Error(capabilityErr, "failed applying service mesh resources")
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "ServiceMeshReconcileError", "failed applying service mesh resources")
-				return capabilityErr
-			}
-		}
+	return oldDeployment.Generation != newDeployment.Generation ||
+		oldDeployment.Status.Replicas != newDeployment.Status.Replicas ||
+		oldDeployment.Status.ReadyReplicas != newDeployment.Status.ReadyReplicas
+}
 
-	case operatorv1.Unmanaged:
-		log.Info("ServiceMesh CR is not configured by the operator, we won't do anything")
-	case operatorv1.Removed:
-		log.Info("existing ServiceMesh CR (owned by operator) will be removed")
-		if err := r.removeServiceMesh(ctx, instance); err != nil {
-			return err
+func NewAuthorinoDeploymentPredicate() *AuthorinoDeploymentPredicate {
+	return &AuthorinoDeploymentPredicate{}
+}
+
+type SMCPReadyPredicate struct {
+	predicate.Funcs
+}
+
+func (SMCPReadyPredicate) Update(e event.UpdateEvent) bool {
+	if e.ObjectOld == nil || e.ObjectNew == nil {
+		return false
+	}
+
+	oldObj, ok := e.ObjectOld.(*unstructured.Unstructured)
+	if !ok {
+		return false
+	}
+	newObj, ok := e.ObjectNew.(*unstructured.Unstructured)
+	if !ok {
+		return false
+	}
+
+	if newObj.GetKind() != gvk.ServiceMeshControlPlane.Kind {
+		return false
+	}
+
+	oldReady, _ := isSMCPReady(oldObj)
+	newReady, _ := isSMCPReady(newObj)
+
+	return oldReady != newReady
+}
+
+func NewSMCPReadyPredicate() *SMCPReadyPredicate {
+	return &SMCPReadyPredicate{}
+}
+
+func checkServiceMeshOperator(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if smOperatorFound, err := cluster.SubscriptionExists(ctx, rr.Client, serviceMeshOperatorName); !smOperatorFound || err != nil {
+		return fmt.Errorf(
+			"failed to find the pre-requisite operator subscription %q, please ensure operator is installed. %w",
+			serviceMeshOperatorName,
+			fmt.Errorf("missing operator %q", serviceMeshOperatorName),
+		)
+	}
+
+	if err := cluster.CustomResourceDefinitionExists(ctx, rr.Client, gvk.ServiceMeshControlPlane.GroupKind()); err != nil {
+		return fmt.Errorf("failed to find the Service Mesh Control Plane CRD, please ensure Service Mesh Operator is installed. %w", err)
+	}
+
+	// Extra check if SMCP validation service is running.
+	validationService := &corev1.Service{}
+	if err := rr.Client.Get(ctx, client.ObjectKey{
+		Name:      "istio-operator-service",
+		Namespace: "openshift-operators",
+	}, validationService); err != nil {
+		if k8serr.IsNotFound(err) {
+			return fmt.Errorf("failed to find the Service Mesh VWC service, please ensure Service Mesh Operator is running. %w", err)
 		}
+		return fmt.Errorf("failed to find the Service Mesh VWC service. %w", err)
 	}
 
 	return nil
 }
 
-func (r *ServiceMeshReconciler) removeServiceMesh(ctx context.Context, instance *dsciv1.DSCInitialization) error {
-	log := logf.FromContext(ctx)
-	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to clean up
-	if instance.Spec.ServiceMesh == nil {
-		return nil
+func getAuthorinoNamespace(rr *odhtypes.ReconciliationRequest) (string, error) {
+	sm, ok := rr.Instance.(*serviceApi.ServiceMesh)
+	if !ok {
+		return "", fmt.Errorf("resource instance %v is not a serviceApi.ServiceMesh)", rr.Instance)
 	}
-	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
-			r.serviceMeshCapability(instance, serviceMeshCondition(status.RemovedReason, "Service Mesh removed")),
-		}
 
-		authzCapability, err := r.authorizationCapability(ctx, instance, authorizationCondition(status.RemovedReason, "Service Mesh Authorization removed"))
-		if err != nil {
-			return err
-		}
-
-		capabilities = append(capabilities, authzCapability)
-
-		for _, capability := range capabilities {
-			capabilityErr := capability.Delete(ctx, r.Client)
-			if capabilityErr != nil {
-				log.Error(capabilityErr, "failed deleting service mesh resources")
-				r.Recorder.Eventf(instance, corev1.EventTypeWarning, "ServiceMeshReconcileError", "failed deleting service mesh resources")
-
-				return capabilityErr
-			}
-		}
+	if len(strings.TrimSpace(sm.Spec.Auth.Namespace)) == 0 {
+		// auth namespace not specified, use the following default:
+		return rr.DSCI.Spec.ApplicationsNamespace + "-auth-provider", nil
 	}
-	return nil
+
+	return sm.Spec.Auth.Namespace, nil
 }
 
-func (r *ServiceMeshReconciler) serviceMeshCapability(instance *dsciv1.DSCInitialization, initialCondition *common.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
-	return feature.NewHandlerWithReporter(
-		feature.ClusterFeaturesHandler(instance, r.serviceMeshCapabilityFeatures(instance)),
-		createCapabilityReporter(r.Client, instance, initialCondition),
-	)
-}
+func getTemplateData(_ context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
+	sm, ok := rr.Instance.(*serviceApi.ServiceMesh)
+	if !ok {
+		return nil, fmt.Errorf("resource instance %v is not a serviceApi.ServiceMesh)", rr.Instance)
+	}
 
-func (r *ServiceMeshReconciler) authorizationCapability(ctx context.Context, instance *dsciv1.DSCInitialization, condition *common.Condition) (*feature.HandlerWithReporter[*dsciv1.DSCInitialization], error) { //nolint:lll // Reason: generics are long
-	authorinoInstalled, err := cluster.SubscriptionExists(ctx, r.Client, "authorino-operator")
+	authorinoNamespace, err := getAuthorinoNamespace(rr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list subscriptions %w", err)
+		return nil, fmt.Errorf("error obtaining Authorino namespace from ServiceMesh CR: %w", err)
 	}
 
-	if !authorinoInstalled {
-		authzMissingOperatorCondition := &common.Condition{
-			Type:    status.CapabilityServiceMeshAuthorization,
-			Status:  metav1.ConditionFalse,
-			Reason:  status.MissingOperatorReason,
-			Message: "Authorino operator is not installed on the cluster, skipping authorization capability",
-		}
-
-		return feature.NewHandlerWithReporter(
-			// EmptyFeaturesHandler acts as all the authorization features are disabled (calling Apply/Delete has no actual effect on the cluster)
-			// but it's going to be reported as CapabilityServiceMeshAuthorization/MissingOperator condition/reason
-			feature.EmptyFeaturesHandler,
-			createCapabilityReporter(r.Client, instance, authzMissingOperatorCondition),
-		), nil
-	}
-
-	return feature.NewHandlerWithReporter(
-		feature.ClusterFeaturesHandler(instance, r.authorizationFeatures(instance)),
-		createCapabilityReporter(r.Client, instance, condition),
-	), nil
+	return map[string]any{
+		"AuthExtensionName": authorinoNamespace,
+		"AuthNamespace":     authorinoNamespace,
+		"AuthProviderName":  authProviderName,
+		"ControlPlane":      sm.Spec.ControlPlane,
+	}, nil
 }
 
-func (r *ServiceMeshReconciler) serviceMeshCapabilityFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
-	return func(registry feature.FeaturesRegistry) error {
-		controlPlaneSpec := instance.Spec.ServiceMesh.ControlPlane
+func isSMCPReady(smcp *unstructured.Unstructured) (bool, string) {
+	_, found, err := unstructured.NestedFieldNoCopy(smcp.Object, "status", "readiness")
+	if err != nil {
+		return false, fmt.Sprintf("error checking SMCP readiness: %v", err)
+	}
 
-		meshMetricsCollection := func(_ context.Context, _ client.Client, _ *feature.Feature) (bool, error) {
-			return controlPlaneSpec.MetricsCollection == "Istio", nil
+	if !found {
+		return false, "SMCP readiness status not found, SMCP may be initializing"
+	}
+
+	conditions, found, err := unstructured.NestedSlice(smcp.Object, "status", "conditions")
+	if err != nil {
+		return false, fmt.Sprintf("error checking SMCP conditions: %v", err)
+	}
+
+	if !found {
+		return false, "no SMCP conditions found, SMCP may be starting up"
+	}
+
+	var lastConditionMessage string
+
+	for _, condition := range conditions {
+		conditionMap, ok := condition.(map[string]interface{})
+		if !ok {
+			continue
 		}
 
-		return registry.Add(
-			feature.Define("mesh-control-plane-creation").
-				Manifests(
-					manifest.Location(dscictrl.Templates.Location).Include(
-						path.Join(dscictrl.Templates.ServiceMeshDir),
-					),
-				).
-				WithData(servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction()).
-				PreConditions(
-					servicemesh.EnsureServiceMeshOperatorInstalled,
-					feature.CreateNamespaceIfNotExists(controlPlaneSpec.Namespace),
-				).
-				PostConditions(
-					feature.WaitForPodsToBeReady(controlPlaneSpec.Namespace),
-				),
-			feature.Define("mesh-metrics-collection").
-				EnabledWhen(meshMetricsCollection).
-				Manifests(
-					manifest.Location(dscictrl.Templates.Location).
-						Include(
-							path.Join(dscictrl.Templates.MetricsDir),
-						),
-				).
-				WithData(
-					servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction(),
-				).
-				PreConditions(
-					servicemesh.EnsureServiceMeshInstalled,
-				),
-			feature.Define("mesh-shared-configmap").
-				WithResources(servicemesh.MeshRefs, servicemesh.AuthRefs).
-				WithData(
-					servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction(),
-				).
-				WithData(
-					servicemesh.FeatureData.Authorization.All(&instance.Spec)...,
-				),
-		)
+		condType, found := conditionMap["type"]
+		if !found {
+			continue
+		}
+
+		condStatus, found := conditionMap["status"]
+		if !found {
+			continue
+		}
+
+		if message, found := conditionMap["message"]; found {
+			lastConditionMessage = fmt.Sprintf("%v", message)
+		}
+
+		if condType == "Ready" {
+			if condStatus == "True" {
+				return true, "SMCP Ready condition is True"
+			}
+
+			if lastConditionMessage != "" {
+				return false, fmt.Sprintf("SMCP Ready condition is false: %s", lastConditionMessage)
+			}
+			return false, "SMCPReady condition is false"
+		}
 	}
+
+	return false, "SMCP Ready condition not found, SMCP may be initializing"
 }
 
-func (r *ServiceMeshReconciler) authorizationFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
-	return func(registry feature.FeaturesRegistry) error {
-		serviceMeshSpec := instance.Spec.ServiceMesh
+func isAuthorinoReady(authorino *unstructured.Unstructured) (bool, error) {
+	conditions, found, err := unstructured.NestedSlice(authorino.Object, "status", "conditions")
+	if err != nil {
+		return false, err
+	}
 
-		return registry.Add(
-			feature.Define("mesh-control-plane-external-authz").
-				Manifests(
-					manifest.Location(dscictrl.Templates.Location).
-						Include(
-							path.Join(dscictrl.Templates.AuthorinoDir, "auth-smm.tmpl.yaml"),
-							path.Join(dscictrl.Templates.AuthorinoDir, "base"),
-							path.Join(dscictrl.Templates.AuthorinoDir, "mesh-authz-ext-provider.patch.tmpl.yaml"),
-						),
-				).
-				WithData(
-					servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction(),
-				).
-				WithData(
-					servicemesh.FeatureData.Authorization.All(&instance.Spec)...,
-				).
-				PreConditions(
-					feature.EnsureOperatorIsInstalled("authorino-operator"),
-					servicemesh.EnsureServiceMeshInstalled,
-					servicemesh.EnsureAuthNamespaceExists,
-				).
-				PostConditions(
-					feature.WaitForPodsToBeReady(serviceMeshSpec.ControlPlane.Namespace),
-				),
+	if !found {
+		return false, errors.New("no Authorino conditions found, Authorino may be starting up")
+	}
 
-			// We do not have the control over deployment resource creation.
-			// It is created by Authorino operator using Authorino CR and labels are not propagated from Authorino CR to spec.template
-			// See https://issues.redhat.com/browse/RHOAIENG-5494 and https://github.com/Kuadrant/authorino-operator/pull/243
-			//
-			// To make it part of Service Mesh we have to patch it with injection
-			// enabled instead, otherwise it will not have proxy pod injected.
-			feature.Define("enable-proxy-injection-in-authorino-deployment").
-				Manifests(
-					manifest.Location(dscictrl.Templates.Location).
-						Include(path.Join(dscictrl.Templates.AuthorinoDir, "deployment.injection.patch.tmpl.yaml")),
-				).
-				PreConditions(
-					func(ctx context.Context, cli client.Client, f *feature.Feature) error {
-						namespace, err := servicemesh.FeatureData.Authorization.Namespace.Extract(f)
-						if err != nil {
-							return fmt.Errorf("failed trying to resolve authorization provider namespace for feature '%s': %w", f.Name, err)
-						}
+	for _, condition := range conditions {
+		conditionMap, ok := condition.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		condType, found := conditionMap["type"]
+		if !found {
+			continue
+		}
+		condStatus, found := conditionMap["status"]
+		if !found {
+			continue
+		}
 
-						return feature.WaitForPodsToBeReady(namespace)(ctx, cli, f)
+		if condType == "Ready" && condStatus == "True" {
+			return true, nil
+		}
+	}
+
+	return false, errors.New("no Authorino Ready condition found, Authorino may be initializing")
+}
+
+func getAutorinoResource(ctx context.Context, rr *odhtypes.ReconciliationRequest) (*unstructured.Unstructured, error) {
+	authorinoNamespace, err := getAuthorinoNamespace(rr)
+	if err != nil {
+		return nil, err
+	}
+
+	authorino := &unstructured.Unstructured{}
+	authorino.SetGroupVersionKind(gvk.Authorino)
+	err = rr.Client.Get(ctx, client.ObjectKey{
+		Name:      authProviderName,
+		Namespace: authorinoNamespace,
+	}, authorino)
+
+	return authorino, err
+}
+
+func createAuthorinoDeploymentPatch(name string, namespace string) *unstructured.Unstructured {
+	authorinoDeploymentPatch := &unstructured.Unstructured{}
+
+	authorinoDeploymentPatch.Object = map[string]interface{}{
+		"apiVersion": gvk.Deployment.GroupVersion().String(),
+		"kind":       gvk.Deployment.Kind,
+		"metadata": map[string]interface{}{
+			"name":      name,
+			"namespace": namespace,
+		},
+		"spec": map[string]interface{}{
+			"template": map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						"sidecar.istio.io/inject": "true",
 					},
-				).
-				WithData(servicemesh.FeatureData.ControlPlane.Define(&instance.Spec).AsAction()).
-				WithData(servicemesh.FeatureData.Authorization.All(&instance.Spec)...),
-		)
+				},
+			},
+		},
 	}
+
+	return authorinoDeploymentPatch
 }
