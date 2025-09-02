@@ -9,13 +9,13 @@ The list of the currently integrated ODH components is provided [at the end of t
 
 ## Use scaffolding to create boilerplate code
 
-Integrating a new component into the Open Data Hub (ODH) operator is  easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, significantly reducing manual effort and ensuring consistency.
+Integrating a new component into the Open Data Hub (ODH) operator is easier with the [component-codegen CLI](../cmd/component-codegen/README.md). The CLI automates much of the boilerplate code and file generation, reducing manual effort and ensuring consistency.
 
-While the CLI handles most of the heavy lifting, it’s still important to understand the purpose of each generated file. Please refer to the following sections for a detailed breakdown of the key files and their roles in the integration process.
+While the CLI handles most of the heavy lifting, it's still important to understand the purpose of each generated file. Please refer to the following sections for a detailed breakdown of the key files and their roles in the integration process.
 
 ## Integrating a new component
 
-To ensure a new component is integrated seamlessly in the operator, please follow the steps listed below.
+To ensure a new component is integrated seamlessly into the operator, please follow the steps listed below.
 
 ### 1. Update API specs
 
@@ -49,19 +49,19 @@ const (
 )
 
 type ExampleComponentCommonSpec struct {
-    // new component spec exposed to DSC api
+    // Part of the public DSC API (included in CRD)
     common.DevFlagsSpec `json:",inline"`
 
-    // new component spec shared with DSC api
+    // Part of the public DSC API (included in CRD)
     // ( refer/define here if applicable to the new component )
 }
 
 // ExampleComponentSpec defines the desired state of ExampleComponent
 type ExampleComponentSpec struct {
-    // new component spec exposed to DSC api
+    // Part of the public DSC API (included in CRD)
     ExampleComponentCommonSpec `json:",inline"`
 
-    // new component spec exposed only to internal api
+    // Internal only (not exposed in CRD)
     // ( refer/define here if applicable to the new component )
 }
 
@@ -93,7 +93,9 @@ type ExampleComponent struct {
     Status ExampleComponentStatus `json:"status,omitempty"`
 }
 
-// getter for devFlags
+// GetDevFlags returns the component's development flags configuration.
+// May return nil if DevFlagsSpec is not set. Callers must nil-check the result
+// to avoid null pointer exceptions in reconciler code.
 func (c *ExampleComponent) GetDevFlags() *common.DevFlags {
     return c.Spec.DevFlags
 }
@@ -145,8 +147,9 @@ type DSCExampleComponent struct {
 
 // DSCExampleComponentStatus struct holds the status for the ExampleComponent component exposed in the DSC
 type DSCExampleComponentStatus struct {
-    common.ManagementSpec    `json:",inline"`
-    *ExampleComponentCommonStatus `json:",inline"`
+type DSCExampleComponentStatus struct {
+    common.Status                  `json:",inline"`
+    ExampleComponentCommonStatus   `json:",inline"`
 }
 ```
 
@@ -194,6 +197,8 @@ type ComponentsStatus struct {
 
 Add kubebuilder RBAC permissions intended for the new component into `internal/controller/datasciencecluster/kubebuilder_rbac.go`.
 
+**Important:** After editing kubebuilder RBAC markers, you must re-run the project generators to ensure CRDs and manifests reflect the RBAC marker changes. This is covered in the next step.
+
 #### Update the dependent files
 
 To fully reflect the API changes brought by the addition of the new component, run the following command:
@@ -212,8 +217,10 @@ For reference, the `internal/controller/components` directory contains reconcile
 #### Implement the component handler interface
 
 Each component that is intended to be managed by the operator is expected to be included in the components registry.
-The components registry (currently implemented in `pkg/componentsregistry`) defines a component handler interface which is required to be implemented for the new component.
-To do so, create a dedicated `<example_component_name>.go` file within the newly created component module and provide the interface implementation:
+The components registry (currently implemented in `internal/controller/components/registry`) defines a component handler interface which is required to be implemented for the new component.
+To do so, create a dedicated `<example_component_name>.go` file within the newly created component module and provide the interface implementation.
+
+The component handler interface requires the following methods to be implemented:
 
 ```go
 type componentHandler struct{}
@@ -230,15 +237,29 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 
 func (s *componentHandler) Init(platform common.Platform) error 
 
+func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error
+
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error)
+
+func (s *componentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool
 ```
+
+**Method descriptions:**
+
+- `GetName()` - Returns the component name as a string
+- `GetManagementState()` - Returns the management state (Managed/Removed) for the component based on the DSC configuration
+- `NewCRObject()` - Constructs the component-specific Custom Resource object
+- `Init()` - Initializes the component (e.g., setting up image parameters)
+- `NewComponentReconciler()` - Creates and configures the component's reconciler (see details [below](#actions))
+- `UpdateDSCStatus()` - Updates the component-specific status in the DataScienceCluster
+- `IsEnabled()` - Returns whether the component should be deployed/is active
 
 Please refer the existing component implementations in the `internal/controller/components` directory for further details.
 
-#### Implement new component reconciler
+#### Implement the NewComponentReconciler method
 
-Create a dedicated `<example_component_name>_controller.go` file and implement the expected `NewComponentReconciler` function there.
-This function will be responsible for creating the reconciler for the previously introduced `<ExampleComponent>` API.
+The `NewComponentReconciler` method is part of the component handler interface and is responsible for creating the reconciler for the previously introduced `<ExampleComponent>` API.
+This method should be implemented in the same `<example_component_name>.go` file where you defined the component handler struct.
 
 `NewComponentReconciler` utilizes a generic builder pattern that supports defining various types of relationships and functionality:
 
@@ -251,19 +272,37 @@ This function will be responsible for creating the reconciler for the previously
 The example pseudo-implementation should look like as follows:
 
 ```go
+import (
+    "context"
+    "fmt"
+
+    ctrl "sigs.k8s.io/controller-runtime"
+
+    componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+    "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+)
+```
+
+```go
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
     _, err := reconciler.ReconcilerFor(mgr, &componentApi.ExampleComponent{}).
         Owns(...).
         // ... add other necessary resource ownerships
         Watches(...).
         // ... add other necessary resource watches
-        WithAction(...).
+        WithAction(initialize).
+        WithAction(devFlags).
         // ... add custom actions if needed
-        // ... add mandatory common actions (e.g. manifest rendering, deployment, garbage collection)
+        // Mandatory common actions (order matters):
+        WithAction(actions.RenderManifests).
+        WithAction(actions.DeployManifests).
+        WithAction(actions.UpdateStatus).
+        // MUST be last:
+        WithAction(actions.GarbageCollect).
         Build(ctx)
 
     if err != nil {
-        return err
+        return fmt.Errorf("building reconciler: %w", err)
     }
 
     return nil
@@ -292,7 +331,9 @@ These support:
 - Manifest rendering — may use caching
 - Manifest deployment — may use caching
 - Status updating
-- Garbage collection — must be called last before the final `.Build()` call
+- Garbage collection — MUST be called last before the final `.Build()` call
+
+**Important:** All other actions (rendering, deployment, status updates) must precede garbage collection to prevent accidental reordering and ensure proper resource cleanup.
 
 If the new component requires additional custom logic, custom actions can also be added to the builder via the respective `.WithAction()` calls.
 
@@ -323,9 +364,9 @@ Existing e2e test suites for the integrated components can be also found there.
 
 Lastly, please update the following files to fully integrate new component tests into the overall test suite:
 
-- update `setupDSCInstance()` function in `tests/e2e/helper_test.go` to set new component in DSC
-- update `newDSC()` function in `/internal/webhook/webhook_suite_test.go` to update creation of DSC include the new component
-- update `componentsTestSuites` map in `tests/e2e/controller_test.go` to include the reference for the new component e2e test suite
+- Update `setupDSCInstance()` in `tests/e2e/helper_test.go` to set the new component in the DSC
+- Update `newDSC()` in `internal/webhook/webhook_suite_test.go` to include the new component when creating DSC
+- Update `componentsTestSuites` map in `tests/e2e/controller_test.go` to reference the new component e2e test suite
 
 ### 4. Update Prometheus config and tests
 
@@ -336,20 +377,15 @@ If the component is planned to be released for downstream, Prometheus rules and 
 
 ## Integrated components
 
-Currently integrated components are:
+The canonical source of truth for currently integrated components is the `Components` struct in [`api/datasciencecluster/v1/datasciencecluster_types.go`](../api/datasciencecluster/v1/datasciencecluster_types.go#L32). This struct defines all supported components and their configuration options.
 
-- [Codeflare](https://github.com/opendatahub-io/codeflare-operator)
-- [Dashboard](https://github.com/opendatahub-io/odh-dashboard)
-- [Data Science Pipelines](https://github.com/opendatahub-io/data-science-pipelines)
-- [KServe](https://github.com/opendatahub-io/kserve)
-- [Kueue](https://github.com/opendatahub-io/kueue)
-- [ModelMesh Serving](https://github.com/opendatahub-io/modelmesh-serving)
-- [Model Controller](https://github.com/opendatahub-io/odh-model-controller)
-- [ModelRegistry](https://github.com/opendatahub-io/model-registry)
-- [Ray](https://github.com/opendatahub-io/kuberay)
-- [Training Operator](https://github.com/opendatahub-io/training-operator)
-- [TrustyAI](https://github.com/opendatahub-io/trustyai-service-operator)
-- [Workbenches](https://github.com/opendatahub-io/notebooks)
-- [Feast Operator](https://github.com/opendatahub-io/feast)
+**Maintenance Note:** This documentation section must be updated whenever components are added, removed, or modified. The authoritative sources to verify and update are:
 
-The particular controller implementations for the listed components are located in the `internal/controller/components` directory and the corresponding internal component APIs are located in `api/component/v1alpha1`.
+1. **Component API definitions**: [`api/components/v1alpha1/`](../api/components/v1alpha1/) - Contains the component type definitions
+2. **Component controllers**: [`internal/controller/components/`](../internal/controller/components/) - Contains the reconciler implementations
+3. **DSC Components struct**: [`api/datasciencecluster/v1/datasciencecluster_types.go`](../api/datasciencecluster/v1/datasciencecluster_types.go#L32) - The canonical source of truth
+4. **CI validation**: [`tests/e2e/creation_test.go`](../tests/e2e/creation_test.go#L402) - Contains automated validation to ensure component lists stay in sync
+
+The CI pipeline includes validation that checks if the component lists in tests match the DSC Components struct. If this validation fails, it indicates that the component lists need to be updated across the codebase.
+
+For the most up-to-date list of integrated components, please refer to the `Components` struct in the canonical source file mentioned above.

@@ -23,7 +23,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"time"
 
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -48,12 +47,16 @@ const (
 )
 
 // generateUniqueName creates a unique name for test instances.
+// generateUniqueName creates a unique name for test instances.
 // It uses a deterministic random source based on the prefix for reproducible names.
 func generateUniqueName(prefix string) string {
+	if prefix == "" {
+		prefix = "test"
+	}
 	// Use deterministic random source based on prefix hash for reproducible names
 	var seed int64
 	for _, c := range prefix {
-		seed = seed*31 + int64(c)
+		seed = (seed*31 + int64(c)) % (1 << 32)
 	}
 	//nolint:gosec // Using math/rand with fixed seed for deterministic test names
 	r := rand.New(rand.NewSource(seed))
@@ -138,8 +141,7 @@ var _ = AfterSuite(func() {
 
 var _ = Describe("NewDataScienceClusterReconciler", func() {
 	BeforeEach(func() {
-		// Reset context for each test
-		ctx = context.Background()
+		// Use the globally initialized context from BeforeSuite
 	})
 
 	It("should create reconciler with correct configuration", func() {
@@ -177,7 +179,7 @@ var _ = Describe("NewDataScienceClusterReconciler", func() {
 
 var _ = Describe("DataScienceCluster Reconciler Configuration", func() {
 	BeforeEach(func() {
-		ctx = context.Background()
+		// Use the globally initialized context from BeforeSuite
 	})
 
 	It("should configure reconciler with all required component ownerships", func() {
@@ -233,7 +235,6 @@ var _ = Describe("DataScienceCluster Reconciler Configuration", func() {
 
 	It("should configure reconciler with component readiness conditions", func() {
 		By(callingReconcilerMsg)
-		// Using seed 12346 to avoid collision with other tests that use 12345, ensuring deterministic test execution
 		err := datasciencecluster.NewDataScienceClusterReconcilerWithName(
 			ctx, mgr,
 			generateUniqueName("integration-test-datasciencecluster-conditions"),

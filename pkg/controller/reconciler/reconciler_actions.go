@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -58,19 +59,35 @@ func (a *dynamicWatchAction) shouldWatch(ctx context.Context, in watchInput, rr 
 
 	// Create a prefixed logger with common fields
 	prefixedLogger := logger.WithValues(
-		"objectGVK", objectGVK,
-		"instanceName", rr.Instance.GetName(),
-		"instanceNamespace", rr.Instance.GetNamespace(),
+		"objectGVK", objectGVK.String(),
+		"instanceName", func() string {
+			if rr.Instance != nil {
+				return rr.Instance.GetName()
+			}
+			return "<nil>"
+		}(),
+		"instanceNamespace", func() string {
+			if rr.Instance != nil {
+				return rr.Instance.GetNamespace()
+			}
+			return "<nil>"
+		}(),
 	)
 
 	// Evaluate all dynamic predicates for this watch
 	for i, pred := range in.dynamicPredicates {
 		if pred == nil {
-			prefixedLogger.V(1).Info("nil predicate",
+			prefixedLogger.Error(errors.New("nil dynamic predicate"), "watch blocked due to nil predicate",
 				"predicateIndex", i)
-			continue
+			return false
 		}
-		if !pred(ctx, rr) {
+		ok, err := pred(ctx, rr)
+		if err != nil {
+			prefixedLogger.Error(err, "watch blocked due to predicate error",
+				"predicateIndex", i)
+			return false
+		}
+		if !ok {
 			prefixedLogger.V(1).Info("watch blocked by predicate",
 				"predicateIndex", i)
 			return false

@@ -15,6 +15,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests"
 )
 
 type KserveAuthorinoTestCtx struct {
@@ -22,8 +23,10 @@ type KserveAuthorinoTestCtx struct {
 }
 
 const (
-	// Istio system namespace where auth-related resources are created.
-	istioSystemNamespace = "istio-system"
+	// OpenShift Serverless namespace.
+	openshiftServerlessNamespace = "openshift-serverless"
+	// OpenShift Operators namespace.
+	openshiftOperatorsNamespace = "openshift-operators"
 )
 
 // authRelatedResources defines the authorization-related resources that should NOT be created
@@ -32,12 +35,12 @@ var authRelatedResources = []struct {
 	gvk schema.GroupVersionKind
 	nn  types.NamespacedName
 }{
-	{gvk.EnvoyFilter, types.NamespacedName{Namespace: istioSystemNamespace, Name: "activator-host-header"}},
-	{gvk.EnvoyFilter, types.NamespacedName{Namespace: istioSystemNamespace, Name: "envoy-oauth-temp-fix-after"}},
-	{gvk.EnvoyFilter, types.NamespacedName{Namespace: istioSystemNamespace, Name: "envoy-oauth-temp-fix-before"}},
-	{gvk.EnvoyFilter, types.NamespacedName{Namespace: istioSystemNamespace, Name: "kserve-inferencegraph-host-header"}},
-	{gvk.AuthorizationPolicy, types.NamespacedName{Namespace: istioSystemNamespace, Name: "kserve-inferencegraph"}},
-	{gvk.AuthorizationPolicy, types.NamespacedName{Namespace: istioSystemNamespace, Name: "kserve-predictor"}},
+	{gvk: gvk.EnvoyFilter, nn: types.NamespacedName{Namespace: tests.IstioSystemNamespace, Name: "activator-host-header"}},
+	{gvk: gvk.EnvoyFilter, nn: types.NamespacedName{Namespace: tests.IstioSystemNamespace, Name: "envoy-oauth-temp-fix-after"}},
+	{gvk: gvk.EnvoyFilter, nn: types.NamespacedName{Namespace: tests.IstioSystemNamespace, Name: "envoy-oauth-temp-fix-before"}},
+	{gvk: gvk.EnvoyFilter, nn: types.NamespacedName{Namespace: tests.IstioSystemNamespace, Name: "kserve-inferencegraph-host-header"}},
+	{gvk: gvk.AuthorizationPolicy, nn: types.NamespacedName{Namespace: tests.IstioSystemNamespace, Name: "kserve-inferencegraph"}},
+	{gvk: gvk.AuthorizationPolicy, nn: types.NamespacedName{Namespace: tests.IstioSystemNamespace, Name: "kserve-predictor"}},
 }
 
 // TestKserveAuthorinoRegression tests the regression scenario where auth-related resources
@@ -74,8 +77,8 @@ func TestKserveAuthorinoRegression(t *testing.T) {
 	RunTestCases(t, testCases)
 }
 
-// uninstallOperatorWithChannel delete an operator install subscription to a specific channel if exists.
-func (tc *KserveAuthorinoTestCtx) uninstallOperatorWithChannel(t *testing.T, operatorNamespacedName types.NamespacedName) { //nolint:thelper
+// uninstallOperator delete an operator install subscription if exists.
+func (tc *KserveAuthorinoTestCtx) uninstallOperator(t *testing.T, operatorNamespacedName types.NamespacedName) { //nolint:thelper
 	// Check if operator subscription exists
 	ro := tc.NewResourceOptions(WithMinimalObject(gvk.Subscription, operatorNamespacedName))
 	operatorSubscription, err := tc.ensureResourceExistsOrNil(ro)
@@ -105,13 +108,13 @@ func (tc *KserveAuthorinoTestCtx) UninstallAuthorinoOperator(t *testing.T) {
 	t.Helper()
 
 	// Uninstall Authorino operator from openshift-operators namespace
-	tc.uninstallOperatorWithChannel(t, types.NamespacedName{
+	tc.uninstallOperator(t, types.NamespacedName{
 		Name:      authorinoOpName,
 		Namespace: openshiftOperatorsNamespace,
 	})
 
 	// Also check and uninstall from operator namespace if present
-	tc.uninstallOperatorWithChannel(t, types.NamespacedName{
+	tc.uninstallOperator(t, types.NamespacedName{
 		Name:      authorinoOpName,
 		Namespace: tc.OperatorNamespace,
 	})
@@ -154,7 +157,7 @@ func (tc *KserveAuthorinoTestCtx) VerifyRequiredOperatorsInstalled(t *testing.T)
 	// Verify Serverless operator is installed
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Subscription, types.NamespacedName{
-			Namespace: "openshift-serverless",
+			Namespace: openshiftServerlessNamespace,
 			Name:      serverlessOpName,
 		}),
 		WithCustomErrorMsg("Serverless operator should be installed for this test"),

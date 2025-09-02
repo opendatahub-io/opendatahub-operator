@@ -431,8 +431,11 @@ $(ENVTEST): $(LOCALBIN)
 	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
 
 .PHONY: test
-test: unit-test integration-test e2e-test ## Run all tests (unit, integration, and e2e)
+.PHONY: test
+test: unit-test integration-test ## Run unit and integration tests
 
+.PHONY: all-tests
+all-tests: test e2e-test ## Run unit, integration, and e2e tests
 .PHONY: unit-test-exit-code
 unit-test-exit-code: envtest ginkgo ## Capture unit test exit code (file contains numeric exit code, 0=success)
 	# Use --keep-going to run all tests despite failures, then capture actual exit code
@@ -474,7 +477,6 @@ unit-test: envtest ginkgo # directly use ginkgo since the framework is not compa
         		--covermode=atomic \
         		--coverpkg=./internal/...,./pkg/...,./api/... \
         		--coverprofile=coverprofile.out \
-        		--output-dir=. \
         		$(UNIT_TEST_SRC)
 	@echo "Coverage reports generated in individual directories"
 
@@ -520,12 +522,34 @@ ci-test-sources: envtest ginkgo ## Run all test sources (unit + integration) - p
         		--coverpkg=./internal/...,./pkg/...,./api/... \
         		--coverprofile=coverprofile.out \
         		$(TEST_SRC)
-	@echo "CI test sources coverage reports generated in individual directories"
+.PHONY: coverage-report
+coverage-report: gocovmerge ## Combine coverage reports from individual test runs
+	@echo "Combining coverage reports..."
+	@{ \
+	  files=$(find . -name "coverprofile.out" -type f -print0 2>/dev/null); \
+	  if [ -z "$files" ]; then \
+	    echo "No coverage files found; skipping merge"; \
+	  else \
+	    printf "%s" "$files" | xargs -0 $(GOCOVMERGE) > combined-cover.out; \
+	    echo "Merged coverage into combined-cover.out"; \
+	  fi; \
+	}
+	@echo "Combined coverage report created: combined-cover.out"
+
+.PHONY: coverage-report-sanitized
+coverage-report-sanitized: coverage-report ## Sanitize coverage reports for CI use
+	@echo "Sanitizing coverage reports..."
+	./hack/sanitize-coverage.sh
+	@echo "Sanitized coverage reports created"
 
 # Clean up individual coverage files
 CLEANFILES += cover.out
 CLEANFILES += .unit-test-exit-code
 CLEANFILES += combined-cover.out
+CLEANFILES += combined-cover-sanitized.out
+CLEANFILES += coverage-sanitized.html
+CLEANFILES += sanitized-*.cover.out
+CLEANFILES += sanitized-*.coverprofile.out
 
 $(PROMETHEUS_TEST_DIR)/%.rules.yaml: $(PROMETHEUS_TEST_DIR)/%.unit-tests.yaml $(PROMETHEUS_CONFIG_YAML) $(YQ)
 	$(YQ) eval ".data.\"$(@F:.rules.yaml=.rules)\"" $(PROMETHEUS_CONFIG_YAML) > $@

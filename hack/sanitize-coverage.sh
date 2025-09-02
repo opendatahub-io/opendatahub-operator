@@ -84,7 +84,7 @@ sanitize_file() {
     sed_inplace "$temp_file" 's|C:\\Users\\[^\\]*|C:\\Users\\REDACTED|g'
     sed_inplace "$temp_file" 's|C:/Users/[^/]*|C:/Users/REDACTED|g'
     # Replace email-like patterns (including mailto: prefixes and HTML-escaped @ symbols)
-    sed_inplace "$temp_file" 's|\(mailto:\)\?[a-zA-Z0-9._%+-]\{1,\}\(@\|&commat;\|&#64;\)[a-zA-Z0-9.-]\{1,\}\.[a-zA-Z]\{2,\}|REDACTED_EMAIL|g'
+    sed_inplace "$temp_file" 's|\(mailto:\)\{0,1\}[a-zA-Z0-9._%+-]\{1,\}\(@\|&commat;\|&#64;\)[a-zA-Z0-9.-]\{1,\}\.[a-zA-Z]\{2,\}|REDACTED_EMAIL|g'
     
     # Add targeted patterns for known safe prefixes that might contain temporary paths
     # macOS temporary directories
@@ -107,8 +107,8 @@ sanitize_file() {
         sed_inplace "$temp_file" 's|src="/home/[^"]*"|src="REDACTED_ABSOLUTE_PATH"|g'
         # Windows drive paths - match only single letter drive followed by colon and slash/backslash
         # Avoid matching http: or https: by requiring the pattern to start immediately after the quote
-        sed_inplace "$temp_file" 's|href="\(file://\)\?[A-Za-z]:[\\/][^"]*"|href="REDACTED_ABSOLUTE_PATH"|g'
-        sed_inplace "$temp_file" 's|src="\(file://\)\?[A-Za-z]:[\\/][^"]*"|src="REDACTED_ABSOLUTE_PATH"|g'
+        sed_inplace "$temp_file" 's|href="\(file://\)\{0,1\}[A-Za-z]:[\\/][^"]*"|href="REDACTED_ABSOLUTE_PATH"|g'
+        sed_inplace "$temp_file" 's|src="\(file://\)\{0,1\}[A-Za-z]:[\\/][^"]*"|src="REDACTED_ABSOLUTE_PATH"|g'
         
         # Remove mailto links and email patterns in href
         sed_inplace "$temp_file" 's|href="mailto:[^"]*"|href="mailto:REDACTED_EMAIL"|g'
@@ -196,7 +196,7 @@ main() {
         base=$(basename "$file")
         local sanitized_name="sanitized-${base}"
         sanitize_file "$file" "${dir}/${sanitized_name}"
-    done < <(find . \( -path './vendor' -prune -o -path './vendor/bin/bundle/catalog' -prune -o \( -name "*.cover.out" -o -name "*.coverprofile.out" \) \) -print0 2>/dev/null || true)
+    done < <(find . -path './vendor' -prune -o \( -name "*.cover.out" -o -name "*.coverprofile.out" \) -print0 2>/dev/null || true)
     
     if [[ "$has_coverage_files" == "false" ]]; then
         print_warning "No coverage files found to sanitize"
@@ -209,13 +209,16 @@ main() {
     local created_files=()
     
     # Check for each expected sanitized file
+    if [[ -f "combined-cover-sanitized.out" ]]; then
+        created_files+=("combined-cover-sanitized.out")
+    fi
     if [[ -f "coverage-sanitized.html" ]]; then
         created_files+=("coverage-sanitized.html")
     fi
     # Check for sanitized-*.cover.out and sanitized-*.coverprofile.out files
     while IFS= read -r -d '' file; do
         created_files+=("$file")
-    done < <(find . \( -path './vendor' -prune -o -path './vendor/bin/bundle/catalog' -prune -o \( -name "sanitized-*.cover.out" -o -name "sanitized-*.coverprofile.out" \) \) -print0 2>/dev/null || true)
+    done < <(find . -path './vendor' -prune -o \( -name "sanitized-*.cover.out" -o -name "sanitized-*.coverprofile.out" \) -print0 2>/dev/null || true)
     
     # Print the list of actually created files
     if [[ ${#created_files[@]} -gt 0 ]]; then

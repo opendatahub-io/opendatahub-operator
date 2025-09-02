@@ -25,10 +25,15 @@ Coverage files are excluded from version control by adding them to `.gitignore`:
 ```gitignore
 # Coverage reports - may contain sensitive information
 coverage.html
+coverage-sanitized.html
 combined-cover.out
+combined-cover-sanitized.out
 cover.out
+cover-sanitized.out
 *.cover.out
-*.coverprofile.out
+*coverprofile.out
+**/coverprofile.out.*
+*-sanitized.*
 ```
 
 ### 2. Sanitization Script
@@ -90,12 +95,28 @@ The sanitization process creates the following files:
 
 - `coverage-sanitized.html`: Sanitized HTML coverage report
 - `combined-cover-sanitized.out`: Sanitized combined coverage data
-- `cover-sanitized.out`: Sanitized individual coverage data
-- `sanitized-*.cover.out`: Sanitized individual coverage files
-
+- `sanitized-*.cover.out`: Sanitized individual Go cover profiles (e.g., sanitized-cover.out)
+- `sanitized-*.coverprofile.out`: Sanitized individual cover profiles
 ## What Gets Sanitized
 
 The sanitization script removes or replaces:
+
+### Repo Root Detection
+
+The script determines the repository root by:
+1. Running `git rev-parse --show-toplevel` to get the canonical repo root path
+2. Converting this to a realpath (using `realpath` or equivalent) to resolve any symlinks
+3. Using this absolute repo root path as the baseline for path comparison
+
+### Path Normalization and Comparison
+
+Before comparing paths, the script normalizes them by:
+1. **HTML Entity Unescaping**: Converting HTML entities in coverage HTML (e.g., `&#47;` → `/`)
+2. **Path Separator Normalization**: Converting backslashes to forward slashes for consistent matching
+3. **Windows Drive Letter Normalization**: Converting drive letters to lowercase (e.g., `C:\` → `c:\`)
+4. **Path Segment Normalization**: Removing redundant path segments (e.g., `./`, `../`, duplicate slashes)
+
+### Sanitization Rules
 
 1. **User/Home Path Prefixes** (only the prefix, preserving repo-relative paths):
    - `/Users/username/` → `/Users/REDACTED/`
@@ -112,12 +133,32 @@ The sanitization script removes or replaces:
 
 4. **Build and Temporary Paths**:
    - `/tmp/` → `/REDACTED_TMP/`
-   - Non-repo build roots only (outside the repo root):
-     - `/var/build/...` → `/REDACTED_BUILD/...`
-     - `/var/tmp/dist/...` → `/REDACTED_DIST/...`
-     - `/work/target/...` → `/REDACTED_TARGET/...`
+   - **Only absolute paths outside the repo root**:
+     - `/var/build/...` → `/REDACTED_BUILD/...` (if outside repo)
+     - `/var/tmp/dist/...` → `/REDACTED_DIST/...` (if outside repo)
+     - `/work/target/...` → `/REDACTED_TARGET/...` (if outside repo)
 
-**Note**: The sanitization script also redacts paths under `/tmp` and common build directories (e.g., `build/`, `dist/`, `target/`) to remove system-specific and build artifact paths. These redactions are intentional and do not break coverage mapping since they typically contain generated or temporary files that are not part of the source code being measured. In-repo directories named `build/`, `dist/`, or `target/` must NOT be redacted. Only redact absolute paths outside the repo root to preserve coverage mapping.
+### Path Redaction Logic
+
+**Critical**: The script must preserve coverage mapping by:
+1. **Redacting only when the normalized absolute path does NOT start with the repo root**
+2. **Preserving any repo-relative remainder** (including in-repo `build/`, `dist/`, `target/` directories)
+3. **Redacting only user/home prefixes or absolute build/tmp prefixes** when the path is outside the repo
+
+**Examples of correct behavior**:
+- Repo root: `/Users/johndoe/projects/opendatahub-operator`
+- Path: `/Users/johndoe/projects/opendatahub-operator/internal/controller/components.go`
+- Result: `/Users/REDACTED/projects/opendatahub-operator/internal/controller/components.go` ✅
+
+- Repo root: `/Users/johndoe/projects/opendatahub-operator`
+- Path: `/Users/johndoe/projects/opendatahub-operator/build/artifacts/file.go`
+- Result: `/Users/REDACTED/projects/opendatahub-operator/build/artifacts/file.go` ✅ (preserved)
+
+- Repo root: `/Users/johndoe/projects/opendatahub-operator`
+- Path: `/tmp/build123/other-project/file.go`
+- Result: `/REDACTED_TMP/build123/other-project/file.go` ✅ (redacted, outside repo)
+
+**Note**: In-repo directories named `build/`, `dist/`, or `target/` must NEVER be redacted as they are legitimate source code locations that need coverage mapping. Only redact absolute paths that are definitively outside the repo root to preserve coverage mapping integrity.
 
 **Important Guidelines**:
 - **Strip only the prefix**: Replace only the user/home directory prefix (e.g., `/Users/username/` → `/Users/REDACTED/`)

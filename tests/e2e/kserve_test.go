@@ -28,6 +28,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests"
 
 	. "github.com/onsi/gomega"
 )
@@ -42,13 +43,13 @@ var kserveTemplatedResources = []struct {
 }{
 	{gvk.KnativeServing, types.NamespacedName{Namespace: "knative-serving", Name: "knative-serving"}},
 	{gvk.ServiceMeshMember, types.NamespacedName{Namespace: "knative-serving", Name: "default"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "activator-host-header"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-after"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-before"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph-host-header"}},
-	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph"}},
-	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-predictor"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: "istio-system", Name: "kserve-local-gateway"}},
+	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: tests.IstioSystemNamespace, Name: "activator-host-header"}},
+	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: tests.IstioSystemNamespace, Name: "envoy-oauth-temp-fix-after"}},
+	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: tests.IstioSystemNamespace, Name: "envoy-oauth-temp-fix-before"}},
+	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: tests.IstioSystemNamespace, Name: "kserve-inferencegraph-host-header"}},
+	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: tests.IstioSystemNamespace, Name: "kserve-inferencegraph"}},
+	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: tests.IstioSystemNamespace, Name: "kserve-predictor"}},
+	{gvk.Gateway, types.NamespacedName{Namespace: tests.IstioSystemNamespace, Name: "kserve-local-gateway"}},
 	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-ingress-gateway"}},
 	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-local-gateway"}},
 }

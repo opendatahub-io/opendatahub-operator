@@ -630,7 +630,7 @@ func (tc *TestContext) EnsureResourceIsUnique(obj client.Object, args ...any) {
 //   - nn (types.NamespacedName): The namespace and name of the operator being installed.
 //   - skipOperatorGroupCreation (bool): If true, skips the creation or update of the operator group.
 func (tc *TestContext) EnsureOperatorInstalled(nn types.NamespacedName, skipOperatorGroupCreation bool) {
-	tc.EnsureOperatorInstalledWithChannel(nn, skipOperatorGroupCreation, defaultOperatorChannel)
+	tc.EnsureOperatorInstalledWithChannel(nn, skipOperatorGroupCreation, operatorChannel())
 }
 
 func (tc *TestContext) EnsureOperatorInstalledWithChannel(nn types.NamespacedName, skipOperatorGroupCreation bool, channelName string) {

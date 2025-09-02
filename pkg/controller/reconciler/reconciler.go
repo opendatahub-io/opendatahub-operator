@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -99,6 +100,13 @@ func newReconcilerWithClients[T common.PlatformObject](
 	dynamicClient dynamic.Interface,
 	opts ...ReconcilerOpt,
 ) (*Reconciler, error) {
+	// Precondition checks: ensure required parameters are valid
+	if strings.TrimSpace(name) == "" {
+		return nil, errors.New("reconciler: name cannot be empty")
+	}
+	if mgr == nil {
+		return nil, fmt.Errorf("reconciler %s: manager cannot be nil", name)
+	}
 	// Precondition checks: ensure required clients are non-nil
 	if discoveryClient == nil {
 		return nil, fmt.Errorf("reconciler %s: discoveryClient cannot be nil", name)
@@ -121,10 +129,6 @@ func newReconcilerWithClients[T common.PlatformObject](
 			}
 			if t.Kind() != reflect.Ptr {
 				return nil, fmt.Errorf("expected pointer, got %T", object)
-			}
-			// Check if the pointer itself is nil
-			if reflect.ValueOf(object).IsNil() {
-				return nil, errors.New("object must be a non-nil pointer")
 			}
 			t = t.Elem()
 			if t.Kind() != reflect.Struct {

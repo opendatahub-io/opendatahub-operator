@@ -175,6 +175,8 @@ type MonitoringList struct {
 	Items           []Monitoring `json:"items"`
 }
 
+// GetDevFlags returns the component's development flags configuration.
+// This implementation always returns nil as Monitoring does not support dev flags.
 func (m *Monitoring) GetDevFlags() *common.DevFlags {
 	return nil
 }

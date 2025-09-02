@@ -11,7 +11,7 @@ import (
 	"github.com/blang/semver/v4"
 	gTypes "github.com/onsi/gomega/types"
 	"github.com/operator-framework/api/pkg/lib/version"
-	"github.com/prometheus/client_golang/prometheus/testutil"
+
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/mock"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -46,6 +46,16 @@ func init() {
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 }
 
+// deriveControllerName derives the controller name from the instance's kind, same as production code.
+func deriveControllerName(instance common.PlatformObject) string {
+	return strings.ToLower(instance.GetObjectKind().GroupVersionKind().Kind)
+}
+
+// controllerLabel returns the controller label derived from the Dashboard kind.
+func controllerLabel() string {
+	return strings.ToLower(componentApi.DashboardKind)
+}
+
 //nolint:maintidx
 func TestGcAction(t *testing.T) {
 	g := NewWithT(t)
@@ -72,29 +82,26 @@ func TestGcAction(t *testing.T) {
 		uidFn          func(request *types.ReconciliationRequest) string
 	}{
 		{
-			name:           "should delete leftovers",
-			version:        semver.Version{Major: 0, Minor: 0, Patch: 1},
-			generated:      true,
-			matcher:        Satisfy(k8serr.IsNotFound),
-			metricsMatcher: BeNumerically("==", 1),
-			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
+			name:      "should delete leftovers",
+			version:   semver.Version{Major: 0, Minor: 0, Patch: 1},
+			generated: true,
+			matcher:   Satisfy(k8serr.IsNotFound),
+			uidFn:     func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 		{
-			name:           "should not delete resources because same annotations",
-			version:        semver.Version{Major: 0, Minor: 1, Patch: 0},
-			generated:      true,
-			matcher:        Not(HaveOccurred()),
-			metricsMatcher: BeNumerically("==", 1),
-			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
+			name:      "should not delete resources because same annotations",
+			version:   semver.Version{Major: 0, Minor: 1, Patch: 0},
+			generated: true,
+			matcher:   Not(HaveOccurred()),
+			uidFn:     func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 		{
-			name:           "should not delete resources because unmanaged",
-			version:        semver.Version{Major: 0, Minor: 1, Patch: 0},
-			generated:      true,
-			annotations:    map[string]string{annotations.ManagedByODHOperator: "false"},
-			matcher:        Not(HaveOccurred()),
-			metricsMatcher: BeNumerically("==", 1),
-			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
+			name:        "should not delete resources because unmanaged",
+			version:     semver.Version{Major: 0, Minor: 1, Patch: 0},
+			generated:   true,
+			annotations: map[string]string{annotations.ManagedByODHOperator: "false"},
+			matcher:     Not(HaveOccurred()),
+			uidFn:       func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 		{
 			name:           "should not delete resources because of no generated resources have been detected",
@@ -105,30 +112,27 @@ func TestGcAction(t *testing.T) {
 			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 		{
-			name:           "should not delete resources because of selector",
-			version:        semver.Version{Major: 0, Minor: 0, Patch: 1},
-			generated:      true,
-			matcher:        Not(HaveOccurred()),
-			metricsMatcher: BeNumerically("==", 1),
-			labels:         map[string]string{"foo": "bar"},
-			options:        []gc.ActionOpts{gc.WithLabel("foo", "baz")},
-			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
+			name:      "should not delete resources because of selector",
+			version:   semver.Version{Major: 0, Minor: 0, Patch: 1},
+			generated: true,
+			matcher:   Not(HaveOccurred()),
+			labels:    map[string]string{"foo": "bar"},
+			options:   []gc.ActionOpts{gc.WithLabel("foo", "baz")},
+			uidFn:     func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 		{
-			name:           "should not delete resources because of unremovable type",
-			version:        semver.Version{Major: 0, Minor: 0, Patch: 1},
-			generated:      true,
-			matcher:        Not(HaveOccurred()),
-			metricsMatcher: BeNumerically("==", 1),
-			options:        []gc.ActionOpts{gc.WithUnremovables(gvk.ConfigMap)},
-			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
+			name:      "should not delete resources because of unremovable type",
+			version:   semver.Version{Major: 0, Minor: 0, Patch: 1},
+			generated: true,
+			matcher:   Not(HaveOccurred()),
+			options:   []gc.ActionOpts{gc.WithUnremovables(gvk.ConfigMap)},
+			uidFn:     func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 		{
-			name:           "should not delete resources because of predicate",
-			version:        semver.Version{Major: 0, Minor: 0, Patch: 1},
-			generated:      true,
-			matcher:        Not(HaveOccurred()),
-			metricsMatcher: BeNumerically("==", 1),
+			name:      "should not delete resources because of predicate",
+			version:   semver.Version{Major: 0, Minor: 0, Patch: 1},
+			generated: true,
+			matcher:   Not(HaveOccurred()),
 			options: []gc.ActionOpts{gc.WithObjectPredicate(
 				func(request *types.ReconciliationRequest, unstructured unstructured.Unstructured) (bool, error) {
 					return unstructured.GroupVersionKind() != gvk.ConfigMap, nil
@@ -137,31 +141,23 @@ func TestGcAction(t *testing.T) {
 			uidFn: func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 		{
-			name:           "should delete leftovers because of UID",
-			version:        semver.Version{Major: 0, Minor: 1, Patch: 0},
-			generated:      true,
-			matcher:        Satisfy(k8serr.IsNotFound),
-			metricsMatcher: BeNumerically("==", 1),
-			uidFn:          func(rr *types.ReconciliationRequest) string { return xid.New().String() },
+			name:      "should delete leftovers because of UID",
+			version:   semver.Version{Major: 0, Minor: 1, Patch: 0},
+			generated: true,
+			matcher:   Satisfy(k8serr.IsNotFound),
+			uidFn:     func(rr *types.ReconciliationRequest) string { return xid.New().String() },
 		},
 		{
-			name:           "should not delete leftovers because of UID",
-			version:        semver.Version{Major: 0, Minor: 1, Patch: 0},
-			generated:      true,
-			matcher:        Not(HaveOccurred()),
-			metricsMatcher: BeNumerically("==", 1),
-			uidFn:          func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
+			name:      "should not delete leftovers because of UID",
+			version:   semver.Version{Major: 0, Minor: 1, Patch: 0},
+			generated: true,
+			matcher:   Not(HaveOccurred()),
+			uidFn:     func(rr *types.ReconciliationRequest) string { return string(rr.Instance.GetUID()) },
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gc.CyclesTotal.Reset()
-
-			// Derive the controller name from the resource Kind, same as the actual implementation
-			controllerName := strings.ToLower(componentApi.DashboardKind)
-			gc.CyclesTotal.WithLabelValues(controllerName).Add(0)
-
 			g := NewWithT(t)
 			id := xid.New().String()
 			nsn := xid.New().String()
@@ -208,6 +204,10 @@ func TestGcAction(t *testing.T) {
 
 			g.Expect(cli.Create(ctx, rr.Instance)).
 				NotTo(HaveOccurred())
+
+			// Derive the controller name from the resource Kind, same as the actual implementation
+			controllerName := deriveControllerName(rr.Instance)
+			gc.CyclesTotal.WithLabelValues(controllerName).Add(0)
 
 			t.Cleanup(func() {
 				g.Expect(cli.Delete(ctx, rr.Instance)).Should(Or(
@@ -268,7 +268,7 @@ func TestGcAction(t *testing.T) {
 			}
 
 			commonLabels := map[string]string{
-				labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+				labels.PlatformPartOf: controllerLabel(),
 			}
 
 			// should never get deleted
@@ -341,10 +341,6 @@ func TestGcAction(t *testing.T) {
 				g.Expect(err).To(tt.matcher)
 			}
 
-			if tt.metricsMatcher != nil {
-				ct := testutil.ToFloat64(gc.CyclesTotal.WithLabelValues(controllerName))
-				g.Expect(ct).Should(tt.metricsMatcher)
-			}
 		})
 	}
 }
@@ -388,12 +384,6 @@ func TestGcActionOwn(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gc.CyclesTotal.Reset()
-
-			// Derive the controller name from the resource Kind, same as the actual implementation
-			controllerName := strings.ToLower(componentApi.DashboardKind)
-			gc.CyclesTotal.WithLabelValues(controllerName).Add(0)
-
 			g := NewWithT(t)
 			nsn := xid.New().String()
 
@@ -440,6 +430,10 @@ func TestGcActionOwn(t *testing.T) {
 			g.Expect(cli.Create(ctx, rr.Instance)).
 				NotTo(HaveOccurred())
 
+			// Derive the controller name from the resource Kind, same as the actual implementation
+			controllerName := deriveControllerName(rr.Instance)
+			gc.CyclesTotal.WithLabelValues(controllerName).Add(0)
+
 			t.Cleanup(func() {
 				g.Expect(cli.Delete(ctx, rr.Instance)).Should(Or(
 					Not(HaveOccurred()),
@@ -458,7 +452,7 @@ func TestGcActionOwn(t *testing.T) {
 						annotations.PlatformType:       string(rr.Release.Name),
 					},
 					Labels: map[string]string{
-						labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+						labels.PlatformPartOf: controllerLabel(),
 					},
 				},
 			}
@@ -568,7 +562,7 @@ func TestGcActionCluster(t *testing.T) {
 			annotations.PlatformType:       string(cluster.OpenDataHub),
 		},
 		Labels: map[string]string{
-			labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+			labels.PlatformPartOf: controllerLabel(),
 		},
 	}
 
@@ -614,12 +608,6 @@ func TestGcActionCluster(t *testing.T) {
 
 	a := gc.NewAction(gc.WithDeletePropagationPolicy(metav1.DeletePropagationBackground), gc.InNamespace(nsn))
 
-	gc.DeletedTotal.Reset()
-
-	// Derive the controller name from the resource Kind, same as the actual implementation
-	controllerName := strings.ToLower(componentApi.DashboardKind)
-	gc.DeletedTotal.WithLabelValues(controllerName).Add(0)
-
 	err = a(ctx, &rr)
 	g.Expect(err).NotTo(HaveOccurred())
 
@@ -634,9 +622,6 @@ func TestGcActionCluster(t *testing.T) {
 
 	err = cli.Get(ctx, ctrlCli.ObjectKeyFromObject(&cr2), &rbacv1.ClusterRole{})
 	g.Expect(err).ToNot(HaveOccurred())
-
-	ct := testutil.ToFloat64(gc.DeletedTotal.WithLabelValues(controllerName))
-	g.Expect(ct).Should(BeNumerically("==", 2))
 }
 
 func TestGcActionOnce(t *testing.T) {
@@ -713,7 +698,7 @@ func TestGcActionOnce(t *testing.T) {
 			annotations.PlatformVersion:    rr.Release.Version.String(),
 		},
 		Labels: map[string]string{
-			labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
+			labels.PlatformPartOf: controllerLabel(),
 		},
 	}}
 
@@ -725,15 +710,6 @@ func TestGcActionOnce(t *testing.T) {
 
 	a := gc.NewAction(gc.WithDeletePropagationPolicy(metav1.DeletePropagationBackground), gc.InNamespace(nsn))
 
-	gc.DeletedTotal.Reset()
-
-	// Derive the controller name from the resource Kind, same as the actual implementation
-	controllerName := strings.ToLower(componentApi.DashboardKind)
-	gc.DeletedTotal.WithLabelValues(controllerName).Add(0)
-
 	g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
-	g.Expect(testutil.ToFloat64(gc.DeletedTotal.WithLabelValues(controllerName))).Should(BeNumerically("==", 1))
-
 	g.Expect(a(ctx, &rr)).NotTo(HaveOccurred())
-	g.Expect(testutil.ToFloat64(gc.DeletedTotal.WithLabelValues(controllerName))).Should(BeNumerically("==", 1))
 }

@@ -1,8 +1,7 @@
 package reconciler_test
 
 import (
-	"fmt"
-	"reflect"
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +15,11 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+)
+
+const (
+	errWithBroadPredicateNil = "WithBroadPredicate should not return nil"
 )
 
 func newHermeticManager(t *testing.T) ctrl.Manager {
@@ -46,7 +50,7 @@ func TestReconcilerBuilderWithBroadPredicate(t *testing.T) {
 	result := rb.WithBroadPredicate()
 
 	// Fail fast if result is nil before comparing pointers
-	require.NotNil(t, result, "WithBroadPredicate should not return nil")
+	require.NotNil(t, result, errWithBroadPredicateNil)
 
 	// Should return the same builder instance (fluent API)
 	assert.Same(t, rb, result)
@@ -66,19 +70,38 @@ func TestReconcilerBuilderCustomOptionsFluent(t *testing.T) {
 	result := rb.WithBroadPredicate()
 
 	// Fail fast if result is nil before comparing pointers
-	require.NotNil(t, result, "WithBroadPredicate should not return nil")
+	require.NotNil(t, result, errWithBroadPredicateNil)
 
 	// Should return the same builder instance (fluent API) - pointer identity check
 	assert.Same(t, rb, result)
+}
 
-	// Verify no new instance was created - compare addresses
-	assert.Equal(t, fmt.Sprintf("%p", rb), fmt.Sprintf("%p", result), "WithBroadPredicate should return the same instance, not create a new one")
+func TestReconcilerBuilderBroadPredicateBehavior(t *testing.T) {
+	t.Parallel()
+	mgr := newHermeticManager(t)
 
-	// Assert the builder's internal state equals the expected "broad" configuration
-	// The useBroadPredicate field should be true after calling WithBroadPredicate()
-	// We can access this through reflection since it's an unexported field
-	rbValue := reflect.ValueOf(rb).Elem()
-	useBroadPredicateField := rbValue.FieldByName("useBroadPredicate")
-	require.True(t, useBroadPredicateField.IsValid(), "useBroadPredicate field should exist")
-	assert.True(t, useBroadPredicateField.Bool(), "useBroadPredicate should be true after calling WithBroadPredicate()")
+	// Create a test object
+	obj := &v1alpha1.Dashboard{}
+
+	// Test that the fluent API works correctly - calling WithBroadPredicate multiple times
+	// should not change the behavior and should return the same instance
+	rb := reconciler.ReconcilerFor(mgr, obj)
+
+	// First call to WithBroadPredicate
+	result1 := rb.WithBroadPredicate()
+	require.NotNil(t, result1, errWithBroadPredicateNil)
+	assert.Same(t, rb, result1, "WithBroadPredicate should return the same instance for fluent API")
+
+	// Second call to WithBroadPredicate should return the same instance
+	result2 := result1.WithBroadPredicate()
+	require.NotNil(t, result2, errWithBroadPredicateNil)
+	assert.Same(t, rb, result2, "WithBroadPredicate should return the same instance for fluent API")
+	assert.Same(t, result1, result2, "Multiple calls to WithBroadPredicate should return the same instance")
+
+	// Test that the fluent API works with other methods
+	result3 := result2.WithAction(func(ctx context.Context, req *types.ReconciliationRequest) error {
+		return nil
+	})
+	require.NotNil(t, result3, "WithAction should not return nil")
+	assert.Same(t, rb, result3, "WithAction should return the same instance for fluent API")
 }

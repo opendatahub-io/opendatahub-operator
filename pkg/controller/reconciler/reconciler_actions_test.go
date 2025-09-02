@@ -50,8 +50,8 @@ func TestDynamicWatchActionRun(t *testing.T) {
 			name:   "should register a watcher when the predicate evaluate to true",
 			object: &componentApi.Dashboard{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
 			preds: []DynamicPredicate{
-				func(_ context.Context, rr *types.ReconciliationRequest) bool {
-					return true
+				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
+					return true, nil
 				},
 			},
 			errMatcher: Not(HaveOccurred()),
@@ -71,11 +71,11 @@ func TestDynamicWatchActionRun(t *testing.T) {
 				},
 			},
 			preds: []DynamicPredicate{
-				func(_ context.Context, rr *types.ReconciliationRequest) bool {
-					return rr.Instance.GetGeneration() > 0
+				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
+					return rr.Instance.GetGeneration() > 0, nil
 				},
-				func(_ context.Context, rr *types.ReconciliationRequest) bool {
-					return rr.Instance.GetResourceVersion() != ""
+				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
+					return rr.Instance.GetResourceVersion() != "", nil
 				},
 			},
 			errMatcher: Not(HaveOccurred()),
@@ -87,8 +87,8 @@ func TestDynamicWatchActionRun(t *testing.T) {
 			name:   "should register a watcher even when dynamic predicates are supplied but not evaluated",
 			object: &componentApi.Dashboard{TypeMeta: metav1.TypeMeta{Kind: gvk.Dashboard.Kind}},
 			preds: []DynamicPredicate{
-				func(_ context.Context, rr *types.ReconciliationRequest) bool {
-					return false // This predicate is not evaluated in the current implementation
+				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
+					return false, nil // This predicate is not evaluated in the current implementation
 				},
 			},
 			errMatcher: Not(HaveOccurred()),
@@ -108,11 +108,11 @@ func TestDynamicWatchActionRun(t *testing.T) {
 				},
 			},
 			preds: []DynamicPredicate{
-				func(_ context.Context, rr *types.ReconciliationRequest) bool {
-					return rr.Instance.GetGeneration() > 0 // This predicate is not evaluated in the current implementation
+				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
+					return rr.Instance.GetGeneration() > 0, nil // This predicate is not evaluated in the current implementation
 				},
-				func(_ context.Context, rr *types.ReconciliationRequest) bool {
-					return rr.Instance.GetResourceVersion() != "" // This predicate is not evaluated in the current implementation
+				func(_ context.Context, rr *types.ReconciliationRequest) (bool, error) {
+					return rr.Instance.GetResourceVersion() != "", nil // This predicate is not evaluated in the current implementation
 				},
 			},
 			errMatcher: Not(HaveOccurred()),

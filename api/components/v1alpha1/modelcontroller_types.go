@@ -67,7 +67,12 @@ type ModelControllerKerveSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
+// GetDevFlags returns the component's development flags.
+// Returns nil if the receiver or DevFlags is nil. Callers should nil-check the result.
 func (s *ModelControllerKerveSpec) GetDevFlags() *common.DevFlags {
+	if s == nil {
+		return nil
+	}
 	return s.DevFlags
 }
 
@@ -77,7 +82,12 @@ type ModelControllerMMSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 }
 
+// GetDevFlags returns the component's development flags.
+// Returns nil if the receiver or DevFlags is nil. Callers should nil-check the result.
 func (s *ModelControllerMMSpec) GetDevFlags() *common.DevFlags {
+	if s == nil {
+		return nil
+	}
 	return s.DevFlags
 }
 
@@ -102,6 +112,9 @@ func init() {
 	SchemeBuilder.Register(&ModelController{}, &ModelControllerList{})
 }
 
+// GetDevFlags returns the component's development flags configuration.
+// This implementation always returns nil as ModelController delegates to its sub-specs.
+// Callers should check the specific sub-specs (Kserve, ModelMeshServing) for dev flags.
 func (c *ModelController) GetDevFlags() *common.DevFlags { return nil }
 
 func (c *ModelController) GetStatus() *common.Status {

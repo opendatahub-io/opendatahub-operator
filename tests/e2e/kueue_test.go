@@ -42,6 +42,7 @@ const (
 	kueueTestHardwareProfileNamespace   = "test-kueue-hardware-profile-ns"
 	kueueDefaultClusterQueueName        = "default"
 	kueueDefaultLocalQueueName          = "default"
+	nvidiaGPUResource                   = "nvidia.com/gpu"
 )
 
 type KueueTestCtx struct {
@@ -623,34 +624,9 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 	cleanupKueueTestResources(t, tc.TestContext)
 }
 
-// ValidateHardwareProfileWebhookValidation validates the hardware profile webhook behavior using table-driven tests.
-func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
-	t.Helper()
-
-	// Create a non-managed namespace for hardware profile testing (avoids Kueue validation interference)
-	tc.setupNamespace(kueueTestHardwareProfileNamespace, false, false)
-
-	// Setup cleanup for the test namespace
-	t.Cleanup(func() {
-		tc.DeleteResource(
-			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: kueueTestHardwareProfileNamespace}),
-		)
-	})
-
-	// Helper struct for hardware profile test cases to reduce parameter count
-	type HardwareProfileTestCase struct {
-		name              string
-		workloadName      string
-		profileName       string
-		profileSpec       *infrav1alpha1.HardwareProfileSpec
-		shouldBlock       bool
-		expectedError     string
-		errorMsg          string
-		expectedCondition gTypes.GomegaMatcher
-	}
-
-	// Common hardware profile specs for this test function
-	basicProfile := &infrav1alpha1.HardwareProfileSpec{
+// createBasicHardwareProfileSpec creates a basic hardware profile spec for testing.
+func (tc *KueueTestCtx) createBasicHardwareProfileSpec() *infrav1alpha1.HardwareProfileSpec {
+	return &infrav1alpha1.HardwareProfileSpec{
 		Identifiers: []infrav1alpha1.HardwareIdentifier{
 			{
 				DisplayName:  "CPU",
@@ -661,8 +637,11 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 			},
 		},
 	}
+}
 
-	resourceInjectionProfile := &infrav1alpha1.HardwareProfileSpec{
+// createResourceInjectionHardwareProfileSpec creates a hardware profile spec with resource injection for testing.
+func (tc *KueueTestCtx) createResourceInjectionHardwareProfileSpec() *infrav1alpha1.HardwareProfileSpec {
+	return &infrav1alpha1.HardwareProfileSpec{
 		Identifiers: []infrav1alpha1.HardwareIdentifier{
 			{
 				DisplayName:  "CPU",
@@ -680,19 +659,22 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 			},
 			{
 				DisplayName:  "GPU",
-				Identifier:   "nvidia.com/gpu",
+				Identifier:   nvidiaGPUResource,
 				MinCount:     intstr.FromInt32(1),
 				DefaultCount: intstr.FromInt32(1),
 				ResourceType: "Accelerator",
 			},
 		},
 	}
+}
 
-	nodeSchedulingProfile := &infrav1alpha1.HardwareProfileSpec{
+// createNodeSchedulingHardwareProfileSpec creates a hardware profile spec with node scheduling for testing.
+func (tc *KueueTestCtx) createNodeSchedulingHardwareProfileSpec() *infrav1alpha1.HardwareProfileSpec {
+	return &infrav1alpha1.HardwareProfileSpec{
 		Identifiers: []infrav1alpha1.HardwareIdentifier{
 			{
 				DisplayName:  "GPU",
-				Identifier:   "nvidia.com/gpu",
+				Identifier:   nvidiaGPUResource,
 				MinCount:     intstr.FromInt32(1),
 				DefaultCount: intstr.FromInt32(1),
 				ResourceType: "Accelerator",
@@ -707,7 +689,7 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 				},
 				Tolerations: []corev1.Toleration{
 					{
-						Key:      "nvidia.com/gpu",
+						Key:      nvidiaGPUResource,
 						Operator: corev1.TolerationOpExists,
 						Effect:   corev1.TaintEffectNoSchedule,
 					},
@@ -715,75 +697,90 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 			},
 		},
 	}
+}
 
-	// Simplified helper function with struct parameter
-	testHardwareProfileWorkload := func(testCase HardwareProfileTestCase) func(*testing.T) {
-		return func(t *testing.T) {
-			t.Helper()
+// HardwareProfileTestCase struct for hardware profile test cases to reduce parameter count.
+type HardwareProfileTestCase struct {
+	name              string
+	workloadName      string
+	profileName       string
+	profileSpec       *infrav1alpha1.HardwareProfileSpec
+	shouldBlock       bool
+	expectedError     string
+	errorMsg          string
+	expectedCondition gTypes.GomegaMatcher
+}
 
-			// Use the dedicated hardware profile test namespace (non-managed to avoid Kueue validation)
-			testNamespace := kueueTestHardwareProfileNamespace
+// testHardwareProfileWorkload creates a test function for hardware profile validation.
+func (tc *KueueTestCtx) testHardwareProfileWorkload(testCase HardwareProfileTestCase) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
 
-			// Create hardware profile if spec is provided
-			if testCase.profileSpec != nil {
-				hwp := envtestutil.NewHardwareProfile(testCase.profileName, testNamespace, envtestutil.WithHardwareProfileSpec(*testCase.profileSpec))
-				tc.EventuallyResourceCreatedOrUpdated(
-					WithObjectToCreate(hwp),
-					WithCustomErrorMsg("Failed to create hardware profile for %s", testCase.name),
+		// Use the dedicated hardware profile test namespace (non-managed to avoid Kueue validation)
+		testNamespace := kueueTestHardwareProfileNamespace
+
+		// Create hardware profile if spec is provided
+		if testCase.profileSpec != nil {
+			hwp := envtestutil.NewHardwareProfile(testCase.profileName, testNamespace, envtestutil.WithHardwareProfileSpec(*testCase.profileSpec))
+			tc.EventuallyResourceCreatedOrUpdated(
+				WithObjectToCreate(hwp),
+				WithCustomErrorMsg("Failed to create hardware profile for %s", testCase.name),
+			)
+
+			// Cleanup hardware profile after test
+			t.Cleanup(func() {
+				tc.DeleteResource(
+					WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: testCase.profileName, Namespace: testNamespace}),
 				)
+			})
+		}
 
-				// Cleanup hardware profile after test
-				t.Cleanup(func() {
-					tc.DeleteResource(
-						WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: testCase.profileName, Namespace: testNamespace}),
-					)
-				})
-			}
+		// Create notebook workload
+		var notebook client.Object
+		if testCase.profileName != "" {
+			notebook = envtestutil.NewNotebook(testCase.workloadName, testNamespace, envtestutil.WithHardwareProfile(testCase.profileName))
+		} else {
+			notebook = envtestutil.NewNotebook(testCase.workloadName, testNamespace)
+		}
 
-			// Create notebook workload
-			var notebook client.Object
-			if testCase.profileName != "" {
-				notebook = envtestutil.NewNotebook(testCase.workloadName, testNamespace, envtestutil.WithHardwareProfile(testCase.profileName))
-			} else {
-				notebook = envtestutil.NewNotebook(testCase.workloadName, testNamespace)
-			}
-
-			// Test webhook behavior
-			if testCase.shouldBlock {
-				tc.EnsureWebhookBlocksResourceCreation(
+		// Test webhook behavior
+		if testCase.shouldBlock {
+			tc.EnsureWebhookBlocksResourceCreation(
+				WithObjectToCreate(notebook),
+				WithInvalidValue(testCase.expectedError),
+				WithCustomErrorMsg(testCase.errorMsg),
+			)
+		} else {
+			if testCase.expectedCondition != nil {
+				tc.EventuallyResourceCreatedOrUpdated(
 					WithObjectToCreate(notebook),
-					WithInvalidValue(testCase.expectedError),
+					WithCondition(testCase.expectedCondition),
 					WithCustomErrorMsg(testCase.errorMsg),
 				)
 			} else {
-				if testCase.expectedCondition != nil {
-					tc.EventuallyResourceCreatedOrUpdated(
-						WithObjectToCreate(notebook),
-						WithCondition(testCase.expectedCondition),
-						WithCustomErrorMsg(testCase.errorMsg),
-					)
-				} else {
-					tc.EventuallyResourceCreatedOrUpdated(
-						WithObjectToCreate(notebook),
-						WithCustomErrorMsg(testCase.errorMsg),
-					)
-				}
-
-				// Cleanup notebook after successful creation
-				t.Cleanup(func() {
-					tc.DeleteResource(
-						WithMinimalObject(gvk.Notebook, types.NamespacedName{Name: testCase.workloadName, Namespace: testNamespace}),
-					)
-				})
+				tc.EventuallyResourceCreatedOrUpdated(
+					WithObjectToCreate(notebook),
+					WithCustomErrorMsg(testCase.errorMsg),
+				)
 			}
+
+			// Cleanup notebook after successful creation
+			t.Cleanup(func() {
+				tc.DeleteResource(
+					WithMinimalObject(gvk.Notebook, types.NamespacedName{Name: testCase.workloadName, Namespace: testNamespace}),
+				)
+			})
 		}
 	}
+}
 
+// createHardwareProfileTestCases creates the test cases for hardware profile validation.
+func (tc *KueueTestCtx) createHardwareProfileTestCases() []TestCase {
 	// Define test cases
-	testCases := []TestCase{
+	return []TestCase{
 		{
 			name: "blocks workload with non-existent hardware profile",
-			testFn: testHardwareProfileWorkload(
+			testFn: tc.testHardwareProfileWorkload(
 				HardwareProfileTestCase{
 					name:              "non-existent",
 					workloadName:      "notebook-invalid-profile",
@@ -797,12 +794,12 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 		},
 		{
 			name: "allows workload with valid hardware profile",
-			testFn: testHardwareProfileWorkload(
+			testFn: tc.testHardwareProfileWorkload(
 				HardwareProfileTestCase{
 					name:              "valid",
 					workloadName:      "notebook-valid-profile",
 					profileName:       "basic-profile",
-					profileSpec:       basicProfile,
+					profileSpec:       tc.createBasicHardwareProfileSpec(),
 					shouldBlock:       false, // Should allow
 					expectedError:     "",
 					errorMsg:          "Expected notebook with valid hardware profile to be allowed",
@@ -811,37 +808,37 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 		},
 		{
 			name: "injects resources correctly",
-			testFn: testHardwareProfileWorkload(
+			testFn: tc.testHardwareProfileWorkload(
 				HardwareProfileTestCase{
 					name:          "resource-injection",
 					workloadName:  "notebook-resource-injection",
 					profileName:   "resource-profile",
-					profileSpec:   resourceInjectionProfile,
+					profileSpec:   tc.createResourceInjectionHardwareProfileSpec(),
 					shouldBlock:   false, // Should allow
 					expectedError: "",
 					errorMsg:      "Failed to validate resource injection in notebook",
 					expectedCondition: And(
 						jq.Match(`.spec.template.spec.containers[0].resources.requests.cpu == "2"`),
 						jq.Match(`.spec.template.spec.containers[0].resources.requests.memory == "4Gi"`),
-						jq.Match(`.spec.template.spec.containers[0].resources.requests["nvidia.com/gpu"] == "1"`),
+						jq.Match(`.spec.template.spec.containers[0].resources.requests["%s"] == "1"`, nvidiaGPUResource),
 					),
 				}),
 		},
 		{
 			name: "injects node scheduling correctly",
-			testFn: testHardwareProfileWorkload(
+			testFn: tc.testHardwareProfileWorkload(
 				HardwareProfileTestCase{
 					name:          "node-scheduling",
 					workloadName:  "notebook-node-scheduling",
 					profileName:   "node-scheduling-profile",
-					profileSpec:   nodeSchedulingProfile,
+					profileSpec:   tc.createNodeSchedulingHardwareProfileSpec(),
 					shouldBlock:   false, // Should allow
 					expectedError: "",
 					errorMsg:      "Failed to validate node scheduling injection in notebook",
 					expectedCondition: And(
 						jq.Match(`.spec.template.spec.nodeSelector.accelerator == "nvidia-tesla-v100"`),
 						jq.Match(`.spec.template.spec.nodeSelector.zone == "us-west1-a"`),
-						jq.Match(`.spec.template.spec.tolerations[0].key == "nvidia.com/gpu"`),
+						jq.Match(`.spec.template.spec.tolerations[0].key == "%s"`, nvidiaGPUResource),
 						jq.Match(`.spec.template.spec.tolerations[0].operator == "Exists"`),
 						jq.Match(`.spec.template.spec.tolerations[0].effect == "NoSchedule"`),
 					),
@@ -849,7 +846,7 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 		},
 		{
 			name: "allows workload without hardware profile annotation",
-			testFn: testHardwareProfileWorkload(
+			testFn: tc.testHardwareProfileWorkload(
 				HardwareProfileTestCase{
 					name:              "no-annotation",
 					workloadName:      "notebook-no-annotation",
@@ -862,9 +859,24 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 				}),
 		},
 	}
+}
+
+// ValidateHardwareProfileWebhookValidation validates the hardware profile webhook behavior using table-driven tests.
+func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
+	t.Helper()
+
+	// Create a non-managed namespace for hardware profile testing (avoids Kueue validation interference)
+	tc.setupNamespace(kueueTestHardwareProfileNamespace, false, false)
+
+	// Setup cleanup for the test namespace
+	t.Cleanup(func() {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: kueueTestHardwareProfileNamespace}),
+		)
+	})
 
 	// Run the test cases
-	RunTestCases(t, testCases)
+	RunTestCases(t, tc.createHardwareProfileTestCases())
 }
 
 // ValidateKueueUnmanagedToManagedTransition ensures the transition from Unmanaged to Managed state happens as expected.
@@ -926,7 +938,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 	)
 
 	// Uninstall ocp kueue-operator
-	uninstallOperatorWithChannel(t, tc.TestContext, types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, kueueOcpOperatorChannel)
+	uninstallOperator(t, tc.TestContext, types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace})
 
 	conditionsManagedReady := []gTypes.GomegaMatcher{
 		// Validate that the component's management state is updated correctly

@@ -75,7 +75,7 @@ combined-cover-sanitized.out
 cover.out
 cover-sanitized.out
 *.cover.out
-*coverprofile.out
+coverprofile.out
 **/coverprofile.out.*
 *-sanitized.*
 /.unit-test-exit-code
@@ -85,6 +85,8 @@ coverage.out
 *.cover
 *.cover.out
 *.coverprofile
+*coverprofile.out
+*_coverprofile.out
 *.prof
 *.test
 *.test.out
@@ -96,15 +98,12 @@ coverage.xml
 htmlcov/
 .tox/
 .pytest_cache/
-*.pyc
 __pycache__/
-.pytest_cache/
 
 # JavaScript/Node.js coverage files
 lcov.info
 .nyc_output/
 coverage/
 *.lcov
-.nyc_output
 coverage.json
 coverage-final.json

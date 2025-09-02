@@ -66,7 +66,7 @@ type forInput struct {
 // based on the current reconciliation context. It receives the context and reconciliation
 // request, and returns true if the watch should be active, false otherwise.
 // Dynamic predicates are evaluated at runtime during each reconciliation cycle.
-type DynamicPredicate func(context.Context, *types.ReconciliationRequest) bool
+type DynamicPredicate func(context.Context, *types.ReconciliationRequest) (bool, error)
 
 // watchInput contains the configuration for a single watch operation.
 // It includes both static predicates (evaluated at watch creation time) and
@@ -107,7 +107,12 @@ func WithEventMapper(value handler.MapFunc) WatchOpts {
 func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 	return func(a *watchInput) {
 		a.dynamic = true
-		a.dynamicPredicates = append(a.dynamicPredicates, predicates...)
+		// Filter out nil predicates to avoid runtime panics
+		for _, predicate := range predicates {
+			if predicate != nil {
+				a.dynamicPredicates = append(a.dynamicPredicates, predicate)
+			}
+		}
 	}
 }
 
@@ -117,12 +122,12 @@ func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 //
 //	builder.Watches(object, Dynamic(CrdExists(schema.GroupVersionKind{Group: "example.com", Version: "v1", Kind: "MyCRD"})))
 func CrdExists(crdGvk schema.GroupVersionKind) DynamicPredicate {
-	return func(ctx context.Context, request *types.ReconciliationRequest) bool {
-		if hasCrd, err := cluster.HasCRD(ctx, request.Client, crdGvk); err != nil {
-			return false
-		} else {
-			return hasCrd
+	return func(ctx context.Context, request *types.ReconciliationRequest) (bool, error) {
+		hasCrd, err := cluster.HasCRD(ctx, request.Client, crdGvk)
+		if err != nil {
+			return false, err
 		}
+		return hasCrd, nil
 	}
 }
 
@@ -304,7 +309,7 @@ func (b *ReconcilerBuilder[T]) OwnsGVK(gvk schema.GroupVersionKind, opts ...Watc
 	return b.Owns(resources.GvkToUnstructured(gvk), opts...)
 }
 
-func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
+func (b *ReconcilerBuilder[T]) Build(ctx context.Context) (*Reconciler, error) {
 	if b.errors != nil {
 		return nil, b.errors
 	}
@@ -350,9 +355,17 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 }
 
 func (b *ReconcilerBuilder[T]) validateManager() error {
-	// Use RLock for the early return check
 	b.mu.RLock()
-	// Double-check after acquiring write lock to prevent race conditions
+	if b.discoveryClient != nil && b.dynamicClient != nil {
+		b.mu.RUnlock()
+		return nil
+	}
+	b.mu.RUnlock()
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// Re-check after acquiring write lock
 	if b.discoveryClient != nil && b.dynamicClient != nil {
 		return nil
 	}
@@ -395,14 +408,6 @@ func (b *ReconcilerBuilder[T]) validateObject() (T, error) {
 }
 
 func (b *ReconcilerBuilder[T]) createReconciler(name string, obj T) (*Reconciler, error) {
-	// Verify cached clients are non-nil before proceeding
-	if b.discoveryClient == nil {
-		return nil, errors.New("cached discovery client is nil")
-	}
-	if b.dynamicClient == nil {
-		return nil, errors.New("cached dynamic client is nil")
-	}
-
 	// Use cached clients that were initialized during validateManager
 	r, err := newReconcilerWithClients(b.mgr, name, obj, b.discoveryClient, b.dynamicClient, WithConditionsManagerFactory(b.happyCondition, b.dependantConditions...))
 	if err != nil {
@@ -532,17 +537,19 @@ func (b *ReconcilerBuilder[T]) addActionsAndFinalizers(r *Reconciler) {
 	}
 }
 
-func (b *ReconcilerBuilder[T]) addDynamicWatchAction(r *Reconciler) {
-	// Only add dynamic watch action if there are dynamic watches configured
-	hasDynamicWatches := false
+// hasDynamicWatches returns true if any watch in the builder is configured as dynamic.
+func (b *ReconcilerBuilder[T]) hasDynamicWatches() bool {
 	for _, watch := range b.watches {
 		if watch.dynamic {
-			hasDynamicWatches = true
-			break
+			return true
 		}
 	}
+	return false
+}
 
-	if !hasDynamicWatches {
+func (b *ReconcilerBuilder[T]) addDynamicWatchAction(r *Reconciler) {
+	// Only add dynamic watch action if there are dynamic watches configured
+	if !b.hasDynamicWatches() {
 		return
 	}
 

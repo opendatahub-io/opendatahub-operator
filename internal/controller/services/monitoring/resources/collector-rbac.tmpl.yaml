@@ -35,5 +35,5 @@ roleRef:
   name: generate-processors-role
 subjects:
 - kind: ServiceAccount
-  name: data-science-collector-collector
+  name: data-science-collector
   namespace: {{.Namespace}}

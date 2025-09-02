@@ -40,15 +40,20 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
-// ValidateInstanceName validates instanceName as a DNS-1123 subdomain using k8s apimachinery.
-func ValidateInstanceName(instanceName string) error {
-	if instanceName == "" {
-		return nil // Empty means "use default" – validated after defaulting.
+// ValidateInstanceName validates instanceName as a DNS-1123 label using k8s apimachinery.
+// It trims leading/trailing spaces and returns the trimmed value along with any validation error.
+// Returns empty string if the input is empty or contains only whitespace.
+// Empty strings are explicitly allowed and mean "use default instance name" - this bypasses DNS-1123 validation
+// since the default name will be validated separately.
+func ValidateInstanceName(instanceName string) (string, error) {
+	trimmed := strings.TrimSpace(instanceName)
+	if trimmed == "" {
+		return "", nil // Empty means "use default" – validated after defaulting.
 	}
-	if errs := validation.IsDNS1123Subdomain(instanceName); len(errs) > 0 {
-		return fmt.Errorf("invalid instanceName %q: %s", instanceName, strings.Join(errs, "; "))
+	if errs := validation.IsDNS1123Label(trimmed); len(errs) > 0 {
+		return "", fmt.Errorf("invalid instanceName %q: %s", trimmed, strings.Join(errs, "; "))
 	}
-	return nil
+	return trimmed, nil
 }
 
 func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
@@ -56,7 +61,10 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 }
 
 // NewDataScienceClusterReconcilerWithName creates a DataScienceCluster reconciler with a custom instance name.
+// If instanceName is empty or contains only whitespace, it defaults to the resource's GVK Kind in lowercase.
+// The resulting name (whether provided or defaulted) is subject to DNS-1123 label validation.
 // This is useful for testing to avoid controller name conflicts.
+// Callers can pass an empty string to use the default validated name.
 func NewDataScienceClusterReconcilerWithName(ctx context.Context, mgr ctrl.Manager, instanceName string) error {
 	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
@@ -96,28 +104,35 @@ func NewDataScienceClusterReconcilerWithName(ctx context.Context, mgr ctrl.Manag
 		)).
 		WithConditions(status.ConditionTypeComponentsReady)
 
-	// Default instanceName to lowercase GVK Kind when empty
-	if instanceName == "" {
-		gvk, err := apiutil.GVKForObject(&dscv1.DataScienceCluster{}, mgr.GetScheme())
-		if err != nil {
-			return fmt.Errorf("failed to get GVK for DataScienceCluster: %w", err)
-		}
-		instanceName = strings.ToLower(gvk.Kind)
-		ctrl.Log.Info("defaulted instanceName", "instanceName", instanceName)
-	}
-
-	// Validate instanceName after defaulting
-	if err := ValidateInstanceName(instanceName); err != nil {
+	// Validate the instanceName first (before normalization)
+	validatedInstanceName, err := ValidateInstanceName(instanceName)
+	if err != nil {
 		return err
 	}
 
+	// Use validated value if not empty, otherwise default to lowercase GVK Kind
+	if validatedInstanceName != "" {
+		// Normalize the validated name: convert to lowercase
+		instanceName = strings.ToLower(validatedInstanceName)
+	} else {
+		// Default instanceName to lowercase GVK Kind when empty or whitespace-only
+		if gvk, err := apiutil.GVKForObject(&dscv1.DataScienceCluster{}, mgr.GetScheme()); err != nil {
+			return fmt.Errorf("failed to get GVK for DataScienceCluster: %w", err)
+		} else {
+			instanceName = strings.ToLower(gvk.Kind)
+			ctrl.Log.Info("defaulted instanceName", "instanceName", instanceName)
+		}
+
+		// Validate the defaulted instance name conforms to DNS-1123 label rules
+		if errs := validation.IsDNS1123Label(instanceName); len(errs) > 0 {
+			return fmt.Errorf("defaulted instanceName %q is invalid: %s", instanceName, strings.Join(errs, "; "))
+		}
+	}
 	// Always set instance name - use provided name or default to lowercase GVK Kind
 	builder = builder.WithInstanceName(instanceName)
 
-	_, err := builder.Build(ctx)
-
-	if err != nil {
-		return err
+	if _, err := builder.Build(ctx); err != nil {
+		return fmt.Errorf("failed to build DataScienceCluster reconciler: %w", err)
 	}
 
 	return nil

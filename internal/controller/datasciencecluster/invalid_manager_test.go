@@ -29,7 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/config"
@@ -40,9 +39,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
 )
 
-// INVALID_MANAGER_SENTINEL_PANIC is the centralized sentinel panic message used by InvalidManager
+// invalidManagerPanicSentinel is the centralized sentinel panic message used by InvalidManager
 // to ensure consistent, order-agnostic test behavior regardless of which method is called first.
-const INVALID_MANAGER_SENTINEL_PANIC = "INVALID_MANAGER_SENTINEL_PANIC"
+const invalidManagerPanicSentinel = "INVALID_MANAGER_SENTINEL_PANIC"
 
 // InvalidManager is a deterministic stubbed manager that implements the manager.Manager interface
 // and intentionally panics with a consistent sentinel to test error handling paths.
@@ -51,7 +50,8 @@ const INVALID_MANAGER_SENTINEL_PANIC = "INVALID_MANAGER_SENTINEL_PANIC"
 // of constructor call order. The panic contains the invalidManagerSentinel which
 // is checked using gomega.ContainSubstring for robust assertion.
 type InvalidManager struct {
-	scheme *runtime.Scheme
+	scheme     *runtime.Scheme
+	httpClient *http.Client
 }
 
 // Compile-time interface conformance check to ensure InvalidManager implements manager.Manager.
@@ -63,12 +63,15 @@ var _ manager.Manager = (*InvalidManager)(nil)
 func NewInvalidManager() manager.Manager {
 	return &InvalidManager{
 		scheme: runtime.NewScheme(),
+		httpClient: &http.Client{
+			Timeout: 500 * time.Millisecond,
+		},
 	}
 }
 
 // GetClient panics with the sentinel to cause a consistent failure.
 func (m *InvalidManager) GetClient() client.Client {
-	panic(INVALID_MANAGER_SENTINEL_PANIC + ": nil client")
+	panic(invalidManagerPanicSentinel + ": nil client")
 }
 
 // GetScheme returns an empty scheme that won't have required types.
@@ -81,35 +84,27 @@ func (m *InvalidManager) GetScheme() *runtime.Scheme {
 
 // GetRESTMapper panics with the sentinel to cause a consistent failure.
 func (m *InvalidManager) GetRESTMapper() meta.RESTMapper {
-	panic(INVALID_MANAGER_SENTINEL_PANIC + ": nil REST mapper")
+	panic(invalidManagerPanicSentinel + ": nil REST mapper")
 }
 
 // GetConfig returns an invalid config that will fail client creation.
 func (m *InvalidManager) GetConfig() *rest.Config {
-	return &rest.Config{
-		Host: "https://invalid-host-that-does-not-exist:6443",
-		TLSClientConfig: rest.TLSClientConfig{
-			Insecure: true,
-		},
-		Timeout:  time.Nanosecond,
-		Username: "invalid-user",
-		Password: "invalid-password",
-	}
+	panic(invalidManagerPanicSentinel + ": invalid rest.Config")
 }
 
 // GetFieldIndexer panics with the sentinel to cause a consistent failure.
 func (m *InvalidManager) GetFieldIndexer() client.FieldIndexer {
-	panic(INVALID_MANAGER_SENTINEL_PANIC + ": nil field indexer")
+	panic(invalidManagerPanicSentinel + ": nil field indexer")
 }
 
 // GetEventRecorderFor panics with the sentinel to cause a consistent failure.
 func (m *InvalidManager) GetEventRecorderFor(name string) record.EventRecorder {
-	panic(INVALID_MANAGER_SENTINEL_PANIC + ": nil event recorder")
+	panic(invalidManagerPanicSentinel + ": nil event recorder")
 }
 
 // GetCache panics with the sentinel to cause a consistent failure.
 func (m *InvalidManager) GetCache() cache.Cache {
-	panic(INVALID_MANAGER_SENTINEL_PANIC + ": nil cache")
+	panic(invalidManagerPanicSentinel + ": nil cache")
 }
 
 // GetLogger returns a discard logger to avoid test dependency on global logger state.
@@ -119,7 +114,7 @@ func (m *InvalidManager) GetLogger() logr.Logger {
 
 // Add panics with the sentinel to cause a consistent failure.
 func (m *InvalidManager) Add(runnable manager.Runnable) error {
-	panic(INVALID_MANAGER_SENTINEL_PANIC + ": cannot add runnable")
+	panic(invalidManagerPanicSentinel + ": cannot add runnable")
 }
 
 // Elected returns a closed channel to simulate no election.
@@ -136,39 +131,37 @@ func (m *InvalidManager) Start(ctx context.Context) error {
 
 // AddHealthzCheck panics with the sentinel to cause a consistent failure.
 func (m *InvalidManager) AddHealthzCheck(name string, check healthz.Checker) error {
-	panic(INVALID_MANAGER_SENTINEL_PANIC + ": cannot add health check")
+	panic(invalidManagerPanicSentinel + ": cannot add health check")
 }
 
 // AddMetricsServerExtraHandler panics with the sentinel to cause a consistent failure.
 func (m *InvalidManager) AddMetricsServerExtraHandler(path string, handler http.Handler) error {
-	panic(INVALID_MANAGER_SENTINEL_PANIC + ": cannot add metrics handler")
+	panic(invalidManagerPanicSentinel + ": cannot add metrics handler")
 }
 
 // AddReadyzCheck panics with the sentinel to cause a consistent failure.
 func (m *InvalidManager) AddReadyzCheck(name string, check healthz.Checker) error {
-	panic(INVALID_MANAGER_SENTINEL_PANIC + ": cannot add ready check")
+	panic(invalidManagerPanicSentinel + ": cannot add ready check")
 }
 
 // GetAPIReader panics with the sentinel to cause a consistent failure.
 func (m *InvalidManager) GetAPIReader() client.Reader {
-	panic(INVALID_MANAGER_SENTINEL_PANIC + ": nil API reader")
+	panic(invalidManagerPanicSentinel + ": nil API reader")
 }
 
 // GetControllerOptions returns default options.
 func (m *InvalidManager) GetControllerOptions() config.Controller {
-	return config.Controller{SkipNameValidation: ptr.To(true)}
+	return config.Controller{}
 }
 
 // GetWebhookServer panics with the sentinel to cause a consistent failure.
 func (m *InvalidManager) GetWebhookServer() webhook.Server {
-	panic(INVALID_MANAGER_SENTINEL_PANIC + ": nil webhook server")
+	panic(invalidManagerPanicSentinel + ": nil webhook server")
 }
 
-// GetHTTPClient returns an HTTP client with a short timeout to prevent test hangs.
+// GetHTTPClient returns a shared HTTP client with a short timeout to prevent test hangs.
 func (m *InvalidManager) GetHTTPClient() *http.Client {
-	return &http.Client{
-		Timeout: 500 * time.Millisecond,
-	}
+	return m.httpClient
 }
 
 // SetFields returns an error to simulate injection failure.
@@ -185,10 +178,10 @@ func TestInvalidManagerWithReconciler(t *testing.T) {
 	ctx := t.Context()
 
 	// This should panic because GetClient() explicitly panics with our sentinel
-	// INVALID_MANAGER_SENTINEL_PANIC + ": nil client". We use a custom matcher to check
+	// invalidManagerPanicSentinel + ": nil client". We use a custom matcher to check
 	// for the sentinel substring, making the test more robust against changes in
 	// constructor call order
 	g.Expect(func() {
 		_ = datasciencecluster.NewDataScienceClusterReconcilerWithName(ctx, invalidMgr, "test-invalid-manager")
-	}).To(gomega.PanicWith(gomega.ContainSubstring(INVALID_MANAGER_SENTINEL_PANIC)))
+	}).To(gomega.PanicWith(gomega.ContainSubstring(invalidManagerPanicSentinel)))
 }

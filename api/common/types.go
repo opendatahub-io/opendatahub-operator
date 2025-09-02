@@ -171,6 +171,8 @@ type WithStatus interface {
 	GetStatus() *Status
 }
 
+// WithDevFlags interface defines objects that have development flags configuration.
+// The GetDevFlags method may return nil if no dev flags are configured.
 type WithDevFlags interface {
 	GetDevFlags() *DevFlags
 }

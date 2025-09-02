@@ -55,6 +55,9 @@ type {{ .Component }} struct {
 	Status {{ .Component }}Status `json:"status,omitempty"`
 }
 
+// GetDevFlags returns the component's development flags configuration.
+// May return nil if DevFlagsSpec is not set. Callers must nil-check the result
+// to avoid null pointer exceptions in reconciler code.
 func (c *{{ .Component }}) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }
