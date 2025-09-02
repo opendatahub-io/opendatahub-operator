@@ -113,7 +113,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-08-13T12:59:26Z"
+    createdAt: "2025-09-02T06:28:23Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -209,7 +209,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
-  name: rhods-operator.v2.24.0
+  name: rhods-operator.v2.25.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -891,6 +891,15 @@ spec:
           verbs:
           - get
         - apiGroups:
+          - inference.networking.x-k8s.io
+          resources:
+          - inferencemodels
+          - inferencepools
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
           - infrastructure.opendatahub.io
           resources:
           - hardwareprofiles
@@ -1463,6 +1472,15 @@ spec:
         - apiGroups:
           - serving.kserve.io
           resources:
+          - llminferenceservices
+          - llminferenceservices/status
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - serving.kserve.io
+          resources:
           - servingruntimes
           verbs:
           - '*'
@@ -1660,7 +1678,7 @@ spec:
   - llamastack
   links:
   - name: Red Hat OpenShift AI
-    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.23.0
+    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.25
   maintainers:
   - email: managed-open-data-hub@redhat.com
     name: Red Hat Openshift AI
@@ -1668,7 +1686,7 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.24.0
+  version: 2.25.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
