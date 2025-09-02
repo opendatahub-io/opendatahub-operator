@@ -353,6 +353,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 					&corev1.Pod{},
 					&userv1.Group{},
 					&ofapiv1alpha1.CatalogSource{},
+					resources.GvkToUnstructured(gvk.Authorino),
 				},
 				// Set it to true so the cache-backed client reads unstructured objects
 				// or lists from the cache instead of a live lookup.

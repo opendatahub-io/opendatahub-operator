@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.33.0
-    createdAt: "2025-08-20T16:03:16Z"
+    createdAt: "2025-09-02T09:29:30Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -122,7 +122,8 @@ metadata:
       "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
-      "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io",
+      "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
+      "servicemeshes.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
       "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/opendatahub-io/opendatahub-operator
@@ -214,6 +215,11 @@ spec:
       kind: Ray
       name: rays.components.platform.opendatahub.io
       version: v1alpha1
+    - description: ServiceMesh is the Schema for the servicemesh API
+      displayName: Service Mesh
+      kind: ServiceMesh
+      name: servicemeshes.services.platform.opendatahub.io
+      version: v1alpha1
     - description: TrainingOperator is the Schema for the trainingoperators API
       displayName: Training Operator
       kind: TrainingOperator
@@ -265,6 +271,7 @@ spec:
           - ""
           resources:
           - clusterversions
+          - nodes
           - rhmis
           verbs:
           - get
@@ -800,6 +807,15 @@ spec:
           verbs:
           - get
         - apiGroups:
+          - inference.networking.x-k8s.io
+          resources:
+          - inferencemodels
+          - inferencepools
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
           - infrastructure.opendatahub.io
           resources:
           - hardwareprofiles
@@ -899,10 +915,10 @@ spec:
           - maistra.io
           resources:
           - servicemeshcontrolplanes
-          - servicemeshmemberrolls
-          - servicemeshmembers/finalizers
+          - servicemeshmembers
           verbs:
           - create
+          - delete
           - get
           - list
           - patch
@@ -912,10 +928,10 @@ spec:
         - apiGroups:
           - maistra.io
           resources:
-          - servicemeshmembers
+          - servicemeshmemberrolls
+          - servicemeshmembers/finalizers
           verbs:
           - create
-          - delete
           - get
           - list
           - patch
@@ -1283,6 +1299,7 @@ spec:
           resources:
           - auths
           - monitorings
+          - servicemeshes
           verbs:
           - create
           - delete
@@ -1296,6 +1313,7 @@ spec:
           resources:
           - auths/finalizers
           - monitorings/finalizers
+          - servicemeshes/finalizers
           verbs:
           - update
         - apiGroups:
@@ -1303,6 +1321,7 @@ spec:
           resources:
           - auths/status
           - monitorings/status
+          - servicemeshes/status
           verbs:
           - get
           - patch
@@ -1372,6 +1391,15 @@ spec:
           - get
           - patch
           - update
+        - apiGroups:
+          - serving.kserve.io
+          resources:
+          - llminferenceservices
+          - llminferenceservices/status
+          verbs:
+          - get
+          - list
+          - watch
         - apiGroups:
           - serving.kserve.io
           resources:

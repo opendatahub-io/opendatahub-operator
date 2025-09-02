@@ -8,6 +8,7 @@ rules:
   - ""
   resources:
   - clusterversions
+  - nodes
   - rhmis
   verbs:
   - get
@@ -543,6 +544,15 @@ rules:
   verbs:
   - get
 - apiGroups:
+  - inference.networking.x-k8s.io
+  resources:
+  - inferencemodels
+  - inferencepools
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - infrastructure.opendatahub.io
   resources:
   - hardwareprofiles
@@ -642,10 +652,10 @@ rules:
   - maistra.io
   resources:
   - servicemeshcontrolplanes
-  - servicemeshmemberrolls
-  - servicemeshmembers/finalizers
+  - servicemeshmembers
   verbs:
   - create
+  - delete
   - get
   - list
   - patch
@@ -655,10 +665,10 @@ rules:
 - apiGroups:
   - maistra.io
   resources:
-  - servicemeshmembers
+  - servicemeshmemberrolls
+  - servicemeshmembers/finalizers
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
@@ -1026,6 +1036,7 @@ rules:
   resources:
   - auths
   - monitorings
+  - servicemeshes
   verbs:
   - create
   - delete
@@ -1039,6 +1050,7 @@ rules:
   resources:
   - auths/finalizers
   - monitorings/finalizers
+  - servicemeshes/finalizers
   verbs:
   - update
 - apiGroups:
@@ -1046,6 +1058,7 @@ rules:
   resources:
   - auths/status
   - monitorings/status
+  - servicemeshes/status
   verbs:
   - get
   - patch
@@ -1115,6 +1128,15 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - llminferenceservices
+  - llminferenceservices/status
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - serving.kserve.io
   resources:
