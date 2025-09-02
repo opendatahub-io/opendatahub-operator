@@ -213,7 +213,7 @@ spec:
             type: object
             x-kubernetes-validations:
             - message: Alerting configuration requires metrics to be configured
-              rule: 'has(self.alerting) ? has(self.metrics) : true'
+              rule: 'has(self.alerting) ? has(self.metrics.storage) : true'
           status:
             description: MonitoringStatus defines the observed state of Monitoring
             properties:
