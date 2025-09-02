@@ -525,6 +525,19 @@ rules:
   - patch
   - update
 - apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses
+  - gateways
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - image.openshift.io
   resources:
   - imagestreams
@@ -1058,12 +1071,24 @@ rules:
   - services.platform.opendatahub.io
   resources:
   - auths/status
+  - gateways/status
   - monitorings/status
   - servicemeshes/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - services.platform.opendatahub.io
+  resources:
+  - gateways
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - serving.knative.dev
   resources:
