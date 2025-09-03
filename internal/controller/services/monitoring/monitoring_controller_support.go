@@ -40,142 +40,25 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	templateData := map[string]any{
-		"Namespace": monitoring.Spec.Namespace,
+		"Namespace":            monitoring.Spec.Namespace,
+		"Traces":               monitoring.Spec.Traces != nil,
+		"Metrics":              monitoring.Spec.Metrics != nil,
+		"AcceleratorMetrics":   monitoring.Spec.Metrics != nil,
+		"ApplicationNamespace": rr.DSCI.Spec.ApplicationsNamespace,
+		"MetricsExporters":     make(map[string]interface{}),
+		"MetricsExporterNames": []string{},
 	}
 
-	templateData["Traces"] = monitoring.Spec.Traces != nil
-	templateData["Metrics"] = monitoring.Spec.Metrics != nil
-	templateData["AcceleratorMetrics"] = monitoring.Spec.Metrics != nil
-	templateData["ApplicationNamespace"] = rr.DSCI.Spec.ApplicationsNamespace
-
-	// Always set metrics exporters data (even if empty to allow clean template logic)
-	templateData["MetricsExporters"] = make(map[string]interface{})
-	templateData["MetricsExporterNames"] = []string{}
-
 	// Add metrics-related data if metrics are configured
-	if metrics := monitoring.Spec.Metrics; metrics != nil {
-		// Handle Resources fields - provide defaults if Resources is nil
-		if metrics.Resources != nil {
-			cpuLimit := metrics.Resources.CPULimit.String()
-			if cpuLimit == "" || cpuLimit == "0" {
-				cpuLimit = "500m"
-			}
-			templateData["CPULimit"] = cpuLimit
-
-			memoryLimit := metrics.Resources.MemoryLimit.String()
-			if memoryLimit == "" || memoryLimit == "0" {
-				memoryLimit = "512Mi"
-			}
-			templateData["MemoryLimit"] = memoryLimit
-
-			cpuRequest := metrics.Resources.CPURequest.String()
-			if cpuRequest == "" || cpuRequest == "0" {
-				cpuRequest = "100m"
-			}
-			templateData["CPURequest"] = cpuRequest
-
-			memoryRequest := metrics.Resources.MemoryRequest.String()
-			if memoryRequest == "" || memoryRequest == "0" {
-				memoryRequest = "256Mi"
-			}
-			templateData["MemoryRequest"] = memoryRequest
-		} else {
-			// Use defaults when Resources is nil
-			templateData["CPULimit"] = "500m"
-			templateData["MemoryLimit"] = "512Mi"
-			templateData["CPURequest"] = "100m"
-			templateData["MemoryRequest"] = "256Mi"
-		}
-
-		// Handle Storage fields - provide defaults if Storage is nil
-		if metrics.Storage != nil {
-			storageSize := metrics.Storage.Size.String()
-			if storageSize == "" || storageSize == "0" {
-				storageSize = "5Gi"
-			}
-			templateData["StorageSize"] = storageSize
-
-			retention := metrics.Storage.Retention
-			if retention == "" {
-				retention = "90d"
-			}
-			templateData["StorageRetention"] = retention
-		} else {
-			// Use defaults when Storage is nil
-			templateData["StorageSize"] = "5Gi"
-			templateData["StorageRetention"] = "90d"
-		}
-
-		// - if user explicitly set replicas, use their value
-		// - if metrics is configured (storage or resources) but no explicit replicas, use SNO-aware defaults
-		// - otherwise, rely on MonitoringStack CRD defaults
-		allowedByConfig := metrics.Storage != nil || metrics.Resources != nil
-		isSNO := isSingleNodeCluster(ctx, rr)
-
-		switch {
-		case metrics.Replicas != 0 && allowedByConfig:
-			templateData["Replicas"] = strconv.Itoa(int(metrics.Replicas))
-		case allowedByConfig:
-			if isSNO {
-				templateData["Replicas"] = "1"
-			} else {
-				templateData["Replicas"] = "2"
-			}
-		default:
-		}
-
-		// Handle custom metrics exporters
-		if metrics.Exporters != nil {
-			validExporters := make(map[string]interface{})
-			var exporterNames []string
-
-			for name, configYAML := range metrics.Exporters {
-				if isReservedExporterName(name) {
-					return nil, fmt.Errorf("exporter name '%s' is reserved and cannot be used", name)
-				}
-
-				// Trim and parse YAML configuration string
-				cfgStr := strings.TrimSpace(configYAML)
-				var cfg interface{}
-				if err := yaml.Unmarshal([]byte(cfgStr), &cfg); err != nil {
-					return nil, fmt.Errorf("invalid YAML configuration for exporter '%s': %w", name, err)
-				}
-
-				// Require a mapping/object to avoid invalid collector config
-				cfgMap, ok := cfg.(map[string]interface{})
-				if !ok {
-					return nil, fmt.Errorf("exporter '%s' configuration must be a YAML mapping/object", name)
-				}
-
-				validExporters[name] = cfgMap
-				exporterNames = append(exporterNames, name)
-			}
-
-			// Ensure deterministic order in templates/pipelines
-			sort.Strings(exporterNames)
-			templateData["MetricsExporters"] = validExporters
-			templateData["MetricsExporterNames"] = exporterNames
+	if monitoring.Spec.Metrics != nil {
+		if err := addMetricsData(ctx, rr, monitoring.Spec.Metrics, templateData); err != nil {
+			return nil, err
 		}
 	}
 
 	// Add traces-related data if traces are configured
-	if traces := monitoring.Spec.Traces; traces != nil {
-		templateData["OtlpEndpoint"] = fmt.Sprintf("http://data-science-collector.%s.svc.cluster.local:4317", monitoring.Spec.Namespace)
-		templateData["SampleRatio"] = traces.SampleRatio
-		templateData["Backend"] = traces.Storage.Backend // backend has default "pv" set in API
-
-		// Add retention for all backends (both TempoMonolithic and TempoStack)
-		templateData["TracesRetention"] = traces.Storage.Retention.Duration.String()
-
-		// Add tempo-related data from traces.Storage fields (Storage is a struct, not a pointer)
-		switch traces.Storage.Backend {
-		case "pv":
-			templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempomonolithic.%s.svc.cluster.local:4317", monitoring.Spec.Namespace)
-			templateData["Size"] = traces.Storage.Size
-		case "s3", "gcs":
-			templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempostack-gateway.%s.svc.cluster.local:4317", monitoring.Spec.Namespace)
-			templateData["Secret"] = traces.Storage.Secret
-		}
+	if monitoring.Spec.Traces != nil {
+		addTracesData(monitoring.Spec.Traces, monitoring.Spec.Namespace, templateData)
 	}
 
 	return templateData, nil
@@ -304,6 +187,163 @@ func cleanupPrometheusRules(ctx context.Context, componentName string, rr *odhty
 	}
 
 	return nil
+}
+
+// addMetricsData adds metrics configuration data to the template data map.
+func addMetricsData(ctx context.Context, rr *odhtypes.ReconciliationRequest, metrics *serviceApi.Metrics, templateData map[string]any) error {
+	addResourceData(metrics, templateData)
+	addStorageData(metrics, templateData)
+	addReplicasData(ctx, rr, metrics, templateData)
+	return addExportersData(metrics, templateData)
+}
+
+// addResourceData adds resource configuration data to the template data map.
+func addResourceData(metrics *serviceApi.Metrics, templateData map[string]any) {
+	if metrics.Resources != nil {
+		templateData["CPULimit"] = getResourceValueOrDefault(metrics.Resources.CPULimit.String(), "500m")
+		templateData["MemoryLimit"] = getResourceValueOrDefault(metrics.Resources.MemoryLimit.String(), "512Mi")
+		templateData["CPURequest"] = getResourceValueOrDefault(metrics.Resources.CPURequest.String(), "100m")
+		templateData["MemoryRequest"] = getResourceValueOrDefault(metrics.Resources.MemoryRequest.String(), "256Mi")
+	} else {
+		// Use defaults when Resources is nil
+		templateData["CPULimit"] = "500m"
+		templateData["MemoryLimit"] = "512Mi"
+		templateData["CPURequest"] = "100m"
+		templateData["MemoryRequest"] = "256Mi"
+	}
+}
+
+// addStorageData adds storage configuration data to the template data map.
+func addStorageData(metrics *serviceApi.Metrics, templateData map[string]any) {
+	if metrics.Storage != nil {
+		templateData["StorageSize"] = getResourceValueOrDefault(metrics.Storage.Size.String(), "5Gi")
+		templateData["StorageRetention"] = getStringValueOrDefault(metrics.Storage.Retention, "90d")
+	} else {
+		// Use defaults when Storage is nil
+		templateData["StorageSize"] = "5Gi"
+		templateData["StorageRetention"] = "90d"
+	}
+}
+
+// addReplicasData adds replica configuration data to the template data map.
+func addReplicasData(ctx context.Context, rr *odhtypes.ReconciliationRequest, metrics *serviceApi.Metrics, templateData map[string]any) {
+	// - if user explicitly set replicas, use their value
+	// - if metrics is configured (storage or resources) but no explicit replicas, use SNO-aware defaults
+	// - otherwise, rely on MonitoringStack CRD defaults
+	allowedByConfig := metrics.Storage != nil || metrics.Resources != nil
+	isSNO := isSingleNodeCluster(ctx, rr)
+
+	switch {
+	case metrics.Replicas != 0 && allowedByConfig:
+		templateData["Replicas"] = strconv.Itoa(int(metrics.Replicas))
+	case allowedByConfig:
+		if isSNO {
+			templateData["Replicas"] = "1"
+		} else {
+			templateData["Replicas"] = "2"
+		}
+	default:
+		// Don't set replicas, let MonitoringStack CRD use its defaults
+	}
+}
+
+// addExportersData adds custom metrics exporters data to the template data map.
+func addExportersData(metrics *serviceApi.Metrics, templateData map[string]any) error {
+	if metrics.Exporters == nil {
+		return nil
+	}
+
+	validExporters := make(map[string]interface{})
+	exporterNames := make([]string, 0, len(metrics.Exporters))
+
+	for name, configYAML := range metrics.Exporters {
+		if isReservedExporterName(name) {
+			return fmt.Errorf("exporter name '%s' is reserved and cannot be used", name)
+		}
+
+		// Trim and parse YAML configuration string
+		cfgStr := strings.TrimSpace(configYAML)
+		var cfg interface{}
+		if err := yaml.Unmarshal([]byte(cfgStr), &cfg); err != nil {
+			return fmt.Errorf("invalid YAML configuration for exporter '%s': %w", name, err)
+		}
+
+		// Require a mapping/object to avoid invalid collector config
+		cfgMap, ok := cfg.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("exporter '%s' configuration must be a YAML mapping/object", name)
+		}
+
+		validExporters[name] = cfgMap
+		exporterNames = append(exporterNames, name)
+	}
+
+	// Ensure deterministic order in templates/pipelines
+	sort.Strings(exporterNames)
+	templateData["MetricsExporters"] = validExporters
+	templateData["MetricsExporterNames"] = exporterNames
+
+	return nil
+}
+
+// addTracesData adds traces configuration data to the template data map.
+func addTracesData(traces *serviceApi.Traces, namespace string, templateData map[string]any) {
+	templateData["OtlpEndpoint"] = fmt.Sprintf("http://data-science-collector.%s.svc.cluster.local:4317", namespace)
+	templateData["SampleRatio"] = traces.SampleRatio
+	templateData["Backend"] = traces.Storage.Backend // backend has default "pv" set in API
+
+	tlsEnabled := determineTLSEnabled(traces)
+	templateData["TempoTLSEnabled"] = tlsEnabled
+
+	if tlsEnabled && traces.TLS != nil {
+		templateData["TempoCertificateSecret"] = traces.TLS.CertificateSecret
+		templateData["TempoCAConfigMap"] = traces.TLS.CAConfigMap
+	} else {
+		// Set empty values to avoid template missing key errors
+		templateData["TempoCertificateSecret"] = ""
+		templateData["TempoCAConfigMap"] = ""
+	}
+
+	templateData["TracesRetention"] = traces.Storage.Retention.Duration.String()
+
+	setTempoEndpointAndStorageData(traces, namespace, templateData)
+}
+
+// determineTLSEnabled determines if TLS should be enabled for traces.
+func determineTLSEnabled(traces *serviceApi.Traces) bool {
+	if traces.TLS != nil {
+		return traces.TLS.Enabled
+	}
+	return traces.Storage.Backend == "pv"
+}
+
+// setTempoEndpointAndStorageData sets the tempo endpoint and storage-specific data.
+func setTempoEndpointAndStorageData(traces *serviceApi.Traces, namespace string, templateData map[string]any) {
+	switch traces.Storage.Backend {
+	case "pv":
+		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempomonolithic.%s.svc.cluster.local:4317", namespace)
+		templateData["Size"] = traces.Storage.Size
+	case "s3", "gcs":
+		// Always use gateway endpoint for S3/GCS backends (required for OpenShift mode)
+		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempostack-gateway.%s.svc.cluster.local:4317", namespace)
+		templateData["Secret"] = traces.Storage.Secret
+	}
+}
+
+// getResourceValueOrDefault returns the resource value or a default if empty or zero.
+func getResourceValueOrDefault(value, defaultValue string) string {
+	if value == "" || value == "0" {
+		return defaultValue
+	}
+	return value
+}
+
+// getStringValueOrDefault returns the string value or a default if empty.
+func getStringValueOrDefault(value, defaultValue string) string {
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }
 
 // isReservedExporterName checks if an exporter name conflicts with built-in exporters.
