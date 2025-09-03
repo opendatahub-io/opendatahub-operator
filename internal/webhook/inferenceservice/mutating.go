@@ -118,7 +118,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		}
 
 		// validate the connection annotation and determine the action to take
-		validationResp, action, secretName, connectionType := webhookutils.ValidateInferenceServiceConnectionAnnotation(ctx, w.Client, obj, req, allowedTypes)
+		validationResp, action, secretName, connectionType := webhookutils.ValidateInferenceServiceConnectionAnnotation(ctx, w.APIReader, obj, req, allowedTypes)
 		if !validationResp.Allowed {
 			return validationResp
 		}
@@ -380,7 +380,7 @@ func (w *ConnectionWebhook) injectOCIImagePullSecrets(obj *unstructured.Unstruct
 func (w *ConnectionWebhook) injectURIStorageUri(ctx context.Context, obj *unstructured.Unstructured, secretName, namespace string) error {
 	// Fetch the secret to get the URI data
 	secret := &corev1.Secret{}
-	if err := w.Client.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
+	if err := w.APIReader.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
 		return fmt.Errorf("failed to get secret %s: %w", secretName, err)
 	}
 
