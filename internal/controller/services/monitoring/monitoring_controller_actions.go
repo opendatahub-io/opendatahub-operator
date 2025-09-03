@@ -333,7 +333,7 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 		rr.Conditions.MarkFalse(
 			status.ConditionAlertingAvailable,
 			conditions.WithReason(gvk.PrometheusRule.Kind+"CRDNotFoundReason"),
-			conditions.WithMessage(gvk.PrometheusRule.Kind+" CRD Not Found"),
+			conditions.WithMessage("%s CRD Not Found", gvk.PrometheusRule.Kind),
 		)
 		return nil
 	}
