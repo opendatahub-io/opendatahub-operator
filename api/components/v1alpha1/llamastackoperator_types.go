@@ -58,7 +58,9 @@ type LlamaStackOperatorStatus struct {
 	LlamaStackOperatorCommonStatus `json:",inline"`
 }
 
-// GetDevFlags retrieves the development flags from the spec
+// GetDevFlags returns the component's development flags configuration.
+// May return nil if DevFlagsSpec is not set. Callers must nil-check the result
+// to avoid null pointer exceptions in reconciler code.
 func (c *LlamaStackOperator) GetDevFlags() *common.DevFlags {
 	return c.Spec.DevFlags
 }

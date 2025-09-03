@@ -108,13 +108,13 @@ cluster:usage:consumption:rhods:gpu:count
 oc get monitoring default-monitoring -o yaml
 ```
 
-2. Check OpenTelemetry Collector logs:
+1. Check OpenTelemetry Collector logs:
 
 ```bash
 oc logs -n <monitoring-namespace> deployment/data-science-collector
 ```
 
-3. Query accelerator metrics from Prometheus:
+1. Query accelerator metrics from Prometheus:
 
 ```bash
 # Access RHOAI Prometheus and query:

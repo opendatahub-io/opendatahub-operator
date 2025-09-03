@@ -79,13 +79,8 @@ func cleanupListResources(t *testing.T, tc *TestContext, kind schema.GroupVersio
 	}
 }
 
-// uninstallOperator delete an operator install subscription for the stable channel if exists.
-func uninstallOperator(t *testing.T, tc *TestContext, operatorNamespacedName types.NamespacedName) { //nolint:thelper,unused
-	uninstallOperatorWithChannel(t, tc, operatorNamespacedName, defaultOperatorChannel)
-}
-
-// uninstallOperatorWithChannel delete an operator install subscription to a specific channel if exists.
-func uninstallOperatorWithChannel(t *testing.T, tc *TestContext, operatorNamespacedName types.NamespacedName, channel string) { //nolint:thelper,unparam
+// uninstallOperator delete an operator install subscription if exists.
+func uninstallOperator(t *testing.T, tc *TestContext, operatorNamespacedName types.NamespacedName) { //nolint:thelper
 	if found, err := tc.CheckOperatorExists(operatorNamespacedName.Name); found && err == nil {
 		t.Logf("Uninstalling %s operator", operatorNamespacedName)
 		ro := tc.NewResourceOptions(WithMinimalObject(gvk.Subscription, operatorNamespacedName))
@@ -146,7 +141,7 @@ func cleanupKueueTestResources(t *testing.T, tc *TestContext) {
 	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace}, gvk.ConfigMap, true)
 
 	// Uninstall ocp kueue operator if present
-	uninstallOperatorWithChannel(t, tc, types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, kueueOcpOperatorChannel)
+	uninstallOperator(t, tc, types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace})
 }
 
 func cleanupResourceIgnoringMissing(t *testing.T, tc *TestContext, namespacedName types.NamespacedName, crdGvk schema.GroupVersionKind, removeFinalizers bool) error { //nolint:thelper,lll

@@ -21,6 +21,7 @@ import (
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests"
 
 	. "github.com/onsi/gomega"
 )
@@ -31,26 +32,36 @@ const (
 	knativeServingNamespace = "knative-serving" // Namespace for Knative Serving components
 
 	// Operators constants.
-	defaultOperatorChannel       = "stable"                           // The default channel to install/check operators
-	serviceMeshOpName            = "servicemeshoperator"              // Name of the Service Mesh Operator
-	serverlessOpName             = "serverless-operator"              // Name of the Serverless Operator
-	authorinoOpName              = "authorino-operator"               // Name of the Serverless Operator
-	kueueOpName                  = "kueue-operator"                   // Name of the Kueue Operator
-	telemetryOpName              = "opentelemetry-product"            // Name of the Telemetry Operator
-	telemetryOpNamespace         = "openshift-opentelemetry-operator" // Namespace for the Telemetry Operator
-	serviceMeshControlPlane      = "data-science-smcp"                // Service Mesh control plane name
-	serviceMeshNamespace         = "istio-system"                     // Namespace for Istio Service Mesh control plane
-	serviceMeshMetricsCollection = "Istio"                            // Metrics collection for Service Mesh (e.g., Istio)
-	serviceMeshMemberName        = "default"
+	defaultOperatorChannel       = "stable"                                   // The default channel to install/check operators
+	serviceMeshOpName            = "servicemeshoperator"                      // Name of the Service Mesh Operator
+	serverlessOpName             = "serverless-operator"                      // Name of the Serverless Operator
+	authorinoOpName              = "authorino-operator"                       // Name of the Authorino operator
+	kueueOpName                  = "kueue-operator"                           // Name of the Kueue Operator
+	serviceMeshControlPlane      = "data-science-smcp"                        // Service Mesh control plane name
+	serviceMeshNamespace         = tests.IstioSystemNamespace                 // Namespace for Istio Service Mesh control plane
+	serviceMeshMetricsCollection = "Istio"                                    // Metrics collection for Service Mesh (e.g., Istio)
 	observabilityOpName          = "cluster-observability-operator"           // Name of the Cluster Observability Operator
 	observabilityOpNamespace     = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
 	tempoOpName                  = "tempo-product"                            // Name of the Tempo Operator
 	tempoOpNamespace             = "openshift-tempo-operator"                 // Namespace for the Tempo Operator
 	opentelemetryOpName          = "opentelemetry-product"                    // Name of the OpenTelemetry Operator
 	opentelemetryOpNamespace     = "openshift-opentelemetry-operator"         // Namespace for the OpenTelemetry Operator
-	controllerDeploymentODH      = "opendatahub-operator-controller-manager"  // Name of the ODH deployment
-	controllerDeploymentRhoai    = "rhods-operator"                           // Name of the Rhoai deployment
+	// Back-compat aliases for legacy telemetry constants.
+	telemetryOpName           = opentelemetryOpName                       // Name of the Telemetry Operator (alias)
+	telemetryOpNamespace      = opentelemetryOpNamespace                  // Namespace for the Telemetry Operator (alias)
+	controllerDeploymentODH   = "opendatahub-operator-controller-manager" // Name of the ODH deployment
+	controllerDeploymentRhoai = "rhods-operator"                          // Name of the Rhoai deployment
 )
+
+// operatorChannel returns the operator channel to use for testing.
+// It reads from E2E_OPERATOR_CHANNEL environment variable if set,
+// otherwise falls back to defaultOperatorChannel.
+func operatorChannel() string {
+	if channel := os.Getenv("E2E_OPERATOR_CHANNEL"); channel != "" {
+		return channel
+	}
+	return defaultOperatorChannel
+}
 
 // Configuration and Miscellaneous Constants.
 const (

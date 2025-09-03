@@ -33,6 +33,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -47,8 +48,20 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/hash"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
+
+// authorizationPolicyV1Absent is a DynamicPredicate that checks if AuthorizationPolicy v1 is NOT present,
+// allowing v1beta1 registration only when v1 is absent to avoid duplicate watches.
+func authorizationPolicyV1Absent(ctx context.Context, request *types.ReconciliationRequest) (bool, error) {
+	hasV1, err := cluster.HasCRD(ctx, request.Client, gvk.AuthorizationPolicy)
+	if err != nil {
+		return false, err
+	}
+	// Only register v1beta1 if v1 is NOT present
+	return !hasV1, nil
+}
 
 // NewComponentReconciler creates a ComponentReconciler for the Dashboard API.
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
@@ -73,6 +86,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 
 		// operands - dynamically owned
+<<<<<<< Updated upstream
 		OwnsGVK(gvk.Gateway, reconciler.Dynamic(actions.IfGVKInstalled(gvk.Gateway))).
 		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(actions.IfGVKInstalled(gvk.EnvoyFilter))).
 		OwnsGVK(gvk.KnativeServing, reconciler.Dynamic(actions.IfGVKInstalled(gvk.KnativeServing))).
@@ -83,6 +97,18 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		OwnsGVK(gvk.InferenceModelV1alpha2, reconciler.Dynamic(actions.IfGVKInstalled(gvk.InferenceModelV1alpha2))).
 		OwnsGVK(gvk.LLMInferenceServiceConfigV1Alpha1, reconciler.Dynamic(actions.IfGVKInstalled(gvk.LLMInferenceServiceConfigV1Alpha1))).
 		OwnsGVK(gvk.LLMInferenceServiceV1Alpha1, reconciler.Dynamic(actions.IfGVKInstalled(gvk.LLMInferenceServiceV1Alpha1))).
+=======
+		OwnsGVK(gvk.Gateway, reconciler.Dynamic(reconciler.CrdExists(gvk.Gateway))).
+		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
+		OwnsGVK(gvk.KnativeServing, reconciler.Dynamic(reconciler.CrdExists(gvk.KnativeServing))).
+		OwnsGVK(gvk.ServiceMeshMember, reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMeshMember))).
+		OwnsGVK(gvk.AuthorizationPolicy, reconciler.Dynamic(reconciler.CrdExists(gvk.AuthorizationPolicy))).
+		OwnsGVK(gvk.AuthorizationPolicyv1beta1, reconciler.Dynamic(authorizationPolicyV1Absent)).
+		OwnsGVK(gvk.InferencePoolV1alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.InferencePoolV1alpha2))).
+		OwnsGVK(gvk.InferenceModelV1alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.InferenceModelV1alpha2))).
+		OwnsGVK(gvk.LLMInferenceServiceConfigV1Alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.LLMInferenceServiceConfigV1Alpha1))).
+		OwnsGVK(gvk.LLMInferenceServiceV1Alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.LLMInferenceServiceV1Alpha1))).
+>>>>>>> Stashed changes
 
 		// operands - watched
 		//

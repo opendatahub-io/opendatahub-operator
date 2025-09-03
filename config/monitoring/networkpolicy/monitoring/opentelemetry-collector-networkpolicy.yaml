@@ -1,0 +1,72 @@
+# NetworkPolicy for OpenTelemetry Collector to allow telemetry metrics on port 8888
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: opentelemetry-collector-networkpolicy
+  namespace: redhat-ods-monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: opentelemetry-collector
+      app.kubernetes.io/part-of: opentelemetry
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-monitoring
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-user-workload-monitoring
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: redhat-ods-operator
+        - namespaceSelector:
+            matchLabels:
+              opendatahub.io/generated-namespace: "true"
+      ports:
+        - protocol: TCP
+          port: 8888  # Telemetry metrics port
+        - protocol: TCP
+          port: 8889  # Prometheus metrics port
+  egress:
+    # DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Kubernetes API access for service discovery
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 443
+    # Tempo endpoint for traces (both possible endpoints)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: redhat-ods-monitoring
+      ports:
+        - protocol: TCP
+          port: 4317
+    # Allow scraping of pods in various namespaces for metrics collection
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nvidia-gpu-operator
+      ports:
+        - protocol: TCP
+          port: 9400  # DCGM exporter port
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              opendatahub.io/generated-namespace: "true"
+      ports:
+        - protocol: TCP
+          port: 8080  # Common metrics port for applications
+  policyTypes:
+    - Ingress
+    - Egress

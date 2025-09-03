@@ -81,7 +81,13 @@ func init() {
 	SchemeBuilder.Register(&TrainingOperator{}, &TrainingOperatorList{})
 }
 
+// GetDevFlags returns the component's development flags configuration.
+// May return nil if DevFlagsSpec is not set. Callers must nil-check the result
+// to avoid null pointer exceptions in reconciler code.
 func (c *TrainingOperator) GetDevFlags() *common.DevFlags {
+	if c == nil {
+		return nil
+	}
 	return c.Spec.DevFlags
 }
 

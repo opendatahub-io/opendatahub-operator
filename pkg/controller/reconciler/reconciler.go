@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -78,6 +79,42 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		return nil, fmt.Errorf("unable to construct a Dynamic client: %w", err)
 	}
 
+	return newReconcilerWithClients(mgr, name, object, discoveryCli, dynamicCli, opts...)
+}
+
+// newReconcilerWithClients creates a new reconciler with pre-initialized clients.
+// This is used internally to avoid recreating clients that were already validated.
+//
+// Preconditions:
+//   - discoveryClient must be non-nil (required for API discovery operations)
+//   - dynamicClient must be non-nil (required for dynamic resource operations)
+//
+// This is a breaking change for tests that previously injected nil clients.
+// If nil clients are needed for specific test scenarios, consider relaxing these
+// checks or providing mock implementations.
+func newReconcilerWithClients[T common.PlatformObject](
+	mgr manager.Manager,
+	name string,
+	object T,
+	discoveryClient discovery.DiscoveryInterface,
+	dynamicClient dynamic.Interface,
+	opts ...ReconcilerOpt,
+) (*Reconciler, error) {
+	// Precondition checks: ensure required parameters are valid
+	if strings.TrimSpace(name) == "" {
+		return nil, errors.New("reconciler: name cannot be empty")
+	}
+	if mgr == nil {
+		return nil, fmt.Errorf("reconciler %s: manager cannot be nil", name)
+	}
+	// Precondition checks: ensure required clients are non-nil
+	if discoveryClient == nil {
+		return nil, fmt.Errorf("reconciler %s: discoveryClient cannot be nil", name)
+	}
+	if dynamicClient == nil {
+		return nil, fmt.Errorf("reconciler %s: dynamicClient cannot be nil", name)
+	}
+
 	cc := Reconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
@@ -86,7 +123,17 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 		Release:  cluster.GetRelease(),
 		name:     name,
 		instanceFactory: func() (common.PlatformObject, error) {
-			t := reflect.TypeOf(object).Elem()
+			t := reflect.TypeOf(object)
+			if t == nil {
+				return nil, errors.New("object must be a non-nil value implementing common.PlatformObject")
+			}
+			if t.Kind() != reflect.Ptr {
+				return nil, fmt.Errorf("expected pointer, got %T", object)
+			}
+			t = t.Elem()
+			if t.Kind() != reflect.Struct {
+				return nil, fmt.Errorf("expected pointer to struct, got pointer to %s", t.Kind())
+			}
 			res, ok := reflect.New(t).Interface().(T)
 			if !ok {
 				return res, fmt.Errorf("unable to construct instance of %v", t)
@@ -98,8 +145,8 @@ func NewReconciler[T common.PlatformObject](mgr manager.Manager, name string, ob
 			return conditions.NewManager(accessor, status.ConditionTypeReady)
 		},
 		gvks:            make(map[schema.GroupVersionKind]gvkInfo),
-		dynamicClient:   dynamicCli,
-		discoveryClient: discoveryCli,
+		dynamicClient:   dynamicClient,
+		discoveryClient: discoveryClient,
 	}
 
 	for _, opt := range opts {

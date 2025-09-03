@@ -5,7 +5,7 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   exporter:
-    endpoint: {{.OtlpEndpoint}}
+    endpoint: "{{.OtlpEndpoint}}"
   sampler:
     type: traceidratio
     argument: "{{.SampleRatio}}"

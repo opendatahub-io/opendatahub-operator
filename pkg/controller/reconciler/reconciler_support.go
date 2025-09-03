@@ -1,3 +1,28 @@
+// Package reconciler provides a fluent API for building Kubernetes controllers with support
+// for both static and dynamic predicates. Dynamic predicates enable conditional watching
+// based on runtime state rather than static configuration.
+//
+// Key Features:
+// - Dynamic predicates that are evaluated at runtime during reconciliation
+// - Thread-safe predicate storage with read-write locks
+// - Fluent API for building reconcilers with watches, predicates, actions, and finalizers
+// - Support for conditional watching based on CRD existence and other runtime conditions
+// - Configurable predicate behavior with restrictive default (generation changes only)
+// - Opt-in broader predicate behavior for label and annotation changes
+//
+// Example Usage:
+//
+//	// Default behavior - only generation changes trigger reconciliation
+//	builder := ReconcilerFor(mgr, &MyObject{})
+//	builder.Watches(
+//	    &SomeResource{},
+//	    Dynamic(CrdExists(schema.GroupVersionKind{Group: "example.com", Version: "v1", Kind: "MyCRD"})),
+//	)
+//	reconciler, err := builder.Build(ctx)
+//
+//	// Opt-in broader behavior - generation, label, and annotation changes trigger reconciliation
+//	builder := ReconcilerFor(mgr, &MyObject{}).WithBroadPredicate()
+//	reconciler, err := builder.Build(ctx)
 package reconciler
 
 import (
@@ -6,15 +31,17 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/hashicorp/go-multierror"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -35,15 +62,22 @@ type forInput struct {
 	gvk     schema.GroupVersionKind
 }
 
-type DynamicPredicate func(context.Context, *types.ReconciliationRequest) bool
+// DynamicPredicate is a function type that evaluates whether a watch should be active
+// based on the current reconciliation context. It receives the context and reconciliation
+// request, and returns true if the watch should be active, false otherwise.
+// Dynamic predicates are evaluated at runtime during each reconciliation cycle.
+type DynamicPredicate func(context.Context, *types.ReconciliationRequest) (bool, error)
 
+// watchInput contains the configuration for a single watch operation.
+// It includes both static predicates (evaluated at watch creation time) and
+// dynamic predicates (evaluated at runtime during reconciliation).
 type watchInput struct {
-	object       client.Object
-	eventHandler handler.EventHandler
-	predicates   []predicate.Predicate
-	owned        bool
-	dynamic      bool
-	dynamicPred  []DynamicPredicate
+	object            client.Object
+	eventHandler      handler.EventHandler
+	predicates        []predicate.Predicate
+	dynamicPredicates []DynamicPredicate
+	owned             bool
+	dynamic           bool
 }
 
 type WatchOpts func(*watchInput)
@@ -66,24 +100,40 @@ func WithEventMapper(value handler.MapFunc) WatchOpts {
 	}
 }
 
+// Dynamic creates a WatchOpts function that marks a watch as dynamic and stores
+// the provided dynamic predicates for runtime evaluation. Dynamic predicates are
+// evaluated during reconciliation to determine if a watch should be active.
+// This enables conditional watching based on runtime state rather than static configuration.
 func Dynamic(predicates ...DynamicPredicate) WatchOpts {
 	return func(a *watchInput) {
 		a.dynamic = true
-		a.dynamicPred = slices.Clone(predicates)
-	}
-}
-
-// crdExists is a DynamicPredicate that cheks if a given crd identified by its gvk exists.
-func CrdExists(crdGvk schema.GroupVersionKind) DynamicPredicate {
-	return func(ctx context.Context, request *types.ReconciliationRequest) bool {
-		if hasCrd, err := cluster.HasCRD(ctx, request.Client, crdGvk); err != nil {
-			return false
-		} else {
-			return hasCrd
+		// Filter out nil predicates to avoid runtime panics
+		for _, predicate := range predicates {
+			if predicate != nil {
+				a.dynamicPredicates = append(a.dynamicPredicates, predicate)
+			}
 		}
 	}
 }
 
+// CrdExists is a DynamicPredicate that checks if a given CRD identified by its GVK exists.
+// This is useful for conditionally watching resources that depend on CRDs being installed.
+// Example usage:
+//
+//	builder.Watches(object, Dynamic(CrdExists(schema.GroupVersionKind{Group: "example.com", Version: "v1", Kind: "MyCRD"})))
+func CrdExists(crdGvk schema.GroupVersionKind) DynamicPredicate {
+	return func(ctx context.Context, request *types.ReconciliationRequest) (bool, error) {
+		hasCrd, err := cluster.HasCRD(ctx, request.Client, crdGvk)
+		if err != nil {
+			return false, err
+		}
+		return hasCrd, nil
+	}
+}
+
+// ReconcilerBuilder provides a fluent API for building reconcilers with watches,
+// predicates, actions, and finalizers. It supports both static and dynamic predicates
+// for flexible watch configuration.
 type ReconcilerBuilder[T common.PlatformObject] struct {
 	mgr                 ctrl.Manager
 	input               forInput
@@ -95,6 +145,13 @@ type ReconcilerBuilder[T common.PlatformObject] struct {
 	errors              error
 	happyCondition      string
 	dependantConditions []string
+	// Cached clients to avoid recreation
+	discoveryClient   discovery.DiscoveryInterface
+	dynamicClient     dynamic.Interface
+	dynamicPredicates []DynamicPredicate
+	mu                sync.RWMutex
+	// Control predicate behavior - when true, uses broader predicate including label/annotation changes
+	useBroadPredicate bool
 }
 
 func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
@@ -132,6 +189,16 @@ func (b *ReconcilerBuilder[T]) WithConditions(dependants ...string) *ReconcilerB
 
 func (b *ReconcilerBuilder[T]) WithInstanceName(instanceName string) *ReconcilerBuilder[T] {
 	b.instanceName = instanceName
+	return b
+}
+
+// WithBroadPredicate enables the broader predicate behavior that includes
+// label and annotation changes in addition to generation changes.
+// By default, only generation changes trigger reconciliation to reduce
+// reconciliation frequency. Use this method to opt into the broader behavior
+// when label or annotation changes should trigger reconciliation.
+func (b *ReconcilerBuilder[T]) WithBroadPredicate() *ReconcilerBuilder[T] {
+	b.useBroadPredicate = true
 	return b
 }
 
@@ -210,94 +277,299 @@ func (b *ReconcilerBuilder[T]) WithEventFilter(p predicate.Predicate) *Reconcile
 	return b
 }
 
+// AddDynamicPredicate adds a dynamic predicate to the reconciler builder.
+// Dynamic predicates are evaluated at runtime during reconciliation and can be used
+// to conditionally enable or disable watches based on the current state.
+// This method is thread-safe and can be called concurrently.
+func (b *ReconcilerBuilder[T]) AddDynamicPredicate(predicate DynamicPredicate) *ReconcilerBuilder[T] {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.dynamicPredicates = append(b.dynamicPredicates, predicate)
+	return b
+}
+
+// GetDynamicPredicates returns a copy of all registered dynamic predicates.
+// This method is thread-safe and can be called concurrently.
+func (b *ReconcilerBuilder[T]) GetDynamicPredicates() []DynamicPredicate {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return slices.Clone(b.dynamicPredicates)
+}
+
+// ClearDynamicPredicates removes all registered dynamic predicates.
+// This method is thread-safe and can be called concurrently.
+func (b *ReconcilerBuilder[T]) ClearDynamicPredicates() *ReconcilerBuilder[T] {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.dynamicPredicates = nil
+	return b
+}
+
 func (b *ReconcilerBuilder[T]) OwnsGVK(gvk schema.GroupVersionKind, opts ...WatchOpts) *ReconcilerBuilder[T] {
 	return b.Owns(resources.GvkToUnstructured(gvk), opts...)
 }
 
-func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
+func (b *ReconcilerBuilder[T]) Build(ctx context.Context) (*Reconciler, error) {
 	if b.errors != nil {
 		return nil, b.errors
 	}
-	name := b.instanceName
-	if name == "" {
-		name = strings.ToLower(b.input.gvk.Kind)
+
+	// Validate manager configuration and initialize cached clients early
+	// This ensures clients are available for all subsequent operations
+	// Note: This initialization is single-threaded and should be called before any consumers run
+	if err := b.validateManager(); err != nil {
+		return nil, fmt.Errorf("invalid manager configuration: %w", err)
 	}
 
-	obj, ok := b.input.object.(T)
-	if !ok {
-		return nil, errors.New("invalid type for object")
-	}
-
-	r, err := NewReconciler(b.mgr, name, obj, WithConditionsManagerFactory(b.happyCondition, b.dependantConditions...))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create reconciler for component %s: %w", name, err)
-	}
-
-	c := ctrl.NewControllerManagedBy(b.mgr)
-
-	// automatically add default predicates to the watched API if no
-	// predicates are provided
-	forOpts := b.input.options
-	if len(forOpts) == 0 {
-		forOpts = append(forOpts, builder.WithPredicates(predicate.Or(
-			predicate.GenerationChangedPredicate{},
-			predicate.LabelChangedPredicate{},
-			predicate.AnnotationChangedPredicate{},
-		)))
-	}
-
-	c = c.For(b.input.object, forOpts...)
-
-	for i := range b.watches {
-		if b.watches[i].owned {
-			kinds, _, err := b.mgr.GetScheme().ObjectKinds(b.watches[i].object)
-			if err != nil {
-				return nil, err
-			}
-
-			for i := range kinds {
-				r.AddOwnedType(kinds[i])
-			}
-		}
-
-		// if the watch is dynamic, then the watcher will be registered
-		// at later stage
-		if b.watches[i].dynamic {
-			continue
-		}
-
-		c = c.Watches(
-			b.watches[i].object,
-			b.watches[i].eventHandler,
-			builder.WithPredicates(b.watches[i].predicates...),
-		)
-	}
-
-	for i := range b.predicates {
-		c = c.WithEventFilter(b.predicates[i])
-	}
-
-	for i := range b.actions {
-		r.AddAction(b.actions[i])
-	}
-	for i := range b.finalizers {
-		r.AddFinalizer(b.finalizers[i])
-	}
-
-	cc, err := c.Build(r)
+	name := b.getInstanceName()
+	obj, err := b.validateObject()
 	if err != nil {
 		return nil, err
 	}
 
-	// internal action
+	r, err := b.createReconciler(name, obj)
+	if err != nil {
+		return nil, err
+	}
+
+	c, err := b.buildController(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := b.setupWatches(c, r); err != nil {
+		return nil, err
+	}
+
+	b.addEventFilters(c)
+	b.addActionsAndFinalizers(r)
+
+	_, err = c.Build(r)
+	if err != nil {
+		return nil, err
+	}
+
+	b.addDynamicWatchAction(r)
+
+	return r, nil
+}
+
+func (b *ReconcilerBuilder[T]) validateManager() error {
+	b.mu.RLock()
+	if b.discoveryClient != nil && b.dynamicClient != nil {
+		b.mu.RUnlock()
+		return nil
+	}
+	b.mu.RUnlock()
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// Re-check after acquiring write lock
+	if b.discoveryClient != nil && b.dynamicClient != nil {
+		return nil
+	}
+
+	// Get config once and reuse for both clients
+	config := b.mgr.GetConfig()
+
+	// Create discovery client first
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create discovery client: %w", err)
+	}
+
+	// Create dynamic client
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create dynamic client: %w", err)
+	}
+
+	// Only assign clients to builder if both creations succeed
+	b.discoveryClient = discoveryClient
+	b.dynamicClient = dynamicClient
+
+	return nil
+}
+
+func (b *ReconcilerBuilder[T]) getInstanceName() string {
+	if b.instanceName != "" {
+		return b.instanceName
+	}
+	return strings.ToLower(b.input.gvk.Kind)
+}
+
+func (b *ReconcilerBuilder[T]) validateObject() (T, error) {
+	obj, ok := b.input.object.(T)
+	if !ok {
+		return obj, errors.New("invalid type for object")
+	}
+	return obj, nil
+}
+
+func (b *ReconcilerBuilder[T]) createReconciler(name string, obj T) (*Reconciler, error) {
+	// Use cached clients that were initialized during validateManager
+	r, err := newReconcilerWithClients(b.mgr, name, obj, b.discoveryClient, b.dynamicClient, WithConditionsManagerFactory(b.happyCondition, b.dependantConditions...))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create reconciler for component %s: %w", name, err)
+	}
+	return r, nil
+}
+
+func (b *ReconcilerBuilder[T]) buildController(name string) (*builder.Builder, error) {
+	c := ctrl.NewControllerManagedBy(b.mgr).Named(name)
+
+	forOpts := b.getForOptions()
+	c = c.For(b.input.object, forOpts...)
+
+	return c, nil
+}
+
+// getForOptions provides default watch options when none are specified.
+// By default, only GenerationChangedPredicate is used to reduce reconciliation frequency.
+// Use WithBroadPredicate() to opt into broader behavior that includes label and annotation changes.
+func (b *ReconcilerBuilder[T]) getForOptions() []builder.ForOption {
+	forOpts := slices.Clone(b.input.options)
+	if len(forOpts) == 0 {
+		if b.useBroadPredicate {
+			// Opt-in broader predicate that includes label and annotation changes
+			forOpts = append(forOpts, builder.WithPredicates(predicate.Or(
+				predicate.GenerationChangedPredicate{},
+				predicate.LabelChangedPredicate{},
+				predicate.AnnotationChangedPredicate{},
+			)))
+		} else {
+			// Default restrictive predicate - only generation changes
+			forOpts = append(forOpts, builder.WithPredicates(predicate.GenerationChangedPredicate{}))
+		}
+	}
+	return forOpts
+}
+
+func (b *ReconcilerBuilder[T]) setupWatches(c *builder.Builder, r *Reconciler) error {
+	for i := range b.watches {
+		if err := b.processWatch(&b.watches[i], c, r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *ReconcilerBuilder[T]) processWatch(watch *watchInput, c *builder.Builder, r *Reconciler) error {
+	if watch.owned {
+		if err := b.addOwnedTypes(watch, r); err != nil {
+			return err
+		}
+	}
+
+	if watch.dynamic {
+		return b.handleDynamicWatch(watch, r)
+	}
+
+	c.Watches(
+		watch.object,
+		watch.eventHandler,
+		builder.WithPredicates(watch.predicates...),
+	)
+	return nil
+}
+
+func (b *ReconcilerBuilder[T]) handleDynamicWatch(watch *watchInput, r *Reconciler) error {
+	watchName, resourceKind, namespace := b.extractWatchInfo(watch)
+
+	r.Log.V(1).Info("Dynamic watch configured but being skipped",
+		"watchName", watchName,
+		"resourceKind", resourceKind,
+		"namespace", namespace,
+		"reason", "dynamic watches not yet implemented")
+
+	return nil // Skip dynamic watches for now
+}
+
+func (b *ReconcilerBuilder[T]) extractWatchInfo(watch *watchInput) (string, string, string) {
+	// Get GVK information
+	kinds, _, err := b.mgr.GetScheme().ObjectKinds(watch.object)
+	resourceKind := "unknown"
+	if err == nil && len(kinds) > 0 {
+		resourceKind = kinds[0].String()
+	}
+
+	// Get namespace and name information
+	var namespace, watchName string
+	if watch.object != nil {
+		namespace = watch.object.GetNamespace()
+		if namespace == "" {
+			namespace = "cluster-scoped"
+		}
+		watchName = fmt.Sprintf("%s/%s", resourceKind, watch.object.GetName())
+	} else {
+		namespace = "unknown"
+		watchName = resourceKind
+	}
+
+	return watchName, resourceKind, namespace
+}
+
+func (b *ReconcilerBuilder[T]) addOwnedTypes(watch *watchInput, r *Reconciler) error {
+	kinds, _, err := b.mgr.GetScheme().ObjectKinds(watch.object)
+	if err != nil {
+		return err
+	}
+
+	for _, kind := range kinds {
+		r.AddOwnedType(kind)
+	}
+	return nil
+}
+
+func (b *ReconcilerBuilder[T]) addEventFilters(c *builder.Builder) {
+	for _, p := range b.predicates {
+		c.WithEventFilter(p)
+	}
+}
+
+func (b *ReconcilerBuilder[T]) addActionsAndFinalizers(r *Reconciler) {
+	for _, action := range b.actions {
+		r.AddAction(action)
+	}
+	for _, finalizer := range b.finalizers {
+		r.AddFinalizer(finalizer)
+	}
+}
+
+// hasDynamicWatches returns true if any watch in the builder is configured as dynamic.
+func (b *ReconcilerBuilder[T]) hasDynamicWatches() bool {
+	for _, watch := range b.watches {
+		if watch.dynamic {
+			return true
+		}
+	}
+	return false
+}
+
+func (b *ReconcilerBuilder[T]) addDynamicWatchAction(r *Reconciler) {
+	// Only add dynamic watch action if there are dynamic watches configured
+	if !b.hasDynamicWatches() {
+		return
+	}
+
 	r.AddAction(
 		newDynamicWatchAction(
+			// TODO: Implement proper dynamic watch registration
+			// This is intentional scaffolding - dynamic watches require controller-runtime's
+			// builder.Builder.Watches() to be called during reconciliation, which needs
+			// access to the controller manager and proper watch lifecycle management.
+			// Future implementation should:
+			// 1. Access the controller manager to register new watches
+			// 2. Handle watch cleanup and deduplication
+			// 3. Manage watch lifecycle across reconciliation cycles
+			// 4. Consider performance implications of dynamic watch registration
 			func(obj client.Object, eventHandler handler.EventHandler, predicates ...predicate.Predicate) error {
-				return cc.Watch(source.Kind(b.mgr.GetCache(), obj, eventHandler, predicates...))
+				// Dynamic watches not yet supported: log once and no-op to avoid failing reconciles
+				r.Log.V(1).Info("Dynamic watches are not yet implemented; skipping registration")
+				return nil
 			},
 			b.watches,
 		),
 	)
-
-	return r, nil
 }

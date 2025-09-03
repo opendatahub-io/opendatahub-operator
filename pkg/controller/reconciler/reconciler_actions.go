@@ -2,12 +2,14 @@ package reconciler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
@@ -52,13 +54,45 @@ func (a *dynamicWatchAction) run(ctx context.Context, rr *types.ReconciliationRe
 }
 
 func (a *dynamicWatchAction) shouldWatch(ctx context.Context, in watchInput, rr *types.ReconciliationRequest) bool {
-	for pi := range in.dynamicPred {
-		ok := in.dynamicPred[pi](ctx, rr)
+	logger := log.FromContext(ctx)
+	objectGVK := in.object.GetObjectKind().GroupVersionKind()
+
+	// Create a prefixed logger with common fields
+	prefixedLogger := logger.WithValues(
+		"objectGVK", objectGVK.String(),
+		"instanceName", func() string {
+			if rr.Instance != nil {
+				return rr.Instance.GetName()
+			}
+			return "<nil>"
+		}(),
+		"instanceNamespace", func() string {
+			if rr.Instance != nil {
+				return rr.Instance.GetNamespace()
+			}
+			return "<nil>"
+		}(),
+	)
+
+	// Evaluate all dynamic predicates for this watch
+	for i, pred := range in.dynamicPredicates {
+		if pred == nil {
+			prefixedLogger.Error(errors.New("nil dynamic predicate"), "watch blocked due to nil predicate",
+				"predicateIndex", i)
+			return false
+		}
+		ok, err := pred(ctx, rr)
+		if err != nil {
+			prefixedLogger.Error(err, "watch blocked due to predicate error",
+				"predicateIndex", i)
+			return false
+		}
 		if !ok {
+			prefixedLogger.V(1).Info("watch blocked by predicate",
+				"predicateIndex", i)
 			return false
 		}
 	}
-
 	return true
 }
 

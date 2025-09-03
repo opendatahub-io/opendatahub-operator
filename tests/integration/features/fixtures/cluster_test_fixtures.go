@@ -17,6 +17,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests"
 )
 
 func CreateSubscription(ctx context.Context, client client.Client, namespace, subscriptionYaml string) error {
@@ -177,7 +178,7 @@ func NewDSCInitialization(ctx context.Context, cli client.Client, dsciName, ns s
 				ManagementState: "Managed",
 				ControlPlane: infrav1.ControlPlaneSpec{
 					Name:              "data-science-smcp",
-					Namespace:         "istio-system",
+					Namespace:         tests.IstioSystemNamespace,
 					MetricsCollection: "Istio",
 				},
 			},

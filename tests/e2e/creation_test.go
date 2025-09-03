@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -29,16 +30,15 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+	"github.com/opendatahub-io/opendatahub-operator/v2/tests"
 
 	. "github.com/onsi/gomega"
 )
 
 const (
-	testNamespace               = "test-model-registries"   // Namespace used for model registry testing
-	dsciInstanceNameDuplicate   = "e2e-test-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
-	dscInstanceNameDuplicate    = "e2e-test-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
-	openshiftOperatorsNamespace = "openshift-operators"     // Namespace for OpenShift Operators
-	serverlessOperatorNamespace = "openshift-serverless"    // Namespace for the Serverless Operator
+	testNamespace             = "test-model-registries"   // Namespace used for model registry testing
+	dsciInstanceNameDuplicate = "e2e-test-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
+	dscInstanceNameDuplicate  = "e2e-test-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
 )
 
 // DSCTestCtx holds the context for the DSCInitialization and DataScienceCluster management tests.
@@ -104,9 +104,9 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		nn                types.NamespacedName
 		skipOperatorGroup bool
 	}{
-		{nn: types.NamespacedName{Name: serviceMeshOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
-		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: serverlessOperatorNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
+		{nn: types.NamespacedName{Name: serviceMeshOpName, Namespace: tests.OpenshiftOperatorsNamespace}, skipOperatorGroup: true},
+		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: tests.ServerlessOperatorNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: tests.OpenshiftOperatorsNamespace}, skipOperatorGroup: true},
 		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false},
@@ -391,10 +391,12 @@ func (tc *DSCTestCtx) ValidateComponentsDeploymentFailure(t *testing.T) {
 	}
 
 	components := slices.Collect(maps.Keys(componentToControllerMap))
-	componentsLength := len(components)
+	internalComponents := slices.Collect(maps.Keys(internalComponentToControllerMap))
+	allComponents := slices.Concat(components, internalComponents)
+	componentsLength := len(allComponents)
 
-	t.Log("Verifying component count matches DSC Components struct")
-	expectedComponentCount := reflect.TypeOf(dscv1.Components{}).NumField()
+	t.Log("Verifying component count matches DSC Components struct plus internal components")
+	expectedComponentCount := reflect.TypeOf(dscv1.Components{}).NumField() + len(internalComponentToControllerMap)
 	tc.g.Expect(componentsLength).Should(Equal(expectedComponentCount),
 		"allComponents list is out of sync with DSC Components struct. "+
 			"Expected %d components but found %d. "+
@@ -436,10 +438,6 @@ func (tc *DSCTestCtx) ValidateComponentsDeploymentFailure(t *testing.T) {
 	tc.verifyDeploymentsStuckDueToQuota(t, allControllers)
 
 	t.Log("Verifying DSC reports all failed components")
-	allComponents := slices.Concat(
-		components,
-		slices.Collect(maps.Keys(internalComponentToControllerMap)),
-	)
 	sort.Strings(allComponents)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -492,10 +490,11 @@ func createRestrictiveQuotaForOperator(namespace string) *corev1.ResourceQuota {
 		},
 		Spec: corev1.ResourceQuotaSpec{
 			Hard: corev1.ResourceList{
-				corev1.ResourceRequestsCPU:    resource.MustParse("0.1m"),
+				corev1.ResourceRequestsCPU:    resource.MustParse("0"),
 				corev1.ResourceRequestsMemory: resource.MustParse("1Ki"),
-				corev1.ResourceLimitsCPU:      resource.MustParse("0.1m"),
+				corev1.ResourceLimitsCPU:      resource.MustParse("0"),
 				corev1.ResourceLimitsMemory:   resource.MustParse("1Ki"),
+				corev1.ResourcePods:           resource.MustParse("0"),
 			},
 		},
 	}
@@ -503,8 +502,6 @@ func createRestrictiveQuotaForOperator(namespace string) *corev1.ResourceQuota {
 
 func (tc *DSCTestCtx) verifyDeploymentsStuckDueToQuota(t *testing.T, allControllers []string) {
 	t.Helper()
-
-	expectedCount := len(allControllers)
 
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
@@ -518,7 +515,9 @@ func (tc *DSCTestCtx) verifyDeploymentsStuckDueToQuota(t *testing.T, allControll
 					select(.message | test(
 						"forbidden: exceeded quota: test-restrictive-quota|" +
 						"forbidden: failed quota: test-restrictive-quota|" +
-						"forbidden"; "i"
+						"forbidden.*quota.*test-restrictive-quota|" +
+						"quota.*test-restrictive-quota.*exceeded|" +
+						"quota.*test-restrictive-quota.*failed"; "i"
 					))
 				)
 			) |
