@@ -308,7 +308,7 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("operator-namespace", viper.GetEnvPrefix()+"_OPERATOR_NAMESPACE"))
 	pflag.String("applications-namespace", "redhat-ods-applications", "Namespace where the odh applications are deployed")
 	checkEnvVarBindingError(viper.BindEnv("applications-namespace", viper.GetEnvPrefix()+"_APPLICATIONS_NAMESPACE"))
-	pflag.String("dsc-monitoring-namespace", "opendatahub", "Namespace where the odh monitoring is deployed")
+	pflag.String("dsc-monitoring-namespace", "redhat-ods-monitoring", "Namespace where the odh monitoring is deployed")
 	checkEnvVarBindingError(viper.BindEnv("dsc-monitoring-namespace", viper.GetEnvPrefix()+"_DSC_MONITORING_NAMESPACE"))
 	pflag.String("deletion-policy", "always",
 		"Specify when to delete DataScienceCluster, DSCInitialization, and controllers. Options: always, on-failure, never.")
