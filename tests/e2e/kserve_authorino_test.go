@@ -40,6 +40,38 @@ var authRelatedResources = []struct {
 	{gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-predictor"}},
 }
 
+func kserveAuthorinoTestSuite(t *testing.T) {
+	t.Helper()
+
+	ctx, err := NewTestContext(t)
+	require.NoError(t, err)
+
+	testCtx := KserveAuthorinoTestCtx{
+		TestContext: ctx,
+	}
+
+	// Setup cleanup function similar to cleanup_test.go
+	t.Cleanup(func() {
+		testCtx.CleanupTestResources(t)
+	})
+
+	testCases := []TestCase{
+		{"Cleanup existing resources", testCtx.CleanupTestResources},
+		{"Uninstall Authorino operator", testCtx.UninstallAuthorinoOperator},
+		{"Verify required operators are installed", testCtx.VerifyRequiredOperatorsInstalled},
+		{"Setup DSCI with ServiceMesh", testCtx.SetupDSCIWithServiceMesh},
+		{"Setup KServe with Serverless mode", testCtx.SetupKServeServerlessMode},
+		{"Verify Authorino is not installed", testCtx.VerifyAuthorinoNotInstalled},
+		{"Verify KServe is Ready", testCtx.VerifyKServeReady},
+		{"Validate auth resources are not created in Serverless mode", testCtx.ValidateAuthResourcesNotCreatedServerless},
+		{"Setup KServe with Raw deployment mode", testCtx.SetupKServeRawMode},
+		{"Verify KServe is Ready in Raw mode", testCtx.VerifyKServeReady},
+		{"Validate auth resources are not created in Raw mode", testCtx.ValidateAuthResourcesNotCreatedRaw},
+	}
+
+	RunTestCases(t, testCases)
+}
+
 // TestKserveAuthorinoRegression tests the regression scenario where auth-related resources
 // were created even when Authorino was not installed (RHOAI 2.19.0 issue).
 func TestKserveAuthorinoRegression(t *testing.T) {
