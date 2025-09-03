@@ -888,6 +888,7 @@ spec:
           resources:
           - clusterqueues
           - localqueues
+          - resourceflavors
           verbs:
           - create
           - delete

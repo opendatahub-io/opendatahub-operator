@@ -58,10 +58,6 @@ func kueueTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
-	// Increase the global eventually timeout
-	reset := componentCtx.OverrideEventuallyTimeout(ct.TestTimeouts.mediumEventuallyTimeout, ct.TestTimeouts.defaultEventuallyPollInterval)
-	defer reset() // Make sure it's reset after all tests run
-
 	// Define core test cases
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
