@@ -891,6 +891,15 @@ spec:
           verbs:
           - get
         - apiGroups:
+          - inference.networking.x-k8s.io
+          resources:
+          - inferencemodels
+          - inferencepools
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
           - infrastructure.opendatahub.io
           resources:
           - hardwareprofiles
@@ -1463,6 +1472,15 @@ spec:
           - get
           - patch
           - update
+        - apiGroups:
+          - serving.kserve.io
+          resources:
+          - llminferenceservices
+          - llminferenceservices/status
+          verbs:
+          - get
+          - list
+          - watch
         - apiGroups:
           - serving.kserve.io
           resources:
