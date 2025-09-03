@@ -39,24 +39,27 @@ func (ct ConnectionType) String() string {
 }
 
 type InferenceServingPath struct {
-	ModelPath           []string
-	ImagePullSecretPath []string
-	StorageUriPath      []string
+	ModelPath              []string
+	ImagePullSecretPath    []string
+	StorageUriPath         []string
+	ServiceAccountNamePath []string
 }
 
 var IsvcConfigs = InferenceServingPath{
-	ModelPath:           []string{"spec", "predictor", "model"},               // used by S3, has map
-	ImagePullSecretPath: []string{"spec", "predictor", "imagePullSecrets"},    // used by OCI, has slice
-	StorageUriPath:      []string{"spec", "predictor", "model", "storageUri"}, // used by URI, has string
+	ModelPath:              []string{"spec", "predictor", "model"},               // used by S3, has map
+	ImagePullSecretPath:    []string{"spec", "predictor", "imagePullSecrets"},    // used by OCI, has slice
+	StorageUriPath:         []string{"spec", "predictor", "model", "storageUri"}, // used by URI, has string
+	ServiceAccountNamePath: []string{"spec", "predictor", "serviceAccountName"},  // used by all, has string
 }
 
-//+kubebuilder:webhook:path=/platform-connection-isvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=connection-isvc.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/platform-connection-isvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=connection-isvc.opendatahub.io,sideEffects=NoneOnDryRun,admissionReviewVersions=v1
 //nolint:lll
 
 type ConnectionWebhook struct {
-	Client  client.Reader
-	Decoder admission.Decoder
-	Name    string
+	APIReader client.Reader
+	Client    client.Client // used to create ServiceAccount
+	Decoder   admission.Decoder
+	Name      string
 }
 
 var _ admission.Handler = &ConnectionWebhook{}
@@ -73,11 +76,26 @@ func (w *ConnectionWebhook) SetupWithManager(mgr ctrl.Manager) error {
 func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
 	log := logf.FromContext(ctx)
 
+	// Check if request object is valid
+	if req.Object.Raw == nil {
+		log.Error(nil, "Request object is nil")
+		return admission.Errored(http.StatusBadRequest, errors.New("request object is nil"))
+	}
+
+	if w.Client == nil {
+		log.Error(nil, "Client is nil - webhook not properly initialized")
+		return admission.Errored(http.StatusInternalServerError, errors.New("webhook client not initialized"))
+	}
+
+	if w.APIReader == nil {
+		log.Error(nil, "APIReader is nil - webhook not properly initialized")
+		return admission.Errored(http.StatusInternalServerError, errors.New("webhook APIReader not initialized"))
+	}
+
 	if w.Decoder == nil {
 		log.Error(nil, "Decoder is nil - webhook not properly initialized")
 		return admission.Errored(http.StatusInternalServerError, errors.New("webhook decoder not initialized"))
 	}
-
 	// Decode the object once
 	obj, err := webhookutils.DecodeUnstructured(w.Decoder, req)
 	if err != nil {
@@ -100,7 +118,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		}
 
 		// validate the connection annotation and determine the action to take
-		validationResp, action, secretName, connectionType := webhookutils.ValidateInferenceServiceConnectionAnnotation(ctx, w.Client, obj, req, allowedTypes)
+		validationResp, action, secretName, connectionType := webhookutils.ValidateInferenceServiceConnectionAnnotation(ctx, w.APIReader, obj, req, allowedTypes)
 		if !validationResp.Allowed {
 			return validationResp
 		}
@@ -108,6 +126,16 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		// Handle different actions based on the ConnectionAction value
 		switch action {
 		case webhookutils.ConnectionActionInject:
+			// create ServiceAccount first (skip if it is dry-run)
+			isDryRun := req.DryRun != nil && *req.DryRun
+			if !isDryRun {
+				if err := webhookutils.CreateServiceAccount(ctx, w.Client, secretName, req.Namespace); err != nil {
+					log.Error(err, "Failed to create ServiceAccount")
+					return admission.Errored(http.StatusInternalServerError, err)
+				}
+			} else {
+				log.V(1).Info("Skipping ServiceAccount creation in dry-run mode", "secretName", secretName)
+			}
 			// Perform injection for valid connection types
 			injectionPerformed, err := w.performConnectionInjection(ctx, req, secretName, connectionType, obj)
 			if err != nil {
@@ -127,7 +155,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 			return admission.Allowed(fmt.Sprintf("No connection injection performed for %s in namespace %s", req.Kind.Kind, req.Namespace))
 
 		case webhookutils.ConnectionActionRemove:
-			// Perform cleanup when annotation is removed
+			// Perform cleanup when annotation is removed, we do not delete SA but only remove injection part
 			cleanupPerformed, err := w.performConnectionCleanup(ctx, req, obj)
 			if err != nil {
 				log.Error(err, "Failed to perform connection cleanup")
@@ -166,6 +194,13 @@ func (w *ConnectionWebhook) performConnectionInjection(
 	decodedObj *unstructured.Unstructured,
 ) (bool, error) {
 	log := logf.FromContext(ctx)
+
+	// inject ServiceAccount as common part
+	if err := w.handleSA(decodedObj, secretName+"-sa"); err != nil {
+		log.Error(err, "Failed to inject ServiceAccount")
+		return false, fmt.Errorf("failed to inject ServiceAccount: %w", err)
+	}
+	log.V(1).Info("Successfully injected ServiceAccount", "ServiceAccountName", secretName+"-sa")
 
 	// injection based on connection type
 	switch ConnectionType(connectionType) {
@@ -206,7 +241,12 @@ func (w *ConnectionWebhook) performConnectionCleanup(
 	log := logf.FromContext(ctx)
 	log.V(1).Info("Performing connection cleanup for removed annotation", "name", req.Name, "namespace", req.Namespace)
 
-	cleanupPerformed := false
+	// remove ServiceAccountName injection
+	if err := w.handleSA(decodedObj, ""); err != nil {
+		log.Error(err, "Failed to cleanup ServiceAccountName")
+		return false, fmt.Errorf("failed to cleanup ServiceAccountName: %w", err)
+	}
+	cleanupPerformed := true
 
 	// Check for OCI imagePullSecrets
 	if hasOCIImagePullSecrets(decodedObj) {
@@ -215,7 +255,6 @@ func (w *ConnectionWebhook) performConnectionCleanup(
 			return false, fmt.Errorf("failed to cleanup OCI imagePullSecrets: %w", err)
 		}
 		log.V(1).Info("Successfully cleaned up OCI imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
-		cleanupPerformed = true
 	}
 
 	// Check for URI storageUri
@@ -301,6 +340,17 @@ func (w *ConnectionWebhook) cleanupS3StorageKey(obj *unstructured.Unstructured) 
 	return true, err
 }
 
+// handleSA injects serviceaccount into spec.predictor.serviceAccountName.
+// if saName is "", it is removal.
+func (w *ConnectionWebhook) handleSA(obj *unstructured.Unstructured, saName string) error {
+	if saName == "" {
+		// Remove the field entirely
+		unstructured.RemoveNestedField(obj.Object, IsvcConfigs.ServiceAccountNamePath...)
+		return nil
+	}
+	return webhookutils.SetNestedValue(obj.Object, saName, IsvcConfigs.ServiceAccountNamePath)
+}
+
 // injectOCIImagePullSecrets injects imagePullSecrets into spec.predictor.imagePullSecrets for OCI connections.
 func (w *ConnectionWebhook) injectOCIImagePullSecrets(obj *unstructured.Unstructured, secretName string) error {
 	imagePullSecrets, err := webhookutils.GetOrCreateNestedSlice(obj.Object, IsvcConfigs.ImagePullSecretPath...)
@@ -330,7 +380,7 @@ func (w *ConnectionWebhook) injectOCIImagePullSecrets(obj *unstructured.Unstruct
 func (w *ConnectionWebhook) injectURIStorageUri(ctx context.Context, obj *unstructured.Unstructured, secretName, namespace string) error {
 	// Fetch the secret to get the URI data
 	secret := &corev1.Secret{}
-	if err := w.Client.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
+	if err := w.APIReader.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
 		return fmt.Errorf("failed to get secret %s: %w", secretName, err)
 	}
 

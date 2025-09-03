@@ -54,11 +54,12 @@ func setupTestEnvironment(t *testing.T) (*runtime.Scheme, context.Context) {
 	return sch, t.Context()
 }
 
-func createWebhook(cli client.Client, sch *runtime.Scheme) *inferenceservice.ConnectionWebhook {
+func createWebhook(cli client.Client, reader client.Reader, sch *runtime.Scheme) *inferenceservice.ConnectionWebhook {
 	webhook := &inferenceservice.ConnectionWebhook{
-		Client:  cli,
-		Decoder: admission.NewDecoder(sch),
-		Name:    "glueisvc-test",
+		Client:    cli,
+		APIReader: reader,
+		Decoder:   admission.NewDecoder(sch),
+		Name:      "glueisvc-test",
 	}
 	return webhook
 }
@@ -103,6 +104,7 @@ func runTestCase(t *testing.T, tc TestCase) {
 	sch, ctx := setupTestEnvironment(t)
 
 	var cli client.Client
+	var reader client.Reader
 	if tc.secretType != "" {
 		// Extract secret name from annotations, default to testSecret if not specified
 		secretName := testSecret
@@ -114,11 +116,13 @@ func runTestCase(t *testing.T, tc TestCase) {
 
 		secret := createTestSecret(secretName, tc.secretNamespace, tc.secretType, tc.secretData)
 		cli = fake.NewClientBuilder().WithScheme(sch).WithObjects(secret).Build()
+		reader = fake.NewClientBuilder().WithScheme(sch).WithObjects(secret).Build()
 	} else {
 		cli = fake.NewClientBuilder().WithScheme(sch).Build()
+		reader = fake.NewClientBuilder().WithScheme(sch).Build()
 	}
 
-	webhook := createWebhook(cli, sch)
+	webhook := createWebhook(cli, reader, sch)
 
 	isvc, err := createTestInferenceService(testInferenceService, testNamespace, tc.annotations, tc.predictorSpec)
 	if err != nil {
@@ -249,6 +253,77 @@ func hasStorageKeyCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
 		}
 		return false
 	}
+}
+
+func hasServiceAccountNamePatch(expectedSAName string) func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		for _, patch := range patches {
+			if patch.Path == "/spec/predictor/serviceAccountName" && patch.Value == expectedSAName {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func hasServiceAccountNameRemovePatch() func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		for _, patch := range patches {
+			if patch.Path == "/spec/predictor/serviceAccountName" && patch.Operation == OperationRemove {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func TestServiceAccountNamePatching(t *testing.T) {
+	t.Run("serviceAccountName is injected on create with OCI", func(t *testing.T) {
+		tc := TestCase{
+			name:            "serviceAccountName injected on create",
+			secretType:      inferenceservice.ConnectionTypeOCI.String(),
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			operation:       admissionv1.Create,
+			expectedAllowed: true,
+			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
+				return hasServiceAccountNamePatch(testSecret + "-sa")(patches)
+			},
+		}
+		runTestCase(t, tc)
+	})
+	t.Run("serviceAccountName is injected on update with S3", func(t *testing.T) {
+		tc := TestCase{
+			name:            "serviceAccountName injected on update",
+			secretType:      inferenceservice.ConnectionTypeS3.String(),
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			predictorSpec:   map[string]interface{}{"model": map[string]interface{}{}},
+			operation:       admissionv1.Update,
+			expectedAllowed: true,
+			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
+				return hasServiceAccountNamePatch(testSecret + "-sa")(patches)
+			},
+		}
+		runTestCase(t, tc)
+	})
+	t.Run("serviceAccountName is removed on annotation removal", func(t *testing.T) {
+		tc := TestCase{
+			name:            "serviceAccountName removed on annotation removal",
+			secretType:      "",
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{}, // annotation removed
+			predictorSpec: map[string]interface{}{
+				"serviceAccountName": testSecret + "-sa",
+			},
+			operation:       admissionv1.Update,
+			expectedAllowed: true,
+			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
+				return hasServiceAccountNameRemovePatch()(patches)
+			},
+		}
+		runTestCase(t, tc)
+	})
 }
 
 func TestConnectionWebhook(t *testing.T) {
