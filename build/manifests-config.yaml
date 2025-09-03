@@ -5,7 +5,7 @@ map:
     src: manifests
     dest: workbenches/notebooks
     ref_type: branch
-  kserve:
+  odh-kserve-controller:
     src: config
     dest: kserve
   odh-kf-notebook-controller:
