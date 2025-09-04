@@ -245,8 +245,10 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-validations:
-                - message: Alerting configuration requires metrics to be configured
-                  rule: 'has(self.alerting) ? has(self.metrics) : true'
+                - message: Alerting configuration requires metrics.storage or metrics.resources
+                    to be configured
+                  rule: 'has(self.alerting) ? has(self.metrics.storage) || has(self.metrics.resources)
+                    : true'
               serviceMesh:
                 description: |-
                   Configures Service Mesh as networking layer for Data Science Clusters components.
