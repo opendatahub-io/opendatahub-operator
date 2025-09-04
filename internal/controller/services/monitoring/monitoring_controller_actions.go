@@ -23,17 +23,22 @@ import (
 
 const (
 	// Template files.
-	MonitoringStackTemplate                 = "resources/monitoring-stack.tmpl.yaml"
-	MonitoringStackAlertmanagerRBACTemplate = "resources/monitoringstack-alertmanager-rbac.tmpl.yaml"
-	TempoMonolithicTemplate                 = "resources/tempo-monolithic.tmpl.yaml"
-	TempoStackTemplate                      = "resources/tempo-stack.tmpl.yaml"
-	OpenTelemetryCollectorTemplate          = "resources/opentelemetry-collector.tmpl.yaml"
-	CollectorServiceMonitorsTemplate        = "resources/collector-servicemonitors.tmpl.yaml"
-	CollectorRBACTemplate                   = "resources/collector-rbac.tmpl.yaml"
-	PrometheusRouteTemplate                 = "resources/prometheus-route.tmpl.yaml"
-	InstrumentationTemplate                 = "resources/instrumentation.tmpl.yaml"
-	ThanosQuerierTemplate                   = "resources/thanos-querier-cr.tmpl.yaml"
-	ThanosQuerierRouteTemplate              = "resources/thanos-querier-route.tmpl.yaml"
+	MonitoringStackTemplate                   = "resources/monitoring-stack.tmpl.yaml"
+	MonitoringStackAlertmanagerRBACTemplate   = "resources/monitoringstack-alertmanager-rbac.tmpl.yaml"
+	TempoMonolithicTemplate                   = "resources/tempo-monolithic.tmpl.yaml"
+	TempoStackTemplate                        = "resources/tempo-stack.tmpl.yaml"
+	OpenTelemetryCollectorTemplate            = "resources/opentelemetry-collector.tmpl.yaml"
+	CollectorServiceMonitorsTemplate          = "resources/collector-servicemonitors.tmpl.yaml"
+	CollectorRBACTemplate                     = "resources/collector-rbac.tmpl.yaml"
+	PrometheusRouteTemplate                   = "resources/data-science-prometheus-route.tmpl.yaml"
+	InstrumentationTemplate                   = "resources/instrumentation.tmpl.yaml"
+	PrometheusRestrictedTemplate              = "resources/data-science-prometheus-restricted.tmpl.yaml"
+	PrometheusRestrictedNetworkPolicyTemplate = "resources/data-science-prometheus-restricted-network-policy.tmpl.yaml"
+	PrometheusSecureRBACTemplate              = "resources/data-science-prometheus-secure-rbac.tmpl.yaml"
+	PrometheusServiceOverrideTemplate         = "resources/data-science-prometheus-service-override.tmpl.yaml"
+	PrometheusNetworkPolicyTemplate           = "resources/data-science-prometheus-network-policy.tmpl.yaml"
+	ThanosQuerierTemplate                     = "resources/thanos-querier-cr.tmpl.yaml"
+	ThanosQuerierRouteTemplate                = "resources/thanos-querier-route.tmpl.yaml"
 )
 
 // CRDRequirement defines a required CRD and its associated condition for monitoring components.
@@ -150,9 +155,9 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	})
 }
 
-// deployMonitoringStackWithQuerier handles deployment of both MonitoringStack and ThanosQuerier components.
-// These components are deployed together as ThanosQuerier depends on MonitoringStack for proper functioning.
-func deployMonitoringStackWithQuerier(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+// deployMonitoringStackWithQuerierAndRestrictions handles deployment of both MonitoringStack, ThanosQuerier and NamespaceRestrictedMetrics components.
+// These components are deployed together as both ThanosQuerier and NamespaceRestrictedMetrics depend on MonitoringStack for proper functioning.
+func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
@@ -161,6 +166,7 @@ func deployMonitoringStackWithQuerier(ctx context.Context, rr *odhtypes.Reconcil
 	// Early exit if no metrics configuration
 	if monitoring.Spec.Metrics == nil {
 		setConditionFalse(rr, status.ConditionMonitoringStackAvailable, status.MetricsNotConfiguredReason, status.MetricsNotConfiguredMessage)
+		setConditionFalse(rr, status.ConditionNamespaceRestrictedMetricsAvailable, status.MetricsNotConfiguredReason, status.MetricsNotConfiguredMessage)
 		setConditionFalse(rr, status.ConditionThanosQuerierAvailable, status.MetricsNotConfiguredReason, status.MetricsNotConfiguredMessage)
 		return nil
 	}
@@ -168,6 +174,7 @@ func deployMonitoringStackWithQuerier(ctx context.Context, rr *odhtypes.Reconcil
 	// Define required CRDs and their corresponding conditions for validation
 	requirements := []CRDRequirement{
 		{GVK: gvk.MonitoringStack, ConditionType: status.ConditionMonitoringStackAvailable},
+		{GVK: gvk.MonitoringStack, ConditionType: status.ConditionNamespaceRestrictedMetricsAvailable},
 		{GVK: gvk.ThanosQuerier, ConditionType: status.ConditionThanosQuerierAvailable},
 	}
 
@@ -176,20 +183,26 @@ func deployMonitoringStackWithQuerier(ctx context.Context, rr *odhtypes.Reconcil
 		return nil
 	}
 
-	// All prerequisites met, mark both components as available and deploy
+	// All prerequisites met, mark all components as available and deploy
 	rr.Conditions.MarkTrue(status.ConditionMonitoringStackAvailable)
+	rr.Conditions.MarkTrue(status.ConditionNamespaceRestrictedMetricsAvailable)
 	rr.Conditions.MarkTrue(status.ConditionThanosQuerierAvailable)
 
-	// Prepare and deploy both component templates atomically
+	// Prepare and deploy all component templates atomically
 	templates := []odhtypes.TemplateInfo{
 		{FS: resourcesFS, Path: MonitoringStackTemplate},
 		{FS: resourcesFS, Path: MonitoringStackAlertmanagerRBACTemplate},
 		{FS: resourcesFS, Path: PrometheusRouteTemplate},
+		{FS: resourcesFS, Path: PrometheusSecureRBACTemplate},
+		{FS: resourcesFS, Path: PrometheusServiceOverrideTemplate},
+		{FS: resourcesFS, Path: PrometheusNetworkPolicyTemplate},
+		{FS: resourcesFS, Path: PrometheusRestrictedTemplate},
+		{FS: resourcesFS, Path: PrometheusRestrictedNetworkPolicyTemplate},
 		{FS: resourcesFS, Path: ThanosQuerierTemplate},
 		{FS: resourcesFS, Path: ThanosQuerierRouteTemplate},
 	}
 
-	// Deploy both components atomically with the same generation annotation
+	// Deploy all components atomically with the same generation annotation
 	rr.Templates = append(rr.Templates, templates...)
 	return nil
 }
