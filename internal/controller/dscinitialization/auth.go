@@ -75,8 +75,10 @@ func BuildDefaultAuth(platform common.Platform) client.Object {
 		TypeMeta:   metav1.TypeMeta{Kind: serviceApi.AuthKind, APIVersion: serviceApi.GroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{Name: serviceApi.AuthInstanceName},
 		Spec: serviceApi.AuthSpec{
-			AdminGroups:   []string{adminGroup},
-			AllowedGroups: []string{"system:authenticated"},
+			AdminGroups:          []string{adminGroup},
+			AllowedGroups:        []string{"system:authenticated"},
+			MetricsAdminGroups:   []string{adminGroup},
+			MetricsAllowedGroups: []string{}, // Empty by default - metrics access must be explicitly granted
 		},
 	}
 }

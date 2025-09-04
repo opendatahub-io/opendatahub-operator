@@ -39,6 +39,14 @@ type AuthSpec struct {
 	// AllowedGroups cannot contain empty strings, but 'system:authenticated' is allowed for general access
 	// +kubebuilder:validation:XValidation:rule="self.all(group, group != '')",message="AllowedGroups cannot contain empty strings"
 	AllowedGroups []string `json:"allowedGroups"`
+	// MetricsAdminGroups defines groups with administrative access to metrics resources. Cannot contain 'system:authenticated' or empty strings
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="self.all(group, group != 'system:authenticated' && group != '')",message="MetricsAdminGroups cannot contain 'system:authenticated' or empty strings"
+	MetricsAdminGroups []string `json:"metricsAdminGroups,omitempty"`
+	// MetricsAllowedGroups defines groups with read access to metrics resources. Cannot contain 'system:authenticated' or empty strings
+	// +optional
+	// +kubebuilder:validation:XValidation:rule="self.all(group, group != 'system:authenticated' && group != '')",message="MetricsAllowedGroups cannot contain 'system:authenticated' or empty strings"
+	MetricsAllowedGroups []string `json:"metricsAllowedGroups,omitempty"`
 }
 
 // AuthStatus defines the observed state of Auth

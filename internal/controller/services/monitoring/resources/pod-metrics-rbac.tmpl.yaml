@@ -1,0 +1,29 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: odh:pod-metrics-reader
+  labels:
+    app: namespace-restricted-metrics
+    app.kubernetes.io/managed-by: opendatahub-operator
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-metrics-admin
+  labels:
+    app: namespace-restricted-metrics
+rules:
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["rolebindings"]
+    verbs: ["create", "get", "list", "update", "patch", "delete"]
+    resourceNames: ["pod-metrics-reader"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles"]
+    verbs: ["get", "list"]
+    resourceNames: ["odh:pod-metrics-reader"]
