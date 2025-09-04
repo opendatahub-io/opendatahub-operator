@@ -1,0 +1,196 @@
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  name: dashboard-prometheusrules
+  namespace: {{.Namespace}}
+spec:
+  groups:
+      - name: SLOs-haproxy_backend_http_responses_dashboard
+        rules:
+        - alert: RHODS Dashboard Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: RHODS Dashboard Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate5m{route=~"rhods-dashboard"}) by (route) > (14.40 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate1h{route=~"rhods-dashboard"}) by (route) > (14.40 * (1-0.99950))
+          for: 2m
+          labels:
+            severity: critical
+            namespace: {{.ApplicationNamespace}}
+        - alert: RHODS Dashboard Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: RHODS Dashboard Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate30m{route=~"rhods-dashboard"}) by (route) > (6.00 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate6h{route=~"rhods-dashboard"}) by (route) > (6.00 * (1-0.99950))
+          for: 15m
+          labels:
+            severity: critical
+            namespace: {{.ApplicationNamespace}}
+        - alert: RHODS Dashboard Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: RHODS Dashboard Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate2h{route=~"rhods-dashboard"}) by (route) > (3.00 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate1d{route=~"rhods-dashboard"}) by (route) > (3.00 * (1-0.99950))
+          for: 1h
+          labels:
+            severity: warning
+            namespace: {{.ApplicationNamespace}}
+        - alert: RHODS Dashboard Route Error Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.route{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: RHODS Dashboard Route Error Burn Rate
+          expr: |
+            sum(haproxy_backend_http_responses_total:burnrate6h{route=~"rhods-dashboard"}) by (route) > (1.00 * (1-0.99950))
+            and
+            sum(haproxy_backend_http_responses_total:burnrate3d{route=~"rhods-dashboard"}) by (route) > (1.00 * (1-0.99950))
+          for: 3h
+          labels:
+            severity: warning
+            namespace: {{.ApplicationNamespace}}
+      - name: SLOs-probe_success_dashboard
+        rules:
+        - alert: RHODS Dashboard Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.name{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: RHODS Dashboard Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{name=~"rhods-dashboard"}) by (name) > (14.40 * (1-0.98))
+            and
+            sum(probe_success:burnrate1h{name=~"rhods-dashboard"}) by (name) > (14.40 * (1-0.98))
+          for: 2m
+          labels:
+            severity: critical
+            namespace: {{.ApplicationNamespace}}
+        - alert: RHODS Dashboard Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.name{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: RHODS Dashboard Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{name=~"rhods-dashboard"}) by (name) > (6.00 * (1-0.98))
+            and
+            sum(probe_success:burnrate6h{name=~"rhods-dashboard"}) by (name) > (6.00 * (1-0.98))
+          for: 15m
+          labels:
+            severity: critical
+            namespace: {{.ApplicationNamespace}}
+        - alert: RHODS Dashboard Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.name{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: RHODS Dashboard Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{name=~"rhods-dashboard"}) by (name) > (3.00 * (1-0.98))
+            and
+            sum(probe_success:burnrate1d{name=~"rhods-dashboard"}) by (name) > (3.00 * (1-0.98))
+          for: 1h
+          labels:
+            severity: warning
+            namespace: {{.ApplicationNamespace}}
+        - alert: RHODS Dashboard Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.name{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: RHODS Dashboard Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate6h{name=~"rhods-dashboard"}) by (name) > (1.00 * (1-0.98))
+            and
+            sum(probe_success:burnrate3d{name=~"rhods-dashboard"}) by (name) > (1.00 * (1-0.98))
+          for: 3h
+          labels:
+            severity: warning
+            namespace: {{.ApplicationNamespace}}
+
+      # RecordingRules for ODH Dashboard
+      - name: SLOs - ODH Dashboard
+        rules:
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[1d]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[1d]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate1d
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[1h]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[1h]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate1h
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[2h]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[2h]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate2h
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[30m]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[30m]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate30m
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[3d]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[3d]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate3d
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[5m]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[5m]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate5m
+        - expr: |
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard",code=~"5.."}[6h]))
+            /
+            sum(rate(haproxy_backend_http_responses_total{route="rhods-dashboard"}[6h]))
+          labels:
+            route: rhods-dashboard
+          record: haproxy_backend_http_responses_total:burnrate6h
+
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[1d])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[1h])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[2h])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[30m])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[3d])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[5m])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - avg_over_time(probe_success{instance=~"rhods-dashboard-.*", job="user_facing_endpoints_status_rhods_dashboard"}[6h])
+          labels:
+            instance: rhods-dashboard
+          record: probe_success:burnrate6h

@@ -20,8 +20,10 @@ package common
 
 import (
 	"crypto/sha256"
+	"embed"
 	b64 "encoding/base64"
 	"fmt"
+	"io/fs"
 	"os"
 	"regexp"
 	"slices"
@@ -117,4 +119,10 @@ func AddMissing(s *[]string, list string) int {
 		added += sliceAddMissing(s, e)
 	}
 	return added
+}
+
+// FileExists checks if a file exists in the embedded filesystem.
+func FileExists(fsys embed.FS, path string) bool {
+	_, err := fs.Stat(fsys, path)
+	return err == nil
 }

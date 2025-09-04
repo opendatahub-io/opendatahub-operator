@@ -1,0 +1,20 @@
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  name: operator-prometheusrules
+  namespace: {{.Namespace}}
+spec:
+  groups:
+      - name: SLOs - RHODS Operator v2
+        interval: 15m
+        rules:
+        - expr: |
+            rate(controller_runtime_reconcile_total{controller="dscinitialization-controller", job="RHOAI Metrics", result!="success"}[15m])
+          labels:
+            instance: dscinitialization-controller
+          record: controller_runtime_reconcile_total:rate15m
+        - expr: |
+            rate(controller_runtime_reconcile_total{controller="datasciencecluster-controller", job="RHOAI Metrics", result!="success"}[15m])
+          labels:
+            instance: datasciencecluster-controller
+          record: controller_runtime_reconcile_total:rate15m

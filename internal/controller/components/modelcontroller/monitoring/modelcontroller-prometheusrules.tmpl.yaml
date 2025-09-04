@@ -1,0 +1,89 @@
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  name: modelcontroller-prometheusrules
+  namespace: {{.Namespace}}
+spec:
+  groups:
+      - name: SLOs-probe_success_model_controller
+        rules:
+        - alert: ODH Model Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: ODH Model Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"odh-model-controller"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"odh-model-controller"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+            namespace: {{.ApplicationNamespace}}
+        - alert: ODH Model Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: ODH Model Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"odh-model-controller"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"odh-model-controller"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+            namespace: {{.ApplicationNamespace}}
+        - alert: ODH Model Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: ODH Model Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"odh-model-controller"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"odh-model-controller"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
+            namespace: {{.ApplicationNamespace}}
+
+      # RecordingRules for Model Controller
+      - name: SLOs - ODH Model Controller
+        rules:
+        - expr: |
+            absent(up{job=~'ODH Model Controller'}) * 0 or vector(1)
+          labels:
+            instance: odh-model-controller
+          record: probe_success
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[1d]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[1h]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[2h]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[30m]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[3d]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[5m]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="odh-model-controller"}[6h]))
+          labels:
+            instance: odh-model-controller
+          record: probe_success:burnrate6h

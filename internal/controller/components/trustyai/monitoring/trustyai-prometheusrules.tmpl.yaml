@@ -1,0 +1,89 @@
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  name: trustyai-prometheusrules
+  namespace: {{.Namespace}}
+spec:
+  groups:
+      - name: SLOs-probe_success_trustyai
+        rules:
+        - alert: TrustyAI Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: TrustyAI Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate5m{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1h{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (14.40 * (1-0.98000))
+          for: 2m
+          labels:
+            severity: critical
+            instance: trustyai-service-operator-controller-manager
+        - alert: TrustyAI Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: TrustyAI Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate30m{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate6h{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (6.00 * (1-0.98000))
+          for: 15m
+          labels:
+            severity: critical
+            instance: trustyai-service-operator-controller-manager
+        - alert: TrustyAI Controller Probe Success Burn Rate
+          annotations:
+            message: 'High error budget burn for {{`{{`}}$labels.instance{{`}}`}} (current value: {{`{{`}}$value{{`}}`}} ).'
+            summary: TrustyAI Controller Probe Success Burn Rate
+          expr: |
+            sum(probe_success:burnrate2h{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+            and
+            sum(probe_success:burnrate1d{instance=~"trustyai-service-operator-controller-manager"}) by (instance) > (3.00 * (1-0.98000))
+          for: 1h
+          labels:
+            severity: warning
+            instance: trustyai-service-operator-controller-manager
+
+      # RecordingRules for TrustyAI Controller Manager
+      - name: SLOs - TrustyAI Controller Manager
+        rules:
+        - expr: |
+            absent(up{job=~'TrustyAI Controller Manager'}) * 0 or vector(1)
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[1d]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate1d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[1h]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate1h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[2h]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate2h
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[30m]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate30m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[3d]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate3d
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[5m]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate5m
+        - expr: |
+            1 - min(avg_over_time(probe_success{instance="trustyai-service-operator-controller-manager"}[6h]))
+          labels:
+            instance: trustyai-service-operator-controller-manager
+          record: probe_success:burnrate6h
