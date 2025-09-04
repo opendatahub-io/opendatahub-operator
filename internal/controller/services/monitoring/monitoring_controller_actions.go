@@ -23,16 +23,22 @@ import (
 
 const (
 	// Template files.
-	MonitoringStackTemplate          = "resources/monitoring-stack.tmpl.yaml"
-	TempoMonolithicTemplate          = "resources/tempo-monolithic.tmpl.yaml"
-	TempoStackTemplate               = "resources/tempo-stack.tmpl.yaml"
-	OpenTelemetryCollectorTemplate   = "resources/opentelemetry-collector.tmpl.yaml"
-	CollectorServiceMonitorsTemplate = "resources/collector-servicemonitors.tmpl.yaml"
-	CollectorRBACTemplate            = "resources/collector-rbac.tmpl.yaml"
-	PrometheusRouteTemplate          = "resources/prometheus-route.tmpl.yaml"
-	InstrumentationTemplate          = "resources/instrumentation.tmpl.yaml"
-	ThanosQuerierTemplate            = "resources/thanos-querier-cr.tmpl.yaml"
-	ThanosQuerierRouteTemplate       = "resources/thanos-querier-route.tmpl.yaml"
+	MonitoringStackTemplate                   = "resources/monitoring-stack.tmpl.yaml"
+	TempoMonolithicTemplate                   = "resources/tempo-monolithic.tmpl.yaml"
+	TempoStackTemplate                        = "resources/tempo-stack.tmpl.yaml"
+	OpenTelemetryCollectorTemplate            = "resources/opentelemetry-collector.tmpl.yaml"
+	CollectorServiceMonitorsTemplate          = "resources/collector-servicemonitors.tmpl.yaml"
+	CollectorRBACTemplate                     = "resources/collector-rbac.tmpl.yaml"
+	PrometheusRouteTemplate                   = "resources/prometheus-route.tmpl.yaml"
+	InstrumentationTemplate                   = "resources/instrumentation.tmpl.yaml"
+	PrometheusRestrictedTemplate              = "resources/prometheus-restricted.tmpl.yaml"
+	PrometheusRestrictedNetworkPolicyTemplate = "resources/prometheus-restricted-network-policy.tmpl.yaml"
+	MonitoringStackAlertmanagerRBACTemplate   = "resources/monitoringstack-alertmanager-rbac.tmpl.yaml"
+	PrometheusSecureRBACTemplate              = "resources/prometheus-secure-rbac.tmpl.yaml"
+	PrometheusServiceOverrideTemplate         = "resources/prometheus-service-override.tmpl.yaml"
+	PrometheusNetworkPolicyTemplate           = "resources/prometheus-network-policy.tmpl.yaml"
+	ThanosQuerierTemplate                     = "resources/thanos-querier-cr.tmpl.yaml"
+	ThanosQuerierRouteTemplate                = "resources/thanos-querier-route.tmpl.yaml"
 )
 
 var componentRules = map[string]string{
@@ -118,6 +124,11 @@ func deployMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 			conditions.WithReason(status.MetricsNotConfiguredReason),
 			conditions.WithMessage(status.MetricsNotConfiguredMessage),
 		)
+		rr.Conditions.MarkFalse(
+			status.ConditionNamespaceRestrictedMetricsAvailable,
+			conditions.WithReason(status.MetricsNotConfiguredReason),
+			conditions.WithMessage(status.MetricsNotConfiguredMessage),
+		)
 		// Since ThanosQuerier is always deployed together with monitoring stack,
 		// also deploy it here to handle its conditions properly
 		return deployThanosQuerier(ctx, rr)
@@ -134,10 +145,16 @@ func deployMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 			conditions.WithReason(gvk.MonitoringStack.Kind+"CRDNotFoundReason"),
 			conditions.WithMessage("%s CRD Not Found", gvk.MonitoringStack.Kind),
 		)
-		return deployThanosQuerier(ctx, rr)
+		rr.Conditions.MarkFalse(
+			status.ConditionNamespaceRestrictedMetricsAvailable,
+			conditions.WithReason(gvk.MonitoringStack.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage("%s CRD Not Found", gvk.MonitoringStack.Kind),
+		)
+		return nil
 	}
 
 	rr.Conditions.MarkTrue(status.ConditionMonitoringStackAvailable)
+	rr.Conditions.MarkTrue(status.ConditionNamespaceRestrictedMetricsAvailable)
 
 	template := []odhtypes.TemplateInfo{
 		{
@@ -147,6 +164,18 @@ func deployMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 		{
 			FS:   resourcesFS,
 			Path: PrometheusRouteTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: PrometheusSecureRBACTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: PrometheusServiceOverrideTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: PrometheusNetworkPolicyTemplate,
 		},
 	}
 
@@ -419,6 +448,38 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 	if len(addErrors) > 0 || len(cleanupErrors) > 0 {
 		return errors.New("errors occurred while adding or cleaning up prometheus rules for components")
 	}
+
+	return nil
+}
+
+// deployNamespaceRestrictedMetrics deploys the namespace-restricted metrics endpoint
+// using kube-rbac-proxy and prom-label-proxy for secure, namespace-scoped access.
+func deployNamespaceRestrictedMetrics(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil {
+		return nil
+	}
+
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PrometheusRestrictedTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: PrometheusRestrictedNetworkPolicyTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: MonitoringStackAlertmanagerRBACTemplate,
+		},
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
 
 	return nil
 }
