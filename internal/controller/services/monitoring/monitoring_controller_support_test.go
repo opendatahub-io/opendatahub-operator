@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -842,9 +844,11 @@ func TestMonitoringStackThanosQuerierIntegration(t *testing.T) {
 			hasThanosQuerierCRD:       true,
 			expectedMSConditionStatus: "True",
 			expectedTQConditionStatus: "True",
-			expectedMSTemplates:       3, // MonitoringStack + Alertmanager RBAC + PrometheusRoute
-			expectedTQTemplates:       2, // ThanosQuerier + ThanosQuerierRoute
-			description:               "When both CRDs are available and metrics configured, both should be deployed",
+			expectedMSTemplates:       9, // MonitoringStack + Alertmanager RBAC + PrometheusRoute +
+			// PrometheusServiceOverride + PrometheusNetworkPolicy + PrometheusWebTLSService +
+			// PrometheusWebTLSCASecretJob + PrometheusRestricted + PrometheusRestrictedNetworkPolicy
+			expectedTQTemplates: 2, // ThanosQuerier + ThanosQuerierRoute
+			description:         "When both CRDs are available and metrics configured, both should be deployed",
 		},
 		{
 			name:                      "Only MonitoringStack CRD available with metrics - both conditions false, atomic deployment",
@@ -913,8 +917,8 @@ func TestMonitoringStackThanosQuerierIntegration(t *testing.T) {
 
 			initialTemplateCount := len(rr.Templates)
 
-			err = deployMonitoringStackWithQuerier(ctx, rr)
-			g.Expect(err).ShouldNot(HaveOccurred(), "deployMonitoringStackWithQuerier should not return error")
+			err = deployMonitoringStackWithQuerierAndRestrictions(ctx, rr)
+			require.NoError(t, err, "deployMonitoringStackWithQuerierAndRestrictions should not return error")
 
 			validateConditions(t, g, rr, tt)
 			validateTemplates(t, g, rr, tt, initialTemplateCount)
@@ -968,6 +972,175 @@ func TestIsLocalServiceEndpoint(t *testing.T) {
 				t.Errorf("isLocalServiceEndpoint(%q) = %v, expected %v",
 					tt.endpoint, result, tt.expected)
 			}
+		})
+	}
+}
+
+func TestGetImageURL(t *testing.T) {
+	tests := []struct {
+		name            string
+		envVar          string
+		envValue        string
+		upstreamDefault string
+		rhoaiDefault    string
+		platform        common.Platform
+		expected        string
+	}{
+		{
+			name:            "Environment variable set",
+			envVar:          "TEST_IMAGE_URL",
+			envValue:        "custom.registry.io/custom-image:v1.0",
+			upstreamDefault: "upstream.io/image:v1.0",
+			rhoaiDefault:    "redhat.io/image:v1.0",
+			platform:        common.Platform("OpenShift AI Self-Managed"),
+			expected:        "custom.registry.io/custom-image:v1.0",
+		},
+		{
+			name:            "RHOAI Self-Managed without env var",
+			envVar:          "TEST_IMAGE_URL",
+			envValue:        "",
+			upstreamDefault: "upstream.io/image:v1.0",
+			rhoaiDefault:    "redhat.io/image:v1.0",
+			platform:        common.Platform("OpenShift AI Self-Managed"),
+			expected:        "redhat.io/image:v1.0",
+		},
+		{
+			name:            "RHOAI Managed without env var",
+			envVar:          "TEST_IMAGE_URL",
+			envValue:        "",
+			upstreamDefault: "upstream.io/image:v1.0",
+			rhoaiDefault:    "redhat.io/image:v1.0",
+			platform:        common.Platform("OpenShift AI Cloud Service"),
+			expected:        "redhat.io/image:v1.0",
+		},
+		{
+			name:            "OpenDataHub without env var",
+			envVar:          "TEST_IMAGE_URL",
+			envValue:        "",
+			upstreamDefault: "upstream.io/image:v1.0",
+			rhoaiDefault:    "redhat.io/image:v1.0",
+			platform:        common.Platform("Open Data Hub"),
+			expected:        "upstream.io/image:v1.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue != "" {
+				t.Setenv(tt.envVar, tt.envValue)
+			}
+
+			result := getImageURL(tt.envVar, tt.upstreamDefault, tt.rhoaiDefault, tt.platform)
+
+			if result != tt.expected {
+				t.Errorf("getImageURL() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetTemplateDataImageURLs(t *testing.T) {
+	ctx := t.Context()
+
+	tests := []struct {
+		name                   string
+		platform               common.Platform
+		envKubeRBACProxy       string
+		envPromLabelProxy      string
+		expectedKubeRBACProxy  string
+		expectedPromLabelProxy string
+	}{
+		{
+			name:                   "OpenDataHub with no env vars",
+			platform:               common.Platform("Open Data Hub"),
+			envKubeRBACProxy:       "",
+			envPromLabelProxy:      "",
+			expectedKubeRBACProxy:  "quay.io/brancz/kube-rbac-proxy:v0.20.0",
+			expectedPromLabelProxy: "quay.io/prometheuscommunity/prom-label-proxy:v0.12.1",
+		},
+		{
+			name:                   "RHOAI Self-Managed with no env vars",
+			platform:               common.Platform("OpenShift AI Self-Managed"),
+			envKubeRBACProxy:       "",
+			envPromLabelProxy:      "",
+			expectedKubeRBACProxy:  "registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9:v4.17",
+			expectedPromLabelProxy: "registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9:v4.17",
+		},
+		{
+			name:                   "RHOAI Managed with no env vars",
+			platform:               common.Platform("OpenShift AI Cloud Service"),
+			envKubeRBACProxy:       "",
+			envPromLabelProxy:      "",
+			expectedKubeRBACProxy:  "registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9:v4.17",
+			expectedPromLabelProxy: "registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9:v4.17",
+		},
+		{
+			name:                   "Custom images via env vars",
+			platform:               common.Platform("OpenShift AI Self-Managed"),
+			envKubeRBACProxy:       "custom.io/kube-rbac-proxy:custom",
+			envPromLabelProxy:      "custom.io/prom-label-proxy:custom",
+			expectedKubeRBACProxy:  "custom.io/kube-rbac-proxy:custom",
+			expectedPromLabelProxy: "custom.io/prom-label-proxy:custom",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envKubeRBACProxy != "" {
+				t.Setenv("RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE", tt.envKubeRBACProxy)
+			}
+			if tt.envPromLabelProxy != "" {
+				t.Setenv("RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE", tt.envPromLabelProxy)
+			}
+
+			dsci := &dsciv2.DSCInitialization{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-dsci",
+				},
+				Spec: dsciv2.DSCInitializationSpec{
+					ApplicationsNamespace: "test-apps",
+				},
+			}
+
+			monitoring := &serviceApi.Monitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "default-monitoring",
+				},
+				Spec: serviceApi.MonitoringSpec{
+					MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+						Namespace: "test-namespace",
+					},
+				},
+			}
+
+			scheme := runtime.NewScheme()
+			require.NoError(t, dsciv2.AddToScheme(scheme))
+			require.NoError(t, serviceApi.AddToScheme(scheme))
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(dsci, monitoring).
+				Build()
+
+			rr := &odhtypes.ReconciliationRequest{
+				Client:   fakeClient,
+				Instance: monitoring,
+				Release: common.Release{
+					Name: tt.platform,
+				},
+			}
+
+			templateData, err := getTemplateData(ctx, rr)
+			require.NoError(t, err)
+
+			// Verify image URLs are present and correct
+			kubeRBACProxy, ok := templateData["KubeRBACProxyImage"]
+			require.True(t, ok, "KubeRBACProxyImage should be present in template data")
+			assert.Equal(t, tt.expectedKubeRBACProxy, kubeRBACProxy)
+
+			promLabelProxy, ok := templateData["PromLabelProxyImage"]
+			require.True(t, ok, "PromLabelProxyImage should be present in template data")
+			assert.Equal(t, tt.expectedPromLabelProxy, promLabelProxy)
 		})
 	}
 }
