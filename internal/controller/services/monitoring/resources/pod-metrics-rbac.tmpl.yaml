@@ -1,0 +1,53 @@
+# RBAC resources for PodMetrics access pattern
+# This follows the OpenShift Container Platform pattern for namespace-scoped metrics access
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: system:openshift:scc:pod-metrics-reader
+  labels:
+    app: namespace-restricted-metrics
+rules:
+  # Permission to read pod metrics in any namespace
+  # This will be used in conjunction with namespace-specific RoleBindings
+  - apiGroups: [""]
+    resources: ["pods/metrics"]
+    verbs: ["get"]
+---
+# Example RoleBinding for a specific namespace
+# Users/ServiceAccounts with this binding can access metrics for pods in the bound namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pod-metrics-reader
+  namespace: {{.ApplicationNamespace}}
+  labels:
+    app: namespace-restricted-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:pod-metrics-reader
+subjects:
+  # Example: Grant access to all authenticated users in this namespace
+  # In practice, this should be more restrictive based on your requirements
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:authenticated
+---
+# ClusterRole for managing PodMetrics access
+# This allows administrators to grant PodMetrics access to users
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-metrics-admin
+  labels:
+    app: namespace-restricted-metrics
+rules:
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["rolebindings"]
+    verbs: ["create", "get", "list", "update", "patch", "delete"]
+    resourceNames: ["pod-metrics-reader"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles"]
+    verbs: ["get", "list"]
+    resourceNames: ["system:openshift:scc:pod-metrics-reader"]
