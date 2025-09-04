@@ -49,6 +49,14 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 			FS:   resourcesFS,
 			Path: AdminGroupClusterRoleTemplate,
 		},
+		{
+			FS:   resourcesFS,
+			Path: DataScienceMetricsAdminClusterRoleTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: DataScienceMetricsAllowedClusterRoleTemplate,
+		},
 	}
 
 	return nil
@@ -147,6 +155,20 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	err = bindRole(ctx, rr, ai.Spec.AllowedGroups, "allowedgroup-rolebinding", "allowedgroup-role")
 	if err != nil {
 		return err
+	}
+
+	if len(ai.Spec.MetricsAdminGroups) > 0 {
+		err = bindClusterRole(ctx, rr, ai.Spec.MetricsAdminGroups, "data-science-metrics-admin-clusterrolebinding", "data-science-metrics-admin")
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(ai.Spec.MetricsAllowedGroups) > 0 {
+		err = bindClusterRole(ctx, rr, ai.Spec.MetricsAllowedGroups, "data-science-metrics-allowed-clusterrolebinding", "data-science-metrics-allowed")
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

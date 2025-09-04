@@ -88,6 +88,8 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.Monitoring{}).
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
+		Owns(&rbacv1.ClusterRole{}).
+		Owns(&rbacv1.ClusterRoleBinding{}).
 		// operands - openshift
 		Owns(&routev1.Route{}).
 		// operands - owned dynmically depends on external operators are installed for monitoring
@@ -132,6 +134,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deployTempo).
 		WithAction(deployOpenTelemetryCollector).
 		WithAction(deployInstrumentation).
+		WithAction(deployNamespaceRestrictedMetrics).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
