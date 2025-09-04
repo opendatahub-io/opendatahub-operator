@@ -76,18 +76,20 @@ const (
 	ConditionTypeReconcileComplete = "ReconcileComplete"
 
 	// Component-specific condition types.
-	ConditionTypeProvisioningSucceeded       = "ProvisioningSucceeded"
-	ConditionDeploymentsNotAvailableReason   = "DeploymentsNotReady"
-	ConditionDeploymentsAvailable            = "DeploymentsAvailable"
-	ConditionArgoWorkflowAvailable           = "ArgoWorkflowAvailable"
-	ConditionTypeComponentsReady             = "ComponentsReady"
-	ConditionMonitoringAvailable             = "MonitoringAvailable"
-	ConditionMonitoringStackAvailable        = "MonitoringStackAvailable"
-	ConditionTempoAvailable                  = "TempoAvailable"
-	ConditionOpenTelemetryCollectorAvailable = "OpenTelemetryCollectorAvailable"
-	ConditionInstrumentationAvailable        = "InstrumentationAvailable"
-	ConditionAlertingAvailable               = "AlertingAvailable"
-	ConditionThanosQuerierAvailable          = "ThanosQuerierAvailable"
+	ConditionTypeProvisioningSucceeded           = "ProvisioningSucceeded"
+	ConditionDeploymentsNotAvailableReason       = "DeploymentsNotReady"
+	ConditionDeploymentsAvailable                = "DeploymentsAvailable"
+	ConditionArgoWorkflowAvailable               = "ArgoWorkflowAvailable"
+	ConditionTypeComponentsReady                 = "ComponentsReady"
+	ConditionServingAvailable                    = "ServingAvailable"
+	ConditionMonitoringAvailable                 = "MonitoringAvailable"
+	ConditionMonitoringStackAvailable            = "MonitoringStackAvailable"
+	ConditionTempoAvailable                      = "TempoAvailable"
+	ConditionOpenTelemetryCollectorAvailable     = "OpenTelemetryCollectorAvailable"
+	ConditionInstrumentationAvailable            = "InstrumentationAvailable"
+	ConditionAlertingAvailable                   = "AlertingAvailable"
+	ConditionNamespaceRestrictedMetricsAvailable = "NamespaceRestrictedMetricsAvailable"
+	ConditionThanosQuerierAvailable              = "ThanosQuerierAvailable"
 )
 
 const (
