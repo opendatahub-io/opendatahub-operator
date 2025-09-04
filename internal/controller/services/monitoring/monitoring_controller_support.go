@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	apicommon "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	componentMonitoring "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -233,6 +234,34 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	return nil
 }
 
+// Images can be overridden via environment variables, with defaults based on platform.
+func addImageURLs(rr *odhtypes.ReconciliationRequest, templateData map[string]any) {
+	templateData["KubeRBACProxyImage"] = getImageURL(
+		"RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+		"gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0",
+		"registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9",
+		rr.Release.Name,
+	)
+	templateData["PromLabelProxyImage"] = getImageURL(
+		"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",
+		"quay.io/prometheuscommunity/prom-label-proxy:v0.8.0",
+		"registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9",
+		rr.Release.Name,
+	)
+}
+
+func getImageURL(envVar, upstreamDefault, rhoaiDefault string, platform apicommon.Platform) string {
+	if envValue := os.Getenv(envVar); envValue != "" {
+		return envValue
+	}
+
+	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
+		return rhoaiDefault
+	}
+
+	return upstreamDefault
+}
+
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
@@ -255,6 +284,8 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"MetricsExporterNames": []string{},
 		"PersesImage":          getPersesImage(),
 	}
+
+	addImageURLs(rr, templateData)
 
 	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {

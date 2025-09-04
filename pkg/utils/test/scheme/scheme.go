@@ -4,6 +4,7 @@ import (
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	userv1 "github.com/openshift/api/user/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -29,6 +30,7 @@ var (
 		routev1.AddToScheme,
 		dsciv2.AddToScheme,
 		dscv2.AddToScheme,
+		userv1.AddToScheme,
 		dsciv1.AddToScheme,
 		dscv1.AddToScheme,
 		featurev1.AddToScheme,
