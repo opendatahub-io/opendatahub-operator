@@ -99,6 +99,9 @@ func monitoringTestSuite(t *testing.T) {
 		{"Validate CEL blocks invalid monitoring configs", monitoringServiceCtx.ValidateCELBlocksInvalidMonitoringConfigs},
 		{"Validate CEL allows valid monitoring configs", monitoringServiceCtx.ValidateCELAllowsValidMonitoringConfigs},
 		{"Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled},
+		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
+		{"Test Namespace Restricted Metrics Access", monitoringServiceCtx.ValidateNamespaceRestrictedMetricsAccess},
+		{"Test Prometheus Secure Proxy Authentication", monitoringServiceCtx.ValidatePrometheusSecureProxyAuthentication},
 	}
 
 	// Run the test suite.
@@ -1087,4 +1090,197 @@ func withMonitoringTraces(backend, secret, size, retention string) testf.Transfo
 	}
 
 	return testf.TransformPipeline(transforms...)
+}
+
+// ValidateNamespaceRestrictedMetricsAccess tests the namespace-restricted metrics access functionality.
+func (tc *MonitoringTestCtx) ValidateNamespaceRestrictedMetricsAccess(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Ensure metrics are configured
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringMetrics(),
+		)),
+	)
+
+	// Verify the namespace-restricted-metrics deployment is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "namespace-restricted-metrics",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.status.readyReplicas == 1`),
+			jq.Match(`.spec.template.spec.containers | length == 2`), // kube-rbac-proxy + prom-label-proxy
+		)),
+		WithCustomErrorMsg("namespace-restricted-metrics deployment should be created and ready"),
+	)
+
+	// Verify the service account exists with proper RBAC
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
+			Name:      "namespace-restricted-metrics",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+	)
+
+	// Verify the ClusterRoleBinding exists for prometheus metrics reader
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "namespace-restricted-metrics",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "odh:prometheus-metrics-reader"`),
+			jq.Match(`.subjects[0].name == "namespace-restricted-metrics"`),
+			jq.Match(`.subjects[0].namespace == "%s"`, dsci.Spec.Monitoring.Namespace),
+		)),
+	)
+
+	// Verify the service is created with proper annotations for TLS
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      "namespace-restricted-metrics",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.ports[0].port == 8443`),
+			jq.Match(`.spec.ports[0].name == "https"`),
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "namespace-restricted-metrics-tls"`),
+		)),
+	)
+
+	// Verify the route is created for external access
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Route, types.NamespacedName{
+			Name:      "namespace-restricted-metrics",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.to.name == "namespace-restricted-metrics"`),
+			jq.Match(`.spec.tls.termination == "reencrypt"`),
+			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
+		)),
+	)
+}
+
+// ValidatePrometheusSecureProxyAuthentication tests the Prometheus secure proxy authentication and authorization.
+func (tc *MonitoringTestCtx) ValidatePrometheusSecureProxyAuthentication(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Verify the prometheus-sidecar-proxy deployment is created and ready
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "prometheus-sidecar-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.status.readyReplicas == 1`),
+			jq.Match(`.spec.template.spec.containers | length == 1`), // Only kube-rbac-proxy
+			jq.Match(`.spec.template.spec.containers[0].name == "kube-rbac-proxy"`),
+			jq.Match(`.spec.template.spec.containers[0].image | contains("kube-rbac-proxy")`),
+		)),
+		WithCustomErrorMsg("prometheus-sidecar-proxy deployment should be created and ready with kube-rbac-proxy container"),
+	)
+
+	// Verify the service account exists with proper RBAC
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
+			Name:      "prometheus-sidecar-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+	)
+
+	// Verify the ClusterRoleBinding exists for prometheus metrics reader
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "prometheus-sidecar-proxy",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "odh:prometheus-metrics-reader"`),
+			jq.Match(`.subjects[0].name == "prometheus-sidecar-proxy"`),
+			jq.Match(`.subjects[0].namespace == "%s"`, dsci.Spec.Monitoring.Namespace),
+		)),
+	)
+
+	// Verify the auth-delegator ClusterRoleBinding exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "prometheus-sidecar-proxy-auth-delegator",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "system:auth-delegator"`),
+			jq.Match(`.subjects[0].name == "prometheus-sidecar-proxy"`),
+			jq.Match(`.subjects[0].namespace == "%s"`, dsci.Spec.Monitoring.Namespace),
+		)),
+	)
+
+	// Verify the secure proxy service is created with TLS
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      "prometheus-sidecar-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.ports[0].port == 8443`),
+			jq.Match(`.spec.ports[0].name == "https"`),
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "prometheus-sidecar-proxy-tls"`),
+		)),
+	)
+
+	// Verify the main Prometheus route points to the secure proxy
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Route, types.NamespacedName{
+			Name:      "data-science-prometheus-route",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.to.name == "prometheus-sidecar-proxy"`), // Should point to secure proxy, not direct Prometheus
+			jq.Match(`.spec.tls.termination == "reencrypt"`),
+			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
+		)),
+		WithCustomErrorMsg("Prometheus route should point to secure proxy with proper TLS configuration"),
+	)
+
+	// Verify the ConfigMap for kube-rbac-proxy configuration exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      "prometheus-sidecar-proxy-config",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(jq.Match(`.data."kube-rbac-proxy.yaml" | contains("authorization")`)),
+	)
+
+	// Verify that the kube-rbac-proxy container has the correct upstream configuration
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "prometheus-sidecar-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream="))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("data-science-monitoringstack-prometheus"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--secure-listen-address=0.0.0.0:8443"))) | length == 1`),
+		)),
+		WithCustomErrorMsg("kube-rbac-proxy should be configured with correct upstream and secure listen address"),
+	)
+
+	// Verify that the ClusterRole for prometheus metrics reader exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRole, types.NamespacedName{
+			Name: "odh:prometheus-metrics-reader",
+		}),
+		WithCondition(And(
+			jq.Match(`.rules | map(select(.apiGroups | contains(["authentication.k8s.io"]))) | length >= 1`),
+			jq.Match(`.rules | map(select(.apiGroups | contains(["authorization.k8s.io"]))) | length >= 1`),
+			jq.Match(`.rules | map(select(.resources | contains(["tokenreviews"]))) | length >= 1`),
+			jq.Match(`.rules | map(select(.resources | contains(["subjectaccessreviews"]))) | length >= 1`),
+		)),
+		WithCustomErrorMsg("ClusterRole should have proper permissions for authentication and authorization"),
+	)
 }
