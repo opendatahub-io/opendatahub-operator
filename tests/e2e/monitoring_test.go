@@ -1,18 +1,27 @@
 package e2e_test
 
 import (
+	"crypto/tls"
+	"encoding/base64"
 	"fmt"
+	"io"
+	"net/http"
 	"testing"
+	"time"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
+	userv1 "github.com/openshift/api/user/v1"
 	"github.com/stretchr/testify/require"
+	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -99,6 +108,9 @@ func monitoringTestSuite(t *testing.T) {
 		{"Validate CEL blocks invalid monitoring configs", monitoringServiceCtx.ValidateCELBlocksInvalidMonitoringConfigs},
 		{"Validate CEL allows valid monitoring configs", monitoringServiceCtx.ValidateCELAllowsValidMonitoringConfigs},
 		{"Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled},
+		{"Test Namespace Restricted Metrics Access", monitoringServiceCtx.ValidatePrometheusRestrictedResourceConfiguration},
+		{"Test Prometheus Secure Proxy Authentication", monitoringServiceCtx.ValidatePrometheusSecureProxyAuthentication},
+		{"Test Metrics API Authentication and Authorization", monitoringServiceCtx.ValidateMetricsAPIAuthenticationAndAuthorization},
 	}
 
 	// Run the test suite.
@@ -1092,4 +1104,443 @@ func withMonitoringTraces(backend, secret, size, retention string) testf.Transfo
 	}
 
 	return testf.TransformPipeline(transforms...)
+}
+
+// validatePrometheusRestrictedResourcesCommon validates common prometheus-restricted resources that are shared between tests.
+func (tc *MonitoringTestCtx) validatePrometheusRestrictedResourcesCommon(t *testing.T, namespace string) {
+	t.Helper()
+
+	// Verify the prometheus-restricted deployment is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "prometheus-restricted",
+			Namespace: namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.status.readyReplicas == 1`),
+			jq.Match(`.spec.template.spec.containers | length == 2`), // kube-rbac-proxy + prom-label-proxy
+		)),
+		WithCustomErrorMsg("prometheus-restricted deployment should be created and ready"),
+	)
+
+	// Verify the service account exists with proper RBAC
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
+			Name:      "prometheus-restricted",
+			Namespace: namespace,
+		}),
+	)
+
+	// Verify the ClusterRoleBinding exists for prometheus metrics reader
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "prometheus-restricted",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "odh:prometheus-metrics-reader"`),
+			jq.Match(`.subjects[0].name == "prometheus-restricted"`),
+			jq.Match(`.subjects[0].namespace == "%s"`, namespace),
+		)),
+	)
+
+	// Verify the service is created with proper annotations for TLS
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      "prometheus-restricted",
+			Namespace: namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.ports[0].port == 8443`),
+			jq.Match(`.spec.ports[0].name == "https"`),
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "prometheus-restricted-tls"`),
+		)),
+	)
+
+	// Verify the route is created for external access
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Route, types.NamespacedName{
+			Name:      "data-science-prometheus-route",
+			Namespace: namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.to.name == "prometheus-restricted"`),
+			jq.Match(`.spec.tls.termination == "reencrypt"`),
+			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
+		)),
+	)
+}
+
+// ValidatePrometheusRestrictedResourceConfiguration tests the namespace-restricted metrics access functionality.
+func (tc *MonitoringTestCtx) ValidatePrometheusRestrictedResourceConfiguration(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Ensure metrics are configured
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			withMetricsConfig(),
+		)),
+	)
+
+	// Validate common prometheus-restricted resources
+	tc.validatePrometheusRestrictedResourcesCommon(t, dsci.Spec.Monitoring.Namespace)
+}
+
+// ValidatePrometheusSecureProxyAuthentication tests the Prometheus secure proxy authentication and authorization.
+func (tc *MonitoringTestCtx) ValidatePrometheusSecureProxyAuthentication(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Validate common prometheus-restricted resources
+	tc.validatePrometheusRestrictedResourcesCommon(t, dsci.Spec.Monitoring.Namespace)
+
+	// Verify the prometheus-restricted deployment contains kube-rbac-proxy with specific details
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "prometheus-restricted",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.containers[0].name == "kube-rbac-proxy"`),
+			jq.Match(`.spec.template.spec.containers[0].image | contains("kube-rbac-proxy")`),
+		)),
+		WithCustomErrorMsg("prometheus-restricted deployment should contain kube-rbac-proxy container"),
+	)
+
+	// Verify the auth-delegator ClusterRoleBinding exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "prometheus-restricted-auth-delegator",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "system:auth-delegator"`),
+			jq.Match(`.subjects[0].name == "prometheus-restricted"`),
+			jq.Match(`.subjects[0].namespace == "%s"`, dsci.Spec.Monitoring.Namespace),
+		)),
+	)
+
+	// Verify the ConfigMap for kube-rbac-proxy configuration exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      "prometheus-restricted-config",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(jq.Match(`.data."kube-rbac-proxy.yaml" | contains("authorization")`)),
+	)
+
+	// Verify that the kube-rbac-proxy container has the correct upstream configuration
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "prometheus-restricted",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream="))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream=http://127.0.0.1:9091/"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--secure-listen-address=0.0.0.0:8443"))) | length == 1`),
+		)),
+		WithCustomErrorMsg("kube-rbac-proxy should be configured with correct upstream and secure listen address"),
+	)
+
+	// Verify that the ClusterRole for prometheus metrics reader exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRole, types.NamespacedName{
+			Name: "odh:prometheus-metrics-reader",
+		}),
+		WithCondition(And(
+			jq.Match(`.rules | map(select(.apiGroups | contains(["authentication.k8s.io"]))) | length >= 1`),
+			jq.Match(`.rules | map(select(.apiGroups | contains(["authorization.k8s.io"]))) | length >= 1`),
+			jq.Match(`.rules | map(select(.resources | contains(["tokenreviews"]))) | length >= 1`),
+			jq.Match(`.rules | map(select(.resources | contains(["subjectaccessreviews"]))) | length >= 1`),
+		)),
+		WithCustomErrorMsg("ClusterRole should have proper permissions for authentication and authorization"),
+	)
+}
+
+// ValidateMetricsAPIAuthenticationAndAuthorization tests comprehensive authentication and authorization scenarios
+// for the namespace-restricted metrics API endpoint.
+func (tc *MonitoringTestCtx) ValidateMetricsAPIAuthenticationAndAuthorization(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			withMetricsConfig(),
+		)),
+	)
+
+	// Wait for the MonitoringStack to be ready first (which creates the route)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: MonitoringStackName, Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeAvailable, metav1.ConditionTrue)),
+		WithCustomErrorMsg("MonitoringStack should be ready before testing namespace-restricted metrics"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      "data-science-monitoringstack-prometheus",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCustomErrorMsg("data-science-monitoringstack-prometheus service should be created by MonitoringStack operator before testing"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "prometheus-restricted",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(jq.Match(`.status.readyReplicas == 1`)),
+		WithCustomErrorMsg("prometheus-restricted deployment should be ready before testing"),
+	)
+
+	// Get the route URL for the prometheus-restricted endpoint
+	routeURL := tc.getNamespaceRestrictedMetricsRouteURL(t, dsci.Spec.Monitoring.Namespace)
+
+	// Test 1: Valid user with proper authorization can query namespace-scoped metrics
+	t.Run("Valid user with proper authz accesses namespace-scoped metrics", func(t *testing.T) {
+		tc.testValidUserWithProperAuthz(t, routeURL, dsci.Spec.Monitoring.Namespace)
+	})
+
+	// Test 2: Valid user with improper authorization gets denied access
+	t.Run("Valid user with improper authz gets denied access", func(t *testing.T) {
+		tc.testValidUserWithImproperAuthz(t, routeURL, dsci.Spec.Monitoring.Namespace)
+	})
+
+	// Test 3: Invalid authentication gets denied access
+	t.Run("Invalid authentication gets denied access", func(t *testing.T) {
+		tc.testInvalidAuthentication(t, routeURL)
+	})
+}
+
+// getNamespaceRestrictedMetricsRouteURL retrieves the URL for the data-science-prometheus-route.
+func (tc *MonitoringTestCtx) getNamespaceRestrictedMetricsRouteURL(t *testing.T, namespace string) string {
+	t.Helper()
+
+	var route routev1.Route
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Route, types.NamespacedName{
+			Name:      "data-science-prometheus-route",
+			Namespace: namespace,
+		}),
+		WithCondition(jq.Match(`.spec.host != ""`)),
+		WithCustomErrorMsg("data-science-prometheus-route should have a valid host"),
+	)
+
+	err := tc.Client().Get(tc.Context(), types.NamespacedName{
+		Name:      "data-science-prometheus-route",
+		Namespace: namespace,
+	}, &route)
+	require.NoError(t, err, "Failed to get data-science-prometheus-route")
+
+	return fmt.Sprintf("https://%s", route.Spec.Host)
+}
+
+// testValidUserWithProperAuthz tests that a valid user with proper authorization can access namespace-scoped metrics.
+func (tc *MonitoringTestCtx) testValidUserWithProperAuthz(t *testing.T, routeURL, namespace string) {
+	t.Helper()
+
+	testSA := tc.createTestServiceAccount(t, "test-metrics-admin", namespace)
+	testGroup := "test-metrics-admins"
+	tc.createTestGroup(t, testGroup, testSA.Name, namespace)
+	tc.addGroupToMetricsAdminGroups(t, testGroup)
+	tc.waitForRBACPropagation(t, testGroup)
+	token := tc.getServiceAccountToken(t, testSA.Name, namespace)
+	tc.testMetricsAccess(t, routeURL, token, namespace, true, "Valid user with proper authz should be able to access namespace-scoped metrics")
+	tc.cleanupTestUser(t, testSA.Name, namespace, testGroup)
+}
+
+// testValidUserWithImproperAuthz tests that a valid user without proper authorization gets denied access.
+func (tc *MonitoringTestCtx) testValidUserWithImproperAuthz(t *testing.T, routeURL, namespace string) {
+	t.Helper()
+
+	// Create a test service account for the user (not in metrics admin group)
+	testSA := tc.createTestServiceAccount(t, "test-regular-user", namespace)
+	token := tc.getServiceAccountToken(t, testSA.Name, namespace)
+	tc.testMetricsAccess(t, routeURL, token, namespace, false, "Valid user without proper authz should be denied access to metrics")
+	tc.cleanupTestUser(t, testSA.Name, namespace, "")
+}
+
+// testInvalidAuthentication tests that invalid authentication gets denied access.
+func (tc *MonitoringTestCtx) testInvalidAuthentication(t *testing.T, routeURL string) {
+	t.Helper()
+	tc.testMetricsAccess(t, routeURL, "invalid-token", "test-namespace", false, "Invalid authentication should be denied access")
+	tc.testMetricsAccess(t, routeURL, "", "test-namespace", false, "Request without authentication should be denied access")
+}
+
+// createTestServiceAccount creates a test service account for authentication testing.
+func (tc *MonitoringTestCtx) createTestServiceAccount(t *testing.T, name, namespace string) *corev1.ServiceAccount {
+	t.Helper()
+
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels: map[string]string{
+				"test.opendatahub.io/metrics-auth": "true",
+			},
+		},
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(sa))
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{Name: name, Namespace: namespace}),
+		WithCustomErrorMsg("Test service account should be created"),
+	)
+
+	return sa
+}
+
+// createTestGroup creates a test OpenShift group and adds the service account to it.
+func (tc *MonitoringTestCtx) createTestGroup(t *testing.T, groupName, serviceAccountName, namespace string) {
+	t.Helper()
+
+	// OpenShift requires usernames with ":" to be base64 encoded with "b64:" prefix
+	serviceAccountUserName := fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccountName)
+	encodedUserName := "b64:" + base64.StdEncoding.EncodeToString([]byte(serviceAccountUserName))
+
+	user := &userv1.User{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: encodedUserName,
+			Labels: map[string]string{
+				"test.opendatahub.io/metrics-auth": "true",
+			},
+		},
+		Groups: []string{groupName},
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(user))
+}
+
+// addGroupToMetricsAdminGroups adds a group to the MetricsAdminGroups in the Auth CR.
+func (tc *MonitoringTestCtx) addGroupToMetricsAdminGroups(t *testing.T, groupName string) {
+	t.Helper()
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Auth, types.NamespacedName{Name: serviceApi.AuthInstanceName}),
+		WithMutateFunc(testf.Transform(`.spec.metricsAdminGroups += ["%s"]`, groupName)),
+		WithCustomErrorMsg("Failed to add group to MetricsAdminGroups"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Auth, types.NamespacedName{Name: serviceApi.AuthInstanceName}),
+		WithCondition(jq.Match(`.spec.metricsAdminGroups | index("%s") != null`, groupName)),
+		WithCustomErrorMsg("Group should be added to MetricsAdminGroups"),
+	)
+}
+
+// waitForRBACPropagation waits for RBAC changes to propagate through the system.
+func (tc *MonitoringTestCtx) waitForRBACPropagation(t *testing.T, groupName string) {
+	t.Helper()
+
+	// Wait for the ClusterRoleBinding to be created for the metrics admin group
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Name: "data-science-metrics-admin-clusterrolebinding"}),
+		WithCondition(jq.Match(`.subjects | map(.name) | index("%s") != null`, groupName)),
+		WithCustomErrorMsg("ClusterRoleBinding should include the test group"),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+
+	// Give additional time for RBAC to propagate to the API server
+	time.Sleep(5 * time.Second)
+}
+
+// getServiceAccountToken retrieves the token for a service account.
+func (tc *MonitoringTestCtx) getServiceAccountToken(t *testing.T, serviceAccountName, namespace string) string {
+	t.Helper()
+
+	tokenRequest := &authenticationv1.TokenRequest{
+		Spec: authenticationv1.TokenRequestSpec{
+			ExpirationSeconds: func() *int64 { i := int64(3600); return &i }(), // 1 hour
+		},
+	}
+
+	ctx := tc.Context()
+	err := tc.Client().SubResource("token").Create(ctx, &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceAccountName,
+			Namespace: namespace,
+		},
+	}, tokenRequest)
+
+	require.NoError(t, err, "Failed to create token for service account")
+	require.NotEmpty(t, tokenRequest.Status.Token, "Token should not be empty")
+
+	return tokenRequest.Status.Token
+}
+
+// testMetricsAccess tests access to the metrics endpoint with the given token.
+func (tc *MonitoringTestCtx) testMetricsAccess(t *testing.T, routeURL, token, namespace string, expectSuccess bool, errorMsg string) {
+	t.Helper()
+
+	// Create HTTP client with custom transport to skip TLS verification for tests
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // #nosec G402 - Required for testing with self-signed certificates
+	}
+	client := &http.Client{Transport: tr}
+	requestURL := fmt.Sprintf("%s/api/v1/query?query=up&namespace=%s", routeURL, namespace)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, requestURL, nil)
+	require.NoError(t, err, "Failed to create HTTP request")
+
+	if token != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	}
+
+	// Make the request
+	resp, err := client.Do(req)
+	require.NoError(t, err, "Failed to make HTTP request")
+	defer resp.Body.Close()
+
+	if expectSuccess {
+		tc.g.Expect(resp.StatusCode).To(Or(Equal(http.StatusOK), Equal(http.StatusBadRequest)), errorMsg+": Expected success status code (200 or 400 for query errors)")
+		// If we get 400, it might be a query error but authentication/authorization succeeded
+		if resp.StatusCode == http.StatusBadRequest {
+			body, _ := io.ReadAll(resp.Body)
+			t.Logf("Got 400 response (query error but auth succeeded): %s", string(body))
+		}
+	} else {
+		tc.g.Expect(resp.StatusCode).To(Or(Equal(http.StatusUnauthorized), Equal(http.StatusForbidden)), errorMsg+": Expected authentication/authorization failure status code")
+	}
+
+	t.Logf("Metrics access test completed: URL=%s, Token=%s, ExpectSuccess=%t, StatusCode=%d",
+		requestURL, token[:min(10, len(token))]+"...", expectSuccess, resp.StatusCode)
+}
+
+// cleanupTestUser removes test user resources.
+func (tc *MonitoringTestCtx) cleanupTestUser(t *testing.T, serviceAccountName, namespace, groupName string) {
+	t.Helper()
+
+	tc.DeleteResource(
+		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{Name: serviceAccountName, Namespace: namespace}),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(true),
+	)
+
+	// Remove user if it was created (need to use the same base64 encoded name)
+	serviceAccountUserName := fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccountName)
+	encodedUserName := "b64:" + base64.StdEncoding.EncodeToString([]byte(serviceAccountUserName))
+	userGVK := schema.GroupVersionKind{
+		Group:   userv1.SchemeGroupVersion.Group,
+		Version: userv1.SchemeGroupVersion.Version,
+		Kind:    "User",
+	}
+	tc.DeleteResource(
+		WithMinimalObject(userGVK, types.NamespacedName{Name: encodedUserName}),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(true),
+	)
+
+	if groupName != "" {
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithMinimalObject(gvk.Auth, types.NamespacedName{Name: serviceApi.AuthInstanceName}),
+			WithMutateFunc(testf.Transform(`.spec.metricsAdminGroups = (.spec.metricsAdminGroups // []) - ["%s"]`, groupName)),
+			WithIgnoreNotFound(true),
+		)
+	}
 }

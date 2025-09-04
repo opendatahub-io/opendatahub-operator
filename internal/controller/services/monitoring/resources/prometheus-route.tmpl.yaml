@@ -3,12 +3,23 @@ apiVersion: route.openshift.io/v1
 metadata:
   name: data-science-prometheus-route
   namespace: {{.Namespace}}
+  labels:
+    app: prometheus-restricted
+    platform.opendatahub.io/part-of: monitoring
+  ownerReferences:
+    - apiVersion: {{.Component.APIVersion}}
+      kind: {{.Component.Kind}}
+      name: {{.Component.Name}}
+      uid: {{.Component.UID}}
 spec:
   path: /
   to:
     kind: Service
-    name: prometheus-operated
+    name: prometheus-restricted
     weight: 100
   port:
-    targetPort: web
+    targetPort: https
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
   wildcardPolicy: None
