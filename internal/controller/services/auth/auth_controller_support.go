@@ -5,9 +5,10 @@ import (
 )
 
 const (
-	AdminGroupRoleTemplate          = "resources/admingroup-role.tmpl.yaml"
-	AdminGroupClusterRoleTemplate   = "resources/admingroup-clusterrole.tmpl.yaml"
-	AllowedGroupClusterRoleTemplate = "resources/allowedgroup-clusterrole.tmpl.yaml"
+	AdminGroupRoleTemplate                     = "resources/admingroup-role.tmpl.yaml"
+	AllowedGroupClusterRoleTemplate            = "resources/allowedgroup-clusterrole.tmpl.yaml"
+	AdminGroupClusterRoleTemplate              = "resources/admingroup-clusterrole.tmpl.yaml"
+	DataScienceMetricsAdminClusterRoleTemplate = "resources/data-science-metrics-admin-clusterrole.tmpl.yaml"
 )
 
 //go:embed resources
