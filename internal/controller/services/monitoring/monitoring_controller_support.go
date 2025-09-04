@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -31,7 +33,113 @@ const (
 	opentelemetryOperator        = "opentelemetry-operator"
 	clusterObservabilityOperator = "cluster-observability-operator"
 	tempoOperator                = "tempo-operator"
+
+	defaultCPULimit      = "500m"
+	defaultMemoryLimit   = "512Mi"
+	defaultCPURequest    = "100m"
+	defaultMemoryRequest = "256Mi"
+	defaultStorageSize   = "5Gi"
+	defaultRetention     = "90d"
 )
+
+var componentIDRE = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z0-9][A-Za-z0-9_-]*)?$`)
+
+func isReservedName(n string) bool {
+	reservedNames := map[string]bool{
+		"otlp/tempo": true,
+		"prometheus": true,
+	}
+	return reservedNames[n]
+}
+
+func validateExporters(exporters map[string]runtime.RawExtension) (map[string]string, error) {
+	validatedExporters := make(map[string]string)
+
+	for name, rawConfig := range exporters {
+		if isReservedName(name) {
+			return nil, fmt.Errorf("exporter name '%s' is reserved and cannot be used", name)
+		}
+
+		if !componentIDRE.MatchString(name) {
+			return nil, fmt.Errorf(
+				"invalid exporter name '%s': must match OpenTelemetry component ID format %q",
+				name, componentIDRE.String(),
+			)
+		}
+
+		// Obtain raw bytes from Raw or Object
+		var raw []byte
+		switch {
+		case len(rawConfig.Raw) > 0:
+			raw = rawConfig.Raw
+		case rawConfig.Object != nil:
+			b, err := yaml.Marshal(rawConfig.Object)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal exporter object for '%s': %w", name, err)
+			}
+			raw = b
+		default:
+			// nothing to process
+			continue
+		}
+
+		// Convert RawExtension to a map for validation and YAML conversion
+		var config map[string]interface{}
+		if err := yaml.Unmarshal(raw, &config); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal exporter config for '%s': %w", name, err)
+		}
+
+		// Convert config back to YAML string for template rendering
+		configYAML, err := yaml.Marshal(config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal exporter config for '%s': %w", name, err)
+		}
+		// Store the YAML string for template rendering with the indent template function
+		validatedExporters[name] = strings.TrimSpace(string(configYAML))
+	}
+
+	return validatedExporters, nil
+}
+
+func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Traces, namespace string) error {
+	templateData["OtlpEndpoint"] = fmt.Sprintf("http://data-science-collector.%s.svc.cluster.local:4317", namespace)
+	templateData["SampleRatio"] = traces.SampleRatio
+	templateData["Backend"] = traces.Storage.Backend // backend has default "pv" set in API
+
+	// Add retention for all backends (both TempoMonolithic and TempoStack)
+	templateData["TracesRetention"] = traces.Storage.Retention.Duration.String()
+
+	// Add tempo-related data from traces.Storage fields (Storage is a struct, not a pointer)
+	switch traces.Storage.Backend {
+	case "pv":
+		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempomonolithic.%s.svc.cluster.local:4317", namespace)
+		templateData["Size"] = traces.Storage.Size
+	case "s3", "gcs":
+		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempostack-gateway.%s.svc.cluster.local:4317", namespace)
+		templateData["Secret"] = traces.Storage.Secret
+	}
+
+	// Validate and add custom exporters
+	// Always initialize validatedExporters to avoid template rendering failures
+	validatedExporters := make(map[string]string)
+	exporterNames := make([]string, 0)
+	if traces.Exporters != nil {
+		var err error
+		validatedExporters, err = validateExporters(traces.Exporters)
+		if err != nil {
+			return err
+		}
+		for n := range validatedExporters {
+			exporterNames = append(exporterNames, n)
+		}
+		sort.Strings(exporterNames)
+	}
+	// Always set TracesExporters, even if empty, to prevent template rendering failures
+	templateData["TracesExporters"] = validatedExporters
+	templateData["TracesExporterNames"] = exporterNames
+
+	return nil
+}
 
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
@@ -50,15 +158,18 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	// Add metrics-related data if metrics are configured
-	if monitoring.Spec.Metrics != nil {
-		if err := addMetricsData(ctx, rr, monitoring.Spec.Metrics, templateData); err != nil {
+	if metrics := monitoring.Spec.Metrics; metrics != nil {
+		if err := addMetricsData(ctx, rr, metrics, templateData); err != nil {
 			return nil, err
 		}
 	}
 
 	// Add traces-related data if traces are configured
-	if monitoring.Spec.Traces != nil {
-		addTracesData(monitoring.Spec.Traces, monitoring.Spec.Namespace, templateData)
+	if traces := monitoring.Spec.Traces; traces != nil {
+		addTracesData(traces, monitoring.Spec.Namespace, templateData)
+		if err := addTracesTemplateData(templateData, traces, monitoring.Spec.Namespace); err != nil {
+			return nil, err
+		}
 	}
 
 	return templateData, nil
@@ -200,28 +311,28 @@ func addMetricsData(ctx context.Context, rr *odhtypes.ReconciliationRequest, met
 // addResourceData adds resource configuration data to the template data map.
 func addResourceData(metrics *serviceApi.Metrics, templateData map[string]any) {
 	if metrics.Resources != nil {
-		templateData["CPULimit"] = getResourceValueOrDefault(metrics.Resources.CPULimit.String(), "500m")
-		templateData["MemoryLimit"] = getResourceValueOrDefault(metrics.Resources.MemoryLimit.String(), "512Mi")
-		templateData["CPURequest"] = getResourceValueOrDefault(metrics.Resources.CPURequest.String(), "100m")
-		templateData["MemoryRequest"] = getResourceValueOrDefault(metrics.Resources.MemoryRequest.String(), "256Mi")
+		templateData["CPULimit"] = getResourceValueOrDefault(metrics.Resources.CPULimit.String(), defaultCPULimit)
+		templateData["MemoryLimit"] = getResourceValueOrDefault(metrics.Resources.MemoryLimit.String(), defaultMemoryLimit)
+		templateData["CPURequest"] = getResourceValueOrDefault(metrics.Resources.CPURequest.String(), defaultCPURequest)
+		templateData["MemoryRequest"] = getResourceValueOrDefault(metrics.Resources.MemoryRequest.String(), defaultMemoryRequest)
 	} else {
 		// Use defaults when Resources is nil
-		templateData["CPULimit"] = "500m"
-		templateData["MemoryLimit"] = "512Mi"
-		templateData["CPURequest"] = "100m"
-		templateData["MemoryRequest"] = "256Mi"
+		templateData["CPULimit"] = defaultCPULimit
+		templateData["MemoryLimit"] = defaultMemoryLimit
+		templateData["CPURequest"] = defaultCPURequest
+		templateData["MemoryRequest"] = defaultMemoryRequest
 	}
 }
 
 // addStorageData adds storage configuration data to the template data map.
 func addStorageData(metrics *serviceApi.Metrics, templateData map[string]any) {
 	if metrics.Storage != nil {
-		templateData["StorageSize"] = getResourceValueOrDefault(metrics.Storage.Size.String(), "5Gi")
-		templateData["StorageRetention"] = getStringValueOrDefault(metrics.Storage.Retention, "90d")
+		templateData["StorageSize"] = getResourceValueOrDefault(metrics.Storage.Size.String(), defaultStorageSize)
+		templateData["StorageRetention"] = getStringValueOrDefault(metrics.Storage.Retention, defaultRetention)
 	} else {
 		// Use defaults when Storage is nil
-		templateData["StorageSize"] = "5Gi"
-		templateData["StorageRetention"] = "90d"
+		templateData["StorageSize"] = defaultStorageSize
+		templateData["StorageRetention"] = defaultRetention
 	}
 }
 
