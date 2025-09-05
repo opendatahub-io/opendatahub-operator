@@ -301,6 +301,7 @@ rules:
   - ""
   resources:
   - clusterversions
+  - nodes
   - rhmis
   verbs:
   - get
