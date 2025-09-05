@@ -77,6 +77,7 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate serving enabled", componentCtx.ValidateServingEnabled},
 		{"Validate component spec", componentCtx.ValidateSpec},
 		{"Validate component conditions", componentCtx.ValidateConditions},
+		{"Validate handling of already present Knative Serving in Serverless Mode", componentCtx.ValidatePreExistingKnativeServing},
 		{"Validate KnativeServing resource exists and is recreated upon deletion", componentCtx.ValidateKnativeServing},
 		{"Validate model controller", componentCtx.ValidateModelControllerInstance},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
@@ -192,6 +193,66 @@ func (tc *KserveTestCtx) ValidateKnativeServing(t *testing.T) {
 	// Check eventually got recreated.
 	tc.EnsureResourceExistsConsistently(
 		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
+	)
+}
+
+// ValidatePreExistingKnativeServing ensures that DSC correctly handles pre-existing KnativeServing resources in Serverless mode.
+func (tc *KserveTestCtx) ValidatePreExistingKnativeServing(t *testing.T) {
+	t.Helper()
+
+	// Ensure Kserve is disabled
+	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Removed)
+
+	// Create a pre-existing KnativeServing resource
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.KnativeServing, types.NamespacedName{Name: "my-knative-serving", Namespace: knativeServingNamespace}),
+		WithCustomErrorMsg("Failed to create pre-existing KnativeServing resource"),
+	)
+
+	// Update kserve managementState
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(
+			testf.TransformPipeline(
+				testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
+				testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
+			),
+		),
+		WithCondition(
+			And(
+				jq.Match(`.spec.components.%s.managementState == "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
+				jq.Match(`.spec.components.%s.serving.managementState == "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
+			),
+		),
+	)
+
+	// Validate that KServe component reports KnativeServing conflict message
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`
+            .status.conditions[]
+            | select(.type == "KserveReady")
+            | .message | test("Only one KnativeServing allowed per namespace"; "i")`)),
+		WithCustomErrorMsg("KServe should report KnativeServing conflict message"),
+	)
+
+	// Delete the pre-existing KnativeServing resource
+	tc.DeleteResource(
+		WithMinimalObject(gvk.KnativeServing, types.NamespacedName{Name: "my-knative-serving", Namespace: knativeServingNamespace}),
+		WithWaitForDeletion(true),
+	)
+
+	// Validate DSC and Kserve is healthy
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(`
+				.status.conditions[]
+				| select(.type == "KserveReady")
+				| .status == "%s"`, metav1.ConditionTrue),
+			jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady),
+		)),
+		WithCustomErrorMsg("DSC and Kserve should be healthy"),
 	)
 }
 
