@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -20,6 +19,7 @@ import (
 
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -28,44 +28,41 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// ServiceMesh constants.
+// ServiceMesh test configuration constants and variables.
+// These define default names, namespaces, and expected values for ServiceMesh-related resources.
 const (
-	serviceMeshControlPlaneDefaultName = "data-science-smcp"
-	serviceMeshControlPlaneNamespace   = "istio-system"
+	// ServiceMesh Control Plane configuration.
+	serviceMeshControlPlaneDefaultName = "data-science-smcp" // Default SMCP instance name
+	serviceMeshControlPlaneNamespace   = "istio-system"      // Standard Istio control plane namespace
+
+	// Authorino authorization service configuration.
+	authorinoDefaultName         = "authorino"                      // Default Authorino instance name
+	authorinoDefaultNamespace    = "opendatahub-auth-provider"      // Authorino deployment namespace
+	defaultAuthAudience          = "https://kubernetes.default.svc" // Default JWT audience for auth
+	serviceMeshMemberDefaultName = "default"                        // Default ServiceMeshMember name
+
+	// ServiceMesh metrics and operator configuration.
+	serviceMeshMetricsCollectionDefault = "Istio" // Default metrics collection backend
 )
 
 var (
+	// These avoid repetitive construction throughout the test suite.
 	namespacedServiceMeshControlPlane = types.NamespacedName{
 		Name:      serviceMeshControlPlaneDefaultName,
 		Namespace: serviceMeshControlPlaneNamespace,
 	}
-)
 
-// Authorino constants.
-const (
-	authorinoDefaultName         = "authorino"
-	authorinoDefaultNamespace    = "opendatahub-auth-provider"
-	defaultAuthAudience          = "https://kubernetes.default.svc"
-	serviceMeshMemberDefaultName = "default"
-)
-
-var (
 	namespacedServiceMeshMember = types.NamespacedName{
 		Name:      serviceMeshMemberDefaultName,
 		Namespace: authorinoDefaultNamespace,
 	}
+
 	namespacedAuthorino = types.NamespacedName{
 		Name:      authorinoDefaultName,
 		Namespace: authorinoDefaultNamespace,
 	}
-)
 
-// ServiceMesh metrics collection constants.
-const (
-	serviceMeshMetricsCollectionDefault = "Istio"
-)
-
-var (
+	// These are dynamically generated based on the control plane name.
 	serviceMonitorDefaultName = fmt.Sprintf("%s-pilot-monitor", serviceMeshControlPlaneDefaultName)
 	namespacedServiceMonitor  = types.NamespacedName{
 		Name:      serviceMonitorDefaultName,
@@ -77,29 +74,35 @@ var (
 		Name:      podMonitorDefaultName,
 		Namespace: serviceMeshControlPlaneNamespace,
 	}
-)
 
-var (
+	// These verify that DSCI is available and reconciliation is complete.
 	dsciAvailableConditions = []gTypes.GomegaMatcher{
 		jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "%s"`, metav1.ConditionTrue),
 		jq.Match(`.status.conditions[] | select(.type == "ReconcileComplete") | .status == "%s"`, metav1.ConditionTrue),
 	}
-)
 
-const (
-	serviceMeshOperatorDefaultChannel = "stable"
-	authorinoOperatorDefaultChannel   = "stable"
-)
-
-func getServiceMeshFeatureTrackerNames(appsNamespace string) []string {
-	return []string{
-		appsNamespace + "-mesh-shared-configmap",
-		appsNamespace + "-mesh-control-plane-creation",
-		appsNamespace + "-mesh-metrics-collection",
-		appsNamespace + "-enable-proxy-injection-in-authorino-deployment",
-		appsNamespace + "-mesh-control-plane-external-authz",
+	// Common ServiceMesh resource validation conditions.
+	serviceMeshReadyConditions = []gTypes.GomegaMatcher{
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
 	}
-}
+
+	// Common DependentOperatorsTestConfig patterns used throughout the test suite.
+	BothOperatorsEnabled = DependentOperatorsTestConfig{
+		EnsureServiceMeshOperatorInstalled: true,
+		EnsureAuthorinoOperatorInstalled:   true,
+	}
+
+	NoOperatorsEnabled = DependentOperatorsTestConfig{
+		EnsureServiceMeshOperatorInstalled: false,
+		EnsureAuthorinoOperatorInstalled:   false,
+	}
+
+	OnlyServiceMeshEnabled = DependentOperatorsTestConfig{
+		EnsureServiceMeshOperatorInstalled: true,
+		EnsureAuthorinoOperatorInstalled:   false,
+	}
+)
 
 // DependentOperatorsTestConfig is used to configure the test cases that depend on the presence of dependent operators.
 // Allows to set which dependent operators will or won't be installed for the test case.
@@ -114,6 +117,7 @@ type ServiceMeshTestCtx struct {
 	NamespacedName types.NamespacedName
 }
 
+// serviceMeshControllerTestSuite runs the complete ServiceMesh integration test suite.
 func serviceMeshControllerTestSuite(t *testing.T) {
 	t.Helper()
 
@@ -133,10 +137,7 @@ func serviceMeshControllerTestSuite(t *testing.T) {
 	// Define test cases.
 	testCases := []TestCase{
 		// Test cases to validate default ServiceMesh CR instance-related flow
-		{"Validate default ServiceMesh configuration", smCtx.ValidateDefaultServiceMeshCreation},
-		{"Validate ServiceMesh is singleton", smCtx.ValidateServiceMeshIsSingleton},
-		{"Validate No ServiceMesh FeatureTrackers exist", smCtx.ValidateNoServiceMeshFeatureTrackersExist},
-		{"Validate No Legacy FeatureTrackers exist", smCtx.ValidateNoLegacyFeatureTrackersExist},
+		{"Validate ServiceMesh initialization and setup", smCtx.ValidateServiceMeshInitialization},
 		{"Validate ServiceMesh control plane", smCtx.ValidateServiceMeshControlPlane},
 		{"Validate Authorino resources", smCtx.ValidateAuthorinoResources},
 		{"Validate ServiceMesh metrics collection resources", smCtx.ValidateServiceMeshMetricsCollectionResources},
@@ -154,54 +155,34 @@ func serviceMeshControllerTestSuite(t *testing.T) {
 	RunTestCases(t, testCases)
 }
 
-func (tc *ServiceMeshTestCtx) ValidateDefaultServiceMeshCreation(t *testing.T) {
+// ValidateServiceMeshInitialization verifies ServiceMesh setup, singleton pattern, and absence of legacy FeatureTrackers.
+func (tc *ServiceMeshTestCtx) ValidateServiceMeshInitialization(t *testing.T) {
 	t.Helper()
 
-	tc.setupAndValidateServiceMeshEnvironment(t, DependentOperatorsTestConfig{
-		EnsureServiceMeshOperatorInstalled: true,
-		EnsureAuthorinoOperatorInstalled:   true,
-	})
-}
+	// Setup environment with both operators
+	tc.setupAndValidateServiceMeshEnvironment(t, BothOperatorsEnabled)
 
-func (tc *ServiceMeshTestCtx) ValidateServiceMeshIsSingleton(t *testing.T) {
-	t.Helper()
-
-	// ensure that exactly one ServiceMesh CR exists
+	// Validate exactly one ServiceMesh CR exists (singleton)
 	tc.EnsureResourcesExist(
 		WithMinimalObject(tc.GVK, tc.NamespacedName),
-		WithCondition(
-			And(
-				HaveLen(1),
-			),
-		),
+		WithCondition(HaveLen(1)),
 		WithCustomErrorMsg("ServiceMesh CR was expected to be a singleton"),
 	)
-}
 
-// ValidateNoServiceMeshFeatureTrackers ensures there are no FeatureTrackers for ServiceMesh present in the cluster.
-func (tc *ServiceMeshTestCtx) ValidateNoServiceMeshFeatureTrackersExist(t *testing.T) {
-	t.Helper()
-
+	// Validate no ServiceMesh FeatureTrackers exist
 	tc.EnsureResourcesDoNotExist(
 		WithMinimalObject(gvk.FeatureTracker, tc.NamespacedName),
 		WithListOptions(&client.ListOptions{
 			Namespace: tc.AppsNamespace,
-			LabelSelector: k8slabels.SelectorFromSet(
-				k8slabels.Set{
-					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-				},
-			),
+			LabelSelector: k8slabels.SelectorFromSet(k8slabels.Set{
+				labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+			}),
 		}),
 		WithCustomErrorMsg("Expected no ServiceMesh-related FeatureTracker resources to be present"),
 	)
-}
 
-func (tc *ServiceMeshTestCtx) ValidateNoLegacyFeatureTrackersExist(t *testing.T) {
-	t.Helper()
-
-	dsci := tc.FetchDSCInitialization()
-	ftNames := getServiceMeshFeatureTrackerNames(dsci.Spec.ApplicationsNamespace)
-
+	// Validate no legacy FeatureTrackers exist
+	ftNames := getServiceMeshFeatureTrackerNames(tc.AppsNamespace)
 	for _, name := range ftNames {
 		tc.EnsureResourceGone(WithMinimalObject(gvk.FeatureTracker, types.NamespacedName{Name: name}))
 	}
@@ -212,11 +193,10 @@ func (tc *ServiceMeshTestCtx) ValidateServiceMeshControlPlane(t *testing.T) {
 	t.Helper()
 
 	// Validate the default name, namespace, and Ready condition for SMCP
-	conditions := []gTypes.GomegaMatcher{
-		jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
-		jq.Match(`.metadata.name == "%s"`, serviceMeshControlPlaneDefaultName),
-		jq.Match(`.metadata.namespace == "%s"`, serviceMeshControlPlaneNamespace),
-	}
+	conditions := append(
+		[]gTypes.GomegaMatcher{jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)},
+		withBasicMetadata(serviceMeshControlPlaneDefaultName, serviceMeshControlPlaneNamespace)...,
+	)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ServiceMeshControlPlane, namespacedServiceMeshControlPlane),
 		WithCondition(And(conditions...)),
@@ -224,10 +204,7 @@ func (tc *ServiceMeshTestCtx) ValidateServiceMeshControlPlane(t *testing.T) {
 
 	// validate SMCP deployment
 	smcpDeploymentName := fmt.Sprintf("istiod-%s", serviceMeshControlPlaneDefaultName)
-	smcpDeploymentConditions := []gTypes.GomegaMatcher{
-		jq.Match(`.metadata.name == "%s"`, smcpDeploymentName),
-		jq.Match(`.metadata.namespace == "%s"`, serviceMeshControlPlaneNamespace),
-	}
+	smcpDeploymentConditions := withBasicMetadata(smcpDeploymentName, serviceMeshControlPlaneNamespace)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
 			Name:      smcpDeploymentName,
@@ -242,50 +219,40 @@ func (tc *ServiceMeshTestCtx) ValidateServiceMeshControlPlane(t *testing.T) {
 func (tc *ServiceMeshTestCtx) ValidateAuthorinoResources(t *testing.T) {
 	t.Helper()
 
-	// Validate the "Ready" condition for authorino resource
-	conditions := []gTypes.GomegaMatcher{
-		jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
-		// also check owner reference
-		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
-	}
+	// Validate Authorino resource
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Authorino, namespacedAuthorino),
-		WithCondition(And(conditions...)),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
+		)),
 	)
 
-	// Validate authorino deployment was annotated
-	conditionsDeployment := []gTypes.GomegaMatcher{
-		jq.Match(`.spec.template.metadata.labels | has("sidecar.istio.io/inject") and .["sidecar.istio.io/inject"] == "true"`),
-	}
+	// Validate authorino deployment is labeled for sidecar injection
+	deploymentCondition := jq.Match(`.spec.template.metadata.labels | has("sidecar.istio.io/inject") and .["sidecar.istio.io/inject"] == "true"`)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, namespacedAuthorino),
-		WithCondition(And(conditionsDeployment...)),
+		WithCondition(deploymentCondition),
 	)
 
 	// Validate authorino deployment is re-annotated after deletion
-	tc.DeleteResource(
+	tc.EnsureResourceDeletedThenRecreated(
 		WithMinimalObject(gvk.Deployment, namespacedAuthorino),
-	)
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Deployment, namespacedAuthorino),
-		WithCondition(And(conditionsDeployment...)),
+		WithCondition(deploymentCondition),
 	)
 
 	// validate auth ServiceMeshMember
-	smmConditions := []gTypes.GomegaMatcher{
-		jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
-		// check name and namespace
-		jq.Match(`.metadata.name == "%s"`, serviceMeshMemberDefaultName),
-		jq.Match(`.metadata.namespace == "%s"`, authorinoDefaultNamespace),
-		// check control plane reference
-		jq.Match(`.spec.controlPlaneRef.name == "%s"`, serviceMeshControlPlaneDefaultName),
-		jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, serviceMeshControlPlaneNamespace),
-		// check owner reference
-		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
-	}
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ServiceMeshMember, namespacedServiceMeshMember),
-		WithCondition(And(smmConditions...)),
+		WithCondition(And(append(append(
+			[]gTypes.GomegaMatcher{jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)},
+			withBasicMetadata(serviceMeshMemberDefaultName, authorinoDefaultNamespace)...),
+			// check control plane reference
+			jq.Match(`.spec.controlPlaneRef.name == "%s"`, serviceMeshControlPlaneDefaultName),
+			jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, serviceMeshControlPlaneNamespace),
+			// check owner reference
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
+		)...)),
 	)
 }
 
@@ -293,40 +260,32 @@ func (tc *ServiceMeshTestCtx) ValidateAuthorinoResources(t *testing.T) {
 func (tc *ServiceMeshTestCtx) ValidateServiceMeshMetricsCollectionResources(t *testing.T) {
 	t.Helper()
 
-	// validate ServiceMonitor
-	serviceMonitorConditions := []gTypes.GomegaMatcher{
-		jq.Match(`.metadata.name == "%s"`, serviceMonitorDefaultName),
-		jq.Match(`.metadata.namespace == "%s"`, serviceMeshControlPlaneNamespace),
-		// check owner reference
-		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
-		// check spec contents
-		jq.Match(`.spec.targetLabels[0] == "app"`),
-		jq.Match(`.spec.selector.matchLabels.istio == "pilot"`),
-		jq.Match(`.spec.endpoints[0].port == "http-monitoring"`),
-		jq.Match(`.spec.endpoints[0].interval == "30s"`),
-	}
+	// ServiceMonitor validation
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ServiceMonitorServiceMesh, namespacedServiceMonitor),
-		WithCondition(And(serviceMonitorConditions...)),
+		WithCondition(And(append(
+			withMetadataConditions(serviceMonitorDefaultName, serviceMeshControlPlaneNamespace, tc.GVK.Kind),
+			// Spec configuration checks
+			jq.Match(`.spec.targetLabels[0] == "app"`),
+			jq.Match(`.spec.selector.matchLabels.istio == "pilot"`),
+			jq.Match(`.spec.endpoints[0].port == "http-monitoring"`),
+			jq.Match(`.spec.endpoints[0].interval == "30s"`),
+		)...)),
 	)
 
-	// validate PodMonitor
-	podMonitorConditions := []gTypes.GomegaMatcher{
-		jq.Match(`.metadata.name == "%s"`, podMonitorDefaultName),
-		jq.Match(`.metadata.namespace == "%s"`, serviceMeshControlPlaneNamespace),
-		// check owner reference
-		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, tc.GVK.Kind),
-		// check spec contents
-		jq.Match(`.spec.selector.matchExpressions[0].key == "istio-prometheus-ignore"`),
-		jq.Match(`.spec.selector.matchExpressions[0].operator == "DoesNotExist"`),
-		jq.Match(`.spec.podMetricsEndpoints[0].path == "/stats/prometheus"`),
-		jq.Match(`.spec.podMetricsEndpoints[0].port == "http-envoy-prom"`),
-		jq.Match(`.spec.podMetricsEndpoints[0].scheme == "http"`),
-		jq.Match(`.spec.podMetricsEndpoints[0].interval == "30s"`),
-	}
+	// PodMonitor validation
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.PodMonitorServiceMesh, namespacedPodMonitor),
-		WithCondition(And(podMonitorConditions...)),
+		WithCondition(And(append(
+			withMetadataConditions(podMonitorDefaultName, serviceMeshControlPlaneNamespace, tc.GVK.Kind),
+			// Spec configuration checks
+			jq.Match(`.spec.selector.matchExpressions[0].key == "istio-prometheus-ignore"`),
+			jq.Match(`.spec.selector.matchExpressions[0].operator == "DoesNotExist"`),
+			jq.Match(`.spec.podMetricsEndpoints[0].path == "/stats/prometheus"`),
+			jq.Match(`.spec.podMetricsEndpoints[0].port == "http-envoy-prom"`),
+			jq.Match(`.spec.podMetricsEndpoints[0].scheme == "http"`),
+			jq.Match(`.spec.podMetricsEndpoints[0].interval == "30s"`),
+		)...)),
 	)
 }
 
@@ -342,30 +301,22 @@ func (tc *ServiceMeshTestCtx) ValidateServiceMeshMetricsCollectionDisabled(t *te
 			And(
 				append(
 					dsciAvailableConditions,
-					jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMesh") | .status == "%s"`, metav1.ConditionTrue),
-					jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMeshAuthorization") | .status == "%s"`, metav1.ConditionTrue),
+					withCapabilityConditions(true, true)...,
 				)...,
 			),
 		),
 	)
 
 	// Verify specific ServiceMesh metrics collection resources got cleaned up
-	tc.EnsureResourceGone(WithMinimalObject(gvk.ServiceMonitorServiceMesh, namespacedServiceMonitor))
-	tc.EnsureResourceGone(WithMinimalObject(gvk.PodMonitorServiceMesh, namespacedPodMonitor))
+	tc.ensureMonitoringResourcesGone()
 
 	// ensure ServiceMesh CR instance remains unaffected and stays ready
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, tc.NamespacedName),
-		WithCondition(And(
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "ProvisioningSucceeded") | .status == "%s"`, metav1.ConditionTrue),
-		)),
+		WithCondition(And(serviceMeshReadyConditions...)),
 	)
 
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithCondition(And(dsciAvailableConditions...)),
-	)
+	tc.ensureDSCIReady()
 }
 
 // ValidateServiceMeshTransitionToUnmanaged ensures ServiceMesh CR is properly updated to Unmanaged state.
@@ -373,10 +324,7 @@ func (tc *ServiceMeshTestCtx) ValidateServiceMeshTransitionToUnmanaged(t *testin
 	t.Helper()
 
 	// pre-test: setup default ServiceMesh environment
-	tc.setupAndValidateServiceMeshEnvironment(t, DependentOperatorsTestConfig{
-		EnsureServiceMeshOperatorInstalled: true,
-		EnsureAuthorinoOperatorInstalled:   true,
-	})
+	tc.setupAndValidateServiceMeshEnvironment(t, BothOperatorsEnabled)
 
 	// ensure DSCI is updated to set ServiceMesh as Unmanaged
 	tc.EventuallyResourceCreatedOrUpdated(
@@ -390,13 +338,12 @@ func (tc *ServiceMeshTestCtx) ValidateServiceMeshTransitionToUnmanaged(t *testin
 		WithMinimalObject(tc.GVK, tc.NamespacedName),
 		WithCondition(
 			And(
-				jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
-				jq.Match(`.status.conditions[] | select(.type == "ProvisioningSucceeded") | .status == "%s"`, metav1.ConditionTrue),
-				// ensure managementState propagated to ServiceMesh instance
-				jq.Match(`.spec.managementState == "%s"`, operatorv1.Unmanaged),
-				// check capabilities, should be false as ServiceMesh is Unmanaged
-				jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMesh") | .status == "%s"`, metav1.ConditionFalse),
-				jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMeshAuthorization") | .status == "%s"`, metav1.ConditionFalse),
+				append(append(serviceMeshReadyConditions,
+					// ensure managementState propagated to ServiceMesh instance
+					jq.Match(`.spec.managementState == "%s"`, operatorv1.Unmanaged)),
+					// check capabilities, should be false as ServiceMesh is Unmanaged
+					withCapabilityConditions(false, false)...,
+				)...,
 			),
 		),
 	)
@@ -408,17 +355,13 @@ func (tc *ServiceMeshTestCtx) ValidateServiceMeshTransitionToUnmanaged(t *testin
 		WithCondition(And(
 			append(dsciAvailableConditions,
 				// check capabilities, should be false as ServiceMesh is Unmanaged
-				jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMesh") | .status == "%s"`, metav1.ConditionFalse),
-				jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMeshAuthorization") | .status == "%s"`, metav1.ConditionFalse),
+				withCapabilityConditions(false, false)...,
 			)...,
 		)),
 	)
 
 	// post-test: restore DSCI ServiceMesh spec to default config
-	tc.setupAndValidateServiceMeshEnvironment(t, DependentOperatorsTestConfig{
-		EnsureServiceMeshOperatorInstalled: true,
-		EnsureAuthorinoOperatorInstalled:   true,
-	})
+	tc.setupAndValidateServiceMeshEnvironment(t, BothOperatorsEnabled)
 }
 
 // ValidateServiceMeshRemoved ensures Removed state is handled properly.
@@ -427,68 +370,45 @@ func (tc *ServiceMeshTestCtx) ValidateServiceMeshTransitionToRemoved(t *testing.
 	t.Helper()
 
 	// pre-test: setup default ServiceMesh environment
-	tc.setupAndValidateServiceMeshEnvironment(t, DependentOperatorsTestConfig{
-		EnsureServiceMeshOperatorInstalled: true,
-		EnsureAuthorinoOperatorInstalled:   true,
-	})
+	tc.setupAndValidateServiceMeshEnvironment(t, BothOperatorsEnabled)
 
 	// ensure ServiceMesh CR is created and ready
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, tc.NamespacedName),
-		WithCondition(
-			And(
-				jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
-				jq.Match(`.status.conditions[] | select(.type == "ProvisioningSucceeded") | .status == "%s"`, metav1.ConditionTrue),
-			),
-		),
+		WithCondition(And(serviceMeshReadyConditions...)),
 	)
 
 	// remove/cleanup ServiceMesh via setting ServiceMesh managementState to Removed in DSCI
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "%s"`, operatorv1.Removed)),
-	)
-	tc.ensureServiceMeshGone(t)
+	tc.cleanupServiceMeshConfiguration(t)
 
 	// ensure DSCI is ready and has ServiceMesh capabilities as False due to Removed state
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithCondition(And(
 			append(dsciAvailableConditions,
-				jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMesh") | .status == "%s"`, metav1.ConditionFalse),
-				jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMeshAuthorization") | .status == "%s"`, metav1.ConditionFalse),
+				withCapabilityConditions(false, false)...,
 			)...,
 		)),
 	)
 
 	// post-test:restore DSCI ServiceMesh spec to default config
-	tc.setupAndValidateServiceMeshEnvironment(t, DependentOperatorsTestConfig{
-		EnsureServiceMeshOperatorInstalled: true,
-		EnsureAuthorinoOperatorInstalled:   true,
-	})
+	tc.setupAndValidateServiceMeshEnvironment(t, BothOperatorsEnabled)
 }
 
+// ValidateLegacyServiceMeshFeatureTrackersRemoval ensures legacy FeatureTrackers are cleaned up during ServiceMesh installation.
 func (tc *ServiceMeshTestCtx) ValidateLegacyServiceMeshFeatureTrackersRemoval(t *testing.T) {
 	t.Helper()
 
-	dsci := tc.FetchDSCInitialization()
-	ftNames := getServiceMeshFeatureTrackerNames(dsci.Spec.ApplicationsNamespace)
+	ftNames := getServiceMeshFeatureTrackerNames(tc.AppsNamespace)
 
 	// remove ServiceMesh to provide ground for clean ServiceMesh installation
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "%s"`, operatorv1.Removed)),
-	)
-	tc.ensureServiceMeshGone(t)
+	tc.cleanupServiceMeshConfiguration(t)
 
 	// create dummy legacy ServiceMesh-related FeatureTrackers
 	tc.createDummyServiceMeshFeatureTrackers(t, ftNames)
 
 	// install ServiceMesh with default config
-	tc.setupAndValidateServiceMeshEnvironment(t, DependentOperatorsTestConfig{
-		EnsureServiceMeshOperatorInstalled: true,
-		EnsureAuthorinoOperatorInstalled:   true,
-	})
+	tc.setupAndValidateServiceMeshEnvironment(t, BothOperatorsEnabled)
 
 	// ensure legacy ServiceMesh-related FeatureTrackers are gone after ServiceMesh installation
 	for _, name := range ftNames {
@@ -496,60 +416,16 @@ func (tc *ServiceMeshTestCtx) ValidateLegacyServiceMeshFeatureTrackersRemoval(t 
 	}
 }
 
-func (tc *ServiceMeshTestCtx) ValidateNoServiceMeshSpecInDSCI(t *testing.T) {
-	t.Helper()
-
-	// remove ServiceMesh spec from DSCI
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`del(.spec.serviceMesh)`)),
-		WithCondition(
-			And(
-				append(dsciAvailableConditions,
-					jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMesh") | .status == "%s"`, metav1.ConditionFalse),
-					jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMeshAuthorization") | .status == "%s"`, metav1.ConditionFalse),
-				)...,
-			),
-		),
-	)
-
-	// ensure ServiceMesh owned resources do not exist
-	// also ensure ServicesMeshControlPlane does not exist (via ServiceMesh finalizer, as it's not owned by ServiceMesh CR)
-	tc.ensureServiceMeshResourcesGone(t)
-	// ensure ServiceMesh CR instance itself is deleted
-	tc.EnsureResourceGone(
-		WithMinimalObject(tc.GVK, tc.NamespacedName),
-	)
-
-	// ensure DSCI remains available
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithCondition(And(dsciAvailableConditions...)),
-	)
-
-	// post-test:restore DSCI ServiceMesh spec to default config
-	tc.setupAndValidateServiceMeshEnvironment(t, DependentOperatorsTestConfig{
-		EnsureServiceMeshOperatorInstalled: true,
-		EnsureAuthorinoOperatorInstalled:   true,
-	})
-}
-
+// ValidateAuthorinoOperatorNotInstalled verifies ServiceMesh behavior when the Authorino operator is missing.
 func (tc *ServiceMeshTestCtx) ValidateAuthorinoOperatorNotInstalled(t *testing.T) {
 	t.Helper()
 
 	// pre-test: cleanup ServiceMesh and its resources
 	// to emulate starting conditions for the clean ServiceMesh installation
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "%s"`, operatorv1.Removed)),
-	)
-	tc.ensureServiceMeshGone(t)
+	tc.cleanupServiceMeshConfiguration(t)
 
 	// attempt re-enabling ServiceMesh with Authorino operator not installed, and validate state
-	tc.setupAndValidateServiceMeshEnvironment(t, DependentOperatorsTestConfig{
-		EnsureServiceMeshOperatorInstalled: true,
-		EnsureAuthorinoOperatorInstalled:   false,
-	})
+	tc.setupAndValidateServiceMeshEnvironment(t, OnlyServiceMeshEnabled)
 
 	// ensure Authorino instance was not created
 	tc.EnsureResourceGone(
@@ -557,18 +433,49 @@ func (tc *ServiceMeshTestCtx) ValidateAuthorinoOperatorNotInstalled(t *testing.T
 	)
 
 	// post-test:cleanup ServiceMesh and its resources again, for post-test recovery purposes
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "%s"`, operatorv1.Removed)),
-	)
-	tc.ensureServiceMeshGone(t)
+	tc.cleanupServiceMeshConfiguration(t)
+
 	// post-test: restore DSCI ServiceMesh spec to default config
-	tc.setupAndValidateServiceMeshEnvironment(t, DependentOperatorsTestConfig{
-		EnsureServiceMeshOperatorInstalled: true,
-		EnsureAuthorinoOperatorInstalled:   true,
-	})
+	tc.setupAndValidateServiceMeshEnvironment(t, BothOperatorsEnabled)
 }
 
+// Helper functions for validation conditions.
+
+// withCapabilityConditions creates ServiceMesh capability validation conditions based on operator installation status.
+func withCapabilityConditions(serviceMeshEnabled, authorinoEnabled bool) []gTypes.GomegaMatcher {
+	serviceMeshStatus := metav1.ConditionFalse
+	authorinoStatus := metav1.ConditionFalse
+	if serviceMeshEnabled {
+		serviceMeshStatus = metav1.ConditionTrue
+	}
+	if authorinoEnabled {
+		authorinoStatus = metav1.ConditionTrue
+	}
+
+	return []gTypes.GomegaMatcher{
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.CapabilityServiceMesh, serviceMeshStatus),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.CapabilityServiceMeshAuthorization, authorinoStatus),
+	}
+}
+
+// withMetadataConditions creates common metadata validation conditions for ServiceMesh-owned resources.
+func withMetadataConditions(name, namespace, ownerKind string) []gTypes.GomegaMatcher {
+	return []gTypes.GomegaMatcher{
+		jq.Match(`.metadata.name == "%s"`, name),
+		jq.Match(`.metadata.namespace == "%s"`, namespace),
+		jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, ownerKind),
+	}
+}
+
+// withBasicMetadata creates basic name and namespace validation conditions.
+func withBasicMetadata(name, namespace string) []gTypes.GomegaMatcher {
+	return []gTypes.GomegaMatcher{
+		jq.Match(`.metadata.name == "%s"`, name),
+		jq.Match(`.metadata.namespace == "%s"`, namespace),
+	}
+}
+
+// setupAndValidateServiceMeshEnvironment configures operators and validates complete ServiceMesh environment setup.
 func (tc *ServiceMeshTestCtx) setupAndValidateServiceMeshEnvironment(t *testing.T, dependentOperatorsConfig DependentOperatorsTestConfig) {
 	t.Helper()
 
@@ -582,74 +489,44 @@ func (tc *ServiceMeshTestCtx) setupAndValidateServiceMeshEnvironment(t *testing.
 	tc.validateServiceMeshInstance(t, dependentOperatorsConfig)
 }
 
+// setupOperators installs or uninstalls ServiceMesh and Authorino operators based on configuration.
 func (tc *ServiceMeshTestCtx) setupOperators(t *testing.T, dependentOperatorsConfig DependentOperatorsTestConfig) {
 	t.Helper()
 
-	tc.setupServiceMeshOperator(t, dependentOperatorsConfig.EnsureServiceMeshOperatorInstalled)
-	tc.setupAuthorinoOperator(t, dependentOperatorsConfig.EnsureAuthorinoOperatorInstalled)
-}
+	// Define operators to manage with their installation flags
+	operators := []struct {
+		name          string
+		shouldInstall bool
+	}{
+		{serviceMeshOpName, dependentOperatorsConfig.EnsureServiceMeshOperatorInstalled},
+		{authorinoOpName, dependentOperatorsConfig.EnsureAuthorinoOperatorInstalled},
+	}
 
-func (tc *ServiceMeshTestCtx) setupServiceMeshOperator(t *testing.T, shouldBeInstalled bool) {
-	t.Helper()
-
-	if shouldBeInstalled {
-		tc.EnsureOperatorInstalled(types.NamespacedName{Name: serviceMeshOpName, Namespace: openshiftOperatorsNamespace}, true)
-	} else {
-		tc.uninstallOperatorWithChannel(
-			t,
-			types.NamespacedName{Name: serviceMeshOpName, Namespace: openshiftOperatorsNamespace},
-			serviceMeshOperatorDefaultChannel,
-		)
-		time.Sleep(5 * time.Second)
+	// Setup each operator based on configuration
+	for _, op := range operators {
+		operatorNS := types.NamespacedName{Name: op.name, Namespace: openshiftOperatorsNamespace}
+		if op.shouldInstall {
+			tc.EnsureOperatorInstalled(operatorNS, true)
+		} else {
+			tc.UninstallOperator(operatorNS, WithWaitForDeletion(true))
+		}
 	}
 }
 
-func (tc *ServiceMeshTestCtx) setupAuthorinoOperator(t *testing.T, shouldBeInstalled bool) {
-	t.Helper()
-
-	if shouldBeInstalled {
-		tc.EnsureOperatorInstalled(types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, true)
-	} else {
-		tc.uninstallOperatorWithChannel(
-			t,
-			types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace},
-			authorinoOperatorDefaultChannel,
-		)
-		time.Sleep(5 * time.Second)
-	}
-}
-
+// setupAndValidateDsciInstance configures DSCI with ServiceMesh settings and validates expected conditions.
 func (tc *ServiceMeshTestCtx) setupAndValidateDsciInstance(t *testing.T, dependentOperatorsConfig DependentOperatorsTestConfig) {
 	t.Helper()
 
-	// ensure DSCI is created with valid config for ServiceMesh
-	dsciExpectedConditions := []gTypes.GomegaMatcher{}
-	dsciExpectedConditions = append(dsciExpectedConditions, dsciAvailableConditions...)
-	dsciExpectedConditions = append(dsciExpectedConditions,
-		jq.Match(`.spec.serviceMesh.managementState == "%s"`, operatorv1.Managed),
-		jq.Match(`.spec.serviceMesh.controlPlane.metricsCollection == "%s"`, serviceMeshMetricsCollectionDefault),
-		jq.Match(`.spec.serviceMesh.controlPlane.name == "%s"`, serviceMeshControlPlaneDefaultName),
-		jq.Match(`.spec.serviceMesh.controlPlane.namespace == "%s"`, serviceMeshControlPlaneNamespace),
-	)
-
+	// ServiceMesh capability condition
+	serviceMeshStatus := metav1.ConditionFalse
 	if dependentOperatorsConfig.EnsureServiceMeshOperatorInstalled {
-		dsciExpectedConditions = append(dsciExpectedConditions,
-			jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMesh") | .status == "%s"`, metav1.ConditionTrue),
-		)
-	} else {
-		dsciExpectedConditions = append(dsciExpectedConditions,
-			jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMesh") | .status == "%s"`, metav1.ConditionFalse),
-		)
+		serviceMeshStatus = metav1.ConditionTrue
 	}
 
+	// Authorino capability condition
+	authorinoStatus := metav1.ConditionFalse
 	if dependentOperatorsConfig.EnsureAuthorinoOperatorInstalled {
-		dsciExpectedConditions = append(dsciExpectedConditions,
-			jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMeshAuthorization") | .status == "%s"`, metav1.ConditionTrue),
-		)
-	} else {
-		dsciExpectedConditions = append(dsciExpectedConditions,
-			jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMeshAuthorization") | .status == "%s"`, metav1.ConditionFalse),
-		)
+		authorinoStatus = metav1.ConditionTrue
 	}
 
 	tc.EventuallyResourceCreatedOrUpdated(
@@ -662,10 +539,25 @@ func (tc *ServiceMeshTestCtx) setupAndValidateDsciInstance(t *testing.T, depende
 				testf.Transform(`.spec.serviceMesh.controlPlane.namespace = "%s"`, serviceMeshControlPlaneNamespace),
 			),
 		),
-		WithCondition(And(dsciExpectedConditions...)),
+		WithCondition(
+			And(
+				append(
+					dsciAvailableConditions,
+					// ServiceMesh spec validation
+					jq.Match(`.spec.serviceMesh.managementState == "%s"`, operatorv1.Managed),
+					jq.Match(`.spec.serviceMesh.controlPlane.metricsCollection == "%s"`, serviceMeshMetricsCollectionDefault),
+					jq.Match(`.spec.serviceMesh.controlPlane.name == "%s"`, serviceMeshControlPlaneDefaultName),
+					jq.Match(`.spec.serviceMesh.controlPlane.namespace == "%s"`, serviceMeshControlPlaneNamespace),
+					// ServiceMesh and Authorino capability conditions
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.CapabilityServiceMesh, serviceMeshStatus),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.CapabilityServiceMeshAuthorization, authorinoStatus),
+				)...,
+			),
+		),
 	)
 }
 
+// validateServiceMeshInstance verifies ServiceMesh CR creation with correct specifications and readiness conditions.
 func (tc *ServiceMeshTestCtx) validateServiceMeshInstance(t *testing.T, dependentOperatorsConfig DependentOperatorsTestConfig) {
 	t.Helper()
 
@@ -683,36 +575,29 @@ func (tc *ServiceMeshTestCtx) validateServiceMeshInstance(t *testing.T, dependen
 		// add checks for readiness conditions expected as True
 	}
 
+	// Add Ready/ProvisioningSucceeded conditions
+	readyStatus := metav1.ConditionFalse
+	provisioningStatus := metav1.ConditionFalse
+	serviceMeshCapabilityStatus := metav1.ConditionFalse
 	if dependentOperatorsConfig.EnsureServiceMeshOperatorInstalled {
-		serviceMeshExpectedConditions = append(
-			serviceMeshExpectedConditions,
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "ProvisioningSucceeded") | .status == "%s"`, metav1.ConditionTrue),
-			// add check for ServiceMesh capability expected as True
-			jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMesh") | .status == "%s"`, metav1.ConditionTrue),
-		)
-	} else {
-		serviceMeshExpectedConditions = append(
-			serviceMeshExpectedConditions,
-			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] | select(.type == "ProvisioningSucceeded") | .status == "%s"`, metav1.ConditionFalse),
-			// add check for ServiceMesh capability expected as False
-			jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMesh") | .status == "%s"`, metav1.ConditionFalse),
-		)
+		readyStatus = metav1.ConditionTrue
+		provisioningStatus = metav1.ConditionTrue
+		serviceMeshCapabilityStatus = metav1.ConditionTrue
 	}
 
+	// Add Authorino capability condition
+	authorinoStatus := metav1.ConditionFalse
 	if dependentOperatorsConfig.EnsureAuthorinoOperatorInstalled {
-		serviceMeshExpectedConditions = append(
-			serviceMeshExpectedConditions,
-			// ensure ServiceMesh Authorization capability is True
-			jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMeshAuthorization") | .status == "%s"`, metav1.ConditionTrue),
-		)
-	} else {
-		serviceMeshExpectedConditions = append(
-			serviceMeshExpectedConditions,
-			jq.Match(`.status.conditions[] | select(.type == "CapabilityServiceMeshAuthorization") | .status == "%s"`, metav1.ConditionFalse),
-		)
+		authorinoStatus = metav1.ConditionTrue
 	}
+
+	// Add all status conditions
+	serviceMeshExpectedConditions = append(serviceMeshExpectedConditions,
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, readyStatus),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, provisioningStatus),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.CapabilityServiceMesh, serviceMeshCapabilityStatus),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.CapabilityServiceMeshAuthorization, authorinoStatus),
+	)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(tc.GVK, tc.NamespacedName),
@@ -721,70 +606,56 @@ func (tc *ServiceMeshTestCtx) validateServiceMeshInstance(t *testing.T, dependen
 	)
 }
 
-// uninstallOperatorWithChannel delete an operator install subscription to a specific channel if exists.
-func (tc *ServiceMeshTestCtx) uninstallOperatorWithChannel(t *testing.T, operatorNamespacedName types.NamespacedName, channel string) { //nolint:thelper,unparam
-	// Check if operator subscription exists
-	ro := tc.NewResourceOptions(WithMinimalObject(gvk.Subscription, operatorNamespacedName))
-	operatorSubscription, err := tc.ensureResourceExistsOrNil(ro)
-
-	if err != nil {
-		t.Logf("Error checking if operator %s exists: %v", operatorNamespacedName.Name, err)
-		return
-	}
-
-	if operatorSubscription != nil {
-		t.Logf("Uninstalling %s operator", operatorNamespacedName.Name)
-
-		csv, found, err := unstructured.NestedString(operatorSubscription.UnstructuredContent(), "status", "currentCSV")
-		if !found || err != nil {
-			t.Logf(".status.currentCSV expected to be present: %s with no error, Error: %v, but it wasn't. Deleting just the Subscription: %v", csv, err, operatorSubscription)
-			tc.DeleteResource(WithMinimalObject(gvk.Subscription, operatorNamespacedName))
-		} else {
-			t.Logf("Deleting subscription %v and cluster service version %v", operatorNamespacedName, types.NamespacedName{Name: csv, Namespace: operatorSubscription.GetNamespace()})
-			tc.DeleteResource(WithMinimalObject(gvk.Subscription, operatorNamespacedName))
-			tc.DeleteResource(WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Name: csv, Namespace: operatorSubscription.GetNamespace()}))
-		}
-	}
-
-	t.Log("Operator uninstalled, proceeding")
+// ensureDSCIReady validates that DSCI is available and reconciliation is complete.
+func (tc *ServiceMeshTestCtx) ensureDSCIReady() {
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithCondition(And(dsciAvailableConditions...)),
+	)
 }
 
+// ensureServiceMeshGone removes ServiceMesh CR and all associated resources.
 func (tc *ServiceMeshTestCtx) ensureServiceMeshGone(t *testing.T) {
 	t.Helper()
 
 	// ensure ServiceMesh owned resources are deleted
-	// also ensure ServicesMeshControlPlane is deleted (via ServiceMesh finalizer, as it's not owned by ServiceMesh CR)
 	tc.ensureServiceMeshResourcesGone(t)
 
 	// ensure ServiceMesh CR instance itself is deleted
-	tc.EnsureResourceGone(
-		WithMinimalObject(tc.GVK, tc.NamespacedName),
-	)
+	tc.EnsureResourceGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
 }
 
+// ensureServiceMeshResourcesGone verifies all ServiceMesh-related resources are deleted.
 func (tc *ServiceMeshTestCtx) ensureServiceMeshResourcesGone(t *testing.T) {
 	t.Helper()
 
-	tc.EnsureResourceGone(
-		WithMinimalObject(gvk.ServiceMeshControlPlane, namespacedServiceMeshControlPlane),
-	)
-	tc.EnsureResourceGone(
-		WithMinimalObject(gvk.ServiceMeshControlPlane, namespacedServiceMeshControlPlane),
-	)
-	tc.EnsureResourceGone(
-		WithMinimalObject(gvk.ServiceMeshMember, namespacedServiceMeshMember),
-	)
-	tc.EnsureResourceGone(
-		WithMinimalObject(gvk.Authorino, namespacedAuthorino),
-	)
-	tc.EnsureResourceGone(
-		WithMinimalObject(gvk.ServiceMonitorServiceMesh, namespacedServiceMonitor),
-	)
-	tc.EnsureResourceGone(
-		WithMinimalObject(gvk.PodMonitorServiceMesh, namespacedPodMonitor),
-	)
+	tc.EnsureResourceGone(WithMinimalObject(gvk.ServiceMeshControlPlane, namespacedServiceMeshControlPlane))
+	tc.EnsureResourceGone(WithMinimalObject(gvk.ServiceMeshMember, namespacedServiceMeshMember))
+	tc.EnsureResourceGone(WithMinimalObject(gvk.Authorino, namespacedAuthorino))
+	tc.ensureMonitoringResourcesGone()
 }
 
+// ensureMonitoringResourcesGone removes ServiceMesh monitoring resources (ServiceMonitor and PodMonitor).
+func (tc *ServiceMeshTestCtx) ensureMonitoringResourcesGone() {
+	tc.EnsureResourceGone(WithMinimalObject(gvk.ServiceMonitorServiceMesh, namespacedServiceMonitor))
+	tc.EnsureResourceGone(WithMinimalObject(gvk.PodMonitorServiceMesh, namespacedPodMonitor))
+}
+
+// cleanupServiceMeshConfiguration efficiently removes ServiceMesh configuration and resources.
+func (tc *ServiceMeshTestCtx) cleanupServiceMeshConfiguration(t *testing.T) {
+	t.Helper()
+
+	// Set DSCI ServiceMesh to Removed state and clean up resources in one operation
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "%s"`, operatorv1.Removed)),
+	)
+
+	// ensure ServiceMesh owned resources do not exist
+	tc.ensureServiceMeshGone(t)
+}
+
+// createDummyServiceMeshFeatureTrackers creates test FeatureTracker resources for legacy cleanup testing.
 func (tc *ServiceMeshTestCtx) createDummyServiceMeshFeatureTrackers(t *testing.T, ftNames []string) {
 	t.Helper()
 
@@ -810,5 +681,16 @@ func (tc *ServiceMeshTestCtx) createDummyServiceMeshFeatureTrackers(t *testing.T
 			}),
 			WithCustomErrorMsg("error creating or updating pre-existing FeatureTracker"),
 		)
+	}
+}
+
+// getServiceMeshFeatureTrackerNames returns the list of legacy ServiceMesh FeatureTracker names for testing.
+func getServiceMeshFeatureTrackerNames(appsNamespace string) []string {
+	return []string{
+		appsNamespace + "-mesh-shared-configmap",
+		appsNamespace + "-mesh-control-plane-creation",
+		appsNamespace + "-mesh-metrics-collection",
+		appsNamespace + "-enable-proxy-injection-in-authorino-deployment",
+		appsNamespace + "-mesh-control-plane-external-authz",
 	}
 }

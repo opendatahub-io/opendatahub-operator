@@ -172,8 +172,8 @@ func (tc *TestContext) EnsureResourceExists(opts ...ResourceOpts) *unstructured.
 	var u *unstructured.Unstructured
 
 	tc.g.Eventually(func(g Gomega) {
-		// Use ensureResourceExistsOrNil to attempt to fetch the resource with retries
-		u, _ = tc.ensureResourceExistsOrNil(ro)
+		// Use fetchResource to attempt to fetch the resource with retries
+		u, _ = fetchResource(ro)
 
 		// Ensure that the resource object is not nil
 		g.Expect(u).NotTo(
@@ -210,8 +210,8 @@ func (tc *TestContext) EnsureResourceExistsConsistently(opts ...ResourceOpts) *u
 
 	// Ensure the resource exists and matches the condition consistently over the specified period.
 	tc.g.Consistently(func(g Gomega) {
-		// Use ensureResourceExistsOrNil to attempt to fetch the resource with retries
-		u, _ = tc.ensureResourceExistsOrNil(ro)
+		// Use fetchResource to attempt to fetch the resource with retries
+		u, _ = fetchResource(ro)
 
 		// Ensure that the resource object is not nil
 		g.Expect(u).NotTo(
@@ -610,7 +610,7 @@ func (tc *TestContext) EnsureDeploymentReady(nn types.NamespacedName, replicas i
 	// Assert the number of ready replicas matches the expected count
 	tc.g.Expect(deployment.Status.ReadyReplicas).To(
 		Equal(replicas),
-		"Expected %d ready replicas for deployment, but got %d", replicas, resourceID, deployment.Status.ReadyReplicas)
+		"Expected %d ready replicas for deployment, but got %d", replicas, deployment.Status.ReadyReplicas)
 }
 
 // EnsureCRDEstablished ensures that the specified CustomResourceDefinition is fully established.
@@ -872,7 +872,7 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 
 	// Step 1: Capture original resource metadata
 	originalResource := tc.EnsureResourceExists(opts...)
-	originalUID := string(originalResource.GetUID())
+	originalUID := originalResource.GetUID()
 	originalResourceVersion := originalResource.GetResourceVersion()
 
 	// Step 2: Delete the resource using standard deletion
@@ -881,14 +881,16 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 	// Step 2.5: Ensure the resource is actually deleted before looking for recreation
 	tc.g.Eventually(func(g Gomega) {
 		u, err := fetchResource(ro)
-		if k8serr.IsNotFound(err) || u == nil {
-			return // Resource is successfully deleted
+		if err != nil {
+			g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch %s %s during deletion check", ro.GVK.Kind, ro.ResourceID)
+			return // This fails the Eventually iteration, causing retry
+		}
+		if u == nil {
+			return // Resource is successfully deleted or not found
 		}
 		// If resource still exists, check if it has the same UID (deletion not acknowledged yet)
-		currentUID := string(u.GetUID())
-		if currentUID == originalUID {
-			g.Expect(false).To(BeTrue(), "Resource deletion not yet acknowledged - still has original UID %s", currentUID)
-		}
+		g.Expect(u.GetUID()).NotTo(Equal(originalUID),
+			"Resource deletion not yet acknowledged: resource still exists with original UID")
 		// If it has a different UID, it was already recreated, which is fine
 	}).Should(Succeed(), "Resource %s %s deletion was not acknowledged within timeout", ro.GVK.Kind, ro.ResourceID)
 
@@ -909,7 +911,7 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 		recreatedResource = u
 
 		// Verify it's actually a new resource (different UID)
-		newUID := string(recreatedResource.GetUID())
+		newUID := recreatedResource.GetUID()
 		newResourceVersion := recreatedResource.GetResourceVersion()
 
 		// Debug logging to understand what's happening
@@ -923,7 +925,6 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 		g.Expect(newResourceVersion).NotTo(Equal(originalResourceVersion),
 			"Recreated resource should have different ResourceVersion. Original: %s, New: %s",
 			originalResourceVersion, newResourceVersion)
-
 	}).Should(Succeed(),
 		"Resource %s %s was not properly recreated with new identity", ro.GVK.Kind, ro.ResourceID)
 
@@ -1247,10 +1248,25 @@ func (tc *TestContext) EnsureWebhookBlocksOperation(operation func() error, oper
 //
 // Parameters:
 //   - operatorNamespacedName (types.NamespacedName): The namespace and name of the operator subscription
-func (tc *TestContext) UninstallOperator(operatorNamespacedName types.NamespacedName) {
-	// Check if subscription exists - ensureResourceExistsOrNil handles errors via gomega assertions
-	ro := tc.NewResourceOptions(WithMinimalObject(gvk.Subscription, operatorNamespacedName))
-	operatorSubscription, _ := tc.ensureResourceExistsOrNil(ro)
+//   - opts (variadic ResourceOpts): Optional resource options, such as WithWaitForDeletion(true)
+func (tc *TestContext) UninstallOperator(operatorNamespacedName types.NamespacedName, opts ...ResourceOpts) {
+	// Create subscription options with default settings
+	subscriptionOpts := []ResourceOpts{
+		WithMinimalObject(gvk.Subscription, operatorNamespacedName),
+		WithIgnoreNotFound(true),
+	}
+	// Merge with provided options (provided options override defaults)
+	subscriptionOpts = append(subscriptionOpts, opts...)
+
+	// Check if subscription exists - fetchResource handles errors via gomega assertions
+	ro := tc.NewResourceOptions(subscriptionOpts...)
+	operatorSubscription, err := fetchResource(ro)
+	if err != nil {
+		if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
+			return
+		}
+		tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch subscription %s", operatorNamespacedName.Name)
+	}
 
 	if operatorSubscription == nil {
 		// Subscription doesn't exist, nothing to uninstall
@@ -1275,28 +1291,20 @@ func (tc *TestContext) UninstallOperator(operatorNamespacedName types.Namespaced
 		"Subscription %s should have a namespace", operatorNamespacedName.Name)
 
 	// Delete subscription first - this prevents new installations
-	tc.DeleteResource(
-		WithMinimalObject(gvk.Subscription, operatorNamespacedName),
-		WithIgnoreNotFound(true),
-		WithWaitForDeletion(false),
-	)
+	tc.DeleteResource(subscriptionOpts...)
 
 	// Delete CSV if found and valid
 	if foundCSV && csv != "" {
-		tc.DeleteResource(
-			WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Name: csv, Namespace: namespace}),
-			WithIgnoreNotFound(true),
-			WithWaitForDeletion(false),
-		)
+		csvOpts := []ResourceOpts{WithIgnoreNotFound(true), WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Name: csv, Namespace: namespace})}
+		csvOpts = append(csvOpts, opts...) // Add user-provided options
+		tc.DeleteResource(csvOpts...)
 	}
 
 	// Delete InstallPlan if found and valid
 	if foundPlan && installPlan != "" {
-		tc.DeleteResource(
-			WithMinimalObject(gvk.InstallPlan, types.NamespacedName{Name: installPlan, Namespace: namespace}),
-			WithIgnoreNotFound(true),
-			WithWaitForDeletion(false),
-		)
+		installPlanOpts := []ResourceOpts{WithIgnoreNotFound(true), WithMinimalObject(gvk.InstallPlan, types.NamespacedName{Name: installPlan, Namespace: namespace})}
+		installPlanOpts = append(installPlanOpts, opts...) // Add user-provided options
+		tc.DeleteResource(installPlanOpts...)
 	}
 }
 
@@ -1304,30 +1312,6 @@ func (tc *TestContext) convertToResource(u *unstructured.Unstructured, obj clien
 	// Convert Unstructured object to the given resource object
 	err := resources.ObjectFromUnstructured(tc.Scheme(), u, obj)
 	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed converting %T from Unstructured.Object: %v", obj, u)
-}
-
-// ensureResourceExistsOrNil retrieves a Kubernetes resource, retrying until it is found or the timeout expires.
-// If the resource exists, it returns the object. If not found, it returns nil without failing the test.
-// Unexpected errors will fail the test.
-//
-// Parameters:
-//   - ro (*ResourceOptions): Metadata and retrieval logic for the resource.
-//
-// Returns:
-//   - *unstructured.Unstructured: The resource if found, otherwise nil.
-//   - error: Any error encountered during retrieval.
-func (tc *TestContext) ensureResourceExistsOrNil(ro *ResourceOptions) (*unstructured.Unstructured, error) {
-	// Fetch the resource using fetchResource.
-	u, err := fetchResource(ro)
-
-	// Ensure no unexpected errors occurred while fetching the resource
-	ro.tc.g.Expect(err).NotTo(
-		HaveOccurred(),
-		defaultErrorMessageIfNone(resourceFetchErrorMsg, []any{ro.ResourceID, ro.GVK.Kind, err}, ro.CustomErrorArgs)...,
-	)
-
-	// Return the resource or nil if it wasn't found
-	return u, err
 }
 
 // ensureResourceDoesNotExist attempts to retrieve a Kubernetes resource and checks if it does not exist.
@@ -1343,21 +1327,15 @@ func (tc *TestContext) ensureResourceDoesNotExist(g Gomega, ro *ResourceOptions)
 	// Fetch the resource using fetchResource.
 	u, err := fetchResource(ro)
 
-	// Handle "not found" errors based on IgnoreNotFound setting
-	if ro.IgnoreNotFound && k8serr.IsNotFound(err) {
-		// For deletion scenarios, "not found" means success - resource is gone
-		return nil
-	}
-
-	// If we have an error that's not "not found", let the caller handle it
+	// If we have an error, let the caller handle it
 	if err != nil {
 		return err
 	}
 
-	// Assert that the resource is not found.
+	// Assert that the resource does not exist - if it exists, test fails here
 	g.Expect(u).To(BeNil(), resourceFoundErrorMsg, ro.ResourceID, ro.GVK.Kind)
 
-	return nil
+	return nil // Only reached if assertion passes (u == nil)
 }
 
 // ensureResourcesDoNotExist is a helper function that retrieves a list of Kubernetes resources
@@ -1483,8 +1461,9 @@ func (tc *TestContext) validateWebhookError(g Gomega, err error, operationType s
 func (tc *TestContext) tryRemoveFinalizers(gvk schema.GroupVersionKind, nn types.NamespacedName) {
 	defer func() {
 		if r := recover(); r != nil {
-			// If gomega panics (e.g., due to assertion failures), catch it and continue
-			// Silently ignore failures - deletion will proceed anyway
+			// Intentionally suppress panics from tryRemoveFinalizers to prevent
+			// cleanup failures from breaking test execution
+			_ = r // Explicitly ignore the recovered value
 		}
 	}()
 

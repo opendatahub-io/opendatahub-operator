@@ -1,6 +1,8 @@
 package e2e_test
 
 import (
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -47,9 +49,11 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 
 	t.Log("Validating Gateway service and API resources creation")
 
-	// Validate GatewayConfig service CR
+	// First ensure GatewayConfig exists and has proper configuration
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayServiceName}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue)),
+		WithCustomErrorMsg("GatewayConfig should have namespace configured before creating infrastructure"),
 	)
 
 	// Validate GatewayClass
