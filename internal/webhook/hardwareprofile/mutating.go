@@ -23,7 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -234,7 +234,7 @@ func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *adm
 		return admission.Errored(http.StatusForbidden, err)
 	}
 
-	// Early exit if hardware profile has no meaningful configuration
+	// Early exit if the hardware profile has no meaningful configuration
 	if len(hwp.Spec.Identifiers) == 0 && hwp.Spec.SchedulingSpec == nil {
 		return admission.Allowed("Hardware profile has no configuration to apply")
 	}
@@ -278,10 +278,10 @@ func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *adm
 //   - name: The name of the HardwareProfile resource to fetch
 //
 // Returns:
-//   - *hwpv1alpha1.HardwareProfile: The fetched HardwareProfile resource
+//   - *hwpv1.HardwareProfile: The fetched HardwareProfile resource
 //   - error: Descriptive error for lookup failures, nil on success
-func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name string) (*hwpv1alpha1.HardwareProfile, error) {
-	hwp := &hwpv1alpha1.HardwareProfile{}
+func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name string) (*infrav1.HardwareProfile, error) {
+	hwp := &infrav1.HardwareProfile{}
 	key := types.NamespacedName{Name: name, Namespace: namespace}
 
 	if err := i.Client.Get(ctx, key, hwp); err != nil {
@@ -319,7 +319,7 @@ func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name str
 //
 // Returns:
 //   - error: Any error encountered during hardware profile application, nil on success
-func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unstructured.Unstructured, hwp *hwpv1alpha1.HardwareProfile) error {
+func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile) error {
 	log := logf.FromContext(ctx)
 
 	log.V(1).Info("applying hardware profile to workload", "workload", obj.GetName(), "kind", obj.GetKind(), "hardwareProfile", hwp.Name)
@@ -380,7 +380,7 @@ func GetWorkloadConfig(kind string) (WorkloadConfig, error) {
 // Returns:
 //   - error: Any error encountered during resource requirement application, nil on success
 
-func (i *Injector) applyResourceRequirementsToWorkload(obj *unstructured.Unstructured, hwp *hwpv1alpha1.HardwareProfile) error {
+func (i *Injector) applyResourceRequirementsToWorkload(obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile) error {
 	config, err := GetWorkloadConfig(obj.GetKind())
 	if err != nil {
 		return err
@@ -416,7 +416,7 @@ func (i *Injector) applyResourceRequirementsToWorkload(obj *unstructured.Unstruc
 //
 // Returns:
 //   - error: Any error encountered during resource application, nil on success
-func (i *Injector) applyIdentifiersToContainer(container interface{}, identifiers []hwpv1alpha1.HardwareIdentifier) error {
+func (i *Injector) applyIdentifiersToContainer(container interface{}, identifiers []infrav1.HardwareIdentifier) error {
 	containerMap, ok := container.(map[string]interface{})
 	if !ok {
 		return errors.New("container is not a map[string]interface{}")
@@ -461,7 +461,7 @@ func (i *Injector) applyIdentifiersToContainer(container interface{}, identifier
 //
 // Returns:
 //   - error: Any error encountered during identifier application or quantity conversion
-func (i *Injector) applyIdentifiersToRequests(requests map[string]interface{}, identifiers []hwpv1alpha1.HardwareIdentifier) error {
+func (i *Injector) applyIdentifiersToRequests(requests map[string]interface{}, identifiers []infrav1.HardwareIdentifier) error {
 	for _, identifier := range identifiers {
 		// Skip if the resource identifier already exists
 		if _, exists := requests[identifier.Identifier]; exists {
@@ -496,7 +496,7 @@ func (i *Injector) applyIdentifiersToRequests(requests map[string]interface{}, i
 //
 // Returns:
 //   - error: Any error encountered during node scheduling configuration application
-func (i *Injector) applyNodeSchedulingConfiguration(obj *unstructured.Unstructured, hwp *hwpv1alpha1.HardwareProfile) error {
+func (i *Injector) applyNodeSchedulingConfiguration(obj *unstructured.Unstructured, hwp *infrav1.HardwareProfile) error {
 	nodeSpec := hwp.Spec.SchedulingSpec.Node
 
 	config, err := GetWorkloadConfig(obj.GetKind())
