@@ -113,7 +113,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-08-13T12:59:26Z"
+    createdAt: "2025-09-05T15:33:20Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -345,6 +345,81 @@ spec:
     spec:
       clusterPermissions:
       - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - clusterversions
+          - rhmis
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          - events
+          - namespaces
+          - secrets
+          - secrets/finalizers
+          - serviceaccounts
+          - services/finalizers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps/status
+          verbs:
+          - delete
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - ""
+          resources:
+          - deployments
+          - persistentvolumeclaims
+          - persistentvolumes
+          - pods
+          - pods/exec
+          - pods/log
+          verbs:
+          - '*'
+        - apiGroups:
+          - ""
+          resources:
+          - endpoints
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - namespaces/finalizers
+          verbs:
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - services
+          verbs:
+          - '*'
         - apiGroups:
           - '*'
           resources:
@@ -631,88 +706,6 @@ spec:
           resources:
           - leases
           verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - clusterversions
-          - rhmis
-          verbs:
-          - get
-          - list
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - configmaps
-          - events
-          - namespaces
-          - secrets
-          - secrets/finalizers
-          - serviceaccounts
-          - services/finalizers
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - configmaps/status
-          verbs:
-          - delete
-          - get
-          - patch
-          - update
-        - apiGroups:
-          - ""
-          resources:
-          - deployments
-          - persistentvolumeclaims
-          - persistentvolumes
-          - pods
-          - pods/exec
-          - pods/log
-          verbs:
-          - '*'
-        - apiGroups:
-          - ""
-          resources:
-          - endpoints
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - namespaces/finalizers
-          verbs:
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - ""
-          resources:
-          - services
-          verbs:
-          - '*'
           - create
           - delete
           - get
@@ -1593,7 +1586,7 @@ spec:
                       fieldPath: metadata.namespace
                 - name: DEFAULT_MANIFESTS_PATH
                   value: /opt/manifests
-                image: REPLACE_IMAGE:latest
+                image: quay.io/opendatahub/opendatahub-operator:latest
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
