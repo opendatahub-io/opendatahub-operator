@@ -196,7 +196,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				ModelRegistry: componentApi.DSCModelRegistry{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				TrainingOperator: componentApi.DSCTrainingOperator{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
