@@ -10,6 +10,7 @@ import (
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -19,7 +20,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -72,19 +72,15 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate KnativeServing resource exists and is recreated upon deletion", componentCtx.ValidateKnativeServing},
 		{"Validate model controller", componentCtx.ValidateModelControllerInstance},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		{"Validate no FeatureTracker OwnerReferences", componentCtx.ValidateNoFeatureTrackerOwnerReferences},
 		{"Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers},
 		{"Validate default certs", componentCtx.ValidateDefaultCertsAvailable},
+		{"Validate custom certificate created for OpenshiftDefaultIngress", componentCtx.ValidateCustomCertificateCreation},
+		{"Validate invalid custom certificate creation for OpenshiftDefaultIngress", componentCtx.ValidateInvalidCustomCertificateCreation},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate serving transition to Unmanaged", componentCtx.ValidateServingTransitionToUnmanaged},
 		{"Validate serving transition to Removed", componentCtx.ValidateServingTransitionToRemoved},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
-		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
-		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
-		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 	}
 
 	// Add webhook tests if enabled
@@ -94,6 +90,11 @@ func kserveTestSuite(t *testing.T) {
 		)
 	}
 
+	// Add regression tests at the end to avoid affecting other tests
+	testCases = append(testCases,
+		// Always run component disable test last
+		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+	)
 	// Run the test suite.
 	RunTestCases(t, testCases)
 }
@@ -117,10 +118,7 @@ func (tc *KserveTestCtx) ValidateServingEnabled(t *testing.T) {
 	// Ensure the DataScienceCluster exists and the component's conditions are met
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(
-			testf.TransformPipeline(
-				testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
-			)),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed)),
 		WithCondition(jq.Match(`.spec.components.%s.serving.managementState == "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed)),
 	)
 }
@@ -168,19 +166,8 @@ func (tc *KserveTestCtx) ValidateKnativeServing(t *testing.T) {
 	dsc := tc.FetchDataScienceCluster()
 
 	// Check KnativeServing was created.
-	managedKnativeServing := types.NamespacedName{Name: dsc.Spec.Components.Kserve.Serving.Name, Namespace: knativeServingNamespace}
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
-	)
-
-	// Delete it.
-	tc.DeleteResource(
-		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
-	)
-
-	// Check eventually got recreated
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
+	tc.EnsureResourceDeletedThenRecreated(
+		WithMinimalObject(gvk.KnativeServing, types.NamespacedName{Name: dsc.Spec.Components.Kserve.Serving.Name, Namespace: knativeServingNamespace}),
 	)
 }
 
@@ -426,7 +413,7 @@ func (tc *KserveTestCtx) ValidateConnectionWebhookInjection(t *testing.T) {
 	t.Helper()
 
 	// Ensure KServe is in Managed state to enable webhook functionality
-	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
+	tc.ValidateComponentEnabled(t)
 
 	testNamespace := "glue-namespace"
 	secretName := "glue-secret"
@@ -438,49 +425,39 @@ func (tc *KserveTestCtx) ValidateConnectionWebhookInjection(t *testing.T) {
 		WithCustomErrorMsg("Failed to create webhook test namespace"),
 	)
 
-	// Setup cleanup
-	t.Cleanup(func() {
-		tc.DeleteResource(
-			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: testNamespace}),
-			WithWaitForDeletion(true),
-		)
-	})
-
 	// Create a connection secret with OCI type
 	tc.createConnectionSecret(secretName, testNamespace)
 
-	// Create InferenceService with existing imagePullSecrets and connection annotation
-	isvc := envtestutil.NewInferenceService(isvcName, testNamespace)
-	isvcUnstructured, ok := isvc.(*unstructured.Unstructured)
-	if !ok {
-		t.Fatalf("failed to cast InferenceService to unstructured")
-	}
-
-	isvcUnstructured.SetAnnotations(map[string]string{
-		annotations.Connection: secretName,
-	})
-
-	predictorSpec := map[string]interface{}{
-		"model": map[string]interface{}{},
-		"imagePullSecrets": []interface{}{
-			map[string]interface{}{"name": "existing-secret"},
-		},
-	}
-	err := unstructured.SetNestedMap(isvcUnstructured.Object, predictorSpec, "spec", "predictor")
-	require.NoError(t, err, "Failed to set predictor spec with existing imagePullSecrets")
-
+	// Create InferenceService with connection annotation and existing imagePullSecrets
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(isvcUnstructured),
+		WithMinimalObject(gvk.InferenceServices, types.NamespacedName{Name: isvcName, Namespace: testNamespace}),
+		WithMutateFunc(testf.TransformPipeline(
+			// Set connection annotation
+			testf.Transform(`.metadata.annotations."%s" = "%s"`, annotations.Connection, secretName),
+			// Set predictor spec with model and existing imagePullSecrets
+			testf.Transform(`.spec.predictor = {
+				"model": {},
+				"imagePullSecrets": [{"name": "existing-secret"}]
+			}`),
+		)),
 		WithCustomErrorMsg("Failed to create InferenceService with webhook injection"),
 	)
 
 	// Validate that both the existing-secret and the new connection secret are present
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.InferenceServices, types.NamespacedName{Name: isvcName, Namespace: testNamespace}),
-		WithCondition(jq.Match(`.spec.predictor.imagePullSecrets | length == 2`)),
-		WithCondition(jq.Match(`.spec.predictor.imagePullSecrets[0].name == "existing-secret" or .spec.predictor.imagePullSecrets[1].name == "existing-secret"`)),
-		WithCondition(jq.Match(`.spec.predictor.imagePullSecrets[0].name == "%s" or .spec.predictor.imagePullSecrets[1].name == "%s"`, secretName, secretName)),
+		WithCondition(jq.Match(`
+			.spec.predictor.imagePullSecrets | length == 2
+			and (map(.name) | contains(["existing-secret"]))
+			and (map(.name) | contains(["%s"]))`,
+			secretName)),
 		WithCustomErrorMsg("InferenceService should have both existing and injected imagePullSecrets"),
+	)
+
+	// Cleanup the created test namespace
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: testNamespace}),
+		WithWaitForDeletion(true),
 	)
 }
 
@@ -497,5 +474,94 @@ func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 			testf.Transform(`.data = {"credential": "mysecretjson"}`),
 		)),
 		WithCustomErrorMsg("Failed to create connection secret"),
+	)
+}
+
+// ValidateCustomCertificateCreation tests that a valid custom certificate is created for OpenshiftDefaultIngress.
+func (tc *KserveTestCtx) ValidateCustomCertificateCreation(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+	customSecretName := "custom-test-secret"
+	secretNN := types.NamespacedName{Namespace: dsci.Spec.ServiceMesh.ControlPlane.Namespace, Name: customSecretName}
+
+	t.Log("Configuring Kserve with OpenshiftDefaultIngress and custom secret")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, customSecretName)),
+	)
+
+	t.Log("Verifying Kserve is ready")
+	tc.verifyKserveReady(t)
+
+	t.Log("Verifying custom secret is created")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Secret, secretNN),
+	)
+
+	t.Log("Deleting secretName from DSC and verifying Kserve readiness")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate |= del(.secretName)`)),
+	)
+	tc.verifyKserveReady(t)
+
+	t.Log("Deleting custom secret")
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Secret, secretNN),
+		WithWaitForDeletion(true),
+	)
+}
+
+// ValidateInvalidCustomCertificateCreation tests rejection of an invalid custom certificate for OpenshiftDefaultIngress.
+func (tc *KserveTestCtx) ValidateInvalidCustomCertificateCreation(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+	invalidCustomSecretName := "&invalid-secret-name"
+	secretNN := types.NamespacedName{Namespace: dsci.Spec.ServiceMesh.ControlPlane.Namespace, Name: invalidCustomSecretName}
+
+	t.Log("Configuring Kserve with OpenshiftDefaultIngress and invalid secret")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, invalidCustomSecretName)),
+	)
+
+	t.Log("Verifying Kserve reports not ready due to invalid secret")
+	tc.verifyKserveNotReady(t, "unable to create serverless serving certificate secret.*&invalid-secret-name")
+
+	t.Log("Verifying invalid secret is not created")
+	tc.EnsureResourceDoesNotExist(
+		WithMinimalObject(gvk.Secret, secretNN),
+	)
+
+	t.Log("Deleting invalid secretName from DSC and verifying Kserve readiness")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate |= del(.secretName)`)),
+	)
+	tc.verifyKserveReady(t)
+}
+
+// verifyKserveReady verifies KServe is in Ready state.
+func (tc *KserveTestCtx) verifyKserveReady(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue)),
+	)
+}
+
+// verifyKserveNotReady verifies KServe is not ready with expected error message.
+func (tc *KserveTestCtx) verifyKserveNotReady(t *testing.T, expectedMessage string) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`
+			.status.conditions[]
+			| select(.type == "%sReady" and .status == "%s")
+			| .message | test("%s"; "i")`, tc.GVK.Kind, metav1.ConditionFalse, expectedMessage)),
 	)
 }

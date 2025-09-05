@@ -26,6 +26,7 @@ func fetchResource(ro *ResourceOptions) (*unstructured.Unstructured, error) {
 
 	ro.tc.g.Eventually(func(g Gomega) {
 		// Fetch the resource
+		// For NotFound: u = nil, fetchErr = nil
 		u, fetchErr = ro.tc.g.Get(ro.GVK, ro.NN).Get()
 
 		// Check if AcceptableErr is provided and match it if encountered
@@ -34,14 +35,11 @@ func fetchResource(ro *ResourceOptions) (*unstructured.Unstructured, error) {
 			return // Acceptable error matched, exit successfully
 		}
 
-		// For transient errors that aren't "not found", retry
-		// "Not found" errors will be handled by the caller based on IgnoreNotFound
-		if !errors.IsNotFound(fetchErr) {
-			g.Expect(fetchErr).NotTo(
-				HaveOccurred(),
-				defaultErrorMessageIfNone(resourceFetchErrorMsg, []any{ro.ResourceID, ro.GVK.Kind, fetchErr}, ro.CustomErrorArgs)...,
-			)
-		}
+		// For any other errors, retry
+		g.Expect(fetchErr).NotTo(
+			HaveOccurred(),
+			defaultErrorMessageIfNone(resourceFetchErrorMsg, []any{ro.ResourceID, ro.GVK.Kind, fetchErr}, ro.CustomErrorArgs)...,
+		)
 	}).Should(Succeed())
 
 	return u, fetchErr
