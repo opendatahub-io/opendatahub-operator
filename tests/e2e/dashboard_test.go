@@ -17,6 +17,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -42,13 +43,8 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
-		{"Validate hardware profile reconcilliation", componentCtx.ValidateHardwareProfileReconciliation},
-		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
-		{"Validate route deletion recovery", componentCtx.ValidateRouteDeletionRecovery},
-		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
-		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate hardware profile reconciliation", componentCtx.ValidateHardwareProfileReconciliation},
+		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
@@ -108,79 +104,82 @@ func (tc *DashboardTestCtx) ValidateCRDReinstated(t *testing.T) {
 	tc.ValidateCRDsReinstated(t, crds)
 }
 
+// ValidateAllDeletionRecovery runs the standard set of deletion recovery tests.
+func (tc *DashboardTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	// Run all the standard recovery tests first
+	tc.ComponentTestCtx.ValidateAllDeletionRecovery(t)
+
+	// Add Dashboard-specific recovery test
+	t.Run("Route deletion recovery", func(t *testing.T) {
+		tc.ValidateResourceDeletionRecovery(t, gvk.Route)
+	})
+}
+
+// TODO: Remove this entire test function once DashboardHardwareProfile CRD is deprecated and removed
+// This test is only needed during the migration period from DashboardHardwareProfile to HardwareProfile.
 func (tc *DashboardTestCtx) ValidateHardwareProfileReconciliation(t *testing.T) {
 	t.Helper()
+
+	const (
+		testHWPDisplayName         = "Test Hardware Profile"
+		testHWPDescription         = "Test hardware profile for e2e testing"
+		testTolerationsKey         = "test-key"
+		testTolerationsValue       = "test-value"
+		testAnnotationKey          = "test-annotation"
+		testAnnotationValue        = "test-value"
+		anotherTestAnnotationKey   = "another-test-annotation"
+		anotherTestAnnotationValue = "another-test-value"
+		testNodeSelectorArch       = "amd64"
+		testTolerationsEffect      = "NoSchedule"
+		testTolerationsOperator    = "Equal"
+	)
 
 	testHWPName := "test-hwp-" + xid.New().String()
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DashboardHardwareProfile, types.NamespacedName{Name: testHWPName, Namespace: tc.AppsNamespace}),
-		WithMutateFunc(
-			func(obj *unstructured.Unstructured) error {
-				spec := map[string]any{
-					"displayName": "Test Hardware Profile",
-					"enabled":     true,
-					"description": "Test hardware profile for e2e testing",
-					"nodeSelector": map[string]any{
-						"kubernetes.io/arch": "amd64",
-					},
-					"tolerations": []any{
-						map[string]any{
-							"key":      "test-key",
-							"operator": "Equal",
-							"value":    "test-value",
-							"effect":   "NoSchedule",
-						},
-					},
-				}
-				if err := unstructured.SetNestedMap(obj.Object, spec, "spec"); err != nil {
-					return err
-				}
-				return nil
-			},
-		),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.displayName = "%s"`, testHWPDisplayName),
+			testf.Transform(`.spec.enabled = true`),
+			testf.Transform(`.spec.description = "%s"`, testHWPDescription),
+			testf.Transform(`.spec.nodeSelector = {"kubernetes.io/arch": "%s"}`, testNodeSelectorArch),
+			testf.Transform(`.spec.tolerations = [{"key": "%s", "operator": "%s", "value": "%s", "effect": "%s"}]`,
+				testTolerationsKey, testTolerationsOperator, testTolerationsValue, testTolerationsEffect),
+		)),
 	)
 
-	tc.EnsureResourcesExist(
+	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: testHWPName, Namespace: tc.AppsNamespace}),
-		WithCondition(
-			ContainElement(
-				And(
-					jq.Match(`.metadata.name == "%s"`, testHWPName),
-					jq.Match(`.metadata.annotations."opendatahub.io/migrated-from" == "hardwareprofiles.dashboard.opendatahub.io/%s"`, testHWPName),
-					jq.Match(`.metadata.annotations."opendatahub.io/display-name" == "Test Hardware Profile"`),
-					jq.Match(`.metadata.annotations."opendatahub.io/description" == "Test hardware profile for e2e testing"`),
-					jq.Match(`.metadata.annotations."opendatahub.io/disabled" == "false"`),
-					jq.Match(`.spec.scheduling.node.nodeSelector."kubernetes.io/arch" == "amd64"`),
-					jq.Match(`.spec.scheduling.node.tolerations[0].key == "test-key"`),
-				),
-			),
-		),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, testHWPName),
+			jq.Match(`.metadata.annotations."opendatahub.io/migrated-from" == "hardwareprofiles.dashboard.opendatahub.io/%s"`, testHWPName),
+			jq.Match(`.metadata.annotations."opendatahub.io/display-name" == "%s"`, testHWPDisplayName),
+			jq.Match(`.metadata.annotations."opendatahub.io/description" == "%s"`, testHWPDescription),
+			jq.Match(`.metadata.annotations."opendatahub.io/disabled" == "false"`),
+			jq.Match(`.spec.scheduling.node.nodeSelector."kubernetes.io/arch" == "%s"`, testNodeSelectorArch),
+			jq.Match(`.spec.scheduling.node.tolerations[0].key == "%s"`, testTolerationsKey),
+		)),
 	)
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DashboardHardwareProfile, types.NamespacedName{Name: testHWPName, Namespace: tc.AppsNamespace}),
-		WithMutateFunc(
-			func(obj *unstructured.Unstructured) error {
-				resources.SetAnnotation(obj, "test-annotation", "test-value")
-				resources.SetAnnotation(obj, "another-test-annotation", "another-test-value")
-				return nil
-			},
-		),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.metadata.annotations."%s" = "%s"`, testAnnotationKey, testAnnotationValue),
+			testf.Transform(`.metadata.annotations."%s" = "%s"`, anotherTestAnnotationKey, anotherTestAnnotationValue),
+		)),
 	)
 
-	tc.EnsureResourcesExist(
+	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: testHWPName, Namespace: tc.AppsNamespace}),
-		WithCondition(
-			ContainElement(
-				And(
-					jq.Match(`.metadata.name == "%s"`, testHWPName),
-					jq.Match(`.metadata.annotations."test-annotation" == "test-value"`),
-					jq.Match(`.metadata.annotations."another-test-annotation" == "another-test-value"`),
-					jq.Match(`.metadata.annotations."opendatahub.io/migrated-from" == "hardwareprofiles.dashboard.opendatahub.io/%s"`, testHWPName),
-					jq.Match(`.metadata.annotations."opendatahub.io/display-name" == "Test Hardware Profile"`),
-				),
-			),
-		),
+		WithCondition(And(
+			// Base conditions
+			jq.Match(`.metadata.name == "%s"`, testHWPName),
+			jq.Match(`.metadata.annotations."opendatahub.io/display-name" == "%s"`, testHWPDisplayName),
+			jq.Match(`.metadata.annotations."%s" == "%s"`, testAnnotationKey, testAnnotationValue),
+			jq.Match(`.metadata.annotations."%s" == "%s"`, anotherTestAnnotationKey, anotherTestAnnotationValue),
+			jq.Match(`.metadata.annotations."opendatahub.io/migrated-from" == "hardwareprofiles.dashboard.opendatahub.io/%s"`, testHWPName),
+		)),
 	)
 }

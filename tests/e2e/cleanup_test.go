@@ -48,6 +48,7 @@ func cleanupCoreOperatorResources(t *testing.T, tc *TestContext) {
 		tc.DeleteResources(
 			WithMinimalObject(gvk, types.NamespacedName{}),
 			WithWaitForDeletion(true),
+			WithIgnoreNotFound(true),
 		)
 	}
 

@@ -21,7 +21,6 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -40,17 +39,24 @@ var kserveTemplatedResources = []struct {
 	gvk schema.GroupVersionKind
 	nn  types.NamespacedName
 }{
-	{gvk.KnativeServing, types.NamespacedName{Namespace: "knative-serving", Name: "knative-serving"}},
-	{gvk.ServiceMeshMember, types.NamespacedName{Namespace: "knative-serving", Name: "default"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "activator-host-header"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-after"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-before"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph-host-header"}},
-	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph"}},
-	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-predictor"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: "istio-system", Name: "kserve-local-gateway"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-ingress-gateway"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-local-gateway"}},
+	{gvk.KnativeServing, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-serving"}},
+	{gvk.ServiceMeshMember, types.NamespacedName{Namespace: knativeServingNamespace, Name: "default"}},
+	{gvk.Gateway, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "kserve-local-gateway"}},
+	{gvk.Gateway, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-ingress-gateway"}},
+	{gvk.Gateway, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-local-gateway"}},
+}
+
+// Define auth-related resources that should NOT be created when Authorino is missing.
+var authRelatedResources = []struct {
+	gvk schema.GroupVersionKind
+	nn  types.NamespacedName
+}{
+	{gvk.EnvoyFilter, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "activator-host-header"}},
+	{gvk.EnvoyFilter, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "envoy-oauth-temp-fix-after"}},
+	{gvk.EnvoyFilter, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "envoy-oauth-temp-fix-before"}},
+	{gvk.EnvoyFilter, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "kserve-inferencegraph-host-header"}},
+	{gvk.AuthorizationPolicy, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "kserve-inferencegraph"}},
+	{gvk.AuthorizationPolicy, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "kserve-predictor"}},
 }
 
 func kserveTestSuite(t *testing.T) {
@@ -90,12 +96,7 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate serving transition to Unmanaged", componentCtx.ValidateServingTransitionToUnmanaged},
 		{"Validate serving transition to Removed", componentCtx.ValidateServingTransitionToRemoved},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
-		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
-		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
-		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 	}
 
 	// Add webhook tests if enabled
@@ -105,6 +106,12 @@ func kserveTestSuite(t *testing.T) {
 		)
 	}
 
+	// Add regression tests at the end to avoid affecting other tests
+	testCases = append(testCases,
+		TestCase{"Validate KServe behavior without Authorino", componentCtx.ValidateKServeWithoutAuthorino},
+		// Always run component disable test last
+		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+	)
 	// Run the test suite.
 	RunTestCases(t, testCases)
 }
@@ -128,10 +135,7 @@ func (tc *KserveTestCtx) ValidateServingEnabled(t *testing.T) {
 	// Ensure the DataScienceCluster exists and the component's conditions are met
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(
-			testf.TransformPipeline(
-				testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed),
-			)),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed)),
 		WithCondition(jq.Match(`.spec.components.%s.serving.managementState == "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed)),
 	)
 }
@@ -179,19 +183,8 @@ func (tc *KserveTestCtx) ValidateKnativeServing(t *testing.T) {
 	dsc := tc.FetchDataScienceCluster()
 
 	// Check KnativeServing was created.
-	managedKnativeServing := types.NamespacedName{Name: dsc.Spec.Components.Kserve.Serving.Name, Namespace: knativeServingNamespace}
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
-	)
-
-	// Delete it.
-	tc.DeleteResource(
-		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
-	)
-
-	// Check eventually got recreated.
-	tc.EnsureResourceExistsConsistently(
-		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
+	tc.EnsureResourceDeletedThenRecreated(
+		WithMinimalObject(gvk.KnativeServing, types.NamespacedName{Name: dsc.Spec.Components.Kserve.Serving.Name, Namespace: knativeServingNamespace}),
 	)
 }
 
@@ -434,7 +427,7 @@ func (tc *KserveTestCtx) ValidateConnectionWebhookInjection(t *testing.T) {
 	t.Helper()
 
 	// Ensure KServe is in Managed state to enable webhook functionality
-	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
+	tc.ValidateComponentEnabled(t)
 
 	testNamespace := "glue-namespace"
 	secretName := "glue-secret"
@@ -446,49 +439,39 @@ func (tc *KserveTestCtx) ValidateConnectionWebhookInjection(t *testing.T) {
 		WithCustomErrorMsg("Failed to create webhook test namespace"),
 	)
 
-	// Setup cleanup
-	t.Cleanup(func() {
-		tc.DeleteResource(
-			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: testNamespace}),
-			WithWaitForDeletion(true),
-		)
-	})
-
 	// Create a connection secret with OCI type
 	tc.createConnectionSecret(secretName, testNamespace)
 
-	// Create InferenceService with existing imagePullSecrets and connection annotation
-	isvc := envtestutil.NewInferenceService(isvcName, testNamespace)
-	isvcUnstructured, ok := isvc.(*unstructured.Unstructured)
-	if !ok {
-		t.Fatalf("failed to cast InferenceService to unstructured")
-	}
-
-	isvcUnstructured.SetAnnotations(map[string]string{
-		annotations.Connection: secretName,
-	})
-
-	predictorSpec := map[string]interface{}{
-		"model": map[string]interface{}{},
-		"imagePullSecrets": []interface{}{
-			map[string]interface{}{"name": "existing-secret"},
-		},
-	}
-	err := unstructured.SetNestedMap(isvcUnstructured.Object, predictorSpec, "spec", "predictor")
-	require.NoError(t, err, "Failed to set predictor spec with existing imagePullSecrets")
-
+	// Create InferenceService with connection annotation and existing imagePullSecrets
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(isvcUnstructured),
+		WithMinimalObject(gvk.InferenceServices, types.NamespacedName{Name: isvcName, Namespace: testNamespace}),
+		WithMutateFunc(testf.TransformPipeline(
+			// Set connection annotation
+			testf.Transform(`.metadata.annotations."%s" = "%s"`, annotations.Connection, secretName),
+			// Set predictor spec with model and existing imagePullSecrets
+			testf.Transform(`.spec.predictor = {
+				"model": {},
+				"imagePullSecrets": [{"name": "existing-secret"}]
+			}`),
+		)),
 		WithCustomErrorMsg("Failed to create InferenceService with webhook injection"),
 	)
 
 	// Validate that both the existing-secret and the new connection secret are present
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.InferenceServices, types.NamespacedName{Name: isvcName, Namespace: testNamespace}),
-		WithCondition(jq.Match(`.spec.predictor.imagePullSecrets | length == 2`)),
-		WithCondition(jq.Match(`.spec.predictor.imagePullSecrets[0].name == "existing-secret" or .spec.predictor.imagePullSecrets[1].name == "existing-secret"`)),
-		WithCondition(jq.Match(`.spec.predictor.imagePullSecrets[0].name == "%s" or .spec.predictor.imagePullSecrets[1].name == "%s"`, secretName, secretName)),
+		WithCondition(jq.Match(`
+			.spec.predictor.imagePullSecrets | length == 2
+			and (map(.name) | contains(["existing-secret"]))
+			and (map(.name) | contains(["%s"]))`,
+			secretName)),
 		WithCustomErrorMsg("InferenceService should have both existing and injected imagePullSecrets"),
+	)
+
+	// Cleanup the created test namespace
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: testNamespace}),
+		WithWaitForDeletion(true),
 	)
 }
 
@@ -496,19 +479,14 @@ func (tc *KserveTestCtx) ValidateConnectionWebhookInjection(t *testing.T) {
 func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Secret, types.NamespacedName{Name: secretName, Namespace: namespace}),
-		WithMutateFunc(func(obj *unstructured.Unstructured) error {
-			obj.SetAnnotations(map[string]string{
-				annotations.ConnectionTypeRef: "oci-v1",
-			})
-
-			if err := unstructured.SetNestedField(obj.Object, string(corev1.SecretTypeOpaque), "type"); err != nil {
-				return err
-			}
-
-			return unstructured.SetNestedStringMap(obj.Object, map[string]string{
-				"credential": "mysecretjson",
-			}, "data")
-		}),
+		WithMutateFunc(testf.TransformPipeline(
+			// Set connection type annotation
+			testf.Transform(`.metadata.annotations."%s" = "%s"`, annotations.ConnectionTypeRef, "oci-v1"),
+			// Set secret type
+			testf.Transform(`.type = "%s"`, string(corev1.SecretTypeOpaque)),
+			// Set secret data
+			testf.Transform(`.data = {"credential": "mysecretjson"}`),
+		)),
 		WithCustomErrorMsg("Failed to create connection secret"),
 	)
 }
@@ -520,9 +498,7 @@ func (tc *KserveTestCtx) ValidateDSCIDSCValidationInteractionForKserve(t *testin
 	t.Log("Disabling ServiceMesh in DSCI")
 	tc.EnsureResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(
-			`.spec.serviceMesh.managementState = "%s"`, operatorv1.Removed,
-		)),
+		WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "%s"`, operatorv1.Removed)),
 	)
 
 	t.Log("Verifying KServe reports dependency on ServiceMesh correctly")
@@ -531,10 +507,7 @@ func (tc *KserveTestCtx) ValidateDSCIDSCValidationInteractionForKserve(t *testin
 	t.Log("Re-enabling ServiceMesh in DSCI for recovery")
 	tc.EnsureResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(
-			`.spec.serviceMesh.managementState = "%s"`,
-			operatorv1.Managed,
-		)),
+		WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "%s"`, operatorv1.Managed)),
 	)
 
 	t.Log("Verifying KServe becomes ready after ServiceMesh is enabled")
@@ -552,9 +525,7 @@ func (tc *KserveTestCtx) ValidateCustomCertificateCreation(t *testing.T) {
 	t.Log("Configuring Kserve with OpenshiftDefaultIngress and custom secret")
 	tc.EnsureResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.TransformPipeline(
-			testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, customSecretName),
-		)),
+		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, customSecretName)),
 	)
 
 	t.Log("Verifying Kserve is ready")
@@ -590,9 +561,7 @@ func (tc *KserveTestCtx) ValidateInvalidCustomCertificateCreation(t *testing.T) 
 	t.Log("Configuring Kserve with OpenshiftDefaultIngress and invalid secret")
 	tc.EnsureResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.TransformPipeline(
-			testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, invalidCustomSecretName),
-		)),
+		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, invalidCustomSecretName)),
 	)
 
 	t.Log("Verifying Kserve reports not ready due to invalid secret")
@@ -611,16 +580,76 @@ func (tc *KserveTestCtx) ValidateInvalidCustomCertificateCreation(t *testing.T) 
 	tc.verifyKserveReady(t)
 }
 
+// ValidateKServeWithoutAuthorino validates that KServe doesn't create auth resources when Authorino is missing.
+// This is a regression test for RHOAIENG-27732.
+func (tc *KserveTestCtx) ValidateKServeWithoutAuthorino(t *testing.T) {
+	t.Helper()
+
+	// Ensure Authorino is not installed
+	tc.UninstallOperator(types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, WithWaitForDeletion(true))
+
+	// Delete any existing auth resources to ensure clean slate
+	for _, resource := range authRelatedResources {
+		tc.DeleteResource(
+			WithMinimalObject(resource.gvk, resource.nn),
+			WithIgnoreNotFound(true),
+			WithRemoveFinalizersOnDelete(true),
+			WithWaitForDeletion(true),
+		)
+	}
+
+	// Test both KServe deployment modes
+	deploymentModes := []struct {
+		name           string
+		deploymentMode componentApi.DefaultDeploymentMode
+		servingState   operatorv1.ManagementState
+	}{
+		{
+			name:           "RawDeployment",
+			deploymentMode: componentApi.RawDeployment,
+			servingState:   operatorv1.Removed,
+		},
+		{
+			name:           "Serverless",
+			deploymentMode: componentApi.Serverless,
+			servingState:   operatorv1.Managed,
+		},
+	}
+
+	for _, testCase := range deploymentModes {
+		t.Run(testCase.name, func(t *testing.T) {
+			// Configure KServe deployment mode using existing helper
+			tc.updateKserveDeploymentAndServingState(testCase.deploymentMode, testCase.servingState)
+
+			// Verify KServe component conditions are met using existing validation
+			tc.ValidateConditions(t)
+
+			// Verify auth resources are NOT recreated
+			for _, resource := range authRelatedResources {
+				tc.EnsureResourceDoesNotExist(
+					WithMinimalObject(resource.gvk, resource.nn),
+					WithCustomErrorMsg("Auth resource %s/%s should not be recreated when Authorino is not installed in %s mode",
+						resource.gvk.Kind, resource.nn.Name, testCase.name),
+				)
+			}
+		})
+	}
+
+	// Reinstall Authorino and restore state
+	tc.EnsureOperatorInstalled(types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, true)
+	tc.updateKserveDeploymentAndServingState(componentApi.Serverless, operatorv1.Managed)
+
+	// Ensure DSC is stable before continuing
+	tc.ValidateConditions(t)
+}
+
 // verifyKserveReady verifies KServe is in Ready state.
 func (tc *KserveTestCtx) verifyKserveReady(t *testing.T) {
 	t.Helper()
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(`
-			.status.conditions[]
-			| select(.type == "KserveReady")
-			| .status == "%s"`, metav1.ConditionTrue)),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue)),
 	)
 }
 
@@ -632,7 +661,7 @@ func (tc *KserveTestCtx) verifyKserveNotReady(t *testing.T, expectedMessage stri
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(jq.Match(`
 			.status.conditions[]
-			| select(.type == "KserveReady" and .status == "%s")
-			| .message | test("%s"; "i")`, metav1.ConditionFalse, expectedMessage)),
+			| select(.type == "%sReady" and .status == "%s")
+			| .message | test("%s"; "i")`, tc.GVK.Kind, metav1.ConditionFalse, expectedMessage)),
 	)
 }
