@@ -27,3 +27,14 @@ Please complete the following sections for a smooth review.
 - [ ] Testing instructions have been added in the PR body (for PRs involving changes that are not immediately obvious).
 - [ ] The developer has manually tested the changes and verified that the changes work
 - [ ] The developer has run the integration test pipeline and verified that it passed successfully
+
+### E2E test suite update requirement
+
+When bringing new changes to the operator code, such changes are by default required to be accompanied by extending and/or updating the E2E test suite accordingly.
+
+To opt-out of this requirement:
+1. **Please inspect the [opt-out guidelines](https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/e2e-update-requirement-guidelines.md)**, to determine if the nature of the PR changes allows for skipping this requirement
+2. If opt-out is applicable, create opt-out justification PR comment
+   - start the comment with `## E2E update requirement opt-out justification:` title, and provide a short summary of reasons for opting-out of this requirement
+3. Edit this PR description by checking the checkbox below:
+- [ ] Skip requirement to update E2E test suite for this PR

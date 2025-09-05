@@ -1,0 +1,118 @@
+name: Comment on E2E requirement check
+on:
+  workflow_run:
+    workflows: ["Check requirement to update E2E test suite"]
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  download-artifact-data:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.artifact-data.outputs.pr_number }}
+      pr_author: ${{ steps.artifact-data.outputs.pr_author }}
+      check_result: ${{ steps.artifact-data.outputs.check_result }}
+    steps:
+      - name: Download artifact
+        id: artifact-download
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               run_id: context.payload.workflow_run.id,
+            });
+            
+            let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
+              return artifact.name == "e2e-check-results"
+            })[0];
+
+            if (!matchArtifact) {
+              core.notice('No e2e-check-results artifact found; skipping comment workflow.');
+              core.setOutput('found', 'false');
+              return;
+            }
+
+            let download = await github.rest.actions.downloadArtifact({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               artifact_id: matchArtifact.id,
+               archive_format: 'zip',
+            });
+            let fs = require('fs');
+            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/e2e-check-results.zip`, Buffer.from(download.data));
+            core.setOutput('found', 'true');
+      - name: Unzip artifact
+        if: steps.artifact-download.outputs.found == 'true'
+        run: unzip -o e2e-check-results.zip
+      - name: Extract data
+        if: steps.artifact-download.outputs.found == 'true'
+        id: artifact-data
+        run: |
+          echo "pr_number=$(head -n 1 pr_number.txt)" >> $GITHUB_OUTPUT
+          echo "pr_author=$(head -n 1 pr_author.txt)" >> $GITHUB_OUTPUT
+          echo "check_result=$(cat check_result.json)" >> $GITHUB_OUTPUT
+
+  comment-on-pr:
+    needs:
+      - download-artifact-data
+    if: ${{ needs.download-artifact-data.outputs.pr_number != '' }}
+    runs-on: ubuntu-latest
+    permissions: 
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Parse check result
+        id: parse-result
+        run: |
+          echo '${{ needs.download-artifact-data.outputs.check_result }}' > check_result.json
+          NEEDS_COMMENT=$(jq -r '.needsComment' check_result.json)
+          COMMENT_TYPE=$(jq -r '.commentType' check_result.json)
+          echo "needs_comment=${NEEDS_COMMENT}" >> $GITHUB_OUTPUT
+          echo "comment_type=${COMMENT_TYPE}" >> $GITHUB_OUTPUT
+
+      - name: Comment on PR - Missing Justification case
+        if: steps.parse-result.outputs.needs_comment == 'true' && steps.parse-result.outputs.comment_type == 'missing_justification'
+        uses: thollander/actions-comment-pull-request@v3.0.1
+        with:
+          message: |
+            ## ❌ E2E Update Requirement Check Failed
+
+            You have checked the "Skip requirement to update E2E test suite for this PR" checkbox, but no justification comment by the PR author was found.
+
+            **Actions required from the PR author:**
+            1. Please add a comment to this PR explaining why e2e tests are not needed for this change. The skip justification comment is **required** to start with `## E2E update requirement opt-out justification:` title, and include a short summary of reasons for opting-out of this requirement
+            2. To re-trigger the check after adding the justification comment, edit the PR description in a non-disruptive way (for example, by adding a new line at the end) and save the changes. This event will trigger the check, and if the justification comment is present and in the expected format, it should pass.
+
+            **For more info, please refer to:** [workflow run details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }})
+          pr-number: ${{ needs.download-artifact-data.outputs.pr_number }}
+
+      - name: Comment on PR - Missing E2E Tests case
+        if: steps.parse-result.outputs.needs_comment == 'true' && steps.parse-result.outputs.comment_type == 'missing_e2e_tests'
+        uses: thollander/actions-comment-pull-request@v3.0.1
+        with:
+          message: |
+            ## ❌ E2E Update Requirement Check Failed
+
+            No e2e tests were added/updated as part of this PR.
+
+            **Action required from the PR author:** Please either:
+            1. Add or update e2e tests relevant to the PR changes in the `tests/e2e/` directory, OR
+            2. Evaluate the possibility of opting-out of this requirement:
+               1. Inspect the [opt-out guidelines](https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/e2e-update-requirement-guidelines.md), to determine if the nature of the PR changes allows for skipping this requirement
+               2. If opt-out is applicable, create a justification comment explaining why e2e tests are not needed for this change. This justification comment is required to start with `## E2E update requirement opt-out justification:` title, and include a short summary of reasons for opting-out of this requirement
+               3. Edit the PR description by checking the "Skip requirement to update E2E test suite for this PR" checkbox and save the changes. This event will trigger the check again, and if the justification comment is present and in the expected format, it should pass.
+
+            **For more info, please refer to:** [workflow run details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }})
+
+            **Why this check exists:**
+            - E2E tests help ensure that changes work correctly in a real environment and don't break existing functionality
+            - by default, every code-related PR should include an extension/update to the E2E test suite to cover the new changes
+            - if the PR author is in doubt whether this requirement is applicable for their PR, please refer to the PR template for guidance about appropriate/inappropriate cases for opting-out
+          pr-number: ${{ needs.download-artifact-data.outputs.pr_number }}
