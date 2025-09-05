@@ -66,12 +66,12 @@ func kueueTestSuite(t *testing.T) {
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate pre check", componentCtx.ValidateKueuePreCheck},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		{"Validate Deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		{"Validate ConfigMap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		{"Validate Service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
 		// TODO: disabled until RHOAIENG-32503 is resolved
-		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
-		// {"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		// {"Validate ServiceAccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate RBAC deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
 	}
 
 	// Only add OCP Kueue operator test if OCP version is 4.18 or above
@@ -212,17 +212,9 @@ func (tc *KueueTestCtx) ValidateKueueManagedWhitOcpKueueOperator(t *testing.T) {
 		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
 	}
 
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
-	)
-
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(And(conditions...)),
-	)
 	tc.ConsistentlyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
 		WithCondition(And(conditions...)),
 	)
 
@@ -262,13 +254,9 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedWithoutOcpKueueOperator(t *testing
 		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
 	}
 
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged)),
-		WithCondition(And(conditionsNotReady...)),
-	)
 	tc.ConsistentlyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged)),
 		WithCondition(And(conditionsNotReady...)),
 	)
 }
@@ -532,23 +520,13 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 		WithCustomErrorMsg("Failed to create non-managed test namespace"),
 	)
 
-	// Setup cleanup for non-managed namespace
-	t.Cleanup(func() {
-		tc.DeleteResource(
-			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: kueueTestWebhookNonManagedNamespace}),
-		)
-	})
-
 	// Helper function to create and test notebook
 	testNotebook := func(name, namespace, expectedError, errorMsg string, labels map[string]string, shouldBlock bool) func(*testing.T) {
 		return func(t *testing.T) {
 			t.Helper()
 
 			// Create notebook with labels if provided
-			notebook := envtestutil.NewNotebook(name, namespace)
-			if labels != nil {
-				notebook = envtestutil.NewNotebook(name, namespace, envtestutil.WithLabels(labels))
-			}
+			notebook := envtestutil.NewNotebook(name, namespace, envtestutil.WithLabels(labels))
 
 			// Handle blocking case first (exceptional path)
 			if shouldBlock {
@@ -629,13 +607,6 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 
 	// Create a non-managed namespace for hardware profile testing (avoids Kueue validation interference)
 	tc.setupNamespace(kueueTestHardwareProfileNamespace, false, false)
-
-	// Setup cleanup for the test namespace
-	t.Cleanup(func() {
-		tc.DeleteResource(
-			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: kueueTestHardwareProfileNamespace}),
-		)
-	})
 
 	// Helper struct for hardware profile test cases to reduce parameter count
 	type HardwareProfileTestCase struct {
@@ -731,51 +702,27 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 					WithObjectToCreate(hwp),
 					WithCustomErrorMsg("Failed to create hardware profile for %s", testCase.name),
 				)
-
-				// Cleanup hardware profile after test
-				t.Cleanup(func() {
-					tc.DeleteResource(
-						WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: testCase.profileName, Namespace: testNamespace}),
-					)
-				})
 			}
 
 			// Create notebook workload
-			var notebook client.Object
-			if testCase.profileName != "" {
-				notebook = envtestutil.NewNotebook(testCase.workloadName, testNamespace, envtestutil.WithHardwareProfile(testCase.profileName))
-			} else {
-				notebook = envtestutil.NewNotebook(testCase.workloadName, testNamespace)
-			}
+			notebook := envtestutil.NewNotebook(testCase.workloadName, testNamespace, envtestutil.WithHardwareProfile(testCase.profileName))
 
-			// Test webhook behavior
+			// Handle blocking case first (exceptional path)
 			if testCase.shouldBlock {
 				tc.EnsureWebhookBlocksResourceCreation(
 					WithObjectToCreate(notebook),
 					WithInvalidValue(testCase.expectedError),
 					WithCustomErrorMsg(testCase.errorMsg),
 				)
-			} else {
-				if testCase.expectedCondition != nil {
-					tc.EventuallyResourceCreatedOrUpdated(
-						WithObjectToCreate(notebook),
-						WithCondition(testCase.expectedCondition),
-						WithCustomErrorMsg(testCase.errorMsg),
-					)
-				} else {
-					tc.EventuallyResourceCreatedOrUpdated(
-						WithObjectToCreate(notebook),
-						WithCustomErrorMsg(testCase.errorMsg),
-					)
-				}
-
-				// Cleanup notebook after successful creation
-				t.Cleanup(func() {
-					tc.DeleteResource(
-						WithMinimalObject(gvk.Notebook, types.NamespacedName{Name: testCase.workloadName, Namespace: testNamespace}),
-					)
-				})
+				return
 			}
+
+			// Happy path - webhook allows the resource
+			tc.EventuallyResourceCreatedOrUpdated(
+				WithObjectToCreate(notebook),
+				WithCustomErrorMsg(testCase.errorMsg),
+				WithCondition(testCase.expectedCondition),
+			)
 		}
 	}
 
@@ -865,6 +812,9 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 
 	// Run the test cases
 	RunTestCases(t, testCases)
+
+	// Remove Kueue test resources
+	cleanupKueueTestResources(t, tc.TestContext)
 }
 
 // ValidateKueueUnmanagedToManagedTransition ensures the transition from Unmanaged to Managed state happens as expected.
@@ -931,7 +881,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 	)
 
 	// Uninstall ocp kueue-operator
-	uninstallOperatorWithChannel(t, tc.TestContext, types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, kueueOcpOperatorChannel)
+	tc.UninstallOperator(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace})
 
 	conditionsManagedReady := []gTypes.GomegaMatcher{
 		// Validate that the component's management state is updated correctly

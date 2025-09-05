@@ -1,9 +1,8 @@
 package e2e_test
 
 import (
+	"github.com/stretchr/testify/require"
 	"testing"
-
-	. "github.com/onsi/gomega"
 )
 
 type OperatorTestCtx struct {
@@ -15,7 +14,8 @@ func odhOperatorTestSuite(t *testing.T) {
 
 	// Initialize the test context.
 	tc, err := NewTestContext(t)
-	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to initialize test context")
+	require.NoError(t, err, "Failed to initialize test context")
+
 	// Create an instance of test context.
 	operatorTestCtx := OperatorTestCtx{
 		TestContext: tc,

@@ -41,11 +41,11 @@ func trustyAITestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate pre check", componentCtx.ValidateTrustyAIPreCheck},
-		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
-		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
-		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate Deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		{"Validate ConfigMap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		{"Validate Service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		{"Validate ServiceAccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate RBAC deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
@@ -125,6 +125,7 @@ func (tc *TrustyAITestCtx) DeleteInferenceServices(t *testing.T) {
 				PropagationPolicy: &propagationPolicy,
 			}),
 		WithWaitForDeletion(true),
+		WithIgnoreNotFound(true),
 	)
 }
 

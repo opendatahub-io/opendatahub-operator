@@ -28,44 +28,45 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// ServiceMesh constants.
+// ServiceMesh test configuration constants and variables.
+// These define default names, namespaces, and expected values for ServiceMesh-related resources.
 const (
-	serviceMeshControlPlaneDefaultName = "data-science-smcp"
-	serviceMeshControlPlaneNamespace   = "istio-system"
+	// ServiceMesh Control Plane configuration
+	serviceMeshControlPlaneDefaultName = "data-science-smcp" // Default SMCP instance name
+	serviceMeshControlPlaneNamespace   = "istio-system"      // Standard Istio control plane namespace
+
+	// Authorino authorization service configuration
+	authorinoDefaultName         = "authorino"                      // Default Authorino instance name
+	authorinoDefaultNamespace    = "opendatahub-auth-provider"      // Authorino deployment namespace
+	defaultAuthAudience          = "https://kubernetes.default.svc" // Default JWT audience for auth
+	serviceMeshMemberDefaultName = "default"                        // Default ServiceMeshMember name
+
+	// ServiceMesh metrics and operator configuration
+	serviceMeshMetricsCollectionDefault = "Istio"  // Default metrics collection backend
+	serviceMeshOperatorDefaultChannel   = "stable" // ServiceMesh operator subscription channel
+	authorinoOperatorDefaultChannel     = "stable" // Authorino operator subscription channel
 )
 
 var (
+	// Pre-constructed NamespacedName objects for common ServiceMesh resources
+	// These avoid repetitive construction throughout the test suite
 	namespacedServiceMeshControlPlane = types.NamespacedName{
 		Name:      serviceMeshControlPlaneDefaultName,
 		Namespace: serviceMeshControlPlaneNamespace,
 	}
-)
 
-// Authorino constants.
-const (
-	authorinoDefaultName         = "authorino"
-	authorinoDefaultNamespace    = "opendatahub-auth-provider"
-	defaultAuthAudience          = "https://kubernetes.default.svc"
-	serviceMeshMemberDefaultName = "default"
-)
-
-var (
 	namespacedServiceMeshMember = types.NamespacedName{
 		Name:      serviceMeshMemberDefaultName,
 		Namespace: authorinoDefaultNamespace,
 	}
+
 	namespacedAuthorino = types.NamespacedName{
 		Name:      authorinoDefaultName,
 		Namespace: authorinoDefaultNamespace,
 	}
-)
 
-// ServiceMesh metrics collection constants.
-const (
-	serviceMeshMetricsCollectionDefault = "Istio"
-)
-
-var (
+	// Metrics collection resource names and namespaced names
+	// These are dynamically generated based on the control plane name
 	serviceMonitorDefaultName = fmt.Sprintf("%s-pilot-monitor", serviceMeshControlPlaneDefaultName)
 	namespacedServiceMonitor  = types.NamespacedName{
 		Name:      serviceMonitorDefaultName,
@@ -77,29 +78,14 @@ var (
 		Name:      podMonitorDefaultName,
 		Namespace: serviceMeshControlPlaneNamespace,
 	}
-)
 
-var (
+	// Common DSCI condition matchers for ServiceMesh readiness validation
+	// These verify that DSCI is available and reconciliation is complete
 	dsciAvailableConditions = []gTypes.GomegaMatcher{
 		jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "%s"`, metav1.ConditionTrue),
 		jq.Match(`.status.conditions[] | select(.type == "ReconcileComplete") | .status == "%s"`, metav1.ConditionTrue),
 	}
 )
-
-const (
-	serviceMeshOperatorDefaultChannel = "stable"
-	authorinoOperatorDefaultChannel   = "stable"
-)
-
-func getServiceMeshFeatureTrackerNames(appsNamespace string) []string {
-	return []string{
-		appsNamespace + "-mesh-shared-configmap",
-		appsNamespace + "-mesh-control-plane-creation",
-		appsNamespace + "-mesh-metrics-collection",
-		appsNamespace + "-enable-proxy-injection-in-authorino-deployment",
-		appsNamespace + "-mesh-control-plane-external-authz",
-	}
-}
 
 // DependentOperatorsTestConfig is used to configure the test cases that depend on the presence of dependent operators.
 // Allows to set which dependent operators will or won't be installed for the test case.
@@ -114,6 +100,7 @@ type ServiceMeshTestCtx struct {
 	NamespacedName types.NamespacedName
 }
 
+// serviceMeshControllerTestSuite runs the complete ServiceMesh integration test suite.
 func serviceMeshControllerTestSuite(t *testing.T) {
 	t.Helper()
 
@@ -133,10 +120,7 @@ func serviceMeshControllerTestSuite(t *testing.T) {
 	// Define test cases.
 	testCases := []TestCase{
 		// Test cases to validate default ServiceMesh CR instance-related flow
-		{"Validate default ServiceMesh configuration", smCtx.ValidateDefaultServiceMeshCreation},
-		{"Validate ServiceMesh is singleton", smCtx.ValidateServiceMeshIsSingleton},
-		{"Validate No ServiceMesh FeatureTrackers exist", smCtx.ValidateNoServiceMeshFeatureTrackersExist},
-		{"Validate No Legacy FeatureTrackers exist", smCtx.ValidateNoLegacyFeatureTrackersExist},
+		{"Validate ServiceMesh initialization and setup", smCtx.ValidateServiceMeshInitialization},
 		{"Validate ServiceMesh control plane", smCtx.ValidateServiceMeshControlPlane},
 		{"Validate Authorino resources", smCtx.ValidateAuthorinoResources},
 		{"Validate ServiceMesh metrics collection resources", smCtx.ValidateServiceMeshMetricsCollectionResources},
@@ -157,54 +141,37 @@ func serviceMeshControllerTestSuite(t *testing.T) {
 	RunTestCases(t, testCases)
 }
 
-func (tc *ServiceMeshTestCtx) ValidateDefaultServiceMeshCreation(t *testing.T) {
+// ValidateServiceMeshInitialization verifies ServiceMesh setup, singleton pattern, and absence of legacy FeatureTrackers.
+func (tc *ServiceMeshTestCtx) ValidateServiceMeshInitialization(t *testing.T) {
 	t.Helper()
 
+	// Setup environment with both operators
 	tc.setupAndValidateServiceMeshEnvironment(t, DependentOperatorsTestConfig{
 		EnsureServiceMeshOperatorInstalled: true,
 		EnsureAuthorinoOperatorInstalled:   true,
 	})
-}
 
-func (tc *ServiceMeshTestCtx) ValidateServiceMeshIsSingleton(t *testing.T) {
-	t.Helper()
-
-	// ensure that exactly one ServiceMesh CR exists
+	// Validate exactly one ServiceMesh CR exists (singleton)
 	tc.EnsureResourcesExist(
 		WithMinimalObject(tc.GVK, tc.NamespacedName),
-		WithCondition(
-			And(
-				HaveLen(1),
-			),
-		),
+		WithCondition(HaveLen(1)),
 		WithCustomErrorMsg("ServiceMesh CR was expected to be a singleton"),
 	)
-}
 
-// ValidateNoServiceMeshFeatureTrackers ensures there are no FeatureTrackers for ServiceMesh present in the cluster.
-func (tc *ServiceMeshTestCtx) ValidateNoServiceMeshFeatureTrackersExist(t *testing.T) {
-	t.Helper()
-
+	// Validate no ServiceMesh FeatureTrackers exist
 	tc.EnsureResourcesDoNotExist(
 		WithMinimalObject(gvk.FeatureTracker, tc.NamespacedName),
 		WithListOptions(&client.ListOptions{
 			Namespace: tc.AppsNamespace,
-			LabelSelector: k8slabels.SelectorFromSet(
-				k8slabels.Set{
-					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-				},
-			),
+			LabelSelector: k8slabels.SelectorFromSet(k8slabels.Set{
+				labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+			}),
 		}),
 		WithCustomErrorMsg("Expected no ServiceMesh-related FeatureTracker resources to be present"),
 	)
-}
 
-func (tc *ServiceMeshTestCtx) ValidateNoLegacyFeatureTrackersExist(t *testing.T) {
-	t.Helper()
-
-	dsci := tc.FetchDSCInitialization()
-	ftNames := getServiceMeshFeatureTrackerNames(dsci.Spec.ApplicationsNamespace)
-
+	// Validate no legacy FeatureTrackers exist
+	ftNames := getServiceMeshFeatureTrackerNames(tc.AppsNamespace)
 	for _, name := range ftNames {
 		tc.EnsureResourceGone(WithMinimalObject(gvk.FeatureTracker, types.NamespacedName{Name: name}))
 	}
@@ -471,11 +438,11 @@ func (tc *ServiceMeshTestCtx) ValidateServiceMeshTransitionToRemoved(t *testing.
 	})
 }
 
+// ValidateLegacyServiceMeshFeatureTrackersRemoval ensures legacy FeatureTrackers are cleaned up during ServiceMesh installation.
 func (tc *ServiceMeshTestCtx) ValidateLegacyServiceMeshFeatureTrackersRemoval(t *testing.T) {
 	t.Helper()
 
-	dsci := tc.FetchDSCInitialization()
-	ftNames := getServiceMeshFeatureTrackerNames(dsci.Spec.ApplicationsNamespace)
+	ftNames := getServiceMeshFeatureTrackerNames(tc.AppsNamespace)
 
 	// remove ServiceMesh to provide ground for clean ServiceMesh installation
 	tc.EventuallyResourceCreatedOrUpdated(
@@ -499,6 +466,7 @@ func (tc *ServiceMeshTestCtx) ValidateLegacyServiceMeshFeatureTrackersRemoval(t 
 	}
 }
 
+// ValidateNoServiceMeshSpecInDSCI ensures ServiceMesh resources are cleaned up when spec is removed from DSCI.
 func (tc *ServiceMeshTestCtx) ValidateNoServiceMeshSpecInDSCI(t *testing.T) {
 	t.Helper()
 
@@ -537,6 +505,7 @@ func (tc *ServiceMeshTestCtx) ValidateNoServiceMeshSpecInDSCI(t *testing.T) {
 	})
 }
 
+// ValidateServiceMeshOperatorNotInstalled verifies ServiceMesh behavior when the ServiceMesh operator is missing.
 func (tc *ServiceMeshTestCtx) ValidateServiceMeshOperatorNotInstalled(t *testing.T) {
 	t.Helper()
 
@@ -570,6 +539,7 @@ func (tc *ServiceMeshTestCtx) ValidateServiceMeshOperatorNotInstalled(t *testing
 	})
 }
 
+// ValidateAuthorinoOperatorNotInstalled verifies ServiceMesh behavior when the Authorino operator is missing.
 func (tc *ServiceMeshTestCtx) ValidateAuthorinoOperatorNotInstalled(t *testing.T) {
 	t.Helper()
 
@@ -605,6 +575,7 @@ func (tc *ServiceMeshTestCtx) ValidateAuthorinoOperatorNotInstalled(t *testing.T
 	})
 }
 
+// setupAndValidateServiceMeshEnvironment configures operators and validates complete ServiceMesh environment setup.
 func (tc *ServiceMeshTestCtx) setupAndValidateServiceMeshEnvironment(t *testing.T, dependentOperatorsConfig DependentOperatorsTestConfig) {
 	t.Helper()
 
@@ -618,6 +589,7 @@ func (tc *ServiceMeshTestCtx) setupAndValidateServiceMeshEnvironment(t *testing.
 	tc.validateServiceMeshInstance(t, dependentOperatorsConfig)
 }
 
+// setupOperators installs or uninstalls ServiceMesh and Authorino operators based on configuration.
 func (tc *ServiceMeshTestCtx) setupOperators(t *testing.T, dependentOperatorsConfig DependentOperatorsTestConfig) {
 	t.Helper()
 
@@ -625,6 +597,7 @@ func (tc *ServiceMeshTestCtx) setupOperators(t *testing.T, dependentOperatorsCon
 	tc.setupAuthorinoOperator(t, dependentOperatorsConfig.EnsureAuthorinoOperatorInstalled)
 }
 
+// setupServiceMeshOperator installs or uninstalls the ServiceMesh operator based on shouldBeInstalled flag.
 func (tc *ServiceMeshTestCtx) setupServiceMeshOperator(t *testing.T, shouldBeInstalled bool) {
 	t.Helper()
 
@@ -640,6 +613,7 @@ func (tc *ServiceMeshTestCtx) setupServiceMeshOperator(t *testing.T, shouldBeIns
 	}
 }
 
+// setupAuthorinoOperator installs or uninstalls the Authorino operator based on shouldBeInstalled flag.
 func (tc *ServiceMeshTestCtx) setupAuthorinoOperator(t *testing.T, shouldBeInstalled bool) {
 	t.Helper()
 
@@ -655,6 +629,7 @@ func (tc *ServiceMeshTestCtx) setupAuthorinoOperator(t *testing.T, shouldBeInsta
 	}
 }
 
+// setupAndValidateDsciInstance configures DSCI with ServiceMesh settings and validates expected conditions.
 func (tc *ServiceMeshTestCtx) setupAndValidateDsciInstance(t *testing.T, dependentOperatorsConfig DependentOperatorsTestConfig) {
 	t.Helper()
 
@@ -702,6 +677,7 @@ func (tc *ServiceMeshTestCtx) setupAndValidateDsciInstance(t *testing.T, depende
 	)
 }
 
+// validateServiceMeshInstance verifies ServiceMesh CR creation with correct specifications and readiness conditions.
 func (tc *ServiceMeshTestCtx) validateServiceMeshInstance(t *testing.T, dependentOperatorsConfig DependentOperatorsTestConfig) {
 	t.Helper()
 
@@ -785,6 +761,7 @@ func (tc *ServiceMeshTestCtx) uninstallOperatorWithChannel(t *testing.T, operato
 	t.Log("Operator uninstalled, proceeding")
 }
 
+// ensureServiceMeshGone removes ServiceMesh CR and all associated resources.
 func (tc *ServiceMeshTestCtx) ensureServiceMeshGone(t *testing.T) {
 	t.Helper()
 
@@ -798,6 +775,7 @@ func (tc *ServiceMeshTestCtx) ensureServiceMeshGone(t *testing.T) {
 	)
 }
 
+// ensureServiceMeshResourcesGone verifies all ServiceMesh-related resources are deleted.
 func (tc *ServiceMeshTestCtx) ensureServiceMeshResourcesGone(t *testing.T) {
 	t.Helper()
 
@@ -821,6 +799,7 @@ func (tc *ServiceMeshTestCtx) ensureServiceMeshResourcesGone(t *testing.T) {
 	)
 }
 
+// createDummyServiceMeshFeatureTrackers creates test FeatureTracker resources for legacy cleanup testing.
 func (tc *ServiceMeshTestCtx) createDummyServiceMeshFeatureTrackers(t *testing.T, ftNames []string) {
 	t.Helper()
 
@@ -846,5 +825,16 @@ func (tc *ServiceMeshTestCtx) createDummyServiceMeshFeatureTrackers(t *testing.T
 			}),
 			WithCustomErrorMsg("error creating or updating pre-existing FeatureTracker"),
 		)
+	}
+}
+
+// getServiceMeshFeatureTrackerNames returns the list of legacy ServiceMesh FeatureTracker names for testing.
+func getServiceMeshFeatureTrackerNames(appsNamespace string) []string {
+	return []string{
+		appsNamespace + "-mesh-shared-configmap",
+		appsNamespace + "-mesh-control-plane-creation",
+		appsNamespace + "-mesh-metrics-collection",
+		appsNamespace + "-enable-proxy-injection-in-authorino-deployment",
+		appsNamespace + "-mesh-control-plane-external-authz",
 	}
 }

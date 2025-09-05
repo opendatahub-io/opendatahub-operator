@@ -90,11 +90,11 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate serving transition to Unmanaged", componentCtx.ValidateServingTransitionToUnmanaged},
 		{"Validate serving transition to Removed", componentCtx.ValidateServingTransitionToRemoved},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
-		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
-		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate Deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		{"Validate ConfigMap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		{"Validate Service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		{"Validate ServiceAccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate RBAC deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
@@ -179,19 +179,8 @@ func (tc *KserveTestCtx) ValidateKnativeServing(t *testing.T) {
 	dsc := tc.FetchDataScienceCluster()
 
 	// Check KnativeServing was created.
-	managedKnativeServing := types.NamespacedName{Name: dsc.Spec.Components.Kserve.Serving.Name, Namespace: knativeServingNamespace}
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
-	)
-
-	// Delete it.
-	tc.DeleteResource(
-		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
-	)
-
-	// Check eventually got recreated.
-	tc.EnsureResourceExistsConsistently(
-		WithMinimalObject(gvk.KnativeServing, managedKnativeServing),
+	tc.EnsureResourceDeletedThenRecreated(
+		WithMinimalObject(gvk.KnativeServing, types.NamespacedName{Name: dsc.Spec.Components.Kserve.Serving.Name, Namespace: knativeServingNamespace}),
 	)
 }
 
