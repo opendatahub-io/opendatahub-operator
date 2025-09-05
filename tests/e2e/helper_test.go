@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -29,6 +30,12 @@ import (
 const (
 	// Namespaces for various components.
 	knativeServingNamespace = "knative-serving" // Namespace for Knative Serving components
+
+	// Test timing constants.
+	// controllerCacheRefreshDelay is the time to wait for controller-runtime
+	// informer cache to update after resource deletion. This prevents cache
+	// staleness issues in deletion/recreation tests.
+	controllerCacheRefreshDelay = 2 * time.Second
 
 	// Operators constants.
 	defaultOperatorChannel       = "stable"                           // The default channel to install/check operators

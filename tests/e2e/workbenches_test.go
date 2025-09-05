@@ -22,19 +22,17 @@ func workbenchesTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
-	require.NoError(t, err)
-
 	// Define test cases.
 	testCases := []TestCase{
 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
-		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
-		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate Deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
+		{"Validate ConfigMap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
+		{"Validate Service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
+		{"Validate ServiceAccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate RBAC deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 

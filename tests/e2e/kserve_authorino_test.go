@@ -6,7 +6,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -20,11 +20,6 @@ import (
 type KserveAuthorinoTestCtx struct {
 	*TestContext
 }
-
-const (
-	// Default channel for Authorino operator.
-	authorinoDefaultChannel = "stable"
-)
 
 // authRelatedResources defines the authorization-related resources that should NOT be created
 // when Authorino is not installed.
@@ -74,47 +69,21 @@ func TestKserveAuthorinoRegression(t *testing.T) {
 	RunTestCases(t, testCases)
 }
 
-// uninstallOperatorWithChannel delete an operator install subscription to a specific channel if exists.
-func (tc *KserveAuthorinoTestCtx) uninstallOperatorWithChannel(t *testing.T, operatorNamespacedName types.NamespacedName, channel string) { //nolint:thelper,unparam
-	// Check if operator subscription exists
-	ro := tc.NewResourceOptions(WithMinimalObject(gvk.Subscription, operatorNamespacedName))
-	operatorSubscription, err := tc.ensureResourceExistsOrNil(ro)
-
-	if err != nil {
-		t.Logf("Error checking if operator %s exists: %v", operatorNamespacedName.Name, err)
-		return
-	}
-
-	if operatorSubscription != nil {
-		t.Logf("Uninstalling %s operator", operatorNamespacedName.Name)
-
-		csv, found, err := unstructured.NestedString(operatorSubscription.UnstructuredContent(), "status", "currentCSV")
-		if !found || err != nil {
-			t.Logf(".status.currentCSV expected to be present: %s with no error, Error: %v, but it wasn't. Deleting just the Subscription: %v", csv, err, operatorSubscription)
-			tc.DeleteResource(WithMinimalObject(gvk.Subscription, operatorNamespacedName))
-		} else {
-			t.Logf("Deleting subscription %v and cluster service version %v", operatorNamespacedName, types.NamespacedName{Name: csv, Namespace: operatorSubscription.GetNamespace()})
-			tc.DeleteResource(WithMinimalObject(gvk.Subscription, operatorNamespacedName))
-			tc.DeleteResource(WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Name: csv, Namespace: operatorSubscription.GetNamespace()}))
-		}
-	}
-}
-
 // UninstallAuthorinoOperator uninstalls the Authorino operator to ensure proper test conditions.
 func (tc *KserveAuthorinoTestCtx) UninstallAuthorinoOperator(t *testing.T) {
 	t.Helper()
 
 	// Uninstall Authorino operator from openshift-operators namespace
-	tc.uninstallOperatorWithChannel(t, types.NamespacedName{
+	tc.UninstallOperator(types.NamespacedName{
 		Name:      authorinoOpName,
 		Namespace: "openshift-operators",
-	}, authorinoDefaultChannel)
+	})
 
 	// Also check and uninstall from operator namespace if present
-	tc.uninstallOperatorWithChannel(t, types.NamespacedName{
+	tc.UninstallOperator(types.NamespacedName{
 		Name:      authorinoOpName,
 		Namespace: tc.OperatorNamespace,
-	}, authorinoDefaultChannel)
+	})
 
 	// Wait for resources to be cleaned up
 	time.Sleep(5 * time.Second)
@@ -128,14 +97,16 @@ func (tc *KserveAuthorinoTestCtx) CleanupTestResources(t *testing.T) {
 
 	// Cleanup auth-related resources if they exist
 	for _, resource := range authRelatedResources {
-		if err := cleanupResourceIgnoringMissing(t, tc.TestContext, resource.nn, resource.gvk, true); err != nil {
-			t.Logf("Error cleaning up resource %s/%s: %v", resource.gvk.Kind, resource.nn.Name, err)
-		}
+		tc.DeleteResource(
+			WithMinimalObject(resource.gvk, resource.nn),
+			WithIgnoreNotFound(true),
+			WithRemoveFinalizersOnDelete(true),
+			WithWaitForDeletion(false),
+		)
 	}
 
 	// Cleanup DataScienceCluster and DSCInitialization
-	cleanupListResources(t, tc.TestContext, gvk.DataScienceCluster, "DataScienceCluster")
-	cleanupListResources(t, tc.TestContext, gvk.DSCInitialization, "DSCInitialization")
+	cleanupCoreOperatorResources(t, tc.TestContext)
 }
 
 // VerifyRequiredOperatorsInstalled ensures that Serverless and ServiceMesh operators are installed.
