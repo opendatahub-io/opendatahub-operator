@@ -260,6 +260,9 @@ func TestOdhOperator(t *testing.T) {
 	mustRun(t, Components.String(), Components.Run)
 	mustRun(t, Services.String(), Services.Run)
 
+	// Run regression test suites
+	mustRun(t, "KServe Authorino Regression Tests", kserveAuthorinoTestSuite)
+
 	// Deletion logic based on deletionPolicy
 	switch testOpts.deletionPolicy {
 	case DeletionPolicyAlways:
