@@ -28,14 +28,19 @@ func fetchResource(ro *ResourceOptions) (*unstructured.Unstructured, error) {
 		// Fetch the resource
 		u, fetchErr = ro.tc.g.Get(ro.GVK, ro.NN).Get()
 
-		// Check if ExpectedErr is provided and match it if encountered
-		if ro.ExpectedErr != nil && fetchErr != nil {
-			g.Expect(fetchErr).To(MatchError(ro.ExpectedErr), unexpectedErrorMismatchMsg, ro.ExpectedErr, fetchErr, ro.GVK.Kind)
+		// Check if AcceptableErr is provided and match it if encountered
+		if ro.AcceptableErrMatcher != nil && fetchErr != nil {
+			g.Expect(fetchErr).To(ro.AcceptableErrMatcher, unexpectedErrorMismatchMsg, ro.AcceptableErrMatcher, fetchErr, ro.GVK.Kind)
+			return // Acceptable error matched, exit successfully
 		}
 
-		// If the resource is not found, we set the object to nil
-		if errors.IsNotFound(fetchErr) {
-			u = nil
+		// For transient errors that aren't "not found", retry
+		// "Not found" errors will be handled by the caller based on IgnoreNotFound
+		if !errors.IsNotFound(fetchErr) {
+			g.Expect(fetchErr).NotTo(
+				HaveOccurred(),
+				defaultErrorMessageIfNone(resourceFetchErrorMsg, []any{ro.ResourceID, ro.GVK.Kind, fetchErr}, ro.CustomErrorArgs)...,
+			)
 		}
 	}).Should(Succeed())
 
@@ -61,16 +66,20 @@ func fetchResources(ro *ResourceOptions) ([]unstructured.Unstructured, error) {
 		// Attempt to retrieve the list of resources
 		resourcesList, fetchErr = ro.tc.g.List(ro.GVK, ro.ListOptions).Get()
 
-		// Check if ExpectedErr is provided and match it if encountered
-		if ro.ExpectedErr != nil && fetchErr != nil {
-			g.Expect(fetchErr).To(MatchError(ro.ExpectedErr), unexpectedErrorMismatchMsg, ro.ExpectedErr, fetchErr, ro.GVK.Kind)
+		// Check if AcceptableErr is provided and match it if encountered
+		if ro.AcceptableErrMatcher != nil && fetchErr != nil {
+			g.Expect(fetchErr).To(ro.AcceptableErrMatcher, unexpectedErrorMismatchMsg, ro.AcceptableErrMatcher, fetchErr, ro.GVK.Kind)
+			return // Acceptable error matched, exit successfully
 		}
 
-		// Ensure no unexpected errors occurred during retrieval
-		g.Expect(fetchErr).NotTo(
-			HaveOccurred(),
-			defaultErrorMessageIfNone(resourceFetchErrorMsg, []any{ro.ResourceID, ro.GVK.Kind, fetchErr}, ro.CustomErrorArgs)...,
-		)
+		// For transient errors that aren't "not found", retry
+		// "Not found" errors will be handled by the caller based on IgnoreNotFound
+		if !errors.IsNotFound(fetchErr) {
+			g.Expect(fetchErr).NotTo(
+				HaveOccurred(),
+				defaultErrorMessageIfNone(resourceFetchErrorMsg, []any{ro.ResourceID, ro.GVK.Kind, fetchErr}, ro.CustomErrorArgs)...,
+			)
+		}
 	}).Should(Succeed())
 
 	return resourcesList, fetchErr

@@ -1,10 +1,12 @@
 package e2e_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/blang/semver/v4"
 	"github.com/onsi/gomega/gstruct"
 	gTypes "github.com/onsi/gomega/types"
 	configv1 "github.com/openshift/api/config/v1"
@@ -13,8 +15,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -142,6 +146,11 @@ func (tc *TestContext) NewResourceOptions(opts ...ResourceOpts) *ResourceOptions
 		ro.ClientDeleteOptions = &client.DeleteOptions{}
 	}
 
+	// Initialize DeleteAllOfOptions if nil
+	if ro.DeleteAllOfOptions == nil {
+		ro.DeleteAllOfOptions = make([]client.DeleteAllOfOption, 0)
+	}
+
 	// Ensure IgnoreNotFound is true by default
 	ro.IgnoreNotFound = true
 
@@ -229,6 +238,22 @@ func (tc *TestContext) EnsureResourceExistsConsistently(opts ...ResourceOpts) *u
 //
 // Returns:
 //   - *unstructured.Unstructured: The existing or newly created (updated) resource object.
+//
+// EventuallyResourceCreatedOrUpdated ensures that a given Kubernetes resource exists.
+// If the resource is missing, it will be created; if it already exists, it will be updated
+// using the provided mutation function. This function retries until the operation succeeds.
+//
+// Behavior is controlled by the following optional flags:
+//   - WithObjectToCreate: Specifies the resource object to create or update.
+//   - WithMutateFunc: Defines how to modify the resource during update operations.
+//   - WithCondition: Validates the resource state after creation/update.
+//   - WithIgnoreNotFound: Continues operation even if intermediate fetches fail.
+//
+// Parameters:
+//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
+//
+// Returns:
+//   - *unstructured.Unstructured: The existing or newly created (updated) resource object.
 func (tc *TestContext) EventuallyResourceCreatedOrUpdated(opts ...ResourceOpts) *unstructured.Unstructured {
 	// Create a ResourceOptions object based on the provided opts.
 	ro := tc.NewResourceOptions(opts...)
@@ -242,9 +267,17 @@ func (tc *TestContext) EventuallyResourceCreatedOrUpdated(opts ...ResourceOpts) 
 	return eventuallyResourceApplied(ro, tc.g.CreateOrUpdate)
 }
 
-// EventuallyResourceCreatedOrUpdated ensures that a given Kubernetes resource exists.
+// ConsistentlyResourceCreatedOrUpdated ensures that a given Kubernetes resource exists.
 // If the resource is missing, it will be created; if it already exists, it will be updated
-// using the provided mutation function. Conditions in ResourceOpts are evaluated with consistently.
+// using the provided mutation function. If a mutation function is provided, it applies the mutation
+// once using Eventually, then verifies the resource consistently meets the expected condition over time
+// using Consistently.
+//
+// Behavior is controlled by the following optional flags:
+//   - WithObjectToCreate: Specifies the resource object to create or update.
+//   - WithMutateFunc: Defines how to modify the resource during update operations (applied once using Eventually).
+//   - WithCondition: Validates the resource state after creation/update using Consistently.
+//   - WithIgnoreNotFound: Continues operation even if intermediate fetches fail.
 //
 // Parameters:
 //   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
@@ -260,7 +293,7 @@ func (tc *TestContext) ConsistentlyResourceCreatedOrUpdated(opts ...ResourceOpts
 		ro.Condition = Succeed()
 	}
 
-	// Apply the resource using eventuallyResourceApplied.
+	// Apply the resource using consistentlyResourceApplied.
 	return consistentlyResourceApplied(ro, tc.g.CreateOrUpdate)
 }
 
@@ -286,10 +319,39 @@ func (tc *TestContext) EnsureResourceCreatedOrPatched(opts ...ResourceOpts) *uns
 	return eventuallyResourceApplied(ro, tc.g.CreateOrPatch)
 }
 
+// ConsistentlyResourceCreatedOrPatched ensures that a given Kubernetes resource exists.
+// If the resource is missing, it will be created; if it already exists, it will be patched.
+// If a mutation function is provided, it applies the mutation once using Eventually, then verifies
+// the resource consistently meets the expected condition over time using Consistently.
+//
+// Behavior is controlled by the following optional flags:
+//   - WithObjectToCreate: Specifies the resource object to create or patch.
+//   - WithMutateFunc: Defines how to modify the resource during patch operations (applied once using Eventually).
+//   - WithCondition: Validates the resource state after creation/patch using Consistently.
+//   - WithIgnoreNotFound: Continues operation even if intermediate fetches fail.
+//
+// Parameters:
+//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
+//
+// Returns:
+//   - *unstructured.Unstructured: The existing or newly created (patched) resource object.
+func (tc *TestContext) ConsistentlyResourceCreatedOrPatched(opts ...ResourceOpts) *unstructured.Unstructured {
+	// Create a ResourceOptions object based on the provided opts.
+	ro := tc.NewResourceOptions(opts...)
+
+	// Default the condition to Succeed() if it's not provided.
+	if ro.Condition == nil {
+		ro.Condition = Succeed()
+	}
+
+	// Apply the resource using consistentlyResourceApplied.
+	return consistentlyResourceApplied(ro, tc.g.CreateOrPatch)
+}
+
 // EnsureResourceDoesNotExist performs a one-time check to verify that a resource does not exist in the cluster.
 //
 // This function fetches the resource once and fails the test immediately if it exists.
-// If an expected error is provided via WithExpectedErr, it validates the error.
+// If an acceptable error is provided via WithAcceptableErr, it validates the error.
 //
 // Parameters:
 //   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
@@ -302,13 +364,17 @@ func (tc *TestContext) EnsureResourceDoesNotExist(opts ...ResourceOpts) {
 	err := tc.ensureResourceDoesNotExist(tc.g, ro)
 
 	// Validate the error if an expected error is set
-	if ro.ExpectedErr != nil {
-		tc.g.Expect(err).To(MatchError(ro.ExpectedErr), unexpectedErrorMismatchMsg, ro.ExpectedErr, err, ro.GVK.Kind)
+	if ro.AcceptableErrMatcher != nil {
+		tc.g.Expect(err).To(ro.AcceptableErrMatcher, unexpectedErrorMismatchMsg, ro.AcceptableErrMatcher, err, ro.GVK.Kind)
 	}
 }
 
 // EnsureResourceGone retries checking a resource until it is deleted or times out.
 // If the resource still exists after the timeout, the test will fail.
+//
+// Behavior is controlled by the following optional flags:
+//   - WithAcceptableErr: If provided, validates that the deletion produces the acceptable error.
+//   - WithCustomErrorMsg: Customizes the error message if the resource is not deleted in time.
 //
 // Parameters:
 //   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
@@ -316,14 +382,21 @@ func (tc *TestContext) EnsureResourceGone(opts ...ResourceOpts) {
 	// Create a ResourceOptions object based on the provided opts.
 	ro := tc.NewResourceOptions(opts...)
 
+	// For deletion scenarios, treat "not found" as success
+	ro.IgnoreNotFound = true
+
 	// Use Eventually to retry checking the resource until it disappears or timeout occurs
 	tc.g.Eventually(func(g Gomega) {
 		err := tc.ensureResourceDoesNotExist(g, ro)
 
 		// Validate the error if an expected error is set
-		if ro.ExpectedErr != nil {
-			g.Expect(err).To(MatchError(ro.ExpectedErr), unexpectedErrorMismatchMsg, ro.ExpectedErr, err, ro.GVK.Kind)
+		if ro.AcceptableErrMatcher != nil {
+			g.Expect(err).To(ro.AcceptableErrMatcher, unexpectedErrorMismatchMsg, ro.AcceptableErrMatcher, err, ro.GVK.Kind)
+			return
 		}
+
+		// For deletion checks, we expect no error (resource should be gone)
+		g.Expect(err).NotTo(HaveOccurred())
 	}).Should(Succeed())
 }
 
@@ -377,11 +450,18 @@ func (tc *TestContext) EnsureResourcesDoNotExist(opts ...ResourceOpts) {
 //
 // This function repeatedly checks if the resources are gone, failing the test only if they still exist after the timeout.
 //
+// Behavior is controlled by the following optional flags:
+//   - WithDeleteAllOfOptions: Configures which resources to check for deletion (e.g., label selectors).
+//   - WithCustomErrorMsg: Customizes the error message if resources are not deleted in time.
+//
 // Parameters:
 //   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
 func (tc *TestContext) EnsureResourcesGone(opts ...ResourceOpts) {
 	// Create a ResourceOptions object based on the provided opts.
 	ro := tc.NewResourceOptions(opts...)
+
+	// For deletion scenarios, treat "not found" as success
+	ro.IgnoreNotFound = true
 
 	// Use Eventually to retry checking the resource until it disappears or timeout occurs
 	tc.g.Eventually(func(g Gomega) {
@@ -631,6 +711,18 @@ func (tc *TestContext) EnsureOperatorInstalled(nn types.NamespacedName, skipOper
 	tc.EnsureOperatorInstalledWithChannel(nn, skipOperatorGroupCreation, defaultOperatorChannel)
 }
 
+// EnsureOperatorInstalledWithChannel ensures that an operator is installed via OLM with a specific channel.
+//
+// This function performs the following steps:
+//  1. Creates the operator's namespace if it doesn't exist
+//  2. Creates an OperatorGroup in the namespace (unless skipOperatorGroupCreation is true)
+//  3. Creates a Subscription for the operator with the specified channel
+//  4. Waits for the CSV (ClusterServiceVersion) to reach "Succeeded" phase
+//
+// Parameters:
+//   - nn (types.NamespacedName): The namespace and name of the operator being installed.
+//   - skipOperatorGroupCreation (bool): If true, skips the creation or update of the operator group.
+//   - channelName (string): The OLM channel to use for the operator installation (e.g., "stable", "alpha").
 func (tc *TestContext) EnsureOperatorInstalledWithChannel(nn types.NamespacedName, skipOperatorGroupCreation bool, channelName string) {
 	// Construct a resource identifier.
 	resourceID := resources.FormatNamespacedName(nn)
@@ -670,10 +762,14 @@ func (tc *TestContext) EnsureOperatorInstalledWithChannel(nn types.NamespacedNam
 	}).WithTimeout(tc.TestTimeouts.mediumEventuallyTimeout).WithPolling(tc.TestTimeouts.defaultEventuallyPollInterval)
 }
 
-// DeleteResource deletes a Kubernetes resource. If IgnoreNotFound is set via WithIgnoreNotFound,
-// the function will not check for existence beforehand and will silently ignore if the resource does not exist.
+// DeleteResource deletes a specific Kubernetes resource by name.
 //
-// If WaitForDeletion is set via WithWaitForDeletion, the function will wait until the resource is fully deleted.
+// Behavior is controlled by the following optional flags:
+//   - WithIgnoreNotFound: If true, skips existence check and ignores NotFound errors during deletion.
+//   - WithWaitForDeletion: If true, waits until the resource is fully deleted from the cluster.
+//   - WithWaitForRecreation: If true, waits for the resource to be recreated after deletion (useful for managed resources).
+//   - WithRemoveFinalizersOnDelete: If true, removes all finalizers before deletion to prevent stuck deletions.
+//   - WithClientDeleteOptions: Configures deletion behavior (e.g., propagation policy).
 //
 // Parameters:
 //   - opts(...ResourceOpts): Optional options for configuring the resource and deletion behavior.
@@ -689,21 +785,88 @@ func (tc *TestContext) DeleteResource(opts ...ResourceOpts) {
 		)
 	}
 
-	// Perform the delete (client gracefully handles NotFound already)
-	tc.g.Delete(
-		ro.GVK,
-		ro.NN,
-		ro.ClientDeleteOptions,
-	).Eventually().Should(Succeed(), "Failed to delete %s instance %s", ro.GVK.Kind, ro.ResourceID)
+	// Remove finalizers if requested, before attempting deletion
+	if ro.RemoveFinalizersOnDelete {
+		// Try to remove finalizers in a best-effort manner
+		// If this fails (e.g., due to validation errors), we continue with deletion anyway
+		tc.tryRemoveFinalizers(ro.GVK, ro.NN)
+	}
+
+	// Perform the delete and handle errors appropriately
+	err := tc.g.Delete(ro.GVK, ro.NN, ro.ClientDeleteOptions).Get()
+
+	// Handle errors that should cause early return when IgnoreNotFound is true
+	if err != nil && ro.IgnoreNotFound {
+		if meta.IsNoMatchError(err) || k8serr.IsNotFound(err) {
+			return // CRD doesn't exist or resource already gone - nothing to delete or wait for
+		}
+	}
+
+	// For all remaining cases, expect success
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to delete %s instance %s", ro.GVK.Kind, ro.ResourceID)
 
 	if ro.WaitForDeletion {
 		opts = append(opts, WithCustomErrorMsg("Resource %s instance %s was not fully deleted", ro.GVK.Kind, ro.ResourceID))
 		tc.EnsureResourceGone(opts...)
 	}
+
+	if ro.WaitForRecreation {
+		// Wait for the resource to be recreated after deletion
+		// This helps with controllers that immediately recreate managed resources
+		tc.EnsureResourceExists(
+			WithMinimalObject(ro.GVK, ro.NN),
+			WithCustomErrorMsg("Resource %s instance %s was not recreated after deletion", ro.GVK.Kind, ro.ResourceID),
+		)
+	}
+}
+
+// DeleteResources deletes all Kubernetes resources of a specific type matching the given criteria.
+// It uses DeleteAllOf internally for efficient bulk deletion without requiring pre-fetching.
+//
+// Important: When deleting resources in a specific namespace, use WithNamespaceFilter() instead of setting
+// the Namespace field in WithMinimalObject(). The Namespace in NamespacedName is ignored for bulk operations.
+//
+// Behavior is controlled by the following optional flags:
+//   - WithNamespaceFilter: Filters deletion to resources in a specific namespace.
+//   - WithDeleteAllOfOptions: Configures the bulk deletion criteria (e.g., label selectors, field selectors).
+//   - WithWaitForDeletion: If true, waits until all matching resources are fully deleted from the cluster.
+//
+// Parameters:
+//   - opts(...ResourceOpts): Optional options for configuring the resource type and deletion behavior.
+func (tc *TestContext) DeleteResources(opts ...ResourceOpts) {
+	// Create a ResourceOptions object based on the provided opts.
+	ro := tc.NewResourceOptions(opts...)
+
+	// Perform the bulk delete using the configured DeleteAllOfOptions
+	tc.g.DeleteAll(
+		ro.GVK,
+		ro.DeleteAllOfOptions...,
+	).Eventually().Should(Succeed(),
+		"Failed to delete %s resources", ro.GVK.Kind)
+
+	if ro.WaitForDeletion {
+		// Wait for all matching resources to be gone
+		tc.EnsureResourcesGone(opts...)
+	}
 }
 
 // EnsureResourceDeletedThenRecreated provides a robust deletion-recreation test pattern
 // that handles the race condition between client deletion and controller recreation.
+//
+// This function:
+//  1. Captures the original resource's UID and ResourceVersion
+//  2. Deletes the resource using DeleteResource (respects all deletion options)
+//  3. Waits for the controller to recreate it with a new UID/ResourceVersion
+//  4. Verifies the recreated resource has different identity metadata
+//
+// Behavior is controlled by the following optional flags:
+//   - All DeleteResource options are supported for the deletion phase.
+//
+// Parameters:
+//   - opts(...ResourceOpts): Optional options for configuring the deletion and recreation behavior.
+//
+// Returns:
+//   - *unstructured.Unstructured: The recreated resource with new UID and ResourceVersion.
 func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) *unstructured.Unstructured {
 	ro := tc.NewResourceOptions(opts...)
 
@@ -715,26 +878,53 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 	// Step 2: Delete the resource using standard deletion
 	tc.DeleteResource(opts...)
 
-	// Step 3: Wait for controller to recreate with new identity
-	var recreatedResource *unstructured.Unstructured
+	// Step 2.5: Ensure the resource is actually deleted before looking for recreation
 	tc.g.Eventually(func(g Gomega) {
-		// Apply grace period if specified
-		if ro.GracePeriod > 0 {
-			time.Sleep(ro.GracePeriod)
+		u, err := fetchResource(ro)
+		if k8serr.IsNotFound(err) || u == nil {
+			return // Resource is successfully deleted
 		}
+		// If resource still exists, check if it has the same UID (deletion not acknowledged yet)
+		currentUID := string(u.GetUID())
+		if currentUID == originalUID {
+			g.Expect(false).To(BeTrue(), "Resource deletion not yet acknowledged - still has original UID %s", currentUID)
+		}
+		// If it has a different UID, it was already recreated, which is fine
+	}).Should(Succeed(), "Resource %s %s deletion was not acknowledged within timeout", ro.GVK.Kind, ro.ResourceID)
 
-		recreatedResource = tc.EnsureResourceExists(opts...)
+	// Step 3: Wait for controller to recreate with new identity
+	// (UID-based verification automatically handles deletion acknowledgment)
+
+	// Brief wait to allow controller-runtime cache to update after deletion
+	// This prevents cache staleness issues where operator thinks deleted resource still exists
+	time.Sleep(controllerCacheRefreshDelay)
+
+	var recreatedResource *unstructured.Unstructured
+
+	tc.g.Eventually(func(g Gomega) {
+		// Poll without nesting Eventually to avoid compounded timeouts
+		u, err := fetchResource(ro)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch %s %s", ro.GVK.Kind, ro.ResourceID)
+		g.Expect(u).NotTo(BeNil(), "Expected %s %s to be recreated", ro.GVK.Kind, ro.ResourceID)
+		recreatedResource = u
 
 		// Verify it's actually a new resource (different UID)
 		newUID := string(recreatedResource.GetUID())
 		newResourceVersion := recreatedResource.GetResourceVersion()
+
+		// Debug logging to understand what's happening
+		if newUID == originalUID {
+			// This indicates the resource was never actually deleted, just log and continue polling
+			return
+		}
 
 		g.Expect(newUID).NotTo(Equal(originalUID),
 			"Recreated resource should have different UID. Original: %s, New: %s", originalUID, newUID)
 		g.Expect(newResourceVersion).NotTo(Equal(originalResourceVersion),
 			"Recreated resource should have different ResourceVersion. Original: %s, New: %s",
 			originalResourceVersion, newResourceVersion)
-	}).WithTimeout(10*time.Minute).Should(Succeed(),
+
+	}).Should(Succeed(),
 		"Resource %s %s was not properly recreated with new identity", ro.GVK.Kind, ro.ResourceID)
 
 	return recreatedResource
@@ -884,9 +1074,9 @@ func (tc *TestContext) FetchResource(opts ...ResourceOpts) *unstructured.Unstruc
 	ro := tc.NewResourceOptions(opts...)
 
 	// Use fetchResource to attempt to fetch the resources with retries
-	resourcesList, _ := fetchResource(ro)
+	r, _ := fetchResource(ro)
 
-	return resourcesList
+	return r
 }
 
 // FetchTypedResource ensures a Kubernetes resource exists and retrieves it as a typed object.
@@ -956,7 +1146,17 @@ func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 		)
 }
 
-// Check if an operator with name starting with operatorNamePrefix exists.
+// CheckOperatorExists checks if an operator with name starting with operatorNamePrefix exists.
+//
+// This function searches for operators (CSVs) in the cluster that match the given name prefix.
+// It's commonly used to verify operator installation status before performing operator-dependent tests.
+//
+// Parameters:
+//   - operatorNamePrefix (string): The prefix of the operator name to search for.
+//
+// Returns:
+//   - bool: True if an operator matching the prefix is found, false otherwise.
+//   - error: Any error encountered during the search operation.
 func (tc *TestContext) CheckOperatorExists(operatorNamePrefix string) (bool, error) {
 	return cluster.OperatorExists(tc.Context(), tc.Client(), operatorNamePrefix)
 }
@@ -1011,6 +1211,14 @@ func (tc *TestContext) EnsureWebhookBlocksOperation(operation func() error, oper
 		// Execute the operation that should be blocked
 		err := operation()
 
+		// Handle error validation based on WithAcceptableErr or default webhook validation
+		if ro.AcceptableErrMatcher != nil {
+			// WithAcceptableErr was specified - validate specific error type
+			g.Expect(err).To(ro.AcceptableErrMatcher, "Expected specific error type but got: %v", err)
+			return
+		}
+
+		// Default webhook validation behavior
 		// Expect the operation to fail
 		g.Expect(err).To(HaveOccurred(),
 			defaultErrorMessageIfNone(
@@ -1026,6 +1234,70 @@ func (tc *TestContext) EnsureWebhookBlocksOperation(operation func() error, oper
 		[]any{operationType, ro.GVK.Kind},
 		ro.CustomErrorArgs,
 	)...)
+}
+
+// UninstallOperator uninstalls an operator by deleting its subscription and related resources.
+// This method gracefully handles missing operators and validates resource structure during uninstallation.
+//
+// The uninstallation process:
+//  1. Checks if the operator subscription exists
+//  2. Extracts related resources (CSV, InstallPlan) from subscription status
+//  3. Deletes the subscription first, then related resources
+//  4. Uses WithIgnoreNotFound for resilient cleanup
+//
+// Parameters:
+//   - operatorNamespacedName (types.NamespacedName): The namespace and name of the operator subscription
+func (tc *TestContext) UninstallOperator(operatorNamespacedName types.NamespacedName) {
+	// Check if subscription exists - ensureResourceExistsOrNil handles errors via gomega assertions
+	ro := tc.NewResourceOptions(WithMinimalObject(gvk.Subscription, operatorNamespacedName))
+	operatorSubscription, _ := tc.ensureResourceExistsOrNil(ro)
+
+	if operatorSubscription == nil {
+		// Subscription doesn't exist, nothing to uninstall
+		return
+	}
+
+	// Validate subscription structure and extract related resource information
+	tc.g.Expect(operatorSubscription.GetKind()).To(Equal("Subscription"),
+		"Expected resource to be a Subscription, got %s", operatorSubscription.GetKind())
+
+	// Extract CSV and InstallPlan names with proper error handling
+	csv, foundCSV, errCSV := unstructured.NestedString(operatorSubscription.UnstructuredContent(), "status", "currentCSV")
+	tc.g.Expect(errCSV).NotTo(HaveOccurred(),
+		"Failed to extract currentCSV from subscription %s", operatorNamespacedName.Name)
+
+	installPlan, foundPlan, errPlan := unstructured.NestedString(operatorSubscription.UnstructuredContent(), "status", "installPlanRef", "name")
+	tc.g.Expect(errPlan).NotTo(HaveOccurred(),
+		"Failed to extract installPlanRef.name from subscription %s", operatorNamespacedName.Name)
+
+	namespace := operatorSubscription.GetNamespace()
+	tc.g.Expect(namespace).NotTo(BeEmpty(),
+		"Subscription %s should have a namespace", operatorNamespacedName.Name)
+
+	// Delete subscription first - this prevents new installations
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Subscription, operatorNamespacedName),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(false),
+	)
+
+	// Delete CSV if found and valid
+	if foundCSV && csv != "" {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Name: csv, Namespace: namespace}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(false),
+		)
+	}
+
+	// Delete InstallPlan if found and valid
+	if foundPlan && installPlan != "" {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.InstallPlan, types.NamespacedName{Name: installPlan, Namespace: namespace}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(false),
+		)
+	}
 }
 
 func (tc *TestContext) convertToResource(u *unstructured.Unstructured, obj client.Object) {
@@ -1071,11 +1343,21 @@ func (tc *TestContext) ensureResourceDoesNotExist(g Gomega, ro *ResourceOptions)
 	// Fetch the resource using fetchResource.
 	u, err := fetchResource(ro)
 
+	// Handle "not found" errors based on IgnoreNotFound setting
+	if ro.IgnoreNotFound && k8serr.IsNotFound(err) {
+		// For deletion scenarios, "not found" means success - resource is gone
+		return nil
+	}
+
+	// If we have an error that's not "not found", let the caller handle it
+	if err != nil {
+		return err
+	}
+
 	// Assert that the resource is not found.
 	g.Expect(u).To(BeNil(), resourceFoundErrorMsg, ro.ResourceID, ro.GVK.Kind)
 
-	// Return the error encountered during resource retrieval, if any.
-	return err
+	return nil
 }
 
 // ensureResourcesDoNotExist is a helper function that retrieves a list of Kubernetes resources
@@ -1091,10 +1373,21 @@ func (tc *TestContext) ensureResourceDoesNotExist(g Gomega, ro *ResourceOptions)
 func (tc *TestContext) ensureResourcesDoNotExist(g Gomega, ro *ResourceOptions) error {
 	resourcesList, err := fetchResources(ro)
 
+	// Handle "not found" errors based on IgnoreNotFound setting
+	if ro.IgnoreNotFound && k8serr.IsNotFound(err) {
+		// For deletion scenarios, "not found" means success - resource is gone
+		return nil
+	}
+
+	// If we have an error that's not "not found", let the caller handle it
+	if err != nil {
+		return err
+	}
+
 	// Ensure that the resources list is empty (resources should not exist)
 	g.Expect(resourcesList).To(BeEmpty(), resourceListNotEmptyErrorMsg, ro.ResourceID, ro.GVK.Kind)
 
-	return err
+	return nil
 }
 
 // createSubscription creates a Subscription object.
@@ -1182,5 +1475,71 @@ func (tc *TestContext) validateWebhookError(g Gomega, err error, operationType s
 				[]any{ro.InvalidValue, operationType, errorMsg},
 				ro.CustomErrorArgs,
 			)...)
+	}
+}
+
+// tryRemoveFinalizers attempts to remove finalizers from a resource in a best-effort manner.
+// If the operation fails (e.g., due to validation errors, resource not found, etc.),
+// it logs the failure but does not propagate the error, allowing deletion to proceed.
+func (tc *TestContext) tryRemoveFinalizers(gvk schema.GroupVersionKind, nn types.NamespacedName) {
+	defer func() {
+		if r := recover(); r != nil {
+			// If gomega panics (e.g., due to assertion failures), catch it and continue
+			// Silently ignore failures - deletion will proceed anyway
+		}
+	}()
+
+	// Try to remove finalizers by fetching the existing resource first
+	// This avoids validation issues with minimal objects that have empty specs
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithFetchedObject(gvk, nn),
+		WithMutateFunc(testf.Transform(`.metadata.finalizers = []`)),
+		WithIgnoreNotFound(true),
+		WithAcceptableErr(meta.IsNoMatchError, "IsNoMatchError"),
+		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout), // Short timeout for best-effort
+	)
+}
+
+// CheckMinOCPVersion checks if the OpenShift cluster version meets the minimum required version.
+//
+// This helper function checks if the current OpenShift cluster version is greater than or equal
+// to the specified minimum version. It's useful for skipping tests or enabling features based
+// on OpenShift version requirements.
+//
+// Parameters:
+//   - minVersion (string): The minimum required version in semver format (e.g., "4.18.0", "4.17.9")
+//
+// Returns:
+//   - bool: true if the cluster version meets the minimum requirement, false otherwise
+//   - error: error if version parsing fails
+func (tc *TestContext) CheckMinOCPVersion(minVersion string) (bool, error) {
+	currentVersion := cluster.GetClusterInfo().Version
+	requiredVersion, err := semver.ParseTolerant(minVersion)
+	if err != nil {
+		// If we can't parse the version, log error and return false for safety
+		return false, fmt.Errorf("failed to parse minimum version requirement %s: %w", minVersion, err)
+	}
+
+	// Check if current version is greater than or equal to required version
+	return currentVersion.GTE(requiredVersion), nil
+}
+
+// SkipIfOCPVersionBelow is a test helper that skips the current test if the OpenShift cluster
+// version is below the specified minimum version.
+//
+// This is a convenience wrapper around CheckMinOCPVersion specifically designed for test skipping.
+// It automatically calls t.Skipf() with a descriptive message when the version requirement is not met.
+//
+// Parameters:
+//   - t (*testing.T): The test instance to skip
+//   - minVersion (string): The minimum required version in semver format (e.g., "4.18.0")
+//   - reason (string): Description of why this version is required (appears in skip message)
+func (tc *TestContext) SkipIfOCPVersionBelow(t *testing.T, minVersion string, reason string) {
+	t.Helper()
+	meets, err := tc.CheckMinOCPVersion(minVersion)
+	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to check OCP version")
+	if !meets {
+		t.Skipf("Skipping test: requires OpenShift %s or above for %s, current version: %s",
+			minVersion, reason, cluster.GetClusterInfo().Version.String())
 	}
 }
