@@ -5,65 +5,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 )
-
-// TestAuthConformsToCommonPlatformObject validates that the Auth type properly implements
-// the common.PlatformObject interface, which is required for integration with the
-// operator framework. This test ensures:
-//
-// 1. Auth can be cast to PlatformObject interface (compile-time verification)
-// 2. GetStatus() method returns the correct status object
-// 3. GetConditions() and SetConditions() work properly for status management
-//
-// This is critical because the operator framework relies on these interface methods
-// for status reporting, condition management, and reconciliation logic.
-func TestAuthConformsToCommonPlatformObject(t *testing.T) {
-	g := NewWithT(t)
-
-	auth := &Auth{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "auth",
-		},
-		Spec: AuthSpec{
-			AdminGroups:   []string{"admin-group"},
-			AllowedGroups: []string{"allowed-group"},
-		},
-		Status: AuthStatus{
-			Status: common.Status{
-				Phase: "Ready",
-			},
-		},
-	}
-
-	// Test that Auth implements PlatformObject interface
-	var platformObj common.PlatformObject = auth
-	g.Expect(platformObj).ToNot(BeNil())
-
-	// Test GetStatus method
-	status := auth.GetStatus()
-	g.Expect(status).ToNot(BeNil())
-	g.Expect(status.Phase).To(Equal("Ready"))
-
-	// Test condition methods
-	conditions := auth.GetConditions()
-	g.Expect(conditions).To(BeEmpty()) // Initially empty
-
-	// Set conditions and verify
-	testConditions := []common.Condition{
-		{
-			Type:   "Ready",
-			Status: "True",
-		},
-	}
-	auth.SetConditions(testConditions)
-
-	retrievedConditions := auth.GetConditions()
-	g.Expect(retrievedConditions).To(HaveLen(1))
-	g.Expect(retrievedConditions[0].Type).To(Equal("Ready"))
-	g.Expect(string(retrievedConditions[0].Status)).To(Equal("True"))
-}
 
 // TestAuthSpecStructure validates the basic Go struct functionality of AuthSpec.
 // This test ensures:

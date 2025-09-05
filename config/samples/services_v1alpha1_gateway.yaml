@@ -1,0 +1,9 @@
+apiVersion: services.opendatahub.io/v1alpha1
+kind: Gateway
+metadata:
+  labels:
+    app.kubernetes.io/name: opendatahub-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: gateway-sample
+spec:
+  # TODO(user): Add fields here

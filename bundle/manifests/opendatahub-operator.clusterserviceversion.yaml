@@ -122,9 +122,10 @@ metadata:
       "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
-      "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
-      "servicemeshes.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
-      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
+      "workbenches.components.platform.opendatahub.io", "gateways.services.platform.opendatahub.io",
+      "monitorings.services.platform.opendatahub.io", "servicemeshes.services.platform.opendatahub.io",
+      "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
+      "llamastackoperators.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v2.33.0
@@ -172,6 +173,11 @@ spec:
     - kind: FeatureTracker
       name: featuretrackers.features.opendatahub.io
       version: v1
+    - description: Gateway is the Schema for the gateways API
+      displayName: Gateway
+      kind: Gateway
+      name: gateways.services.platform.opendatahub.io
+      version: v1alpha1
     - description: HardwareProfile is the Schema for the hardwareprofiles API.
       displayName: Hardware Profile
       kind: HardwareProfile
