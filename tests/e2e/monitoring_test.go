@@ -63,6 +63,7 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test OpenTelemetry Collector Deployment", monitoringServiceCtx.ValidateOpenTelemetryCollectorDeployment},
 		{"Test OpenTelemetry Collector Traces Configuration", monitoringServiceCtx.ValidateOpenTelemetryCollectorTracesConfiguration},
 		{"Test OpenTelemetry Collector Custom Metrics Exporters", monitoringServiceCtx.ValidateOpenTelemetryCollectorCustomMetricsExporters},
+		{"Test Opentelemetry CollectorReplicas", monitoringServiceCtx.ValidateMonitoringCRCollectorReplicas},
 		{"Test Instrumentation CR Traces Creation", monitoringServiceCtx.ValidateInstrumentationCRTracesWhenSet},
 		{"Test Instrumentation CR Traces Configuration", monitoringServiceCtx.ValidateInstrumentationCRTracesConfiguration},
 		{"Test OpenTelemetry Collector Custom Traces Exporters", monitoringServiceCtx.ValidateOpenTelemetryCollectorCustomTracesExporters},
@@ -219,6 +220,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRDeleted(t *testing.T) {
 			testf.Transform(`.spec.monitoring.metrics = null`),
 			testf.Transform(`.spec.monitoring.traces = null`),
 			testf.Transform(`.spec.monitoring.namespace = "%s"`, dsci.Spec.Monitoring.Namespace),
+			testf.Transform(`.spec.monitoring.collectorReplicas = null`),
 		)),
 	)
 
@@ -556,12 +558,6 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesWhenSet(t *testing.T
 		WithMinimalObject(gvk.Instrumentation, types.NamespacedName{Name: "data-science-instrumentation", Namespace: dsci.Spec.Monitoring.Namespace}),
 		WithCustomErrorMsg("Instrumentation CR should be created when traces are configured"),
 	)
-
-	// Cleanup: Reset DSCInitialization traces configuration to prevent state contamination
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
-	)
 }
 
 // ValidateInstrumentationCRTracesConfiguration validates the content of the Instrumentation CR with Traces.
@@ -874,4 +870,32 @@ func setMonitoringMetricsWithCustomExporters() testf.TransformFn {
 
 		return unstructured.SetNestedField(obj.Object, metricsConfig, "spec", "monitoring", "metrics")
 	}
+}
+
+func (tc *MonitoringTestCtx) ValidateMonitoringCRCollectorReplicas(t *testing.T) {
+	t.Helper()
+
+	// collectorreplicas should already be set to the default value of 2
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(
+			And(
+				jq.Match(`.spec.collectorReplicas == 2`),
+			),
+		),
+		WithCustomErrorMsg("CollectorReplicas should be set to the default value of 2"),
+	)
+
+	// set collectorreplicas to 3
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.collectorReplicas = 3`)),
+	)
+
+	// collectorreplicas should be set to 3 by DSCInitialization controller
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.spec.collectorReplicas == 3`)),
+		WithCustomErrorMsg("CollectorReplicas should be set to 3 by DSCInitialization controller"),
+	)
 }
