@@ -717,7 +717,7 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 			expectMessage: "webhook decoder not initialized",
 		},
 		{
-			name:     "unexpected kind",
+			name:     "unsupported kind is allowed without mutation",
 			injector: createWebhookInjector(fake.NewClientBuilder().WithScheme(sch).Build(), sch),
 			workload: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -725,8 +725,8 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 					Namespace: testNamespace,
 				},
 			},
-			expectAllowed: false,
-			expectMessage: "unexpected kind: Pod",
+			expectAllowed: true,
+			expectMessage: "Resource kind Pod not supported for hardware profile injection",
 		},
 		{
 			name:     "missing hardware profile namespace",

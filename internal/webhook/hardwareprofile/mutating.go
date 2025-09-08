@@ -102,7 +102,7 @@ func (i *Injector) SetupWithManager(mgr ctrl.Manager) error {
 //
 // Error Handling:
 //   - Returns HTTP 500 if the decoder is not initialized
-//   - Returns HTTP 400 for unsupported resource kinds
+//   - For unsupported resource kinds, returns Admission.Allowed with a descriptive message; no mutation is performed
 //   - Delegates error handling to injection logic for supported operations
 //
 // Parameters:
@@ -120,11 +120,10 @@ func (i *Injector) Handle(ctx context.Context, req admission.Request) admission.
 		return admission.Errored(http.StatusInternalServerError, errors.New("webhook decoder not initialized"))
 	}
 
-	// Validate that we're processing an expected resource kind
+	// creation is allowed but we skip injection, this should not happen in a real cluster as webhook limits supported kind
 	if !isExpectedKind(req.Kind) {
-		err := fmt.Errorf("unexpected kind: %s", req.Kind.Kind)
-		log.Error(err, "got wrong kind")
-		return admission.Errored(http.StatusBadRequest, err)
+		log.V(1).Info("Skipping hardware profile injection for unsupported resource kind", "kind", req.Kind.Kind)
+		return admission.Allowed(fmt.Sprintf("Resource kind %s not supported for hardware profile injection", req.Kind.Kind))
 	}
 
 	// Decode the object to check deletion timestamp
