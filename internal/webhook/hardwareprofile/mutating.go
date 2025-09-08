@@ -38,9 +38,9 @@ const (
 
 // WorkloadConfig defines path configuration for different workload types.
 type WorkloadConfig struct {
-	ContainersPath   []string
-	NodeSelectorPath []string
-	TolerationsPath  []string
+	ContainersPath   []string // .spec.identifiers from HWProfile
+	NodeSelectorPath []string // .spec.scheduling.node.nodeSelector from HWProfile
+	TolerationsPath  []string // .spec.scheduling.node.tolerations from HWProfile
 }
 
 // WorkloadConfigs maps Kubernetes resource kinds to their configuration paths.
@@ -55,10 +55,16 @@ var WorkloadConfigs = map[string]WorkloadConfig{
 		NodeSelectorPath: []string{"spec", "predictor", "podSpec", "nodeSelector"},
 		TolerationsPath:  []string{"spec", "predictor", "podSpec", "tolerations"},
 	},
+	gvk.LLMInferenceServiceV1Alpha1.Kind: {
+		ContainersPath:   []string{"spec", "template", "containers"},
+		NodeSelectorPath: []string{"spec", "template", "nodeSelector"},
+		TolerationsPath:  []string{"spec", "template", "tolerations"},
+	},
 }
 
 //+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=kubeflow.org,resources=notebooks,verbs=create;update,versions=v1,name=hardwareprofile-notebook-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
-//+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=hardwareprofile-kserve-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=hardwareprofile-isvc-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/mutate-hardware-profile,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=llminferenceservices,verbs=create;update,versions=v1alpha1,name=hardwareprofile-llmisvc-injector.opendatahub.io,sideEffects=None,admissionReviewVersions=v1
 //nolint:lll
 
 // Injector implements a mutating admission webhook for hardware profile injection.
@@ -127,11 +133,10 @@ func (i *Injector) Handle(ctx context.Context, req admission.Request) admission.
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	// Decode the object to check deletion timestamp
-	obj := &unstructured.Unstructured{}
-	if err := i.Decoder.Decode(req, obj); err != nil {
-		log.Error(err, "Failed to decode object")
-		return admission.Errored(http.StatusBadRequest, err)
+	// Decode the object
+	obj, err := webhookutils.DecodeUnstructured(i.Decoder, req)
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
 	// Skip processing if object is marked for deletion
@@ -139,16 +144,12 @@ func (i *Injector) Handle(ctx context.Context, req admission.Request) admission.
 		return admission.Allowed("Object marked for deletion, skipping hardware profile injection")
 	}
 
-	var resp admission.Response
-
 	switch req.Operation {
 	case admissionv1.Create, admissionv1.Update:
-		resp = i.performHardwareProfileInjection(ctx, &req, obj)
+		return i.performHardwareProfileInjection(ctx, &req, obj)
 	default:
-		resp = admission.Allowed(fmt.Sprintf("Operation %s on %s allowed", req.Operation, req.Kind.Kind))
+		return admission.Allowed(fmt.Sprintf("Operation %s on %s allowed", req.Operation, req.Kind.Kind))
 	}
-
-	return resp
 }
 
 // isExpectedKind checks if the given GroupVersionKind is supported by the webhook.
@@ -161,8 +162,9 @@ func (i *Injector) Handle(ctx context.Context, req admission.Request) admission.
 func isExpectedKind(kind metav1.GroupVersionKind) bool {
 	// expectedGVKs contains the list of resource types that the hardware profile webhook should handle.
 	expectedGVKs := []schema.GroupVersionKind{
-		gvk.Notebook,          // kubeflow.org/v1/Notebook
-		gvk.InferenceServices, // serving.kserve.io/v1beta1/InferenceService
+		gvk.Notebook,                    // kubeflow.org/v1/Notebook
+		gvk.InferenceServices,           // serving.kserve.io/v1beta1/InferenceService
+		gvk.LLMInferenceServiceV1Alpha1, // serving.kserve.io/v1alpha1/LLMInferenceService
 	}
 
 	requestGVK := schema.GroupVersionKind{
@@ -181,7 +183,7 @@ func isExpectedKind(kind metav1.GroupVersionKind) bool {
 }
 
 // performHardwareProfileInjection handles the core logic for hardware profile injection.
-// This method orchestrates the entire process of applying hardware profile specifications
+// This method orchestrates the entire process of applying hardwareprofile specifications
 // to workload resources.
 //
 // The injection process follows these steps:
@@ -227,20 +229,22 @@ func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *adm
 		return admission.Errored(http.StatusBadRequest, errors.New("unable to determine hardware profile namespace"))
 	}
 
-	// Get the hardware profile
+	// Get hardwareprofile.infrastructure.opendatahub.io/v1alpha1 CR
 	hwp, err := i.fetchHardwareProfile(ctx, profileNamespace, profileName)
 	if err != nil {
-		log.Error(err, "Failed to get hardware profile", "profile", profileName, "namespace", profileNamespace)
+		log.Error(err, "Failed to get hardware profile CR", "profile", profileName, "namespace", profileNamespace)
 		return admission.Errored(http.StatusForbidden, err)
 	}
 
 	// Early exit if hardware profile has no meaningful configuration
 	if len(hwp.Spec.Identifiers) == 0 && hwp.Spec.SchedulingSpec == nil {
-		return admission.Allowed("Hardware profile has no configuration to apply")
+		return admission.Allowed("HardwareProfile has no configuration to apply")
 	}
 
-	// Set the hardware profile namespace annotation
-	resources.SetAnnotation(obj, HardwareProfileNamespaceAnnotation, profileNamespace)
+	// Only set the annotation if it wasn't already set
+	if resources.GetAnnotation(obj, HardwareProfileNamespaceAnnotation) == "" {
+		resources.SetAnnotation(obj, HardwareProfileNamespaceAnnotation, profileNamespace)
+	}
 
 	// Apply hardware profile specifications
 	if err := i.applyHardwareProfileToWorkload(ctx, obj, hwp); err != nil {
@@ -294,7 +298,7 @@ func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name str
 	return hwp, nil
 }
 
-// applyHardwareProfileToWorkload applies hardware profile specifications to any supported
+// applyHardwareProfileToWorkload applies hardwareprofile specifications to any supported
 // Kubernetes workload resource. This method is the central orchestrator for applying
 // all hardware profile configurations to workload resources.
 //
@@ -305,7 +309,7 @@ func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name str
 // Resource Application Strategy:
 //   - Only applies resource requirements to containers that don't already have them
 //   - Preserves existing resource specifications in containers
-//   - Supports both standard resources (CPU, memory) and custom resources (nvidia.com/gpu)
+//   - Supports both standard resources (CPU, memory) and custom resources (nvidia.com/gpu, amd.com/gpu)
 //
 // Scheduling Configuration:
 //   - Applies Kueue LocalQueue labels for queue-based scheduling
@@ -318,7 +322,7 @@ func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name str
 //   - hwp: The HardwareProfile resource containing specifications to apply
 //
 // Returns:
-//   - error: Any error encountered during hardware profile application, nil on success
+//   - error: Any error encountered during hardwareprofile application, nil on success
 func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unstructured.Unstructured, hwp *hwpv1alpha1.HardwareProfile) error {
 	log := logf.FromContext(ctx)
 
@@ -326,7 +330,7 @@ func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unst
 
 	// Apply resource requirements to containers (only if there are identifiers)
 	if len(hwp.Spec.Identifiers) > 0 {
-		if err := i.applyResourceRequirementsToWorkload(obj, hwp); err != nil {
+		if err := i.applyResourceRequirementsToWorkload(obj, hwp.Spec.Identifiers); err != nil {
 			return fmt.Errorf("failed to apply resource requirements: %w", err)
 		}
 	}
@@ -336,11 +340,12 @@ func (i *Injector) applyHardwareProfileToWorkload(ctx context.Context, obj *unst
 		// Apply Kueue LocalQueue label
 		if hwp.Spec.SchedulingSpec.Kueue != nil && hwp.Spec.SchedulingSpec.Kueue.LocalQueueName != "" {
 			resources.SetLabel(obj, cluster.KueueQueueNameLabel, hwp.Spec.SchedulingSpec.Kueue.LocalQueueName)
+			return nil // won't need to continue handling Node scheduling configuration
 		}
 
 		// Apply Node scheduling configuration
 		if hwp.Spec.SchedulingSpec.Node != nil {
-			if err := i.applyNodeSchedulingConfiguration(obj, hwp); err != nil {
+			if err := i.applyNodeSchedulingConfiguration(obj, hwp.Spec.SchedulingSpec.Node); err != nil {
 				return fmt.Errorf("failed to apply node scheduling configuration: %w", err)
 			}
 		}
@@ -369,18 +374,18 @@ func GetWorkloadConfig(kind string) (WorkloadConfig, error) {
 	return config, nil
 }
 
-// applyResourceRequirementsToWorkload applies resource requirements to all containers
+// applyResourceRequirementsToWorkload applies resource requirements (cpu, memory, counts) to all containers
 // in a workload resource. This method handles the container-level resource injection
 // for both standard and custom resource types.
 //
 // Parameters:
 //   - obj: The unstructured workload object containing containers to modify
-//   - hwp: The HardwareProfile resource containing resource identifiers to apply
+//   - identifiers: The HardwareProfile resource containing resource identifiers to apply
 //
 // Returns:
 //   - error: Any error encountered during resource requirement application, nil on success
 
-func (i *Injector) applyResourceRequirementsToWorkload(obj *unstructured.Unstructured, hwp *hwpv1alpha1.HardwareProfile) error {
+func (i *Injector) applyResourceRequirementsToWorkload(obj *unstructured.Unstructured, identifiers []hwpv1alpha1.HardwareIdentifier) error {
 	config, err := GetWorkloadConfig(obj.GetKind())
 	if err != nil {
 		return err
@@ -397,7 +402,7 @@ func (i *Injector) applyResourceRequirementsToWorkload(obj *unstructured.Unstruc
 
 	// Apply resource requirements to each container
 	for idx, container := range containers {
-		if err := i.applyIdentifiersToContainer(container, hwp.Spec.Identifiers); err != nil {
+		if err := i.applyIdentifiersToContainer(container, identifiers); err != nil {
 			return fmt.Errorf("failed to apply resources to container %d: %w", idx, err)
 		}
 	}
@@ -492,13 +497,11 @@ func (i *Injector) applyIdentifiersToRequests(requests map[string]interface{}, i
 //
 // Parameters:
 //   - obj: The unstructured workload object to modify
-//   - hwp: The HardwareProfile resource containing node scheduling specifications
+//   - nodeSpec: The NodeSchedulingSpec resource containing node scheduling specifications
 //
 // Returns:
 //   - error: Any error encountered during node scheduling configuration application
-func (i *Injector) applyNodeSchedulingConfiguration(obj *unstructured.Unstructured, hwp *hwpv1alpha1.HardwareProfile) error {
-	nodeSpec := hwp.Spec.SchedulingSpec.Node
-
+func (i *Injector) applyNodeSchedulingConfiguration(obj *unstructured.Unstructured, nodeSpec *hwpv1alpha1.NodeSchedulingSpec) error {
 	config, err := GetWorkloadConfig(obj.GetKind())
 	if err != nil {
 		return fmt.Errorf("unsupported workload kind for node scheduling: %s", obj.GetKind())
@@ -517,7 +520,7 @@ func (i *Injector) applyNodeSchedulingConfiguration(obj *unstructured.Unstructur
 		for i, toleration := range nodeSpec.Tolerations {
 			tolerationUnstructured, err := resources.ToUnstructured(&toleration)
 			if err != nil {
-				return fmt.Errorf("failed to convert toleration to unstructured: %w", err)
+				return fmt.Errorf("failed to convert tolerations to unstructured: %w", err)
 			}
 			tolerationsSlice[i] = tolerationUnstructured.Object
 		}

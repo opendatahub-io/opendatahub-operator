@@ -761,7 +761,7 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 			}(),
 			workload:      envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)),
 			expectAllowed: true,
-			expectMessage: "Hardware profile has no configuration to apply",
+			expectMessage: "HardwareProfile has no configuration to apply",
 		},
 	}
 
