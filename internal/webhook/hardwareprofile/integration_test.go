@@ -28,8 +28,9 @@ import (
 type WorkloadType string
 
 const (
-	WorkloadTypeNotebook         WorkloadType = "Notebook"
-	WorkloadTypeInferenceService WorkloadType = "InferenceService"
+	WorkloadTypeNotebook            WorkloadType = "Notebook"
+	WorkloadTypeInferenceService    WorkloadType = "InferenceService"
+	WorkloadTypeLlmInferenceService WorkloadType = "LlmInferenceService"
 )
 
 // expectResourceRequirementsAtPath is a generic helper that verifies resource requirements at a specific path.
@@ -486,6 +487,87 @@ func TestHardwareProfileWebhook_Notebook(t *testing.T) {
 	}
 }
 
+// TestHardwareProfileWebhook_LlmInferenceService for the mutating webhook logic for hardware profile injection on LlmInferenceService workloads.
+func TestHardwareProfileWebhook_LlmInferenceService(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		test func(g Gomega, ctx context.Context, k8sClient client.Client, ns string)
+	}{
+		// LLMInferenceService test cases
+		{
+			name: "llminferenceservice - no hardware profile annotation",
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				config, err := hardwareprofilewebhook.GetWorkloadConfig("LLMInferenceService")
+				g.Expect(err).ShouldNot(HaveOccurred())
+				testUpdateOperationForWorkload(g, ctx, k8sClient, ns, "test-llmisvce-no-annotation",
+					func() client.Object { return envtestutil.NewLLMInferenceService("test-llmisvce-no-annotation", ns) },
+					func() *unstructured.Unstructured {
+						u := &unstructured.Unstructured{}
+						u.SetAPIVersion("serving.kserve.io/v1alpha1")
+						u.SetKind("LLMInferenceService")
+						return u
+					},
+					config.ContainersPath, WorkloadTypeLlmInferenceService)
+			},
+		},
+		{
+			name: "llminferenceservice - valid hardwareprofile with resources",
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				config, err := hardwareprofilewebhook.GetWorkloadConfig("LLMInferenceService")
+				g.Expect(err).ShouldNot(HaveOccurred())
+				testValidHardwareProfileWithResourcesForWorkload(g, ctx, k8sClient, ns,
+					func() client.Object {
+						return envtestutil.NewLLMInferenceService("test-llmisvc-resources", ns,
+							envtestutil.WithHardwareProfile("resource-profile"))
+					},
+					config.ContainersPath, WorkloadTypeLlmInferenceService)
+			},
+		},
+		{
+			name: "llminferenceservice - hardware profile with node scheduling",
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				config, err := hardwareprofilewebhook.GetWorkloadConfig("LLMInferenceService")
+				g.Expect(err).ShouldNot(HaveOccurred())
+				testHardwareProfileWithNodeSchedulingForWorkload(g, ctx, k8sClient, ns,
+					func() client.Object {
+						return envtestutil.NewLLMInferenceService("test-llmisvc-node", ns,
+							envtestutil.WithHardwareProfile("node-profile"))
+					},
+					config.NodeSelectorPath, config.TolerationsPath)
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
+				t,
+				[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
+				envtestutil.DefaultWebhookTimeout,
+				envtestutil.WithLLMInferenceService(),
+			)
+			defer teardown()
+
+			// Create test namespace
+			ns := fmt.Sprintf("test-ns-%s", xid.New().String())
+			testNamespace := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: ns},
+			}
+			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
+
+			// Add HardwareProfile types to scheme for client operations
+			g.Expect(hwpv1alpha1.AddToScheme(env.Scheme())).To(Succeed())
+
+			// Run the specific test case
+			tc.test(g, ctx, env.Client(), ns)
+		})
+	}
+}
+
 // TestHardwareProfileWebhook_InferenceService for the mutating webhook logic for hardware profile injection on InferenceService workloads.
 func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 	t.Parallel()
@@ -495,7 +577,7 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 		test func(g Gomega, ctx context.Context, k8sClient client.Client, ns string)
 	}{
 		{
-			name: "inference service - no hardware profile annotation",
+			name: "inferenceservice - no hardware profile annotation",
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
 				config, err := hardwareprofilewebhook.GetWorkloadConfig("InferenceService")
 				g.Expect(err).ShouldNot(HaveOccurred())
@@ -507,7 +589,7 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 			},
 		},
 		{
-			name: "inference service - valid hardware profile with resources",
+			name: "inferenceservice - valid hardware profile with resources",
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
 				config, err := hardwareprofilewebhook.GetWorkloadConfig("InferenceService")
 				g.Expect(err).ShouldNot(HaveOccurred())
@@ -520,7 +602,7 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 			},
 		},
 		{
-			name: "inference service - hardware profile with node scheduling",
+			name: "inferenceservice - hardware profile with node scheduling",
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
 				config, err := hardwareprofilewebhook.GetWorkloadConfig("InferenceService")
 				g.Expect(err).ShouldNot(HaveOccurred())
@@ -533,7 +615,7 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 			},
 		},
 		{
-			name: "inference service - hardware profile with Kueue",
+			name: "inferenceservice - hardware profile with Kueue",
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
 				testHardwareProfileWithKueueForWorkload(g, ctx, k8sClient, ns,
 					func() client.Object {
@@ -544,7 +626,7 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 			},
 		},
 		{
-			name: "inference service - update operation",
+			name: "inferenceservice - update operation",
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
 				config, err := hardwareprofilewebhook.GetWorkloadConfig("InferenceService")
 				g.Expect(err).ShouldNot(HaveOccurred())
@@ -560,7 +642,6 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 			},
 		},
 	}
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
