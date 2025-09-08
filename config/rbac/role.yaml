@@ -777,6 +777,7 @@ rules:
   - monitoringstacks
   - prometheusrules
   - servicemonitors
+  - thanosqueriers
   verbs:
   - create
   - delete
@@ -791,6 +792,7 @@ rules:
   - monitoringstacks/finalizers
   - prometheusrules/finalizers
   - servicemonitors/finalizers
+  - thanosqueriers/finalizers
   verbs:
   - update
 - apiGroups:
@@ -799,6 +801,7 @@ rules:
   - monitoringstacks/status
   - prometheusrules/status
   - servicemonitors/status
+  - thanosqueriers/status
   verbs:
   - get
   - patch
