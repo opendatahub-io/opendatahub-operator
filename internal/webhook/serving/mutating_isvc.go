@@ -1,6 +1,6 @@
 //go:build !nowebhook
 
-package inferenceservice
+package serving
 
 import (
 	"context"
@@ -22,20 +22,11 @@ import (
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
-// create new type for connection types.
-type ConnectionType string
-
-const (
-	// ConnectionTypeURI represents uri connections.
-	ConnectionTypeURI ConnectionType = "uri-v1"
-	// ConnectionTypeS3 represents s3 connections.
-	ConnectionTypeS3 ConnectionType = "s3"
-	// ConnectionTypeOCI represents oci connections.
-	ConnectionTypeOCI ConnectionType = "oci-v1"
-)
-
-func (ct ConnectionType) String() string {
-	return string(ct)
+type ISVCConnectionWebhook struct {
+	APIReader client.Reader
+	Client    client.Client // used to create ServiceAccount
+	Decoder   admission.Decoder
+	Name      string
 }
 
 type InferenceServingPath struct {
@@ -62,9 +53,9 @@ type ConnectionWebhook struct {
 	Name      string
 }
 
-var _ admission.Handler = &ConnectionWebhook{}
+var _ admission.Handler = &ISVCConnectionWebhook{}
 
-func (w *ConnectionWebhook) SetupWithManager(mgr ctrl.Manager) error {
+func (w *ISVCConnectionWebhook) SetupWithManager(mgr ctrl.Manager) error {
 	hookServer := mgr.GetWebhookServer()
 	hookServer.Register("/platform-connection-isvc", &webhook.Admission{
 		Handler:        w,
@@ -73,7 +64,7 @@ func (w *ConnectionWebhook) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 
-func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (w *ISVCConnectionWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
 	log := logf.FromContext(ctx)
 
 	// Check if request object is valid
@@ -186,7 +177,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 	}
 }
 
-func (w *ConnectionWebhook) performConnectionInjection(
+func (w *ISVCConnectionWebhook) performConnectionInjection(
 	ctx context.Context,
 	req admission.Request,
 	secretName string,
@@ -213,7 +204,7 @@ func (w *ConnectionWebhook) performConnectionInjection(
 
 	case ConnectionTypeURI:
 		if err := w.injectURIStorageUri(ctx, decodedObj, secretName, req.Namespace); err != nil {
-			return false, fmt.Errorf("failed to inject URI storageUri: %w", err)
+			return false, fmt.Errorf("failed to inject host to .spec.predictor.model.storageUri: %w", err)
 		}
 		log.V(1).Info("Successfully injected URI storageUri from secret", "secretName", secretName)
 		return true, nil
@@ -233,7 +224,7 @@ func (w *ConnectionWebhook) performConnectionInjection(
 
 // performConnectionCleanup removes previously injected connection fields when the annotation is removed on UPDATE operation.
 // all possible connection types are checked for cleanup.
-func (w *ConnectionWebhook) performConnectionCleanup(
+func (w *ISVCConnectionWebhook) performConnectionCleanup(
 	ctx context.Context,
 	req admission.Request,
 	decodedObj *unstructured.Unstructured,
@@ -306,14 +297,14 @@ func hasS3StorageKey(obj *unstructured.Unstructured) bool {
 }
 
 // cleanupOCIImagePullSecrets set empty slice to spec.predictor.imagePullSecrets.
-func (w *ConnectionWebhook) cleanupOCIImagePullSecrets(obj *unstructured.Unstructured) (bool, error) {
+func (w *ISVCConnectionWebhook) cleanupOCIImagePullSecrets(obj *unstructured.Unstructured) (bool, error) {
 	err := webhookutils.SetNestedValue(obj.Object, []interface{}{}, IsvcConfigs.ImagePullSecretPath)
 	return true, err
 }
 
 // cleanupURIStorageUri delete the storageUri field from spec.predictor.model.
 // cannot just set to empty string, it will fail in ValidateStorageURI().
-func (w *ConnectionWebhook) cleanupURIStorageUri(obj *unstructured.Unstructured) (bool, error) {
+func (w *ISVCConnectionWebhook) cleanupURIStorageUri(obj *unstructured.Unstructured) (bool, error) {
 	model, _, err := unstructured.NestedMap(obj.Object, IsvcConfigs.ModelPath...)
 	if err != nil {
 		return false, fmt.Errorf("failed to get spec.predictor.model: %w", err)
@@ -327,7 +318,7 @@ func (w *ConnectionWebhook) cleanupURIStorageUri(obj *unstructured.Unstructured)
 }
 
 // cleanupS3StorageKey removes the storage field from spec.predictor.model.
-func (w *ConnectionWebhook) cleanupS3StorageKey(obj *unstructured.Unstructured) (bool, error) {
+func (w *ISVCConnectionWebhook) cleanupS3StorageKey(obj *unstructured.Unstructured) (bool, error) {
 	model, _, err := unstructured.NestedMap(obj.Object, IsvcConfigs.ModelPath...)
 	if err != nil {
 		return false, fmt.Errorf("failed to get spec.predictor.model: %w", err)
@@ -342,7 +333,7 @@ func (w *ConnectionWebhook) cleanupS3StorageKey(obj *unstructured.Unstructured) 
 
 // handleSA injects serviceaccount into spec.predictor.serviceAccountName.
 // if saName is "", it is removal.
-func (w *ConnectionWebhook) handleSA(obj *unstructured.Unstructured, saName string) error {
+func (w *ISVCConnectionWebhook) handleSA(obj *unstructured.Unstructured, saName string) error {
 	if saName == "" {
 		// Remove the field entirely
 		unstructured.RemoveNestedField(obj.Object, IsvcConfigs.ServiceAccountNamePath...)
@@ -352,7 +343,7 @@ func (w *ConnectionWebhook) handleSA(obj *unstructured.Unstructured, saName stri
 }
 
 // injectOCIImagePullSecrets injects imagePullSecrets into spec.predictor.imagePullSecrets for OCI connections.
-func (w *ConnectionWebhook) injectOCIImagePullSecrets(obj *unstructured.Unstructured, secretName string) error {
+func (w *ISVCConnectionWebhook) injectOCIImagePullSecrets(obj *unstructured.Unstructured, secretName string) error {
 	imagePullSecrets, err := webhookutils.GetOrCreateNestedSlice(obj.Object, IsvcConfigs.ImagePullSecretPath...)
 	if err != nil {
 		return fmt.Errorf("failed to get spec.predictor.imagePullSecrets: %w", err)
@@ -377,27 +368,29 @@ func (w *ConnectionWebhook) injectOCIImagePullSecrets(obj *unstructured.Unstruct
 }
 
 // injectURIStorageUri injects storageUri into spec.predictor.model.storageUri for URI connections.
-func (w *ConnectionWebhook) injectURIStorageUri(ctx context.Context, obj *unstructured.Unstructured, secretName, namespace string) error {
+func (w *ISVCConnectionWebhook) injectURIStorageUri(ctx context.Context, obj *unstructured.Unstructured, secretName, namespace string) error {
 	// Fetch the secret to get the URI data
 	secret := &corev1.Secret{}
 	if err := w.APIReader.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
 		return fmt.Errorf("failed to get secret %s: %w", secretName, err)
 	}
 
-	var storageUri string
-	uri, exists := secret.Data["URI"]
-	if !exists {
-		return errors.New("secret does not contain 'URI' data key")
-	}
-	// The secret data is already base64 decoded by Kubernetes, so we can use it directly
-	storageUri = string(uri)
+	// get URI from either "https-host" or "URI" key
+	var uriHost []byte
+	var exists bool
 
-	// Set the storageUri directly
-	return webhookutils.SetNestedValue(obj.Object, storageUri, IsvcConfigs.StorageUriPath)
+	if uriHost, exists = secret.Data["https-host"]; !exists {
+		if uriHost, exists = secret.Data["URI"]; !exists {
+			return errors.New("secret does not contain either 'https-host' or 'URI' data key")
+		}
+	}
+
+	// The secret data is already base64 decoded by Kubernetes, so we can use it directly.
+	return webhookutils.SetNestedValue(obj.Object, string(uriHost), IsvcConfigs.StorageUriPath)
 }
 
 // injectS3StorageKey injects storage key into spec.predictor.model.storage.key for S3 connections.
-func (w *ConnectionWebhook) injectS3StorageKey(obj *unstructured.Unstructured, secretName string) error {
+func (w *ISVCConnectionWebhook) injectS3StorageKey(obj *unstructured.Unstructured, secretName string) error {
 	model, found, err := unstructured.NestedMap(obj.Object, IsvcConfigs.ModelPath...)
 	if err != nil {
 		return fmt.Errorf("failed to get spec.predictor.model: %w", err)

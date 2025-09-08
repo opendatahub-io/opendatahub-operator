@@ -5,9 +5,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
-	inferenceservicewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/inferenceservice"
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 	notebookwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/notebook"
+	servingwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/serving"
 )
 
 // RegisterWebhooks registers hardware profile, Kueue, and connection webhooks for integration testing.
@@ -44,13 +44,24 @@ func RegisterWebhooks(mgr manager.Manager) error {
 	}
 
 	// Register Connection webhook for InferenceService
-	isvcConnectionWebhook := &inferenceservicewebhook.ConnectionWebhook{
+	isvcConnectionWebhook := &servingwebhook.ISVCConnectionWebhook{
 		Client:    mgr.GetClient(),
 		APIReader: mgr.GetAPIReader(),
 		Decoder:   admission.NewDecoder(mgr.GetScheme()),
 		Name:      "connection-isvc",
 	}
 	if err := isvcConnectionWebhook.SetupWithManager(mgr); err != nil {
+		return err
+	}
+
+	// Register Connection webhook for LLMInferenceService
+	llmisvcConnectionWebhook := &servingwebhook.LLMISVCConnectionWebhook{
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		Decoder:   admission.NewDecoder(mgr.GetScheme()),
+		Name:      "connection-llmisvc",
+	}
+	if err := llmisvcConnectionWebhook.SetupWithManager(mgr); err != nil {
 		return err
 	}
 
