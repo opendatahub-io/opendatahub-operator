@@ -62,6 +62,11 @@ FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/ubi-minimal:late
 WORKDIR /
 COPY --from=builder /workspace/manager .
 COPY --chown=1001:0 --from=manifests /opt/manifests /opt/manifests
+
+# tar installed to allow easy use of "oc cp" for component dev use cases.
+# See hack/component-dev/README.md in the source repo for more info.
+RUN microdnf install -y tar && microdnf clean all
+
 # Recursive change all files
 RUN chown -R 1001:0 /opt/manifests &&\
     chmod -R g=u /opt/manifests
