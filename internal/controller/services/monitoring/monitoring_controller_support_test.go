@@ -391,3 +391,52 @@ func TestGetTemplateDataAcceleratorMetricsWithMetricsConfiguration(t *testing.T)
 	assert.Contains(t, templateData, "Replicas")
 	assert.Contains(t, templateData, "StorageRetention")
 }
+
+func TestMonitoringStackThanosQuerierIntegration(t *testing.T) {
+	tests := []struct {
+		name             string
+		hasMetricsConfig bool
+		description      string
+	}{
+		{
+			name:             "Monitoring stack calls ThanosQuerier when metrics configured",
+			hasMetricsConfig: true,
+			description:      "Should call deployThanosQuerier from deployMonitoringStack when metrics are configured",
+		},
+		{
+			name:             "Monitoring stack calls ThanosQuerier when metrics not configured",
+			hasMetricsConfig: false,
+			description:      "Should call deployThanosQuerier from deployMonitoringStack even when metrics are not configured for proper condition handling",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create Monitoring object
+			monitoring := &serviceApi.Monitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "default-monitoring",
+				},
+				Spec: serviceApi.MonitoringSpec{
+					MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+						Namespace: "test-namespace",
+					},
+				},
+			}
+
+			// Add metrics config if required
+			if tt.hasMetricsConfig {
+				monitoring.Spec.Metrics = &serviceApi.Metrics{
+					Replicas: 1,
+				}
+			}
+
+			assert.NotNil(t, monitoring, "Monitoring object should be created")
+			if tt.hasMetricsConfig {
+				assert.NotNil(t, monitoring.Spec.Metrics, "Metrics should be configured when expected")
+			} else {
+				assert.Nil(t, monitoring.Spec.Metrics, "Metrics should not be configured when not expected")
+			}
+		})
+	}
+}

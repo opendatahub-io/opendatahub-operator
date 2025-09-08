@@ -544,6 +544,12 @@ var (
 		Kind:    "PrometheusRule",
 	}
 
+	ThanosQuerier = schema.GroupVersionKind{
+		Group:   "monitoring.rhobs",
+		Version: "v1alpha1",
+		Kind:    "ThanosQuerier",
+	}
+
 	ValidatingAdmissionPolicy = schema.GroupVersionKind{
 		Group:   "admissionregistration.k8s.io",
 		Version: "v1",
