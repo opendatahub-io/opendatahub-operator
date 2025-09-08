@@ -24,31 +24,68 @@ import (
 
 // PRIVATE HELPER FUNCTIONS
 
+// WorkloadType is type of workload being tested.
+type WorkloadType string
+
+const (
+	WorkloadTypeNotebook         WorkloadType = "Notebook"
+	WorkloadTypeInferenceService WorkloadType = "InferenceService"
+)
+
 // expectResourceRequirementsAtPath is a generic helper that verifies resource requirements at a specific path.
-func expectResourceRequirementsAtPath(g Gomega, scheme *runtime.Scheme, workload client.Object, expectedCPU, expectedMemory string, containersPath []string) {
+func expectResourceRequirementsAtPath(
+	g Gomega,
+	scheme *runtime.Scheme,
+	workload client.Object,
+	expectedCPU, expectedMemory string,
+	containersPath []string,
+	workloadType WorkloadType) {
 	workloadUnstructured, err := resources.ObjectToUnstructured(scheme, workload)
 	g.Expect(err).ShouldNot(HaveOccurred(), "should convert workload to unstructured")
 
-	containers, found, err := unstructured.NestedSlice(workloadUnstructured.Object, containersPath...)
-	g.Expect(err).ShouldNot(HaveOccurred(), "should get containers from workload")
-	g.Expect(found).Should(BeTrue(), "containers should be found")
-	g.Expect(containers).Should(HaveLen(1), "should have exactly one container")
+	// Use workload type instead of hardcoded path check
+	if workloadType == WorkloadTypeInferenceService {
+		// For InferenceService, work with the model object directly
+		model, found, err := unstructured.NestedMap(workloadUnstructured.Object, containersPath...)
+		g.Expect(err).ShouldNot(HaveOccurred(), "should get model from workload")
+		g.Expect(found).Should(BeTrue(), "model should be found")
 
-	container, ok := containers[0].(map[string]interface{})
-	g.Expect(ok).Should(BeTrue(), "container should be a map")
+		requests, found, err := unstructured.NestedStringMap(model, "resources", "requests")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
 
-	requests, found, err := unstructured.NestedStringMap(container, "resources", "requests")
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(found).Should(BeTrue())
+		// Check CPU if expected
+		if expectedCPU != "" {
+			g.Expect(requests).Should(HaveKeyWithValue("cpu", expectedCPU))
+		}
 
-	// Check CPU if expected
-	if expectedCPU != "" {
-		g.Expect(requests).Should(HaveKeyWithValue("cpu", expectedCPU))
-	}
+		// Check memory if expected
+		if expectedMemory != "" {
+			g.Expect(requests).Should(HaveKeyWithValue("memory", expectedMemory))
+		}
+	} else {
+		// For Notebook and other workloads, work with containers
+		containers, found, err := unstructured.NestedSlice(workloadUnstructured.Object, containersPath...)
+		g.Expect(err).ShouldNot(HaveOccurred(), "should get containers from workload")
+		g.Expect(found).Should(BeTrue(), "containers should be found")
+		g.Expect(containers).Should(HaveLen(1), "should have exactly one container")
 
-	// Check memory if expected
-	if expectedMemory != "" {
-		g.Expect(requests).Should(HaveKeyWithValue("memory", expectedMemory))
+		container, ok := containers[0].(map[string]interface{})
+		g.Expect(ok).Should(BeTrue(), "container should be a map")
+
+		requests, found, err := unstructured.NestedStringMap(container, "resources", "requests")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+
+		// Check CPU if expected
+		if expectedCPU != "" {
+			g.Expect(requests).Should(HaveKeyWithValue("cpu", expectedCPU))
+		}
+
+		// Check memory if expected
+		if expectedMemory != "" {
+			g.Expect(requests).Should(HaveKeyWithValue("memory", expectedMemory))
+		}
 	}
 }
 
@@ -138,7 +175,7 @@ func createSimpleHardwareProfile(name, namespace string) *hwpv1alpha1.HardwarePr
 // testNoHardwareProfileAnnotationForWorkload is a generic helper that tests webhook behavior
 // when no hardware profile annotation is present for any workload type.
 func testNoHardwareProfileAnnotationForWorkload(g Gomega, ctx context.Context, k8sClient client.Client,
-	createWorkload func() client.Object, containersPath []string) {
+	createWorkload func() client.Object, containersPath []string, workloadType WorkloadType) {
 	workload := createWorkload()
 	g.Expect(k8sClient.Create(ctx, workload)).Should(Succeed())
 
@@ -149,24 +186,38 @@ func testNoHardwareProfileAnnotationForWorkload(g Gomega, ctx context.Context, k
 	workloadUnstructured, err := resources.ObjectToUnstructured(k8sClient.Scheme(), workload)
 	g.Expect(err).ShouldNot(HaveOccurred(), "should convert workload to unstructured")
 
-	containers, found, err := unstructured.NestedSlice(workloadUnstructured.Object, containersPath...)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(found).Should(BeTrue())
-	g.Expect(containers).Should(HaveLen(1))
+	// Use workload type instead of hardcoded path check
+	if workloadType == WorkloadTypeInferenceService {
+		// For InferenceService, work with the model object directly
+		model, found, err := unstructured.NestedMap(workloadUnstructured.Object, containersPath...)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
 
-	container, ok := containers[0].(map[string]interface{})
-	g.Expect(ok).Should(BeTrue())
+		// Should not have resources injected
+		_, found, err = unstructured.NestedStringMap(model, "resources", "requests")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeFalse())
+	} else {
+		// For Notebook and other workloads, work with containers
+		containers, found, err := unstructured.NestedSlice(workloadUnstructured.Object, containersPath...)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(containers).Should(HaveLen(1))
 
-	// Should not have resources injected
-	_, found, err = unstructured.NestedStringMap(container, "resources", "requests")
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(found).Should(BeFalse())
+		container, ok := containers[0].(map[string]interface{})
+		g.Expect(ok).Should(BeTrue())
+
+		// Should not have resources injected
+		_, found, err = unstructured.NestedStringMap(container, "resources", "requests")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeFalse())
+	}
 }
 
 // testValidHardwareProfileWithResourcesForWorkload is a generic helper that tests webhook behavior
 // with a valid hardware profile containing resource identifiers for any workload type.
 func testValidHardwareProfileWithResourcesForWorkload(g Gomega, ctx context.Context, k8sClient client.Client, ns string,
-	createWorkload func() client.Object, containersPath []string) {
+	createWorkload func() client.Object, containersPath []string, workloadType WorkloadType) {
 	// Create hardware profile with resource identifiers
 	hwp := createResourceHardwareProfile("resource-profile", ns)
 	g.Expect(k8sClient.Create(ctx, hwp)).Should(Succeed())
@@ -176,7 +227,7 @@ func testValidHardwareProfileWithResourcesForWorkload(g Gomega, ctx context.Cont
 	g.Expect(k8sClient.Create(ctx, workload)).Should(Succeed())
 
 	// Verify resource requirements were applied
-	expectResourceRequirementsAtPath(g, k8sClient.Scheme(), workload, "4", "8Gi", containersPath)
+	expectResourceRequirementsAtPath(g, k8sClient.Scheme(), workload, "4", "8Gi", containersPath, workloadType)
 }
 
 // testHardwareProfileWithKueueForWorkload is a generic helper that tests webhook behavior
@@ -290,7 +341,7 @@ func testCrossNamespaceHardwareProfile(g Gomega, ctx context.Context, k8sClient 
 // testUpdateOperationForWorkload is a generic helper for testing update operations.
 func testUpdateOperationForWorkload(g Gomega, ctx context.Context, k8sClient client.Client, ns string,
 	name string, createWorkload func() client.Object, createUnstructured func() *unstructured.Unstructured,
-	containersPath []string) {
+	containersPath []string, workloadType WorkloadType) {
 	// Create hardware profile
 	hwp := createSimpleHardwareProfile("update-profile", ns)
 	g.Expect(k8sClient.Create(ctx, hwp)).To(Succeed())
@@ -316,13 +367,13 @@ func testUpdateOperationForWorkload(g Gomega, ctx context.Context, k8sClient cli
 	}, updatedWorkload)).To(Succeed())
 
 	// Verify resource requirements were applied during update
-	expectResourceRequirementsAtPath(g, k8sClient.Scheme(), updatedWorkload, "2", "", containersPath)
+	expectResourceRequirementsAtPath(g, k8sClient.Scheme(), updatedWorkload, "2", "", containersPath, workloadType)
 }
 
 // TEST FUNCTIONS
 
-// TestHardwareProfileWebhook_Integration exercises the mutating webhook logic for hardware profile injection.
-func TestHardwareProfileWebhook_Integration(t *testing.T) {
+// TestHardwareProfileWebhook_Notebook for mutating webhook logic for hardware profile injection on Notebook workloads.
+func TestHardwareProfileWebhook_Notebook(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -336,7 +387,7 @@ func TestHardwareProfileWebhook_Integration(t *testing.T) {
 				g.Expect(err).ShouldNot(HaveOccurred())
 				testNoHardwareProfileAnnotationForWorkload(g, ctx, k8sClient,
 					func() client.Object { return envtestutil.NewNotebook("test-notebook-no-annotation", ns) },
-					config.ContainersPath)
+					config.ContainersPath, WorkloadTypeNotebook)
 			},
 		},
 		{
@@ -357,7 +408,7 @@ func TestHardwareProfileWebhook_Integration(t *testing.T) {
 						return envtestutil.NewNotebook("test-notebook-resources", ns,
 							envtestutil.WithHardwareProfile("resource-profile"))
 					},
-					config.ContainersPath)
+					config.ContainersPath, WorkloadTypeNotebook)
 			},
 		},
 		{
@@ -401,10 +452,48 @@ func TestHardwareProfileWebhook_Integration(t *testing.T) {
 						u.SetKind("Notebook")
 						return u
 					},
-					config.ContainersPath)
+					config.ContainersPath, WorkloadTypeNotebook)
 			},
 		},
-		// InferenceService test cases
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
+				t,
+				[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
+				envtestutil.DefaultWebhookTimeout,
+				envtestutil.WithNotebook(),
+			)
+			defer teardown()
+
+			// Create test namespace
+			ns := fmt.Sprintf("test-ns-%s", xid.New().String())
+			testNamespace := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: ns},
+			}
+			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
+
+			// Add HardwareProfile types to scheme for client operations
+			g.Expect(hwpv1alpha1.AddToScheme(env.Scheme())).To(Succeed())
+
+			// Run the specific test case
+			tc.test(g, ctx, env.Client(), ns)
+		})
+	}
+}
+
+// TestHardwareProfileWebhook_InferenceService for the mutating webhook logic for hardware profile injection on InferenceService workloads.
+func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		test func(g Gomega, ctx context.Context, k8sClient client.Client, ns string)
+	}{
 		{
 			name: "inference service - no hardware profile annotation",
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
@@ -414,7 +503,7 @@ func TestHardwareProfileWebhook_Integration(t *testing.T) {
 					func() client.Object {
 						return envtestutil.NewInferenceService("test-inference-service-no-annotation", ns)
 					},
-					config.ContainersPath)
+					config.ContainersPath, WorkloadTypeInferenceService)
 			},
 		},
 		{
@@ -427,7 +516,7 @@ func TestHardwareProfileWebhook_Integration(t *testing.T) {
 						return envtestutil.NewInferenceService("test-inference-service-resources", ns,
 							envtestutil.WithHardwareProfile("resource-profile"))
 					},
-					config.ContainersPath)
+					config.ContainersPath, WorkloadTypeInferenceService)
 			},
 		},
 		{
@@ -467,7 +556,7 @@ func TestHardwareProfileWebhook_Integration(t *testing.T) {
 						u.SetKind("InferenceService")
 						return u
 					},
-					config.ContainersPath)
+					config.ContainersPath, WorkloadTypeInferenceService)
 			},
 		},
 	}
@@ -481,7 +570,6 @@ func TestHardwareProfileWebhook_Integration(t *testing.T) {
 				t,
 				[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
 				envtestutil.DefaultWebhookTimeout,
-				envtestutil.WithNotebook(),
 				envtestutil.WithInferenceService(),
 			)
 			defer teardown()
