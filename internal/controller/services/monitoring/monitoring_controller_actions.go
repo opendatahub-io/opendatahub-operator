@@ -31,6 +31,8 @@ const (
 	CollectorRBACTemplate            = "resources/collector-rbac.tmpl.yaml"
 	PrometheusRouteTemplate          = "resources/prometheus-route.tmpl.yaml"
 	InstrumentationTemplate          = "resources/instrumentation.tmpl.yaml"
+	ThanosQuerierTemplate            = "resources/thanos-querier-crd.tmpl.yaml"
+	ThanosQuerierRouteTemplate       = "resources/thanos-querier-route.tmpl.yaml"
 )
 
 var componentRules = map[string]string{
@@ -416,6 +418,66 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 	if len(addErrors) > 0 || len(cleanupErrors) > 0 {
 		return errors.New("errors occurred while adding or cleaning up prometheus rules for components")
 	}
+
+	return nil
+}
+
+func deployThanosQuerier(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionThanosQuerierAvailable,
+			conditions.WithReason(status.MetricsNotConfiguredReason),
+			conditions.WithMessage(status.MetricsNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	tqExists, err := cluster.HasCRD(ctx, rr.Client, gvk.ThanosQuerier)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD ThanosQuerier exists: %w", err)
+	}
+	if !tqExists {
+		rr.Conditions.MarkFalse(
+			status.ConditionThanosQuerierAvailable,
+			conditions.WithReason(gvk.ThanosQuerier.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage("%s CRD Not Found", gvk.ThanosQuerier.Kind),
+		)
+		return nil
+	}
+
+	msExists, err := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD MonitoringStack exists: %w", err)
+	}
+	if !msExists {
+		// No MonitoringStack means no Prometheus to query from, skip thanos querier deployment
+		rr.Conditions.MarkFalse(
+			status.ConditionThanosQuerierAvailable,
+			conditions.WithReason(gvk.MonitoringStack.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage("%s CRD Not Found - Thanos Querier requires MonitoringStack", gvk.MonitoringStack.Kind),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionThanosQuerierAvailable)
+
+	template := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: ThanosQuerierTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: ThanosQuerierRouteTemplate,
+		},
+	}
+
+	rr.Templates = append(rr.Templates, template...)
 
 	return nil
 }
