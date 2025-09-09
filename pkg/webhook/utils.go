@@ -268,28 +268,23 @@ func ValidateInferenceServiceConnectionAnnotation(ctx context.Context,
 // DetermineConnectionChangeAction determines what action to take for UPDATE operations
 // by comparing old vs new connection info.
 func DetermineConnectionChangeAction(oldSecretName, oldConnectionType, newSecretName, newConnectionType string) ConnectionAction {
-	// Old connection, no new connection = remove
+	// Old connection, no new connection => remove
 	if oldSecretName != "" && newSecretName == "" {
 		return ConnectionActionRemove
 	}
 
-	// No old connection, no new connection = none
+	// No old connection, no new connection => none
 	if oldSecretName == "" && newSecretName == "" {
 		return ConnectionActionNone
 	}
 
-	// No old connection, new connection = inject
+	// No old connection, new connection => inject
 	if oldSecretName == "" && newSecretName != "" {
 		return ConnectionActionInject
 	}
 
-	// Both exist - check if type changed
-	if oldConnectionType != newConnectionType {
-		return ConnectionActionReplace
-	}
-
-	// Same connection type - check if secret changed
-	if oldSecretName != newSecretName {
+	// if type changed or same type different secret => replace
+	if oldConnectionType != newConnectionType || oldSecretName != newSecretName {
 		return ConnectionActionReplace
 	}
 
