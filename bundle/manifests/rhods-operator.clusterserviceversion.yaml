@@ -113,7 +113,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-09-29T14:15:17Z"
+    createdAt: "2025-09-30T08:47:38Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -254,6 +254,11 @@ spec:
     - kind: FeatureTracker
       name: featuretrackers.features.opendatahub.io
       version: v1
+    - description: GatewayConfig is the Schema for the gatewayconfigs API
+      displayName: Gateway Config
+      kind: GatewayConfig
+      name: gatewayconfigs.services.platform.opendatahub.io
+      version: v1alpha1
     - kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
       version: v1
@@ -869,6 +874,19 @@ spec:
           - patch
           - update
         - apiGroups:
+          - gateway.networking.k8s.io
+          resources:
+          - gatewayclasses
+          - gateways
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
           - image.openshift.io
           resources:
           - imagestreams
@@ -1400,11 +1418,23 @@ spec:
           - services.platform.opendatahub.io
           resources:
           - auths/status
+          - gatewayconfigs/status
           - monitorings/status
           verbs:
           - get
           - patch
           - update
+        - apiGroups:
+          - services.platform.opendatahub.io
+          resources:
+          - gatewayconfigs
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
         - apiGroups:
           - serving.knative.dev
           resources:

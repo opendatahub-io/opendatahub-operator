@@ -17,32 +17,32 @@ limitations under the License.
 package v1alpha1
 
 import (
-	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
 	GatewayServiceName = "gateway"
-	// GatewayInstanceName the name of the Gateway instance singleton.
+	// GatewayInstanceName the name of the GatewayConfig instance singleton.
 	// value should match whats set in the XValidation below
 	GatewayInstanceName = "default-gateway"
-	GatewayKind         = "Gateway"
+	GatewayKind         = "GatewayConfig"
 )
 
 // Check that the component implements common.PlatformObject.
-var _ common.PlatformObject = (*Gateway)(nil)
+var _ common.PlatformObject = (*GatewayConfig)(nil)
 
-// GatewaySpec defines the desired state of Gateway
-type GatewaySpec struct {
+// GatewayConfigSpec defines the desired state of GatewayConfig
+type GatewayConfigSpec struct {
 	// Authentication configuration
 	// +optional
 	Auth GatewayAuthSpec `json:"auth"`
 
 	// Certificate management
 	// +optional
-	Certificates GatewayCertSpec `json:"certificates"`
+	Certificate *infrav1.CertificateSpec `json:"certificate,omitempty"`
 
 	// Domain configuration for the gateway
 	// +optional
@@ -78,65 +78,48 @@ type OIDCConfig struct {
 	ClientSecretRef corev1.SecretKeySelector `json:"clientSecretRef"`
 }
 
-// GatewayCertSpec defines certificate management configuration
-type GatewayCertSpec struct {
-	// Type of certificate management: "user-provided" | "cert-manager" | "openshift-service-ca"
-	// +kubebuilder:validation:Enum=user-provided;cert-manager;openshift-service-ca
-	// +kubebuilder:default="openshift-service-ca"
-	// +optional
-	Type string `json:"type,omitempty"`
-
-	// Reference to user-provided certificate secret (when type="user-provided")
-	// +optional
-	SecretRef *corev1.SecretReference `json:"secretRef,omitempty"`
-
-	// IssuerRef for cert-manager certificates (when type="cert-manager")
-	// +optional
-	IssuerRef *cmmeta.ObjectReference `json:"issuerRef,omitempty"`
-}
-
-// GatewayStatus defines the observed state of Gateway
-type GatewayStatus struct {
+// GatewayConfigStatus defines the observed state of GatewayConfig
+type GatewayConfigStatus struct {
 	common.Status `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-gateway'",message="Gateway name must be default-gateway"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-gateway'",message="GatewayConfig name must be default-gateway"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
-// Gateway is the Schema for the gateways API
-type Gateway struct {
+// GatewayConfig is the Schema for the gatewayconfigs API
+type GatewayConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   GatewaySpec   `json:"spec,omitempty"`
-	Status GatewayStatus `json:"status,omitempty"`
+	Spec   GatewayConfigSpec   `json:"spec,omitempty"`
+	Status GatewayConfigStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// GatewayList contains a list of Gateway
-type GatewayList struct {
+// GatewayConfigList contains a list of GatewayConfig
+type GatewayConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Gateway `json:"items"`
+	Items           []GatewayConfig `json:"items"`
 }
 
-func (m *Gateway) GetStatus() *common.Status {
+func (m *GatewayConfig) GetStatus() *common.Status {
 	return &m.Status.Status
 }
 
-func (c *Gateway) GetConditions() []common.Condition {
+func (c *GatewayConfig) GetConditions() []common.Condition {
 	return c.Status.GetConditions()
 }
 
-func (c *Gateway) SetConditions(conditions []common.Condition) {
+func (c *GatewayConfig) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
 }
 
 func init() {
-	SchemeBuilder.Register(&Gateway{}, &GatewayList{})
+	SchemeBuilder.Register(&GatewayConfig{}, &GatewayConfigList{})
 }

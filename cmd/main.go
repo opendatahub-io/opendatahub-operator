@@ -23,7 +23,6 @@ import (
 	"os"
 	"strings"
 
-	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
 	configv1 "github.com/openshift/api/config/v1"
@@ -439,26 +438,23 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	var createDefaultGatewayFunc manager.RunnableFunc = func(ctx context.Context) error {
-		defaultGateway := &serviceApi.Gateway{
+		defaultGateway := &serviceApi.GatewayConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: serviceApi.GatewayInstanceName,
 			},
-			Spec: serviceApi.GatewaySpec{
+			Spec: serviceApi.GatewayConfigSpec{
 				Namespace: "openshift-ingress",
 				Auth: serviceApi.GatewayAuthSpec{
 					Mode: "auto",
 				},
-				Certificates: serviceApi.GatewayCertSpec{
-					Type: "cert-manager",
-					IssuerRef: &cmmeta.ObjectReference{
-						Name: "selfsigned-cluster-issuer",
-						Kind: "ClusterIssuer",
-					},
+				Certificate: &infrav1.CertificateSpec{
+					Type:       infrav1.OpenshiftDefaultIngress,
+					SecretName: "default-gateway-tls",
 				},
 			},
 		}
 
-		existingGateway := &serviceApi.Gateway{}
+		existingGateway := &serviceApi.GatewayConfig{}
 		err := setupClient.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, existingGateway)
 		if err != nil {
 			if client.IgnoreNotFound(err) == nil {
@@ -481,20 +477,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	if err != nil {
 		setupLog.Error(err, "error scheduling Gateway creation")
 		os.Exit(1)
-	}
-
-	// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
-	var patchODCFunc manager.RunnableFunc = func(ctx context.Context) error {
-		if err := upgrade.PatchOdhDashboardConfig(ctx, setupClient, oldReleaseVersion, release); err != nil {
-			setupLog.Error(err, "Unable to patch the odhdashboardconfig")
-			return err
-		}
-		return nil
-	}
-
-	err = mgr.Add(patchODCFunc)
-	if err != nil {
-		setupLog.Error(err, "Error patching odhdashboardconfig")
 	}
 
 	// Cleanup resources from previous v2 releases

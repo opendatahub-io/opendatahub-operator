@@ -7,6 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 )
 
 // TestServiceTypesConformToPlatformObject validates that all service types properly implement
@@ -46,18 +47,18 @@ func TestServiceTypesConformToPlatformObject(t *testing.T) {
 		},
 		{
 			name: "Gateway",
-			instance: &Gateway{
+			instance: &GatewayConfig{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gateway",
 				},
-				Spec: GatewaySpec{
+				Spec: GatewayConfigSpec{
 					Namespace: "openshift-ingress",
 					Domain:    "example.com",
-					Certificates: GatewayCertSpec{
-						Type: "cert-manager",
+					Certificate: &infrav1.CertificateSpec{
+						Type: infrav1.SelfSigned,
 					},
 				},
-				Status: GatewayStatus{
+				Status: GatewayConfigStatus{
 					Status: common.Status{
 						Phase: "Ready",
 					},
@@ -76,24 +77,6 @@ func TestServiceTypesConformToPlatformObject(t *testing.T) {
 					},
 				},
 				Status: MonitoringStatus{
-					Status: common.Status{
-						Phase: "Ready",
-					},
-				},
-			},
-		},
-		{
-			name: "ServiceMesh",
-			instance: &ServiceMesh{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "servicemesh",
-				},
-				Spec: ServiceMeshSpec{
-					ControlPlane: ServiceMeshControlPlaneSpec{
-						Namespace: "istio-system",
-					},
-				},
-				Status: ServiceMeshStatus{
 					Status: common.Status{
 						Phase: "Ready",
 					},
