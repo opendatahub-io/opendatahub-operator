@@ -14,7 +14,7 @@ metadata:
       "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
-      "workbenches.components.platform.opendatahub.io", "gateways.services.platform.opendatahub.io",
+      "workbenches.components.platform.opendatahub.io", "gatewayconfigs.services.platform.opendatahub.io",
       "monitorings.services.platform.opendatahub.io", "servicemeshes.services.platform.opendatahub.io",
       "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
       "llamastackoperators.components.platform.opendatahub.io"]'
@@ -61,10 +61,10 @@ spec:
       kind: FeastOperator
       name: feastoperators.components.platform.opendatahub.io
       version: v1alpha1
-    - description: Gateway is the Schema for the gateways API
-      displayName: Gateway
-      kind: Gateway
-      name: gateways.services.platform.opendatahub.io
+    - description: GatewayConfig is the Schema for the gatewayconfigs API
+      displayName: Gateway Config
+      kind: GatewayConfig
+      name: gatewayconfigs.services.platform.opendatahub.io
       version: v1alpha1
     - description: HardwareProfile is the Schema for the hardwareprofiles API.
       displayName: Hardware Profile

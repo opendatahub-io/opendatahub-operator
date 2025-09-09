@@ -58,7 +58,7 @@ func (h *ServiceHandler) GetManagementState(platform common.Platform, _ *dsciv1.
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	utilruntime.Must(certmanagerv1.AddToScheme(mgr.GetScheme()))
 
-	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.Gateway{}).
+	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{}).
 		WithAction(createGatewayInfrastructure).
 		WithAction(template.NewAction()).
 		WithAction(deploy.NewAction(

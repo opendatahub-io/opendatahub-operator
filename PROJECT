@@ -176,7 +176,7 @@ resources:
   controller: true
   domain: platform.opendatahub.io
   group: services
-  kind: Gateway
+  kind: GatewayConfig
   path: github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1
   version: v1alpha1
 version: "3"

@@ -114,7 +114,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.33.0
-    createdAt: "2025-09-04T14:44:39Z"
+    createdAt: "2025-09-09T19:11:59Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -122,7 +122,7 @@ metadata:
       "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
-      "workbenches.components.platform.opendatahub.io", "gateways.services.platform.opendatahub.io",
+      "workbenches.components.platform.opendatahub.io", "gatewayconfigs.services.platform.opendatahub.io",
       "monitorings.services.platform.opendatahub.io", "servicemeshes.services.platform.opendatahub.io",
       "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
       "llamastackoperators.components.platform.opendatahub.io"]'
@@ -173,10 +173,10 @@ spec:
     - kind: FeatureTracker
       name: featuretrackers.features.opendatahub.io
       version: v1
-    - description: Gateway is the Schema for the gateways API
-      displayName: Gateway
-      kind: Gateway
-      name: gateways.services.platform.opendatahub.io
+    - description: GatewayConfig is the Schema for the gatewayconfigs API
+      displayName: Gateway Config
+      kind: GatewayConfig
+      name: gatewayconfigs.services.platform.opendatahub.io
       version: v1alpha1
     - description: HardwareProfile is the Schema for the hardwareprofiles API.
       displayName: Hardware Profile
@@ -794,6 +794,19 @@ spec:
           - patch
           - update
         - apiGroups:
+          - gateway.networking.k8s.io
+          resources:
+          - gatewayclasses
+          - gateways
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
           - image.openshift.io
           resources:
           - imagestreams
@@ -1327,12 +1340,24 @@ spec:
           - services.platform.opendatahub.io
           resources:
           - auths/status
+          - gatewayconfigs/status
           - monitorings/status
           - servicemeshes/status
           verbs:
           - get
           - patch
           - update
+        - apiGroups:
+          - services.platform.opendatahub.io
+          resources:
+          - gatewayconfigs
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
         - apiGroups:
           - serving.knative.dev
           resources:

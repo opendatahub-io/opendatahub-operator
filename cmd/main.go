@@ -23,7 +23,6 @@ import (
 	"os"
 	"strings"
 
-	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	ocappsv1 "github.com/openshift/api/apps/v1" //nolint:importas //reason: conflicts with appsv1 "k8s.io/api/apps/v1"
 	buildv1 "github.com/openshift/api/build/v1"
 	configv1 "github.com/openshift/api/config/v1"
@@ -70,6 +69,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrastructurev1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
@@ -439,26 +439,23 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	var createDefaultGatewayFunc manager.RunnableFunc = func(ctx context.Context) error {
-		defaultGateway := &serviceApi.Gateway{
+		defaultGateway := &serviceApi.GatewayConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: serviceApi.GatewayInstanceName,
 			},
-			Spec: serviceApi.GatewaySpec{
+			Spec: serviceApi.GatewayConfigSpec{
 				Namespace: "openshift-ingress",
 				Auth: serviceApi.GatewayAuthSpec{
 					Mode: "auto",
 				},
-				Certificates: serviceApi.GatewayCertSpec{
-					Type: "cert-manager",
-					IssuerRef: &cmmeta.ObjectReference{
-						Name: "selfsigned-cluster-issuer",
-						Kind: "ClusterIssuer",
-					},
+				Certificate: &infrav1.CertificateSpec{
+					Type:       infrav1.OpenshiftDefaultIngress,
+					SecretName: "default-gateway-tls",
 				},
 			},
 		}
 
-		existingGateway := &serviceApi.Gateway{}
+		existingGateway := &serviceApi.GatewayConfig{}
 		err := setupClient.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, existingGateway)
 		if err != nil {
 			if client.IgnoreNotFound(err) == nil {

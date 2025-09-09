@@ -1071,7 +1071,7 @@ rules:
   - services.platform.opendatahub.io
   resources:
   - auths/status
-  - gateways/status
+  - gatewayconfigs/status
   - monitorings/status
   - servicemeshes/status
   verbs:
@@ -1081,7 +1081,7 @@ rules:
 - apiGroups:
   - services.platform.opendatahub.io
   resources:
-  - gateways
+  - gatewayconfigs
   verbs:
   - create
   - get
