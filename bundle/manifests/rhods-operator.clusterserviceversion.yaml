@@ -56,7 +56,7 @@ metadata:
                 "managementState": "Managed"
               },
               "modelregistry": {
-                "managementState": "Removed",
+                "managementState": "Managed",
                 "registriesNamespace": "rhoai-model-registries"
               },
               "ray": {
@@ -113,7 +113,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-09-05T12:37:18Z"
+    createdAt: "2025-09-09T07:11:06Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -209,7 +209,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
-  name: rhods-operator.v2.24.0
+  name: rhods-operator.v3.0.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1691,7 +1691,7 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 2.24.0
+  version: 3.0.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1

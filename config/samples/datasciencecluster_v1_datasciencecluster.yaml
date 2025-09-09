@@ -44,7 +44,7 @@ spec:
     trustyai:
       managementState: "Managed"
     modelregistry:
-      managementState: "Removed"
+      managementState: "Managed"
       registriesNamespace: "rhoai-model-registries"
     feastoperator:
       managementState: "Removed"
