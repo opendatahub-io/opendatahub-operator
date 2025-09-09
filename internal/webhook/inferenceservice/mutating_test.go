@@ -32,6 +32,7 @@ const (
 	testInferenceService = "glue-isvc"
 	testSecret           = "glue-secret"
 	OperationRemove      = "remove"
+	serviceAccountPath   = "/spec/predictor/serviceAccountName"
 )
 
 type TestCase struct {
@@ -282,18 +283,6 @@ func hasStorageUriCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
 	}
 }
 
-// s3.
-func hasStorageKeyCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
-	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		for _, patch := range patches {
-			if patch.Path == "/spec/predictor/model/storage" && patch.Operation == OperationRemove {
-				return true
-			}
-		}
-		return false
-	}
-}
-
 func hasS3CleanupPatches() func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		hasStorageCleanup := false
@@ -303,7 +292,7 @@ func hasS3CleanupPatches() func([]jsonpatch.JsonPatchOperation) bool {
 			if patch.Path == "/spec/predictor/model/storage" && patch.Operation == OperationRemove {
 				hasStorageCleanup = true
 			}
-			if patch.Path == "/spec/predictor/serviceAccountName" && patch.Operation == OperationRemove {
+			if patch.Path == serviceAccountPath && patch.Operation == OperationRemove {
 				hasServiceAccountCleanup = true
 			}
 		}
@@ -311,10 +300,11 @@ func hasS3CleanupPatches() func([]jsonpatch.JsonPatchOperation) bool {
 	}
 }
 
-func hasServiceAccountNamePatch(expectedSAName string) func([]jsonpatch.JsonPatchOperation) bool {
+func hasServiceAccountNamePatch() func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		expectedSAName := testSecret + "-sa"
 		for _, patch := range patches {
-			if patch.Path == "/spec/predictor/serviceAccountName" && patch.Value == expectedSAName {
+			if patch.Path == serviceAccountPath && patch.Value == expectedSAName {
 				return true
 			}
 		}
@@ -325,7 +315,7 @@ func hasServiceAccountNamePatch(expectedSAName string) func([]jsonpatch.JsonPatc
 func hasServiceAccountNameRemovePatch() func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
-			if patch.Path == "/spec/predictor/serviceAccountName" && patch.Operation == OperationRemove {
+			if patch.Path == serviceAccountPath && patch.Operation == OperationRemove {
 				return true
 			}
 		}
@@ -344,7 +334,7 @@ func TestServiceAccountNamePatching(t *testing.T) {
 			expectedAllowed: true,
 			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
 				// OCI connections should not have ServiceAccount injection
-				return !hasServiceAccountNamePatch(testSecret + "-sa")(patches)
+				return !hasServiceAccountNamePatch()(patches)
 			},
 		}
 		runTestCase(t, tc)
@@ -360,7 +350,7 @@ func TestServiceAccountNamePatching(t *testing.T) {
 			expectedAllowed: true,
 			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
 				// URI connections should not have ServiceAccount injection
-				return !hasServiceAccountNamePatch(testSecret + "-sa")(patches)
+				return !hasServiceAccountNamePatch()(patches)
 			},
 		}
 		runTestCase(t, tc)
@@ -377,7 +367,7 @@ func TestServiceAccountNamePatching(t *testing.T) {
 			expectedAllowed: true,
 			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
 				// S3 connections should have ServiceAccount injection
-				return hasServiceAccountNamePatch(testSecret + "-sa")(patches)
+				return hasServiceAccountNamePatch()(patches)
 			},
 		}
 		runTestCase(t, tc)
@@ -394,7 +384,7 @@ func TestServiceAccountNamePatching(t *testing.T) {
 			operation:        admissionv1.Update,
 			expectedAllowed:  true,
 			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
-				return hasServiceAccountNamePatch(testSecret + "-sa")(patches)
+				return hasServiceAccountNamePatch()(patches)
 			},
 		}
 		runTestCase(t, tc)
