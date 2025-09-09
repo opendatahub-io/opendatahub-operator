@@ -625,6 +625,7 @@ rules:
   resources:
   - clusterqueues
   - localqueues
+  - resourceflavors
   verbs:
   - create
   - delete

@@ -20,6 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
 const (
@@ -102,6 +103,11 @@ type Traces struct {
 	SampleRatio string `json:"sampleRatio,omitempty"`
 	// TLS configuration for Tempo gRPC connections
 	TLS *TracesTLS `json:"tls,omitempty"`
+	// Exporters defines custom trace exporters for sending traces to external observability tools.
+	// Each key represents the exporter name, and the value contains the exporter configuration.
+	// The configuration follows the OpenTelemetry Collector exporter format.
+	// +optional
+	Exporters map[string]runtime.RawExtension `json:"exporters,omitempty"`
 }
 
 // TracesTLS defines TLS configuration for traces collection
@@ -165,6 +171,7 @@ type Monitoring struct {
 
 // MonitoringCommonSpec spec defines the shared desired state of Dashboard
 // +kubebuilder:validation:XValidation:rule="has(self.alerting) ? has(self.metrics.storage) || has(self.metrics.resources) : true",message="Alerting configuration requires metrics.storage or metrics.resources to be configured"
+// +kubebuilder:validation:XValidation:rule="!has(self.collectorReplicas) || (self.collectorReplicas > 0 && (self.metrics != null || self.traces != null))",message="CollectorReplicas can only be set when metrics or traces are enabled, and must be > 0"
 type MonitoringCommonSpec struct {
 	// monitoring spec exposed to DSCI api
 	// Namespace for monitoring if it is enabled
@@ -179,6 +186,8 @@ type MonitoringCommonSpec struct {
 	Traces *Traces `json:"traces,omitempty"`
 	// Alerting configuration for Prometheus
 	Alerting *Alerting `json:"alerting,omitempty"`
+	// CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set
+	CollectorReplicas int32 `json:"collectorReplicas,omitempty"`
 }
 
 //+kubebuilder:object:root=true

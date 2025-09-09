@@ -909,6 +909,11 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
 	)
 
+	// Validate that default resource flavor is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ResourceFlavor, types.NamespacedName{Name: kueue.DefaultFlavorName}),
+	)
+
 	// MANAGED
 	stateManaged := operatorv1.Managed
 	conditionsManagedNotReady := []gTypes.GomegaMatcher{
@@ -947,6 +952,9 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
 	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ResourceFlavor, types.NamespacedName{Name: kueue.DefaultFlavorName}),
+	)
 
 	// Remove Kueue test resources
 	cleanupKueueTestResources(t, tc.TestContext)
@@ -959,9 +967,23 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 //   - localQueueNamsepaceName: The LocalQueue namespaced name
 func (tc *KueueTestCtx) ensureClusterAndLocalQueueExist(localQueueNamsepaceName string) {
 	// Validate that ClusterQueue still exists
-	tc.EnsureResourceExists(
+	clusterQueue := tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName, Namespace: metav1.NamespaceAll}),
 	)
+
+	namespaceSelector, ok, err := unstructured.NestedMap(clusterQueue.Object, "spec", "namespaceSelector")
+	tc.g.Expect(err).ShouldNot(HaveOccurred())
+	tc.g.Expect(ok).Should(BeTrue())
+	tc.g.Expect(namespaceSelector).Should(Equal(map[string]any{
+		"matchLabels": map[string]any{
+			cluster.KueueManagedLabelKey: "true",
+		},
+	}))
+
+	resourceGroups, ok, err := unstructured.NestedSlice(clusterQueue.Object, "spec", "resourceGroups")
+	tc.g.Expect(err).ShouldNot(HaveOccurred())
+	tc.g.Expect(ok).Should(BeTrue())
+	tc.g.Expect(len(resourceGroups)).Should(BeNumerically(">=", 1))
 
 	// Validate that LocalQueue still exists for the managed namespace
 	tc.EnsureResourceExists(
