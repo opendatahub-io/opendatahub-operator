@@ -559,8 +559,50 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 					config.ContainersPath, WorkloadTypeInferenceService)
 			},
 		},
+		// LLMInferenceService test cases
+		{
+			name: "llminference service - no hardware profile annotation",
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				config, err := hardwareprofilewebhook.GetWorkloadConfig("LLMInferenceService")
+				g.Expect(err).ShouldNot(HaveOccurred())
+				testUpdateOperationForWorkload(g, ctx, k8sClient, ns, "test-llmisvce-no-annotation",
+					func() client.Object { return envtestutil.NewLLMInferenceService("test-llmisvce-no-annotation", ns) },
+					func() *unstructured.Unstructured {
+						u := &unstructured.Unstructured{}
+						u.SetAPIVersion("serving.kserve.io/v1alpha1")
+						u.SetKind("LLMInferenceService")
+						return u
+					},
+					config.ContainersPath)
+			},
+		},
+		{
+			name: "llminference service - valid hardwareprofile with resources",
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				config, err := hardwareprofilewebhook.GetWorkloadConfig("LLMInferenceService")
+				g.Expect(err).ShouldNot(HaveOccurred())
+				testValidHardwareProfileWithResourcesForWorkload(g, ctx, k8sClient, ns,
+					func() client.Object {
+						return envtestutil.NewLLMInferenceService("test-llmisvc-resources", ns,
+							envtestutil.WithHardwareProfile("resource-profile"))
+					},
+					config.ContainersPath)
+			},
+		},
+		{
+			name: "llminference service - hardware profile with node scheduling",
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				config, err := hardwareprofilewebhook.GetWorkloadConfig("LLMInferenceService")
+				g.Expect(err).ShouldNot(HaveOccurred())
+				testHardwareProfileWithNodeSchedulingForWorkload(g, ctx, k8sClient, ns,
+					func() client.Object {
+						return envtestutil.NewLLMInferenceService("test-llmisvc-node", ns,
+							envtestutil.WithHardwareProfile("node-profile"))
+					},
+					config.NodeSelectorPath, config.TolerationsPath)
+			},
+		},
 	}
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -571,6 +613,7 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 				[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
 				envtestutil.DefaultWebhookTimeout,
 				envtestutil.WithInferenceService(),
+				envtestutil.WithLLMInferenceService(),
 			)
 			defer teardown()
 
