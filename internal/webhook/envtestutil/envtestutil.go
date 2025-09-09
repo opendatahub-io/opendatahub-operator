@@ -401,14 +401,13 @@ func NewInferenceService(name, namespace string, opts ...ObjectOption) client.Ob
 	inferenceService.SetNamespace(namespace)
 
 	// Set basic spec structure needed for webhook testing
-	containers := []interface{}{
-		map[string]interface{}{
-			"name":  "kserve-container",
-			"image": "kserve/model-server:latest",
-		},
+	// Create a model object instead of containers for isvc
+	model := map[string]interface{}{
+		"name":  "isvc-model",
+		"image": "kserve/model-server:latest",
 	}
-	if err := unstructured.SetNestedSlice(inferenceService.Object, containers, "spec", "predictor", "podSpec", "containers"); err != nil {
-		panic(fmt.Sprintf("failed to set inference service containers: %v", err))
+	if err := unstructured.SetNestedMap(inferenceService.Object, model, "spec", "predictor", "model"); err != nil {
+		panic(fmt.Sprintf("failed to set inferenceservice .spec.predictor.model: %v", err))
 	}
 
 	for _, opt := range opts {
