@@ -376,9 +376,6 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 			defaultmode = k.Spec.DefaultDeploymentMode
 		}
 
-		// Check configuration optimality for managed/unmanaged serving
-		checkConfigurationOptimal(ctx, rr, k, defaultmode)
-
 		if err := updateInferenceCM(&kserveConfigMap, defaultmode, serviceClusterIPNone); err != nil {
 			return err
 		}
@@ -452,21 +449,29 @@ func setStatusFields(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 // checkConfigurationOptimal evaluates KServe configuration optimality and sets the ConfigurationOptimal condition.
 // It logs warnings and sets condition to False when serving is managed but using RawDeployment mode,
 // which wastes resources on unused serverless components. Otherwise, it sets the condition to True.
-func checkConfigurationOptimal(ctx context.Context, rr *odhtypes.ReconciliationRequest, k *componentApi.Kserve, deploymentMode componentApi.DefaultDeploymentMode) {
-	logger := logf.FromContext(ctx)
-
-	// Check for suboptimal configuration: managed serving with RawDeployment mode
-	if deploymentMode == componentApi.RawDeployment && k.Spec.Serving.ManagementState == operatorv1.Managed {
-		logger.Info("KServe configuration may be suboptimal",
-			"defaultDeploymentMode", string(deploymentMode),
-			"serving.managementState", string(k.Spec.Serving.ManagementState),
-			"recommendation", "Consider setting serving.managementState to Removed to save resources")
-
-		rr.Conditions.MarkFalse(
-			status.ConditionKserveConfigurationOptimal,
-			conditions.WithReason(status.ConfigurationSubOptimalReason),
-			conditions.WithMessage(status.ConfigurationSubOptimalMessage),
-			conditions.WithSeverity(common.ConditionSeverityWarning),
-		)
+func checkConfigurationOptimality(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
 	}
+
+	// Handle suboptimal case first and return early
+	if k.Spec.Serving.ManagementState == operatorv1.Managed &&
+		k.Spec.DefaultDeploymentMode == componentApi.RawDeployment {
+		rr.Conditions.MarkFalse(
+			status.ConditionConfigurationOptimal,
+			conditions.WithSeverity(common.ConditionSeverityWarning),
+			conditions.WithReason(status.ConfigurationSubOptimalReason),
+			conditions.WithMessage(status.KServeConfigurationSubOptimalMessage),
+		)
+		return nil
+	}
+
+	// Default case - configuration is optimal
+	rr.Conditions.MarkTrue(
+		status.ConditionConfigurationOptimal,
+		conditions.WithReason(status.ConfigurationOptimalReason),
+		conditions.WithMessage(status.ConfigurationOptimalMessage),
+	)
+	return nil
 }

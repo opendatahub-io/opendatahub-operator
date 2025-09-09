@@ -479,27 +479,73 @@ func TestCleanUpTemplatedResources_withoutAuthorino(t *testing.T) {
 		),
 	)
 }
-func TestCheckConfigurationOptimal(t *testing.T) {
-	ctx := t.Context()
-	g := NewWithT(t)
-
-	cli, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	ks := componentApi.Kserve{}
-	ks.Spec.DefaultDeploymentMode = componentApi.RawDeployment
-	ks.Spec.Serving.ManagementState = operatorv1.Managed
-
-	rr := types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   &ks,
-		Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+func TestCheckConfigurationOptimality(t *testing.T) {
+	tests := []struct {
+		name                    string
+		servingManagementState  operatorv1.ManagementState
+		defaultDeploymentMode   componentApi.DefaultDeploymentMode
+		expectedConditionStatus metav1.ConditionStatus
+		expectedReason          string
+	}{
+		{
+			name:                    "Suboptimal: Managed serving with RawDeployment",
+			servingManagementState:  operatorv1.Managed,
+			defaultDeploymentMode:   componentApi.RawDeployment,
+			expectedConditionStatus: metav1.ConditionFalse,
+			expectedReason:          status.ConfigurationSubOptimalReason,
+		},
+		{
+			name:                    "Optimal: Managed serving with Serverless",
+			servingManagementState:  operatorv1.Managed,
+			defaultDeploymentMode:   componentApi.Serverless,
+			expectedConditionStatus: metav1.ConditionTrue,
+			expectedReason:          status.ConfigurationOptimalReason,
+		},
+		{
+			name:                    "Acceptable: Removed serving with RawDeployment",
+			servingManagementState:  operatorv1.Removed,
+			defaultDeploymentMode:   componentApi.RawDeployment,
+			expectedConditionStatus: metav1.ConditionTrue,
+			expectedReason:          status.ConfigurationOptimalReason,
+		},
+		{
+			name:                    "Acceptable: Unmanaged serving with RawDeployment",
+			servingManagementState:  operatorv1.Unmanaged,
+			defaultDeploymentMode:   componentApi.RawDeployment,
+			expectedConditionStatus: metav1.ConditionTrue,
+			expectedReason:          status.ConfigurationOptimalReason,
+		},
 	}
 
-	checkConfigurationOptimal(ctx, &rr, &ks, componentApi.RawDeployment)
-	g.Expect(&ks).Should(
-		WithTransform(resources.ToUnstructured, And(
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionKserveConfigurationOptimal, metav1.ConditionFalse),
-		)),
-	)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			ctx := t.Context()
+
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			ks := componentApi.Kserve{}
+			ks.Spec.Serving.ManagementState = tt.servingManagementState
+			ks.Spec.DefaultDeploymentMode = tt.defaultDeploymentMode
+
+			rr := types.ReconciliationRequest{
+				Client:     cli,
+				Instance:   &ks,
+				Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+			}
+
+			err = checkConfigurationOptimality(ctx, &rr)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			g.Expect(&ks).Should(
+				WithTransform(resources.ToUnstructured, And(
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+						status.ConditionConfigurationOptimal, tt.expectedConditionStatus),
+					jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`,
+						status.ConditionConfigurationOptimal, tt.expectedReason),
+				)),
+			)
+		})
+	}
 }

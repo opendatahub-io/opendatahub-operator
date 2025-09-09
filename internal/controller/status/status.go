@@ -106,7 +106,6 @@ const (
 	ConditionOpenTelemetryCollectorAvailable = "OpenTelemetryCollectorAvailable"
 	ConditionInstrumentationAvailable        = "InstrumentationAvailable"
 	ConditionAlertingAvailable               = "AlertingAvailable"
-	ConditionKserveConfigurationOptimal      = "KserveConfigurationOptimal"
 )
 
 const (
@@ -195,10 +194,12 @@ const (
 	OpenTelemetryCollectorOperatorMissingMessage = "OpenTelemetryCollector operator must be installed for OpenTelemetry configuration"
 )
 
-// For KServe configuration checks.
 const (
-	ConfigurationSubOptimalReason  string = "ConfigurationSubOptimal"
-	ConfigurationSubOptimalMessage string = "Serving is managed but defaultDeploymentMode is set to RawDeployment - this may not provide the expected serverless experience"
+	ConditionConfigurationOptimal        = "ConfigurationOptimal"
+	ConfigurationOptimalReason           = "ConfigurationOptimal"
+	ConfigurationOptimalMessage          = "No configuration issues identified"
+	ConfigurationSubOptimalReason        = "ConfigurationSubOptimal"
+	KServeConfigurationSubOptimalMessage = "Serving is Managed, but defaultDeploymentMode is 'RawDeployment'. Consider switching defaultDeploymentMode to 'Serverless' or setting Serving to Unmanaged to optimize resource usage."
 )
 
 // setConditions is a helper function to set multiple conditions at once.
