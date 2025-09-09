@@ -36,15 +36,9 @@ func monitoringTestSuite(t *testing.T) {
 		TestContext: tc,
 	}
 
-	// Reset monitoring to default state to ensure clean test environment
-	// This handles cases where previous tests (like restrictive quota test) modified monitoring config
-	dsci := tc.FetchDSCInitialization()
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(
-			`.spec.monitoring = {managementState: "Managed", namespace: "%s"}`,
-			dsci.Spec.Monitoring.Namespace,
-		)),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed)),
 	)
 
 	// Define test cases.
@@ -733,6 +727,7 @@ func (tc *MonitoringTestCtx) createDummySecret(backendType, secretName, namespac
 					"private_key": "-----BEGIN PRIVATE KEY-----\nTEST-FAKE-KEY-NOT-REAL\n-----END PRIVATE KEY-----\n",
 					"client_email": "test-fake@fake-project.iam.gserviceaccount.com"
                 }`),
+				"bucket_name": []byte("fake-tempo-bucket"),
 			},
 		}
 	default:
