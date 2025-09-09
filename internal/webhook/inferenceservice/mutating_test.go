@@ -278,16 +278,16 @@ func hasServiceAccountNameRemovePatch() func([]jsonpatch.JsonPatchOperation) boo
 }
 
 func TestServiceAccountNamePatching(t *testing.T) {
-	t.Run("serviceAccountName is injected on create with OCI", func(t *testing.T) {
+	t.Run("no serviceAccountName is injected on create if type is not S3", func(t *testing.T) {
 		tc := TestCase{
-			name:            "serviceAccountName injected on create",
+			name:            "no serviceAccountName injected on create with OCI",
 			secretType:      inferenceservice.ConnectionTypeOCI.String(),
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret},
 			operation:       admissionv1.Create,
 			expectedAllowed: true,
 			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
-				return hasServiceAccountNamePatch(testSecret + "-sa")(patches)
+				return !hasServiceAccountNamePatch(testSecret + "-sa")(patches)
 			},
 		}
 		runTestCase(t, tc)

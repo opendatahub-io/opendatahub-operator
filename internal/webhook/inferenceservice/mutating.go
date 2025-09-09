@@ -126,16 +126,6 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 		// Handle different actions based on the ConnectionAction value
 		switch action {
 		case webhookutils.ConnectionActionInject:
-			// create ServiceAccount first (skip if it is dry-run)
-			isDryRun := req.DryRun != nil && *req.DryRun
-			if !isDryRun {
-				if err := webhookutils.CreateServiceAccount(ctx, w.Client, secretName, req.Namespace); err != nil {
-					log.Error(err, "Failed to create ServiceAccount")
-					return admission.Errored(http.StatusInternalServerError, err)
-				}
-			} else {
-				log.V(1).Info("Skipping ServiceAccount creation in dry-run mode", "secretName", secretName)
-			}
 			// Perform injection for valid connection types
 			injectionPerformed, err := w.performConnectionInjection(ctx, req, secretName, connectionType, obj)
 			if err != nil {
@@ -195,13 +185,6 @@ func (w *ConnectionWebhook) performConnectionInjection(
 ) (bool, error) {
 	log := logf.FromContext(ctx)
 
-	// inject ServiceAccount as common part
-	if err := w.handleSA(decodedObj, secretName+"-sa"); err != nil {
-		log.Error(err, "Failed to inject ServiceAccount")
-		return false, fmt.Errorf("failed to inject ServiceAccount: %w", err)
-	}
-	log.V(1).Info("Successfully injected ServiceAccount", "ServiceAccountName", secretName+"-sa")
-
 	// injection based on connection type
 	switch ConnectionType(connectionType) {
 	case ConnectionTypeOCI:
@@ -219,6 +202,21 @@ func (w *ConnectionWebhook) performConnectionInjection(
 		return true, nil
 
 	case ConnectionTypeS3:
+		// create ServiceAccount first (skip if it is dry-run)
+		isDryRun := req.DryRun != nil && *req.DryRun
+		if !isDryRun {
+			if err := webhookutils.CreateServiceAccount(ctx, w.Client, secretName, req.Namespace); err != nil {
+				return false, fmt.Errorf("failed to create ServiceAccount: %w", err)
+			}
+		} else {
+			log.V(1).Info("Skipping ServiceAccount creation in dry-run mode", "secretName", secretName)
+		}
+		// inject ServiceAccount only happens for type S3
+		if err := w.handleSA(decodedObj, secretName+"-sa"); err != nil {
+			log.Error(err, "Failed to inject ServiceAccount")
+			return false, fmt.Errorf("failed to inject ServiceAccount: %w", err)
+		}
+		log.V(1).Info("Successfully injected ServiceAccount", "ServiceAccountName", secretName+"-sa")
 		if err := w.injectS3StorageKey(decodedObj, secretName); err != nil {
 			return false, fmt.Errorf("failed to inject S3 storage.key: %w", err)
 		}
