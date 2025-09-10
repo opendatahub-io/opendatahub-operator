@@ -168,6 +168,8 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		}
 	}
 
+	templateData["CollectorReplicas"] = monitoring.Spec.CollectorReplicas
+
 	return templateData, nil
 }
 
