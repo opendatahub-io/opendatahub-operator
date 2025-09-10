@@ -20,15 +20,14 @@ import (
 	"context"
 	"fmt"
 
-	certmanagerv1 "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
@@ -56,14 +55,15 @@ func (h *ServiceHandler) GetManagementState(platform common.Platform, _ *dsciv1.
 }
 
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	utilruntime.Must(certmanagerv1.AddToScheme(mgr.GetScheme()))
-
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{}).
+		OwnsGVK(gvk.GatewayAPI).
+		OwnsGVK(gvk.GatewayClass).
 		WithAction(createGatewayInfrastructure).
 		WithAction(template.NewAction()).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
+		WithAction(syncGatewayStatus).
 		WithAction(gc.NewAction()).
 		Build(ctx)
 	if err != nil {

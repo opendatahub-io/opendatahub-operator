@@ -3089,7 +3089,7 @@ _Appears in:_
 
 
 
-GatewayAuthSpec defines authentication configuration for the gateway
+GatewayAuthSpec defines authentication configuration for the GatewayConfig
 
 
 
@@ -3159,7 +3159,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `auth` _[GatewayAuthSpec](#gatewayauthspec)_ | Authentication configuration |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
-| `domain` _string_ | Domain configuration for the gateway |  |  |
+| `domain` _string_ | Domain configuration for the GatewayConfig |  |  |
 | `namespace` _string_ | Namespace where the gateway resources should be deployed | openshift-ingress |  |
 
 
