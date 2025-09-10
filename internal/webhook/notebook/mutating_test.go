@@ -2,6 +2,7 @@ package notebook_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -26,11 +28,13 @@ import (
 
 const (
 	testNamespace    = "test-namespace"
+	testNamespace2   = "test-namespace2"
 	testNotebook     = "test-notebook"
 	testSecret1      = "secret1"
 	testSecret2      = "secret2"
 	addOperation     = "add"
 	replaceOperation = "replace"
+	removeOperation  = "remove"
 )
 
 // Helper function to create a test webhook.
@@ -99,9 +103,9 @@ func withExistingEnvFrom(envFrom []interface{}) func(*unstructured.Unstructured)
 }
 
 // Helper function to create admission request.
-func createAdmissionRequest(t *testing.T, operation admissionv1.Operation, obj *unstructured.Unstructured) admission.Request {
+func createAdmissionRequest(t *testing.T, operation admissionv1.Operation, obj *unstructured.Unstructured, oldObj *unstructured.Unstructured) admission.Request {
 	t.Helper()
-	return envtestutil.NewAdmissionRequest(
+	req := envtestutil.NewAdmissionRequest(
 		t,
 		operation,
 		obj,
@@ -112,6 +116,14 @@ func createAdmissionRequest(t *testing.T, operation admissionv1.Operation, obj *
 			Resource: "notebooks",
 		},
 	)
+	// set oldObj for testing update and delete operation
+	oldObjBytes, err := json.Marshal(oldObj)
+	if err != nil {
+		t.Errorf("Failed to Marshal oldObj %v", err)
+	}
+	req.OldObject = runtime.RawExtension{Raw: oldObjBytes}
+
+	return req
 }
 
 // Helper struct to mock SubjectAccessReview behavior.
@@ -198,9 +210,9 @@ func TestNotebookWebhook_Handle_BasicValidation(t *testing.T) {
 			webhook := createTestWebhook(t, cli)
 
 			notebook := createNotebook(withAnnotations(tt.annotations))
-			req := createAdmissionRequest(t, admissionv1.Create, notebook)
+			req := createAdmissionRequest(t, admissionv1.Create, notebook, nil)
 
-			resp := webhook.Handle(context.Background(), req)
+			resp := webhook.Handle(t.Context(), req)
 
 			g.Expect(resp.Allowed).Should(Equal(tt.expectedAllowed))
 			g.Expect(resp.Patches).Should(HaveLen(tt.expectedPatchesLen))
@@ -268,6 +280,18 @@ func TestNotebookWebhook_Handle_Permissions(t *testing.T) {
 			shouldHavePatches: false,
 			forbiddenSecrets:  []string{fmt.Sprintf("%s/%s", testNamespace, testSecret2)},
 		},
+		{
+			name:        "secret in a different namespace than Notebook CR's",
+			connections: fmt.Sprintf("%s/%s,%s/%s", testNamespace, testSecret1, testNamespace2, testSecret2),
+			allowPermissions: map[string]bool{
+				testSecret1: true,
+				testSecret2: true,
+			},
+			expectedAllowed:   false,
+			expectedMessage:   "some of the connection secret(s) do not exist or are outside the Notebook's namespace:",
+			shouldHavePatches: false,
+			forbiddenSecrets:  []string{fmt.Sprintf("%s/%s", testNamespace2, testSecret2)},
+		},
 	}
 
 	for _, tt := range tests {
@@ -282,7 +306,7 @@ func TestNotebookWebhook_Handle_Permissions(t *testing.T) {
 			}
 
 			for _, secretName := range tt.secretsToCreate {
-				g.Expect(cli.Create(context.Background(), &corev1.Secret{
+				g.Expect(cli.Create(t.Context(), &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secretName,
 						Namespace: testNamespace,
@@ -295,9 +319,9 @@ func TestNotebookWebhook_Handle_Permissions(t *testing.T) {
 			notebook := createNotebook(withAnnotations(map[string]string{
 				annotations.Connection: tt.connections,
 			}))
-			req := createAdmissionRequest(t, admissionv1.Create, notebook)
+			req := createAdmissionRequest(t, admissionv1.Create, notebook, nil)
 
-			resp := webhook.Handle(context.Background(), req)
+			resp := webhook.Handle(t.Context(), req)
 
 			g.Expect(resp.Allowed).Should(Equal(tt.expectedAllowed))
 
@@ -361,7 +385,7 @@ func TestNotebookWebhook_Handle_Operations(t *testing.T) {
 				},
 			}
 
-			g.Expect(cli.Create(context.Background(), &corev1.Secret{
+			g.Expect(cli.Create(t.Context(), &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testSecret1,
 					Namespace: testNamespace,
@@ -373,9 +397,9 @@ func TestNotebookWebhook_Handle_Operations(t *testing.T) {
 			notebook := createNotebook(withAnnotations(map[string]string{
 				annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret1),
 			}))
-			req := createAdmissionRequest(t, tt.operation, notebook)
+			req := createAdmissionRequest(t, tt.operation, notebook, nil)
 
-			resp := webhook.Handle(context.Background(), req)
+			resp := webhook.Handle(t.Context(), req)
 
 			g.Expect(resp.Allowed).Should(Equal(tt.expectedAllowed))
 
@@ -405,13 +429,13 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 		},
 	}
 
-	g.Expect(cli.Create(context.Background(), &corev1.Secret{
+	g.Expect(cli.Create(t.Context(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testSecret1,
 			Namespace: testNamespace,
 		},
 	})).Should(Succeed())
-	g.Expect(cli.Create(context.Background(), &corev1.Secret{
+	g.Expect(cli.Create(t.Context(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testSecret2,
 			Namespace: testNamespace,
@@ -448,11 +472,14 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 
 	tests := []struct {
 		name           string
+		operation      admissionv1.Operation
 		notebook       *unstructured.Unstructured
+		oldNotebook    *unstructured.Unstructured
 		expectedChecks []func(jsonpatch.JsonPatchOperation) bool
 	}{
 		{
-			name: "inject single secret",
+			name:      "inject single secret",
+			operation: admissionv1.Create,
 			notebook: createNotebook(withAnnotations(map[string]string{
 				annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret1),
 			})),
@@ -465,7 +492,8 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 			},
 		},
 		{
-			name: "inject multiple secrets",
+			name:      "inject multiple secrets",
+			operation: admissionv1.Create,
 			notebook: createNotebook(withAnnotations(map[string]string{
 				annotations.Connection: fmt.Sprintf("%s/%s,%s/%s", testNamespace, testSecret1, testNamespace, testSecret2),
 			})),
@@ -479,10 +507,23 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 			},
 		},
 		{
-			name: "preserve existing configMapRef and inject secret",
+			name:      "preserve existing configMapRef and inject secret",
+			operation: admissionv1.Update,
 			notebook: createNotebook(
 				withAnnotations(map[string]string{
 					annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret1),
+				}),
+				withExistingEnvFrom([]interface{}{
+					map[string]interface{}{
+						"configMapRef": map[string]interface{}{
+							"name": "existing-config",
+						},
+					},
+				}),
+			),
+			oldNotebook: createNotebook(
+				withAnnotations(map[string]string{
+					annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret2),
 				}),
 				withExistingEnvFrom([]interface{}{
 					map[string]interface{}{
@@ -501,7 +542,8 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 			},
 		},
 		{
-			name: "replace existing secretRef with new one",
+			name:      "replace existing connection secret with a new secret",
+			operation: admissionv1.Update,
 			notebook: createNotebook(
 				withAnnotations(map[string]string{
 					annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret1),
@@ -509,7 +551,19 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 				withExistingEnvFrom([]interface{}{
 					map[string]interface{}{
 						"secretRef": map[string]interface{}{
-							"name": "old-secret",
+							"name": testSecret2,
+						},
+					},
+				}),
+			),
+			oldNotebook: createNotebook(
+				withAnnotations(map[string]string{
+					annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret2),
+				}),
+				withExistingEnvFrom([]interface{}{
+					map[string]interface{}{
+						"secretRef": map[string]interface{}{
+							"name": testSecret2,
 						},
 					},
 				}),
@@ -522,6 +576,47 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:      "preserve non-connection secret while removing connection secret",
+			operation: admissionv1.Update,
+			notebook: createNotebook(
+				withExistingEnvFrom([]interface{}{
+					map[string]interface{}{
+						"secretRef": map[string]interface{}{
+							"name": testSecret1,
+						},
+					},
+					map[string]interface{}{
+						"secretRef": map[string]interface{}{
+							"name": testSecret2,
+						},
+					},
+				}),
+			),
+			oldNotebook: createNotebook(
+				withAnnotations(map[string]string{
+					annotations.Connection: fmt.Sprintf("%s/%s", testNamespace, testSecret2),
+				}),
+				withExistingEnvFrom([]interface{}{
+					map[string]interface{}{
+						"secretRef": map[string]interface{}{
+							"name": testSecret1,
+						},
+					},
+					map[string]interface{}{
+						"secretRef": map[string]interface{}{
+							"name": testSecret2,
+						},
+					},
+				}),
+			),
+			expectedChecks: []func(jsonpatch.JsonPatchOperation) bool{
+				func(patch jsonpatch.JsonPatchOperation) bool {
+					return patch.Operation == removeOperation &&
+						patch.Path == "/spec/template/spec/containers/0/envFrom/1"
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -529,8 +624,8 @@ func TestNotebookWebhook_Handle_EnvFromInjection(t *testing.T) {
 			t.Parallel()
 			g := NewWithT(t)
 
-			req := createAdmissionRequest(t, admissionv1.Create, tt.notebook)
-			resp := webhook.Handle(context.Background(), req)
+			req := createAdmissionRequest(t, tt.operation, tt.notebook, tt.oldNotebook)
+			resp := webhook.Handle(t.Context(), req)
 
 			g.Expect(resp.Allowed).Should(BeTrue())
 			g.Expect(resp.Patches).ShouldNot(BeEmpty())

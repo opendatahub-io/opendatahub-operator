@@ -3,15 +3,25 @@ package e2e_test
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"reflect"
+	"slices"
+	"sort"
+	"strings"
 	"testing"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -61,6 +71,7 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
 		{"Validate Observability operators are installed", dscTestCtx.ValidateObservabilityOperatorsInstallation},
+		{"Validate components deployment failure", dscTestCtx.ValidateComponentsDeploymentFailure},
 	}
 
 	// Append webhook-specific tests.
@@ -148,7 +159,7 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 	t.Helper()
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace)),
+		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace, tc.MonitoringNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name),
 
@@ -186,7 +197,7 @@ func (tc *DSCTestCtx) ValidateServiceMeshSpecInDSCI(t *testing.T) {
 			MetricsCollection: serviceMeshMetricsCollection,
 		},
 		Auth: infrav1.AuthSpec{
-			Audiences: &[]string{"https://kubernetes.default.svc"},
+			Audiences: []string{"https://kubernetes.default.svc"},
 		},
 	}
 
@@ -296,7 +307,7 @@ func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCIDuplication(t *testing.T) {
 	t.Helper()
 
-	dup := CreateDSCI(dsciInstanceNameDuplicate, tc.AppsNamespace)
+	dup := CreateDSCI(dsciInstanceNameDuplicate, tc.AppsNamespace, tc.MonitoringNamespace)
 	tc.EnsureResourceIsUnique(dup)
 }
 
@@ -351,4 +362,217 @@ func (tc *DSCTestCtx) UpdateRegistriesNamespace(targetNamespace, expectedValue s
 		WithCondition(expectedCondition),
 		WithCustomErrorMsg("Failed to update RegistriesNamespace to %s, expected %s", targetNamespace, expectedValue),
 	)
+}
+
+// ValidateComponentsDeploymentFailure simulates component deployment failure using restrictive resource quota.
+func (tc *DSCTestCtx) ValidateComponentsDeploymentFailure(t *testing.T) {
+	t.Helper()
+
+	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
+	componentToControllerMap := map[string]string{
+		componentApi.CodeFlareComponentName:            "codeflare-operator-manager",
+		componentApi.DashboardComponentName:            "dashboard",
+		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
+		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
+		componentApi.KserveComponentName:               "kserve-controller-manager",
+		componentApi.KueueComponentName:                "kueue-controller-manager",
+		componentApi.LlamaStackOperatorComponentName:   "llama-stack-k8s-operator-controller-manager",
+		componentApi.ModelMeshServingComponentName:     "modelmesh-controller",
+		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
+		componentApi.RayComponentName:                  "kuberay-operator",
+		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
+		componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
+		componentApi.WorkbenchesComponentName:          "notebook-controller-manager",
+	}
+
+	// Error message includes components + internal components name
+	var internalComponentToControllerMap = map[string]string{
+		componentApi.ModelControllerComponentName: "model-controller",
+	}
+
+	components := slices.Collect(maps.Keys(componentToControllerMap))
+	componentsLength := len(components)
+
+	t.Log("Verifying component count matches DSC Components struct")
+	expectedComponentCount := reflect.TypeOf(dscv1.Components{}).NumField()
+	tc.g.Expect(componentsLength).Should(Equal(expectedComponentCount),
+		"allComponents list is out of sync with DSC Components struct. "+
+			"Expected %d components but found %d. "+
+			"Please update the allComponents list when adding new components.",
+		expectedComponentCount, componentsLength)
+
+	// Force monitoring to use 2 replicas for consistent quota test behavior
+	t.Log("Configuring monitoring to use 2 replicas for consistent quota test")
+	tc.ensureConsistentMonitoringForQuotaTest(t)
+
+	restrictiveQuota := createRestrictiveQuotaForOperator(tc.AppsNamespace)
+
+	t.Log("Creating restrictive resource quota in operator namespace")
+	tc.EnsureResourceCreatedOrPatched(
+		WithObjectToCreate(restrictiveQuota),
+	)
+
+	// important: register cleanup immediately after creation to avoid flakiness in local testing
+	t.Cleanup(func() {
+		t.Log("Cleaning up restrictive quota")
+		tc.DeleteResource(WithObjectToCreate(restrictiveQuota))
+
+		// Reset monitoring configuration to default state to avoid affecting other tests
+		t.Log("Resetting monitoring configuration to default state")
+		tc.resetMonitoringToDefault(t)
+	})
+
+	t.Log("Enabling all components in DataScienceCluster")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(updateAllComponentsTransform(components, operatorv1.Managed)),
+	)
+
+	t.Log("Verifying component deployments are stuck due to quota")
+	allControllers := slices.Concat(
+		slices.Collect(maps.Values(componentToControllerMap)),
+		slices.Collect(maps.Values(internalComponentToControllerMap)),
+	)
+	tc.verifyDeploymentsStuckDueToQuota(t, allControllers)
+
+	t.Log("Verifying DSC reports all failed components")
+	allComponents := slices.Concat(
+		components,
+		slices.Collect(maps.Keys(internalComponentToControllerMap)),
+	)
+	sort.Strings(allComponents)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(
+			jq.Match(
+				`.status.conditions[]
+				| select(.type == "ComponentsReady" and .status == "False")
+				| .message == "%s"`,
+				"Some components are not ready: "+strings.Join(allComponents, ","),
+			),
+		),
+	)
+
+	t.Log("Disabling all components and verifying no managed components are reported")
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(updateAllComponentsTransform(components, operatorv1.Removed)),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(
+			`.status.conditions[]
+			| select(.type == "ComponentsReady" and .status == "%s")
+			| .message
+			| test("nomanagedcomponents"; "i")`,
+			metav1.ConditionTrue,
+		)),
+	)
+}
+
+// enable/disable all components.
+func updateAllComponentsTransform(components []string, state operatorv1.ManagementState) testf.TransformFn {
+	transformParts := make([]string, len(components))
+	for i, component := range components {
+		transformParts[i] = fmt.Sprintf(`.spec.components.%s.managementState = "%s"`, component, state)
+	}
+
+	return testf.Transform("%s", strings.Join(transformParts, " | "))
+}
+
+func createRestrictiveQuotaForOperator(namespace string) *corev1.ResourceQuota {
+	return &corev1.ResourceQuota{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ResourceQuota",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-restrictive-quota",
+			Namespace: namespace,
+		},
+		Spec: corev1.ResourceQuotaSpec{
+			Hard: corev1.ResourceList{
+				corev1.ResourceRequestsCPU:    resource.MustParse("0.1m"),
+				corev1.ResourceRequestsMemory: resource.MustParse("1Ki"),
+				corev1.ResourceLimitsCPU:      resource.MustParse("0.1m"),
+				corev1.ResourceLimitsMemory:   resource.MustParse("1Ki"),
+			},
+		},
+	}
+}
+
+func (tc *DSCTestCtx) verifyDeploymentsStuckDueToQuota(t *testing.T, allControllers []string) {
+	t.Helper()
+
+	expectedCount := len(allControllers)
+
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithCondition(jq.Match("%s", fmt.Sprintf(`
+			map(
+				select(.metadata.name | test("%s"; "i")) |
+				select(
+					.status.conditions[]? |
+					select(.type == "ReplicaFailure") |
+					select(.status == "True") |
+					select(.message | test(
+						"forbidden: exceeded quota: test-restrictive-quota|" +
+						"forbidden: failed quota: test-restrictive-quota|" +
+						"forbidden"; "i"
+					))
+				)
+			) |
+			length == %d
+		`, strings.Join(allControllers, "|"), expectedCount))),
+		WithCustomErrorMsg(fmt.Sprintf("Expected all %d component deployments to have quota error messages", expectedCount)),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+	)
+}
+
+// ensureConsistentMonitoringForQuotaTest forces monitoring to use 2 replicas regardless of cluster type.
+// This maintains consistent resource pressure for the restrictive quota test, ensuring the test
+// behaves predictably whether running on single-node or multi-node clusters.
+func (tc *DSCTestCtx) ensureConsistentMonitoringForQuotaTest(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Force monitoring to use 2 replicas with explicit storage and resources configuration
+	// This overrides the single-node optimization
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(
+			`.spec.monitoring = {`+
+				`managementState: "Managed", `+
+				`namespace: "%s", `+
+				`metrics: {`+
+				`storage: {size: "5Gi", retention: "90d"}, `+
+				`resources: {cpurequest: "250m", memoryrequest: "350Mi"}, `+
+				`replicas: 2`+
+				`}`+
+				`}`,
+			dsci.Spec.Monitoring.Namespace,
+		)),
+	)
+
+	t.Log("Forced monitoring to use 2 replicas for consistent quota test behavior")
+}
+
+// resetMonitoringToDefault resets monitoring configuration to default state (no metrics).
+// This ensures that changes made for the restrictive quota test don't affect other tests.
+func (tc *DSCTestCtx) resetMonitoringToDefault(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Reset monitoring to default state (managementState: Managed, no metrics configuration)
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(
+			`.spec.monitoring = {managementState: "Managed", namespace: "%s"}`,
+			dsci.Spec.Monitoring.Namespace,
+		)),
+	)
+
+	t.Log("Reset monitoring configuration to default state")
 }

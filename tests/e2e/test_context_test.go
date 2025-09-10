@@ -49,6 +49,9 @@ type TestContext struct {
 	// Namespace where application workloads are deployed.
 	AppsNamespace string
 
+	// Namespace where the monitoring components are deployed.
+	MonitoringNamespace string
+
 	// Namespaced name of the DSCInitialization custom resource used for testing.
 	DSCInitializationNamespacedName types.NamespacedName
 
@@ -89,6 +92,7 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		DataScienceClusterNamespacedName: types.NamespacedName{Name: dscInstanceName},
 		OperatorNamespace:                testOpts.operatorNamespace,
 		AppsNamespace:                    testOpts.appsNamespace,
+		MonitoringNamespace:              testOpts.monitoringNamespace,
 		TestTimeouts:                     testOpts.TestTimeouts,
 	}, nil
 }
@@ -698,6 +702,44 @@ func (tc *TestContext) DeleteResource(opts ...ResourceOpts) {
 		opts = append(opts, WithCustomErrorMsg("Resource %s instance %s was not fully deleted", ro.GVK.Kind, ro.ResourceID))
 		tc.EnsureResourceGone(opts...)
 	}
+}
+
+// EnsureResourceDeletedThenRecreated provides a robust deletion-recreation test pattern
+// that handles the race condition between client deletion and controller recreation.
+func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) *unstructured.Unstructured {
+	ro := tc.NewResourceOptions(opts...)
+
+	// Step 1: Capture original resource metadata
+	originalResource := tc.EnsureResourceExists(opts...)
+	originalUID := string(originalResource.GetUID())
+	originalResourceVersion := originalResource.GetResourceVersion()
+
+	// Step 2: Delete the resource using standard deletion
+	tc.DeleteResource(opts...)
+
+	// Step 3: Wait for controller to recreate with new identity
+	var recreatedResource *unstructured.Unstructured
+	tc.g.Eventually(func(g Gomega) {
+		// Apply grace period if specified
+		if ro.GracePeriod > 0 {
+			time.Sleep(ro.GracePeriod)
+		}
+
+		recreatedResource = tc.EnsureResourceExists(opts...)
+
+		// Verify it's actually a new resource (different UID)
+		newUID := string(recreatedResource.GetUID())
+		newResourceVersion := recreatedResource.GetResourceVersion()
+
+		g.Expect(newUID).NotTo(Equal(originalUID),
+			"Recreated resource should have different UID. Original: %s, New: %s", originalUID, newUID)
+		g.Expect(newResourceVersion).NotTo(Equal(originalResourceVersion),
+			"Recreated resource should have different ResourceVersion. Original: %s, New: %s",
+			originalResourceVersion, newResourceVersion)
+	}).Should(Succeed(),
+		"Resource %s %s was not properly recreated with new identity", ro.GVK.Kind, ro.ResourceID)
+
+	return recreatedResource
 }
 
 // FetchInstallPlanName retrieves the name of the InstallPlan associated with a subscription.

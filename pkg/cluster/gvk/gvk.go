@@ -375,6 +375,12 @@ var (
 		Kind:    "ClusterQueue",
 	}
 
+	ResourceFlavor = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta1",
+		Kind:    "ResourceFlavor",
+	}
+
 	InferenceServices = schema.GroupVersionKind{
 		Group:   "serving.kserve.io",
 		Version: "v1beta1",
@@ -397,6 +403,18 @@ var (
 		Group:   "serving.kserve.io",
 		Version: "v1alpha1",
 		Kind:    "LLMInferenceService",
+	}
+
+	InferencePoolV1alpha2 = schema.GroupVersionKind{
+		Group:   "inference.networking.x-k8s.io",
+		Version: "v1alpha2",
+		Kind:    "InferencePool",
+	}
+
+	InferenceModelV1alpha2 = schema.GroupVersionKind{
+		Group:   "inference.networking.x-k8s.io",
+		Version: "v1alpha2",
+		Kind:    "InferenceModel",
 	}
 
 	OperatorCondition = schema.GroupVersionKind{
@@ -423,15 +441,27 @@ var (
 		Kind:    "PyTorchJob",
 	}
 
-	RayJob = schema.GroupVersionKind{
+	RayJobV1Alpha1 = schema.GroupVersionKind{
 		Group:   "ray.io",
 		Version: "v1alpha1",
 		Kind:    "RayJob",
 	}
 
-	RayCluster = schema.GroupVersionKind{
+	RayJobV1 = schema.GroupVersionKind{
+		Group:   "ray.io",
+		Version: "v1",
+		Kind:    "RayJob",
+	}
+
+	RayClusterV1Alpha1 = schema.GroupVersionKind{
 		Group:   "ray.io",
 		Version: "v1alpha1",
+		Kind:    "RayCluster",
+	}
+
+	RayClusterV1 = schema.GroupVersionKind{
+		Group:   "ray.io",
+		Version: "v1",
 		Kind:    "RayCluster",
 	}
 
@@ -463,5 +493,35 @@ var (
 		Group:   "monitoring.rhobs",
 		Version: "v1",
 		Kind:    "ServiceMonitor",
+	}
+
+	PrometheusRule = schema.GroupVersionKind{
+		Group:   "monitoring.rhobs",
+		Version: "v1",
+		Kind:    "PrometheusRule",
+	}
+
+	ServiceMesh = schema.GroupVersionKind{
+		Group:   serviceApi.GroupVersion.Group,
+		Version: serviceApi.GroupVersion.Version,
+		Kind:    serviceApi.ServiceMeshKind,
+	}
+
+	PodMonitorServiceMesh = schema.GroupVersionKind{
+		Group:   "monitoring.coreos.com",
+		Version: "v1",
+		Kind:    "PodMonitor",
+	}
+
+	ServiceMonitorServiceMesh = schema.GroupVersionKind{
+		Group:   "monitoring.coreos.com",
+		Version: "v1",
+		Kind:    "ServiceMonitor",
+	}
+
+	Authorino = schema.GroupVersionKind{
+		Group:   "operator.authorino.kuadrant.io",
+		Version: "v1beta1",
+		Kind:    "Authorino",
 	}
 )

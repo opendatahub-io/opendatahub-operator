@@ -59,7 +59,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the bundled Argo Workflows controllers.<br />              It will only upgrade the Argo Workflows controllers if it is safe to do so. This is the default<br />              behavior.<br /><br />- "Removed" : the operator is not managing the bundled Argo Workflows controllers and will not install it.<br />              If it is installed, the operator will remove it but will not remove other Argo Workflows<br />              installations. | Managed | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the bundled Argo Workflows controllers.<br />              It will only upgrade the Argo Workflows controllers if it is safe to do so. This is the default<br />              behavior.<br />- "Removed" : the operator is not managing the bundled Argo Workflows controllers and will not install it.<br />              If it is installed, the operator will remove it but will not remove other Argo Workflows<br />              installations. | Managed | Enum: [Managed Removed] <br /> |
 
 
 #### CodeFlare
@@ -186,7 +186,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
@@ -203,7 +203,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCDashboard
@@ -219,7 +219,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
@@ -236,7 +236,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCDataSciencePipelines
@@ -252,7 +252,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `argoWorkflowsControllers` _[ArgoWorkflowsControllersSpec](#argoworkflowscontrollersspec)_ |  |  |  |
 
@@ -270,7 +270,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCFeastOperator
@@ -286,7 +286,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
@@ -303,7 +303,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCKserve
@@ -319,7 +319,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `serving` _[ServingSpec](#servingspec)_ | Serving configures the KNative-Serving stack used for model serving. A Service<br />Mesh (Istio) is prerequisite, since it is used as networking layer. |  |  |
 | `defaultDeploymentMode` _[DefaultDeploymentMode](#defaultdeploymentmode)_ | Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.<br />The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.<br />This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode. |  | Enum: [Serverless RawDeployment] <br /> |
@@ -340,7 +340,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCKueue
@@ -356,7 +356,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
 | `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
@@ -375,7 +375,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
 
 
 #### DSCLlamaStackOperator
@@ -391,7 +391,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
@@ -408,7 +408,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCModelMeshServing
@@ -424,7 +424,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
@@ -441,7 +441,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCModelRegistry
@@ -457,7 +457,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
@@ -475,7 +475,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCRay
@@ -491,7 +491,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
@@ -508,7 +508,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCTrainingOperator
@@ -524,7 +524,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
@@ -541,7 +541,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCTrustyAI
@@ -557,7 +557,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `eval` _[TrustyAIEvalSpec](#trustyaievalspec)_ | Eval configuration for TrustyAI evaluations |  |  |
 
@@ -575,7 +575,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCWorkbenches
@@ -591,7 +591,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
@@ -609,7 +609,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### Dashboard
@@ -1025,7 +1025,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `defaultDeploymentMode` _string_ | DefaultDeploymentMode is the value of the defaultDeploymentMode field<br />as read from the "deploy" JSON in the inferenceservice-config ConfigMap |  |  |
-| `serverlessMode` _[ManagementState](#managementstate)_ |  |  |  |
+| `serverlessMode` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
@@ -1086,7 +1086,7 @@ _Appears in:_
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `defaultDeploymentMode` _string_ | DefaultDeploymentMode is the value of the defaultDeploymentMode field<br />as read from the "deploy" JSON in the inferenceservice-config ConfigMap |  |  |
-| `serverlessMode` _[ManagementState](#managementstate)_ |  |  |  |
+| `serverlessMode` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
@@ -1199,7 +1199,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
 
 
 #### KueueSpec
@@ -1215,7 +1215,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br /><br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
 | `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
@@ -1386,7 +1386,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ |  |  |  |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  |  |  |
 | `nim` _[NimSpec](#nimspec)_ |  |  |  |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
@@ -1424,7 +1424,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ |  |  |  |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  |  |  |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
@@ -1441,7 +1441,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ |  |  |  |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  |  |  |
 
 
 #### ModelControllerSpec
@@ -1722,7 +1722,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ |  | Managed | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Managed | Enum: [Managed Removed] <br /> |
 
 
 #### RawServiceConfig
@@ -2261,7 +2261,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `namespace` _string_ | Namespace where it is deployed. If not provided, the default is to<br />use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI. |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
-| `audiences` _string_ | Audiences is a list of the identifiers that the resource server presented<br />with the token identifies as. Audience-aware token authenticators will verify<br />that the token was intended for at least one of the audiences in this list.<br />If no audiences are provided, the audience will default to the audience of the<br />Kubernetes apiserver (kubernetes.default.svc). | [https://kubernetes.default.svc] |  |
+| `audiences` _string array_ | Audiences is a list of the identifiers that the resource server presented<br />with the token identifies as. Audience-aware token authenticators will verify<br />that the token was intended for at least one of the audiences in this list.<br />If no audiences are provided, the audience will default to the audience of the<br />Kubernetes apiserver (kubernetes.default.svc). | [https://kubernetes.default.svc] |  |
 
 
 #### CertType
@@ -2292,6 +2292,7 @@ an Istio Gateway.
 
 
 _Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
 - [GatewaySpec](#gatewayspec)
 
 | Field | Description | Default | Validation |
@@ -2464,7 +2465,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ |  | Removed | Enum: [Managed Unmanaged Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Unmanaged Removed] <br /> |
 | `controlPlane` _[ControlPlaneSpec](#controlplanespec)_ | ControlPlane holds configuration of Service Mesh used by Opendatahub. |  |  |
 | `auth` _[AuthSpec](#authspec)_ | Auth holds configuration of authentication and authorization services<br />used by Service Mesh in Opendatahub. |  |  |
 
@@ -2485,7 +2486,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ |  | Managed | Enum: [Managed Unmanaged Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Managed | Enum: [Managed Unmanaged Removed] <br /> |
 | `name` _string_ | Name specifies the name of the KNativeServing resource that is going to be<br />created to instruct the KNative Operator to deploy KNative serving components.<br />This resource is created in the "knative-serving" namespace. | knative-serving |  |
 | `ingressGateway` _[GatewaySpec](#gatewayspec)_ | IngressGateway allows to customize some parameters for the Istio Ingress Gateway<br />that is bound to KNative-Serving. |  |  |
 
@@ -2601,7 +2602,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | managementState indicates whether and how the operator should manage customized CA bundle | Removed | Enum: [Managed Removed Unmanaged] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | managementState indicates whether and how the operator should manage customized CA bundle | Removed | Enum: [Managed Removed Unmanaged] <br /> |
 | `customCABundle` _string_ | A custom CA bundle that will be available for  all  components in the<br />Data Science Cluster(DSC). This bundle will be stored in odh-trusted-ca-bundle<br />ConfigMap .data.odh-ca-bundle.crt . |  |  |
 
 
@@ -2788,8 +2789,27 @@ Package v1 contains API Schema definitions for the services v1 API group
 ### Resource Types
 - [Auth](#auth)
 - [AuthList](#authlist)
+- [GatewayConfig](#gatewayconfig)
+- [GatewayConfigList](#gatewayconfiglist)
 - [Monitoring](#monitoring)
 - [MonitoringList](#monitoringlist)
+- [ServiceMesh](#servicemesh)
+- [ServiceMeshList](#servicemeshlist)
+
+
+
+#### Alerting
+
+
+
+Alerting configuration for Prometheus
+
+
+
+_Appears in:_
+- [DSCIMonitoring](#dscimonitoring)
+- [MonitoringCommonSpec](#monitoringcommonspec)
+- [MonitoringSpec](#monitoringspec)
 
 
 
@@ -2848,8 +2868,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `adminGroups` _string array_ |  |  |  |
-| `allowedGroups` _string array_ |  |  |  |
+| `adminGroups` _string array_ | AdminGroups cannot contain 'system:authenticated' (security risk) or empty strings, and must not be empty |  |  |
+| `allowedGroups` _string array_ | AllowedGroups cannot contain empty strings, but 'system:authenticated' is allowed for general access |  |  |
 
 
 #### AuthStatus
@@ -2883,10 +2903,108 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](#managementstate)_ | Set to one of the following values:<br /><br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br /><br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
+| `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
+
+
+#### GatewayAuthSpec
+
+
+
+GatewayAuthSpec defines authentication configuration for the gateway
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `mode` _string_ | Authentication mode: "openshift-oauth" \| "oidc" \| "auto" | auto | Enum: [openshift-oauth oidc auto] <br /> |
+| `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (required when mode="oidc") |  |  |
+
+
+#### GatewayConfig
+
+
+
+GatewayConfig is the Schema for the gatewayconfigs API
+
+
+
+_Appears in:_
+- [GatewayConfigList](#gatewayconfiglist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `GatewayConfig` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[GatewayConfigSpec](#gatewayconfigspec)_ |  |  |  |
+| `status` _[GatewayConfigStatus](#gatewayconfigstatus)_ |  |  |  |
+
+
+#### GatewayConfigList
+
+
+
+GatewayConfigList contains a list of GatewayConfig
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `GatewayConfigList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[GatewayConfig](#gatewayconfig) array_ |  |  |  |
+
+
+#### GatewayConfigSpec
+
+
+
+GatewayConfigSpec defines the desired state of GatewayConfig
+
+
+
+_Appears in:_
+- [GatewayConfig](#gatewayconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `auth` _[GatewayAuthSpec](#gatewayauthspec)_ | Authentication configuration |  |  |
+| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
+| `domain` _string_ | Domain configuration for the gateway |  |  |
+| `namespace` _string_ | Namespace where the gateway resources should be deployed | openshift-ingress |  |
+
+
+#### GatewayConfigStatus
+
+
+
+GatewayConfigStatus defines the observed state of GatewayConfig
+
+
+
+_Appears in:_
+- [GatewayConfig](#gatewayconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
 #### Metrics
@@ -2906,7 +3024,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `storage` _[MetricsStorage](#metricsstorage)_ |  |  |  |
 | `resources` _[MetricsResources](#metricsresources)_ |  |  |  |
-| `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack, default is 2 if not set |  |  |
+| `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  | Minimum: 0 <br /> |
+| `exporters` _object (keys:string, values:string)_ | Exporters defines custom metrics exporters for sending metrics to external observability tools.<br />Each key-value pair represents an exporter name and its configuration.<br />Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters. |  |  |
 
 
 #### MetricsResources
@@ -2942,7 +3061,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `size` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | Size specifies the storage size for the MonitoringStack (e.g, "5Gi", "10Mi") | 5Gi |  |
-| `retention` _string_ | Retention specifies how long metrics data should be retained (e.g., "1d", "2w") | 1d |  |
+| `retention` _string_ | Retention specifies how long metrics data should be retained (e.g., "1d", "2w") | 90d |  |
 
 
 #### Monitoring
@@ -2984,6 +3103,8 @@ _Appears in:_
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
+| `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
 
 
 #### MonitoringList
@@ -3022,6 +3143,8 @@ _Appears in:_
 | `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
+| `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
 
 
 #### MonitoringStatus
@@ -3043,6 +3166,136 @@ _Appears in:_
 | `url` _string_ |  |  |  |
 
 
+#### OIDCConfig
+
+
+
+OIDCConfig defines OIDC provider configuration
+
+
+
+_Appears in:_
+- [GatewayAuthSpec](#gatewayauthspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `issuerURL` _string_ | OIDC issuer URL |  | Required: \{\} <br /> |
+| `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing clientID and clientSecret |  | Required: \{\} <br /> |
+
+
+#### ServiceMesh
+
+
+
+ServiceMesh is the Schema for the servicemesh API
+
+
+
+_Appears in:_
+- [ServiceMeshList](#servicemeshlist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `ServiceMesh` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[ServiceMeshSpec](#servicemeshspec)_ |  |  |  |
+| `status` _[ServiceMeshStatus](#servicemeshstatus)_ |  |  |  |
+
+
+#### ServiceMeshAuthSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [ServiceMeshSpec](#servicemeshspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `namespace` _string_ | Namespace where it is deployed. If not provided, the default is to<br />use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI. |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `audiences` _string array_ | Audiences is a list of the identifiers that the resource server presented<br />with the token identifies as. Audience-aware token authenticators will verify<br />that the token was intended for at least one of the audiences in this list.<br />If no audiences are provided, the audience will default to the audience of the<br />Kubernetes apiserver (kubernetes.default.svc). | [https://kubernetes.default.svc] |  |
+
+
+#### ServiceMeshControlPlaneSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [ServiceMeshSpec](#servicemeshspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is a name Service Mesh Control Plane. Defaults to "data-science-smcp". | data-science-smcp |  |
+| `namespace` _string_ | Namespace is a namespace where Service Mesh is deployed. Defaults to "istio-system". | istio-system | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `metricsCollection` _string_ | MetricsCollection specifies if metrics from components on the Mesh namespace<br />should be collected. Setting the value to "Istio" will collect metrics from the<br />control plane and any proxies on the Mesh namespace (like gateway pods). Setting<br />to "None" will disable metrics collection. | Istio | Enum: [Istio None] <br /> |
+
+
+#### ServiceMeshList
+
+
+
+ServiceMeshList contains a list of ServiceMesh
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `ServiceMeshList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[ServiceMesh](#servicemesh) array_ |  |  |  |
+
+
+#### ServiceMeshSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [ServiceMesh](#servicemesh)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Unmanaged Removed] <br /> |
+| `controlPlane` _[ServiceMeshControlPlaneSpec](#servicemeshcontrolplanespec)_ | servicemesh spec exposed to DSCI api<br />ControlPlane holds configuration of Service Mesh used by Opendatahub. |  |  |
+| `auth` _[ServiceMeshAuthSpec](#servicemeshauthspec)_ | Auth holds configuration of authentication and authorization services<br />used by Service Mesh in Opendatahub. |  |  |
+
+
+#### ServiceMeshStatus
+
+
+
+ServiceMeshStatus defines the observed state of ServiceMesh
+
+
+
+_Appears in:_
+- [ServiceMesh](#servicemesh)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
+
+
 #### Traces
 
 
@@ -3060,6 +3313,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `storage` _[TracesStorage](#tracesstorage)_ |  |  |  |
 | `sampleRatio` _string_ | SampleRatio determines the sampling rate for traces<br />Value should be between 0.0 (no sampling) and 1.0 (sample all traces) | 0.1 | Pattern: `^(0(\.[0-9]+)?\|1(\.0+)?)$` <br /> |
+| `tls` _[TracesTLS](#tracestls)_ | TLS configuration for Tempo gRPC connections |  |  |
+| `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines custom trace exporters for sending traces to external observability tools.<br />Each key represents the exporter name, and the value contains the exporter configuration.<br />The configuration follows the OpenTelemetry Collector exporter format. |  |  |
 
 
 #### TracesStorage
@@ -3078,5 +3333,24 @@ _Appears in:_
 | `backend` _string_ | Backend defines the storage backend type.<br />Valid values are "pv", "s3", and "gcs". | pv | Enum: [pv s3 gcs] <br /> |
 | `size` _string_ | Size specifies the size of the storage.<br />This field is optional. |  |  |
 | `secret` _string_ | Secret specifies the secret name for storage credentials.<br />This field is required when the backend is not "pv". |  |  |
+| `retention` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | Retention specifies how long trace data should be retained globally (e.g., "60m", "10h") | 2160h |  |
+
+
+#### TracesTLS
+
+
+
+TracesTLS defines TLS configuration for traces collection
+
+
+
+_Appears in:_
+- [Traces](#traces)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ | Enabled enables TLS for Tempo gRPC connections | true |  |
+| `certificateSecret` _string_ | CertificateSecret specifies the name of the secret containing TLS certificates<br />If not specified, OpenShift service serving certificates will be used |  |  |
+| `caConfigMap` _string_ | CAConfigMap specifies the name of the ConfigMap containing the CA certificate<br />Required for mutual TLS authentication |  |  |
 
 

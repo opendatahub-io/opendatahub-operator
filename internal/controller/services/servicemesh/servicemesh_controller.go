@@ -2,81 +2,97 @@ package servicemesh
 
 import (
 	"context"
-	"reflect"
+	"fmt"
 
-	"k8s.io/client-go/tools/record"
+	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 )
 
-type ServiceMeshReconciler struct {
-	Client   client.Client
-	Recorder record.EventRecorder
+//nolint:gochecknoinits
+func init() {
+	sr.Add(&serviceHandler{})
 }
 
-func (r *ServiceMeshReconciler) dsciServiceMeshPredicate() predicate.Funcs {
-	return predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			oldDsci, ok := e.ObjectOld.(*dsciv1.DSCInitialization)
-			if !ok {
-				return false
-			}
-			newDsci, ok := e.ObjectNew.(*dsciv1.DSCInitialization)
-			if !ok {
-				return false
-			}
-
-			return !reflect.DeepEqual(oldDsci.Spec.ServiceMesh, newDsci.Spec.ServiceMesh)
-		},
-
-		CreateFunc: func(e event.CreateEvent) bool {
-			return true
-		},
-
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			return true
-		},
-	}
+type serviceHandler struct {
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *ServiceMeshReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
-	logf.FromContext(ctx).Info("Adding controller for ServiceMesh.")
-
-	return ctrl.NewControllerManagedBy(mgr).
-		Named("servicemesh-controller").
-		For(&dsciv1.DSCInitialization{}, builder.WithPredicates(r.dsciServiceMeshPredicate())).
-		Complete(r)
+func (h *serviceHandler) Init(_ common.Platform) error {
+	return nil
 }
 
-func (r *ServiceMeshReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := logf.FromContext(ctx)
-	log.Info("Reconciling ServiceMesh controller")
+func (h *serviceHandler) GetName() string {
+	return ServiceName
+}
 
-	dsciInstance := &dsciv1.DSCInitialization{}
-	if err := r.Client.Get(ctx, req.NamespacedName, dsciInstance); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+func (h *serviceHandler) GetManagementState(_ common.Platform, dsci *dsciv1.DSCInitialization) operatorv1.ManagementState {
+	if dsci != nil && dsci.Spec.ServiceMesh != nil {
+		return dsci.Spec.ServiceMesh.ManagementState
 	}
 
-	if !dsciInstance.DeletionTimestamp.IsZero() {
-		// DSCI is being deleted, remove ServiceMesh
-		if err := r.removeServiceMesh(ctx, dsciInstance); err != nil {
-			return ctrl.Result{}, err
-		}
+	return operatorv1.Unmanaged
+}
 
-		return ctrl.Result{}, nil
+func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.ServiceMesh{}).
+		Owns(&corev1.ConfigMap{}).
+		// monitoring-related resources
+		OwnsGVK(gvk.PodMonitorServiceMesh,
+			reconciler.Dynamic(actions.IfGVKInstalled(gvk.PodMonitorServiceMesh))).
+		OwnsGVK(gvk.ServiceMonitorServiceMesh,
+			reconciler.Dynamic(actions.IfGVKInstalled(gvk.ServiceMonitorServiceMesh))).
+		// authorino-related resources
+		OwnsGVK(gvk.ServiceMeshMember,
+			reconciler.Dynamic(actions.IfGVKInstalled(gvk.ServiceMeshMember))).
+		OwnsGVK(gvk.Authorino,
+			reconciler.Dynamic(actions.IfGVKInstalled(gvk.Authorino)),
+			reconciler.WithPredicates(dependent.Predicate{
+				WatchDelete: true,
+				WatchUpdate: true,
+				WatchStatus: true,
+			})).
+		// watch for SMCP readiness
+		WatchesGVK(gvk.ServiceMeshControlPlane,
+			reconciler.Dynamic(actions.IfGVKInstalled(gvk.ServiceMeshControlPlane)),
+			reconciler.WithPredicates(NewSMCPReadyPredicate()),
+		).
+		WithAction(checkPreconditions).
+		WithAction(createControlPlaneNamespace).
+		WithAction(initializeServiceMesh).
+		WithAction(initializeServiceMeshMetricsCollection).
+		WithAction(initializeAuthorino).
+		WithAction(template.NewAction(
+			template.WithDataFn(getTemplateData),
+		)).
+		WithAction(updateMeshRefsConfigMap).
+		WithAction(updateAuthRefsConfigMap).
+		WithAction(deploy.NewAction(
+			deploy.WithCache(),
+		)).
+		WithAction(patchAuthorinoDeployment).
+		WithAction(deleteFeatureTrackers).
+		WithAction(checkSMCPReadiness).
+		WithAction(checkAuthorinoReadiness).
+		// can't own SMCP directly due to conflicts with ServiceMesh v2 operator
+		// but SMCP created by ODH operator will be cleaned up via this finalizer
+		WithFinalizer(cleanupSMCP).
+		WithConditions(conditionTypes...).
+		Build(ctx)
+
+	if err != nil {
+		return fmt.Errorf("could not create ServiceMesh controller: %w", err)
 	}
 
-	// Apply Service Mesh configurations
-	if err := r.configureServiceMesh(ctx, dsciInstance); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, nil
+	return nil
 }

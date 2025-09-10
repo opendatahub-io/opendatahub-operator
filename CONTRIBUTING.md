@@ -2,7 +2,7 @@
 
 Thanks for your interest in the opendatahub-operator project! You can contribute to this project in various ways: filing bug reports, proposing features, submitting pull requests (PRs), and improving documentation.
 
-Before you begin, please take a look at our contribution guidelines below to ensure that your contribuutions are aligned with the project's goals.
+Before you begin, please take a look at our contribution guidelines below to ensure that your contributions are aligned with the project's goals.
 
 ## Reporting Issues
 
@@ -11,7 +11,7 @@ Issues are tracked using [Jira](https://issues.redhat.com/secure/RapidBoard.jspa
 1. **Check for Existing Issues:** Before creating a new issue, search the Jira project to see if a similar issue already exists.
 2. **Create a Jira Ticket:** If the issue doesn’t exist, create a new ticket in Jira.
 
-   - **For Feature Requests:**  Set the issue type to be `Initative`
+   - **For Feature Requests:**  Set the issue type to be `Initiative`
    - **For Bugs:** Set the issue type to `Bug`
    - **For all other code changes:** Use the issue type `Story`
    - Add "Platform" in "Components" field

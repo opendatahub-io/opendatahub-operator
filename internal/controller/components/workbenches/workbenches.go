@@ -13,6 +13,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -51,17 +52,77 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 
 func (s *componentHandler) Init(platform common.Platform) error {
 	nbcManifestInfo := notebookControllerManifestInfo(notebookControllerManifestSourcePath)
-	if err := odhdeploy.ApplyParams(nbcManifestInfo.String(), map[string]string{
+	if err := odhdeploy.ApplyParams(nbcManifestInfo.String(), "params.env", map[string]string{
 		"odh-notebook-controller-image": "RELATED_IMAGE_ODH_NOTEBOOK_CONTROLLER_IMAGE",
 	}); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", nbcManifestInfo.String(), err)
 	}
 
 	kfNbcManifestInfo := kfNotebookControllerManifestInfo(kfNotebookControllerManifestSourcePath)
-	if err := odhdeploy.ApplyParams(kfNbcManifestInfo.String(), map[string]string{
+	if err := odhdeploy.ApplyParams(kfNbcManifestInfo.String(), "params.env", map[string]string{
 		"odh-kf-notebook-controller-image": "RELATED_IMAGE_ODH_KF_NOTEBOOK_CONTROLLER_IMAGE",
 	}); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", kfNbcManifestInfo.String(), err)
+	}
+
+	nbImgsManifestInfo := notebookImagesManifestInfo(notebookImagesParamsPath)
+	if err := odhdeploy.ApplyParams(nbImgsManifestInfo.String(), "params-latest.env", map[string]string{
+		// CodeServer Workbench Images
+		"odh-workbench-codeserver-datascience-cpu-py311-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY311_IMAGE",
+		"odh-workbench-codeserver-datascience-cpu-py312-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_CODESERVER_DATASCIENCE_CPU_PY312_IMAGE",
+
+		// Jupyter Workbench Images - Data Science CPU
+		"odh-workbench-jupyter-datascience-cpu-py311-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY311_IMAGE",
+		"odh-workbench-jupyter-datascience-cpu-py312-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_DATASCIENCE_CPU_PY312_IMAGE",
+
+		// Jupyter Workbench Images - Minimal CPU
+		"odh-workbench-jupyter-minimal-cpu-py311-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CPU_PY311_IMAGE",
+		"odh-workbench-jupyter-minimal-cpu-py312-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CPU_PY312_IMAGE",
+		// Jupyter Workbench Images - Minimal CUDA
+		"odh-workbench-jupyter-minimal-cuda-py311-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CUDA_PY311_IMAGE",
+		"odh-workbench-jupyter-minimal-cuda-py312-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_CUDA_PY312_IMAGE",
+		// Jupyter Workbench Images - Minimal ROCm
+		"odh-workbench-jupyter-minimal-rocm-py311-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_ROCM_PY311_IMAGE",
+		"odh-workbench-jupyter-minimal-rocm-py312-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_MINIMAL_ROCM_PY312_IMAGE",
+
+		// Jupyter Workbench Images - PyTorch CUDA
+		"odh-workbench-jupyter-pytorch-cuda-py311-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_CUDA_PY311_IMAGE",
+		"odh-workbench-jupyter-pytorch-cuda-py312-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_CUDA_PY312_IMAGE",
+		// Jupyter Workbench Images - PyTorch ROCm
+		"odh-workbench-jupyter-pytorch-rocm-py311-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_ROCM_PY311_IMAGE",
+		"odh-workbench-jupyter-pytorch-rocm-py312-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_ROCM_PY312_IMAGE",
+
+		// Jupyter Workbench Images - TensorFlow CUDA
+		"odh-workbench-jupyter-tensorflow-cuda-py311-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_CUDA_PY311_IMAGE",
+		"odh-workbench-jupyter-tensorflow-cuda-py312-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_CUDA_PY312_IMAGE",
+		// Jupyter Workbench Images - TensorFlow ROCm
+		"odh-workbench-jupyter-tensorflow-rocm-py311-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TENSORFLOW_ROCM_PY311_IMAGE",
+
+		// Jupyter Workbench Images - TrustyAI CPU
+		"odh-workbench-jupyter-trustyai-cpu-py311-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TRUSTYAI_CPU_PY311_IMAGE",
+		"odh-workbench-jupyter-trustyai-cpu-py312-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_TRUSTYAI_CPU_PY312_IMAGE",
+
+		// Jupyter Workbench Images - PyTorch+llmcompressor CUDA
+		"odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9-n": "RELATED_IMAGE_ODH_WORKBENCH_JUPYTER_PYTORCH_LLMCOMPRESSOR_CUDA_PY312_IMAGE",
+
+		// Pipeline Runtime Images
+		"odh-pipeline-runtime-datascience-cpu-py311-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_DATASCIENCE_CPU_PY311_IMAGE",
+		"odh-pipeline-runtime-datascience-cpu-py312-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_DATASCIENCE_CPU_PY312_IMAGE",
+		"odh-pipeline-runtime-minimal-cpu-py311-ubi9-n":     "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY311_IMAGE",
+		"odh-pipeline-runtime-minimal-cpu-py312-ubi9-n":     "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_MINIMAL_CPU_PY312_IMAGE",
+		"odh-pipeline-runtime-tensorflow-cuda-py311-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_CUDA_PY311_IMAGE",
+		"odh-pipeline-runtime-tensorflow-cuda-py312-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_CUDA_PY312_IMAGE",
+		"odh-pipeline-runtime-tensorflow-rocm-py311-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_TENSORFLOW_ROCM_PY311_IMAGE",
+		// Pipeline Runtime Images - PyTorch CUDA
+		"odh-pipeline-runtime-pytorch-cuda-py311-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_CUDA_PY311_IMAGE",
+		"odh-pipeline-runtime-pytorch-cuda-py312-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_CUDA_PY312_IMAGE",
+		// Pipeline Runtime Images - PyTorch ROCm
+		"odh-pipeline-runtime-pytorch-rocm-py311-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_ROCM_PY311_IMAGE",
+		"odh-pipeline-runtime-pytorch-rocm-py312-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_ROCM_PY312_IMAGE",
+		// Pipeline Runtime Images - PyTorch+llmcompressor CUDA
+		"odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-ubi9-n": "RELATED_IMAGE_ODH_PIPELINE_RUNTIME_PYTORCH_LLMCOMPRESSOR_CUDA_PY312_IMAGE",
+	}); err != nil {
+		return fmt.Errorf("failed to update params-latest.env from %s : %w", nbImgsManifestInfo.String(), err)
 	}
 
 	return nil
@@ -86,8 +147,10 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
+	ms := components.NormalizeManagementState(dsc.Spec.Components.Workbenches.ManagementState)
+
 	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.Workbenches.ManagementState = dsc.Spec.Components.Workbenches.ManagementState
+	dsc.Status.Components.Workbenches.ManagementState = ms
 	dsc.Status.Components.Workbenches.WorkbenchesCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
@@ -105,8 +168,8 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	} else {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
-			conditions.WithReason(string(dsc.Spec.Components.Workbenches.ManagementState)),
-			conditions.WithMessage("Component ManagementState is set to %s", dsc.Spec.Components.Workbenches.ManagementState),
+			conditions.WithReason(string(ms)),
+			conditions.WithMessage("Component ManagementState is set to %s", string(ms)),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
 	}

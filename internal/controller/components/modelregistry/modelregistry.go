@@ -13,6 +13,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -34,7 +35,7 @@ func (s *componentHandler) GetName() string {
 func (s *componentHandler) Init(_ common.Platform) error {
 	mi := baseManifestInfo(BaseManifestsSourcePath)
 
-	if err := odhdeploy.ApplyParams(mi.String(), imagesMap, extraParamsMap); err != nil {
+	if err := odhdeploy.ApplyParams(mi.String(), "params.env", imagesMap, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params on path %s: %w", mi, err)
 	}
 
@@ -78,8 +79,10 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
+	ms := components.NormalizeManagementState(dsc.Spec.Components.ModelRegistry.ManagementState)
+
 	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.ModelRegistry.ManagementState = dsc.Spec.Components.ModelRegistry.ManagementState
+	dsc.Status.Components.ModelRegistry.ManagementState = ms
 	dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
@@ -97,8 +100,8 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	} else {
 		rr.Conditions.MarkFalse(
 			ReadyConditionType,
-			conditions.WithReason(string(dsc.Spec.Components.ModelRegistry.ManagementState)),
-			conditions.WithMessage("Component ManagementState is set to %s", dsc.Spec.Components.ModelRegistry.ManagementState),
+			conditions.WithReason(string(ms)),
+			conditions.WithMessage("Component ManagementState is set to %s", string(ms)),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
 	}

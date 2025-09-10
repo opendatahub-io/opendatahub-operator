@@ -47,7 +47,7 @@ import (
 func TestDeployAction(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -108,7 +108,7 @@ func TestDeployAction(t *testing.T) {
 func TestDeployNotOwnedSkip(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 	name := xid.New().String()
 
@@ -192,7 +192,7 @@ func TestDeployNotOwnedSkip(t *testing.T) {
 func TestDeployNotOwnedCreate(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 	name := xid.New().String()
 
@@ -258,7 +258,7 @@ func TestDeployNotOwnedCreate(t *testing.T) {
 func TestDeployDeOwn(t *testing.T) {
 	g := NewWithT(t)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	ns := xid.New().String()
 	name := xid.New().String()
 
@@ -383,7 +383,7 @@ func TestDeployClusterRole(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 
 	t.Run("aggregation", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		name := xid.New().String()
 
 		deployClusterRoles(t, ctx, cli, rbacv1.ClusterRole{
@@ -412,7 +412,7 @@ func TestDeployClusterRole(t *testing.T) {
 	})
 
 	t.Run("no aggregation", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		name := xid.New().String()
 
 		deployClusterRoles(t, ctx, cli, rbacv1.ClusterRole{
@@ -475,7 +475,7 @@ func TestDeployCRD(t *testing.T) {
 	g := NewWithT(t)
 	s := runtime.NewScheme()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	id := xid.New().String()
 
 	utilruntime.Must(corev1.AddToScheme(s))
@@ -574,7 +574,7 @@ func TestDeployOwnerRef(t *testing.T) {
 	g := NewWithT(t)
 	s := runtime.NewScheme()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	id := xid.New().String()
 	ns := xid.New().String()
 

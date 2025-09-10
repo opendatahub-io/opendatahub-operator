@@ -9,7 +9,8 @@ and configure these applications.
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Configuration](#configuration)
-    - [Custom application namespace](#use-custom-application-namespace)
+    - [Log mode values](#log-mode-values)
+    - [Use custom application namespace](#use-custom-application-namespace)
 - [Developer Guide](#developer-guide)
     - [Pre-requisites](#pre-requisites)
     - [Download manifests](#download-manifests)
@@ -29,6 +30,9 @@ and configure these applications.
   - [Example DataScienceCluster](#example-datasciencecluster)
   - [Run functional Tests](#run-functional-tests)
   - [Run e2e Tests](#run-e2e-tests)
+    - [Configuring e2e Tests](#configuring-e2e-tests)
+  - [Run Integration tests (Jenkins pipeline)](#run-integration-tests-jenkins-pipeline)
+  - [Run Prometheus Unit Tests for Alerts](#run-prometheus-unit-tests-for-alerts)
   - [API Overview](#api-overview)
   - [Component Integration](#component-integration)
   - [Troubleshooting](#troubleshooting)
@@ -53,7 +57,7 @@ Additionally installing `Authorino operator` & `Service Mesh operator` enhances 
 
   Please note that the latest releases are made in the `Fast` channel.
 
-- It can also be build and installed from source manually, see the Developer guide for further instructions.
+- It can also be built and installed from source manually, see the Developer guide for further instructions.
 
   1. Subscribe to operator by creating following subscription
 
@@ -126,7 +130,7 @@ To enable it:
 
 #### Pre-requisites
 
-- Go version **go1.23**
+- Go version **go1.24**
 - operator-sdk version can be updated to **v1.37.0**
 
 #### Download manifests
@@ -337,12 +341,13 @@ spec:
         memorylimit: 512Mi
         memoryrequest: 256Mi
       storage:
-        retention: 1d
+        retention: 90d
         size: 5Gi
     traces:
       storage:
         backend: pv
         size: 5Gi
+        retention: 2160h
   serviceMesh:
     controlPlane:
       metricsCollection: Istio
@@ -437,7 +442,7 @@ ginkgo -v
 
 This provides detailed logs of the test spec.
 
-**Note:** When runninng tests for each controller, make sure to add the `BinaryAssetsDirectory` attribute in the `envtest.Environment` in the `suite_test.go` file. The value should point to the path where the envtest binaries are installed.
+**Note:** When running tests for each controller, make sure to add the `BinaryAssetsDirectory` attribute in the `envtest.Environment` in the `suite_test.go` file. The value should point to the path where the envtest binaries are installed.
 
 In order to run tests for all the controllers, we can use the `make` command
 ```shell
@@ -469,6 +474,7 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_OPERATOR_NAMESPACE     | Namespace where the ODH operator is deployed.                                                                                                                                | `opendatahub-operator-system` |
 | E2E_TEST_APPLICATIONS_NAMESPACE | Namespace where the ODH applications are deployed.                                                                                                                           | `opendatahub`                 |
 | E2E_TEST_OPERATOR_CONTROLLER    | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes      | `true`                        |
+| E2E_TEST_OPERATOR_RESILIENCE    | To configure the execution of operator resilience tests, useful for testing operator fault tolerance scenarios                                 | `true`                        |
 | E2E_TEST_WEBHOOK                | To configure the execution of tests related to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | `true`                        |
 | E2E_TEST_DELETION_POLICY        | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                   | `always`                      |
 | E2E_TEST_COMPONENTS             | Enable testing of individual components specified by --test-component flag                                                                                                   | `true`                        |
@@ -485,6 +491,7 @@ Alternatively the above configurations can be passed to e2e-tests as flags by se
 | --operator-namespace       | Namespace where the ODH operator is deployed.                                                                                                                                | `opendatahub-operator-system` |
 | --applications-namespace   | Namespace where the ODH applications are deployed.                                                                                                                           | `opendatahub`                 |
 | --test-operator-controller | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes      | `true`                        |
+| --test-operator-resilience | To configure the execution of operator resilience tests, useful for testing operator fault tolerance scenarios                                 | `true`                        |
 | --test-webhook             | To configure the execution of tests related to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | `true`                        |
 | --deletion-policy          | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                   | `always`                      |
 | --test-components          | Enable testing of individual components specified by --test-component flag                                                                                                   | `true`                        |
@@ -532,7 +539,11 @@ Additionally specific env vars can be used to configure tests timeouts
 | E2E_TEST_DEFAULTCONSISTENTLYTIMEOUT      | Duration used for Consistently; overrides Gomega's default of 2 seconds.                | `10s`         |
 | E2E_TEST_DEFAULTCONSISTENTLYPOLLINTERVAL | Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.       | `2s`          |
 
-## Run Prometheus Unit Tests for Alerts
+### Run Integration tests (Jenkins pipeline)
+
+For instructions on how to run the integration test Jenkins pipeline, please refer to [the following document](docs/integration-testing.md)
+
+### Run Prometheus Unit Tests for Alerts
 
 Unit tests for Prometheus alerts are included in the repository. You can run them using the following command:
 

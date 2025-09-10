@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.1
+    controller-gen.kubebuilder.io/version: v0.17.3
   creationTimestamp: null
   name: dscinitializations.dscinitialization.opendatahub.io
 spec:
@@ -90,6 +90,14 @@ spec:
               monitoring:
                 description: Enable monitoring on specified namespace
                 properties:
+                  alerting:
+                    description: Alerting configuration for Prometheus
+                    type: object
+                  collectorReplicas:
+                    description: CollectorReplicas specifies the number of replicas
+                      in opentelemetry-collector, default is 2 if not set
+                    format: int32
+                    type: integer
                   managementState:
                     description: |-
                       Set to one of the following values:
@@ -107,10 +115,30 @@ spec:
                   metrics:
                     description: metrics collection
                     properties:
+                      exporters:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          Exporters defines custom metrics exporters for sending metrics to external observability tools.
+                          Each key-value pair represents an exporter name and its configuration.
+                          Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.
+                        type: object
+                        x-kubernetes-validations:
+                        - message: exporter name 'prometheus' is reserved and cannot
+                            be used
+                          rule: '!(''prometheus'' in self)'
+                        - message: exporter name 'otlp/tempo' is reserved and cannot
+                            be used
+                          rule: '!(''otlp/tempo'' in self)'
+                        - message: exporter configuration values must be non-empty
+                            strings
+                          rule: self.all(k, self[k] != '')
                       replicas:
-                        description: Replicas specifies the number of replicas in
-                          monitoringstack, default is 2 if not set
+                        description: |-
+                          Replicas specifies the number of replicas in monitoringstack. If not set, it defaults
+                          to 1 on single-node clusters and 2 on multi-node clusters.
                         format: int32
+                        minimum: 0
                         type: integer
                       resources:
                         description: MetricsResources defines the resource requests
@@ -158,7 +186,7 @@ spec:
                           for the monitoring service
                         properties:
                           retention:
-                            default: 1d
+                            default: 90d
                             description: Retention specifies how long metrics data
                               should be retained (e.g., "1d", "2w")
                             type: string
@@ -192,6 +220,15 @@ spec:
                   traces:
                     description: Tracing configuration for OpenTelemetry instrumentation
                     properties:
+                      exporters:
+                        additionalProperties:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                        description: |-
+                          Exporters defines custom trace exporters for sending traces to external observability tools.
+                          Each key represents the exporter name, and the value contains the exporter configuration.
+                          The configuration follows the OpenTelemetry Collector exporter format.
+                        type: object
                       sampleRatio:
                         default: "0.1"
                         description: |-
@@ -213,6 +250,11 @@ spec:
                             - s3
                             - gcs
                             type: string
+                          retention:
+                            default: 2160h
+                            description: Retention specifies how long trace data should
+                              be retained globally (e.g., "60m", "10h")
+                            type: string
                           secret:
                             description: |-
                               Secret specifies the secret name for storage credentials.
@@ -232,10 +274,37 @@ spec:
                           rule: 'self.backend != ''pv'' ? has(self.secret) : true'
                         - message: Size is supported when backend is pv only
                           rule: 'self.backend != ''pv'' ? !has(self.size) : true'
+                      tls:
+                        description: TLS configuration for Tempo gRPC connections
+                        properties:
+                          caConfigMap:
+                            description: |-
+                              CAConfigMap specifies the name of the ConfigMap containing the CA certificate
+                              Required for mutual TLS authentication
+                            type: string
+                          certificateSecret:
+                            description: |-
+                              CertificateSecret specifies the name of the secret containing TLS certificates
+                              If not specified, OpenShift service serving certificates will be used
+                            type: string
+                          enabled:
+                            default: true
+                            description: Enabled enables TLS for Tempo gRPC connections
+                            type: boolean
+                        type: object
                     required:
                     - storage
                     type: object
                 type: object
+                x-kubernetes-validations:
+                - message: Alerting configuration requires metrics.storage or metrics.resources
+                    to be configured
+                  rule: 'has(self.alerting) ? has(self.metrics.storage) || has(self.metrics.resources)
+                    : true'
+                - message: CollectorReplicas can only be set when metrics or traces
+                    are enabled, and must be > 0
+                  rule: '!has(self.collectorReplicas) || (self.collectorReplicas >
+                    0 && (self.metrics != null || self.traces != null))'
               serviceMesh:
                 description: |-
                   Configures Service Mesh as networking layer for Data Science Clusters components.

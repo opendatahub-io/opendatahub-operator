@@ -52,8 +52,8 @@ GINKGO ?= $(LOCALBIN)/ginkgo
 YQ ?= $(LOCALBIN)/yq
 
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v5.4.3
-CONTROLLER_TOOLS_VERSION ?= v0.16.1
+KUSTOMIZE_VERSION ?= v5.7.0
+CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
 GOLANGCI_LINT_VERSION ?= v2.1.2
 YQ_VERSION ?= v4.12.2
@@ -61,7 +61,7 @@ YQ_VERSION ?= v4.12.2
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 #ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.20)
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
-CRD_REF_DOCS_VERSION = 0.1.0
+CRD_REF_DOCS_VERSION = 0.2.0
 # Add to tool versions section
 GINKGO_VERSION ?= v2.23.4
 
@@ -177,10 +177,22 @@ get-manifests: ## Fetch components manifests from remote git repo
 	./get_all_manifests.sh
 CLEANFILES += opt/manifests/*
 
+# Default to standard sed command
+SED_COMMAND = sed
+
+# macOS requires GNU sed due to BSD sed syntax differences
+ifeq ($(shell uname -s),Darwin)
+    # Verify gsed is available, fail with a helpful message if not installed
+    ifeq ($(shell which gsed),)
+        $(error gsed not found. Install with: brew install gnu-sed)
+    endif
+    SED_COMMAND = gsed
+endif
 .PHONY: api-docs
-api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
+api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs, render managementstate with marker
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
-	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md
+	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
+	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)|g" ./docs/api-overview.md
 
 .PHONY: ginkgo
 ginkgo: $(GINKGO)
@@ -359,7 +371,7 @@ endif
 .PHONY: catalog-clean
 catalog-clean: ## Clean up catalog files and Dockerfile
 	rm -rf catalog
-	
+
 .PHONY: catalog-prepare
 catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel. It requires BUNDLE_IMG exists before running the target"
 	mkdir -p catalog
@@ -384,7 +396,7 @@ catalog-build: catalog-prepare
 catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
 
-TOOLBOX_GOLANG_VERSION := 1.23.8
+TOOLBOX_GOLANG_VERSION := 1.24.6
 
 # Generate a Toolbox container for locally testing changes easily
 .PHONY: toolbox

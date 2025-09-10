@@ -2,7 +2,6 @@
 package kueue
 
 import (
-	"context"
 	"slices"
 	"testing"
 
@@ -11,10 +10,10 @@ import (
 	"github.com/rs/xid"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
@@ -24,6 +23,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -34,7 +34,7 @@ import (
 )
 
 func TestCheckPreConditions_Unknown_State(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -58,7 +58,7 @@ func TestCheckPreConditions_Unknown_State(t *testing.T) {
 }
 
 func TestCheckPreConditions_CRD_MultiKueueConfigV1Alpha1(t *testing.T) { //nolint:dupl
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	fakeMultiKueueConfigV1Alpha1 := mocks.NewMockCRD("kueue.x-k8s.io", "v1alpha1", "MultiKueueConfig", "fakeName")
@@ -90,7 +90,7 @@ func TestCheckPreConditions_CRD_MultiKueueConfigV1Alpha1(t *testing.T) { //nolin
 }
 
 func TestCheckPreConditions_CRD_MultikueueClusterV1Alpha1(t *testing.T) { //nolint:dupl
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	fakeMultikueueClusterV1Alpha1 := mocks.NewMockCRD("kueue.x-k8s.io", "v1alpha1", "MultiKueueCluster", "fakeName")
@@ -122,7 +122,7 @@ func TestCheckPreConditions_CRD_MultikueueClusterV1Alpha1(t *testing.T) { //noli
 }
 
 func TestCheckPreConditions_CRD_MultiKueueConfigV1Alpha1_and_MultikueueClusterV1Alpha1(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	fakeMultiKueueConfigV1Alpha1 := mocks.NewMockCRD("kueue.x-k8s.io", "v1alpha1", "MultiKueueConfig", "fakeName")
@@ -158,7 +158,7 @@ func TestCheckPreConditions_CRD_MultiKueueConfigV1Alpha1_and_MultikueueClusterV1
 }
 
 func TestCheckPreConditions_Managed_KueueOperatorAlreadyInstalled(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New(
@@ -190,7 +190,7 @@ func TestCheckPreConditions_Managed_KueueOperatorAlreadyInstalled(t *testing.T) 
 }
 
 func TestCheckPreConditions_Unmanaged_KueueOperatorNotInstalled(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -216,7 +216,7 @@ func TestCheckPreConditions_Unmanaged_KueueOperatorNotInstalled(t *testing.T) {
 }
 
 func TestConfigureClusterQueueViewerRoleAction_RoleNotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -270,7 +270,7 @@ func TestConfigureClusterQueueViewerRoleAction(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			g := NewWithT(t)
 
 			cli, err := fakeclient.New(fakeclient.WithObjects(test.clusterRole))
@@ -294,7 +294,7 @@ func TestConfigureClusterQueueViewerRoleAction(t *testing.T) {
 }
 
 func TestInitializeAction_Managed(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -320,7 +320,7 @@ func TestInitializeAction_Managed(t *testing.T) {
 }
 
 func TestInitializeAction_Unmanaged(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -346,7 +346,7 @@ func TestInitializeAction_Unmanaged(t *testing.T) {
 }
 
 func TestManageKueueAdminRoleBinding_AuthCRNotFound(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
@@ -368,7 +368,7 @@ func TestManageKueueAdminRoleBinding_AuthCRNotFound(t *testing.T) {
 }
 
 func TestManageKueueAdminRoleBinding_WithValidAdminGroups(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	authCR := &serviceApi.Auth{
@@ -416,7 +416,7 @@ func TestManageKueueAdminRoleBinding_WithValidAdminGroups(t *testing.T) {
 }
 
 func TestManageKueueAdminRoleBinding_WithFilteredAdminGroups(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	// Simulate upgrade scenario where Auth CR might contain invalid groups
@@ -457,7 +457,7 @@ func TestManageKueueAdminRoleBinding_WithFilteredAdminGroups(t *testing.T) {
 }
 
 func TestManageKueueAdminRoleBinding_WithOnlyInvalidAdminGroups(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	// Simulate upgrade scenario where Auth CR contains only invalid groups
@@ -497,7 +497,7 @@ func TestManageKueueAdminRoleBinding_WithOnlyInvalidAdminGroups(t *testing.T) {
 }
 
 func TestManageKueueAdminRoleBinding_WithEmptyAdminGroups(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	g := NewWithT(t)
 
 	// Create Auth CR with empty admin groups
@@ -546,7 +546,7 @@ func TestManageDefaultKueueResourcesAction_NotKueueInstance(t *testing.T) {
 		Instance: &componentApi.Dashboard{}, // Wrong type
 	}
 
-	err := manageDefaultKueueResourcesAction(context.Background(), rr)
+	err := manageDefaultKueueResourcesAction(t.Context(), rr)
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(ContainSubstring("is not a componentApi.Kueue"))
 }
@@ -566,7 +566,7 @@ func TestManageDefaultKueueResourcesAction_RemovedState(t *testing.T) {
 		Instance: kueue,
 	}
 
-	err := manageDefaultKueueResourcesAction(context.Background(), rr)
+	err := manageDefaultKueueResourcesAction(t.Context(), rr)
 	g.Expect(err).ToNot(HaveOccurred())
 }
 
@@ -618,9 +618,11 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 		managedState              operatorv1.ManagementState
 		totalResourceCount        int
 		expectKueueConfigResource bool
+		withGPU                   bool
 	}{
-		{"managed", operatorv1.Managed, 4, false},
-		{"unmanaged", operatorv1.Unmanaged, 5, true},
+		{"managed", operatorv1.Managed, 5, false, false},
+		{"unmanaged", operatorv1.Unmanaged, 6, true, false},
+		{"managedWithGPU", operatorv1.Managed, 7, false, true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -637,9 +639,20 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 				},
 			}
 
-			client := fake.NewClientBuilder().
-				WithRuntimeObjects(managedNamespace, legacyManagedNamespace, bothManagedNamespace, unmanagedNamespace).
-				Build()
+			runtimeObjects := []client.Object{
+				managedNamespace,
+				legacyManagedNamespace,
+				bothManagedNamespace,
+				unmanagedNamespace,
+			}
+
+			clusterNodes := getClusterNodes(t, test.withGPU)
+			runtimeObjects = append(runtimeObjects, clusterNodes...)
+
+			client, err := fakeclient.New(
+				fakeclient.WithObjects(runtimeObjects...),
+			)
+			g.Expect(err).ToNot(HaveOccurred())
 
 			rr := &types.ReconciliationRequest{
 				Instance: kueue,
@@ -652,7 +665,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 				Resources: []unstructured.Unstructured{}, // Initialize empty resources
 			}
 
-			err := manageDefaultKueueResourcesAction(context.Background(), rr)
+			err = manageDefaultKueueResourcesAction(t.Context(), rr)
 			g.Expect(err).ToNot(HaveOccurred())
 
 			// Should have added ClusterQueue and LocalQueue resources
@@ -662,6 +675,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 			var clusterQueue *unstructured.Unstructured
 			var localQueues []*unstructured.Unstructured
 			var kueueConfig *unstructured.Unstructured
+			var resourceFlavors []*unstructured.Unstructured
 			for i := range rr.Resources {
 				switch rr.Resources[i].GetKind() {
 				case gvk.ClusterQueue.Kind:
@@ -670,6 +684,8 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 					localQueues = append(localQueues, &rr.Resources[i])
 				case gvk.KueueConfigV1.Kind:
 					kueueConfig = &rr.Resources[i]
+				case gvk.ResourceFlavor.Kind:
+					resourceFlavors = append(resourceFlavors, &rr.Resources[i])
 				}
 			}
 
@@ -678,9 +694,20 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 				g.Expect(kueueConfig.GetName()).To(Equal(kueueConfigName))
 			}
 
-			g.Expect(clusterQueue).ToNot(BeNil())
-			g.Expect(clusterQueue.GetName()).To(Equal(defaultClusterQueueName))
-			g.Expect(clusterQueue.GetNamespace()).To(BeEmpty()) // ClusterQueue is cluster-scoped
+			flavorNames := []string{DefaultFlavorName}
+			if test.withGPU {
+				flavorNames = append(flavorNames, NvidiaFlavorName, AMDFlavorName)
+			}
+			g.Expect(resourceFlavors).To(HaveLen(len(flavorNames)))
+			for _, rf := range resourceFlavors {
+				g.Expect(rf.GetName()).To(BeElementOf(flavorNames))
+				g.Expect(rf.GetNamespace()).To(BeEmpty()) // ResourceFlavor is cluster-scoped
+				g.Expect(rf.GetAnnotations()).To(Equal(map[string]string{
+					annotations.ManagedByODHOperator: "false",
+				}))
+			}
+
+			assertClusterQueueCorrectness(g, clusterQueue, test.withGPU, defaultClusterQueueName, flavorNames)
 
 			g.Expect(localQueues).To(HaveLen(3))
 			namespacesNames := []string{}
@@ -694,5 +721,150 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 			g.Expect(slices.Contains(namespacesNames, "test-legacy-managed-ns")).Should(BeTrue())
 			g.Expect(slices.Contains(namespacesNames, "test-both-managed-ns")).Should(BeTrue())
 		})
+	}
+}
+
+func assertClusterQueueCorrectness(g *WithT, clusterQueue *unstructured.Unstructured, withGPU bool, expectedClusterQueueName string, expectedFlavorNames []string) {
+	g.Expect(clusterQueue).ToNot(BeNil())
+	g.Expect(clusterQueue.GetName()).To(Equal(expectedClusterQueueName))
+	g.Expect(clusterQueue.GetAnnotations()).To(Equal(map[string]string{
+		annotations.ManagedByODHOperator: "false",
+	}))
+	g.Expect(clusterQueue.GetNamespace()).To(BeEmpty()) // ClusterQueue is cluster-scoped
+	namespaceSelector, ok, err := unstructured.NestedMap(clusterQueue.Object, "spec", "namespaceSelector")
+	g.Expect(ok).To(BeTrue())
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(namespaceSelector).To(Equal(map[string]any{
+		"matchLabels": map[string]any{
+			cluster.KueueManagedLabelKey: "true",
+		},
+	}))
+	resourceGroups, ok, err := unstructured.NestedSlice(clusterQueue.Object, "spec", "resourceGroups")
+	g.Expect(ok).To(BeTrue())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	g.Expect(resourceGroups).To(HaveLen(len(expectedFlavorNames)))
+	defaultResourceGroup := map[string]any{
+		"coveredResources": []any{
+			"cpu",
+			"memory",
+		},
+		"flavors": []any{
+			map[string]any{
+				"name": DefaultFlavorName,
+				"resources": []any{
+					map[string]any{
+						"name":         "cpu",
+						"nominalQuota": "2500m",
+					},
+					map[string]any{
+						"name":         "memory",
+						"nominalQuota": "2500Mi",
+					},
+				},
+			},
+		},
+	}
+	g.Expect(resourceGroups[0]).To(Equal(defaultResourceGroup))
+
+	if withGPU {
+		amdResourceGroup := map[string]any{
+			"coveredResources": []any{AMDGPUResourceKey},
+			"flavors": []any{
+				map[string]any{
+					"name": AMDFlavorName,
+					"resources": []any{
+						map[string]any{
+							"name":         AMDGPUResourceKey,
+							"nominalQuota": "7",
+						},
+					},
+				},
+			},
+		}
+		g.Expect(resourceGroups[1]).To(Equal(amdResourceGroup))
+
+		nvidiaResourceGroup := map[string]any{
+			"coveredResources": []any{NvidiaGPUResourceKey},
+			"flavors": []any{
+				map[string]any{
+					"name": NvidiaFlavorName,
+					"resources": []any{
+						map[string]any{
+							"name":         NvidiaGPUResourceKey,
+							"nominalQuota": "4",
+						},
+					},
+				},
+			},
+		}
+		g.Expect(resourceGroups[2]).To(Equal(nvidiaResourceGroup))
+	}
+}
+
+func getClusterNodes(t *testing.T, withGPU bool) []client.Object {
+	t.Helper()
+
+	node1 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-01",
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("1000m"),
+				corev1.ResourceMemory: resource.MustParse("1000Mi"),
+			},
+		},
+	}
+
+	node2 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-02",
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("1500m"),
+				corev1.ResourceMemory: resource.MustParse("1500Mi"),
+			},
+		},
+	}
+
+	node1WithGPU := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-03",
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("1000m"),
+				corev1.ResourceMemory: resource.MustParse("1000Mi"),
+				NvidiaGPUResourceKey:  resource.MustParse("1"),
+				AMDGPUResourceKey:     resource.MustParse("2"),
+			},
+		},
+	}
+
+	node2WithGPU := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "node-04",
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("1500m"),
+				corev1.ResourceMemory: resource.MustParse("1500Mi"),
+				NvidiaGPUResourceKey:  resource.MustParse("3"),
+				AMDGPUResourceKey:     resource.MustParse("5"),
+			},
+		},
+	}
+
+	if withGPU {
+		return []client.Object{
+			node1WithGPU,
+			node2WithGPU,
+		}
+	}
+	return []client.Object{
+		node1,
+		node2,
 	}
 }

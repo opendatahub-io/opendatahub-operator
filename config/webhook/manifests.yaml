@@ -83,7 +83,7 @@ webhooks:
     - UPDATE
     resources:
     - inferenceservices
-  sideEffects: None
+  sideEffects: NoneOnDryRun
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -110,26 +110,6 @@ kind: ValidatingWebhookConfiguration
 metadata:
   name: validating-webhook-configuration
 webhooks:
-- admissionReviewVersions:
-  - v1
-  clientConfig:
-    service:
-      name: webhook-service
-      namespace: system
-      path: /validate-auth
-  failurePolicy: Fail
-  name: auth-validator.opendatahub.io
-  rules:
-  - apiGroups:
-    - services.platform.opendatahub.io
-    apiVersions:
-    - v1alpha1
-    operations:
-    - CREATE
-    - UPDATE
-    resources:
-    - auths
-  sideEffects: None
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -224,6 +204,7 @@ webhooks:
     - ray.io
     apiVersions:
     - v1
+    - v1alpha1
     operations:
     - CREATE
     - UPDATE

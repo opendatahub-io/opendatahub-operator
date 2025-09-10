@@ -166,7 +166,7 @@ func (tc *KserveAuthorinoTestCtx) SetupDSCIWithServiceMesh(t *testing.T) {
 	t.Helper()
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace)),
+		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace, tc.MonitoringNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DSCInitialization with ServiceMesh managed"),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),

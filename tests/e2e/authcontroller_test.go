@@ -1,14 +1,16 @@
 package e2e_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -67,23 +69,8 @@ func authControllerTestSuite(t *testing.T) {
 		{"Validate addition of ClusterRole when group is added", authCtx.ValidateAuthCRClusterRoleCreation},
 		{"Validate addition of ClusterRoleBinding when group is added", authCtx.ValidateAuthCRClusterRoleBindingCreation},
 		{"Validate removal of bindings when a group is removed", authCtx.ValidateRemovingGroups},
-	}
-
-	// Append webhook-specific tests if webhook testing is enabled.
-	if testOpts.webhookTest {
-		webhookTests := []TestCase{
-			{"Validate webhook blocks Auth creation with invalid groups", authCtx.ValidateWebhookBlocksInvalidGroupsOnCreation},
-			{"Validate webhook blocks Auth update with invalid groups", authCtx.ValidateWebhookBlocksInvalidGroupsOnUpdate},
-			{"Validate webhook allows Auth with valid groups", authCtx.ValidateWebhookAllowsValidGroups},
-		}
-
-		testCases = append(testCases, TestCase{
-			name: "Webhook Validation",
-			testFn: func(t *testing.T) {
-				t.Helper()
-				RunTestCases(t, webhookTests)
-			},
-		})
+		{"Validate CEL blocks Auth update with invalid groups", authCtx.ValidateCELBlocksInvalidGroupsViaUpdate},
+		{"Validate CEL allows Auth with valid groups", authCtx.ValidateCELAllowsValidGroups},
 	}
 
 	// Run the test suite.
@@ -257,19 +244,13 @@ func (tc *AuthControllerTestCtx) ValidateRemovingGroups(t *testing.T) {
 		"Expected ClusterRoleBinding '%s' to have exactly one subject with name '%s'", adminGroupClusterRoleBindingName, expectedGroup)
 }
 
-// ValidateWebhookBlocksInvalidGroupsOnCreation tests that the webhook blocks creation of Auth resources
-// with invalid groups. Since Auth resources are singletons (must be named "auth"), we need to delete
-// the existing Auth CR first, test webhook validation on creation, then recreate a valid Auth CR.
-func (tc *AuthControllerTestCtx) ValidateWebhookBlocksInvalidGroupsOnCreation(t *testing.T) {
+// ValidateCELBlocksInvalidGroupsViaUpdate tests that CEL validation blocks Auth resources
+// with invalid groups. Since Auth is a singleton resource managed by the operator, we test
+// CEL validation by attempting to update the existing Auth resource with invalid values.
+func (tc *AuthControllerTestCtx) ValidateCELBlocksInvalidGroupsViaUpdate(t *testing.T) {
 	t.Helper()
 
-	// Delete the existing Auth CR to enable creation testing
-	tc.DeleteResource(
-		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
-		WithCustomErrorMsg("Failed to delete existing Auth CR before creation webhook testing"),
-	)
-
-	// Test cases for different invalid creation scenarios
+	// Test cases for different invalid update scenarios
 	testCases := []struct {
 		name          string
 		invalidValue  string
@@ -278,22 +259,29 @@ func (tc *AuthControllerTestCtx) ValidateWebhookBlocksInvalidGroupsOnCreation(t 
 		allowedGroups []string
 	}{
 		{
+			name:          "empty AdminGroups array",
+			invalidValue:  "cannot be empty",
+			fieldName:     "AdminGroups",
+			adminGroups:   []string{},
+			allowedGroups: []string{"valid-allowed-group"},
+		},
+		{
 			name:          "system:authenticated in AdminGroups",
-			invalidValue:  "system:authenticated",
+			invalidValue:  "cannot contain 'system:authenticated'",
 			fieldName:     "AdminGroups",
 			adminGroups:   []string{"valid-admin-group", "system:authenticated"},
 			allowedGroups: []string{"valid-allowed-group"},
 		},
 		{
 			name:          "empty string in AdminGroups",
-			invalidValue:  "empty string",
+			invalidValue:  "cannot contain 'system:authenticated' or empty strings",
 			fieldName:     "AdminGroups",
 			adminGroups:   []string{"valid-admin-group", ""},
 			allowedGroups: []string{"valid-allowed-group"},
 		},
 		{
 			name:          "empty string in AllowedGroups",
-			invalidValue:  "empty string",
+			invalidValue:  "cannot contain empty strings",
 			fieldName:     "AllowedGroups",
 			adminGroups:   []string{"valid-admin-group"},
 			allowedGroups: []string{"valid-allowed-group", ""},
@@ -302,75 +290,52 @@ func (tc *AuthControllerTestCtx) ValidateWebhookBlocksInvalidGroupsOnCreation(t 
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			// Create a test Auth resource with invalid values (must use name "auth" due to singleton constraint)
-			invalidAuth := envtestutil.NewAuth("auth", "", testCase.adminGroups, testCase.allowedGroups)
+			// Get the current Auth resource first using the test framework
+			authUnstructured := tc.FetchResource(WithMinimalObject(gvk.Auth, tc.AuthNamespacedName))
 
-			// Test webhook validation by attempting to create the invalid resource
-			tc.EnsureWebhookBlocksResourceCreation(
-				WithObjectToCreate(invalidAuth),
-				WithInvalidValue(testCase.invalidValue),
-				WithFieldName(testCase.fieldName),
-				WithCustomErrorMsg("Expected Auth resource creation with %s in %s to be blocked by webhook", testCase.invalidValue, testCase.fieldName),
-			)
-		})
-	}
+			// Convert to typed Auth object
+			currentAuth := &serviceApi.Auth{}
+			err := runtime.DefaultUnstructuredConverter.FromUnstructured(authUnstructured.Object, currentAuth)
+			if err != nil {
+				t.Fatalf("Failed to convert Auth resource: %v", err)
+			}
 
-	validAuth := envtestutil.NewAuth("auth", "", []string{"valid-admin-group"}, []string{"system:authenticated"})
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(validAuth),
-		WithCustomErrorMsg("Failed to recreate valid Auth resource after webhook creation tests"),
-	)
-}
+			// Create a copy and modify it with invalid values
+			invalidAuth := currentAuth.DeepCopy()
+			invalidAuth.Spec.AdminGroups = testCase.adminGroups
+			invalidAuth.Spec.AllowedGroups = testCase.allowedGroups
 
-// ValidateWebhookBlocksInvalidGroupsOnUpdate tests that the webhook blocks Auth resources
-// with invalid groups in both AdminGroups and AllowedGroups fields.
-// Since Auth resources must be named "auth", we test by attempting to update the existing resource.
-func (tc *AuthControllerTestCtx) ValidateWebhookBlocksInvalidGroupsOnUpdate(t *testing.T) {
-	t.Helper()
+			// Try to update with invalid values - this should fail
+			ctx := t.Context()
+			err = tc.Client().Update(ctx, invalidAuth)
 
-	testCases := []struct {
-		name         string
-		invalidValue string
-		fieldName    string
-		transform    string
-	}{
-		{
-			name:         "system:authenticated in AdminGroups",
-			invalidValue: "system:authenticated",
-			fieldName:    "AdminGroups",
-			transform:    `.spec.adminGroups |= . + ["system:authenticated"]`,
-		},
-		{
-			name:         "empty string in AdminGroups",
-			invalidValue: "empty string",
-			fieldName:    "AdminGroups",
-			transform:    `.spec.adminGroups |= . + [""]`,
-		},
-		{
-			name:         "empty string in AllowedGroups",
-			invalidValue: "empty string",
-			fieldName:    "AllowedGroups",
-			transform:    `.spec.allowedGroups |= . + [""]`,
-		},
-	}
+			// The update should fail with CEL validation error
+			if err == nil {
+				t.Fatalf("Expected CEL validation to block update with %s in %s, but update succeeded", testCase.invalidValue, testCase.fieldName)
+			}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			// Test webhook validation by attempting to update the existing "auth" resource
-			tc.EnsureWebhookBlocksResourceUpdate(
-				WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
-				WithMutateFunc(testf.Transform(testCase.transform)),
-				WithInvalidValue(testCase.invalidValue),
-				WithFieldName(testCase.fieldName),
-				WithCustomErrorMsg("Expected Auth resource update with %s in %s to be blocked by webhook", testCase.invalidValue, testCase.fieldName),
-			)
+			// Verify it's the correct type of error
+			if !k8serr.IsInvalid(err) {
+				t.Fatalf("Expected Invalid error from CEL validation, got: %v (type: BadRequest=%v, Invalid=%v)",
+					err, k8serr.IsBadRequest(err), k8serr.IsInvalid(err))
+			}
+
+			// Verify error message contains expected content
+			errorMsg := err.Error()
+			if testCase.fieldName != "" && !strings.Contains(strings.ToLower(errorMsg), strings.ToLower(testCase.fieldName)) {
+				t.Errorf("Expected error message to reference field '%s', got: %s", testCase.fieldName, errorMsg)
+			}
+
+			if testCase.invalidValue != "" && testCase.invalidValue != "empty string" && !strings.Contains(errorMsg, testCase.invalidValue) {
+				t.Errorf("Expected error message to contain invalid value '%s', got: %s", testCase.invalidValue, errorMsg)
+			}
 		})
 	}
 }
 
-// ValidateWebhookAllowsValidGroups tests that the webhook allows Auth resources with valid groups.
+// ValidateCELAllowsValidGroups tests that CEL validation allows Auth resources with valid groups.
 // Since Auth resources must be named "auth", we test by updating the existing resource.
-func (tc *AuthControllerTestCtx) ValidateWebhookAllowsValidGroups(t *testing.T) {
+func (tc *AuthControllerTestCtx) ValidateCELAllowsValidGroups(t *testing.T) {
 	t.Helper()
 
 	testCases := []struct {
@@ -388,14 +353,24 @@ func (tc *AuthControllerTestCtx) ValidateWebhookAllowsValidGroups(t *testing.T) 
 			transform:   `.spec.adminGroups = ["valid-admin-group"] | .spec.allowedGroups = ["valid-allowed-group", "system:authenticated"]`,
 			description: "Expected Auth resource update with system:authenticated in AllowedGroups to be allowed",
 		},
+		{
+			name:        "empty AllowedGroups array",
+			transform:   `.spec.adminGroups = ["valid-admin-group"] | .spec.allowedGroups = []`,
+			description: "Expected Auth resource update with empty AllowedGroups array to be allowed",
+		},
+		{
+			name:        "only system:authenticated in AllowedGroups",
+			transform:   `.spec.adminGroups = ["valid-admin-group"] | .spec.allowedGroups = ["system:authenticated"]`,
+			description: "Expected Auth resource update with only system:authenticated in AllowedGroups to be allowed",
+		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			// Test that the webhook allows this valid update
+			// Test that CEL validation allows this valid update
 			tc.EventuallyResourceCreatedOrUpdated(
 				WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
-				WithMutateFunc(testf.Transform(testCase.transform)),
+				WithMutateFunc(testf.Transform("%s", testCase.transform)),
 				WithCustomErrorMsg(testCase.description),
 			)
 		})

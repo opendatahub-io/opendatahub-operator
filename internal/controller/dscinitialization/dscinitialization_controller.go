@@ -261,8 +261,21 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 
+		// handle changes to ServiceMesh section of DSCI spec
+		if err := r.handleServiceMesh(ctx, instance); err != nil {
+			log.Error(err, "failed to handle change to ServiceMesh spec in DSCI")
+			return ctrl.Result{}, err
+		}
+
+		// Sync ServiceMesh conditions to DSCI status
+		if instance.Spec.ServiceMesh != nil && instance.Spec.ServiceMesh.ManagementState != operatorv1.Removed {
+			if err := r.syncServiceMeshConditions(ctx, instance); err != nil {
+				log.Error(err, "failed to sync ServiceMesh conditions to DSCI")
+			}
+		}
+
 		// Create Auth
-		if err = r.createAuth(ctx, platform); err != nil {
+		if err = r.CreateAuth(ctx, platform); err != nil {
 			log.Info("failed to create Auth")
 			return ctrl.Result{}, err
 		}
@@ -328,6 +341,13 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.PersistentVolumeClaim{},
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns(&serviceApi.ServiceMesh{},
+			builder.WithPredicates(
+				predicate.Or(
+					predicate.GenerationChangedPredicate{},
+					predicate.LabelChangedPredicate{},
+					rp.ServiceMeshStatusCondition,
+				))).
 		Watches(
 			&dscv1.DataScienceCluster{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
@@ -441,16 +461,30 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		},
 	}
 
-	if dsci.Spec.Monitoring.Metrics != nil {
-		// when metrics has values set in resoures or storage. skip replicas since it cannot be 0 from CEL validation
-		if dsci.Spec.Monitoring.Metrics.Storage != nil || dsci.Spec.Monitoring.Metrics.Resources != nil {
-			defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
-		} else { // if metrics is set to metrics:{} to avoid  invalid value "null" to Apply() existing Monitoring CR
-			defaultMonitoring.Spec.Metrics = nil // explictliy set to nil, same as not set but for better readability
-		}
+	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && (dsci.Spec.Monitoring.Metrics.Storage != nil || dsci.Spec.Monitoring.Metrics.Resources != nil)
+	tracesEnabled := dsci.Spec.Monitoring.Traces != nil
+
+	if metricsEnabled {
+		defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
+	} else {
+		defaultMonitoring.Spec.Metrics = nil
 	}
 
-	defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
+	if tracesEnabled {
+		defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
+	} else {
+		defaultMonitoring.Spec.Traces = nil
+	}
+
+	defaultMonitoring.Spec.Alerting = dsci.Spec.Monitoring.Alerting
+
+	if metricsEnabled || tracesEnabled {
+		if dsci.Spec.Monitoring.CollectorReplicas != 0 {
+			defaultMonitoring.Spec.CollectorReplicas = dsci.Spec.Monitoring.CollectorReplicas
+		} else {
+			defaultMonitoring.Spec.CollectorReplicas = 2
+		}
+	}
 
 	if err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme()); err != nil {
 		return err

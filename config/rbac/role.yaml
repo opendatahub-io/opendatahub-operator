@@ -5,6 +5,82 @@ metadata:
   name: controller-manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - clusterversions
+  - nodes
+  - rhmis
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - events
+  - namespaces
+  - secrets
+  - secrets/finalizers
+  - serviceaccounts
+  - services/finalizers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps/status
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - deployments
+  - persistentvolumeclaims
+  - persistentvolumes
+  - pods
+  - pods/exec
+  - pods/log
+  verbs:
+  - '*'
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces/finalizers
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - '*'
+- apiGroups:
   - '*'
   resources:
   - deployments
@@ -298,88 +374,6 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
-  resources:
-  - clusterversions
-  - rhmis
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - events
-  - namespaces
-  - secrets
-  - secrets/finalizers
-  - serviceaccounts
-  - services/finalizers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - configmaps/status
-  verbs:
-  - delete
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - deployments
-  - persistentvolumeclaims
-  - persistentvolumes
-  - pods
-  - pods/exec
-  - pods/log
-  verbs:
-  - '*'
-- apiGroups:
-  - ""
-  resources:
-  - endpoints
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - namespaces/finalizers
-  verbs:
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - services
-  verbs:
-  - '*'
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
   - dashboard.opendatahub.io
   resources:
   - acceleratorprofiles
@@ -531,6 +525,19 @@ rules:
   - patch
   - update
 - apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses
+  - gateways
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - image.openshift.io
   resources:
   - imagestreams
@@ -549,6 +556,15 @@ rules:
   - registry/metrics
   verbs:
   - get
+- apiGroups:
+  - inference.networking.x-k8s.io
+  resources:
+  - inferencemodels
+  - inferencepools
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - infrastructure.opendatahub.io
   resources:
@@ -622,6 +638,7 @@ rules:
   resources:
   - clusterqueues
   - localqueues
+  - resourceflavors
   verbs:
   - create
   - delete
@@ -649,10 +666,10 @@ rules:
   - maistra.io
   resources:
   - servicemeshcontrolplanes
-  - servicemeshmemberrolls
-  - servicemeshmembers/finalizers
+  - servicemeshmembers
   verbs:
   - create
+  - delete
   - get
   - list
   - patch
@@ -662,10 +679,10 @@ rules:
 - apiGroups:
   - maistra.io
   resources:
-  - servicemeshmembers
+  - servicemeshmemberrolls
+  - servicemeshmembers/finalizers
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
@@ -758,6 +775,7 @@ rules:
   - monitoring.rhobs
   resources:
   - monitoringstacks
+  - prometheusrules
   - servicemonitors
   verbs:
   - create
@@ -771,6 +789,7 @@ rules:
   - monitoring.rhobs
   resources:
   - monitoringstacks/finalizers
+  - prometheusrules/finalizers
   - servicemonitors/finalizers
   verbs:
   - update
@@ -778,6 +797,7 @@ rules:
   - monitoring.rhobs
   resources:
   - monitoringstacks/status
+  - prometheusrules/status
   - servicemonitors/status
   verbs:
   - get
@@ -1030,6 +1050,7 @@ rules:
   resources:
   - auths
   - monitorings
+  - servicemeshes
   verbs:
   - create
   - delete
@@ -1043,17 +1064,31 @@ rules:
   resources:
   - auths/finalizers
   - monitorings/finalizers
+  - servicemeshes/finalizers
   verbs:
   - update
 - apiGroups:
   - services.platform.opendatahub.io
   resources:
   - auths/status
+  - gatewayconfigs/status
   - monitorings/status
+  - servicemeshes/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - services.platform.opendatahub.io
+  resources:
+  - gatewayconfigs
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - serving.knative.dev
   resources:
@@ -1122,6 +1157,15 @@ rules:
 - apiGroups:
   - serving.kserve.io
   resources:
+  - llminferenceservices
+  - llminferenceservices/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - serving.kserve.io
+  resources:
   - servingruntimes
   verbs:
   - '*'
@@ -1163,7 +1207,6 @@ rules:
   - get
   - list
   - patch
-  - update
   - watch
 - apiGroups:
   - user.openshift.io

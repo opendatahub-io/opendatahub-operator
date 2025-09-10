@@ -42,7 +42,7 @@ func G(t *testing.T) *WithT {
 
 func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 	g := NewWithT(t)
-	gctx, cancel := context.WithCancel(context.Background())
+	gctx, cancel := context.WithCancel(t.Context())
 
 	id := xid.New().String()
 
@@ -87,7 +87,7 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	t.Run("TrustedCABundle ManagementState set to Managed", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		g := G(t)
 
 		_, err = ctrl.CreateOrUpdate(ctx, env.Client(), &ns1, func() error {
@@ -114,7 +114,7 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 	})
 
 	t.Run("TrustedCABundle ManagementState set to Managed, Namespace opt-in", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		g := G(t)
 
 		_, err = ctrl.CreateOrUpdate(ctx, env.Client(), &ns1, func() error {
@@ -131,7 +131,7 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 	})
 
 	t.Run("TrustedCABundle ManagementState set to Managed, Namespace opt-out", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		g := G(t)
 
 		_, err = ctrl.CreateOrUpdate(ctx, env.Client(), &ns1, func() error {
@@ -150,7 +150,7 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 	})
 
 	t.Run("TrustedCABundle ManagementState set to Unmanaged", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		g := G(t)
 
 		_, err = ctrl.CreateOrUpdate(ctx, env.Client(), &dsci, func() error {
@@ -168,7 +168,7 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 	})
 
 	t.Run("TrustedCABundle ManagementState set to Removed", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		g := G(t)
 
 		_, err = ctrl.CreateOrUpdate(ctx, env.Client(), &dsci, func() error {
@@ -185,7 +185,7 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 	})
 
 	t.Run("TrustedCABundle set to nil", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		g := G(t)
 
 		_, err = ctrl.CreateOrUpdate(ctx, env.Client(), &dsci, func() error {
