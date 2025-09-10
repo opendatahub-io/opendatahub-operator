@@ -119,6 +119,13 @@ spec:
                 type: object
               domain:
                 description: Domain configuration for the GatewayConfig
+<<<<<<< HEAD
+=======
+                type: string
+              namespace:
+                default: openshift-ingress
+                description: Namespace where the gateway resources should be deployed
+>>>>>>> 64935686 (fix gateway controller namespace handling, add status sync, and improve test patterns)
                 type: string
             type: object
           status:
