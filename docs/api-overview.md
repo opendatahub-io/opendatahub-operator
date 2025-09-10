@@ -2986,6 +2986,10 @@ _Appears in:_
 | `auth` _[GatewayAuthSpec](#gatewayauthspec)_ | Authentication configuration |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
 | `domain` _string_ | Domain configuration for the GatewayConfig |  |  |
+<<<<<<< HEAD
+=======
+| `namespace` _string_ | Namespace where the gateway resources should be deployed | openshift-ingress |  |
+>>>>>>> 64935686 (fix gateway controller namespace handling, add status sync, and improve test patterns)
 
 
 #### GatewayConfigStatus
