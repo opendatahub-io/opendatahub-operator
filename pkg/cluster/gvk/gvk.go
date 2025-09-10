@@ -375,6 +375,12 @@ var (
 		Kind:    "ClusterQueue",
 	}
 
+	ResourceFlavor = schema.GroupVersionKind{
+		Group:   "kueue.x-k8s.io",
+		Version: "v1beta1",
+		Kind:    "ResourceFlavor",
+	}
+
 	InferenceServices = schema.GroupVersionKind{
 		Group:   "serving.kserve.io",
 		Version: "v1beta1",
