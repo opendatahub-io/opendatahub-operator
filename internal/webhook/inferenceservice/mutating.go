@@ -161,12 +161,13 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 				"oldType", oldConnectionType, "newType", connectionType,
 				"oldSecret", oldSecretName, "newSecret", secretName)
 
-			// First, cleanup the old connection type (including ServiceAccount cleanup if it was s3 connection)
-			cleanupPerformed, err := w.performConnectionCleanup(ctx, req, obj, oldConnectionType)
+			var cleanupPerformed bool
+			cleanupPerformed, err = w.performConnectionCleanup(ctx, req, obj, oldConnectionType)
 			if err != nil {
 				log.Error(err, "Failed to cleanup old connection type")
 				return admission.Errored(http.StatusInternalServerError, err)
 			}
+
 			// cleanupPerformed is always true if no error occurred
 			if cleanupPerformed {
 				log.V(1).Info("Successfully cleaned up old connection type")
@@ -298,17 +299,44 @@ func (w *ConnectionWebhook) performConnectionCleanup(
 
 	cleanupPerformed := true
 
-	// Clean up based on the old connection type
+	// Clean up based on the old connection type or just try cleanup all.
 	switch oldConnectionType {
+	case "":
+		// no old connection type means we do not know what was there so we need do a full cleanup
+		// to ensure before injecting the new one
+		if err := w.cleanupOCIImagePullSecrets(decodedObj); err != nil {
+			log.Error(err, "Failed to cleanup OCI imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
+			return false, fmt.Errorf("failed to cleanup OCI imagePullSecrets: %w", err)
+		}
+		log.V(1).Info("Successfully cleaned up OCI imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
+
+		if err := w.cleanupURIStorageUri(decodedObj); err != nil {
+			log.Error(err, "Failed to cleanup URI storageUri", "name", req.Name, "namespace", req.Namespace)
+			return false, fmt.Errorf("failed to cleanup URI storageUri: %w", err)
+		}
+		log.V(1).Info("Successfully cleaned up URI storageUri", "name", req.Name, "namespace", req.Namespace)
+
+		// Clean up ServiceAccountName injection
+		if err := w.handleSA(decodedObj, ""); err != nil {
+			log.Error(err, "Failed to cleanup ServiceAccountName")
+			return false, fmt.Errorf("failed to cleanup ServiceAccountName: %w", err)
+		}
+
+		if err := w.cleanupS3StorageKey(decodedObj); err != nil {
+			log.Error(err, "Failed to cleanup S3 storage key", "name", req.Name, "namespace", req.Namespace)
+			return false, fmt.Errorf("failed to cleanup S3 storage key: %w", err)
+		}
+		log.V(1).Info("Successfully cleaned up S3 storage key", "name", req.Name, "namespace", req.Namespace)
+
 	case webhookutils.ConnectionTypeOCI.String():
-		if _, err := w.cleanupOCIImagePullSecrets(decodedObj); err != nil {
+		if err := w.cleanupOCIImagePullSecrets(decodedObj); err != nil {
 			log.Error(err, "Failed to cleanup OCI imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
 			return false, fmt.Errorf("failed to cleanup OCI imagePullSecrets: %w", err)
 		}
 		log.V(1).Info("Successfully cleaned up OCI imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
 
 	case webhookutils.ConnectionTypeURI.String():
-		if _, err := w.cleanupURIStorageUri(decodedObj); err != nil {
+		if err := w.cleanupURIStorageUri(decodedObj); err != nil {
 			log.Error(err, "Failed to cleanup URI storageUri", "name", req.Name, "namespace", req.Namespace)
 			return false, fmt.Errorf("failed to cleanup URI storageUri: %w", err)
 		}
@@ -320,7 +348,7 @@ func (w *ConnectionWebhook) performConnectionCleanup(
 			log.Error(err, "Failed to cleanup ServiceAccountName")
 			return false, fmt.Errorf("failed to cleanup ServiceAccountName: %w", err)
 		}
-		if _, err := w.cleanupS3StorageKey(decodedObj); err != nil {
+		if err := w.cleanupS3StorageKey(decodedObj); err != nil {
 			log.Error(err, "Failed to cleanup S3 storage key", "name", req.Name, "namespace", req.Namespace)
 			return false, fmt.Errorf("failed to cleanup S3 storage key: %w", err)
 		}
@@ -336,38 +364,42 @@ func (w *ConnectionWebhook) performConnectionCleanup(
 }
 
 // cleanupOCIImagePullSecrets set empty slice to spec.predictor.imagePullSecrets.
-func (w *ConnectionWebhook) cleanupOCIImagePullSecrets(obj *unstructured.Unstructured) (bool, error) {
+func (w *ConnectionWebhook) cleanupOCIImagePullSecrets(obj *unstructured.Unstructured) error {
 	err := webhookutils.SetNestedValue(obj.Object, []interface{}{}, IsvcConfigs.ImagePullSecretPath)
-	return true, err
+	return err
 }
 
 // cleanupURIStorageUri delete the storageUri field from spec.predictor.model.
 // cannot just set to empty string, it will fail in ValidateStorageURI().
-func (w *ConnectionWebhook) cleanupURIStorageUri(obj *unstructured.Unstructured) (bool, error) {
-	model, _, err := unstructured.NestedMap(obj.Object, IsvcConfigs.ModelPath...)
+func (w *ConnectionWebhook) cleanupURIStorageUri(obj *unstructured.Unstructured) error {
+	model, found, err := unstructured.NestedMap(obj.Object, IsvcConfigs.ModelPath...)
 	if err != nil {
-		return false, fmt.Errorf("failed to get spec.predictor.model: %w", err)
+		return fmt.Errorf("failed to get spec.predictor.model: %w", err)
+	}
+	if !found {
+		return nil
 	}
 
 	// Remove the storageUri field
 	delete(model, "storageUri")
 
-	err = webhookutils.SetNestedValue(obj.Object, model, IsvcConfigs.ModelPath)
-	return true, err
+	return webhookutils.SetNestedValue(obj.Object, model, IsvcConfigs.ModelPath)
 }
 
 // cleanupS3StorageKey removes the storage field from spec.predictor.model.
-func (w *ConnectionWebhook) cleanupS3StorageKey(obj *unstructured.Unstructured) (bool, error) {
-	model, _, err := unstructured.NestedMap(obj.Object, IsvcConfigs.ModelPath...)
+func (w *ConnectionWebhook) cleanupS3StorageKey(obj *unstructured.Unstructured) error {
+	model, found, err := unstructured.NestedMap(obj.Object, IsvcConfigs.ModelPath...)
 	if err != nil {
-		return false, fmt.Errorf("failed to get spec.predictor.model: %w", err)
+		return fmt.Errorf("failed to get spec.predictor.model: %w", err)
+	}
+	if !found {
+		return nil
 	}
 
 	// Remove the storage field
 	delete(model, "storage")
 
-	err = webhookutils.SetNestedValue(obj.Object, model, IsvcConfigs.ModelPath)
-	return true, err
+	return webhookutils.SetNestedValue(obj.Object, model, IsvcConfigs.ModelPath)
 }
 
 // handleSA injects serviceaccount into spec.predictor.serviceAccountName.
