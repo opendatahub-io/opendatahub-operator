@@ -108,6 +108,40 @@ metadata:
               "managementState": "Managed"
             }
           }
+        },
+        {
+          "apiVersion": "infrastructure.opendatahub.io/v1alpha1",
+          "kind": "HardwareProfile",
+          "metadata": {
+            "annotations": {
+              "opendatahub.io/dashboard-feature-visibility": "[]",
+              "opendatahub.io/description": "Provides a baseline hardware profile with 2 CPUs and 4Gi memory by default, adjustable up to 4 CPUs and 8Gi memory.",
+              "opendatahub.io/disabled": "false",
+              "opendatahub.io/display-name": "default-profile"
+            },
+            "name": "default-profile",
+            "namespace": "opendatahub"
+          },
+          "spec": {
+            "identifiers": [
+              {
+                "defaultCount": 2,
+                "displayName": "CPU",
+                "identifier": "cpu",
+                "maxCount": 4,
+                "minCount": 1,
+                "resourceType": "CPU"
+              },
+              {
+                "defaultCount": "4Gi",
+                "displayName": "Memory",
+                "identifier": "memory",
+                "maxCount": "8Gi",
+                "minCount": "2Gi",
+                "resourceType": "Memory"
+              }
+            ]
+          }
         }
       ]
     capabilities: Full Lifecycle
@@ -128,7 +162,7 @@ metadata:
       "llamastackoperators.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.33.0
+  name: opendatahub-operator.v2.35.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1635,7 +1669,7 @@ spec:
   selector:
     matchLabels:
       component: opendatahub-operator
-  version: 2.33.0
+  version: 2.35.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
