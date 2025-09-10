@@ -22,13 +22,21 @@ import (
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+)
+
+const (
+	gatewayNamespace = "openshift-ingress"
 )
 
 func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -58,7 +66,7 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		return fmt.Errorf("failed to handle certificates: %w", err)
 	}
 
-	if err := createGateway(rr, gatewayInstance, certSecretName, domain); err != nil {
+	if err := createGateway(rr, certSecretName, domain); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 
@@ -103,9 +111,9 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 
 	switch certConfig.Type {
 	case infrav1.OpenshiftDefaultIngress:
-		return handleOpenshiftDefaultCertificate(ctx, rr, gatewayInstance, secretName)
+		return handleOpenshiftDefaultCertificate(ctx, rr, secretName)
 	case infrav1.SelfSigned:
-		return handleSelfSignedCertificate(ctx, rr, gatewayInstance, secretName, domain)
+		return handleSelfSignedCertificate(ctx, rr, secretName, domain)
 	case infrav1.Provided:
 		return secretName, nil
 	default:
@@ -113,8 +121,8 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 	}
 }
 
-func handleOpenshiftDefaultCertificate(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayInstance *serviceApi.GatewayConfig, secretName string) (string, error) {
-	err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, gatewayInstance.Spec.Namespace)
+func handleOpenshiftDefaultCertificate(ctx context.Context, rr *odhtypes.ReconciliationRequest, secretName string) (string, error) {
+	err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, gatewayNamespace)
 	if err != nil {
 		return "", fmt.Errorf("failed to propagate default ingress certificate: %w", err)
 	}
@@ -122,8 +130,7 @@ func handleOpenshiftDefaultCertificate(ctx context.Context, rr *odhtypes.Reconci
 	return secretName, nil
 }
 
-func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.ReconciliationRequest,
-	gatewayInstance *serviceApi.GatewayConfig, secretName string, domain string) (string, error) {
+func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.ReconciliationRequest, secretName string, domain string) (string, error) {
 	hostname := "odh-gateway." + domain
 
 	err := cluster.CreateSelfSignedCertificate(
@@ -131,7 +138,7 @@ func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.Reconciliatio
 		rr.Client,
 		secretName,
 		hostname,
-		gatewayInstance.Spec.Namespace,
+		gatewayNamespace,
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create self-signed certificate: %w", err)
@@ -147,13 +154,13 @@ func getCertificateType(gatewayInstance *serviceApi.GatewayConfig) string {
 	return string(gatewayInstance.Spec.Certificate.Type)
 }
 
-func createGateway(rr *odhtypes.ReconciliationRequest, gatewayInstance *serviceApi.GatewayConfig, certSecretName string, domain string) error {
+func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string) error {
 	listeners := createListeners(certSecretName, domain)
 
 	gateway := &gwapiv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "odh-gateway",
-			Namespace: gatewayInstance.Spec.Namespace,
+			Namespace: gatewayNamespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/managed-by": "opendatahub-operator",
 				"opendatahub.io/internal":      "true",
@@ -198,4 +205,60 @@ func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
 	}
 
 	return listeners
+}
+
+func syncGatewayStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	gatewayInstance, ok := rr.Instance.(*serviceApi.GatewayConfig)
+	if !ok {
+		return errors.New("failed to cast the reconciliation request instance to GatewayConfig")
+	}
+
+	gateway := &gwapiv1.Gateway{}
+	err := rr.Client.Get(ctx, types.NamespacedName{
+		Name:      "odh-gateway",
+		Namespace: gatewayNamespace,
+	}, gateway)
+	if err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			gatewayInstance.SetConditions([]common.Condition{
+				{
+					Type:    status.ConditionTypeReady,
+					Status:  metav1.ConditionFalse,
+					Reason:  "GatewayNotFound",
+					Message: "Gateway resource not found",
+				},
+			})
+			return nil
+		}
+		return fmt.Errorf("failed to get Gateway: %w", err)
+	}
+
+	isReady := false
+	for _, condition := range gateway.Status.Conditions {
+		if condition.Type == string(gwapiv1.GatewayConditionAccepted) && condition.Status == metav1.ConditionTrue {
+			isReady = true
+			break
+		}
+	}
+
+	conditionStatus := metav1.ConditionFalse
+	reason := "GatewayNotReady"
+	message := "Gateway is not ready or not accepted"
+
+	if isReady {
+		conditionStatus = metav1.ConditionTrue
+		reason = "GatewayReady"
+		message = "Gateway is ready and accepted"
+	}
+
+	gatewayInstance.SetConditions([]common.Condition{
+		{
+			Type:    status.ConditionTypeReady,
+			Status:  conditionStatus,
+			Reason:  reason,
+			Message: message,
+		},
+	})
+
+	return nil
 }

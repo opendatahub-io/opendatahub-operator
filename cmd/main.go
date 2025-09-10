@@ -444,7 +444,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 				Name: serviceApi.GatewayInstanceName,
 			},
 			Spec: serviceApi.GatewayConfigSpec{
-				Namespace: "openshift-ingress",
+				Namespace: "opendatahub",
 				Auth: serviceApi.GatewayAuthSpec{
 					Mode: "auto",
 				},
