@@ -153,7 +153,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 				return admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
 			}
 
-			return admission.Allowed(fmt.Sprintf("Connection cleanup done for %s in namespace %s", req.Kind.Kind, req.Namespace))
+			return admission.Allowed(fmt.Sprintf("Connection cleanup not needed for %s in namespace %s", req.Kind.Kind, req.Namespace))
 
 		case webhookutils.ConnectionActionReplace:
 			// Connection changed cleanup old and inject new
@@ -168,8 +168,9 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 				return admission.Errored(http.StatusInternalServerError, err)
 			}
 			// cleanupPerformed is always true if no error occurred
-			log.V(1).Info("Successfully cleaned up old connection type")
-
+			if cleanupPerformed {
+				log.V(1).Info("Successfully cleaned up old connection type")
+			}
 			// Create ServiceAccount only for S3 connections in non-dry-run mode
 			isDryRun := req.DryRun != nil && *req.DryRun
 			if err := webhookutils.HandleServiceAccountCreation(ctx, w.Client, secretName, connectionType, req.Namespace, isDryRun); err != nil {
@@ -328,6 +329,7 @@ func (w *ConnectionWebhook) performConnectionCleanup(
 	default:
 		// No specific cleanup needed for unknown connection types
 		log.V(1).Info("No specific cleanup needed for connection type", "connectionType", oldConnectionType)
+		cleanupPerformed = false
 	}
 
 	return cleanupPerformed, nil
