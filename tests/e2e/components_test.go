@@ -336,10 +336,20 @@ func (tc *ComponentTestCtx) ValidateModelControllerInstance(t *testing.T) {
 }
 
 // ValidateAllDeletionRecovery runs the standard set of deletion recovery tests.
+// The order of tests is carefully designed to handle dependencies and avoid timing issues.
 func (tc *ComponentTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 	t.Helper()
 
-	// Standard recovery test suite - most components use all of these
+	// Test order explanation:
+	// 1. ConfigMaps/Services - these are stateless resources with no dependencies
+	// 2. RBAC - establishes permissions that ServiceAccounts and Pods will need
+	// 3. ServiceAccounts - creates identity tokens that Pods will use for API access
+	// 4. Deployments - recreates Pods that depend on both RBAC permissions and SA tokens
+	//
+	// This ordering prevents the race condition where Pods restart before having proper
+	// RBAC permissions, which causes "Unauthorized" errors and CrashLoopBackOff states.
+	// The Deployment deletion/recreation at the end ensures all Pods get fresh SA tokens
+	// without needing explicit Pod restarts in the ServiceAccount test.
 	testCases := []TestCase{
 		{"ConfigMap deletion recovery", func(t *testing.T) {
 			t.Helper()
@@ -349,9 +359,9 @@ func (tc *ComponentTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 			t.Helper()
 			tc.ValidateResourceDeletionRecovery(t, gvk.Service)
 		}},
-		{"Deployment deletion recovery", tc.ValidateDeploymentDeletionRecovery},
-		{"ServiceAccount deletion recovery", tc.ValidateServiceAccountDeletionRecovery},
 		{"RBAC deletion recovery", tc.ValidateRBACDeletionRecovery},
+		{"ServiceAccount deletion recovery", tc.ValidateServiceAccountDeletionRecovery},
+		{"Deployment deletion recovery", tc.ValidateDeploymentDeletionRecovery},
 	}
 
 	RunTestCases(t, testCases)
@@ -484,9 +494,6 @@ func (tc *ComponentTestCtx) ValidateServiceAccountDeletionRecovery(t *testing.T)
 			)
 		})
 	}
-
-	// Ensure Pods recover after SA recreation
-	tc.ensurePodsRecoverAfterSARecreation(t)
 }
 
 // ValidateRBACDeletionRecovery validates ClusterRole, ClusterRoleBinding, Role, and RoleBinding resources are recreated upon deletion.
@@ -513,53 +520,4 @@ func (tc *ComponentTestCtx) ValidateRBACDeletionRecovery(t *testing.T) {
 	}
 
 	RunTestCases(t, testCases, WithParallel())
-}
-
-// ensurePodsRecoverAfterSARecreation verifies that Pods using the recreated ServiceAccount recover and become healthy.
-func (tc *ComponentTestCtx) ensurePodsRecoverAfterSARecreation(t *testing.T) {
-	t.Helper()
-
-	// Pod selector
-	podListOpts := &client.ListOptions{
-		Namespace:     tc.AppsNamespace,
-		LabelSelector: k8slabels.Set{labels.K8SCommon.PartOf: strings.ToLower(tc.GVK.Kind)}.AsSelector(),
-	}
-
-	// Get all Pods that need to be restarted so they receive new SA tokens
-	allPods := tc.FetchResources(
-		WithMinimalObject(gvk.Pod, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithListOptions(podListOpts),
-		WithCondition(HaveEach(And(
-			// Only get Pods that are NOT already being deleted or claimed
-			jq.Match(`.metadata.deletionTimestamp == null`),
-			jq.Match(`.metadata.annotations."test.opendatahub.io/deletion-claimed-by" == null`),
-		))),
-		WithIgnoreNotFound(true),
-	)
-
-	// If there are failing Pods, restart them to accelerate recovery
-	if len(allPods) > 0 {
-		t.Logf("Found %d Pods that need to be restarted to get new ServiceAccount tokens", len(allPods))
-
-		for _, pod := range allPods {
-			t.Logf("Deleting Pod %s to accelerate recovery from SA token issues", pod.GetName())
-			tc.DeleteResource(
-				WithMinimalObject(gvk.Pod, resources.NamespacedNameFromObject(&pod)),
-				WithIgnoreNotFound(true),
-			)
-		}
-
-		// Validate that restarted Pods are now healthy
-		t.Logf("Validating that restarted Pods are now healthy")
-		tc.EnsureResourcesExist(
-			WithMinimalObject(gvk.Pod, types.NamespacedName{Namespace: tc.AppsNamespace}),
-			WithListOptions(podListOpts),
-			WithCondition(HaveEach(And(
-				jq.Match(`.status.phase == "Running"`),
-				// Ensure containers are ready, not just running
-				jq.Match(`(.status.containerStatuses // []) | all(.[]; .ready == true)`),
-			))),
-			WithCustomErrorMsg("Restarted Pods should be healthy after ServiceAccount recreation"),
-		)
-	}
 }
