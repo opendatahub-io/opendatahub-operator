@@ -93,7 +93,7 @@ func TestIsEnabled(t *testing.T) {
 func TestCreateConfigMap(t *testing.T) {
 	t.Run("should create ConfigMap when configuration is provided", func(t *testing.T) {
 		g := NewWithT(t)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create TrustyAI CR with configuration
 		trustyai := createTrustyAICRWithConfig(true, true)
@@ -128,7 +128,7 @@ func TestCreateConfigMap(t *testing.T) {
 
 	t.Run("should create ConfigMap with default values when no configuration is provided", func(t *testing.T) {
 		g := NewWithT(t)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create TrustyAI CR without configuration
 		trustyai := createTrustyAICR(true)
@@ -163,7 +163,7 @@ func TestCreateConfigMap(t *testing.T) {
 
 	t.Run("should handle partial configuration", func(t *testing.T) {
 		g := NewWithT(t)
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create TrustyAI CR with partial configuration
 		trustyai := createTrustyAICRWithPartialConfig(true)
@@ -292,7 +292,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
