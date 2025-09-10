@@ -30,7 +30,12 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		}
 		if manifestConfig.SourcePath != "" {
 			rr.Manifests[0].Path = odhdeploy.DefaultManifestPath
-			rr.Manifests[0].ContextDir = ComponentName
+			// Choose ContextDir: use manifestConfig.ContextDir if provided, otherwise ComponentName
+			if manifestConfig.ContextDir != "" {
+				rr.Manifests[0].ContextDir = manifestConfig.ContextDir
+			} else {
+				rr.Manifests[0].ContextDir = ComponentName
+			}
 			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
 		}
 	}
