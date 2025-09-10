@@ -54,6 +54,22 @@ func checkPreconditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return nil
 	}
 
+	if sm.Spec.ManagementState == operatorv1.Removed {
+		rr.Conditions.MarkFalse(
+			status.CapabilityServiceMesh,
+			conditions.WithReason(status.RemovedReason),
+			conditions.WithMessage("ServiceMesh is set to Removed"),
+			conditions.WithSeverity(common.ConditionSeverityInfo),
+		)
+		rr.Conditions.MarkFalse(
+			status.CapabilityServiceMeshAuthorization,
+			conditions.WithReason(status.RemovedReason),
+			conditions.WithMessage("ServiceMesh is set to Removed, ServiceMesh Authorization is therefore also Removed"),
+			conditions.WithSeverity(common.ConditionSeverityInfo),
+		)
+		return nil
+	}
+
 	// ensure ServiceMesh v2 operator is installed as pre-requisite
 	if err := checkServiceMeshOperator(ctx, rr); err != nil {
 		rr.Conditions.MarkFalse(
