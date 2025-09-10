@@ -33,6 +33,10 @@ const (
 	testSecret           = "glue-secret"
 	OperationRemove      = "remove"
 	serviceAccountPath   = "/spec/predictor/serviceAccountName"
+	storageUriPath       = "/spec/predictor/model/storageUri"
+	storagePath          = "/spec/predictor/model/storage"
+	storageKeyPath       = "/spec/predictor/model/storage/key"
+	imagePullSecretsPath = "/spec/predictor/imagePullSecrets" //nolint:gosec
 )
 
 type TestCase struct {
@@ -204,7 +208,7 @@ func runTestCase(t *testing.T, tc TestCase) {
 func hasImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
-			if patch.Path == "/spec/predictor/imagePullSecrets" {
+			if patch.Path == imagePullSecretsPath {
 				// Should be a single secret in the array
 				if secretsList, ok := patch.Value.([]interface{}); ok && len(secretsList) == 1 {
 					if secretMap, ok := secretsList[0].(map[string]interface{}); ok {
@@ -223,7 +227,7 @@ func hasImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch.JsonPa
 func hasStorageUriPatch(expectedUri string) func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
-			if patch.Path == "/spec/predictor/model/storageUri" {
+			if patch.Path == storageUriPath {
 				if expectedUri == "" {
 					return true
 				}
@@ -238,13 +242,13 @@ func hasStorageUriPatch(expectedUri string) func([]jsonpatch.JsonPatchOperation)
 func hasStorageKeyPatch(expectedStorageKey string) func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
-			if patch.Path == "/spec/predictor/model/storage/key" {
+			if patch.Path == storageKeyPath {
 				if expectedStorageKey == "" {
 					return true
 				}
 				return patch.Value == expectedStorageKey
 			}
-			if patch.Path == "/spec/predictor/model/storage" {
+			if patch.Path == storagePath {
 				if storageMap, ok := patch.Value.(map[string]interface{}); ok {
 					if key, hasKey := storageMap["key"]; hasKey {
 						if expectedStorageKey == "" {
@@ -275,7 +279,7 @@ func hasImagePullSecretsCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool
 func hasStorageUriCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
-			if patch.Path == "/spec/predictor/model/storageUri" && patch.Operation == OperationRemove {
+			if patch.Path == storageUriPath && patch.Operation == OperationRemove {
 				return true
 			}
 		}
@@ -289,7 +293,7 @@ func hasS3CleanupPatches() func([]jsonpatch.JsonPatchOperation) bool {
 		hasServiceAccountCleanup := false
 
 		for _, patch := range patches {
-			if patch.Path == "/spec/predictor/model/storage" && patch.Operation == OperationRemove {
+			if patch.Path == storagePath && patch.Operation == OperationRemove {
 				hasStorageCleanup = true
 			}
 			if patch.Path == serviceAccountPath && patch.Operation == OperationRemove {
@@ -543,6 +547,7 @@ func TestConnectionWebhook(t *testing.T) {
 			expectedAllowed:    true,
 			expectedPatchCheck: hasStorageUriPatch("s3://new-bucket/new-model"),
 		},
+
 		// Cleanup tests when annotation is removed
 		{
 			name:            "annotation removed, OCI filed is cleanup",
