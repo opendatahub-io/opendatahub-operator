@@ -44,7 +44,7 @@ type GatewayConfigSpec struct {
 	// +optional
 	Certificate *infrav1.CertificateSpec `json:"certificate,omitempty"`
 
-	// Domain configuration for the gateway
+	// Domain configuration for the GatewayConfig
 	// +optional
 	Domain string `json:"domain,omitempty"`
 
@@ -54,7 +54,7 @@ type GatewayConfigSpec struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
-// GatewayAuthSpec defines authentication configuration for the gateway
+// GatewayAuthSpec defines authentication configuration for the GatewayConfig
 type GatewayAuthSpec struct {
 	// Authentication mode: "openshift-oauth" | "oidc" | "auto"
 	// +kubebuilder:validation:Enum=openshift-oauth;oidc;auto

@@ -118,7 +118,7 @@ spec:
                     type: string
                 type: object
               domain:
-                description: Domain configuration for the gateway
+                description: Domain configuration for the GatewayConfig
                 type: string
               namespace:
                 default: openshift-ingress
