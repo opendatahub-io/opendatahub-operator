@@ -138,6 +138,7 @@ var (
 			serviceApi.MonitoringServiceName:  monitoringTestSuite,
 			serviceApi.AuthServiceName:        authControllerTestSuite,
 			serviceApi.ServiceMeshServiceName: serviceMeshControllerTestSuite,
+			serviceApi.GatewayServiceName:     gatewayTestSuite,
 		},
 	}
 )

@@ -2254,6 +2254,7 @@ an Istio Gateway.
 
 
 _Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
 - [GatewaySpec](#gatewayspec)
 
 | Field | Description | Default | Validation |
@@ -2750,6 +2751,8 @@ Package v1 contains API Schema definitions for the services v1 API group
 ### Resource Types
 - [Auth](#auth)
 - [AuthList](#authlist)
+- [GatewayConfig](#gatewayconfig)
+- [GatewayConfigList](#gatewayconfiglist)
 - [Monitoring](#monitoring)
 - [MonitoringList](#monitoringlist)
 - [ServiceMesh](#servicemesh)
@@ -2868,6 +2871,102 @@ _Appears in:_
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
+
+
+#### GatewayAuthSpec
+
+
+
+GatewayAuthSpec defines authentication configuration for the gateway
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `mode` _string_ | Authentication mode: "openshift-oauth" \| "oidc" \| "auto" | auto | Enum: [openshift-oauth oidc auto] <br /> |
+| `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (required when mode="oidc") |  |  |
+
+
+#### GatewayConfig
+
+
+
+GatewayConfig is the Schema for the gatewayconfigs API
+
+
+
+_Appears in:_
+- [GatewayConfigList](#gatewayconfiglist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `GatewayConfig` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[GatewayConfigSpec](#gatewayconfigspec)_ |  |  |  |
+| `status` _[GatewayConfigStatus](#gatewayconfigstatus)_ |  |  |  |
+
+
+#### GatewayConfigList
+
+
+
+GatewayConfigList contains a list of GatewayConfig
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `GatewayConfigList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[GatewayConfig](#gatewayconfig) array_ |  |  |  |
+
+
+#### GatewayConfigSpec
+
+
+
+GatewayConfigSpec defines the desired state of GatewayConfig
+
+
+
+_Appears in:_
+- [GatewayConfig](#gatewayconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `auth` _[GatewayAuthSpec](#gatewayauthspec)_ | Authentication configuration |  |  |
+| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
+| `domain` _string_ | Domain configuration for the gateway |  |  |
+| `namespace` _string_ | Namespace where the gateway resources should be deployed | openshift-ingress |  |
+
+
+#### GatewayConfigStatus
+
+
+
+GatewayConfigStatus defines the observed state of GatewayConfig
+
+
+
+_Appears in:_
+- [GatewayConfig](#gatewayconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
 #### Metrics
@@ -3027,6 +3126,23 @@ _Appears in:_
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `url` _string_ |  |  |  |
+
+
+#### OIDCConfig
+
+
+
+OIDCConfig defines OIDC provider configuration
+
+
+
+_Appears in:_
+- [GatewayAuthSpec](#gatewayauthspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `issuerURL` _string_ | OIDC issuer URL |  | Required: \{\} <br /> |
+| `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing clientID and clientSecret |  | Required: \{\} <br /> |
 
 
 #### ServiceMesh
