@@ -642,6 +642,7 @@ spec:
           - ""
           resources:
           - clusterversions
+          - nodes
           - rhmis
           verbs:
           - get
@@ -972,6 +973,7 @@ spec:
           resources:
           - clusterqueues
           - localqueues
+          - resourceflavors
           verbs:
           - create
           - delete
