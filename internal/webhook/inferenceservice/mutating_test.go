@@ -441,6 +441,7 @@ func TestConnectionWebhook(t *testing.T) {
 			secretType:      inferenceservice.ConnectionTypeS3.String(),
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret},
+			predictorSpec:   map[string]interface{}{"name": "test-predictor"},
 			operation:       admissionv1.Create,
 			expectedAllowed: false,
 			expectedMessage: "found no spec.predictor.model set in resource",
