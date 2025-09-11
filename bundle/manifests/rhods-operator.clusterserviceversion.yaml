@@ -176,7 +176,7 @@ metadata:
               "managementState": "Managed"
             },
             "modelregistry": {
-              "managementState": "Removed",
+              "managementState": "Managed",
               "registriesNamespace": "rhoai-model-registries"
             },
             "ray": {
