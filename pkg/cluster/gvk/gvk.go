@@ -506,7 +506,7 @@ var (
 		Version: "v1beta1",
 		Kind:    "Authorino",
 	}
-	
+
 	PrometheusRule = schema.GroupVersionKind{
 		Group:   "monitoring.rhobs",
 		Version: "v1",
