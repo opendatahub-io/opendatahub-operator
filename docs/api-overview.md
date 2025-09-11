@@ -2911,23 +2911,6 @@ _Appears in:_
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
 
 
-#### GatewayAuthSpec
-
-
-
-GatewayAuthSpec defines authentication configuration for the GatewayConfig
-
-
-
-_Appears in:_
-- [GatewayConfigSpec](#gatewayconfigspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `mode` _string_ | Authentication mode: "openshift-oauth" \| "oidc" \| "auto" | auto | Enum: [openshift-oauth oidc auto] <br /> |
-| `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (required when mode="oidc") |  |  |
-
-
 #### GatewayConfig
 
 
@@ -2983,13 +2966,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `auth` _[GatewayAuthSpec](#gatewayauthspec)_ | Authentication configuration |  |  |
+| `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
 | `domain` _string_ | Domain configuration for the GatewayConfig |  |  |
-<<<<<<< HEAD
-=======
-| `namespace` _string_ | Namespace where the gateway resources should be deployed | openshift-ingress |  |
->>>>>>> 64935686 (fix gateway controller namespace handling, add status sync, and improve test patterns)
 
 
 #### GatewayConfigStatus
@@ -3178,12 +3157,13 @@ OIDCConfig defines OIDC provider configuration
 
 
 _Appears in:_
-- [GatewayAuthSpec](#gatewayauthspec)
+- [GatewayConfigSpec](#gatewayconfigspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `issuerURL` _string_ | OIDC issuer URL |  | Required: \{\} <br /> |
-| `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing clientID and clientSecret |  | Required: \{\} <br /> |
+| `clientID` _string_ | OIDC client ID |  | Required: \{\} <br /> |
+| `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing client secret |  | Required: \{\} <br /> |
 
 
 #### ServiceMesh
