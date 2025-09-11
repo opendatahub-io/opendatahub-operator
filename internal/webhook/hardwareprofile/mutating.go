@@ -51,9 +51,9 @@ var WorkloadConfigs = map[string]WorkloadConfig{
 		TolerationsPath:  []string{"spec", "template", "spec", "tolerations"},
 	},
 	gvk.InferenceServices.Kind: {
-		ContainersPath:   []string{"spec", "predictor", "podSpec", "containers"},
-		NodeSelectorPath: []string{"spec", "predictor", "podSpec", "nodeSelector"},
-		TolerationsPath:  []string{"spec", "predictor", "podSpec", "tolerations"},
+		ContainersPath:   []string{"spec", "predictor", "model"},
+		NodeSelectorPath: []string{"spec", "predictor", "nodeSelector"},
+		TolerationsPath:  []string{"spec", "predictor", "tolerations"},
 	},
 }
 
@@ -385,9 +385,44 @@ func (i *Injector) applyResourceRequirementsToWorkload(obj *unstructured.Unstruc
 	if err != nil {
 		return err
 	}
+	// Handle different workload types explicitly
+	switch obj.GetKind() {
+	case gvk.InferenceServices.Kind:
+		// For InferenceServices, apply resources to the model object
+		return i.applyResourceRequirementsToInferenceServiceModel(obj, hwp, config.ContainersPath)
+	case gvk.Notebook.Kind:
+		// For Notebooks, apply resources to containers
+		return i.applyResourceRequirementsToContainers(obj, hwp, config.ContainersPath)
+	default: // TODO: add llmisvc
+		// For any other workload types, apply resources to containers as default behavior
+		return i.applyResourceRequirementsToContainers(obj, hwp, config.ContainersPath)
+	}
+}
 
+// for isvc.
+func (i *Injector) applyResourceRequirementsToInferenceServiceModel(obj *unstructured.Unstructured, hwp *hwpv1alpha1.HardwareProfile, modelPath []string) error {
+	// Get the model object from the InferenceService
+	model, found, err := unstructured.NestedMap(obj.Object, modelPath...)
+	if err != nil {
+		return fmt.Errorf("failed to get model: %w", err)
+	}
+	if !found {
+		return nil // No model found
+	}
+
+	// Apply resource requirements to the model object
+	if err := i.applyIdentifiersToContainer(model, hwp.Spec.Identifiers); err != nil {
+		return fmt.Errorf("failed to apply resources to model: %w", err)
+	}
+
+	// Update the object with modified model
+	return unstructured.SetNestedMap(obj.Object, model, modelPath...)
+}
+
+// for notebooks.
+func (i *Injector) applyResourceRequirementsToContainers(obj *unstructured.Unstructured, hwp *hwpv1alpha1.HardwareProfile, containersPath []string) error {
 	// Get containers from the workload
-	containers, found, err := unstructured.NestedSlice(obj.Object, config.ContainersPath...)
+	containers, found, err := unstructured.NestedSlice(obj.Object, containersPath...)
 	if err != nil {
 		return fmt.Errorf("failed to get containers: %w", err)
 	}
@@ -403,7 +438,7 @@ func (i *Injector) applyResourceRequirementsToWorkload(obj *unstructured.Unstruc
 	}
 
 	// Update the object with modified containers
-	return unstructured.SetNestedSlice(obj.Object, containers, config.ContainersPath...)
+	return unstructured.SetNestedSlice(obj.Object, containers, containersPath...)
 }
 
 // applyIdentifiersToContainer applies resource requirements to a single container.
@@ -434,18 +469,37 @@ func (i *Injector) applyIdentifiersToContainer(container interface{}, identifier
 		return err
 	}
 
-	// Apply hardware profile resource requirements only for identifiers that don't already exist
-	if err := i.applyIdentifiersToRequests(requests, identifiers); err != nil {
+	// For requests - always applies DefaultCount
+	if err := i.applyIdentifiersToRequests(requests, identifiers, func(id hwpv1alpha1.HardwareIdentifier) (intstr.IntOrString, bool) {
+		return id.DefaultCount, true
+	}); err != nil {
 		return err
 	}
 
-	// Update container with modified resources
+	// Get or create limits section
+	limits, err := webhookutils.GetOrCreateNestedMap(resourcesMap, "limits")
+	if err != nil {
+		return err
+	}
+
+	// For limits - only applies MaxCount if it exists in HWProfile
+	if err := i.applyIdentifiersToRequests(limits, identifiers, func(id hwpv1alpha1.HardwareIdentifier) (intstr.IntOrString, bool) {
+		if id.MaxCount == nil {
+			return intstr.IntOrString{}, false
+		}
+		return *id.MaxCount, true
+	}); err != nil {
+		return err
+	}
+
+	// Update modified resources
 	resourcesMap["requests"] = requests
+	resourcesMap["limits"] = limits
 	containerMap["resources"] = resourcesMap
 	return nil
 }
 
-// applyIdentifiersToRequests applies hardware identifiers to a container's resource requests map.
+// applyIdentifiersToRequests applies hardware identifiers to resource requests map.
 // This method implements the core logic for selectively adding resource requirements
 // while preserving existing specifications.
 //
@@ -461,14 +515,21 @@ func (i *Injector) applyIdentifiersToContainer(container interface{}, identifier
 //
 // Returns:
 //   - error: Any error encountered during identifier application or quantity conversion
-func (i *Injector) applyIdentifiersToRequests(requests map[string]interface{}, identifiers []hwpv1alpha1.HardwareIdentifier) error {
+func (i *Injector) applyIdentifiersToRequests(
+	requests map[string]interface{},
+	identifiers []hwpv1alpha1.HardwareIdentifier,
+	valueExtractor func(hwpv1alpha1.HardwareIdentifier) (intstr.IntOrString, bool),
+) error {
 	for _, identifier := range identifiers {
 		// Skip if the resource identifier already exists
 		if _, exists := requests[identifier.Identifier]; exists {
 			continue
 		}
-
-		quantity, err := convertIntOrStringToQuantity(identifier.DefaultCount)
+		value, shouldApply := valueExtractor(identifier)
+		if !shouldApply {
+			continue
+		}
+		quantity, err := convertIntOrStringToQuantity(value)
 		if err != nil {
 			return fmt.Errorf("failed to convert resource quantity for %s: %w", identifier.Identifier, err)
 		}
