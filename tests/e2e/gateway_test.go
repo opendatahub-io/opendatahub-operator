@@ -71,7 +71,7 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 
 	// Validate Gateway API resource with configuration
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.GatewayAPI, types.NamespacedName{
+		WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
 			Name:      gatewayName,
 			Namespace: gatewayNamespace,
 		}),

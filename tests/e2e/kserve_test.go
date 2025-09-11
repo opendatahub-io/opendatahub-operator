@@ -41,9 +41,9 @@ var kserveTemplatedResources = []struct {
 }{
 	{gvk.KnativeServing, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-serving"}},
 	{gvk.ServiceMeshMember, types.NamespacedName{Namespace: knativeServingNamespace, Name: "default"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "kserve-local-gateway"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-ingress-gateway"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-local-gateway"}},
+	{gvk.IstioGateway, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "kserve-local-gateway"}},
+	{gvk.IstioGateway, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-ingress-gateway"}},
+	{gvk.IstioGateway, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-local-gateway"}},
 }
 
 func kserveTestSuite(t *testing.T) {

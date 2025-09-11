@@ -56,14 +56,13 @@ func (h *ServiceHandler) GetManagementState(platform common.Platform, _ *dsciv1.
 
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{}).
-		OwnsGVK(gvk.GatewayAPI).
 		OwnsGVK(gvk.GatewayClass).
 		WithAction(createGatewayInfrastructure).
 		WithAction(template.NewAction()).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
-		WithAction(syncGatewayStatus).
+		WithAction(syncGatewayConfigStatus).
 		WithAction(gc.NewAction()).
 		Build(ctx)
 	if err != nil {
