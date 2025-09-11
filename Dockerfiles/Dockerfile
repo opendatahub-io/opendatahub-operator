@@ -68,8 +68,7 @@ COPY --chown=1001:0 --from=manifests /opt/manifests /opt/manifests
 RUN microdnf install -y tar && microdnf clean all
 
 # Recursive change all files
-RUN chown -R 1001:0 /opt/manifests &&\
-    chmod -R g=u /opt/manifests
+RUN chmod -R g=u /opt/manifests
 USER 1001
 
 ENTRYPOINT ["/manager"]
