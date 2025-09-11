@@ -129,9 +129,11 @@ spec:
                             strings
                           rule: self.all(k, self[k] != '')
                       replicas:
-                        description: Replicas specifies the number of replicas in
-                          monitoringstack, default is 2 if not set
+                        description: |-
+                          Replicas specifies the number of replicas in monitoringstack. If not set, it defaults
+                          to 1 on single-node clusters and 2 on multi-node clusters.
                         format: int32
+                        minimum: 0
                         type: integer
                       resources:
                         description: MetricsResources defines the resource requests
@@ -213,6 +215,15 @@ spec:
                   traces:
                     description: Tracing configuration for OpenTelemetry instrumentation
                     properties:
+                      exporters:
+                        additionalProperties:
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                        description: |-
+                          Exporters defines custom trace exporters for sending traces to external observability tools.
+                          Each key represents the exporter name, and the value contains the exporter configuration.
+                          The configuration follows the OpenTelemetry Collector exporter format.
+                        type: object
                       sampleRatio:
                         default: "0.1"
                         description: |-
@@ -258,6 +269,24 @@ spec:
                           rule: 'self.backend != ''pv'' ? has(self.secret) : true'
                         - message: Size is supported when backend is pv only
                           rule: 'self.backend != ''pv'' ? !has(self.size) : true'
+                      tls:
+                        description: TLS configuration for Tempo gRPC connections
+                        properties:
+                          caConfigMap:
+                            description: |-
+                              CAConfigMap specifies the name of the ConfigMap containing the CA certificate
+                              Required for mutual TLS authentication
+                            type: string
+                          certificateSecret:
+                            description: |-
+                              CertificateSecret specifies the name of the secret containing TLS certificates
+                              If not specified, OpenShift service serving certificates will be used
+                            type: string
+                          enabled:
+                            default: true
+                            description: Enabled enables TLS for Tempo gRPC connections
+                            type: boolean
+                        type: object
                     required:
                     - storage
                     type: object

@@ -2884,7 +2884,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `storage` _[MetricsStorage](#metricsstorage)_ |  |  |  |
 | `resources` _[MetricsResources](#metricsresources)_ |  |  |  |
-| `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack, default is 2 if not set |  |  |
+| `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  | Minimum: 0 <br /> |
 | `exporters` _object (keys:string, values:string)_ | Exporters defines custom metrics exporters for sending metrics to external observability tools.<br />Each key-value pair represents an exporter name and its configuration.<br />Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters. |  |  |
 
 
@@ -3041,6 +3041,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `storage` _[TracesStorage](#tracesstorage)_ |  |  |  |
 | `sampleRatio` _string_ | SampleRatio determines the sampling rate for traces<br />Value should be between 0.0 (no sampling) and 1.0 (sample all traces) | 0.1 | Pattern: `^(0(\.[0-9]+)?\|1(\.0+)?)$` <br /> |
+| `tls` _[TracesTLS](#tracestls)_ | TLS configuration for Tempo gRPC connections |  |  |
+| `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines custom trace exporters for sending traces to external observability tools.<br />Each key represents the exporter name, and the value contains the exporter configuration.<br />The configuration follows the OpenTelemetry Collector exporter format. |  |  |
 
 
 #### TracesStorage
@@ -3060,5 +3062,23 @@ _Appears in:_
 | `size` _string_ | Size specifies the size of the storage.<br />This field is optional. |  |  |
 | `secret` _string_ | Secret specifies the secret name for storage credentials.<br />This field is required when the backend is not "pv". |  |  |
 | `retention` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | Retention specifies how long trace data should be retained globally (e.g., "60m", "10h") | 2160h |  |
+
+
+#### TracesTLS
+
+
+
+TracesTLS defines TLS configuration for traces collection
+
+
+
+_Appears in:_
+- [Traces](#traces)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ | Enabled enables TLS for Tempo gRPC connections | true |  |
+| `certificateSecret` _string_ | CertificateSecret specifies the name of the secret containing TLS certificates<br />If not specified, OpenShift service serving certificates will be used |  |  |
+| `caConfigMap` _string_ | CAConfigMap specifies the name of the ConfigMap containing the CA certificate<br />Required for mutual TLS authentication |  |  |
 
 
