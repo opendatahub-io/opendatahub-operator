@@ -1062,6 +1062,7 @@ rules:
   - services.platform.opendatahub.io
   resources:
   - auths/finalizers
+  - gatewayconfigs/finalizers
   - monitorings/finalizers
   verbs:
   - update

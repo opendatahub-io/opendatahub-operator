@@ -37,31 +37,33 @@ import (
 
 const (
 	gatewayNamespace = "openshift-ingress"
+	gatewayName      = "odh-gateway"
+	gatewayClassName = "odh-gateway-class"
 )
 
 func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createGatewayInfrastructure")
 
-	gatewayInstance, ok := rr.Instance.(*serviceApi.GatewayConfig)
+	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
 	if !ok {
-		return errors.New("failed to cast the reconciliation request instance to GatewayConfig")
+		return errors.New("instance is not of type *services.GatewayConfig")
 	}
-	l.Info("Creating Gateway infrastructure", "gateway", gatewayInstance.Name)
+	l.V(1).Info("Creating Gateway infrastructure", "gateway", gatewayConfig.Name)
 
-	domain := gatewayInstance.Spec.Domain
+	domain := gatewayConfig.Spec.Domain
 	if domain == "" {
 		clusterDomain, err := cluster.GetDomain(ctx, rr.Client)
 		if err != nil {
 			return fmt.Errorf("failed to get cluster domain: %w", err)
 		}
-		domain = "odh-gateway." + clusterDomain
+		domain = fmt.Sprintf("%s.%s", gatewayName, clusterDomain)
 	}
 
 	if err := createGatewayClass(rr); err != nil {
 		return fmt.Errorf("failed to create GatewayClass: %w", err)
 	}
 
-	certSecretName, err := handleCertificates(ctx, rr, gatewayInstance, domain)
+	certSecretName, err := handleCertificates(ctx, rr, gatewayConfig, domain)
 	if err != nil {
 		return fmt.Errorf("failed to handle certificates: %w", err)
 	}
@@ -70,11 +72,11 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 
-	l.Info("Successfully created Gateway infrastructure",
-		"gateway", "odh-gateway",
-		"namespace", gatewayInstance.Spec.Namespace,
+	l.V(1).Info("Successfully created Gateway infrastructure",
+		"gateway", gatewayName,
+		"namespace", gatewayNamespace,
 		"domain", domain,
-		"certificateType", getCertificateType(gatewayInstance))
+		"certificateType", getCertificateType(gatewayConfig))
 
 	return nil
 }
@@ -82,11 +84,7 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 	gatewayClass := &gwapiv1.GatewayClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "odh-gateway-class",
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "opendatahub-operator",
-				"opendatahub.io/internal":      "true",
-			},
+			Name: gatewayClassName,
 		},
 		Spec: gwapiv1.GatewayClassSpec{
 			ControllerName: "openshift.io/gateway-controller/v1",
@@ -96,8 +94,8 @@ func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 	return rr.AddResources(gatewayClass)
 }
 
-func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayInstance *serviceApi.GatewayConfig, domain string) (string, error) {
-	certConfig := gatewayInstance.Spec.Certificate
+func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig, domain string) (string, error) {
+	certConfig := gatewayConfig.Spec.Certificate
 	if certConfig == nil {
 		certConfig = &infrav1.CertificateSpec{
 			Type: infrav1.OpenshiftDefaultIngress,
@@ -106,7 +104,7 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 
 	secretName := certConfig.SecretName
 	if secretName == "" {
-		secretName = fmt.Sprintf("%s-tls", gatewayInstance.Name)
+		secretName = fmt.Sprintf("%s-tls", gatewayConfig.Name)
 	}
 
 	switch certConfig.Type {
@@ -131,7 +129,7 @@ func handleOpenshiftDefaultCertificate(ctx context.Context, rr *odhtypes.Reconci
 }
 
 func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.ReconciliationRequest, secretName string, domain string) (string, error) {
-	hostname := "odh-gateway." + domain
+	hostname := fmt.Sprintf("%s.%s", gatewayName, domain)
 
 	err := cluster.CreateSelfSignedCertificate(
 		ctx,
@@ -147,11 +145,11 @@ func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.Reconciliatio
 	return secretName, nil
 }
 
-func getCertificateType(gatewayInstance *serviceApi.GatewayConfig) string {
-	if gatewayInstance.Spec.Certificate == nil {
+func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
+	if gatewayConfig.Spec.Certificate == nil {
 		return string(infrav1.OpenshiftDefaultIngress)
 	}
-	return string(gatewayInstance.Spec.Certificate.Type)
+	return string(gatewayConfig.Spec.Certificate.Type)
 }
 
 func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string) error {
@@ -159,15 +157,11 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 
 	gateway := &gwapiv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "odh-gateway",
+			Name:      gatewayName,
 			Namespace: gatewayNamespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "opendatahub-operator",
-				"opendatahub.io/internal":      "true",
-			},
 		},
 		Spec: gwapiv1.GatewaySpec{
-			GatewayClassName: "odh-gateway-class",
+			GatewayClassName: gatewayClassName,
 			Listeners:        listeners,
 		},
 	}
@@ -207,25 +201,25 @@ func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
 	return listeners
 }
 
-func syncGatewayStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	gatewayInstance, ok := rr.Instance.(*serviceApi.GatewayConfig)
+func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
 	if !ok {
-		return errors.New("failed to cast the reconciliation request instance to GatewayConfig")
+		return errors.New("instance is not of type *services.GatewayConfig")
 	}
 
 	gateway := &gwapiv1.Gateway{}
 	err := rr.Client.Get(ctx, types.NamespacedName{
-		Name:      "odh-gateway",
+		Name:      gatewayName,
 		Namespace: gatewayNamespace,
 	}, gateway)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			gatewayInstance.SetConditions([]common.Condition{
+			gatewayConfig.SetConditions([]common.Condition{
 				{
 					Type:    status.ConditionTypeReady,
 					Status:  metav1.ConditionFalse,
-					Reason:  "GatewayNotFound",
-					Message: "Gateway resource not found",
+					Reason:  status.NotReadyReason,
+					Message: status.GatewayNotFoundMessage,
 				},
 			})
 			return nil
@@ -242,16 +236,16 @@ func syncGatewayStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	}
 
 	conditionStatus := metav1.ConditionFalse
-	reason := "GatewayNotReady"
-	message := "Gateway is not ready or not accepted"
+	reason := status.NotReadyReason
+	message := status.GatewayNotReadyMessage
 
 	if isReady {
 		conditionStatus = metav1.ConditionTrue
-		reason = "GatewayReady"
-		message = "Gateway is ready and accepted"
+		reason = status.ReadyReason
+		message = status.GatewayReadyMessage
 	}
 
-	gatewayInstance.SetConditions([]common.Condition{
+	gatewayConfig.SetConditions([]common.Condition{
 		{
 			Type:    status.ConditionTypeReady,
 			Status:  conditionStatus,

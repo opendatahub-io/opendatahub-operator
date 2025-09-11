@@ -3160,7 +3160,6 @@ _Appears in:_
 | `auth` _[GatewayAuthSpec](#gatewayauthspec)_ | Authentication configuration |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
 | `domain` _string_ | Domain configuration for the GatewayConfig |  |  |
-| `namespace` _string_ | Namespace where the gateway resources should be deployed | openshift-ingress |  |
 
 
 #### GatewayConfigStatus
