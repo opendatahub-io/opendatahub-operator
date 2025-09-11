@@ -47,11 +47,6 @@ type GatewayConfigSpec struct {
 	// Domain configuration for the GatewayConfig
 	// +optional
 	Domain string `json:"domain,omitempty"`
-
-	// Namespace where the gateway resources should be deployed
-	// +kubebuilder:default="openshift-ingress"
-	// +optional
-	Namespace string `json:"namespace,omitempty"`
 }
 
 // GatewayAuthSpec defines authentication configuration for the GatewayConfig

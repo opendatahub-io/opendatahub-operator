@@ -53,7 +53,7 @@ func validateGatewayCreation(t *testing.T, tc *TestContext) {
 	)
 
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.GatewayAPI, types.NamespacedName{
+		WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
 			Name:      gatewayName,
 			Namespace: gatewayNamespace,
 		}),
