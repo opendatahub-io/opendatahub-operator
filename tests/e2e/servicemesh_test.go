@@ -44,7 +44,7 @@ var (
 // Authorino constants.
 const (
 	authorinoDefaultName         = "authorino"
-	authorinoDefaultNamespace    = "opendatahub-auth-provider"
+	authorinoDefaultNamespace    = "redhat-ods-applications-auth-provider"
 	defaultAuthAudience          = "https://kubernetes.default.svc"
 	serviceMeshMemberDefaultName = "default"
 )
