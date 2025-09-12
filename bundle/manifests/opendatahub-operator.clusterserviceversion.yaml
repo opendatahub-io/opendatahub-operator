@@ -1826,6 +1826,7 @@ spec:
       - UPDATE
       resources:
       - inferenceservices
+      - llminferenceservices
     sideEffects: None
     targetPort: 9443
     type: ValidatingAdmissionWebhook

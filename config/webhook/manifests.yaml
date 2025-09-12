@@ -168,6 +168,7 @@ webhooks:
     - UPDATE
     resources:
     - inferenceservices
+    - llminferenceservices
   sideEffects: None
 - admissionReviewVersions:
   - v1
