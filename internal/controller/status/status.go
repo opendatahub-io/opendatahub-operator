@@ -91,6 +91,7 @@ const (
 	ConditionPersesAvailable                     = "PersesAvailable"
 	ConditionPersesTempoDataSourceAvailable      = "PersesTempoDataSourceAvailable"
 	ConditionPersesPrometheusDataSourceAvailable = "PersesPrometheusDataSourceAvailable"
+	ConditionNodeMetricsEndpointAvailable        = "NodeMetricsEndpointAvailable"
 )
 
 const (

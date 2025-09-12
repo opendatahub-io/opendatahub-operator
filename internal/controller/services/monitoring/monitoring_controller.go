@@ -98,6 +98,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		Owns(&appsv1.Deployment{}).
 		Owns(&batchv1.Job{}).
 		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Secret{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ServiceAccount{}).
 		// operands - openshift
@@ -156,6 +157,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deployPerses).
 		WithAction(deployPersesTempoIntegration).
 		WithAction(deployPersesPrometheusIntegration).
+		WithAction(deployNodeMetricsEndpoint).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
