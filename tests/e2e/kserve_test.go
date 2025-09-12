@@ -48,9 +48,9 @@ var kserveTemplatedResources = []struct {
 	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph-host-header"}},
 	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph"}},
 	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-predictor"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: "istio-system", Name: "kserve-local-gateway"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-ingress-gateway"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-local-gateway"}},
+	{gvk.IstioGateway, types.NamespacedName{Namespace: "istio-system", Name: "kserve-local-gateway"}},
+	{gvk.IstioGateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-ingress-gateway"}},
+	{gvk.IstioGateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-local-gateway"}},
 }
 
 func kserveTestSuite(t *testing.T) {

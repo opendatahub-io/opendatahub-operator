@@ -11,6 +11,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
@@ -333,7 +334,7 @@ var (
 		Kind:    "AuthorizationPolicy",
 	}
 
-	Gateway = schema.GroupVersionKind{
+	IstioGateway = schema.GroupVersionKind{
 		Group:   "networking.istio.io",
 		Version: "v1beta1",
 		Kind:    "Gateway",
@@ -507,6 +508,12 @@ var (
 		Kind:    serviceApi.ServiceMeshKind,
 	}
 
+	GatewayConfig = schema.GroupVersionKind{
+		Group:   serviceApi.GroupVersion.Group,
+		Version: serviceApi.GroupVersion.Version,
+		Kind:    serviceApi.GatewayKind,
+	}
+
 	PodMonitorServiceMesh = schema.GroupVersionKind{
 		Group:   "monitoring.coreos.com",
 		Version: "v1",
@@ -523,5 +530,17 @@ var (
 		Group:   "operator.authorino.kuadrant.io",
 		Version: "v1beta1",
 		Kind:    "Authorino",
+	}
+
+	GatewayClass = schema.GroupVersionKind{
+		Group:   gwapiv1.GroupVersion.Group,
+		Version: gwapiv1.GroupVersion.Version,
+		Kind:    "GatewayClass",
+	}
+
+	KubernetesGateway = schema.GroupVersionKind{
+		Group:   gwapiv1.GroupVersion.Group,
+		Version: gwapiv1.GroupVersion.Version,
+		Kind:    "Gateway",
 	}
 )
