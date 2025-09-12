@@ -23,6 +23,38 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
+type ConnectionAction string
+
+const (
+	// ConnectionActionInject represents injecting connection.
+	ConnectionActionInject ConnectionAction = "inject"
+	// ConnectionActionRemove represents removing previously injected connection.
+	ConnectionActionRemove ConnectionAction = "remove"
+	// ConnectionActionReplace represents replacing one connection type with another.
+	ConnectionActionReplace ConnectionAction = "replace"
+	// ConnectionActionNone represents no action needed.
+	ConnectionActionNone ConnectionAction = "none"
+)
+
+func (ca ConnectionAction) String() string {
+	return string(ca)
+}
+
+type ConnectionType string
+
+const (
+	// ConnectionTypeURI represents uri connections.
+	ConnectionTypeURI ConnectionType = "uri-v1"
+	// ConnectionTypeS3 represents s3 connections.
+	ConnectionTypeS3 ConnectionType = "s3"
+	// ConnectionTypeOCI represents oci connections.
+	ConnectionTypeOCI ConnectionType = "oci-v1"
+)
+
+func (ct ConnectionType) String() string {
+	return string(ct)
+}
+
 // CreateServiceAccount creates a ServiceAccount and links the secret.
 func CreateServiceAccount(ctx context.Context, cli client.Client, secretName, namespace string) error {
 	sa := &corev1.ServiceAccount{
@@ -45,19 +77,24 @@ func CreateServiceAccount(ctx context.Context, cli client.Client, secretName, na
 	return nil
 }
 
-type ConnectionAction string
+// HandleServiceAccountCreation handles ServiceAccount creation for S3 connections with proper logging.
+// Returns an error if ServiceAccount creation fails, nil otherwise.
+func HandleServiceAccountCreation(ctx context.Context, cli client.Client, secretName, connectionType, namespace string, isDryRun bool) error {
+	log := logf.FromContext(ctx)
 
-const (
-	// ConnectionActionInject represents injecting connection.
-	ConnectionActionInject ConnectionAction = "inject"
-	// ConnectionActionRemove represents removing previously injected connection.
-	ConnectionActionRemove ConnectionAction = "remove"
-	// ConnectionActionNone represents no action needed.
-	ConnectionActionNone ConnectionAction = "none"
-)
+	switch {
+	case connectionType == ConnectionTypeS3.String() && !isDryRun:
+		if err := CreateServiceAccount(ctx, cli, secretName, namespace); err != nil {
+			log.Error(err, "Failed to create ServiceAccount for new S3 connection")
+			return err
+		}
+	case connectionType == ConnectionTypeS3.String() && isDryRun:
+		log.V(1).Info("Skipping ServiceAccount creation in dry-run mode", "secretName", secretName)
+	default:
+		log.V(1).Info("Skipping ServiceAccount creation for non-S3 connection type", "connectionType", connectionType, "secretName", secretName)
+	}
 
-func (ca ConnectionAction) String() string {
-	return string(ca)
+	return nil
 }
 
 // NewWebhookLogConstructor returns a log constructor function for admission webhooks that adds the webhook name to the logger context for each admission request.
@@ -176,33 +213,26 @@ func DecodeUnstructured(decoder admission.Decoder, req admission.Request) (*unst
 // Parameters:
 //   - ctx: Context for the API call (logger is extracted from here).
 //   - cli: The controller-runtime reader to use for getting secrets.
-//   - decoder: The admission decoder to decode the request object.
+//   - decodedObj: The decoded unstructured object.
 //   - req: The admission request being processed.
 //   - allowedTypes: List of allowed connection types for validation.
 //
 // Returns:
 //   - admission.Response: The validation result
-//   - ConnectionAction: The action to be taken (inject, remove, or none)
-//   - string: The validated secret name (only valid when action is inject)
-//   - string: The connection type (only valid when action is inject)
+//   - string: The validated secret name (empty if no annotation or validation failed)
+//   - string: The connection type (empty if no annotation or validation failed)
 func ValidateInferenceServiceConnectionAnnotation(ctx context.Context,
 	cli client.Reader,
 	decodedObj *unstructured.Unstructured,
 	req admission.Request,
 	allowedTypes []string,
-) (admission.Response, ConnectionAction, string, string) {
+) (admission.Response, string, string) {
 	log := logf.FromContext(ctx)
 
-	// Check if the annotation "opendatahub.io/connections" exists and has a non-empty value
+	// Check if the annotation "opendatahub.io/connections" exists and has a non-empty value, allow operation but return empty secret info
 	annotationValue := resources.GetAnnotation(decodedObj, annotations.Connection)
 	if annotationValue == "" {
-		// removal case
-		if req.Operation == "UPDATE" {
-			return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value, cleanup if present already", annotations.Connection)), ConnectionActionRemove, "", ""
-		}
-		if req.Operation == "CREATE" {
-			return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value, skipping validation", annotations.Connection)), ConnectionActionNone, "", ""
-		}
+		return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value", annotations.Connection)), "", ""
 	}
 
 	// Get the secret's metadata only (PartialObjectMetadata) to check annotations
@@ -210,16 +240,16 @@ func ValidateInferenceServiceConnectionAnnotation(ctx context.Context,
 	if err := cli.Get(ctx, types.NamespacedName{Name: annotationValue, Namespace: req.Namespace}, secretMeta); err != nil {
 		if k8serr.IsNotFound(err) {
 			return admission.Denied(fmt.Sprintf("Secret '%s' referenced in annotation '%s' not found in namespace '%s'",
-				annotationValue, annotations.Connection, req.Namespace)), ConnectionActionNone, "", ""
+				annotationValue, annotations.Connection, req.Namespace)), "", ""
 		}
 		log.Error(err, "failed to get secret metadata", "secretName", annotationValue, "namespace", req.Namespace)
-		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("failed to validate secret: %w", err)), ConnectionActionNone, "", ""
+		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("failed to validate secret: %w", err)), "", ""
 	}
 
 	// Additional validation: check the secret's connections-type-ref annotation exists and has a non-empty value
 	connectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
 	if connectionType == "" {
-		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' annotation", annotationValue, annotations.ConnectionTypeRef)), ConnectionActionNone, "", ""
+		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' annotation", annotationValue, annotations.ConnectionTypeRef)), "", ""
 	}
 
 	// Validate that the connection type is one of the allowed values
@@ -229,11 +259,37 @@ func ValidateInferenceServiceConnectionAnnotation(ctx context.Context,
 		// Allow unknown connection types but log a warning and don't perform injection
 		log.Info("Unknown connection type found, allowing operation but skipping injection", "connectionType", connectionType, "allowedTypes", allowedTypes)
 		return admission.Allowed(fmt.Sprintf("Annotation '%s' validation on secret '%s' with unknown type '%s' in namespace '%s'",
-			annotations.Connection, annotationValue, connectionType, req.Namespace)), ConnectionActionNone, "", ""
+			annotations.Connection, annotationValue, connectionType, req.Namespace)), "", ""
+	}
+	// Allow the operation and return secret info
+	return admission.Allowed("Connection annotation validation passed"), secretMeta.Name, connectionType
+}
+
+// DetermineConnectionChangeAction determines what action to take for UPDATE operations
+// by comparing old vs new connection info.
+func DetermineConnectionChangeAction(oldSecretName, oldConnectionType, newSecretName, newConnectionType string) ConnectionAction {
+	// Old connection, no new connection => remove
+	if oldSecretName != "" && newSecretName == "" {
+		return ConnectionActionRemove
 	}
 
-	// Allow the operation and indicate that injection should be performed
-	return admission.Allowed("Connection annotation validation passed"), ConnectionActionInject, secretMeta.Name, connectionType
+	// No old connection, no new connection => none
+	if oldSecretName == "" && newSecretName == "" {
+		return ConnectionActionNone
+	}
+
+	// No old connection, new connection => inject
+	if oldSecretName == "" && newSecretName != "" {
+		return ConnectionActionInject
+	}
+
+	// if type changed or same type different secret => replace
+	if oldConnectionType != newConnectionType || oldSecretName != newSecretName {
+		return ConnectionActionReplace
+	}
+
+	// no change needed.
+	return ConnectionActionNone
 }
 
 // GetOrCreateNestedMap safely retrieves or creates a nested map within an unstructured object.
