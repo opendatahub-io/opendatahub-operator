@@ -353,7 +353,7 @@ spec:
       metricsCollection: Istio
       name: data-science-smcp
       namespace: istio-system
-    managementState: Managed
+    managementState: Unmanaged
   trustedCABundle:
     customCABundle: ''
     managementState: Managed
@@ -391,7 +391,7 @@ spec:
         ingressGateway:
           certificate:
             type: OpenshiftDefaultIngress
-        managementState: Managed
+        managementState: Unmanaged
         name: knative-serving
     kueue:
       managementState: Managed

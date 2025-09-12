@@ -29,7 +29,7 @@ spec:
           }
         },
         name: "knative-serving",
-        managementState: "Managed"
+        managementState: "Unmanaged"
       }
     }
     modelmeshserving:
