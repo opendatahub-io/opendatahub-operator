@@ -5,6 +5,14 @@ metadata:
   name: rhods-operator-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - '*'
   resources:
   - deployments
