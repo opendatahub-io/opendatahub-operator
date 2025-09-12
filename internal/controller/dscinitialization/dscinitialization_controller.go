@@ -471,6 +471,7 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 	}
 
 	defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
+	defaultMonitoring.Spec.Alerting = dsci.Spec.Monitoring.Alerting
 
 	if err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme()); err != nil {
 		return err
