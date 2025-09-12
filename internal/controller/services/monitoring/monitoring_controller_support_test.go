@@ -234,7 +234,17 @@ func TestCustomMetricsExporters(t *testing.T) {
 				},
 			}
 
+			// Create fake client
+			scheme := runtime.NewScheme()
+			require.NoError(t, dsciv1.AddToScheme(scheme))
+			require.NoError(t, serviceApi.AddToScheme(scheme))
+
+			fakeClient := fake.NewClientBuilder().
+				WithScheme(scheme).
+				Build()
+
 			rr := &odhtypes.ReconciliationRequest{
+				Client:   fakeClient,
 				Instance: mon,
 				DSCI: &dsciv1.DSCInitialization{
 					Spec: dsciv1.DSCInitializationSpec{
