@@ -389,3 +389,36 @@ func (t *WithT) Delete(
 		},
 	}
 }
+
+// DeleteAll performs a `kubectl delete --all` operation on resources of the specified type.
+// It returns an EventuallyErr, which can be used in Gomega assertions to check for the deletion's success or failure.
+//
+// Parameters:
+//   - gvk (schema.GroupVersionKind): The GroupVersionKind of the resources to delete.
+//   - option (...client.DeleteAllOfOption): Optional options for the delete operation.
+//
+// Returns:
+//   - *EventuallyErr: The eventually available result of the delete operation, wrapped in an EventuallyErr,
+//     which can be used with Gomega assertions to test the deletion result.
+func (t *WithT) DeleteAll(
+	gvk schema.GroupVersionKind,
+	option ...client.DeleteAllOfOption,
+) *EventuallyErr {
+	return &EventuallyErr{
+		ctx: t.Context(),
+		g:   t.WithT,
+		f: func(ctx context.Context) error {
+			u := resources.GvkToUnstructured(gvk)
+
+			err := t.Client().DeleteAllOf(ctx, u, option...)
+			switch {
+			case errors.IsNotFound(err):
+				return nil
+			case err != nil:
+				return StopErr(err, "failed to delete all resources of type: %s", gvk)
+			default:
+				return nil
+			}
+		},
+	}
+}
