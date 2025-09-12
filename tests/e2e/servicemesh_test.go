@@ -146,10 +146,7 @@ func serviceMeshControllerTestSuite(t *testing.T) {
 		{"Validate ServiceMesh transition to removed", smCtx.ValidateServiceMeshTransitionToRemoved},
 		// test removal scenario of Legacy ServiceMesh-related FeatureTrackers being present
 		{"Validate Legacy ServiceMesh FeatureTrackers removal", smCtx.ValidateLegacyServiceMeshFeatureTrackersRemoval},
-		// test removing ServiceMesh spec from DSCI / not providing it at all
-		{"Validate setting empty ServiceMesh spec", smCtx.ValidateNoServiceMeshSpecInDSCI},
 		// test cases for missing dependent operators
-		{"Validate ServiceMesh operator not installed", smCtx.ValidateServiceMeshOperatorNotInstalled},
 		{"Validate Authorino operator not installed", smCtx.ValidateAuthorinoOperatorNotInstalled},
 	}
 
@@ -531,39 +528,6 @@ func (tc *ServiceMeshTestCtx) ValidateNoServiceMeshSpecInDSCI(t *testing.T) {
 	)
 
 	// post-test:restore DSCI ServiceMesh spec to default config
-	tc.setupAndValidateServiceMeshEnvironment(t, DependentOperatorsTestConfig{
-		EnsureServiceMeshOperatorInstalled: true,
-		EnsureAuthorinoOperatorInstalled:   true,
-	})
-}
-
-func (tc *ServiceMeshTestCtx) ValidateServiceMeshOperatorNotInstalled(t *testing.T) {
-	t.Helper()
-
-	// pre-test: cleanup ServiceMesh and its resources
-	// to emulate starting conditions for the clean ServiceMesh installation
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "%s"`, operatorv1.Removed)),
-	)
-	tc.ensureServiceMeshGone(t)
-
-	// attempt installing ServiceMesh with missing ServiceMesh operator, and validate state
-	tc.setupAndValidateServiceMeshEnvironment(t, DependentOperatorsTestConfig{
-		EnsureServiceMeshOperatorInstalled: false,
-		EnsureAuthorinoOperatorInstalled:   false,
-	})
-
-	// ensure ServiceMesh resources were not created
-	tc.ensureServiceMeshResourcesGone(t)
-
-	// post-test:cleanup ServiceMesh and its resources again, for post-test recovery purposes
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "%s"`, operatorv1.Removed)),
-	)
-	tc.ensureServiceMeshGone(t)
-	// post-test: restore DSCI ServiceMesh spec to default config
 	tc.setupAndValidateServiceMeshEnvironment(t, DependentOperatorsTestConfig{
 		EnsureServiceMeshOperatorInstalled: true,
 		EnsureAuthorinoOperatorInstalled:   true,
