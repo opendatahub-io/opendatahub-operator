@@ -44,6 +44,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1" // TODO: uplift to v1
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -280,6 +281,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return ctrl.Result{}, err
 		}
 
+		// Create HardwareProfile related resources
+
+		// Create default HWProfile CR
+		if err = r.CreateHWProfileCR(ctx, instance); err != nil {
+			log.Info("failed to create default HWProfile CR")
+			return ctrl.Result{}, err
+		}
+
 		// Finish reconciling
 		_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
@@ -348,6 +357,9 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 					predicate.LabelChangedPredicate{},
 					rp.ServiceMeshStatusCondition,
 				))).
+		Owns(
+			&infrav1alpha1.HardwareProfile{},
+			builder.WithPredicates(rp.Deleted())).
 		Watches(
 			&dscv1.DataScienceCluster{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
