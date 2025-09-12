@@ -183,7 +183,7 @@ var (
 		Kind:    "OdhDocument",
 	}
 
-	AcceleratorProfile = schema.GroupVersionKind{
+	DashboardAcceleratorProfile = schema.GroupVersionKind{
 		Group:   "dashboard.opendatahub.io",
 		Version: "v1",
 		Kind:    "AcceleratorProfile",
