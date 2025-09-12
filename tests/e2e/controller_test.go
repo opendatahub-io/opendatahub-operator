@@ -136,10 +136,9 @@ var (
 		name:    "services",
 		enabled: true,
 		scenarios: map[string]TestFn{
-			serviceApi.MonitoringServiceName:  monitoringTestSuite,
-			serviceApi.AuthServiceName:        authControllerTestSuite,
-			serviceApi.ServiceMeshServiceName: serviceMeshControllerTestSuite,
-			serviceApi.GatewayServiceName:     gatewayTestSuite,
+			serviceApi.MonitoringServiceName: monitoringTestSuite,
+			serviceApi.AuthServiceName:       authControllerTestSuite,
+			serviceApi.GatewayServiceName:    gatewayTestSuite,
 		},
 	}
 )

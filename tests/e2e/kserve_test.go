@@ -46,19 +46,6 @@ var kserveTemplatedResources = []struct {
 	{gvk.Gateway, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-local-gateway"}},
 }
 
-// Define auth-related resources that should NOT be created when Authorino is missing.
-var authRelatedResources = []struct {
-	gvk schema.GroupVersionKind
-	nn  types.NamespacedName
-}{
-	{gvk.EnvoyFilter, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "activator-host-header"}},
-	{gvk.EnvoyFilter, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "envoy-oauth-temp-fix-after"}},
-	{gvk.EnvoyFilter, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "envoy-oauth-temp-fix-before"}},
-	{gvk.EnvoyFilter, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "kserve-inferencegraph-host-header"}},
-	{gvk.AuthorizationPolicy, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "kserve-inferencegraph"}},
-	{gvk.AuthorizationPolicy, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "kserve-predictor"}},
-}
-
 func kserveTestSuite(t *testing.T) {
 	t.Helper()
 
@@ -89,7 +76,6 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate no FeatureTracker OwnerReferences", componentCtx.ValidateNoKServeFeatureTrackerOwnerReferences},
 		{"Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers},
 		{"Validate default certs", componentCtx.ValidateDefaultCertsAvailable},
-		// {"Validate DSCI DSC validation interaction", componentCtx.ValidateDSCIDSCValidationInteractionForKserve},
 		{"Validate custom certificate created for OpenshiftDefaultIngress", componentCtx.ValidateCustomCertificateCreation},
 		{"Validate invalid custom certificate creation for OpenshiftDefaultIngress", componentCtx.ValidateInvalidCustomCertificateCreation},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
@@ -106,10 +92,8 @@ func kserveTestSuite(t *testing.T) {
 		)
 	}
 
-	// Add regression tests at the end to avoid affecting other tests
+	// Always run component disable test last
 	testCases = append(testCases,
-		TestCase{"Validate KServe behavior without Authorino", componentCtx.ValidateKServeWithoutAuthorino},
-		// Always run component disable test last
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	)
 	// Run the test suite.
@@ -232,8 +216,7 @@ func (tc *KserveTestCtx) ValidateDefaultCertsAvailable(t *testing.T) {
 	defaultIngressSecret, err := cluster.FindDefaultIngressSecret(tc.g.Context(), tc.g.Client())
 	tc.g.Expect(err).NotTo(HaveOccurred())
 
-	// Retrieve the DSCInitialization and DataScienceCluster instances.
-	dsci := tc.FetchDSCInitialization()
+	// Retrieve the DataScienceCluster instance.
 	dsc := tc.FetchDataScienceCluster()
 
 	// Determine the control plane's ingress certificate secret name.
@@ -243,7 +226,7 @@ func (tc *KserveTestCtx) ValidateDefaultCertsAvailable(t *testing.T) {
 	}
 
 	// Fetch the control plane secret from the ServiceMesh namespace.
-	ctrlPlaneSecret, err := cluster.GetSecret(tc.g.Context(), tc.g.Client(), dsci.Spec.ServiceMesh.ControlPlane.Namespace, defaultSecretName)
+	ctrlPlaneSecret, err := cluster.GetSecret(tc.g.Context(), tc.g.Client(), serviceMeshNamespace, defaultSecretName)
 	tc.g.Expect(err).NotTo(HaveOccurred())
 
 	// Validate that the secret types match.
@@ -491,36 +474,12 @@ func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 	)
 }
 
-// ValidateDSCIDSCValidationInteractionForKserve tests DSCI and DSC validation interaction during reconciliation.
-func (tc *KserveTestCtx) ValidateDSCIDSCValidationInteractionForKserve(t *testing.T) {
-	t.Helper()
-
-	t.Log("Disabling ServiceMesh in DSCI")
-	tc.EnsureResourceCreatedOrPatched(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "%s"`, operatorv1.Removed)),
-	)
-
-	t.Log("Verifying KServe reports dependency on ServiceMesh correctly")
-	tc.verifyKserveNotReady(t, "servicemesh needs to be set to 'managed' in dsci cr")
-
-	t.Log("Re-enabling ServiceMesh in DSCI for recovery")
-	tc.EnsureResourceCreatedOrPatched(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.serviceMesh.managementState = "%s"`, operatorv1.Managed)),
-	)
-
-	t.Log("Verifying KServe becomes ready after ServiceMesh is enabled")
-	tc.verifyKserveReady(t)
-}
-
 // ValidateCustomCertificateCreation tests that a valid custom certificate is created for OpenshiftDefaultIngress.
 func (tc *KserveTestCtx) ValidateCustomCertificateCreation(t *testing.T) {
 	t.Helper()
 
-	dsci := tc.FetchDSCInitialization()
 	customSecretName := "custom-test-secret"
-	secretNN := types.NamespacedName{Namespace: dsci.Spec.ServiceMesh.ControlPlane.Namespace, Name: customSecretName}
+	secretNN := types.NamespacedName{Namespace: serviceMeshNamespace, Name: customSecretName}
 
 	t.Log("Configuring Kserve with OpenshiftDefaultIngress and custom secret")
 	tc.EnsureResourceCreatedOrPatched(
@@ -554,9 +513,8 @@ func (tc *KserveTestCtx) ValidateCustomCertificateCreation(t *testing.T) {
 func (tc *KserveTestCtx) ValidateInvalidCustomCertificateCreation(t *testing.T) {
 	t.Helper()
 
-	dsci := tc.FetchDSCInitialization()
 	invalidCustomSecretName := "&invalid-secret-name"
-	secretNN := types.NamespacedName{Namespace: dsci.Spec.ServiceMesh.ControlPlane.Namespace, Name: invalidCustomSecretName}
+	secretNN := types.NamespacedName{Namespace: serviceMeshNamespace, Name: invalidCustomSecretName}
 
 	t.Log("Configuring Kserve with OpenshiftDefaultIngress and invalid secret")
 	tc.EnsureResourceCreatedOrPatched(
@@ -578,69 +536,6 @@ func (tc *KserveTestCtx) ValidateInvalidCustomCertificateCreation(t *testing.T) 
 		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate |= del(.secretName)`)),
 	)
 	tc.verifyKserveReady(t)
-}
-
-// ValidateKServeWithoutAuthorino validates that KServe doesn't create auth resources when Authorino is missing.
-// This is a regression test for RHOAIENG-27732.
-func (tc *KserveTestCtx) ValidateKServeWithoutAuthorino(t *testing.T) {
-	t.Helper()
-
-	// Ensure Authorino is not installed
-	tc.UninstallOperator(types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, WithWaitForDeletion(true))
-
-	// Delete any existing auth resources to ensure clean slate
-	for _, resource := range authRelatedResources {
-		tc.DeleteResource(
-			WithMinimalObject(resource.gvk, resource.nn),
-			WithIgnoreNotFound(true),
-			WithRemoveFinalizersOnDelete(true),
-			WithWaitForDeletion(true),
-		)
-	}
-
-	// Test both KServe deployment modes
-	deploymentModes := []struct {
-		name           string
-		deploymentMode componentApi.DefaultDeploymentMode
-		servingState   operatorv1.ManagementState
-	}{
-		{
-			name:           "RawDeployment",
-			deploymentMode: componentApi.RawDeployment,
-			servingState:   operatorv1.Removed,
-		},
-		{
-			name:           "Serverless",
-			deploymentMode: componentApi.Serverless,
-			servingState:   operatorv1.Managed,
-		},
-	}
-
-	for _, testCase := range deploymentModes {
-		t.Run(testCase.name, func(t *testing.T) {
-			// Configure KServe deployment mode using existing helper
-			tc.updateKserveDeploymentAndServingState(testCase.deploymentMode, testCase.servingState)
-
-			// Verify KServe component conditions are met using existing validation
-			tc.ValidateConditions(t)
-
-			// Verify auth resources are NOT recreated
-			for _, resource := range authRelatedResources {
-				tc.EnsureResourceDoesNotExist(
-					WithMinimalObject(resource.gvk, resource.nn),
-					WithCustomErrorMsg("Auth resource %s/%s should not be recreated when Authorino is not installed in %s mode",
-						resource.gvk.Kind, resource.nn.Name, testCase.name),
-				)
-			}
-		})
-	}
-
-	// Reinstall Authorino and restore state
-	tc.EnsureOperatorInstalled(types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, true)
-	tc.updateKserveDeploymentAndServingState(componentApi.Serverless, operatorv1.Managed)
-
-	// Ensure DSC is stable before continuing
-	tc.ValidateConditions(t)
 }
 
 // verifyKserveReady verifies KServe is in Ready state.

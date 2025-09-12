@@ -189,33 +189,6 @@ func (tc *KueueTestCtx) ValidateKueuePreCheck(t *testing.T) {
 	)
 }
 
-// TODO: replace this with the component_test method when we identify the issue with the ServiceAccount (RHOAIENG-32503).
-func (tc *KueueTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
-	t.Helper()
-
-	// This component has known issues with RBAC recovery
-	// See: https://github.com/org/repo/issues/123
-	testCases := []TestCase{
-		{"ConfigMap deletion recovery", func(t *testing.T) {
-			t.Helper()
-			tc.ValidateResourceDeletionRecovery(t, gvk.ConfigMap)
-		}},
-		{"Service deletion recovery", func(t *testing.T) {
-			t.Helper()
-			tc.ValidateResourceDeletionRecovery(t, gvk.Service)
-		}},
-		{"RBAC deletion recovery", tc.ValidateRBACDeletionRecovery},
-		// TODO: disabled until RHOAIENG-32503 is resolved
-		// {"ServiceAccount deletion recovery", tc.ValidateServiceAccountDeletionRecovery},
-		{"Deployment deletion recovery", func(t *testing.T) {
-			t.Helper()
-			tc.ValidateResourceDeletionRecovery(t, gvk.Deployment)
-		}},
-	}
-
-	RunTestCases(t, testCases)
-}
-
 // ValidateComponentEnabled ensures that if the component is in Managed state and ocp kueue operator is installed, then its status is "Not Ready".
 func (tc *KueueTestCtx) ValidateKueueManagedWithOcpKueueOperator(t *testing.T) {
 	t.Helper()
