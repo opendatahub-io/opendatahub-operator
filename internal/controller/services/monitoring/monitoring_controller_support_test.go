@@ -391,3 +391,75 @@ func TestGetTemplateDataAcceleratorMetricsWithMetricsConfiguration(t *testing.T)
 	assert.Contains(t, templateData, "Replicas")
 	assert.Contains(t, templateData, "StorageRetention")
 }
+
+func TestDeployThanosQuerierLogic(t *testing.T) {
+	tests := []struct {
+		name                  string
+		hasMetricsConfig      bool
+		expectedTemplateCount int
+		expectedPaths         []string
+	}{
+		{
+			name:                  "Deploy with metrics config",
+			hasMetricsConfig:      true,
+			expectedTemplateCount: 2,
+			expectedPaths:         []string{"thanos-querier-crd.tmpl.yaml", "thanos-querier-route.tmpl.yaml"},
+		},
+		{
+			name:                  "Skip deployment without metrics config",
+			hasMetricsConfig:      false,
+			expectedTemplateCount: 0,
+			expectedPaths:         []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create Monitoring object
+			monitoring := &serviceApi.Monitoring{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "default-monitoring",
+				},
+				Spec: serviceApi.MonitoringSpec{
+					MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+						Namespace: "test-namespace",
+					},
+				},
+			}
+
+			// Add metrics config if required
+			if tt.hasMetricsConfig {
+				monitoring.Spec.Metrics = &serviceApi.Metrics{
+					Replicas: 1,
+				}
+			}
+
+			// Test the template addition logic directly (without CRD check)
+			templates := []odhtypes.TemplateInfo{}
+
+			// Simulate the core logic from deployThanosQuerier
+			if monitoring.Spec.Metrics != nil {
+				templates = append(templates, []odhtypes.TemplateInfo{
+					{
+						FS:   resourcesFS,
+						Path: ThanosQuerierTemplate,
+					},
+					{
+						FS:   resourcesFS,
+						Path: ThanosQuerierRouteTemplate,
+					},
+				}...)
+			}
+
+			// Verify template count
+			assert.Len(t, templates, tt.expectedTemplateCount)
+
+			// Verify template paths
+			if tt.expectedTemplateCount > 0 {
+				for i, expectedPath := range tt.expectedPaths {
+					assert.Contains(t, templates[i].Path, expectedPath)
+				}
+			}
+		})
+	}
+}

@@ -106,6 +106,7 @@ const (
 	ConditionOpenTelemetryCollectorAvailable = "OpenTelemetryCollectorAvailable"
 	ConditionInstrumentationAvailable        = "InstrumentationAvailable"
 	ConditionAlertingAvailable               = "AlertingAvailable"
+	ConditionThanosQuerierAvailable          = "ThanosQuerierAvailable"
 )
 
 const (
