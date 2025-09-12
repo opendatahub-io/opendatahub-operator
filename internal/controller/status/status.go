@@ -107,6 +107,7 @@ const (
 	ConditionInstrumentationAvailable            = "InstrumentationAvailable"
 	ConditionAlertingAvailable                   = "AlertingAvailable"
 	ConditionNamespaceRestrictedMetricsAvailable = "NamespaceRestrictedMetricsAvailable"
+	ConditionNodeMetricsEndpointAvailable        = "NodeMetricsEndpointAvailable"
 )
 
 const (

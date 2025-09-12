@@ -135,6 +135,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deployOpenTelemetryCollector).
 		WithAction(deployInstrumentation).
 		WithAction(deployNamespaceRestrictedMetrics).
+		WithAction(deployNodeMetricsEndpoint).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
