@@ -141,7 +141,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
 	componentToControllerMap := map[string]string{
-		componentApi.CodeFlareComponentName:            "codeflare-operator-manager",
 		componentApi.DashboardComponentName:            "dashboard",
 		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
 		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
@@ -168,7 +167,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	expectedComponentCount := reflect.TypeOf(dscv1.Components{}).NumField()
 	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
-	excludedComponents := 1 // TrustyAI
+	// TODO: Remove CodeFlare when DSC v2
+	excludedComponents := 2 // TrustyAI and CodeFlare
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+

@@ -39,7 +39,6 @@ var componentRules = map[string]string{
 	componentApi.DashboardComponentName:            "rhods-dashboard",
 	componentApi.WorkbenchesComponentName:          "workbenches",
 	componentApi.KueueComponentName:                "kueue",
-	componentApi.CodeFlareComponentName:            "codeflare",
 	componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator",
 	componentApi.ModelMeshServingComponentName:     "model-mesh",
 	componentApi.RayComponentName:                  "ray",
