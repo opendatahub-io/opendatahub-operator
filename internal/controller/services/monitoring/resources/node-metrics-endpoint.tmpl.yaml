@@ -1,0 +1,205 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: node-metrics-endpoint
+  namespace: {{.Namespace}}
+  labels:
+    app: node-metrics-endpoint
+    platform.opendatahub.io/part-of: monitoring
+  ownerReferences:
+  - apiVersion: {{.Component.APIVersion}}
+    kind: {{.Component.Kind}}
+    name: {{.Component.Name}}
+    uid: {{.Component.UID}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: node-metrics-endpoint-auth-delegator
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+  {{- if .DSCI }}
+  ownerReferences:
+  - apiVersion: {{.DSCI.APIVersion}}
+    kind: {{.DSCI.Kind}}
+    name: {{.DSCI.Name}}
+    uid: {{.DSCI.UID}}
+  {{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: node-metrics-endpoint
+    namespace: {{.Namespace}}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: node-metrics-endpoint-kube-rbac-proxy
+  namespace: {{.Namespace}}
+  labels:
+    app: node-metrics-endpoint
+    platform.opendatahub.io/part-of: monitoring
+  ownerReferences:
+  - apiVersion: {{.Component.APIVersion}}
+    kind: {{.Component.Kind}}
+    name: {{.Component.Name}}
+    uid: {{.Component.UID}}
+type: Opaque
+data: {}
+stringData:
+  config.yaml: |
+    authorization:
+      resourceAttributes:
+        apiGroup: metrics.k8s.io
+        resource: nodes
+        verb: get
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-metrics-endpoint
+  namespace: {{.Namespace}}
+  labels:
+    app: node-metrics-endpoint
+    platform.opendatahub.io/part-of: monitoring
+  ownerReferences:
+  - apiVersion: {{.Component.APIVersion}}
+    kind: {{.Component.Kind}}
+    name: {{.Component.Name}}
+    uid: {{.Component.UID}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: node-metrics-endpoint
+  template:
+    metadata:
+      labels:
+        app: node-metrics-endpoint
+    spec:
+      serviceAccountName: node-metrics-endpoint
+      containers:
+        # kube-rbac-proxy for authentication and authorization based on NodeMetrics access
+        - name: kube-rbac-proxy
+          image: gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0
+          args:
+            - --secure-listen-address=0.0.0.0:8443
+            - --upstream=http://data-science-monitoringstack-prometheus.{{.Namespace}}.svc:9090
+            - --config-file=/etc/kube-rbac-proxy/config.yaml
+            - --tls-cert-file=/etc/tls/private/tls.crt
+            - --tls-private-key-file=/etc/tls/private/tls.key
+            - --logtostderr=true
+            - --v=1
+            # Allow only metrics endpoint
+            - --allow-paths=/metrics
+          ports:
+            - containerPort: 8443
+              name: https
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 20m
+              memory: 40Mi
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          terminationMessagePolicy: FallbackToLogsOnError
+          volumeMounts:
+            - name: kube-rbac-proxy-config
+              mountPath: /etc/kube-rbac-proxy
+              readOnly: true
+            - name: tls
+              mountPath: /etc/tls/private
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+          livenessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            failureThreshold: 4
+          readinessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 20
+      volumes:
+        - name: kube-rbac-proxy-config
+          secret:
+            secretName: node-metrics-endpoint-kube-rbac-proxy
+        - name: tls
+          secret:
+            secretName: node-metrics-endpoint-tls
+      nodeSelector:
+        kubernetes.io/os: linux
+      priorityClassName: system-cluster-critical
+      securityContext:
+        runAsNonRoot: true
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Exists
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-metrics-endpoint
+  namespace: {{.Namespace}}
+  labels:
+    app: node-metrics-endpoint
+    platform.opendatahub.io/part-of: monitoring
+  ownerReferences:
+  - apiVersion: {{.Component.APIVersion}}
+    kind: {{.Component.Kind}}
+    name: {{.Component.Name}}
+    uid: {{.Component.UID}}
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: node-metrics-endpoint-tls
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: https
+  selector:
+    app: node-metrics-endpoint
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: node-metrics-endpoint
+  namespace: {{.Namespace}}
+  labels:
+    app: node-metrics-endpoint
+    platform.opendatahub.io/part-of: monitoring
+  ownerReferences:
+  - apiVersion: {{.Component.APIVersion}}
+    kind: {{.Component.Kind}}
+    name: {{.Component.Name}}
+    uid: {{.Component.UID}}
+spec:
+  to:
+    kind: Service
+    name: node-metrics-endpoint
+    weight: 100
+  port:
+    targetPort: https
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None

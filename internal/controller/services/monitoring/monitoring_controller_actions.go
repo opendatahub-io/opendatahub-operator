@@ -23,14 +23,17 @@ import (
 
 const (
 	// Template files.
-	MonitoringStackTemplate          = "resources/monitoring-stack.tmpl.yaml"
-	TempoMonolithicTemplate          = "resources/tempo-monolithic.tmpl.yaml"
-	TempoStackTemplate               = "resources/tempo-stack.tmpl.yaml"
-	OpenTelemetryCollectorTemplate   = "resources/opentelemetry-collector.tmpl.yaml"
-	CollectorServiceMonitorsTemplate = "resources/collector-servicemonitors.tmpl.yaml"
-	CollectorRBACTemplate            = "resources/collector-rbac.tmpl.yaml"
-	PrometheusRouteTemplate          = "resources/prometheus-route.tmpl.yaml"
-	InstrumentationTemplate          = "resources/instrumentation.tmpl.yaml"
+	MonitoringStackTemplate            = "resources/monitoring-stack.tmpl.yaml"
+	TempoMonolithicTemplate            = "resources/tempo-monolithic.tmpl.yaml"
+	TempoStackTemplate                 = "resources/tempo-stack.tmpl.yaml"
+	OpenTelemetryCollectorTemplate     = "resources/opentelemetry-collector.tmpl.yaml"
+	CollectorServiceMonitorsTemplate   = "resources/collector-servicemonitors.tmpl.yaml"
+	CollectorRBACTemplate              = "resources/collector-rbac.tmpl.yaml"
+	PrometheusRouteTemplate            = "resources/prometheus-route.tmpl.yaml"
+	InstrumentationTemplate            = "resources/instrumentation.tmpl.yaml"
+	NamespaceRestrictedMetricsTemplate = "resources/namespace-restricted-metrics.tmpl.yaml"
+	PodMetricsRBACTemplate             = "resources/pod-metrics-rbac.tmpl.yaml"
+	NodeMetricsEndpointTemplate        = "resources/node-metrics-endpoint.tmpl.yaml"
 )
 
 var componentRules = map[string]string{
@@ -416,6 +419,70 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 	if len(addErrors) > 0 || len(cleanupErrors) > 0 {
 		return errors.New("errors occurred while adding or cleaning up prometheus rules for components")
 	}
+
+	return nil
+}
+
+// deployNamespaceRestrictedMetrics deploys the namespace-restricted metrics endpoint
+// using kube-rbac-proxy and prom-label-proxy for secure, namespace-scoped access.
+func deployNamespaceRestrictedMetrics(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionNamespaceRestrictedMetricsAvailable,
+			conditions.WithReason(status.MetricsNotConfiguredReason),
+			conditions.WithMessage(status.MetricsNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionNamespaceRestrictedMetricsAvailable)
+
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: NamespaceRestrictedMetricsTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: PodMetricsRBACTemplate,
+		},
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
+
+	return nil
+}
+
+func deployNodeMetricsEndpoint(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionNodeMetricsEndpointAvailable,
+			conditions.WithReason(status.MetricsNotConfiguredReason),
+			conditions.WithMessage(status.MetricsNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionNodeMetricsEndpointAvailable)
+
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: NodeMetricsEndpointTemplate,
+		},
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
 
 	return nil
 }
