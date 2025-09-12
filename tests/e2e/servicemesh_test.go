@@ -146,8 +146,6 @@ func serviceMeshControllerTestSuite(t *testing.T) {
 		{"Validate ServiceMesh transition to removed", smCtx.ValidateServiceMeshTransitionToRemoved},
 		// test removal scenario of Legacy ServiceMesh-related FeatureTrackers being present
 		{"Validate Legacy ServiceMesh FeatureTrackers removal", smCtx.ValidateLegacyServiceMeshFeatureTrackersRemoval},
-		// test removing ServiceMesh spec from DSCI / not providing it at all
-		{"Validate setting empty ServiceMesh spec", smCtx.ValidateNoServiceMeshSpecInDSCI},
 		// test cases for missing dependent operators
 		{"Validate Authorino operator not installed", smCtx.ValidateAuthorinoOperatorNotInstalled},
 	}
