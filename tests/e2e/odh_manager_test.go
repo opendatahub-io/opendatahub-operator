@@ -56,7 +56,6 @@ func (tc *OperatorTestCtx) ValidateOwnedCRDs(t *testing.T) {
 		{"ModelController CRD", "modelcontrollers.components.platform.opendatahub.io"},
 		{"Monitoring CRD", "monitorings.services.platform.opendatahub.io"},
 		{"LlamaStackOperator CRD", "llamastackoperators.components.platform.opendatahub.io"},
-		{"CodeFlare CRD", "codeflares.components.platform.opendatahub.io"},
 		{"Auth CRD", "auths.services.platform.opendatahub.io"},
 	}
 
