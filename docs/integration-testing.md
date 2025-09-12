@@ -16,8 +16,8 @@ Integration tests are **MANDATORY** for pull requests that modify:
 - **Core Controller Logic** (`internal/controller/` changes)
 - **API Definitions** (`api/` directory changes)
 - **Webhook Implementations** (`internal/webhook/` changes)
-- **Bundle Manifests** (`bundle/` directory changes)
-- **Operator Configuration** (`config/` directory changes)
+- **Bundle Manifests** (`odh-bundle/` and `rhoai-bundle/` directory changes)
+- **Operator Configuration** (`odh-config/` and `rhoai-config/` directory changes)
 - **Feature Framework** (`pkg/feature/` changes)
 
 Integration tests are **RECOMMENDED** for:
@@ -111,7 +111,7 @@ tests have started, and provide a link to the Jenkins pipeline run details page
 
 ### Jenkins pipeline not triggering
 - Verify the `/label run-integration-tests` command was successful
-- Check that your changes affect monitored paths (`bundle/`, `cmd/`, `config/`, `internal/`, `pkg/`)
+- Check that your changes affect monitored paths (`odh-bundle/`, `rhoai-bundle/`, `cmd/`, `odh-config/`, `rhoai-config/`, `internal/`, `pkg/`)
 - Ensure the GitHub Action `Build Catalog FBC and run Integration tests` completed successfully
 - Look for the automated `/test-integration` comment from the `github-actions bot`
 
