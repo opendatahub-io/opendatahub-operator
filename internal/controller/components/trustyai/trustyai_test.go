@@ -126,41 +126,6 @@ func TestCreateConfigMap(t *testing.T) {
 		g.Expect(data["eval.lmeval.permitOnline"]).Should(Equal("true"))
 	})
 
-	t.Run("should create ConfigMap with default values when no configuration is provided", func(t *testing.T) {
-		g := NewWithT(t)
-		ctx := t.Context()
-
-		// Create TrustyAI CR without configuration
-		trustyai := createTrustyAICR(true)
-		dsc := createDSCWithTrustyAI(operatorv1.Managed)
-		dsciObj := createDSCI("test-namespace")
-
-		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsciObj))
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		rr := &odhtypes.ReconciliationRequest{
-			Client:   cli,
-			Instance: trustyai,
-			DSCI:     dsciObj,
-		}
-
-		err = createConfigMap(ctx, rr)
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		// Verify ConfigMap was added to resources with default values
-		g.Expect(rr.Resources).Should(HaveLen(1))
-		configMapResource := rr.Resources[0]
-		g.Expect(configMapResource.GetName()).Should(Equal("trustyai-dsc-config"))
-		g.Expect(configMapResource.GetNamespace()).Should(Equal("test-namespace"))
-
-		// Verify ConfigMap data has default values (false)
-		data, found, err := unstructured.NestedStringMap(configMapResource.Object, "data")
-		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(found).Should(BeTrue())
-		g.Expect(data["eval.lmeval.permitCodeExecution"]).Should(Equal("false"))
-		g.Expect(data["eval.lmeval.permitOnline"]).Should(Equal("false"))
-	})
-
 	t.Run("should handle partial configuration", func(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
@@ -206,10 +171,35 @@ func TestUpdateDSCStatus(t *testing.T) {
 
 		dsc := createDSCWithTrustyAI(operatorv1.Managed)
 		trustyai := createTrustyAICR(true)
+		dsciObj := createDSCI("test-namespace")
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, trustyai))
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, trustyai, dsciObj))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
+		// Test ConfigMap creation with default values
+		rr := &odhtypes.ReconciliationRequest{
+			Client:   cli,
+			Instance: trustyai,
+			DSCI:     dsciObj,
+		}
+
+		err = createConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify ConfigMap was added to resources with default values
+		g.Expect(rr.Resources).Should(HaveLen(1))
+		configMapResource := rr.Resources[0]
+		g.Expect(configMapResource.GetName()).Should(Equal("trustyai-dsc-config"))
+		g.Expect(configMapResource.GetNamespace()).Should(Equal("test-namespace"))
+
+		// Verify ConfigMap data has default values (false)
+		data, found, err := unstructured.NestedStringMap(configMapResource.Object, "data")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(data["eval.lmeval.permitCodeExecution"]).Should(Equal("false"))
+		g.Expect(data["eval.lmeval.permitOnline"]).Should(Equal("false"))
+
+		// Test DSC status update
 		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
