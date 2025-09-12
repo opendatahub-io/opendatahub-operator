@@ -39,6 +39,9 @@ const (
 	PrometheusNetworkPolicyTemplate           = "resources/prometheus-network-policy.tmpl.yaml"
 	ThanosQuerierTemplate                     = "resources/thanos-querier-cr.tmpl.yaml"
 	ThanosQuerierRouteTemplate                = "resources/thanos-querier-route.tmpl.yaml"
+	NamespaceRestrictedMetricsTemplate        = "resources/namespace-restricted-metrics.tmpl.yaml"
+	PodMetricsRBACTemplate                    = "resources/pod-metrics-rbac.tmpl.yaml"
+	NodeMetricsEndpointTemplate               = "resources/node-metrics-endpoint.tmpl.yaml"
 )
 
 var componentRules = map[string]string{
@@ -516,6 +519,35 @@ func deployThanosQuerier(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	}
 
 	rr.Templates = append(rr.Templates, template...)
+
+	return nil
+}
+
+func deployNodeMetricsEndpoint(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionNodeMetricsEndpointAvailable,
+			conditions.WithReason(status.MetricsNotConfiguredReason),
+			conditions.WithMessage(status.MetricsNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionNodeMetricsEndpointAvailable)
+
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: NodeMetricsEndpointTemplate,
+		},
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
 
 	return nil
 }

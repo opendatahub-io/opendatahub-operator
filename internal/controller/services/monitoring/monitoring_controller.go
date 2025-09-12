@@ -139,6 +139,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deployInstrumentation).
 		WithAction(deployThanosQuerier).
 		WithAction(deployNamespaceRestrictedMetrics).
+		WithAction(deployNodeMetricsEndpoint).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).

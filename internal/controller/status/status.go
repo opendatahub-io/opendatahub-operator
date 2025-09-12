@@ -108,6 +108,7 @@ const (
 	ConditionAlertingAvailable                   = "AlertingAvailable"
 	ConditionNamespaceRestrictedMetricsAvailable = "NamespaceRestrictedMetricsAvailable"
 	ConditionThanosQuerierAvailable              = "ThanosQuerierAvailable"
+	ConditionNodeMetricsEndpointAvailable        = "NodeMetricsEndpointAvailable"
 )
 
 const (
