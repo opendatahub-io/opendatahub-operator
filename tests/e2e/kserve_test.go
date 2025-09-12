@@ -90,7 +90,7 @@ func kserveTestSuite(t *testing.T) {
 		)
 	}
 
-	// Add regression tests at the end to avoid affecting other tests
+	// Always run component disable test last
 	testCases = append(testCases,
 		// Always run component disable test last
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
@@ -218,8 +218,7 @@ func (tc *KserveTestCtx) ValidateDefaultCertsAvailable(t *testing.T) {
 	defaultIngressSecret, err := cluster.FindDefaultIngressSecret(tc.g.Context(), tc.g.Client())
 	tc.g.Expect(err).NotTo(HaveOccurred())
 
-	// Retrieve the DSCInitialization and DataScienceCluster instances.
-	dsci := tc.FetchDSCInitialization()
+	// Retrieve the DataScienceCluster instance.
 	dsc := tc.FetchDataScienceCluster()
 
 	// Determine the control plane's ingress certificate secret name.
@@ -229,7 +228,7 @@ func (tc *KserveTestCtx) ValidateDefaultCertsAvailable(t *testing.T) {
 	}
 
 	// Fetch the control plane secret from the ServiceMesh namespace.
-	ctrlPlaneSecret, err := cluster.GetSecret(tc.g.Context(), tc.g.Client(), dsci.Spec.ServiceMesh.ControlPlane.Namespace, defaultSecretName)
+	ctrlPlaneSecret, err := cluster.GetSecret(tc.g.Context(), tc.g.Client(), serviceMeshNamespace, defaultSecretName)
 	tc.g.Expect(err).NotTo(HaveOccurred())
 
 	// Validate that the secret types match.
@@ -481,9 +480,8 @@ func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 func (tc *KserveTestCtx) ValidateCustomCertificateCreation(t *testing.T) {
 	t.Helper()
 
-	dsci := tc.FetchDSCInitialization()
 	customSecretName := "custom-test-secret"
-	secretNN := types.NamespacedName{Namespace: dsci.Spec.ServiceMesh.ControlPlane.Namespace, Name: customSecretName}
+	secretNN := types.NamespacedName{Namespace: serviceMeshNamespace, Name: customSecretName}
 
 	t.Log("Configuring Kserve with OpenshiftDefaultIngress and custom secret")
 	tc.EnsureResourceCreatedOrPatched(
@@ -517,9 +515,8 @@ func (tc *KserveTestCtx) ValidateCustomCertificateCreation(t *testing.T) {
 func (tc *KserveTestCtx) ValidateInvalidCustomCertificateCreation(t *testing.T) {
 	t.Helper()
 
-	dsci := tc.FetchDSCInitialization()
 	invalidCustomSecretName := "&invalid-secret-name"
-	secretNN := types.NamespacedName{Namespace: dsci.Spec.ServiceMesh.ControlPlane.Namespace, Name: invalidCustomSecretName}
+	secretNN := types.NamespacedName{Namespace: serviceMeshNamespace, Name: invalidCustomSecretName}
 
 	t.Log("Configuring Kserve with OpenshiftDefaultIngress and invalid secret")
 	tc.EnsureResourceCreatedOrPatched(

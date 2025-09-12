@@ -138,7 +138,7 @@ var (
 		scenarios: map[string]TestFn{
 			serviceApi.MonitoringServiceName: monitoringTestSuite,
 			serviceApi.AuthServiceName:       authControllerTestSuite,
-			// serviceApi.GatewayServiceName:    gatewayTestSuite,
+			serviceApi.GatewayServiceName:    gatewayTestSuite,
 		},
 	}
 )
