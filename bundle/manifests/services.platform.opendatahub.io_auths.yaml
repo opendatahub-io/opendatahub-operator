@@ -70,6 +70,30 @@ spec:
                 x-kubernetes-validations:
                 - message: AllowedGroups cannot contain empty strings
                   rule: self.all(group, group != '')
+              metricsAdminGroups:
+                description: MetricsAdminGroups defines groups with administrative
+                  access to metrics resources. Cannot contain 'system:authenticated'
+                  or empty strings
+                items:
+                  type: string
+                type: array
+                x-kubernetes-validations:
+                - message: MetricsAdminGroups cannot contain 'system:authenticated'
+                    or empty strings
+                  rule: self.all(group, group != 'system:authenticated' && group !=
+                    '')
+              metricsAllowedGroups:
+                description: MetricsAllowedGroups defines groups with read access
+                  to metrics resources. Cannot contain 'system:authenticated' or empty
+                  strings
+                items:
+                  type: string
+                type: array
+                x-kubernetes-validations:
+                - message: MetricsAllowedGroups cannot contain 'system:authenticated'
+                    or empty strings
+                  rule: self.all(group, group != 'system:authenticated' && group !=
+                    '')
             required:
             - adminGroups
             - allowedGroups
