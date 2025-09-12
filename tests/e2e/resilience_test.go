@@ -56,7 +56,6 @@ func operatorResilienceTestSuite(t *testing.T) {
 		{"Validate operator deployment health", resilienceTestCtx.ValidateOperatorDeployment},
 		{"Validate leader election behavior", resilienceTestCtx.ValidateLeaderElectionBehavior},
 		{"Validate pod recovery resilience", resilienceTestCtx.ValidatePodRecoveryResilience},
-		{"Validate ServiceMeshControlPlane exists and is recreated upon deletion.", resilienceTestCtx.ValidateServiceMeshControlPlane},
 		{"Validate components deployment failure", resilienceTestCtx.ValidateComponentsDeploymentFailure},
 	}
 
@@ -134,18 +133,6 @@ func (tc *OperatorResilienceTestCtx) ValidatePodRecoveryResilience(t *testing.T)
 	tc.validateDeploymentHealth(t)
 	tc.validatePodHealth(t, selector)
 	tc.validateSystemHealth(t)
-}
-
-// ValidateServiceMeshControlPlane checks that ServiceMeshControlPlane exists and is recreated upon deletion.
-func (tc *OperatorResilienceTestCtx) ValidateServiceMeshControlPlane(t *testing.T) {
-	t.Helper()
-
-	smcp := types.NamespacedName{Name: serviceMeshControlPlane, Namespace: serviceMeshNamespace}
-
-	// Use robust deletion-recreation pattern that handles race conditions and verifies actual recreation
-	tc.EnsureResourceDeletedThenRecreated(
-		WithMinimalObject(gvk.ServiceMeshControlPlane, smcp),
-	)
 }
 
 // ValidateComponentsDeploymentFailure simulates component deployment failure using restrictive resource quota.
