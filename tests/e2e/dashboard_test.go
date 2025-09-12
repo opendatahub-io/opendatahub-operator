@@ -12,7 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -114,14 +113,7 @@ func (tc *DashboardTestCtx) ValidateCRDReinstated(t *testing.T) {
 func (tc *DashboardTestCtx) ValidateHardwareProfileCreationBlockedByVAP(t *testing.T) {
 	t.Helper()
 
-	// Check if CSV exists, skip test if not found (likely triggered by dev test env)
-	_, err := cluster.GetClusterServiceVersion(tc.Context(), tc.Client(), tc.OperatorNamespace)
-	if err != nil {
-		t.Skip("CSV not found in cluster, skipping VAP test")
-	}
-
 	testHWPName := "test-hwp-" + xid.New().String()
-
 	// Create the HardwareProfile object
 	// not use EventuallyResourceCreatedOrUpdated to skip timeout and should expect failure
 	hwProfile := &unstructured.Unstructured{}
@@ -133,7 +125,7 @@ func (tc *DashboardTestCtx) ValidateHardwareProfileCreationBlockedByVAP(t *testi
 		"enabled":     true,
 	}
 
-	err = tc.Client().Create(tc.Context(), hwProfile)
+	err := tc.Client().Create(tc.Context(), hwProfile)
 	tc.g.Expect(err).To(HaveOccurred(), "Expected HardwareProfile creation to be blocked by VAP")
 }
 
@@ -141,13 +133,7 @@ func (tc *DashboardTestCtx) ValidateHardwareProfileCreationBlockedByVAP(t *testi
 func (tc *DashboardTestCtx) ValidateAcceleratorProfileCreationBlockedByVAP(t *testing.T) {
 	t.Helper()
 
-	_, err := cluster.GetClusterServiceVersion(tc.Context(), tc.Client(), tc.OperatorNamespace)
-	if err != nil {
-		t.Skip("CSV not found in cluster, skipping VAP test")
-	}
-
 	testAPName := "test-ap-" + xid.New().String()
-
 	apProfile := &unstructured.Unstructured{}
 	apProfile.SetGroupVersionKind(gvk.DashboardAcceleratorProfile)
 	apProfile.SetName(testAPName)
@@ -158,6 +144,6 @@ func (tc *DashboardTestCtx) ValidateAcceleratorProfileCreationBlockedByVAP(t *te
 		"identifier":  "nvidia.com/gpu",
 	}
 
-	err = tc.Client().Create(tc.Context(), apProfile)
+	err := tc.Client().Create(tc.Context(), apProfile)
 	tc.g.Expect(err).To(HaveOccurred(), "Expected AcceleratorProfile creation to be blocked by VAP")
 }
