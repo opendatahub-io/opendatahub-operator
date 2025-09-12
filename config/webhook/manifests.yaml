@@ -30,7 +30,7 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-hardware-profile
+      path: /mutate-hardware-profile-isvc
   failurePolicy: Fail
   name: hardwareprofile-kserve-injector.opendatahub.io
   rules:
@@ -50,7 +50,7 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-hardware-profile
+      path: /mutate-hardware-profile-notebook
   failurePolicy: Fail
   name: hardwareprofile-notebook-injector.opendatahub.io
   rules:

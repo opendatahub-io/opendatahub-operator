@@ -1789,7 +1789,7 @@ spec:
     sideEffects: None
     targetPort: 9443
     type: MutatingAdmissionWebhook
-    webhookPath: /mutate-hardware-profile
+    webhookPath: /mutate-hardware-profile-isvc
   - admissionReviewVersions:
     - v1
     containerPort: 443
@@ -1809,7 +1809,7 @@ spec:
     sideEffects: None
     targetPort: 9443
     type: MutatingAdmissionWebhook
-    webhookPath: /mutate-hardware-profile
+    webhookPath: /mutate-hardware-profile-notebook
   - admissionReviewVersions:
     - v1
     containerPort: 443
