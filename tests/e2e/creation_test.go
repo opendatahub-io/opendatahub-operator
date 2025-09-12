@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -67,6 +68,7 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
 		//TODO: disabled until RHOAIENG-29225 is resolved
 		// {"Validate ServiceMeshControlPlane exists and is recreated upon deletion.", dscTestCtx.ValidateServiceMeshControlPlane},
+		{"Validate VAP/VAPB creation after DSCI creation", dscTestCtx.ValidateVAPCreationAfterDSCI},
 		{"Validate Knative resource", dscTestCtx.ValidateKnativeSpecInDSC},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
@@ -575,4 +577,49 @@ func (tc *DSCTestCtx) resetMonitoringToDefault(t *testing.T) {
 	)
 
 	t.Log("Reset monitoring configuration to default state")
+}
+
+// ValidateVAPCreationAfterDSCI verifies that VAP/VAPB resources are created after DSCI is created and reconciled.
+func (tc *DSCTestCtx) ValidateVAPCreationAfterDSCI(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+	tc.g.Expect(dsci).NotTo(BeNil(), "DSCI should exist")
+
+	// Validate VAP/VAPB resources exist and are owned by DSCI
+	vapResources := []struct {
+		name string
+		gvk  schema.GroupVersionKind
+	}{
+		{"block-dashboard-acceleratorprofile-cr", gvk.ValidatingAdmissionPolicy},
+		{"block-dashboard-acceleratorprofile-cr-binding", gvk.ValidatingAdmissionPolicyBinding},
+		{"block-dashboard-hardwareprofile-cr", gvk.ValidatingAdmissionPolicy},
+		{"block-dashboard-hardwareprofile-cr-binding", gvk.ValidatingAdmissionPolicyBinding},
+	}
+
+	for _, resource := range vapResources {
+		tc.EnsureResourceExists(
+			WithMinimalObject(resource.gvk, types.NamespacedName{Name: resource.name}),
+			WithCondition(And(
+				jq.Match(`.metadata.name == "%s"`, resource.name),
+				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DSCInitialization.Kind),
+			)),
+			WithCustomErrorMsg("%s should exist and be owned by DSCI", resource.name),
+		)
+	}
+
+	// Delete one and verify it gets recreated
+	vapToDelete := vapResources[0]
+	tc.DeleteResource(WithMinimalObject(vapToDelete.gvk, types.NamespacedName{Name: vapToDelete.name}))
+
+	// Verify the deleted VAP gets recreated with ownerreference to DSCI
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(vapToDelete.gvk, types.NamespacedName{Name: vapToDelete.name}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, vapToDelete.name),
+			jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DSCInitialization.Kind),
+		)),
+		WithCustomErrorMsg("%s should be recreated after deletion", vapToDelete.name),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
 }
