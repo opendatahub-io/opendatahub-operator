@@ -11,6 +11,7 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -19,24 +20,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
 // create new type for connection types.
-type ConnectionType string
-
-const (
-	// ConnectionTypeURI represents uri connections.
-	ConnectionTypeURI ConnectionType = "uri-v1"
-	// ConnectionTypeS3 represents s3 connections.
-	ConnectionTypeS3 ConnectionType = "s3"
-	// ConnectionTypeOCI represents oci connections.
-	ConnectionTypeOCI ConnectionType = "oci-v1"
-)
-
-func (ct ConnectionType) String() string {
-	return string(ct)
-}
 
 type InferenceServingPath struct {
 	ModelPath              []string
@@ -76,25 +66,9 @@ func (w *ConnectionWebhook) SetupWithManager(mgr ctrl.Manager) error {
 func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) admission.Response {
 	log := logf.FromContext(ctx)
 
-	// Check if request object is valid
-	if req.Object.Raw == nil {
-		log.Error(nil, "Request object is nil")
-		return admission.Errored(http.StatusBadRequest, errors.New("request object is nil"))
-	}
-
-	if w.Client == nil {
-		log.Error(nil, "Client is nil - webhook not properly initialized")
-		return admission.Errored(http.StatusInternalServerError, errors.New("webhook client not initialized"))
-	}
-
-	if w.APIReader == nil {
-		log.Error(nil, "APIReader is nil - webhook not properly initialized")
-		return admission.Errored(http.StatusInternalServerError, errors.New("webhook APIReader not initialized"))
-	}
-
-	if w.Decoder == nil {
-		log.Error(nil, "Decoder is nil - webhook not properly initialized")
-		return admission.Errored(http.StatusInternalServerError, errors.New("webhook decoder not initialized"))
+	// Perform prechecks
+	if resp := w.precheck(ctx, req); resp != nil {
+		return *resp
 	}
 	// Decode the object once
 	obj, err := webhookutils.DecodeUnstructured(w.Decoder, req)
@@ -109,32 +83,41 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 
 	switch req.Operation {
 	case admissionv1.Create, admissionv1.Update:
-
 		// allowed connection types for connection validation on isvc.
 		allowedTypes := []string{
-			ConnectionTypeURI.String(),
-			ConnectionTypeS3.String(),
-			ConnectionTypeOCI.String(),
+			webhookutils.ConnectionTypeURI.String(),
+			webhookutils.ConnectionTypeS3.String(),
+			webhookutils.ConnectionTypeOCI.String(),
 		}
 
-		// validate the connection annotation and determine the action to take
-		validationResp, action, secretName, connectionType := webhookutils.ValidateInferenceServiceConnectionAnnotation(ctx, w.APIReader, obj, req, allowedTypes)
+		// validate the connection annotation and get secret and type, actual action (create/injenct, remove, replace) is moved out of here.
+		validationResp, secretName, connectionType := webhookutils.ValidateInferenceServiceConnectionAnnotation(ctx, w.APIReader, obj, req, allowedTypes)
 		if !validationResp.Allowed {
 			return validationResp
 		}
 
-		// Handle different actions based on the ConnectionAction value
+		var action webhookutils.ConnectionAction
+		var oldSecretName, oldConnectionType string
+
+		if req.Operation == admissionv1.Update {
+			// UPDATE, get old connection type and secret name to determine remove replace.
+			oldSecretName, oldConnectionType, err = w.getOldConnectionInfo(ctx, req)
+			if err != nil {
+				log.Error(err, "Failed to get old connection info")
+				return admission.Errored(http.StatusInternalServerError, err)
+			}
+			action = webhookutils.DetermineConnectionChangeAction(oldSecretName, oldConnectionType, secretName, connectionType)
+		} else { // CREATE, always inject
+			action = webhookutils.ConnectionActionInject
+		}
+
+		// Handle different actions based on the action
 		switch action {
 		case webhookutils.ConnectionActionInject:
-			// create ServiceAccount first (skip if it is dry-run)
+			// Create ServiceAccount only for S3 connections in non-dry-run mode
 			isDryRun := req.DryRun != nil && *req.DryRun
-			if !isDryRun {
-				if err := webhookutils.CreateServiceAccount(ctx, w.Client, secretName, req.Namespace); err != nil {
-					log.Error(err, "Failed to create ServiceAccount")
-					return admission.Errored(http.StatusInternalServerError, err)
-				}
-			} else {
-				log.V(1).Info("Skipping ServiceAccount creation in dry-run mode", "secretName", secretName)
+			if err := webhookutils.HandleServiceAccountCreation(ctx, w.Client, secretName, connectionType, req.Namespace, isDryRun); err != nil {
+				return admission.Errored(http.StatusInternalServerError, err)
 			}
 			// Perform injection for valid connection types
 			injectionPerformed, err := w.performConnectionInjection(ctx, req, secretName, connectionType, obj)
@@ -156,7 +139,7 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 
 		case webhookutils.ConnectionActionRemove:
 			// Perform cleanup when annotation is removed, we do not delete SA but only remove injection part
-			cleanupPerformed, err := w.performConnectionCleanup(ctx, req, obj)
+			cleanupPerformed, err := w.performConnectionCleanup(ctx, req, obj, oldConnectionType)
 			if err != nil {
 				log.Error(err, "Failed to perform connection cleanup")
 				return admission.Errored(http.StatusInternalServerError, err)
@@ -170,20 +153,93 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 				return admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
 			}
 
-			return admission.Allowed(fmt.Sprintf("Connection cleanup done for %s in namespace %s", req.Kind.Kind, req.Namespace))
+			return admission.Allowed(fmt.Sprintf("Connection cleanup not needed for %s in namespace %s", req.Kind.Kind, req.Namespace))
+
+		case webhookutils.ConnectionActionReplace:
+			// Connection changed cleanup old and inject new
+			log.V(1).Info("Connection type/secret changed, performing replacement",
+				"oldType", oldConnectionType, "newType", connectionType,
+				"oldSecret", oldSecretName, "newSecret", secretName)
+
+			var cleanupPerformed bool
+			cleanupPerformed, err = w.performConnectionCleanup(ctx, req, obj, oldConnectionType)
+			if err != nil {
+				log.Error(err, "Failed to cleanup old connection type")
+				return admission.Errored(http.StatusInternalServerError, err)
+			}
+
+			// cleanupPerformed is always true if no error occurred
+			if cleanupPerformed {
+				log.V(1).Info("Successfully cleaned up old connection type")
+			}
+			// Create ServiceAccount only for S3 connections in non-dry-run mode
+			isDryRun := req.DryRun != nil && *req.DryRun
+			if err := webhookutils.HandleServiceAccountCreation(ctx, w.Client, secretName, connectionType, req.Namespace, isDryRun); err != nil {
+				return admission.Errored(http.StatusInternalServerError, err)
+			}
+
+			// inject the new connection type
+			injectionPerformed, err := w.performConnectionInjection(ctx, req, secretName, connectionType, obj)
+			if err != nil {
+				log.Error(err, "Failed to inject new connection type")
+				return admission.Errored(http.StatusInternalServerError, err)
+			}
+
+			// Write updated object back to k8s if any changes were made (cleanup or injection)
+			if cleanupPerformed || injectionPerformed {
+				marshaledObj, err := json.Marshal(obj)
+				if err != nil {
+					return admission.Errored(http.StatusInternalServerError, err)
+				}
+				return admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
+			}
+
+			return admission.Allowed(fmt.Sprintf("No connection changes performed for %s in namespace %s", req.Kind.Kind, req.Namespace))
 
 		case webhookutils.ConnectionActionNone:
-			// No action needed
-			return admission.Allowed(fmt.Sprintf("Connection validation passed in namespace %s for %s, no action needed", req.Namespace, req.Kind.Kind))
+			// No change needed
+			return admission.Allowed(fmt.Sprintf("No connection change needed for %s in namespace %s", req.Kind.Kind, req.Namespace))
 
 		default:
-			log.V(1).Info("Unknown", "action", action)
+			log.V(1).Info("Unknown connection action", "action", action)
 			return admission.Allowed(fmt.Sprintf("Connection validation passed in namespace %s for %s, unknown action: %s", req.Namespace, req.Kind.Kind, action))
 		}
 
-	default: // Delete operation
+	default: // Delete, Connection operation
 		return admission.Allowed(fmt.Sprintf("Operation %s on %s allowed in namespace %s", req.Operation, req.Kind.Kind, req.Namespace))
 	}
+}
+
+// precheck validates webhook initialization and request object.
+func (w *ConnectionWebhook) precheck(ctx context.Context, req admission.Request) *admission.Response {
+	log := logf.FromContext(ctx)
+
+	// Check if request object is valid
+	if req.Object.Raw == nil {
+		log.Error(nil, "Request object is nil")
+		resp := admission.Errored(http.StatusBadRequest, errors.New("request object is nil"))
+		return &resp
+	}
+
+	if w.Client == nil {
+		log.Error(nil, "Client is nil - webhook not properly initialized")
+		resp := admission.Errored(http.StatusInternalServerError, errors.New("webhook client not initialized"))
+		return &resp
+	}
+
+	if w.APIReader == nil {
+		log.Error(nil, "APIReader is nil - webhook not properly initialized")
+		resp := admission.Errored(http.StatusInternalServerError, errors.New("webhook APIReader not initialized"))
+		return &resp
+	}
+
+	if w.Decoder == nil {
+		log.Error(nil, "Decoder is nil - webhook not properly initialized")
+		resp := admission.Errored(http.StatusInternalServerError, errors.New("webhook decoder not initialized"))
+		return &resp
+	}
+
+	return nil
 }
 
 func (w *ConnectionWebhook) performConnectionInjection(
@@ -195,30 +251,29 @@ func (w *ConnectionWebhook) performConnectionInjection(
 ) (bool, error) {
 	log := logf.FromContext(ctx)
 
-	// inject ServiceAccount as common part
-	if err := w.handleSA(decodedObj, secretName+"-sa"); err != nil {
-		log.Error(err, "Failed to inject ServiceAccount")
-		return false, fmt.Errorf("failed to inject ServiceAccount: %w", err)
-	}
-	log.V(1).Info("Successfully injected ServiceAccount", "ServiceAccountName", secretName+"-sa")
-
 	// injection based on connection type
-	switch ConnectionType(connectionType) {
-	case ConnectionTypeOCI:
+	switch connectionType {
+	case webhookutils.ConnectionTypeOCI.String():
 		if err := w.injectOCIImagePullSecrets(decodedObj, secretName); err != nil {
 			return false, fmt.Errorf("failed to inject OCI imagePullSecrets: %w", err)
 		}
 		log.V(1).Info("Successfully injected OCI imagePullSecrets", "secretName", secretName)
 		return true, nil
 
-	case ConnectionTypeURI:
+	case webhookutils.ConnectionTypeURI.String():
 		if err := w.injectURIStorageUri(ctx, decodedObj, secretName, req.Namespace); err != nil {
 			return false, fmt.Errorf("failed to inject URI storageUri: %w", err)
 		}
 		log.V(1).Info("Successfully injected URI storageUri from secret", "secretName", secretName)
 		return true, nil
 
-	case ConnectionTypeS3:
+	case webhookutils.ConnectionTypeS3.String():
+		// inject ServiceAccount only for S3 connections
+		if err := w.handleSA(decodedObj, secretName+"-sa"); err != nil {
+			log.Error(err, "Failed to inject ServiceAccount")
+			return false, fmt.Errorf("failed to inject ServiceAccount: %w", err)
+		}
+		log.V(1).Info("Successfully injected ServiceAccount", "ServiceAccountName", secretName+"-sa")
 		if err := w.injectS3StorageKey(decodedObj, secretName); err != nil {
 			return false, fmt.Errorf("failed to inject S3 storage.key: %w", err)
 		}
@@ -232,112 +287,119 @@ func (w *ConnectionWebhook) performConnectionInjection(
 }
 
 // performConnectionCleanup removes previously injected connection fields when the annotation is removed on UPDATE operation.
-// all possible connection types are checked for cleanup.
+// Uses oldConnectionType to determine exactly what needs to be cleaned up.
 func (w *ConnectionWebhook) performConnectionCleanup(
 	ctx context.Context,
 	req admission.Request,
 	decodedObj *unstructured.Unstructured,
+	oldConnectionType string,
 ) (bool, error) {
 	log := logf.FromContext(ctx)
-	log.V(1).Info("Performing connection cleanup for removed annotation", "name", req.Name, "namespace", req.Namespace)
+	log.V(1).Info("Performing connection cleanup for removed annotation", "name", req.Name, "namespace", req.Namespace, "oldConnectionType", oldConnectionType)
 
-	// remove ServiceAccountName injection
-	if err := w.handleSA(decodedObj, ""); err != nil {
-		log.Error(err, "Failed to cleanup ServiceAccountName")
-		return false, fmt.Errorf("failed to cleanup ServiceAccountName: %w", err)
-	}
 	cleanupPerformed := true
 
-	// Check for OCI imagePullSecrets
-	if hasOCIImagePullSecrets(decodedObj) {
-		if _, err := w.cleanupOCIImagePullSecrets(decodedObj); err != nil {
+	// Clean up based on the old connection type or just try cleanup all.
+	switch oldConnectionType {
+	case "":
+		// no old connection type means we do not know what was there so we need do a full cleanup
+		// to ensure before injecting the new one
+		if err := w.cleanupOCIImagePullSecrets(decodedObj); err != nil {
 			log.Error(err, "Failed to cleanup OCI imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
 			return false, fmt.Errorf("failed to cleanup OCI imagePullSecrets: %w", err)
 		}
 		log.V(1).Info("Successfully cleaned up OCI imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
-	}
 
-	// Check for URI storageUri
-	if hasURIStorageUri(decodedObj) {
-		if _, err := w.cleanupURIStorageUri(decodedObj); err != nil {
+		if err := w.cleanupURIStorageUri(decodedObj); err != nil {
 			log.Error(err, "Failed to cleanup URI storageUri", "name", req.Name, "namespace", req.Namespace)
 			return false, fmt.Errorf("failed to cleanup URI storageUri: %w", err)
 		}
 		log.V(1).Info("Successfully cleaned up URI storageUri", "name", req.Name, "namespace", req.Namespace)
-		cleanupPerformed = true
-	}
 
-	// Check for S3 storage key
-	if hasS3StorageKey(decodedObj) {
-		if _, err := w.cleanupS3StorageKey(decodedObj); err != nil {
+		// Clean up ServiceAccountName injection
+		if err := w.handleSA(decodedObj, ""); err != nil {
+			log.Error(err, "Failed to cleanup ServiceAccountName")
+			return false, fmt.Errorf("failed to cleanup ServiceAccountName: %w", err)
+		}
+
+		if err := w.cleanupS3StorageKey(decodedObj); err != nil {
 			log.Error(err, "Failed to cleanup S3 storage key", "name", req.Name, "namespace", req.Namespace)
 			return false, fmt.Errorf("failed to cleanup S3 storage key: %w", err)
 		}
 		log.V(1).Info("Successfully cleaned up S3 storage key", "name", req.Name, "namespace", req.Namespace)
-		cleanupPerformed = true
+
+	case webhookutils.ConnectionTypeOCI.String():
+		if err := w.cleanupOCIImagePullSecrets(decodedObj); err != nil {
+			log.Error(err, "Failed to cleanup OCI imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
+			return false, fmt.Errorf("failed to cleanup OCI imagePullSecrets: %w", err)
+		}
+		log.V(1).Info("Successfully cleaned up OCI imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
+
+	case webhookutils.ConnectionTypeURI.String():
+		if err := w.cleanupURIStorageUri(decodedObj); err != nil {
+			log.Error(err, "Failed to cleanup URI storageUri", "name", req.Name, "namespace", req.Namespace)
+			return false, fmt.Errorf("failed to cleanup URI storageUri: %w", err)
+		}
+		log.V(1).Info("Successfully cleaned up URI storageUri", "name", req.Name, "namespace", req.Namespace)
+
+	case webhookutils.ConnectionTypeS3.String():
+		// remove ServiceAccountName injection, if we need it in replacement, we ill add it back later.
+		if err := w.handleSA(decodedObj, ""); err != nil {
+			log.Error(err, "Failed to cleanup ServiceAccountName")
+			return false, fmt.Errorf("failed to cleanup ServiceAccountName: %w", err)
+		}
+		if err := w.cleanupS3StorageKey(decodedObj); err != nil {
+			log.Error(err, "Failed to cleanup S3 storage key", "name", req.Name, "namespace", req.Namespace)
+			return false, fmt.Errorf("failed to cleanup S3 storage key: %w", err)
+		}
+		log.V(1).Info("Successfully cleaned up S3 storage key", "name", req.Name, "namespace", req.Namespace)
+
+	default:
+		// No specific cleanup needed for unknown connection types
+		log.V(1).Info("No specific cleanup needed for connection type", "connectionType", oldConnectionType)
+		cleanupPerformed = false
 	}
 
 	return cleanupPerformed, nil
 }
 
-func hasOCIImagePullSecrets(obj *unstructured.Unstructured) bool {
-	imagePullSecrets, found, err := unstructured.NestedSlice(obj.Object, IsvcConfigs.ImagePullSecretPath...)
-	if err != nil || !found {
-		return false
-	}
-	return len(imagePullSecrets) > 0 // if it is empty, we don't need to delete the whole shebang
-}
-
-func hasURIStorageUri(obj *unstructured.Unstructured) bool {
-	storageUri, found, err := unstructured.NestedString(obj.Object, IsvcConfigs.StorageUriPath...)
-	if err != nil || !found {
-		return false
-	}
-	return storageUri != ""
-}
-
-func hasS3StorageKey(obj *unstructured.Unstructured) bool {
-	_, found, err := unstructured.NestedMap(obj.Object, append(IsvcConfigs.ModelPath, "storage")...)
-	if err != nil || !found {
-		return false
-	}
-
-	return true
-}
-
 // cleanupOCIImagePullSecrets set empty slice to spec.predictor.imagePullSecrets.
-func (w *ConnectionWebhook) cleanupOCIImagePullSecrets(obj *unstructured.Unstructured) (bool, error) {
+func (w *ConnectionWebhook) cleanupOCIImagePullSecrets(obj *unstructured.Unstructured) error {
 	err := webhookutils.SetNestedValue(obj.Object, []interface{}{}, IsvcConfigs.ImagePullSecretPath)
-	return true, err
+	return err
 }
 
 // cleanupURIStorageUri delete the storageUri field from spec.predictor.model.
 // cannot just set to empty string, it will fail in ValidateStorageURI().
-func (w *ConnectionWebhook) cleanupURIStorageUri(obj *unstructured.Unstructured) (bool, error) {
-	model, _, err := unstructured.NestedMap(obj.Object, IsvcConfigs.ModelPath...)
+func (w *ConnectionWebhook) cleanupURIStorageUri(obj *unstructured.Unstructured) error {
+	model, found, err := unstructured.NestedMap(obj.Object, IsvcConfigs.ModelPath...)
 	if err != nil {
-		return false, fmt.Errorf("failed to get spec.predictor.model: %w", err)
+		return fmt.Errorf("failed to get spec.predictor.model: %w", err)
+	}
+	if !found {
+		return nil
 	}
 
 	// Remove the storageUri field
 	delete(model, "storageUri")
 
-	err = webhookutils.SetNestedValue(obj.Object, model, IsvcConfigs.ModelPath)
-	return true, err
+	return webhookutils.SetNestedValue(obj.Object, model, IsvcConfigs.ModelPath)
 }
 
 // cleanupS3StorageKey removes the storage field from spec.predictor.model.
-func (w *ConnectionWebhook) cleanupS3StorageKey(obj *unstructured.Unstructured) (bool, error) {
-	model, _, err := unstructured.NestedMap(obj.Object, IsvcConfigs.ModelPath...)
+func (w *ConnectionWebhook) cleanupS3StorageKey(obj *unstructured.Unstructured) error {
+	model, found, err := unstructured.NestedMap(obj.Object, IsvcConfigs.ModelPath...)
 	if err != nil {
-		return false, fmt.Errorf("failed to get spec.predictor.model: %w", err)
+		return fmt.Errorf("failed to get spec.predictor.model: %w", err)
+	}
+	if !found {
+		return nil
 	}
 
 	// Remove the storage field
 	delete(model, "storage")
 
-	err = webhookutils.SetNestedValue(obj.Object, model, IsvcConfigs.ModelPath)
-	return true, err
+	return webhookutils.SetNestedValue(obj.Object, model, IsvcConfigs.ModelPath)
 }
 
 // handleSA injects serviceaccount into spec.predictor.serviceAccountName.
@@ -414,4 +476,36 @@ func (w *ConnectionWebhook) injectS3StorageKey(obj *unstructured.Unstructured, s
 	model["storage"] = storageMap
 
 	return webhookutils.SetNestedValue(obj.Object, model, IsvcConfigs.ModelPath)
+}
+
+// getOldConnectionInfo extracts connection information from the old inferenceservice object.
+// for UPDATE operations to determine if connection type has changed.
+func (w *ConnectionWebhook) getOldConnectionInfo(ctx context.Context, req admission.Request) (string, string, error) {
+	log := logf.FromContext(ctx)
+
+	// Decode the old object
+	oldObj := &unstructured.Unstructured{}
+	if err := w.Decoder.DecodeRaw(req.OldObject, oldObj); err != nil {
+		log.Error(err, "failed to decode old inferenceservice object")
+		return "", "", fmt.Errorf("failed to decode old inferenceservice object: %w", err)
+	}
+
+	// Get old annotation value
+	oldAnnotationValue := resources.GetAnnotation(oldObj, annotations.Connection)
+	if oldAnnotationValue == "" {
+		return "", "", nil // No old connection
+	}
+
+	// Get old connection type from the secret
+	secretMeta := resources.GvkToPartial(gvk.Secret)
+	if err := w.APIReader.Get(ctx, types.NamespacedName{Name: oldAnnotationValue, Namespace: req.Namespace}, secretMeta); err != nil {
+		if k8serr.IsNotFound(err) {
+			log.V(1).Info("Old secret not found, treating as no old connection", "secretName", oldAnnotationValue)
+			return "", "", nil
+		}
+		return "", "", fmt.Errorf("failed to get old secret metadata: %w", err)
+	}
+
+	oldConnectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
+	return oldAnnotationValue, oldConnectionType, nil
 }
