@@ -94,7 +94,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		), reconciler.WithPredicates(predicate.Funcs{
 			GenericFunc: func(tge event.TypedGenericEvent[client.Object]) bool { return false },
 			DeleteFunc:  func(tde event.TypedDeleteEvent[client.Object]) bool { return false },
-		}), reconciler.Dynamic()).
+		}), reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardHardwareProfile))).
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(setKustomizedParams).
