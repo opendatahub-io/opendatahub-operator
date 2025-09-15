@@ -395,7 +395,8 @@ func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
 	tc.DeleteResource(
 		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
 	)
-	tc.EnsureResourceExistsConsistently(
+
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
 		WithCondition(And(
 			jq.Match(`.spec.identifiers[0].defaultCount == 2`),

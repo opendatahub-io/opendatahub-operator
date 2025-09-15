@@ -7,6 +7,7 @@ import (
 
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -43,10 +44,16 @@ func (r *DSCInitializationReconciler) CreateVAP(ctx context.Context, dscInit *ds
 	return nil
 }
 
-func (r *DSCInitializationReconciler) CreateHWProfileCR(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
+// deploy hardware profile CR with dsci as owner, but allow user change by annotation set to false.
+func (r *DSCInitializationReconciler) CreateHWProfileCR(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
-	// deploy hardware profile CR with dsci as owner, but allow user change by annotation set to false.
+	if platform == "" {
+		log.V(1).Info("Skipping HardwareProfile CR creation if platform is not set")
+		return nil
+	}
+
+	// deploy hardware profile CR with dsci as owner, but allow user change by have annotation in the default.
 	hwProfilePath := filepath.Join(deploy.DefaultManifestPath, "hardwareprofiles")
 	if err := deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, hwProfilePath, dscInit.Spec.ApplicationsNamespace, "hardwareprofile", true); err != nil {
 		return fmt.Errorf("failed to deploy HardwareProfile CR from path %s: %w", hwProfilePath, err)
