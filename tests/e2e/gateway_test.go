@@ -1,14 +1,14 @@
 package e2e_test
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
@@ -27,7 +27,7 @@ type GatewayTestCtx struct {
 	*TestContext
 }
 
-func gatewayTestSuite(t *testing.T) {
+func gatewayTestSuite(t *testing.T) { //nolint:unused
 	t.Helper()
 
 	ctx, err := NewTestContext(t)
@@ -53,7 +53,7 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayServiceName}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue)),
-		WithCustomErrorMsg("GatewayConfig should have namespace configured before creating infrastructure"),
+		WithCustomErrorMsg("GatewayConfig should have ProvisioningSucceeded condition with status True"),
 	)
 
 	// Validate GatewayClass
