@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
@@ -77,8 +76,6 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateCodeFlareSupportRemovalNotRemoveComponen
 	marshalledOwnerReference, err := json.Marshal(dscOwnerReference)
 	require.NoError(t, err)
 
-	dsci := tc.FetchDSCInitialization()
-
 	tc.EnsureResourceCreatedOrPatched(
 		WithMinimalObject(gvk.CodeFlare, nn),
 		WithMutateFunc(testf.Transform(`
@@ -92,9 +89,9 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateCodeFlareSupportRemovalNotRemoveComponen
 			labels.PlatformPartOf,
 			strings.ToLower(gvk.DataScienceCluster.Kind),
 			odhAnnotations.PlatformVersion,
-			dsci.Status.Release.Version.String(),
+			dsc.Status.Release.Version.String(),
 			odhAnnotations.PlatformType,
-			string(dsci.Status.Release.Name),
+			string(dsc.Status.Release.Name),
 			odhAnnotations.InstanceGeneration,
 			strconv.Itoa(int(dsc.GetGeneration())),
 			odhAnnotations.InstanceUID,
@@ -103,31 +100,30 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateCodeFlareSupportRemovalNotRemoveComponen
 		WithCustomErrorMsg("Failed to create or update CodeFlare component resource '%s'", defaultCodeFlareComponentName),
 	)
 
-	tc.triggerDSCReconciliation(t, "kueue")
+	tc.triggerDSCReconciliation(t, "modelregistry", operatorv1.Managed)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.CodeFlare, nn),
 		WithCustomErrorMsg("CodeFlare component resource '%s' was expected to exist but was not found", defaultCodeFlareComponentName),
-		WithEventuallyTimeout(10*time.Second),
 	)
 }
 
-func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T, componentToEnable string) {
+func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T, componentToEnable string, managementState operatorv1.ManagementState) {
 	t.Helper()
-
-	t.Cleanup(func() {
-		tc.EventuallyResourceCreatedOrUpdated(
-			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-			WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentToEnable, operatorv1.Removed)),
-		)
-	})
 
 	// This is needed to trigger another DSC reconciliation
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.kueue.managementState = "%s"`, operatorv1.Managed)),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentToEnable, managementState)),
 		WithCustomErrorMsg("Failed to update DSC resource '%s'", tc.DataScienceClusterNamespacedName.Name),
-		WithEventuallyTimeout(10*time.Second),
+	)
+
+	// We only need the reconciliation loop to complete execution, so we remove the
+	// component without waiting for it to be ready to speed up the test execution
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentToEnable, operatorv1.Removed)),
+		WithCustomErrorMsg("Failed to remove DSC resource '%s' component '%s'", tc.DataScienceClusterNamespacedName.Name, componentToEnable),
 	)
 
 	tc.g.Eventually(
@@ -144,5 +140,5 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T, component
 				componentToEnable,
 			)
 		},
-	).WithTimeout(tc.TestTimeouts.mediumEventuallyTimeout).Should(Succeed())
+	).Should(Succeed())
 }
