@@ -4,6 +4,7 @@ package dashboard
 import (
 	"testing"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -36,6 +37,16 @@ func TestMigrateHardwareProfiles(t *testing.T) {
 	fakeSchema.AddKnownTypeWithName(dashboardHardwareProfileListGVK, &unstructured.UnstructuredList{})
 	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile, &infraAPI.HardwareProfile{})
 
+	// Create a CRD for Dashboard HardwareProfile to make HasCRD check pass
+	dashboardHWPCRD := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "hardwareprofiles.dashboard.opendatahub.io",
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{gvk.DashboardHardwareProfile.Version},
+		},
+	}
+
 	mockDashboardHardwareProfile := &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": "dashboard.opendatahub.io/v1alpha1",
@@ -56,7 +67,7 @@ func TestMigrateHardwareProfiles(t *testing.T) {
 	}
 
 	cli, err := fakeclient.New(
-		fakeclient.WithObjects(mockDashboardHardwareProfile),
+		fakeclient.WithObjects(mockDashboardHardwareProfile, dashboardHWPCRD),
 		fakeclient.WithScheme(fakeSchema),
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())

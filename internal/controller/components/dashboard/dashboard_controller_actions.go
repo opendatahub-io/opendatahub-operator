@@ -22,6 +22,7 @@ import (
 	infraAPI "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -160,10 +161,19 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 }
 
 func reconcileHardwareProfiles(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// If the dashboard HWP CRD doesn't exist, skip any migration logic
+	dashHwpCRDExists, err := cluster.HasCRD(ctx, rr.Client, gvk.DashboardHardwareProfile)
+	if err != nil {
+		return odherrors.NewStopError("failed to check if %s CRD exists: %w", gvk.DashboardHardwareProfile, err)
+	}
+	if !dashHwpCRDExists {
+		return nil
+	}
+
 	dashboardHardwareProfiles := &unstructured.UnstructuredList{}
 	dashboardHardwareProfiles.SetGroupVersionKind(gvk.DashboardHardwareProfile)
 
-	err := rr.Client.List(ctx, dashboardHardwareProfiles)
+	err = rr.Client.List(ctx, dashboardHardwareProfiles)
 	if err != nil {
 		return fmt.Errorf("failed to list dashboard hardware profiles: %w", err)
 	}
