@@ -223,8 +223,8 @@ func WithLlmInferenceService() CRDSetupOption {
 		t.Helper()
 
 		// Register LlmInferenceService types
-		env.Scheme().AddKnownTypeWithName(gvk.LLMInferenceServiceConfigV1Alpha1, &unstructured.Unstructured{})
-		env.Scheme().AddKnownTypeWithName(gvk.LLMInferenceServiceConfigV1Alpha1.GroupVersion().WithKind("LlmInferenceServiceList"), &unstructured.UnstructuredList{})
+		env.Scheme().AddKnownTypeWithName(gvk.LLMInferenceServiceV1Alpha1, &unstructured.Unstructured{})
+		env.Scheme().AddKnownTypeWithName(gvk.LLMInferenceServiceV1Alpha1.GroupVersion().WithKind("LlmInferenceServiceList"), &unstructured.UnstructuredList{})
 
 		// Create LlmInferenceService CRD
 		crd := MockLlmInferenceServiceCRD()
