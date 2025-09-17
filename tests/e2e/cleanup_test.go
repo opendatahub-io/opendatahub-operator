@@ -3,196 +3,102 @@ package e2e_test
 import (
 	"testing"
 
-	"github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
-	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 )
 
-// CleanupAllResources handles the cleanup of all resources (DSC, DSCI, etc.)
-func CleanupAllResources(t *testing.T) {
+// CleanupPreviousTestResources removes leftover resources from previous test runs.
+// This is called at the start of test suites to ensure a clean environment.
+// It handles: DSC, DSCI, AuthConfig, Kueue resources, and ResourceQuotas.
+func CleanupPreviousTestResources(t *testing.T) {
 	t.Helper()
 
 	// Initialize the test context.
 	tc, err := NewTestContext(t)
 	require.NoError(t, err, "Failed to initialize test context")
 
-	// Cleanup DataScienceCluster and DSCInitialization
-	cleanupResource(t, tc, gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName, "DataScienceCluster")
-	cleanupResource(t, tc, gvk.DSCInitialization, tc.DSCInitializationNamespacedName, "DSCInitialization")
-}
+	// Cleanup existing DataScienceCluster and DSCInitialization (single instances)
+	cleanupCoreOperatorResources(t, tc)
 
-// CleanupDefaultResources handles the cleanup of default resources: DSC, DSCI, and AuthConfig.
-func CleanupDefaultResources(t *testing.T) {
-	t.Helper()
+	// Delete the entire applications namespace - this removes all component resources at once
+	// (AuthConfig, ResourceQuotas, Kueue resources, etc.) and the operator will recreate as needed
+	t.Logf("Cleaning up applications namespace: %s", tc.AppsNamespace)
+	tc.DeleteResource(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(false),
+	)
 
-	// Initialize the test context.
-	tc, err := NewTestContext(t)
-	require.NoError(t, err, "Failed to initialize test context")
-
-	// Cleanup existing DataScienceCluster and DSCInitialization.
-	cleanupListResources(t, tc, gvk.DataScienceCluster, "DataScienceCluster")
-	cleanupListResources(t, tc, gvk.DSCInitialization, "DSCInitialization")
-
-	// Cleanup AuthConfig
-	cleanupResource(t, tc, gvk.Auth, types.NamespacedName{
-		Name:      serviceApi.AuthInstanceName,
-		Namespace: tc.AppsNamespace,
-	}, "AuthConfig")
-
-	// Cleanup Kueue Test Resources
+	// Cleanup Kueue cluster-scoped resources
 	cleanupKueueTestResources(t, tc)
 }
 
-// cleanupResource logs and deletes the specified resource if it exists.
-func cleanupResource(t *testing.T, tc *TestContext, kind schema.GroupVersionKind, name types.NamespacedName, label string) { //nolint:thelper
-	t.Logf("Cleaning up %s if present", label)
-	tc.DeleteResource(
-		WithMinimalObject(kind, name),
-		WithWaitForDeletion(true),
-	)
-}
+// cleanupCoreOperatorResources deletes DataScienceCluster and DSCInitialization resources.
+func cleanupCoreOperatorResources(t *testing.T, tc *TestContext) {
+	t.Helper()
 
-// cleanupListResources deletes a list of resources of a given kind.
-func cleanupListResources(t *testing.T, tc *TestContext, kind schema.GroupVersionKind, label string) { //nolint:thelper
-	list := tc.FetchResources(
-		WithMinimalObject(kind, types.NamespacedName{}),
-		WithListOptions(&client.ListOptions{}),
-	)
+	deleteResources := func(gvk schema.GroupVersionKind) {
+		t.Logf("Cleaning up %s with bulk operation", gvk.Kind)
 
-	if len(list) > 0 {
-		t.Logf("Detected %d %s(s), deleting", len(list), label)
-		for _, res := range list {
-			cleanupResource(t, tc, kind, types.NamespacedName{Name: res.GetName()}, label)
-		}
+		tc.DeleteResources(
+			WithMinimalObject(gvk, types.NamespacedName{}),
+			WithWaitForDeletion(true),
+			WithIgnoreNotFound(true),
+		)
 	}
-}
 
-// uninstallOperator delete an operator install subscription for the stable channel if exists.
-func uninstallOperator(t *testing.T, tc *TestContext, operatorNamespacedName types.NamespacedName) { //nolint:thelper,unused
-	uninstallOperatorWithChannel(t, tc, operatorNamespacedName, defaultOperatorChannel)
-}
+	deleteResources(gvk.DataScienceCluster)
+	deleteResources(gvk.DSCInitialization)
 
-// uninstallOperatorWithChannel delete an operator install subscription to a specific channel if exists.
-func uninstallOperatorWithChannel(t *testing.T, tc *TestContext, operatorNamespacedName types.NamespacedName, channel string) { //nolint:thelper,unparam
-	if found, err := tc.CheckOperatorExists(operatorNamespacedName.Name); found && err == nil {
-		t.Logf("Uninstalling %s operator", operatorNamespacedName)
-		ro := tc.NewResourceOptions(WithMinimalObject(gvk.Subscription, operatorNamespacedName))
-		operatorSubscription, _ := tc.ensureResourceExistsOrNil(ro)
-
-		if operatorSubscription != nil {
-			csv, foundCsv, errCsv := unstructured.NestedString(operatorSubscription.UnstructuredContent(), "status", "currentCSV")
-			installPlan, foundPlan, errPlan := unstructured.NestedString(operatorSubscription.UnstructuredContent(), "status", "installPlanRef", "name")
-
-			t.Logf("Found subscription %v deleting it.", operatorNamespacedName)
-			tc.DeleteResource(WithMinimalObject(gvk.Subscription, operatorNamespacedName), WithWaitForDeletion(true))
-
-			if foundCsv && errCsv == nil {
-				t.Logf("Found CSV %s in operator subscription %v deleting it.", csv, operatorNamespacedName)
-				tc.DeleteResource(WithMinimalObject(gvk.ClusterServiceVersion, types.NamespacedName{Name: csv, Namespace: operatorSubscription.GetNamespace()}), WithWaitForDeletion(true))
-			}
-			if foundPlan && errPlan == nil {
-				t.Logf("Found install plan %s in operator subscription %v deleting it.", installPlan, operatorNamespacedName)
-				tc.DeleteResource(WithMinimalObject(gvk.InstallPlan, types.NamespacedName{Name: installPlan, Namespace: operatorSubscription.GetNamespace()}), WithWaitForDeletion(true))
-			}
-		}
-	}
+	// Delete Auth CR (cluster-scoped, not affected by namespace deletion)
+	deleteResources(gvk.Auth)
 }
 
 // cleanupKueueTestResources cleans up Kueue test resources including ClusterQueue, LocalQueue, and test namespace.
 func cleanupKueueTestResources(t *testing.T, tc *TestContext) {
 	t.Helper()
 
-	// Delete kueue cluster queue if present
-	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueDefaultClusterQueueName}, gvk.ClusterQueue, true)
-	// Delete kueue local queue if present
-	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: kueueTestManagedNamespace}, gvk.LocalQueue, true)
-	// Delete kueue cluster config if present
-	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueue.KueueCRName}, gvk.KueueConfigV1, false)
-	// Delete test managed namespace if present
-	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueTestManagedNamespace}, gvk.Namespace, false)
-	// Delete test legacy managed namespace if present
-	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueTestLegacyManagedNamespace}, gvk.Namespace, false)
-	// Delete test webhook non managed namespace if present
-	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueTestWebhookNonManagedNamespace}, gvk.Namespace, false)
-	// Delete test hardware profile namespace if present
-	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueueTestHardwareProfileNamespace}, gvk.Namespace, false)
+	// Cleanup additional Kueue resources
+	t.Logf("Cleaning up Kueue resources")
+	clusterScopedResources := []struct {
+		gvk            schema.GroupVersionKind
+		namespacedName types.NamespacedName
+	}{
+		{gvk.Namespace, types.NamespacedName{Name: kueueTestManagedNamespace}},
+		{gvk.Namespace, types.NamespacedName{Name: kueueTestLegacyManagedNamespace}},
+		{gvk.Namespace, types.NamespacedName{Name: kueueTestWebhookNonManagedNamespace}},
+		{gvk.Namespace, types.NamespacedName{Name: kueueTestHardwareProfileNamespace}},
+		{gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName}},
+		{gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}},
+	}
 
-	// Delete embedded Kueue configmap
-	// Note: can't use cleanupResourceIgnoringMissing as it check for CRDs, but ConfigMap is a core type
-	tc.g.Expect(
-		tc.Client().Delete(tc.Context(), &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      kueue.KueueConfigMapName,
-				Namespace: tc.AppsNamespace,
-			},
-		}),
-	).Should(gomega.Or(
-		gomega.Not(gomega.HaveOccurred()),
-		gomega.MatchError(k8serr.IsNotFound, "IsNotFound"),
-	))
+	t.Logf("Will attempt to delete %d Kueue resources", len(clusterScopedResources))
 
-	_ = cleanupResourceIgnoringMissing(t, tc, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace}, gvk.ConfigMap, true)
+	for _, resource := range clusterScopedResources {
+		t.Logf("Attempting to delete %s %s/%s", resource.gvk.Kind, resource.namespacedName.Namespace, resource.namespacedName.Name)
+
+		// For CRD-dependent resources, skip finalizer removal to avoid fetching non-existent resources
+		removeFinalizersOnDelete := true
+		if resource.gvk.Kind == gvk.KueueConfigV1.Kind || resource.gvk.Kind == gvk.ClusterQueue.Kind {
+			removeFinalizersOnDelete = false
+		}
+
+		tc.DeleteResource(
+			WithMinimalObject(resource.gvk, resource.namespacedName),
+			WithIgnoreNotFound(true),
+			WithRemoveFinalizersOnDelete(removeFinalizersOnDelete),
+			WithWaitForDeletion(false),
+			WithAcceptableErr(meta.IsNoMatchError, "IsNoMatchError"),
+		)
+		t.Logf("Successfully processed deletion of %s %s/%s", resource.gvk.Kind, resource.namespacedName.Namespace, resource.namespacedName.Name)
+	}
 
 	// Uninstall ocp kueue operator if present
-	uninstallOperatorWithChannel(t, tc, types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, kueueOcpOperatorChannel)
-}
-
-func cleanupResourceIgnoringMissing(t *testing.T, tc *TestContext, namespacedName types.NamespacedName, crdGvk schema.GroupVersionKind, removeFinalizers bool) error { //nolint:thelper,lll
-	t.Logf("Deleting (if present) resource %s of type: %v in namespace: %s (removing finalizers: %t)", namespacedName.Name, crdGvk, namespacedName.Namespace, removeFinalizers)
-	// Return if crdGvk does not exist in the cluster
-	hasCrd, err := cluster.HasCRD(tc.Context(), tc.Client(), crdGvk)
-	if err != nil {
-		return err
-	}
-	if !hasCrd {
-		return nil
-	}
-
-	// If the namespacedName.Namespace is passed, return if it does not exist in the cluster
-	if len(namespacedName.Namespace) > 0 && namespacedName.Namespace != metav1.NamespaceAll {
-		ro := tc.NewResourceOptions(WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: namespacedName.Namespace}))
-		namespaceExists, err := tc.ensureResourceExistsOrNil(ro)
-		if err != nil {
-			return err
-		}
-		if namespaceExists == nil {
-			return nil
-		}
-	}
-
-	// If the resource does not exist, return
-	ro := tc.NewResourceOptions(WithMinimalObject(crdGvk, namespacedName))
-	resorceExists, err := tc.ensureResourceExistsOrNil(ro)
-	if err != nil {
-		return err
-	}
-	if resorceExists == nil {
-		return nil
-	}
-
-	// Delete the resource
-	if removeFinalizers {
-		tc.EventuallyResourceCreatedOrUpdated(
-			WithMinimalObject(crdGvk, namespacedName),
-			WithMutateFunc(testf.Transform(`.metadata.finalizers = []`)),
-			WithIgnoreNotFound(true),
-		)
-	}
-	tc.DeleteResource(
-		WithMinimalObject(crdGvk, namespacedName),
-		WithIgnoreNotFound(true),
-	)
-	return nil
+	t.Logf("Uninstalling kueue operator")
+	tc.UninstallOperator(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace})
 }

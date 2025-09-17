@@ -44,12 +44,7 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate hardware profile creation blocked by VAP", componentCtx.ValidateHardwareProfileCreationBlockedByVAP},
 		{"Validate accelerator profile creation blocked by VAP", componentCtx.ValidateAcceleratorProfileCreationBlockedByVAP},
-		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
-		{"Validate route deletion recovery", componentCtx.ValidateRouteDeletionRecovery},
-		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
-		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
@@ -107,6 +102,19 @@ func (tc *DashboardTestCtx) ValidateCRDReinstated(t *testing.T) {
 	}
 
 	tc.ValidateCRDsReinstated(t, crds)
+}
+
+// ValidateAllDeletionRecovery runs the standard set of deletion recovery tests.
+func (tc *DashboardTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	// Run all the standard recovery tests first
+	tc.ComponentTestCtx.ValidateAllDeletionRecovery(t)
+
+	// Add Dashboard-specific recovery test
+	t.Run("Route deletion recovery", func(t *testing.T) {
+		tc.ValidateResourceDeletionRecovery(t, gvk.Route)
+	})
 }
 
 // todo: remove this when CRD is not included
