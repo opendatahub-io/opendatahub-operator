@@ -183,7 +183,7 @@ var (
 		Kind:    "OdhDocument",
 	}
 
-	AcceleratorProfile = schema.GroupVersionKind{
+	DashboardAcceleratorProfile = schema.GroupVersionKind{
 		Group:   "dashboard.opendatahub.io",
 		Version: "v1",
 		Kind:    "AcceleratorProfile",
@@ -487,5 +487,17 @@ var (
 		Group:   "monitoring.rhobs",
 		Version: "v1",
 		Kind:    "PrometheusRule",
+	}
+
+	ValidatingAdmissionPolicy = schema.GroupVersionKind{
+		Group:   "admissionregistration.k8s.io",
+		Version: "v1",
+		Kind:    "ValidatingAdmissionPolicy",
+	}
+
+	ValidatingAdmissionPolicyBinding = schema.GroupVersionKind{
+		Group:   "admissionregistration.k8s.io",
+		Version: "v1",
+		Kind:    "ValidatingAdmissionPolicyBinding",
 	}
 )
