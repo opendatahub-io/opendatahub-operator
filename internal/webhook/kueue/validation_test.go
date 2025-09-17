@@ -244,6 +244,20 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 				})
 			},
 		},
+		{
+			name: "LLMInferenceService",
+			gvk:  gvk.LLMInferenceServiceV1Alpha1,
+			resource: metav1.GroupVersionResource{
+				Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+				Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+				Resource: "llminferenceservices",
+			},
+			objFunc: func() client.Object {
+				return envtestutil.NewNotebook("test-llmisvc", testNamespace, func(obj client.Object) {
+					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
+				})
+			},
+		},
 	}
 
 	for _, tc := range testCases {

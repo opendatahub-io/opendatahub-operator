@@ -157,7 +157,7 @@ webhooks:
       namespace: system
       path: /validate-kueue
   failurePolicy: Fail
-  name: kserve-kueuelabels-validator.opendatahub.io
+  name: kserve-isvc-kueuelabels-validator.opendatahub.io
   rules:
   - apiGroups:
     - serving.kserve.io
@@ -168,6 +168,26 @@ webhooks:
     - UPDATE
     resources:
     - inferenceservices
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-kueue
+  failurePolicy: Fail
+  name: kserve-llmisvc-kueuelabels-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - serving.kserve.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - llminferenceservices
   sideEffects: None
 - admissionReviewVersions:
   - v1
