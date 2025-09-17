@@ -305,7 +305,6 @@ func (tc *DSCTestCtx) ValidateVAPCreationAfterDSCI(t *testing.T) {
 	tc.EnsureResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
-		WithCondition(Succeed()),
 		WithCustomErrorMsg("Failed to enable Dashboard for VAP test"),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 	)
