@@ -13,7 +13,6 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/dependent"
@@ -49,14 +48,14 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		Owns(&corev1.ConfigMap{}).
 		// monitoring-related resources
 		OwnsGVK(gvk.PodMonitorServiceMesh,
-			reconciler.Dynamic(actions.IfGVKInstalled(gvk.PodMonitorServiceMesh))).
+			reconciler.Dynamic(reconciler.CrdExists(gvk.PodMonitorServiceMesh))).
 		OwnsGVK(gvk.ServiceMonitorServiceMesh,
-			reconciler.Dynamic(actions.IfGVKInstalled(gvk.ServiceMonitorServiceMesh))).
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMonitorServiceMesh))).
 		// authorino-related resources
 		OwnsGVK(gvk.ServiceMeshMember,
-			reconciler.Dynamic(actions.IfGVKInstalled(gvk.ServiceMeshMember))).
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMeshMember))).
 		OwnsGVK(gvk.Authorino,
-			reconciler.Dynamic(actions.IfGVKInstalled(gvk.Authorino)),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.Authorino)),
 			reconciler.WithPredicates(dependent.Predicate{
 				WatchDelete: true,
 				WatchUpdate: true,
@@ -64,7 +63,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			})).
 		// watch for SMCP readiness
 		WatchesGVK(gvk.ServiceMeshControlPlane,
-			reconciler.Dynamic(actions.IfGVKInstalled(gvk.ServiceMeshControlPlane)),
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMeshControlPlane)),
 			reconciler.WithPredicates(NewSMCPReadyPredicate()),
 		).
 		WithAction(checkPreconditions).
