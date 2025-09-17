@@ -12,6 +12,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -20,6 +21,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -56,6 +58,8 @@ const (
 	tempoOpNamespace             = "openshift-tempo-operator"                 // Namespace for the Tempo Operator
 	opentelemetryOpName          = "opentelemetry-product"                    // Name of the OpenTelemetry Operator
 	opentelemetryOpNamespace     = "openshift-opentelemetry-operator"         // Namespace for the OpenTelemetry Operator
+	controllerDeploymentODH      = "opendatahub-operator-controller-manager"  // Name of the ODH deployment
+	controllerDeploymentRhoai    = "rhods-operator"                           // Name of the Rhoai deployment
 )
 
 // Configuration and Miscellaneous Constants.
@@ -90,10 +94,10 @@ func RunTestCases(t *testing.T, testCases []TestCase, opts ...TestCaseOpts) {
 	// Apply all provided options (e.g., parallel execution) to each test case.
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			// Set up panic handler for each test case
+			// Set up panic handler for each individual test (must be first defer)
 			defer HandleGlobalPanic()
 
-			// Check for test failure and run diagnostics
+			// Check for test failure and run diagnostics (only for failures, not panics)
 			defer func() {
 				if t.Failed() {
 					HandleTestFailure(testCase.name)
@@ -314,4 +318,30 @@ func ParseTestFlags() error {
 		}
 	}
 	return flag.CommandLine.Parse(testFlags)
+}
+
+// getOperatorSelector returns selector based on platform.
+func (tc *TestContext) getOperatorPodSelector() labels.Selector {
+	platform := tc.FetchPlatformRelease()
+	switch platform {
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+		return labels.SelectorFromSet(labels.Set{"name": "rhods-operator"})
+	case cluster.OpenDataHub:
+		return labels.SelectorFromSet(labels.Set{"control-plane": "controller-manager"})
+	default:
+		return labels.SelectorFromSet(labels.Set{"control-plane": "controller-manager"})
+	}
+}
+
+// getControllerDeploymentName returns deployment name based on platform.
+func (tc *TestContext) getControllerDeploymentName() string {
+	platform := tc.FetchPlatformRelease()
+	switch platform {
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+		return controllerDeploymentRhoai
+	case cluster.OpenDataHub:
+		return controllerDeploymentODH
+	default:
+		return controllerDeploymentODH
+	}
 }
