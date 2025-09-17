@@ -42,7 +42,8 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
-		{"Validate hardware profile reconcilliation", componentCtx.ValidateHardwareProfileReconciliation},
+		{"Validate hardware profile creation blocked by VAP", componentCtx.ValidateHardwareProfileCreationBlockedByVAP},
+		{"Validate accelerator profile creation blocked by VAP", componentCtx.ValidateAcceleratorProfileCreationBlockedByVAP},
 		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
 		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
 		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
@@ -99,8 +100,8 @@ func (tc *DashboardTestCtx) ValidateCRDReinstated(t *testing.T) {
 	t.Helper()
 
 	crds := []CRD{
-		{Name: "acceleratorprofiles.dashboard.opendatahub.io", Version: ""},
-		{Name: "hardwareprofiles.dashboard.opendatahub.io", Version: ""},
+		{Name: "acceleratorprofiles.dashboard.opendatahub.io", Version: ""}, // todo: remove this when CRD is not included
+		{Name: "hardwareprofiles.dashboard.opendatahub.io", Version: ""},    // todo: remove this when CRD is not included
 		{Name: "odhapplications.dashboard.opendatahub.io", Version: ""},
 		{Name: "odhdocuments.dashboard.opendatahub.io", Version: ""},
 	}
@@ -108,79 +109,41 @@ func (tc *DashboardTestCtx) ValidateCRDReinstated(t *testing.T) {
 	tc.ValidateCRDsReinstated(t, crds)
 }
 
-func (tc *DashboardTestCtx) ValidateHardwareProfileReconciliation(t *testing.T) {
+// todo: remove this when CRD is not included
+func (tc *DashboardTestCtx) ValidateHardwareProfileCreationBlockedByVAP(t *testing.T) {
 	t.Helper()
 
 	testHWPName := "test-hwp-" + xid.New().String()
+	// Create the HardwareProfile object
+	// not use EventuallyResourceCreatedOrUpdated to skip timeout and should expect failure
+	hwProfile := &unstructured.Unstructured{}
+	hwProfile.SetGroupVersionKind(gvk.DashboardHardwareProfile)
+	hwProfile.SetName(testHWPName)
+	hwProfile.SetNamespace(tc.AppsNamespace)
+	hwProfile.Object["spec"] = map[string]interface{}{
+		"displayName": "Test HardwareProfile",
+		"enabled":     true,
+	}
 
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DashboardHardwareProfile, types.NamespacedName{Name: testHWPName, Namespace: tc.AppsNamespace}),
-		WithMutateFunc(
-			func(obj *unstructured.Unstructured) error {
-				spec := map[string]any{
-					"displayName": "Test Hardware Profile",
-					"enabled":     true,
-					"description": "Test hardware profile for e2e testing",
-					"nodeSelector": map[string]any{
-						"kubernetes.io/arch": "amd64",
-					},
-					"tolerations": []any{
-						map[string]any{
-							"key":      "test-key",
-							"operator": "Equal",
-							"value":    "test-value",
-							"effect":   "NoSchedule",
-						},
-					},
-				}
-				if err := unstructured.SetNestedMap(obj.Object, spec, "spec"); err != nil {
-					return err
-				}
-				return nil
-			},
-		),
-	)
+	err := tc.Client().Create(tc.Context(), hwProfile)
+	tc.g.Expect(err).To(HaveOccurred(), "Expected HardwareProfile creation to be blocked by VAP")
+}
 
-	tc.EnsureResourcesExist(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: testHWPName, Namespace: tc.AppsNamespace}),
-		WithCondition(
-			ContainElement(
-				And(
-					jq.Match(`.metadata.name == "%s"`, testHWPName),
-					jq.Match(`.metadata.annotations."opendatahub.io/migrated-from" == "hardwareprofiles.dashboard.opendatahub.io/%s"`, testHWPName),
-					jq.Match(`.metadata.annotations."opendatahub.io/display-name" == "Test Hardware Profile"`),
-					jq.Match(`.metadata.annotations."opendatahub.io/description" == "Test hardware profile for e2e testing"`),
-					jq.Match(`.metadata.annotations."opendatahub.io/disabled" == "false"`),
-					jq.Match(`.spec.scheduling.node.nodeSelector."kubernetes.io/arch" == "amd64"`),
-					jq.Match(`.spec.scheduling.node.tolerations[0].key == "test-key"`),
-				),
-			),
-		),
-	)
+// todo: remove this when CRD is not included
+func (tc *DashboardTestCtx) ValidateAcceleratorProfileCreationBlockedByVAP(t *testing.T) {
+	t.Helper()
 
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DashboardHardwareProfile, types.NamespacedName{Name: testHWPName, Namespace: tc.AppsNamespace}),
-		WithMutateFunc(
-			func(obj *unstructured.Unstructured) error {
-				resources.SetAnnotation(obj, "test-annotation", "test-value")
-				resources.SetAnnotation(obj, "another-test-annotation", "another-test-value")
-				return nil
-			},
-		),
-	)
+	testAPName := "test-ap-" + xid.New().String()
+	apProfile := &unstructured.Unstructured{}
+	apProfile.SetGroupVersionKind(gvk.DashboardAcceleratorProfile)
+	apProfile.SetName(testAPName)
+	apProfile.SetNamespace(tc.AppsNamespace)
+	apProfile.Object["spec"] = map[string]interface{}{
+		"displayName": "Test AcceleratorProfile",
+		"enabled":     true,
+		"identifier":  "nvidia.com/gpu",
+	}
 
-	tc.EnsureResourcesExist(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: testHWPName, Namespace: tc.AppsNamespace}),
-		WithCondition(
-			ContainElement(
-				And(
-					jq.Match(`.metadata.name == "%s"`, testHWPName),
-					jq.Match(`.metadata.annotations."test-annotation" == "test-value"`),
-					jq.Match(`.metadata.annotations."another-test-annotation" == "another-test-value"`),
-					jq.Match(`.metadata.annotations."opendatahub.io/migrated-from" == "hardwareprofiles.dashboard.opendatahub.io/%s"`, testHWPName),
-					jq.Match(`.metadata.annotations."opendatahub.io/display-name" == "Test Hardware Profile"`),
-				),
-			),
-		),
-	)
+	err := tc.Client().Create(tc.Context(), apProfile)
+	tc.g.Expect(err).To(HaveOccurred(), "Expected AcceleratorProfile creation to be blocked by VAP")
 }
