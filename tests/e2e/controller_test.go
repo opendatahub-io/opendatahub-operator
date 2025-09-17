@@ -237,6 +237,9 @@ func handleCleanup(t *testing.T) {
 
 // TestOdhOperator sets up the testing suite for the Operator.
 func TestOdhOperator(t *testing.T) {
+	// Set up global panic handler for comprehensive debugging
+	defer HandleGlobalPanic()
+
 	registerSchemes()
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
@@ -285,8 +288,7 @@ func TestOdhOperator(t *testing.T) {
 		fmt.Println("Deletion Policy: Never. Skipping deletion tests.")
 
 	default:
-		fmt.Printf("Unknown deletion-policy: %s", testOpts.deletionPolicy)
-		os.Exit(1)
+		t.Fatalf("Unknown deletion-policy: %s", testOpts.deletionPolicy)
 	}
 }
 
@@ -429,7 +431,13 @@ func mustRun(t *testing.T, name string, testFunc func(t *testing.T)) {
 		return
 	}
 
-	if !t.Run(name, testFunc) {
+	if !t.Run(name, func(t *testing.T) {
+		// Set up panic handler for each test group
+		defer HandleGlobalPanic()
+		testFunc(t)
+	}) {
+		// Run diagnostics on test failure
+		HandleTestFailure(name)
 		t.Logf("Stopping: %s test failed.", name)
 		t.Fail()
 	}
