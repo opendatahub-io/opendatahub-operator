@@ -113,7 +113,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-09-10T11:04:20Z"
+    createdAt: "2025-09-17T15:11:41Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -1700,7 +1700,7 @@ spec:
   - llamastack
   links:
   - name: Red Hat OpenShift AI
-    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.25
+    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.23.0
   maintainers:
   - email: managed-open-data-hub@redhat.com
     name: Red Hat Openshift AI

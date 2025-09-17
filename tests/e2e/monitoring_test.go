@@ -632,6 +632,9 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(
 	dsci := tc.FetchDSCInitialization()
 	tempoStackName := getTempoStackName()
 
+	// Create dummy secret
+	tc.createDummySecret(backend, secretName, dsci.Spec.Monitoring.Namespace)
+
 	// Update DSCI to set traces with specified backend
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
@@ -647,9 +650,6 @@ func (tc *MonitoringTestCtx) validateTempoStackCreationWithBackend(
 		WithCondition(monitoringCondition),
 		WithCustomErrorMsg(monitoringErrorMsg),
 	)
-
-	// Create dummy secret
-	tc.createDummySecret(backend, secretName, dsci.Spec.Monitoring.Namespace)
 
 	// Ensure the TempoStack CR is created with specified backend
 	// (status conditions are set by external tempo operator)
