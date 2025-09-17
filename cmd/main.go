@@ -431,20 +431,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		}
 	}
 
-	// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
-	var patchODCFunc manager.RunnableFunc = func(ctx context.Context) error {
-		if err := upgrade.PatchOdhDashboardConfig(ctx, setupClient, oldReleaseVersion, release); err != nil {
-			setupLog.Error(err, "Unable to patch the odhdashboardconfig")
-			return err
-		}
-		return nil
-	}
-
-	err = mgr.Add(patchODCFunc)
-	if err != nil {
-		setupLog.Error(err, "Error patching odhdashboardconfig")
-	}
-
 	// Cleanup resources from previous v2 releases
 	var cleanExistingResourceFunc manager.RunnableFunc = func(ctx context.Context) error {
 		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, oldReleaseVersion); err != nil {
