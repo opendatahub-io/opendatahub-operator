@@ -102,7 +102,7 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateCodeFlareSupportRemovalNotRemoveComponen
 
 	tc.triggerDSCReconciliation(t, "modelregistry", operatorv1.Managed)
 
-	tc.EnsureResourceExists(
+	tc.EnsureResourceExistsConsistently(
 		WithMinimalObject(gvk.CodeFlare, nn),
 		WithCustomErrorMsg("CodeFlare component resource '%s' was expected to exist but was not found", defaultCodeFlareComponentName),
 	)
