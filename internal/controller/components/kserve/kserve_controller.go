@@ -131,6 +131,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(releases.NewAction()).
+		WithAction(checkConfigurationOptimality).
 		WithAction(addTemplateFiles).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),

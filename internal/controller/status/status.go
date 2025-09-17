@@ -194,6 +194,14 @@ const (
 	OpenTelemetryCollectorOperatorMissingMessage = "OpenTelemetryCollector operator must be installed for OpenTelemetry configuration"
 )
 
+const (
+	ConditionConfigurationOptimal        = "ConfigurationOptimal"
+	ConfigurationOptimalReason           = "ConfigurationOptimal"
+	ConfigurationOptimalMessage          = "No configuration issues identified"
+	ConfigurationSubOptimalReason        = "ConfigurationSubOptimal"
+	KServeConfigurationSubOptimalMessage = "Serving is Managed, but defaultDeploymentMode is 'RawDeployment'. Consider switching defaultDeploymentMode to 'Serverless' or setting Serving to Unmanaged to optimize resource usage."
+)
+
 // setConditions is a helper function to set multiple conditions at once.
 func setConditions(wrapper *conditionsWrapper, conditions []common.Condition) {
 	for _, c := range conditions {
