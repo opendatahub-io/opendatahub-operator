@@ -32,6 +32,7 @@ declare -A PLATFORM_MANIFESTS=(
     ["osd-configs"]="config/osd-configs"
     ["monitoring"]="config/monitoring"
     ["kueue-configs"]="config/kueue-configs"
+    ["hardwareprofiles"]="config/hardwareprofiles"
 )
 
 # Allow overwriting repo using flags component=repo
