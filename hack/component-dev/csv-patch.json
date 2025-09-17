@@ -1,0 +1,35 @@
+[
+  {
+    "op": "add",
+    "path": "/spec/install/spec/deployments/0/spec/replicas",
+    "value": 1
+  },
+  {
+    "op": "add",
+    "path": "/spec/install/spec/deployments/0/spec/strategy",
+    "value": { "type": "Recreate" }
+  },
+  {
+    "op": "add",
+    "path": "/spec/install/spec/deployments/0/spec/template/spec/securityContext/fsGroup",
+    "value": 1001
+  },
+  {
+    "op": "add",
+    "path": "/spec/install/spec/deployments/0/spec/template/spec/containers/0/volumeMounts/-",
+    "value": {
+      "name": "dashboard-manifests",
+      "mountPath": "/opt/manifests/dashboard"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/spec/install/spec/deployments/0/spec/template/spec/volumes/-",
+    "value": {
+      "name": "dashboard-manifests",
+      "persistentVolumeClaim": {
+        "claimName": "my-component-manifests"
+      }
+    }
+  }
+]
