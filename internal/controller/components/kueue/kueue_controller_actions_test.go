@@ -316,7 +316,7 @@ func TestInitializeAction_Managed(t *testing.T) {
 
 	err = initialize(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(rr.Manifests).Should(ConsistOf(manifestsPath(), kueueConfigManifestsPath()))
+	g.Expect(rr.Manifests).Should(ConsistOf(manifestsPath()))
 }
 
 func TestInitializeAction_Unmanaged(t *testing.T) {
@@ -342,7 +342,7 @@ func TestInitializeAction_Unmanaged(t *testing.T) {
 
 	err = initialize(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(rr.Manifests).Should(ConsistOf(kueueConfigManifestsPath()))
+	g.Expect(rr.Manifests).Should(BeEmpty())
 }
 
 func TestManageKueueAdminRoleBinding_AuthCRNotFound(t *testing.T) {

@@ -27,10 +27,6 @@ COPY config/monitoring/ /opt/manifests/monitoring
 # Copy ods-configs removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/osd-configs
 COPY config/osd-configs/ /opt/manifests/osd-configs
-# Copy kueue-configs removing any possibly pre-existing symlinks
-# TODO: remove this once kueue is removed
-RUN rm -f /opt/manifests/kueue-configs
-COPY config/kueue-configs/ /opt/manifests/kueue-configs
 # Copy hardwareprofiles removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/hardwareprofiles
 COPY config/hardwareprofiles/ /opt/manifests/hardwareprofiles

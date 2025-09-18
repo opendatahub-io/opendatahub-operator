@@ -74,7 +74,6 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if kueueCRInstance.Spec.ManagementState == operatorv1.Managed {
 		rr.Manifests = append(rr.Manifests, manifestsPath())
 	}
-	rr.Manifests = append(rr.Manifests, kueueConfigManifestsPath())
 
 	return nil
 }
