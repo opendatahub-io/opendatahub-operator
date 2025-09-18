@@ -230,8 +230,15 @@ func (i *Injector) performHardwareProfileInjection(ctx context.Context, req *adm
 	// Get the hardware profile
 	hwp, err := i.fetchHardwareProfile(ctx, profileNamespace, profileName)
 	if err != nil {
-		log.Error(err, "Failed to get hardware profile", "profile", profileName, "namespace", profileNamespace)
-		return admission.Errored(http.StatusForbidden, err)
+		if k8serr.IsNotFound(err) {
+			log.V(1).Info("Hardware profile not found", "profile", profileName, "namespace", profileNamespace, "request", req.Name)
+			userErr := fmt.Errorf("hardware profile '%s' not found in namespace '%s'", profileName, profileNamespace)
+			return admission.Errored(http.StatusBadRequest, userErr)
+		} else {
+			log.Error(err, "Failed to get hardware profile", "profile", profileName, "namespace", profileNamespace)
+			userErr := fmt.Errorf("failed to get hardware profile '%s' from namespace '%s': %w", profileName, profileNamespace, err)
+			return admission.Errored(http.StatusInternalServerError, userErr)
+		}
 	}
 
 	// Early exit if hardware profile has no meaningful configuration
@@ -285,10 +292,7 @@ func (i *Injector) fetchHardwareProfile(ctx context.Context, namespace, name str
 	key := types.NamespacedName{Name: name, Namespace: namespace}
 
 	if err := i.Client.Get(ctx, key, hwp); err != nil {
-		if k8serr.IsNotFound(err) {
-			return nil, fmt.Errorf("failed to get hardware profile '%s' in namespace '%s': %w", name, namespace, err)
-		}
-		return nil, fmt.Errorf("failed to get hardware profile '%s': %w", name, err)
+		return nil, err
 	}
 
 	return hwp, nil

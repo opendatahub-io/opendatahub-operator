@@ -196,7 +196,7 @@ func TestHardwareProfile_DeniesWhenProfileNotFound(t *testing.T) {
 
 	resp := injector.Handle(ctx, req)
 	g.Expect(resp.Allowed).Should(BeFalse())
-	g.Expect(resp.Result.Message).Should(ContainSubstring("failed to get hardware profile 'nonexistent'"))
+	g.Expect(resp.Result.Message).Should(ContainSubstring("hardware profile 'nonexistent' not found"))
 }
 
 // TestHardwareProfile_ResourceInjection_Notebook tests that hardware profiles with resource requirements are applied correctly to Notebook workloads.
@@ -880,7 +880,7 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 			injector:      createWebhookInjector(fake.NewClientBuilder().WithScheme(sch).Build(), sch),
 			workload:      envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile("non-existent")),
 			expectAllowed: false,
-			expectMessage: "failed to get hardware profile 'non-existent'",
+			expectMessage: "hardware profile 'non-existent' not found",
 		},
 		{
 			name: "empty hardware profile configuration",
