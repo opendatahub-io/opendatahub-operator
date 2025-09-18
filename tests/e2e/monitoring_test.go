@@ -149,7 +149,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *te
 		WithCondition(And(
 			// Validate storage size is set to 5Gi
 			jq.Match(`.spec.prometheusConfig.persistentVolumeClaim.resources.requests.storage == "%s"`, "5Gi"),
-			// Validate storage retention is set to 1d
+			// Validate storage retention is set to 90d
 			jq.Match(`.spec.retention == "%s"`, "90d"),
 			// Validate CPU request is set to 250m
 			jq.Match(`.spec.resources.requests.cpu == "%s"`, "250m"),
