@@ -15,6 +15,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/resourcecacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	templateutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/template"
 )
 
 const (
@@ -126,12 +127,10 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (r
 	var buffer bytes.Buffer
 
 	for i := range rr.Templates {
-		tmpl, err := gt.ParseFS(rr.Templates[i].FS, rr.Templates[i].Path)
+		tmpl, err := gt.New("").Option("missingkey=error").Funcs(templateutils.TextTemplateFuncMap()).ParseFS(rr.Templates[i].FS, rr.Templates[i].Path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse template from: %w", err)
 		}
-
-		tmpl = tmpl.Option("missingkey=error")
 
 		for _, t := range tmpl.Templates() {
 			buffer.Reset()
