@@ -9,6 +9,7 @@ import (
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
@@ -33,6 +34,10 @@ const (
 	AuthModeNone            AuthMode = "None"
 )
 
+const (
+	AuthClientID = "odh"
+)
+
 func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createAuthProxy")
 
@@ -41,14 +46,14 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return errors.New("instance is not of type *services.GatewayConfig")
 	}
 
-	l.V(1).Info("Creating auth proxy for gateway", "gateway", gatewayConfig.Name)
+	l.V(1).Info("creating auth proxy for gateway", "gateway", gatewayConfig.Name)
 
 	authMode, err := detectClusterAuthMode(ctx, rr)
 	if err != nil {
 		return fmt.Errorf("failed to detect cluster authentication mode: %w", err)
 	}
 
-	l.V(1).Info("Detected cluster authentication mode", "mode", authMode)
+	l.V(1).Info("detected cluster authentication mode", "mode", authMode)
 
 	if errorCondition := validateOIDCConfig(authMode, gatewayConfig.Spec.OIDC); errorCondition != nil {
 		gatewayConfig.SetConditions([]common.Condition{*errorCondition})
@@ -71,7 +76,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		Reason: status.NotReadyReason,
 	}
 
-	// Generate client secret once for both kube-auth-proxy and OAuth client
+	// generate client secret once for both kube-auth-proxy and OAuth client
 	var clientSecret string
 	if authMode == AuthModeIntegratedOAuth {
 		clientSecretGen, err := secretgenerator.NewSecret("client-secret", "random", 24)
@@ -126,7 +131,7 @@ func detectClusterAuthMode(ctx context.Context, rr *odhtypes.ReconciliationReque
 	case "OIDC":
 		return AuthModeOIDC, nil
 	case "IntegratedOAuth", "":
-		// Empty string is equivalent to IntegratedOAuth (default)
+		// empty string is equivalent to IntegratedOAuth (default)
 		return AuthModeIntegratedOAuth, nil
 	case "None":
 		return AuthModeNone, nil
@@ -163,15 +168,38 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	l := logf.FromContext(ctx).WithName("deployAuthProxy")
 
 	if oidcConfig != nil {
-		l.V(1).Info("Configuring kube-auth-proxy for external OIDC",
+		l.V(1).Info("configuring kube-auth-proxy for external OIDC",
 			"issuerURL", oidcConfig.IssuerURL,
 			"clientID", oidcConfig.ClientID,
 			"secretRef", oidcConfig.ClientSecretRef.Name)
 	} else {
-		l.V(1).Info("Configuring kube-auth-proxy for OpenShift OAuth")
+		l.V(1).Info("configuring kube-auth-proxy for OpenShift OAuth")
 	}
 
-	err := createKubeAuthProxySecret(rr, clientSecret)
+	err := createKubeAuthProxySecret(ctx, rr, clientSecret, oidcConfig)
+	if err != nil {
+		return err
+	}
+
+	secret := &corev1.Secret{}
+	err = rr.Client.Get(ctx, types.NamespacedName{
+		Name:      "kube-auth-proxy-creds",
+		Namespace: gatewayNamespace,
+	}, secret)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			// secret not ready yet - trying next reconciliation
+			l.V(1).Info("kube-auth-proxy secret not found, creating secret", "secret", "kube-auth-proxy-creds")
+			return nil
+		}
+		// log but continue - secret might still be getting created
+		l.V(1).Info("unable to verify kube-auth-proxy secret status, creating secret", "error", err, "secret", "kube-auth-proxy-creds")
+		return nil
+	}
+
+	l.V(1).Info("secret is ready, proceeding with dependent resources", "secret", "kube-auth-proxy-creds")
+
+	err = createKubeAuthProxyService(rr)
 	if err != nil {
 		return err
 	}
@@ -181,18 +209,41 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return err
 	}
 
-	err = createKubeAuthProxyService(rr)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func createKubeAuthProxySecret(rr *odhtypes.ReconciliationRequest, clientSecret string) error {
+func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clientSecret string, oidcConfig *serviceApi.OIDCConfig) error {
 	cookieSecretGen, err := secretgenerator.NewSecret("cookie-secret", "random", 32)
 	if err != nil {
 		return fmt.Errorf("failed to generate cookie secret: %w", err)
+	}
+
+	clientId := AuthClientID
+	clientSecretValue := clientSecret
+
+	if oidcConfig != nil {
+		clientId = oidcConfig.ClientID
+
+		secret := &corev1.Secret{}
+		err := rr.Client.Get(ctx, types.NamespacedName{
+			Name:      oidcConfig.ClientSecretRef.Name,
+			Namespace: gatewayNamespace,
+		}, secret)
+		if err != nil {
+			return fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
+				gatewayNamespace, oidcConfig.ClientSecretRef.Name, err)
+		}
+
+		key := oidcConfig.ClientSecretRef.Key
+		if key == "" {
+			key = "clientSecret"
+		}
+		if secretValue, exists := secret.Data[key]; exists {
+			clientSecretValue = string(secretValue)
+		} else {
+			return fmt.Errorf("key '%s' not found in secret %s/%s",
+				key, gatewayNamespace, oidcConfig.ClientSecretRef.Name)
+		}
 	}
 
 	secret := &corev1.Secret{
@@ -205,8 +256,8 @@ func createKubeAuthProxySecret(rr *odhtypes.ReconciliationRequest, clientSecret 
 		},
 		Type: corev1.SecretTypeOpaque,
 		StringData: map[string]string{
-			"OAUTH2_PROXY_CLIENT_ID":     "odh",
-			"OAUTH2_PROXY_CLIENT_SECRET": clientSecret,
+			"OAUTH2_PROXY_CLIENT_ID":     clientId,
+			"OAUTH2_PROXY_CLIENT_SECRET": clientSecretValue,
 			"OAUTH2_PROXY_COOKIE_SECRET": cookieSecretGen.Value,
 		},
 	}
@@ -238,7 +289,8 @@ func createKubeAuthProxyDeployment(ctx context.Context, rr *odhtypes.Reconciliat
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:  "oauth2-proxy",
+							Name: "kube-auth-proxy",
+							// TODO: replace with conflux kube auth proxy image
 							Image: "quay.io/jtanner/kube-auth-proxy@sha256:434580fd42d73727d62566ff6d8336219a31b322798b48096ed167daaec42f07",
 							Ports: []corev1.ContainerPort{
 								{
@@ -406,7 +458,7 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 
 	oauthClient := &oauthv1.OAuthClient{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "odh",
+			Name: AuthClientID,
 		},
 		GrantMethod:  oauthv1.GrantHandlerAuto,
 		RedirectURIs: []string{redirectURL},
