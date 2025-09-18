@@ -42,7 +42,7 @@ type ResourceOptions struct {
 
 	// ClientDeleteOptions defines the behavior of resource deletion.
 	// This field holds the options that control how a resource should be deleted (e.g., cascading deletion
-	// policy, grace period for deletion). It is used when calling Kubernetes client methods for resource
+	// policy). It is used when calling Kubernetes client methods for resource
 	// deletion. Deletion behavior such as the propagation policy (Foreground, Background, or Orphan) can
 	// be set via these options. It allows fine-grained control over how the resource is removed from the cluster.
 	ClientDeleteOptions *client.DeleteOptions
@@ -61,9 +61,9 @@ type ResourceOptions struct {
 	// detailed error messages when operations fail.
 	CustomErrorArgs []any
 
-	// ExpectedErr is the error expected during resource retrieval or manipulation (e.g., when resource is not found).
-	// This allows users to specify what error they expect during certain operations (e.g., expecting a "not found" error).
-	ExpectedErr error
+	// AcceptableErrMatcher is a Gomega matcher for error validation during resource operations.
+	// Use WithAcceptableErr() to set this - it creates the appropriate MatchError matcher.
+	AcceptableErrMatcher gTypes.GomegaMatcher
 
 	// GroupVersionKind and NamespacedName of the resource.
 	// These fields define the type (GVK) and identifier (NN) for the resource. GVK is used to specify the
@@ -84,9 +84,18 @@ type ResourceOptions struct {
 	// If true, the DeleteResource function will block until the resource is confirmed to be gone.
 	WaitForDeletion bool
 
-	// GracePeriod specifies a waiting period before starting resource existence checks.
-	// This helps avoid race conditions where controllers need time to process deletion events.
-	GracePeriod time.Duration
+	// WaitForRecreation determines whether to wait for the resource to be recreated after deletion.
+	// This helps handle controllers that immediately recreate resources after deletion.
+	WaitForRecreation bool
+
+	// RemoveFinalizersOnDelete determines whether to automatically remove finalizers before deletion.
+	// If true, DeleteResource will attempt to remove all finalizers if deletion is blocked.
+	// This helps with resources that get stuck in deletion due to finalizers.
+	RemoveFinalizersOnDelete bool
+
+	// DeleteAllOfOptions defines the behavior of bulk resource deletion using DeleteAllOf.
+	// This field holds the options that control how multiple resources should be deleted in bulk operations.
+	DeleteAllOfOptions []client.DeleteAllOfOption
 
 	// Webhook validation fields for testing
 	// InvalidValue holds the description of the invalid value being tested in webhook validation
@@ -178,7 +187,7 @@ func WithIgnoreNotFound(ignore bool) ResourceOpts {
 }
 
 // WithClientDeleteOptions creates a ResourceOpts function that sets the ClientDeleteOptions field
-// of the ResourceOptions. This will be used to configure the deletion behavior (e.g., propagation policy, grace period).
+// of the ResourceOptions. This will be used to configure the deletion behavior (e.g., propagation policy).
 func WithClientDeleteOptions(deleteOptions *client.DeleteOptions) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.ClientDeleteOptions = deleteOptions
@@ -193,11 +202,21 @@ func WithWaitForDeletion(wait bool) ResourceOpts {
 	}
 }
 
-// WithGracePeriod adds a grace period before starting to check for resource existence.
-// This helps avoid race conditions where controllers need time to process deletion events.
-func WithGracePeriod(duration time.Duration) ResourceOpts {
+// WithWaitForRecreation sets the WaitForRecreation flag.
+// When enabled, DeleteResource will wait for the resource to be recreated after deletion,
+// handling controllers that immediately recreate managed resources.
+func WithWaitForRecreation(wait bool) ResourceOpts {
 	return func(ro *ResourceOptions) {
-		ro.GracePeriod = duration
+		ro.WaitForRecreation = wait
+	}
+}
+
+// WithRemoveFinalizersOnDelete enables automatic finalizer removal before deletion.
+// When enabled, DeleteResource will attempt to remove all finalizers if deletion is blocked.
+// This helps with resources that get stuck in deletion due to finalizers.
+func WithRemoveFinalizersOnDelete(remove bool) ResourceOpts {
+	return func(ro *ResourceOptions) {
+		ro.RemoveFinalizersOnDelete = remove
 	}
 }
 
@@ -212,17 +231,31 @@ func WithMutateFunc(fn func(obj *unstructured.Unstructured) error) ResourceOpts 
 // WithCondition creates a ResourceOpts function that sets a custom Gomega matcher condition (e.g., Expect(Succeed())).
 // This condition is used for verifying whether the resource operation has succeeded or failed, and can be used to
 // customize the expected behavior of the resource handling function.
+//
+// Important: Calling WithCondition multiple times overrides any previously set condition.
+// Only the last WithCondition call is used when verifying the resource.
+//
+// If you need to check multiple conditions, combine them explicitly using
+// gomega.And(...) or gomega.Or(...), depending on the desired behavior.
 func WithCondition(condition gTypes.GomegaMatcher) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.Condition = condition
 	}
 }
 
-// WithExpectedErr creates a ResourceOpts function that sets the ExpectedErr field in ResourceOptions.
-// This allows specifying an error that should be encountered during resource retrieval or manipulation.
-func WithExpectedErr(expectedErr error) func(*ResourceOptions) {
+// WithAcceptableErr creates a ResourceOpts function that sets the AcceptableErr field in ResourceOptions.
+// This allows the test to accept a specific error as successful completion rather than failure.
+// When the specified error occurs, it's validated and the test continues successfully.
+// Works exactly like MatchError() - accepts the same parameters.
+// Examples:
+//
+//	WithAcceptableErr("error message")                   // String matching
+//	WithAcceptableErr(someError)                         // Error instance matching
+//	WithAcceptableErr(k8serr.IsInvalid, "IsInvalid")     // Function matching
+//	WithAcceptableErr(ContainSubstring("not found"))     // Matcher
+func WithAcceptableErr(expected any, functionErrorDescription ...any) func(*ResourceOptions) {
 	return func(ro *ResourceOptions) {
-		ro.ExpectedErr = expectedErr
+		ro.AcceptableErrMatcher = MatchError(expected, functionErrorDescription...)
 	}
 }
 
@@ -276,5 +309,22 @@ func WithInvalidValue(description string) ResourceOpts {
 func WithFieldName(fieldName string) ResourceOpts {
 	return func(ro *ResourceOptions) {
 		ro.FieldName = fieldName
+	}
+}
+
+// WithDeleteAllOfOptions creates a ResourceOpts function that sets the DeleteAllOfOptions field
+// of the ResourceOptions. This will be used to configure the bulk deletion behavior.
+func WithDeleteAllOfOptions(deleteAllOfOptions ...client.DeleteAllOfOption) ResourceOpts {
+	return func(ro *ResourceOptions) {
+		ro.DeleteAllOfOptions = append(ro.DeleteAllOfOptions, deleteAllOfOptions...)
+	}
+}
+
+// WithNamespaceFilter is a convenience helper for the most common bulk deletion pattern.
+// It adds client.InNamespace to the DeleteAllOfOptions, enabling namespace-scoped bulk deletion.
+// Note: Do NOT set Namespace in WithMinimalObject for bulk operations, it will be ignored.
+func WithNamespaceFilter(namespace string) ResourceOpts {
+	return func(ro *ResourceOptions) {
+		ro.DeleteAllOfOptions = append(ro.DeleteAllOfOptions, client.InNamespace(namespace))
 	}
 }
