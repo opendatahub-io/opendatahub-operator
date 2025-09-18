@@ -74,14 +74,6 @@ func manifestsPath() odhtypes.ManifestInfo {
 	}
 }
 
-func kueueConfigManifestsPath() odhtypes.ManifestInfo {
-	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: "kueue-configs",
-		SourcePath: "",
-	}
-}
-
 func getManagedNamespaces(ctx context.Context, c client.Client) ([]corev1.Namespace, error) {
 	// Deduped namespaces, since some might have both labels.
 	var uniqueNamespaces = make(map[string]corev1.Namespace)
