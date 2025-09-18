@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -39,6 +40,16 @@ const (
 )
 
 var (
+	// Regex patterns for common secrets in logs.
+	authBearerPattern = regexp.MustCompile(`(?i)(Authorization:\s*Bearer\s+)[^\s]+`)
+	passwordPattern   = regexp.MustCompile(`(?i)(password[=:\s]+)[^\s&"']+`)
+	tokenPattern      = regexp.MustCompile(`(?i)(token[=:\s]+)[^\s&"']+`)
+	secretPattern     = regexp.MustCompile(`(?i)(secret[=:\s]+)[^\s&"']+`)
+	apiKeyPattern     = regexp.MustCompile(`(?i)(api[_-]?key[=:\s]+)[^\s&"']+`)
+	accessKeyPattern  = regexp.MustCompile(`(?i)(access[_-]?key[=:\s]+)[^\s&"']+`)
+)
+
+var (
 	globalDebugClient client.Client
 	debugClientOnce   sync.Once
 	debugMutex        sync.Mutex
@@ -55,6 +66,19 @@ func SetGlobalDebugClient(c client.Client) {
 	debugClientOnce.Do(func() {
 		globalDebugClient = c
 	})
+}
+
+// redactSensitiveInfo removes common secrets and tokens from log content.
+func redactSensitiveInfo(logContent string) string {
+	// Apply all redaction patterns
+	result := authBearerPattern.ReplaceAllString(logContent, "${1}[REDACTED]")
+	result = passwordPattern.ReplaceAllString(result, "${1}[REDACTED]")
+	result = tokenPattern.ReplaceAllString(result, "${1}[REDACTED]")
+	result = secretPattern.ReplaceAllString(result, "${1}[REDACTED]")
+	result = apiKeyPattern.ReplaceAllString(result, "${1}[REDACTED]")
+	result = accessKeyPattern.ReplaceAllString(result, "${1}[REDACTED]")
+
+	return result
 }
 
 // HandleGlobalPanic is a panic recovery handler that runs comprehensive
@@ -458,8 +482,11 @@ func getPodContainerLogs(podName, containerName, namespace, logType string) {
 		return
 	}
 
+	// Redact sensitive information before printing
+	redactedLogs := redactSensitiveInfo(logs)
+
 	// Print the last 10 lines of logs
-	logLines := strings.Split(strings.TrimSpace(logs), "\n")
+	logLines := strings.Split(strings.TrimSpace(redactedLogs), "\n")
 	maxLines := 10
 	startIdx := 0
 	if len(logLines) > maxLines {
