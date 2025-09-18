@@ -9,7 +9,6 @@ import (
 
 	"gomodules.xyz/jsonpatch/v2"
 	admissionv1 "k8s.io/api/admission/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,11 +31,16 @@ const (
 	testInferenceService = "glue-isvc"
 	testSecret           = "glue-secret"
 	OperationRemove      = "remove"
+	// ISVC paths.
 	serviceAccountPath   = "/spec/predictor/serviceAccountName"
 	storageUriPath       = "/spec/predictor/model/storageUri"
 	storagePath          = "/spec/predictor/model/storage"
 	storageKeyPath       = "/spec/predictor/model/storage/key"
 	imagePullSecretsPath = "/spec/predictor/imagePullSecrets" //nolint:gosec
+	// LLMISVC paths.
+	llmisvcServiceAccountPath   = "/spec/template/serviceAccountName"
+	llmisvcImagePullSecretsPath = "/spec/template/imagePullSecrets" //nolint:gosec
+	llmisvcModelUriPath         = "/spec/model/uri"
 )
 
 type TestCase struct {
@@ -81,24 +85,10 @@ func createLLMISVCWebhook(cli client.Client, reader client.Reader, sch *runtime.
 			Client:    cli,
 			APIReader: reader,
 			Decoder:   admission.NewDecoder(sch),
-			Name:      "glueisvc-test",
+			Name:      "gluellmisvc-test",
 		},
 	}
 	return webhook
-}
-
-func createTestSecret(name, namespace, connectionType string, data map[string][]byte) *corev1.Secret {
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Annotations: map[string]string{
-				annotations.ConnectionTypeRef: connectionType,
-			},
-		},
-		Data: data,
-	}
-	return secret
 }
 
 func createTestInferenceService(name, namespace string, annotations map[string]string, spec map[string]interface{}) (*unstructured.Unstructured, error) {
@@ -245,6 +235,9 @@ func runLLMISVCTestCase(t *testing.T, tc TestCase) {
 
 	var cli client.Client
 	var reader client.Reader
+	var objects []client.Object
+
+	// Create current secret if needed
 	if tc.secretType != "" {
 		// Extract secret name from annotations, default to testSecret if not specified
 		secretName := testSecret
@@ -255,11 +248,28 @@ func runLLMISVCTestCase(t *testing.T, tc TestCase) {
 		}
 
 		secret := createTestSecret(secretName, tc.secretNamespace, tc.secretType, tc.secretData)
-		cli = fake.NewClientBuilder().WithScheme(sch).WithObjects(secret).Build()
-		reader = fake.NewClientBuilder().WithScheme(sch).WithObjects(secret).Build()
+		objects = append(objects, secret)
+	}
+
+	// Create old secret if needed for UPDATE operations
+	if tc.operation == admissionv1.Update && tc.oldAnnotations != nil {
+		if oldSecretName, exists := tc.oldAnnotations[annotations.Connection]; exists {
+			// Use the specified old secret type, or default to URI if not specified
+			oldSecretType := tc.oldSecretType
+			if oldSecretType == "" {
+				oldSecretType = webhookutils.ConnectionTypeURI.String()
+			}
+			oldSecret := createTestSecret(oldSecretName, tc.secretNamespace, oldSecretType, map[string][]byte{})
+			objects = append(objects, oldSecret)
+		}
+	}
+
+	if len(objects) > 0 {
+		cli = fake.NewClientBuilder().WithScheme(sch).WithObjects(objects...).Build()
+		reader = fake.NewClientBuilder().WithScheme(sch).WithObjects(objects...).Build()
 	} else {
 		cli = fake.NewClientBuilder().WithScheme(sch).Build()
-		reader = fake.NewClientBuilder().WithScheme(sch).WithObjects().Build()
+		reader = fake.NewClientBuilder().WithScheme(sch).Build()
 	}
 
 	webhook := createLLMISVCWebhook(cli, reader, sch)
@@ -288,6 +298,21 @@ func runLLMISVCTestCase(t *testing.T, tc TestCase) {
 		},
 	}
 
+	// For UPDATE operations, set up the old object
+	if tc.operation == admissionv1.Update {
+		oldLLMISVC, err := createTestLLMInferenceService(testInferenceService, testNamespace, tc.oldAnnotations, tc.oldPredictorSpec)
+		if err != nil {
+			t.Fatalf("failed to create old LLMInferenceService: %v", err)
+		}
+		oldLLMISVCRaw, err := json.Marshal(oldLLMISVC)
+		if err != nil {
+			t.Fatalf("failed to marshal old LLMInferenceService: %v", err)
+		}
+		req.OldObject = runtime.RawExtension{
+			Raw: oldLLMISVCRaw,
+		}
+	}
+
 	resp := webhook.Handle(ctx, req)
 	g.Expect(resp.Allowed).To(Equal(tc.expectedAllowed))
 
@@ -297,153 +322,6 @@ func runLLMISVCTestCase(t *testing.T, tc TestCase) {
 
 	if tc.expectedPatchCheck != nil {
 		g.Expect(tc.expectedPatchCheck(resp.Patches)).To(BeTrue())
-	}
-}
-
-// oci-v1 - simple case for new injection without existing secrets.
-func hasImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch.JsonPatchOperation) bool {
-	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		for _, patch := range patches {
-			if patch.Path == imagePullSecretsPath {
-				// Should be a single secret in the array
-				if secretsList, ok := patch.Value.([]interface{}); ok && len(secretsList) == 1 {
-					if secretMap, ok := secretsList[0].(map[string]interface{}); ok {
-						if name, exists := secretMap["name"]; exists && name == expectedSecretName {
-							return true
-						}
-					}
-				}
-			}
-		}
-		return false
-	}
-}
-
-// uri-v1 for isvc.
-func hasStorageUriPatch(expectedUri string) func([]jsonpatch.JsonPatchOperation) bool {
-	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		for _, patch := range patches {
-			if patch.Path == storageUriPath {
-				if expectedUri == "" {
-					return true
-				}
-			}
-		}
-		return false
-	}
-}
-
-// uri-v1 for llvisvc.
-func hasUriPath(expectedUri string) func([]jsonpatch.JsonPatchOperation) bool {
-	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		for _, patch := range patches {
-			if patch.Path == "/spec/model/uri" {
-				return patch.Value == expectedUri
-			}
-		}
-		return false
-	}
-}
-
-// s3.
-func hasStorageKeyPatch(expectedStorageKey string) func([]jsonpatch.JsonPatchOperation) bool {
-	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		for _, patch := range patches {
-			if patch.Path == storageKeyPath {
-				if expectedStorageKey == "" {
-					return true
-				}
-				return patch.Value == expectedStorageKey
-			}
-			if patch.Path == storagePath {
-				if storageMap, ok := patch.Value.(map[string]interface{}); ok {
-					if key, hasKey := storageMap["key"]; hasKey {
-						if expectedStorageKey == "" {
-							return true
-						}
-						return key == expectedStorageKey
-					}
-				}
-			}
-		}
-		return false
-	}
-}
-
-// oci-v1.
-func hasImagePullSecretsCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
-	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		for _, patch := range patches {
-			if patch.Path == "/spec/predictor/imagePullSecrets/0" && patch.Operation == OperationRemove {
-				return true
-			}
-		}
-		return false
-	}
-}
-
-// uri-v1 for isvc.
-func hasStorageUriCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
-	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		for _, patch := range patches {
-			if patch.Path == storageUriPath && patch.Operation == OperationRemove {
-				return true
-			}
-		}
-		return false
-	}
-}
-
-// uri-v1 for llmisvc.
-func hasLLMISVCUriCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
-	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		for _, patch := range patches {
-			if patch.Path == "/spec/model/uri" && patch.Operation == OperationRemove {
-				return true
-			}
-		}
-		return false
-	}
-}
-
-// s3.
-func hasS3CleanupPatches() func([]jsonpatch.JsonPatchOperation) bool {
-	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		hasStorageCleanup := false
-		hasServiceAccountCleanup := false
-
-		for _, patch := range patches {
-			if patch.Path == storagePath && patch.Operation == OperationRemove {
-				hasStorageCleanup = true
-			}
-			if patch.Path == serviceAccountPath && patch.Operation == OperationRemove {
-				hasServiceAccountCleanup = true
-			}
-		}
-		return hasStorageCleanup && hasServiceAccountCleanup
-	}
-}
-
-func hasServiceAccountNamePatch() func([]jsonpatch.JsonPatchOperation) bool {
-	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		expectedSAName := testSecret + "-sa"
-		for _, patch := range patches {
-			if patch.Path == serviceAccountPath && patch.Value == expectedSAName {
-				return true
-			}
-		}
-		return false
-	}
-}
-
-func hasServiceAccountNameRemovePatch() func([]jsonpatch.JsonPatchOperation) bool {
-	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		for _, patch := range patches {
-			if patch.Path == serviceAccountPath && patch.Operation == OperationRemove {
-				return true
-			}
-		}
-		return false
 	}
 }
 
@@ -622,7 +500,7 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			predictorSpec:   map[string]interface{}{"model": map[string]interface{}{}},
 			operation:       admissionv1.Create,
 			expectedAllowed: false,
-			expectedMessage: "secret does not contain either 'https-host' or 'URI' data key",
+			expectedMessage: "failed to inject host to .spec.predictor.model.storageUri",
 		},
 		// type cases for update
 		{
@@ -654,7 +532,7 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			predictorSpec:   map[string]interface{}{"name": "test-predictor"},
 			operation:       admissionv1.Create,
 			expectedAllowed: false,
-			expectedMessage: "found no spec.predictor.model set in resource",
+			expectedMessage: "not found .spec.predictor.model in resource",
 		},
 		{
 			name:               "annotation as URI type with new URI, ISVC should overwrite with new value in the patch",
@@ -751,7 +629,7 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			annotations:     nil,
 			operation:       admissionv1.Create,
 			expectedAllowed: true,
-			expectedMessage: "no action needed",
+			expectedMessage: "No connection injection performed for LLMInferenceService in namespace glue-ns",
 		},
 		{
 			name:            "secret not found regardless not exist or in a different namespace, LLMISVC should not be allowed",
@@ -763,51 +641,85 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 		},
 		// type cases for create
 		{
-			name:               "annotation as URI type with model in spec, LLMISVC creation allowed with injection done",
-			secretType:         serving.ConnectionTypeURI.String(),
+			name:               "annotation as OCI type without model section, LLMISVC creation allowed with injection done",
+			secretType:         webhookutils.ConnectionTypeOCI.String(),
 			secretNamespace:    testNamespace,
-			secretData:         map[string][]byte{"https-host": []byte("hf://facebook/opt-125m")},
+			secretData:         map[string][]byte{},
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
+			predictorSpec:      map[string]interface{}{}, // No model section at all
 			operation:          admissionv1.Create,
 			expectedAllowed:    true,
-			expectedPatchCheck: hasUriPath("hf://facebook/opt-125m"),
+			expectedPatchCheck: hasLLMISVCImagePullSecretsPatch(testSecret),
 		},
 		{
 			name:            "secret exists but has no allowed connection type annotation, LLMISVC should be allowed to create with no injection",
-			secretType:      serving.ConnectionTypeS3.String(),
+			secretType:      "other-type",
 			secretNamespace: testNamespace,
 			secretData:      map[string][]byte{"key": []byte("value")},
 			annotations:     map[string]string{annotations.Connection: testSecret},
 			operation:       admissionv1.Create,
 			expectedAllowed: true,
-			expectedMessage: "no action needed",
+			expectedMessage: "No connection injection performed for LLMInferenceService in namespace glue-ns",
 		},
 		{
-			name:            "annotation as URI type without data.URI/.data.https-host set in secret, LLMISVC should not be allowed to create",
-			secretType:      serving.ConnectionTypeURI.String(),
+			name:            "annotation as URI type without .data.URI/.data.https-host set in secret, LLMISVC should not be allowed to create",
+			secretType:      webhookutils.ConnectionTypeURI.String(),
 			secretNamespace: testNamespace,
 			secretData:      map[string][]byte{},
 			annotations:     map[string]string{annotations.Connection: testSecret},
 			predictorSpec:   map[string]interface{}{"model": map[string]interface{}{}},
 			operation:       admissionv1.Create,
 			expectedAllowed: false,
-			expectedMessage: "secret does not contain either in 'https-host' or 'URI' data key",
+			expectedMessage: "secret does not contain either 'https-host' or 'URI' data key",
 		},
 		{
+			name:               "annotation as S3 type, LLMISVC creation allowed with S3 URI injection",
+			secretType:         webhookutils.ConnectionTypeS3.String(),
+			secretNamespace:    testNamespace,
+			secretData:         map[string][]byte{"AWS_S3_BUCKET": []byte("my-bucket")},
+			annotations:        map[string]string{annotations.Connection: testSecret, annotations.ConnectionPath: "models/llama-7b"},
+			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{}},
+			operation:          admissionv1.Create,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasUriPath("s3://my-bucket/models/llama-7b"),
+		},
+		{
+			name:               "annotation as S3 type without model section, LLMISVC creation allowed with model creation and S3 URI injection",
+			secretType:         webhookutils.ConnectionTypeS3.String(),
+			secretNamespace:    testNamespace,
+			secretData:         map[string][]byte{"AWS_S3_BUCKET": []byte("my-bucket")},
+			annotations:        map[string]string{annotations.Connection: testSecret, annotations.ConnectionPath: "models/llama-7b"},
+			predictorSpec:      map[string]interface{}{}, // No model section at all
+			operation:          admissionv1.Create,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasUriPath("s3://my-bucket/models/llama-7b"),
+		},
+		{
+			name:               "annotation as URI type without model section, LLMISVC creation allowed with model creation and URI injection",
+			secretType:         webhookutils.ConnectionTypeURI.String(),
+			secretNamespace:    testNamespace,
+			secretData:         map[string][]byte{"URI": []byte("hf://facebook/model")},
+			annotations:        map[string]string{annotations.Connection: testSecret},
+			predictorSpec:      map[string]interface{}{}, // No model section at all
+			operation:          admissionv1.Create,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasUriPath("hf://facebook/model"),
+		},
+		// type cases for update
+		{
 			name:               "annotation as URI type with new host value, LLMISVC should overwrite with new value in the patch",
-			secretType:         serving.ConnectionTypeURI.String(),
+			secretType:         webhookutils.ConnectionTypeURI.String(),
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{"URI": []byte("hf://facebook/new")},
 			annotations:        map[string]string{annotations.Connection: testSecret},
-			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{"URI": "hf://facebook/old"}},
+			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{"URI": "https://facebook/old"}},
 			operation:          admissionv1.Update,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasUriPath("hf://facebook/new"),
 		},
 		// cleanup tests
 		{
-			name:            "annotation removed, uri is cleanup",
+			name:            "annotation removed, uri is cleanup for any type of connection previously injected",
 			secretType:      "",
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{}, // no annotation
@@ -816,9 +728,42 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 					"uri": testSecret,
 				},
 			},
+			oldAnnotations: map[string]string{annotations.Connection: testSecret},
+			oldPredictorSpec: map[string]interface{}{
+				"model": map[string]interface{}{
+					"uri": testSecret,
+				},
+			},
 			operation:          admissionv1.Update,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasLLMISVCUriCleanupPatch(),
+		},
+		{
+			name:            "annotation removed for S3 type, serviceAccountName is cleanup",
+			secretType:      "",
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{}, // no annotation
+			predictorSpec: map[string]interface{}{
+				"template": map[string]interface{}{
+					"serviceAccountName": testSecret + "-sa",
+				},
+				"model": map[string]interface{}{
+					"uri": "s3://my-ml-models/models/llama-7b",
+				},
+			},
+			oldAnnotations: map[string]string{annotations.Connection: testSecret},
+			oldPredictorSpec: map[string]interface{}{
+				"template": map[string]interface{}{
+					"serviceAccountName": testSecret + "-sa",
+				},
+				"model": map[string]interface{}{
+					"uri": "s3://my-ml-models/models/llama-7b",
+				},
+			},
+			oldSecretType:      webhookutils.ConnectionTypeS3.String(),
+			operation:          admissionv1.Update,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasLLMISVCServiceAccountCleanupPatch(),
 		},
 	}
 	for _, tc := range testCases {

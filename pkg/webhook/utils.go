@@ -2,6 +2,8 @@ package webhookutils
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -57,55 +59,15 @@ const (
 	ConnectionTypeS3 ConnectionType = "s3"
 	// ConnectionTypeOCI represents oci connections.
 	ConnectionTypeOCI ConnectionType = "oci-v1"
-	// ConnectionTypeHF represents hf connections.
-	ConnectionTypeHF ConnectionType = "hf-v1"
 )
 
 func (ct ConnectionType) String() string {
 	return string(ct)
 }
 
-// CreateServiceAccount creates a ServiceAccount and links the secret.
-func CreateServiceAccount(ctx context.Context, cli client.Client, secretName, namespace string) error {
-	sa := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName + "-sa",
-			Namespace: namespace,
-		},
-		Secrets: []corev1.ObjectReference{
-			{
-				Name: secretName,
-			},
-		},
-	}
-
-	// only create if not exist, we do not reconcile object, as secret and SA can be both user managed
-	err := cli.Create(ctx, sa)
-	if err != nil && !k8serr.IsAlreadyExists(err) {
-		return fmt.Errorf("failed to create ServiceAccount: %w", err)
-	}
-	return nil
-}
-
-// HandleServiceAccountCreation handles ServiceAccount creation for S3 connections with proper logging.
-// Returns an error if ServiceAccount creation fails, nil otherwise.
-func HandleServiceAccountCreation(ctx context.Context, cli client.Client, secretName, connectionType, namespace string, isDryRun bool) error {
-	log := logf.FromContext(ctx)
-
-	switch {
-	case connectionType == ConnectionTypeS3.String() && !isDryRun:
-		if err := CreateServiceAccount(ctx, cli, secretName, namespace); err != nil {
-			log.Error(err, "Failed to create ServiceAccount for new S3 connection")
-			return err
-		}
-	case connectionType == ConnectionTypeS3.String() && isDryRun:
-		log.V(1).Info("Skipping ServiceAccount creation in dry-run mode", "secretName", secretName)
-	default:
-		log.V(1).Info("Skipping ServiceAccount creation for non-S3 connection type", "connectionType", connectionType, "secretName", secretName)
-	}
-
-	return nil
-}
+// ============================================================================
+// General Utility Functions
+// ============================================================================
 
 // NewWebhookLogConstructor returns a log constructor function for admission webhooks that adds the webhook name to the logger context for each admission request.
 //
@@ -130,6 +92,15 @@ func NewWebhookLogConstructor(name string) func(logr.Logger, *admission.Request)
 			"kind", req.Kind.Kind,
 		)
 	}
+}
+
+// DecodeUnstructured decodes an admission request into an unstructured object.
+func DecodeUnstructured(decoder admission.Decoder, req admission.Request) (*unstructured.Unstructured, error) {
+	obj := &unstructured.Unstructured{}
+	if err := decoder.Decode(req, obj); err != nil {
+		return nil, fmt.Errorf("failed to decode object: %w", err)
+	}
+	return obj, nil
 }
 
 // CountObjects returns the number of objects of the given GroupVersionKind in the cluster.
@@ -203,15 +174,6 @@ func ValidateSingletonCreation(ctx context.Context, cli client.Reader, req *admi
 
 	return DenyCountGtZero(ctx, cli, resourceGVK,
 		fmt.Sprintf("Only one instance of %s object is allowed", req.Kind.Kind))
-}
-
-// DecodeUnstructured decodes an admission request into an unstructured object.
-func DecodeUnstructured(decoder admission.Decoder, req admission.Request) (*unstructured.Unstructured, error) {
-	obj := &unstructured.Unstructured{}
-	if err := decoder.Decode(req, obj); err != nil {
-		return nil, fmt.Errorf("failed to decode object: %w", err)
-	}
-	return obj, nil
 }
 
 // ValidateServingConnectionAnnotation validates the connection annotation  "opendatahub.io/connections"
@@ -302,6 +264,53 @@ func DetermineConnectionChangeAction(oldSecretName, oldConnectionType, newSecret
 	return ConnectionActionNone
 }
 
+// GetS3Path extracts the connection path from the opendatahub.io/connection-path annotation.
+func GetS3Path(obj *unstructured.Unstructured) string {
+	return resources.GetAnnotation(obj, annotations.ConnectionPath)
+}
+
+// CreateSA creates a ServiceAccount and links the secret.
+func CreateSA(ctx context.Context, cli client.Client, secretName, namespace string) error {
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName + "-sa",
+			Namespace: namespace,
+		},
+		Secrets: []corev1.ObjectReference{
+			{
+				Name: secretName,
+			},
+		},
+	}
+
+	// only create if not exist, we do not reconcile object, as secret and SA can be both user managed
+	err := cli.Create(ctx, sa)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create ServiceAccount: %w", err)
+	}
+	return nil
+}
+
+// ServiceAccountCreation handles ServiceAccount creation based on connection type.
+func ServiceAccountCreation(ctx context.Context, cli client.Client, secretName, connectionType, namespace string, isDryRun bool) error {
+	log := logf.FromContext(ctx)
+
+	switch {
+	// TODO: add OCI type later.
+	case connectionType == ConnectionTypeS3.String() && !isDryRun:
+		if err := CreateSA(ctx, cli, secretName, namespace); err != nil {
+			log.Error(err, "Failed to create ServiceAccount for new S3 connection")
+			return err
+		}
+	case connectionType == ConnectionTypeS3.String() && isDryRun:
+		log.V(1).Info("Skipping ServiceAccount creation in dry-run mode", "secretName", secretName)
+	default:
+		log.V(1).Info("Skipping ServiceAccount creation for non-S3 connection type", "connectionType", connectionType, "secretName", secretName)
+	}
+
+	return nil
+}
+
 // GetOrCreateNestedMap safely retrieves or creates a nested map within an unstructured object.
 // This utility function handles the common pattern of accessing nested maps in Kubernetes
 // resource specifications, creating them if they don't exist.
@@ -359,47 +368,36 @@ func SetNestedValue(obj map[string]interface{}, value interface{}, path []string
 	}
 }
 
-// GetOldConnectionInfo extracts connection information from the old object in an admission request.
-// This is used during UPDATE operations to determine if connection type has changed.
-//
-// Parameters:
-//   - ctx: Context for the API call (logger is extracted from here).
-//   - decoder: The admission decoder to decode the old object.
-//   - apiReader: The controller-runtime reader to use for getting secrets.
-//   - req: The admission request containing the old object.
-//
-// Returns:
-//   - string: The old secret name (empty if no old connection).
-//   - string: The old connection type (empty if no old connection).
-//   - error: Any error encountered during the operation.
-func GetOldConnectionInfo(ctx context.Context, decoder admission.Decoder, apiReader client.Reader, req admission.Request) (string, string, error) {
+// WebhookPrecheck do basic checks to ensure the webhook is properly initialized.
+func (w *BaseServingConnectionWebhook) WebhookPrecheck(ctx context.Context, req admission.Request) *admission.Response {
 	log := logf.FromContext(ctx)
 
-	// Decode the old object
-	oldObj := &unstructured.Unstructured{}
-	if err := decoder.DecodeRaw(req.OldObject, oldObj); err != nil {
-		log.Error(err, "failed to decode old object")
-		return "", "", fmt.Errorf("failed to decode old object: %w", err)
+	// Check if request object is valid
+	if req.Object.Raw == nil {
+		log.Error(nil, "Request object is nil")
+		resp := admission.Errored(http.StatusBadRequest, errors.New("request object is nil"))
+		return &resp
 	}
 
-	// Get old annotation value
-	oldAnnotationValue := resources.GetAnnotation(oldObj, annotations.Connection)
-	if oldAnnotationValue == "" {
-		return "", "", nil // No old connection
+	if w.Client == nil {
+		log.Error(nil, "Client is nil - webhook not properly initialized")
+		resp := admission.Errored(http.StatusInternalServerError, errors.New("webhook client not initialized"))
+		return &resp
 	}
 
-	// Get old connection type from the secret
-	secretMeta := resources.GvkToPartial(gvk.Secret)
-	if err := apiReader.Get(ctx, types.NamespacedName{Name: oldAnnotationValue, Namespace: req.Namespace}, secretMeta); err != nil {
-		if k8serr.IsNotFound(err) {
-			log.V(1).Info("Old secret not found, treating as no old connection", "secretName", oldAnnotationValue)
-			return "", "", nil
-		}
-		return "", "", fmt.Errorf("failed to get old secret metadata: %w", err)
+	if w.APIReader == nil {
+		log.Error(nil, "APIReader is nil - webhook not properly initialized")
+		resp := admission.Errored(http.StatusInternalServerError, errors.New("webhook APIReader not initialized"))
+		return &resp
 	}
 
-	oldConnectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
-	return oldAnnotationValue, oldConnectionType, nil
+	if w.Decoder == nil {
+		log.Error(nil, "Decoder is nil - webhook not properly initialized")
+		resp := admission.Errored(http.StatusInternalServerError, errors.New("webhook decoder not initialized"))
+		return &resp
+	}
+
+	return nil
 }
 
 // GetOldConnectionInfo extracts connection information from the old object in an admission request.
@@ -432,4 +430,91 @@ func (w *BaseServingConnectionWebhook) GetOldConnectionInfo(ctx context.Context,
 
 	oldConnectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
 	return oldAnnotationValue, oldConnectionType, nil
+}
+
+// HandleSA injects or removes serviceaccount from the specified path.
+// If saName is empty, it removes the field entirely.
+func (w *BaseServingConnectionWebhook) HandleSA(obj *unstructured.Unstructured, path []string, saName string) error {
+	// Remove the field entirely
+	if saName == "" {
+		unstructured.RemoveNestedField(obj.Object, path...)
+		return nil
+	}
+	return SetNestedValue(obj.Object, saName, path)
+}
+
+// InjectOCIImagePullSecrets injects imagePullSecrets for OCI connections.
+func (w *BaseServingConnectionWebhook) InjectOCIImagePullSecrets(obj *unstructured.Unstructured, path []string, secretName string) error {
+	imagePullSecrets, err := GetOrCreateNestedSlice(obj.Object, path...)
+	if err != nil {
+		return fmt.Errorf("failed to get path: %w", err)
+	}
+
+	// Check if the secret is already in the list, fast exist
+	for _, secret := range imagePullSecrets {
+		if secretMap, ok := secret.(map[string]interface{}); ok {
+			if name, exists := secretMap["name"]; exists && name == secretName {
+				return nil
+			}
+		}
+	}
+
+	// Add new secret to the slice(upon UPDATE)
+	newImagePullSecret := map[string]interface{}{
+		"name": secretName,
+	}
+	imagePullSecrets = append(imagePullSecrets, newImagePullSecret)
+
+	return SetNestedValue(obj.Object, imagePullSecrets, path)
+}
+
+// CreatePatchResponse creates a patch response from the modified object.
+func (w *BaseServingConnectionWebhook) CreatePatchResponse(req admission.Request, obj *unstructured.Unstructured) admission.Response {
+	marshaledObj, err := json.Marshal(obj)
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
+}
+
+// GetURIValue extracts URI value from the secret for URI-type connections.
+func (w *BaseServingConnectionWebhook) GetURIValue(ctx context.Context, obj *unstructured.Unstructured, secretName, namespace string) (string, error) {
+	// Fetch the secret to get the URI data
+	secret := &corev1.Secret{}
+	if err := w.APIReader.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
+		return "", fmt.Errorf("failed to get secret %s: %w", secretName, err)
+	}
+
+	// get URI from either "https-host" or "URI" key
+	var uriHost []byte
+	var exists bool
+
+	if uriHost, exists = secret.Data["https-host"]; !exists {
+		if uriHost, exists = secret.Data["URI"]; !exists {
+			return "", errors.New("secret does not contain either 'https-host' or 'URI' data key")
+		}
+	}
+	return string(uriHost), nil
+}
+
+// GetS3Value constructs S3 URI value from the secret and connection path annotation.
+// Returns URI in the format: s3://<AWS_BUCKET>/$annotation.connection-path.
+func (w *BaseServingConnectionWebhook) GetS3Value(ctx context.Context, obj *unstructured.Unstructured, secretName, namespace string) (string, error) {
+	// Fetch the secret to get the S3 bucket data
+	secret := &corev1.Secret{}
+	if err := w.APIReader.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
+		return "", fmt.Errorf("failed to get secret %s: %w", secretName, err)
+	}
+	bucketName, exists := secret.Data["AWS_S3_BUCKET"]
+	if !exists {
+		return "", errors.New("secret does not contain 'AWS_S3_BUCKET' data key")
+	}
+
+	connectionPath := GetS3Path(obj)
+	if connectionPath == "" {
+		return "", errors.New("object does not have connection path annotation")
+	}
+
+	s3URI := fmt.Sprintf("s3://%s/%s", string(bucketName), connectionPath)
+	return s3URI, nil
 }
