@@ -304,7 +304,6 @@ func (tc *DSCTestCtx) ValidateVAPCreationAfterDSCI(t *testing.T) {
 	tc.EnsureResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
-		WithCondition(Succeed()),
 		WithCustomErrorMsg("Failed to enable Dashboard for VAP test"),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 	)
@@ -353,7 +352,6 @@ func (tc *DSCTestCtx) ValidateVAPCreationAfterDSCI(t *testing.T) {
 	tc.EnsureResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Removed"`)),
-		WithCondition(Succeed()),
 		WithCustomErrorMsg("Failed to revert Dashboard after VAP test"),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 	)

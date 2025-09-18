@@ -87,6 +87,9 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		return nil, err
 	}
 
+	// Set up global debug client for panic handling
+	SetGlobalDebugClient(tcf.Client())
+
 	return &TestContext{
 		TestContext:                      tcf,
 		g:                                tcf.NewWithT(t),
