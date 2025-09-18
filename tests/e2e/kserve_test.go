@@ -464,7 +464,7 @@ func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 		WithMinimalObject(gvk.Secret, types.NamespacedName{Name: secretName, Namespace: namespace}),
 		WithMutateFunc(testf.TransformPipeline(
 			// Set connection type annotation
-			testf.Transform(`.metadata.annotations."%s" = "%s"`, annotations.ConnectionTypeRef, "oci-v1"),
+			testf.Transform(`.metadata.annotations."%s" = "%s"`, annotations.ConnectionTypeProtocol, "oci"),
 			// Set secret type
 			testf.Transform(`.type = "%s"`, string(corev1.SecretTypeOpaque)),
 			// Set secret data
