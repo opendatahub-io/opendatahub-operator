@@ -1,0 +1,12 @@
+arches:
+  - x86_64
+  - aarch64
+  - ppc64le
+  - s390x
+contentOrigin:
+  repofiles:
+    - ubi.repo
+packages:
+  - tar
+context:
+  containerfile: Dockerfiles/Dockerfile.konflux
