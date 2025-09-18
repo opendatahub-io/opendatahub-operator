@@ -23,6 +23,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -274,6 +275,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return ctrl.Result{}, err
 		}
 
+		// Create HardwareProfile related resources
+		// VAP/VAPB for blocking Dashboard's HWProfile/AcceleratorProfile
+		if err = r.CreateVAP(ctx, instance); err != nil {
+			log.Info("failed to create VAP/VAPB for blocking Dashboard's HWProfile/AcceleratorProfile")
+			return ctrl.Result{}, err
+		}
 		// Finish reconciling
 		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
@@ -335,6 +342,12 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.PersistentVolumeClaim{},
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns( // ensure always have default one for AcceleratorProfile/HardwareProfile blocking
+			&admissionregistrationv1.ValidatingAdmissionPolicy{},
+		).
+		Owns( // ensure always have default one for AcceleratorProfile/HardwareProfile blocking
+			&admissionregistrationv1.ValidatingAdmissionPolicyBinding{},
+		).
 		Watches(
 			&dscv1.DataScienceCluster{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {

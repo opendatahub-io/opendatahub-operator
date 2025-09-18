@@ -185,9 +185,7 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 		}
 	}
 
-	return nil, k8serr.NewNotFound(
-		schema.GroupResource{Group: gvk.ClusterServiceVersion.Group},
-		gvk.ClusterServiceVersion.Kind)
+	return nil, k8serr.NewNotFound(schema.GroupResource{Group: gvk.ClusterServiceVersion.Group}, gvk.ClusterServiceVersion.Kind)
 }
 
 // detectSelfManaged detects if it is Self Managed Rhoai or OpenDataHub.

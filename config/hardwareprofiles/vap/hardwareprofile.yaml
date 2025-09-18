@@ -1,0 +1,32 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: block-dashboard-hardwareprofile-cr
+  annotations:
+    description: "Blocks creation and updates of HardwareProfile CRs from dashboard.opendatahub.io"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups: ["dashboard.opendatahub.io"]
+      apiVersions: ["*"]
+      operations: ["CREATE", "UPDATE"]
+      resources: ["hardwareprofiles"]
+  validations:
+  - expression: "object.apiVersion.startsWith('dashboard.opendatahub.io/') == false"
+    message: "Creation and updates of HardwareProfile CRs from dashboard.opendatahub.io is not allowed"
+    reason: "Forbidden"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: block-dashboard-hardwareprofile-cr-binding
+spec:
+  policyName: block-dashboard-hardwareprofile-cr
+  validationActions: ["Deny"]
+  matchResources:
+    resourceRules:
+    - apiGroups: ["dashboard.opendatahub.io"]
+      apiVersions: ["*"]
+      operations: ["CREATE", "UPDATE"]
+      resources: ["hardwareprofiles"]
