@@ -340,7 +340,7 @@ var (
 		Kind:    "AuthorizationPolicy",
 	}
 
-	Gateway = schema.GroupVersionKind{
+	IstioGateway = schema.GroupVersionKind{
 		Group:   "networking.istio.io",
 		Version: "v1beta1",
 		Kind:    "Gateway",
@@ -358,7 +358,7 @@ var (
 		Kind:    "GatewayClass",
 	}
 
-	GatewayAPI = schema.GroupVersionKind{
+	KubernetesGateway = schema.GroupVersionKind{
 		Group:   gwapiv1.GroupVersion.Group,
 		Version: gwapiv1.GroupVersion.Version,
 		Kind:    "Gateway",
