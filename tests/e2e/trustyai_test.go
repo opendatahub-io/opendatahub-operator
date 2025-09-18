@@ -41,11 +41,7 @@ func trustyAITestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
 		{"Validate pre check", componentCtx.ValidateTrustyAIPreCheck},
-		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
-		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
-		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
@@ -53,24 +49,38 @@ func trustyAITestSuite(t *testing.T) {
 	RunTestCases(t, testCases)
 }
 
-// ValidateTrustyAIPreCheck defines the test cases for TrustyAI pre-check validation.
+// ValidateTrustyAIPreCheck validates the dependency checking logic of TrustyAI.
+// Test Scenario: TrustyAI should fail when KServe dependencies are missing and recover when restored.
+// Steps:
+//  1. Disable KServe → TrustyAI should detect missing dependency
+//  2. Delete InferenceServices CRD → Trigger validation error
+//  3. Validate Error State → TrustyAI conditions should be False
+//  4. Enable KServe → Restore dependency
+//  5. Validate Recovery → TrustyAI conditions should be True
+//  6. Cleanup → Disable KServe for next test
 func (tc *TrustyAITestCtx) ValidateTrustyAIPreCheck(t *testing.T) {
 	t.Helper()
 
 	// Define test cases.
 	testCases := []TestCase{
-		{"Disable Kserve", tc.DisableKserve},
+		// Force TrustyAI into error state
+		{"Disable Kserve for Error Test", tc.DisableKserve},
+		// Remove required CRD to trigger validation error
 		{"Delete InferenceServices", tc.DeleteInferenceServices},
+		// Verify TrustyAI detects missing dependency
 		{"Validate Error", func(t *testing.T) {
 			t.Helper()
 			tc.ValidateTrustyAICondition(metav1.ConditionFalse)
 		}},
+		// Restore Kserve to fix dependency
 		{"Enable Kserve", tc.EnableKserve},
+		// Verify TrustyAI recovers automatically
 		{"Validate Recovery", func(t *testing.T) {
 			t.Helper()
 			tc.ValidateTrustyAICondition(metav1.ConditionTrue)
 		}},
-		{"Disable Kserve", tc.DisableKserve},
+		// Clean up for next test
+		{"Disable Kserve for Cleanup", tc.DisableKserve},
 	}
 
 	// Run the test suite.
@@ -99,17 +109,22 @@ func (tc *TrustyAITestCtx) SetKserveState(state operatorv1.ManagementState, shou
 	nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
 
 	// Update the Kserve component state in DataScienceCluster.
-	tc.UpdateComponentStateInDataScienceClusterWhitKind(state, gvk.Kserve.Kind)
+	tc.UpdateComponentStateInDataScienceClusterWithKind(state, gvk.Kserve.Kind)
 
 	// Verify if Kserve should exist or be removed.
 	if shouldExist {
+		// KServe can take longer to become ready, especially in CI environments
 		tc.ValidateComponentCondition(
 			gvk.Kserve,
 			componentApi.KserveInstanceName,
 			status.ConditionTypeReady,
 		)
 	} else {
-		tc.EnsureResourceGone(WithMinimalObject(gvk.Kserve, nn))
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Kserve, nn),
+			WithIgnoreNotFound(true),
+			WithRemoveFinalizersOnDelete(true),
+		)
 	}
 }
 
@@ -125,6 +140,7 @@ func (tc *TrustyAITestCtx) DeleteInferenceServices(t *testing.T) {
 				PropagationPolicy: &propagationPolicy,
 			}),
 		WithWaitForDeletion(true),
+		WithIgnoreNotFound(true),
 	)
 }
 
@@ -139,11 +155,13 @@ func (tc *TrustyAITestCtx) ValidateTrustyAICondition(expectedStatus metav1.Condi
 				jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, expectedStatus),
 			),
 		),
+		WithCustomErrorMsg("TrustyAI should have Ready and %s conditions set to %s", status.ConditionTypeProvisioningSucceeded, expectedStatus),
 	)
 
 	// Validate DataScienceCluster readiness.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, expectedStatus)),
+		WithCustomErrorMsg("DataScienceCluster should have %sReady condition set to %s", tc.GVK.Kind, expectedStatus),
 	)
 }

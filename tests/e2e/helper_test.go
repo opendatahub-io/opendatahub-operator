@@ -6,9 +6,11 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -28,6 +30,12 @@ const (
 	// Namespaces for various components.
 	knativeServingNamespace = "knative-serving" // Namespace for Knative Serving components
 
+	// Test timing constants.
+	// controllerCacheRefreshDelay is the time to wait for controller-runtime
+	// informer cache to update after resource deletion. This prevents cache
+	// staleness issues in deletion/recreation tests.
+	controllerCacheRefreshDelay = 5 * time.Second
+
 	// Operators constants.
 	defaultOperatorChannel       = "stable"                           // The default channel to install/check operators
 	serviceMeshOpName            = "servicemeshoperator"              // Name of the Service Mesh Operator
@@ -35,6 +43,8 @@ const (
 	authorinoOpName              = "authorino-operator"               // Name of the Serverless Operator
 	kueueOpName                  = "kueue-operator"                   // Name of the Kueue Operator
 	telemetryOpName              = "opentelemetry-product"            // Name of the Telemetry Operator
+	openshiftOperatorsNamespace  = "openshift-operators"              // Namespace for OpenShift Operators
+	serverlessOperatorNamespace  = "openshift-serverless"             // Namespace for the Serverless Operator
 	telemetryOpNamespace         = "openshift-opentelemetry-operator" // Namespace for the Telemetry Operator
 	serviceMeshControlPlane      = "data-science-smcp"                // Service Mesh control plane name
 	serviceMeshNamespace         = "istio-system"                     // Namespace for Istio Service Mesh control plane
@@ -80,6 +90,16 @@ func RunTestCases(t *testing.T, testCases []TestCase, opts ...TestCaseOpts) {
 	// Apply all provided options (e.g., parallel execution) to each test case.
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
+			// Set up panic handler for each test case
+			defer HandleGlobalPanic()
+
+			// Check for test failure and run diagnostics
+			defer func() {
+				if t.Failed() {
+					HandleTestFailure(testCase.name)
+				}
+			}()
+
 			// Apply each option to the current test
 			for _, opt := range opts {
 				opt(t)
@@ -255,6 +275,21 @@ func CreateDSC(name string) *dscv1.DataScienceCluster {
 			},
 		},
 	}
+}
+
+// CreateNamespaceWithLabels creates a namespace manifest with optional labels for use with WithObjectToCreate.
+func CreateNamespaceWithLabels(name string, labels map[string]string) *corev1.Namespace {
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+
+	if len(labels) > 0 {
+		ns.Labels = labels
+	}
+
+	return ns
 }
 
 // defaultErrorMessageIfNone appends a default message to args if args is empty.

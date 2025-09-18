@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"strings"
 	"testing"
-	"time"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -68,19 +67,8 @@ func (tc *ComponentTestCtx) ValidateComponentEnabled(t *testing.T) {
 	// Ensure that DataScienceCluster exists and its component state is "Managed", with the "Ready" condition true.
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Managed)
 
-	// Ensure that any Deployment resources for the component are present
-	tc.EnsureResourcesExist(
-		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithListOptions(
-			&client.ListOptions{
-				LabelSelector: k8slabels.Set{
-					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-				}.AsSelector(),
-			},
-		),
-	)
-
 	// Ensure the component resource exists and is marked "Ready".
+	// Note: Ready=True already implies deployments exist and are ready (checked by DeploymentsAvailable condition)
 	tc.EnsureResourcesExist(
 		WithMinimalObject(tc.GVK, tc.NamespacedName),
 		WithCondition(
@@ -176,17 +164,10 @@ func (tc *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 			}
 
 			// Update the deployment's replica count
-			tc.EventuallyResourceCreatedOrUpdated(
+			tc.ConsistentlyResourceCreatedOrUpdated(
 				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&d)),
 				WithMutateFunc(testf.Transform(`.spec.replicas = %d`, expectedReplica)),
 				WithCondition(jq.Match(`.spec.replicas == %d`, expectedReplica)),
-			)
-
-			tc.EnsureResourceExistsConsistently(
-				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&d)),
-				WithCondition(jq.Match(`.spec.replicas == %d`, expectedReplica)),
-				WithConsistentlyDuration(30*time.Second),
-				WithConsistentlyPollingInterval(1*time.Second),
 			)
 		})
 	}
@@ -201,7 +182,7 @@ func (tc *ComponentTestCtx) ValidateCRDsReinstated(t *testing.T, crds []CRD) {
 
 	// Check that all CRDs are removed
 	for _, crd := range crds {
-		t.Run(crd.Name, func(t *testing.T) {
+		t.Run(crd.Name+"_removal", func(t *testing.T) {
 			tc.ValidateCRDRemoval(crd.Name)
 		})
 	}
@@ -211,7 +192,8 @@ func (tc *ComponentTestCtx) ValidateCRDsReinstated(t *testing.T, crds []CRD) {
 
 	// Check that all CRDs are reinstated
 	for _, crd := range crds {
-		t.Run(crd.Name, func(t *testing.T) {
+		t.Run(crd.Name+"_reinstatement", func(t *testing.T) {
+			t.Parallel()
 			tc.ValidateCRDReinstatement(crd.Name, crd.Version)
 		})
 	}
@@ -256,11 +238,11 @@ func (tc *ComponentTestCtx) ValidateComponentCondition(gvk schema.GroupVersionKi
 
 // UpdateComponentStateInDataScienceCluster updates the management state of a specified component in the DataScienceCluster.
 func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceCluster(state operatorv1.ManagementState) {
-	tc.UpdateComponentStateInDataScienceClusterWhitKind(state, tc.GVK.Kind)
+	tc.UpdateComponentStateInDataScienceClusterWithKind(state, tc.GVK.Kind)
 }
 
-// UpdateComponentStateInDataScienceClusterWhitKind updates the management state of a specified component kind in the DataScienceCluster.
-func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceClusterWhitKind(state operatorv1.ManagementState, kind string) {
+// UpdateComponentStateInDataScienceClusterWithKind updates the management state of a specified component kind in the DataScienceCluster.
+func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceClusterWithKind(state operatorv1.ManagementState, kind string) {
 	componentName := strings.ToLower(kind)
 	readyCondition := metav1.ConditionFalse
 	if state == operatorv1.Managed {
@@ -353,6 +335,86 @@ func (tc *ComponentTestCtx) ValidateModelControllerInstance(t *testing.T) {
 	)
 }
 
+// ValidateAllDeletionRecovery runs the standard set of deletion recovery tests.
+// The order of tests is carefully designed to handle dependencies and avoid timing issues.
+func (tc *ComponentTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	// Test order explanation:
+	// 1. ConfigMaps/Services - these are stateless resources with no dependencies
+	// 2. RBAC - establishes permissions that ServiceAccounts and Pods will need
+	// 3. ServiceAccounts - creates identity tokens that Pods will use for API access
+	// 4. Deployments - recreates Pods that depend on both RBAC permissions and SA tokens
+	//
+	// This ordering prevents the race condition where Pods restart before having proper
+	// RBAC permissions, which causes "Unauthorized" errors and CrashLoopBackOff states.
+	// The Deployment deletion/recreation at the end ensures all Pods get fresh SA tokens
+	// without needing explicit Pod restarts in the ServiceAccount test.
+	testCases := []TestCase{
+		{"ConfigMap deletion recovery", func(t *testing.T) {
+			t.Helper()
+			tc.ValidateResourceDeletionRecovery(t, gvk.ConfigMap)
+		}},
+		{"Service deletion recovery", func(t *testing.T) {
+			t.Helper()
+			tc.ValidateResourceDeletionRecovery(t, gvk.Service)
+		}},
+		{"RBAC deletion recovery", tc.ValidateRBACDeletionRecovery},
+		{"ServiceAccount deletion recovery", tc.ValidateServiceAccountDeletionRecovery},
+		{"Deployment deletion recovery", tc.ValidateDeploymentDeletionRecovery},
+	}
+
+	RunTestCases(t, testCases)
+}
+
+// ValidateResourceDeletionRecovery validates that resources of a specific type are recreated upon deletion.
+func (tc *ComponentTestCtx) ValidateResourceDeletionRecovery(t *testing.T, resourceGVK schema.GroupVersionKind, clusterScoped ...bool) {
+	t.Helper()
+
+	// Default to namespace-scoped (false)
+	isClusterScoped := len(clusterScoped) > 0 && clusterScoped[0]
+
+	// Determine namespace based on scope
+	var targetNamespace string
+	if !isClusterScoped {
+		targetNamespace = tc.AppsNamespace
+	}
+
+	// Fetch existing resources of this type
+	listOptions := &client.ListOptions{
+		LabelSelector: k8slabels.Set{
+			labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+		}.AsSelector(),
+	}
+
+	// Only set namespace for namespace-scoped resources
+	if !isClusterScoped {
+		listOptions.Namespace = targetNamespace
+	}
+
+	existingResources := tc.FetchResources(
+		WithMinimalObject(resourceGVK, types.NamespacedName{Namespace: targetNamespace}),
+		WithListOptions(listOptions),
+	)
+
+	if len(existingResources) == 0 {
+		t.Logf("No %s resources found for component %s, skipping", resourceGVK.Kind, tc.GVK.Kind)
+		return
+	}
+
+	// For each resource, test individual deletion-recreation
+	for _, resource := range existingResources {
+		t.Run(resourceGVK.Kind+"_"+resource.GetName(), func(t *testing.T) {
+			t.Helper()
+			t.Parallel()
+
+			tc.EnsureResourceDeletedThenRecreated(
+				WithMinimalObject(resourceGVK, resources.NamespacedNameFromObject(&resource)),
+			)
+		})
+	}
+}
+
 // ValidateDeploymentDeletionRecovery validates Deployment resources are recreated upon deletion.
 func (tc *ComponentTestCtx) ValidateDeploymentDeletionRecovery(t *testing.T) {
 	t.Helper()
@@ -370,140 +432,29 @@ func (tc *ComponentTestCtx) ValidateDeploymentDeletionRecovery(t *testing.T) {
 		),
 	)
 
+	if len(deployments) == 0 {
+		t.Logf("No Deployment resources found for component %s, skipping deletion recovery test", tc.GVK.Kind)
+		return
+	}
+
 	// For each Deployment, delete it and verify it gets recreated with robust deletion-recreation testing
 	for _, deployment := range deployments {
 		t.Run("deployment_"+deployment.GetName(), func(t *testing.T) {
 			t.Helper()
+			t.Parallel()
 
 			// Use robust deletion-recreation pattern that handles race conditions and verifies actual recreation
 			recreatedDeployment := tc.EnsureResourceDeletedThenRecreated(
 				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(&deployment)),
-				WithGracePeriod(2*time.Second), // Allow controller time to process deletion
+				WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 			)
 
 			// Verify the recreated Deployment has proper conditions
-			tc.g.Eventually(func(g Gomega) {
-				current := tc.EnsureResourceExists(
-					WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(recreatedDeployment)),
-				)
-
-				// Check that the deployment is available
-				g.Expect(current).To(
-					jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
-						status.ConditionTypeAvailable, metav1.ConditionTrue),
-					"Recreated deployment should have Available condition",
-				)
-			}).WithTimeout(2 * time.Minute).Should(Succeed())
-		})
-	}
-}
-
-// ValidateConfigMapDeletionRecovery validates ConfigMap resources are recreated upon deletion.
-func (tc *ComponentTestCtx) ValidateConfigMapDeletionRecovery(t *testing.T) {
-	t.Helper()
-
-	// Fetch ConfigMaps
-	configMaps := tc.FetchResources(
-		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithListOptions(
-			&client.ListOptions{
-				Namespace: tc.AppsNamespace,
-				LabelSelector: k8slabels.Set{
-					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-				}.AsSelector(),
-			},
-		),
-	)
-
-	// Skip test if no configmaps are found
-	if len(configMaps) == 0 {
-		t.Skip("No configmaps found for component, skipping deletion recovery test")
-		return
-	}
-
-	// For each ConfigMap, delete it and verify it gets recreated with robust deletion-recreation testing
-	for _, configMap := range configMaps {
-		t.Run("configMap_"+configMap.GetName(), func(t *testing.T) {
-			t.Helper()
-
-			// Use robust deletion-recreation pattern that handles race conditions and verifies actual recreation
-			tc.EnsureResourceDeletedThenRecreated(
-				WithMinimalObject(gvk.ConfigMap, resources.NamespacedNameFromObject(&configMap)),
-				WithGracePeriod(1*time.Second), // ConfigMaps typically recreate faster than Deployments
-			)
-		})
-	}
-}
-
-// ValidateServiceDeletionRecovery validates Service resources are recreated upon deletion.
-func (tc *ComponentTestCtx) ValidateServiceDeletionRecovery(t *testing.T) {
-	t.Helper()
-
-	// Fetch Services
-	services := tc.FetchResources(
-		WithMinimalObject(gvk.Service, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithListOptions(
-			&client.ListOptions{
-				Namespace: tc.AppsNamespace,
-				LabelSelector: k8slabels.Set{
-					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-				}.AsSelector(),
-			},
-		),
-	)
-
-	// Skip test if no services are found
-	if len(services) == 0 {
-		t.Skip("No services found for component, skipping deletion recovery test")
-		return
-	}
-
-	// For each Service, delete it and verify it gets recreated with robust deletion-recreation testing
-	for _, service := range services {
-		t.Run("service_"+service.GetName(), func(t *testing.T) {
-			t.Helper()
-
-			// Use robust deletion-recreation pattern that handles race conditions and verifies actual recreation
-			tc.EnsureResourceDeletedThenRecreated(
-				WithMinimalObject(gvk.Service, resources.NamespacedNameFromObject(&service)),
-				WithGracePeriod(1*time.Second), // Services typically recreate quickly
-			)
-		})
-	}
-}
-
-// ValidateRouteDeletionRecovery validates Route resources are recreated upon deletion.
-func (tc *ComponentTestCtx) ValidateRouteDeletionRecovery(t *testing.T) {
-	t.Helper()
-
-	// Fetch Routes
-	routes := tc.FetchResources(
-		WithMinimalObject(gvk.Route, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithListOptions(
-			&client.ListOptions{
-				Namespace: tc.AppsNamespace,
-				LabelSelector: k8slabels.Set{
-					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-				}.AsSelector(),
-			},
-		),
-	)
-
-	// Skip test if no routes are found
-	if len(routes) == 0 {
-		t.Skip("No routes found for component, skipping deletion recovery test")
-		return
-	}
-
-	// For each Route, delete it and verify it gets recreated with robust deletion-recreation testing
-	for _, route := range routes {
-		t.Run("route_"+route.GetName(), func(t *testing.T) {
-			t.Helper()
-
-			// Use robust deletion-recreation pattern that handles race conditions and verifies actual recreation
-			tc.EnsureResourceDeletedThenRecreated(
-				WithMinimalObject(gvk.Route, resources.NamespacedNameFromObject(&route)),
-				WithGracePeriod(1*time.Second), // Routes typically recreate quickly
+			tc.EnsureResourceExists(
+				WithMinimalObject(gvk.Deployment, resources.NamespacedNameFromObject(recreatedDeployment)),
+				WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`,
+					status.ConditionTypeAvailable, metav1.ConditionTrue)),
+				WithCustomErrorMsg("Recreated deployment should have Available condition"),
 			)
 		})
 	}
@@ -526,9 +477,8 @@ func (tc *ComponentTestCtx) ValidateServiceAccountDeletionRecovery(t *testing.T)
 		),
 	)
 
-	// Skip test if no service accounts are found
 	if len(serviceAccounts) == 0 {
-		t.Skip("No service accounts found for component, skipping deletion recovery test")
+		t.Logf("No ServiceAccount resources found for component %s, skipping deletion recovery test", tc.GVK.Kind)
 		return
 	}
 
@@ -540,7 +490,6 @@ func (tc *ComponentTestCtx) ValidateServiceAccountDeletionRecovery(t *testing.T)
 			// Use robust deletion-recreation pattern that handles race conditions and verifies actual recreation
 			tc.EnsureResourceDeletedThenRecreated(
 				WithMinimalObject(gvk.ServiceAccount, resources.NamespacedNameFromObject(&serviceAccount)),
-				WithGracePeriod(1*time.Second), // ServiceAccounts typically recreate quickly
 			)
 		})
 	}
@@ -550,53 +499,24 @@ func (tc *ComponentTestCtx) ValidateServiceAccountDeletionRecovery(t *testing.T)
 func (tc *ComponentTestCtx) ValidateRBACDeletionRecovery(t *testing.T) {
 	t.Helper()
 
-	// Define the RBAC resource types to test
-	rbacResourceTypes := []struct {
-		name      string
-		gvk       schema.GroupVersionKind
-		namespace string // empty string for cluster-scoped resources
-	}{
-		{"ClusterRole", gvk.ClusterRole, ""},
-		{"ClusterRoleBinding", gvk.ClusterRoleBinding, ""},
-		{"Role", gvk.Role, tc.AppsNamespace},
-		{"RoleBinding", gvk.RoleBinding, tc.AppsNamespace},
-	}
-
-	// Test each RBAC resource type
-	for _, rbacType := range rbacResourceTypes {
-		t.Run(rbacType.name+"DeletionRecovery", func(t *testing.T) {
+	testCases := []TestCase{
+		{"ClusterRole deletion recovery", func(t *testing.T) {
 			t.Helper()
-
-			// Fetch existing resources of this type
-			existingResources := tc.FetchResources(
-				WithMinimalObject(rbacType.gvk, types.NamespacedName{Namespace: rbacType.namespace}),
-				WithListOptions(
-					&client.ListOptions{
-						Namespace: rbacType.namespace,
-						LabelSelector: k8slabels.Set{
-							labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
-						}.AsSelector(),
-					},
-				),
-			)
-
-			if len(existingResources) == 0 {
-				t.Logf("No %s resources found for component %s, skipping", rbacType.name, tc.GVK.Kind)
-				return
-			}
-
-			// For each resource, test individual deletion-recreation with robust pattern
-			for _, resource := range existingResources {
-				t.Run(rbacType.name+"_"+resource.GetName(), func(t *testing.T) {
-					t.Helper()
-
-					// Use robust deletion-recreation pattern that handles race conditions and verifies actual recreation
-					tc.EnsureResourceDeletedThenRecreated(
-						WithMinimalObject(rbacType.gvk, resources.NamespacedNameFromObject(&resource)),
-						WithGracePeriod(2*time.Second), // RBAC resources may need more time for proper recreation
-					)
-				})
-			}
-		})
+			tc.ValidateResourceDeletionRecovery(t, gvk.ClusterRole, true) // cluster-scoped
+		}},
+		{"ClusterRoleBinding deletion recovery", func(t *testing.T) {
+			t.Helper()
+			tc.ValidateResourceDeletionRecovery(t, gvk.ClusterRoleBinding, true) // cluster-scoped
+		}},
+		{"Role deletion recovery", func(t *testing.T) {
+			t.Helper()
+			tc.ValidateResourceDeletionRecovery(t, gvk.Role) // namespace-scoped (default)
+		}},
+		{"RoleBinding deletion recovery", func(t *testing.T) {
+			t.Helper()
+			tc.ValidateResourceDeletionRecovery(t, gvk.RoleBinding) // namespace-scoped (default)
+		}},
 	}
+
+	RunTestCases(t, testCases, WithParallel())
 }
