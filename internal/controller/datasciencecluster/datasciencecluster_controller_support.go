@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -30,7 +30,7 @@ func computeComponentsStatus(
 	rr *types.ReconciliationRequest,
 	reg *cr.Registry,
 ) error {
-	instance, ok := rr.Instance.(*dscv1.DataScienceCluster)
+	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return errors.New("failed to convert to DataScienceCluster")
 	}

@@ -7,7 +7,7 @@ import (
 
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
@@ -15,7 +15,7 @@ import (
 )
 
 // CreateVAP creates VAP/VAPB for blocking Dashboard's HWProfile/AcceleratorProfile.
-func (r *DSCInitializationReconciler) CreateVAP(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) CreateVAP(ctx context.Context, dscInit *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 
 	// first check if CRDs in cluster, if no, quick exit

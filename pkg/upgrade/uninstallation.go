@@ -13,8 +13,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -93,7 +93,7 @@ func OperatorUninstall(ctx context.Context, cli client.Client, platform common.P
 }
 
 func removeDSCI(ctx context.Context, cli client.Client) error {
-	instance := &dsciv1.DSCInitialization{}
+	instance := &dsciv2.DSCInitialization{}
 
 	if err := cli.DeleteAllOf(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 		return fmt.Errorf("failure deleting DSCI: %w", err)
@@ -103,7 +103,7 @@ func removeDSCI(ctx context.Context, cli client.Client) error {
 }
 
 func removeDSC(ctx context.Context, cli client.Client) error {
-	instance := &dscv1.DataScienceCluster{}
+	instance := &dscv2.DataScienceCluster{}
 
 	if err := cli.DeleteAllOf(ctx, instance, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil {
 		return fmt.Errorf("failure deleting DSC: %w", err)

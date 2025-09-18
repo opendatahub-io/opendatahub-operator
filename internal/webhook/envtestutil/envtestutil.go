@@ -21,8 +21,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -248,12 +248,12 @@ func WithLlmInferenceService() CRDSetupOption {
 //   - opts: Optional functional options to mutate the object.
 //
 // Returns:
-//   - *dsciv1.DSCInitialization: The constructed DSCInitialization object.
-func NewDSCI(name, namespace string, opts ...func(*dsciv1.DSCInitialization)) *dsciv1.DSCInitialization {
-	dsci := &dsciv1.DSCInitialization{
+//   - *dsciv2.DSCInitialization: The constructed DSCInitialization object.
+func NewDSCI(name, namespace string, opts ...func(*dsciv2.DSCInitialization)) *dsciv2.DSCInitialization {
+	dsci := &dsciv2.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       gvk.DSCInitialization.Kind,
-			APIVersion: dsciv1.GroupVersion.String(),
+			APIVersion: dsciv2.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -274,12 +274,12 @@ func NewDSCI(name, namespace string, opts ...func(*dsciv1.DSCInitialization)) *d
 //   - opts: Optional functional options to mutate the object.
 //
 // Returns:
-//   - *dscv1.DataScienceCluster: The constructed DataScienceCluster object.
-func NewDSC(name, namespace string, opts ...func(*dscv1.DataScienceCluster)) *dscv1.DataScienceCluster {
-	dsc := &dscv1.DataScienceCluster{
+//   - *dscv2.DataScienceCluster: The constructed DataScienceCluster object.
+func NewDSC(name, namespace string, opts ...func(*dscv2.DataScienceCluster)) *dscv2.DataScienceCluster {
+	dsc := &dscv2.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       gvk.DataScienceCluster.Kind,
-			APIVersion: dscv1.GroupVersion.String(),
+			APIVersion: dscv2.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,

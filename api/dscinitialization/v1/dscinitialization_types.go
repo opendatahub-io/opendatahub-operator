@@ -116,6 +116,7 @@ func (d *DSCInitializationStatus) SetConditions(conditions []common.Condition) {
 //+kubebuilder:object:root=true
 //+kubebuilder:resource:scope=Cluster,shortName=dsci
 //+kubebuilder:subresource:status
+//+kubebuilder:storageversion
 //+kubebuilder:printcolumn:name="Age",type=date,JSONPath=.metadata.creationTimestamp
 //+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=.status.phase,description="Current Phase"
 //+kubebuilder:printcolumn:name="Created At",type=string,JSONPath=.metadata.creationTimestamp

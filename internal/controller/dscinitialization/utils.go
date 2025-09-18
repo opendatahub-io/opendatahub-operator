@@ -18,7 +18,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -37,7 +37,7 @@ var (
 //
 // - 2. Patch monitoring namespace
 // - 3. Network Policies 'opendatahub' that allow traffic between the ODH namespaces.
-func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform common.Platform) error {
+func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context, dscInit *dsciv2.DSCInitialization, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
 	if err := r.appNamespaceHandler(ctx, dscInit, platform); err != nil {
@@ -60,7 +60,7 @@ func (r *DSCInitializationReconciler) createOperatorResource(ctx context.Context
 	return nil
 }
 
-func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform common.Platform) error {
+func (r *DSCInitializationReconciler) appNamespaceHandler(ctx context.Context, dscInit *dsciv2.DSCInitialization, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
 	nsList := &corev1.NamespaceList{}
@@ -126,7 +126,7 @@ func (r *DSCInitializationReconciler) createAppNamespace(ctx context.Context, ns
 	return err
 }
 
-func PatchMonitoringNS(ctx context.Context, cli client.Client, dscInit *dsciv1.DSCInitialization) error {
+func PatchMonitoringNS(ctx context.Context, cli client.Client, dscInit *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 	monitoringName := dscInit.Spec.Monitoring.Namespace
 	if dscInit.Spec.Monitoring.ManagementState != operatorv1.Managed || dscInit.Spec.ApplicationsNamespace == monitoringName {
@@ -157,7 +157,7 @@ func PatchMonitoringNS(ctx context.Context, cli client.Client, dscInit *dsciv1.D
 func ReconcileDefaultNetworkPolicy(
 	ctx context.Context,
 	cli client.Client,
-	dscInit *dsciv1.DSCInitialization,
+	dscInit *dsciv2.DSCInitialization,
 	platform common.Platform,
 ) error {
 	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {

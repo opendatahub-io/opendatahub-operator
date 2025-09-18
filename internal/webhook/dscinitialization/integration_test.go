@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
@@ -47,7 +47,7 @@ func TestDSCIWebhook_Integration(t *testing.T) {
 				}
 			},
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				dsci := &dsciv1.DSCInitialization{}
+				dsci := &dsciv2.DSCInitialization{}
 				key := types.NamespacedName{Name: "dsci-delete", Namespace: ns}
 				g.Expect(k8sClient.Get(ctx, key, dsci)).To(Succeed(), "should get DSCI for deletion test")
 				g.Expect(k8sClient.Delete(ctx, dsci)).To(Succeed(), "should allow deletion if no DSC exists")

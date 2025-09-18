@@ -179,4 +179,18 @@ resources:
   kind: GatewayConfig
   path: github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+  domain: opendatahub.io
+  group: datasciencecluster
+  kind: DataScienceCluster
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2
+  version: v2
+- api:
+    crdVersion: v1
+  domain: opendatahub.io
+  group: dscinitialization
+  kind: DSCInitialization
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2
+  version: v2
 version: "3"

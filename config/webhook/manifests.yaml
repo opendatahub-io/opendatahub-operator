@@ -18,6 +18,7 @@ webhooks:
     - datasciencecluster.opendatahub.io
     apiVersions:
     - v1
+    - v2
     operations:
     - CREATE
     - UPDATE
@@ -58,6 +59,7 @@ webhooks:
     - kubeflow.org
     apiVersions:
     - v1
+    - v2
     operations:
     - CREATE
     - UPDATE
@@ -98,6 +100,7 @@ webhooks:
     - kubeflow.org
     apiVersions:
     - v1
+    - v2
     operations:
     - CREATE
     - UPDATE
@@ -124,6 +127,7 @@ webhooks:
     - datasciencecluster.opendatahub.io
     apiVersions:
     - v1
+    - v2
     operations:
     - CREATE
     resources:
@@ -143,6 +147,7 @@ webhooks:
     - dscinitialization.opendatahub.io
     apiVersions:
     - v1
+    - v2
     operations:
     - CREATE
     - DELETE
@@ -203,6 +208,7 @@ webhooks:
     - kubeflow.org
     apiVersions:
     - v1
+    - v2
     operations:
     - CREATE
     - UPDATE

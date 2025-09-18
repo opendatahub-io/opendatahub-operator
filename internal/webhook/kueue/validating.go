@@ -33,7 +33,7 @@ import (
 // - serving.kserve.io/v1beta1: inferenceservices
 // - serving.kserve.io/v1alpha1: llminferenceservices
 
-//+kubebuilder:webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=kubeflow.org,resources=pytorchjobs;notebooks,verbs=create;update,versions=v1,name=kubeflow-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=kubeflow.org,resources=pytorchjobs;notebooks,verbs=create;update,versions=v1;v2,name=kubeflow-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
 //+kubebuilder:webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=ray.io,resources=rayjobs;rayclusters,verbs=create;update,versions=v1;v1alpha1,name=ray-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
 //+kubebuilder:webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=serving.kserve.io,resources=inferenceservices,verbs=create;update,versions=v1beta1,name=kserve-isvc-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
 //+kubebuilder:webhook:path=/validate-kueue,mutating=false,failurePolicy=fail,sideEffects=None,groups=serving.kserve.io,resources=llminferenceservices,verbs=create;update,versions=v1alpha1,name=kserve-llmisvc-kueuelabels-validator.opendatahub.io,admissionReviewVersions=v1
