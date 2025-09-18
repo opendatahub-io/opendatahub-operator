@@ -10,14 +10,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-func (r *DSCInitializationReconciler) handleServiceMesh(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) handleServiceMesh(ctx context.Context, dscInit *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 
 	if dscInit.Spec.ServiceMesh == nil {
@@ -40,7 +40,7 @@ func (r *DSCInitializationReconciler) handleServiceMesh(ctx context.Context, dsc
 		)
 
 		// Update DSCI status with the conditions
-		_, err := status.UpdateWithRetry(ctx, r.Client, dscInit, func(saved *dsciv1.DSCInitialization) {
+		_, err := status.UpdateWithRetry(ctx, r.Client, dscInit, func(saved *dsciv2.DSCInitialization) {
 			saved.Status.SetConditions(conditions)
 		})
 		if err != nil {
@@ -72,7 +72,7 @@ func (r *DSCInitializationReconciler) handleServiceMesh(ctx context.Context, dsc
 		)
 
 		// Update DSCI status with the conditions
-		_, err := status.UpdateWithRetry(ctx, r.Client, dscInit, func(saved *dsciv1.DSCInitialization) {
+		_, err := status.UpdateWithRetry(ctx, r.Client, dscInit, func(saved *dsciv2.DSCInitialization) {
 			saved.Status.SetConditions(conditions)
 		})
 		if err != nil {
@@ -154,7 +154,7 @@ func (r *DSCInitializationReconciler) deleteServiceMesh(ctx context.Context) err
 	return nil
 }
 
-func (r *DSCInitializationReconciler) syncServiceMeshConditions(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) syncServiceMeshConditions(ctx context.Context, dscInit *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 
 	sm := &serviceApi.ServiceMesh{}
@@ -209,7 +209,7 @@ func (r *DSCInitializationReconciler) syncServiceMeshConditions(ctx context.Cont
 		)
 	}
 
-	_, err = status.UpdateWithRetry(ctx, r.Client, dscInit, func(saved *dsciv1.DSCInitialization) {
+	_, err = status.UpdateWithRetry(ctx, r.Client, dscInit, func(saved *dsciv2.DSCInitialization) {
 		saved.Status.SetConditions(dsciConditions)
 	})
 	if err != nil {

@@ -47,8 +47,12 @@ linters:
       alias:
         - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1
           alias: dsciv1
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2
+          alias: dsciv2
         - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1
           alias: dscv1
+        - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2
+          alias: dscv2
         - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1
           alias: infrav1
         - pkg: github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1

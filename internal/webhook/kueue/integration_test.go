@@ -12,7 +12,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
+	dscv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
@@ -86,7 +86,7 @@ func TestKueueWebhook_Integration(t *testing.T) {
 				t,
 				[]envt.RegisterWebhooksFn{
 					envtestutil.RegisterWebhooks,
-					dscwebhook.RegisterWebhooks,
+					dscv2webhook.RegisterWebhooks,
 				},
 				20*time.Second,
 				envtestutil.WithNotebook(),

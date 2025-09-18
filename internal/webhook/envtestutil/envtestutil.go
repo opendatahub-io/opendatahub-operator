@@ -22,7 +22,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -240,7 +242,33 @@ func WithLlmInferenceService() CRDSetupOption {
 // Object Creation Functions
 // =============================================================================
 
-// NewDSCI creates a DSCInitialization object with the given name and namespace for use in tests.
+// NewDSCI creates a DSCInitialization v2 object with the given name and namespace for use in tests.
+//
+// Parameters:
+//   - name: The name of the DSCInitialization object.
+//   - namespace: The namespace for the object.
+//   - opts: Optional functional options to mutate the object.
+//
+// Returns:
+//   - *dsciv2.DSCInitialization: The constructed DSCInitialization object.
+func NewDSCI(name, namespace string, opts ...func(*dsciv2.DSCInitialization)) *dsciv2.DSCInitialization {
+	dsci := &dsciv2.DSCInitialization{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       gvk.DSCInitialization.Kind,
+			APIVersion: dsciv2.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	for _, opt := range opts {
+		opt(dsci)
+	}
+	return dsci
+}
+
+// NewDSCIV1 creates a DSCInitialization v1 object with the given name and namespace for use in tests.
 //
 // Parameters:
 //   - name: The name of the DSCInitialization object.
@@ -249,7 +277,7 @@ func WithLlmInferenceService() CRDSetupOption {
 //
 // Returns:
 //   - *dsciv1.DSCInitialization: The constructed DSCInitialization object.
-func NewDSCI(name, namespace string, opts ...func(*dsciv1.DSCInitialization)) *dsciv1.DSCInitialization {
+func NewDSCIV1(name, namespace string, opts ...func(*dsciv1.DSCInitialization)) *dsciv1.DSCInitialization {
 	dsci := &dsciv1.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       gvk.DSCInitialization.Kind,
@@ -266,7 +294,33 @@ func NewDSCI(name, namespace string, opts ...func(*dsciv1.DSCInitialization)) *d
 	return dsci
 }
 
-// NewDSC creates a DataScienceCluster object with the given name and namespace for use in tests.
+// NewDSC creates a DataScienceCluster v2 object with the given name and namespace for use in tests.
+//
+// Parameters:
+//   - name: The name of the DataScienceCluster object.
+//   - namespace: The namespace for the object.
+//   - opts: Optional functional options to mutate the object.
+//
+// Returns:
+//   - *dscv2.DataScienceCluster: The constructed DataScienceCluster object.
+func NewDSC(name, namespace string, opts ...func(*dscv2.DataScienceCluster)) *dscv2.DataScienceCluster {
+	dsc := &dscv2.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       gvk.DataScienceCluster.Kind,
+			APIVersion: dscv2.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	for _, opt := range opts {
+		opt(dsc)
+	}
+	return dsc
+}
+
+// NewDSCV1 creates a DataScienceCluster v1 object with the given name and namespace for use in tests.
 //
 // Parameters:
 //   - name: The name of the DataScienceCluster object.
@@ -275,7 +329,7 @@ func NewDSCI(name, namespace string, opts ...func(*dsciv1.DSCInitialization)) *d
 //
 // Returns:
 //   - *dscv1.DataScienceCluster: The constructed DataScienceCluster object.
-func NewDSC(name, namespace string, opts ...func(*dscv1.DataScienceCluster)) *dscv1.DataScienceCluster {
+func NewDSCV1(name, namespace string, opts ...func(*dscv1.DataScienceCluster)) *dscv1.DataScienceCluster {
 	dsc := &dscv1.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       gvk.DataScienceCluster.Kind,

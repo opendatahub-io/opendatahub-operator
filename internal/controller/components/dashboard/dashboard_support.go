@@ -8,7 +8,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -74,7 +74,7 @@ func bffManifestsPath() odhtypes.ManifestInfo {
 	}
 }
 
-func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
+func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform, dscispec *dsciv2.DSCInitializationSpec) (map[string]string, error) {
 	consoleLinkDomain, err := cluster.GetDomain(ctx, cli)
 	if err != nil {
 		return nil, fmt.Errorf("error getting console route URL %s : %w", consoleLinkDomain, err)

@@ -23,8 +23,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -1032,10 +1032,10 @@ func (tc *TestContext) FetchPlatformRelease() common.Platform {
 // as a strongly typed object.
 //
 // Returns:
-//   - *dsciv1.DSCInitialization: The retrieved DSCInitialization object.
-func (tc *TestContext) FetchDSCInitialization() *dsciv1.DSCInitialization {
+//   - *dsciv2.DSCInitialization: The retrieved DSCInitialization object.
+func (tc *TestContext) FetchDSCInitialization() *dsciv2.DSCInitialization {
 	// Ensure the DSCInitialization exists and retrieve the object
-	dsci := &dsciv1.DSCInitialization{}
+	dsci := &dsciv2.DSCInitialization{}
 	tc.FetchTypedResource(dsci, WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName))
 
 	return dsci
@@ -1047,10 +1047,10 @@ func (tc *TestContext) FetchDSCInitialization() *dsciv1.DSCInitialization {
 // as a strongly typed object.
 //
 // Returns:
-//   - *dsciv1.DataScienceCluster: The retrieved DataScienceCluster object.
-func (tc *TestContext) FetchDataScienceCluster() *dscv1.DataScienceCluster {
+//   - *dsciv2.DataScienceCluster: The retrieved DataScienceCluster object.
+func (tc *TestContext) FetchDataScienceCluster() *dscv2.DataScienceCluster {
 	// Ensure the DataScienceCluster exists and retrieve the object
-	dsc := &dscv1.DataScienceCluster{}
+	dsc := &dscv2.DataScienceCluster{}
 	tc.FetchTypedResource(dsc, WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName))
 
 	return dsc

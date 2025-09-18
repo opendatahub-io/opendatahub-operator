@@ -22,7 +22,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -142,7 +142,7 @@ func testResourceNotReDeployed(t *testing.T, cli client.Client, obj client.Objec
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		DSCI: &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: in.GetNamespace()},
 		},
 		Instance: &componentApi.Dashboard{
@@ -218,7 +218,7 @@ func testCacheTTL(t *testing.T, cli client.Client, obj client.Object) {
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		DSCI: &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: in.GetNamespace()},
 		},
 		Instance: &componentApi.Dashboard{

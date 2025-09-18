@@ -3,7 +3,9 @@
 ## Packages
 - [components.platform.opendatahub.io/v1alpha1](#componentsplatformopendatahubiov1alpha1)
 - [datasciencecluster.opendatahub.io/v1](#datascienceclusteropendatahubiov1)
+- [datasciencecluster.opendatahub.io/v2](#datascienceclusteropendatahubiov2)
 - [dscinitialization.opendatahub.io/v1](#dscinitializationopendatahubiov1)
+- [dscinitialization.opendatahub.io/v2](#dscinitializationopendatahubiov2)
 - [infrastructure.opendatahub.io/v1](#infrastructureopendatahubiov1)
 - [infrastructure.opendatahub.io/v1alpha1](#infrastructureopendatahubiov1alpha1)
 - [services.platform.opendatahub.io/v1alpha1](#servicesplatformopendatahubiov1alpha1)
@@ -184,6 +186,7 @@ _Appears in:_
 
 _Appears in:_
 - [Components](#components)
+- [Components](#components)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -201,6 +204,7 @@ DSCCodeFlareStatus contains the observed state of the CodeFlare exposed in the D
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -216,6 +220,7 @@ DSCDashboard contains all the configuration exposed in DSC instance for Dashboar
 
 
 _Appears in:_
+- [Components](#components)
 - [Components](#components)
 
 | Field | Description | Default | Validation |
@@ -234,6 +239,7 @@ DSCDashboardStatus contains the observed state of the Dashboard exposed in the D
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -249,6 +255,7 @@ DSCDataSciencePipelines contains all the configuration exposed in DSC instance f
 
 
 _Appears in:_
+- [Components](#components)
 - [Components](#components)
 
 | Field | Description | Default | Validation |
@@ -268,6 +275,7 @@ DSCDataSciencePipelinesStatus contains the observed state of the DataSciencePipe
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -283,6 +291,7 @@ DSCFeastOperator defines the configuration exposed in the DSC instance for Feast
 
 
 _Appears in:_
+- [Components](#components)
 - [Components](#components)
 
 | Field | Description | Default | Validation |
@@ -301,6 +310,7 @@ DSCFeastOperatorStatus struct holds the status for the FeastOperator component e
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -316,6 +326,7 @@ DSCKserve contains all the configuration exposed in DSC instance for Kserve comp
 
 
 _Appears in:_
+- [Components](#components)
 - [Components](#components)
 
 | Field | Description | Default | Validation |
@@ -338,6 +349,7 @@ DSCKserveStatus contains the observed state of the Kserve exposed in the DSC ins
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -353,6 +365,7 @@ DSCKueue contains all the configuration exposed in DSC instance for Kueue compon
 
 
 _Appears in:_
+- [Components](#components)
 - [Components](#components)
 
 | Field | Description | Default | Validation |
@@ -373,6 +386,7 @@ DSCKueueStatus contains the observed state of the Kueue exposed in the DSC insta
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -388,6 +402,7 @@ DSCLlamaStackOperator contains all the configuration exposed in DSC instance for
 
 
 _Appears in:_
+- [Components](#components)
 - [Components](#components)
 
 | Field | Description | Default | Validation |
@@ -406,6 +421,7 @@ DSCLlamaStackOperatorStatus struct holds the status for the LlamaStackOperator c
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -421,6 +437,7 @@ DSCModelMeshServing contains all the configuration exposed in DSC instance for M
 
 
 _Appears in:_
+- [Components](#components)
 - [Components](#components)
 
 | Field | Description | Default | Validation |
@@ -439,6 +456,7 @@ DSCModelMeshServingStatus contains the observed state of the ModelMeshServing ex
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -454,6 +472,7 @@ DSCModelRegistry contains all the configuration exposed in DSC instance for Mode
 
 
 _Appears in:_
+- [Components](#components)
 - [Components](#components)
 
 | Field | Description | Default | Validation |
@@ -473,6 +492,7 @@ DSCModelRegistryStatus struct holds the status for the ModelRegistry component e
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -488,6 +508,7 @@ DSCRay contains all the configuration exposed in DSC instance for Ray component
 
 
 _Appears in:_
+- [Components](#components)
 - [Components](#components)
 
 | Field | Description | Default | Validation |
@@ -506,6 +527,7 @@ DSCRayStatus struct holds the status for the Ray component exposed in the DSC
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -521,6 +543,7 @@ DSCTrainingOperator contains all the configuration exposed in DSC instance for T
 
 
 _Appears in:_
+- [Components](#components)
 - [Components](#components)
 
 | Field | Description | Default | Validation |
@@ -539,6 +562,7 @@ DSCTrainingOperatorStatus struct holds the status for the TrainingOperator compo
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -554,6 +578,7 @@ DSCTrustyAI contains all the configuration exposed in DSC instance for TrustyAI 
 
 
 _Appears in:_
+- [Components](#components)
 - [Components](#components)
 
 | Field | Description | Default | Validation |
@@ -573,6 +598,7 @@ DSCTrustyAIStatus struct holds the status for the TrustyAI component exposed in 
 
 _Appears in:_
 - [ComponentsStatus](#componentsstatus)
+- [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -588,6 +614,7 @@ DSCWorkbenches contains all the configuration exposed in DSC instance for Workbe
 
 
 _Appears in:_
+- [Components](#components)
 - [Components](#components)
 
 | Field | Description | Default | Validation |
@@ -606,6 +633,7 @@ DSCWorkbenchesStatus struct holds the status for the Workbenches component expos
 
 
 _Appears in:_
+- [ComponentsStatus](#componentsstatus)
 - [ComponentsStatus](#componentsstatus)
 
 | Field | Description | Default | Validation |
@@ -2366,6 +2394,132 @@ _Appears in:_
 
 
 
+## datasciencecluster.opendatahub.io/v2
+
+Package v2 contains API Schema definitions for the datasciencecluster v2 API group.
+
+### Resource Types
+- [DataScienceCluster](#datasciencecluster)
+
+
+
+#### Components
+
+
+
+
+
+
+
+_Appears in:_
+- [DataScienceClusterSpec](#datascienceclusterspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
+| `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
+| `modelmeshserving` _[DSCModelMeshServing](#dscmodelmeshserving)_ | ModelMeshServing component configuration. |  |  |
+| `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
+| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
+| `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
+| `codeflare` _[DSCCodeFlare](#dsccodeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component. |  |  |
+| `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
+| `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
+| `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
+| `trainingoperator` _[DSCTrainingOperator](#dsctrainingoperator)_ | Training Operator component configuration. |  |  |
+| `feastoperator` _[DSCFeastOperator](#dscfeastoperator)_ | Feast Operator component configuration. |  |  |
+| `llamastackoperator` _[DSCLlamaStackOperator](#dscllamastackoperator)_ | LlamaStack Operator component configuration. |  |  |
+
+
+#### ComponentsStatus
+
+
+
+ComponentsStatus defines the custom status of DataScienceCluster components.
+
+
+
+_Appears in:_
+- [DataScienceClusterStatus](#datascienceclusterstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `dashboard` _[DSCDashboardStatus](#dscdashboardstatus)_ | Dashboard component status. |  |  |
+| `workbenches` _[DSCWorkbenchesStatus](#dscworkbenchesstatus)_ | Workbenches component status. |  |  |
+| `modelmeshserving` _[DSCModelMeshServingStatus](#dscmodelmeshservingstatus)_ | ModelMeshServing component status. |  |  |
+| `datasciencepipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | DataSciencePipeline component status. |  |  |
+| `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |
+| `kueue` _[DSCKueueStatus](#dsckueuestatus)_ | Kueue component status. |  |  |
+| `codeflare` _[DSCCodeFlareStatus](#dsccodeflarestatus)_ | CodeFlare component status. |  |  |
+| `ray` _[DSCRayStatus](#dscraystatus)_ | Ray component status. |  |  |
+| `trustyai` _[DSCTrustyAIStatus](#dsctrustyaistatus)_ | TrustyAI component status. |  |  |
+| `modelregistry` _[DSCModelRegistryStatus](#dscmodelregistrystatus)_ | ModelRegistry component status. |  |  |
+| `trainingoperator` _[DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)_ | Training Operator component status. |  |  |
+| `feastoperator` _[DSCFeastOperatorStatus](#dscfeastoperatorstatus)_ | Feast Operator component status. |  |  |
+| `llamastackoperator` _[DSCLlamaStackOperatorStatus](#dscllamastackoperatorstatus)_ | LlamaStack Operator component status. |  |  |
+
+
+#### DataScienceCluster
+
+
+
+DataScienceCluster is the Schema for the datascienceclusters API.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `datasciencecluster.opendatahub.io/v2` | | |
+| `kind` _string_ | `DataScienceCluster` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[DataScienceClusterSpec](#datascienceclusterspec)_ |  |  |  |
+| `status` _[DataScienceClusterStatus](#datascienceclusterstatus)_ |  |  |  |
+
+
+#### DataScienceClusterSpec
+
+
+
+DataScienceClusterSpec defines the desired state of the cluster.
+
+
+
+_Appears in:_
+- [DataScienceCluster](#datasciencecluster)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `components` _[Components](#components)_ | Override and fine tune specific component configurations. |  |  |
+
+
+#### DataScienceClusterStatus
+
+
+
+DataScienceClusterStatus defines the observed state of DataScienceCluster.
+
+
+
+_Appears in:_
+- [DataScienceCluster](#datasciencecluster)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
+| `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
+| `errorMessage` _string_ |  |  |  |
+| `installedComponents` _object (keys:string, values:boolean)_ | List of components with status if installed or not |  |  |
+| `components` _[ComponentsStatus](#componentsstatus)_ | Expose component's specific status |  |  |
+| `release` _[Release](#release)_ | Version and release type |  |  |
+
+
+
 ## dscinitialization.opendatahub.io/services
 
 
@@ -2396,6 +2550,113 @@ DSCInitialization is the Schema for the dscinitializations API.
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `dscinitialization.opendatahub.io/v1` | | |
+| `kind` _string_ | `DSCInitialization` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[DSCInitializationSpec](#dscinitializationspec)_ |  |  |  |
+| `status` _[DSCInitializationStatus](#dscinitializationstatus)_ |  |  |  |
+
+
+#### DSCInitializationSpec
+
+
+
+DSCInitializationSpec defines the desired state of DSCInitialization.
+
+
+
+_Appears in:_
+- [DSCInitialization](#dscinitialization)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `applicationsNamespace` _string_ | Namespace for applications to be installed, non-configurable, default to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `monitoring` _[DSCIMonitoring](#dscimonitoring)_ | Enable monitoring on specified namespace |  |  |
+| `serviceMesh` _[ServiceMeshSpec](#servicemeshspec)_ | Configures Service Mesh as networking layer for Data Science Clusters components.<br />The Service Mesh is a mandatory prerequisite for single model serving (KServe) and<br />you should review this configuration if you are planning to use KServe.<br />For other components, it enhances user experience; e.g. it provides unified<br />authentication giving a Single Sign On experience. |  |  |
+| `trustedCABundle` _[TrustedCABundleSpec](#trustedcabundlespec)_ | When set to `Managed`, adds odh-trusted-ca-bundle Configmap to all namespaces that includes<br />cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].<br />Additionally, this fields allows admins to add custom CA bundles to the configmap using the .CustomCABundle field. |  |  |
+| `devFlags` _[DevFlags](#devflags)_ | Internal development useful field to test customizations.<br />This is not recommended to be used in production environment. |  |  |
+
+
+#### DSCInitializationStatus
+
+
+
+DSCInitializationStatus defines the observed state of DSCInitialization.
+
+
+
+_Appears in:_
+- [DSCInitialization](#dscinitialization)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ | Phase describes the Phase of DSCInitializationStatus<br />This is used by OLM UI to provide status information to the user |  |  |
+| `conditions` _[Condition](#condition) array_ | Conditions describes the state of the DSCInitializationStatus resource |  |  |
+| `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster |  |  |
+| `errorMessage` _string_ |  |  |  |
+| `release` _[Release](#release)_ | Version and release type |  |  |
+
+
+#### DevFlags
+
+
+
+DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
+to be used in production environment.
+
+
+
+_Appears in:_
+- [DSCInitializationSpec](#dscinitializationspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `manifestsUri` _string_ | ## DEPRECATED ## : ManifestsUri set on DSCI is not maintained.<br />Custom manifests uri for odh-manifests |  |  |
+| `logmode` _string_ | ## DEPRECATED ##: Ignored, use LogLevel instead | production | Enum: [devel development prod production default] <br /> |
+| `logLevel` _string_ | Override Zap log level. Can be "debug", "info", "error" or a number (more verbose). |  |  |
+
+
+#### TrustedCABundleSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [DSCInitializationSpec](#dscinitializationspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | managementState indicates whether and how the operator should manage customized CA bundle | Removed | Enum: [Managed Removed Unmanaged] <br /> |
+| `customCABundle` _string_ | A custom CA bundle that will be available for  all  components in the<br />Data Science Cluster(DSC). This bundle will be stored in odh-trusted-ca-bundle<br />ConfigMap .data.odh-ca-bundle.crt . |  |  |
+
+
+
+## dscinitialization.opendatahub.io/v2
+
+Package v2 contains API Schema definitions for the dscinitialization v2 API group.
+
+### Resource Types
+- [DSCInitialization](#dscinitialization)
+
+
+
+#### DSCInitialization
+
+
+
+DSCInitialization is the Schema for the dscinitializations API.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `dscinitialization.opendatahub.io/v2` | | |
 | `kind` _string_ | `DSCInitialization` | | |
 | `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
 | `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
@@ -2753,6 +3014,7 @@ ServiceMeshSpec configures Service Mesh.
 
 _Appears in:_
 - [DSCInitializationSpec](#dscinitializationspec)
+- [DSCInitializationSpec](#dscinitializationspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -3075,6 +3337,7 @@ _Appears in:_
 
 
 _Appears in:_
+- [DSCInitializationSpec](#dscinitializationspec)
 - [DSCInitializationSpec](#dscinitializationspec)
 
 | Field | Description | Default | Validation |

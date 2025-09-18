@@ -13,7 +13,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
@@ -53,8 +53,8 @@ func TestRenderTemplate(t *testing.T) {
 					Name: ns,
 				},
 			},
-			DSCI: &dsciv1.DSCInitialization{
-				Spec: dsciv1.DSCInitializationSpec{
+			DSCI: &dsciv2.DSCInitialization{
+				Spec: dsciv2.DSCInitializationSpec{
 					ApplicationsNamespace: ns,
 					ServiceMesh: &infrav1.ServiceMeshSpec{
 						ControlPlane: infrav1.ControlPlaneSpec{
@@ -123,8 +123,8 @@ func TestRenderTemplateWithData(t *testing.T) {
 				UID:  apytypes.UID(xid.New().String()),
 			},
 		},
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{
 				ApplicationsNamespace: ns,
 				ServiceMesh: &infrav1.ServiceMeshSpec{
 					ControlPlane: infrav1.ControlPlaneSpec{
@@ -179,7 +179,7 @@ func TestRenderTemplateWithDataErr(t *testing.T) {
 				Name: ns,
 			},
 		},
-		DSCI:      &dsciv1.DSCInitialization{},
+		DSCI:      &dsciv2.DSCInitialization{},
 		Release:   common.Release{Name: cluster.OpenDataHub},
 		Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm-data.tmpl.yaml"}},
 	}
@@ -202,8 +202,8 @@ func TestRenderTemplateWithCache(t *testing.T) {
 
 	render.RenderedResourcesTotal.Reset()
 
-	dsci := dsciv1.DSCInitialization{
-		Spec: dsciv1.DSCInitializationSpec{
+	dsci := dsciv2.DSCInitialization{
+		Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: ns,
 			ServiceMesh: &infrav1.ServiceMeshSpec{
 				ControlPlane: infrav1.ControlPlaneSpec{
@@ -283,8 +283,8 @@ func TestRenderTemplateWithGlob(t *testing.T) {
 				Name: id,
 			},
 		},
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{
 				ApplicationsNamespace: ns,
 			},
 		},
@@ -357,8 +357,8 @@ func TestRenderTemplateWithCustomInfo(t *testing.T) {
 				Name: id,
 			},
 		},
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{
 				ApplicationsNamespace: ns,
 			},
 		},

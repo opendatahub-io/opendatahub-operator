@@ -1,8 +1,8 @@
 //go:build !nowebhook
 
-// Package datasciencecluster provides admission webhook logic for defaulting DataScienceCluster resources.
+// Package v1 provides admission webhook logic for defaulting DataScienceCluster v1 resources.
 // It ensures required fields are set to their default values when not specified by the user.
-package datasciencecluster
+package v1
 
 import (
 	"context"
@@ -20,10 +20,10 @@ import (
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
-//+kubebuilder:webhook:path=/mutate-datasciencecluster,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=datasciencecluster-defaulter.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/mutate-datasciencecluster-v1,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=datasciencecluster-v1-defaulter.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
-// Defaulter implements webhook.CustomDefaulter for DataScienceCluster resources.
+// Defaulter implements webhook.CustomDefaulter for DataScienceCluster v1 resources.
 // It sets default values for fields in the DataScienceCluster CR, such as ModelRegistry.RegistriesNamespace.
 type Defaulter struct {
 	// Name is used for logging and webhook identification.
@@ -43,12 +43,12 @@ var _ webhook.CustomDefaulter = &Defaulter{}
 func (d *Defaulter) SetupWithManager(mgr ctrl.Manager) error {
 	mutateWebhook := admission.WithCustomDefaulter(mgr.GetScheme(), &dscv1.DataScienceCluster{}, d)
 	mutateWebhook.LogConstructor = webhookutils.NewWebhookLogConstructor(d.Name)
-	mgr.GetWebhookServer().Register("/mutate-datasciencecluster", mutateWebhook)
+	mgr.GetWebhookServer().Register("/mutate-datasciencecluster-v1", mutateWebhook)
 	// No error to return currently, but return nil for future extensibility
 	return nil
 }
 
-// Default sets default values on the provided DataScienceCluster object.
+// Default sets default values on the provided DataScienceCluster v1 object.
 //
 // Parameters:
 //   - ctx: Context for the admission request (logger is extracted from here).
@@ -60,7 +60,7 @@ func (d *Defaulter) Default(ctx context.Context, obj runtime.Object) error {
 	dsc, isDSC := obj.(*dscv1.DataScienceCluster)
 	if !isDSC {
 		log := logf.FromContext(ctx)
-		err := fmt.Errorf("expected DataScienceCluster but got a different type: %T", obj)
+		err := fmt.Errorf("expected DataScienceCluster v1 but got a different type: %T", obj)
 		log.Error(err, "Got wrong type")
 		return err
 	}
@@ -70,7 +70,7 @@ func (d *Defaulter) Default(ctx context.Context, obj runtime.Object) error {
 	return nil
 }
 
-// applyDefaults applies default values to the DataScienceCluster resource in-place.
+// applyDefaults applies default values to the DataScienceCluster v1 resource in-place.
 // Logger is extracted from the context.
 //
 // Parameters:
