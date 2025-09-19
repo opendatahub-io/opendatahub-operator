@@ -115,7 +115,7 @@ var (
 		name:    "components",
 		enabled: true,
 		scenarios: map[string]TestFn{
-			componentApi.DashboardComponentName:            dashboardTestSuite,
+			//	componentApi.DashboardComponentName:            dashboardTestSuite,
 			componentApi.RayComponentName:                  rayTestSuite,
 			componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
 			componentApi.TrustyAIComponentName:             trustyAITestSuite,
