@@ -234,16 +234,6 @@ func (tc *TestContext) EnsureResourceExistsConsistently(opts ...ResourceOpts) *u
 
 // EventuallyResourceCreatedOrUpdated ensures that a given Kubernetes resource exists.
 // If the resource is missing, it will be created; if it already exists, it will be updated
-// using the provided mutation function. Conditions in ResourceOpts are evaluated with eventually.
-//
-// Parameters:
-//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
-//
-// Returns:
-//   - *unstructured.Unstructured: The existing or newly created (updated) resource object.
-//
-// EventuallyResourceCreatedOrUpdated ensures that a given Kubernetes resource exists.
-// If the resource is missing, it will be created; if it already exists, it will be updated
 // using the provided mutation function. This function retries until the operation succeeds.
 //
 // Behavior is controlled by the following optional flags:
