@@ -87,7 +87,7 @@ jobs:
 
             **Action required from the PR author:**
             1. Edit the PR description and add your justification in the `#### E2E update requirement opt-out justification` section
-               - **Note:** In case you deleted the `### E2E test suite update requirement` part of the original template description (or any of it subparts), you can find the original template in `.github/PULL_REQUEST_TEMPLATE.md`, and restore the deleted part from there
+               - **Note:** In case your PR description does not adhere to our PR template and is missing the `### E2E test suite update requirement` section (or any of its subsections), you can find the original PR template in `.github/PULL_REQUEST_TEMPLATE.md`, and restore the missing section from there
             2. Submit the PR description changes. This will automatically re-trigger the check
 
             **For more info, please refer to:** [workflow run details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }})
@@ -108,7 +108,7 @@ jobs:
             2. Evaluate the possibility of opting-out of this requirement:
                1. Inspect the [opt-out guidelines](https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/e2e-update-requirement-guidelines.md), to determine if the nature of the PR changes allows for skipping this requirement
                2. If opt-out is applicable, please proceed to provide justification in the PR description (`#### E2E update requirement opt-out justification:` section)
-                  - **Note:** In case you previously deleted the `### E2E test suite update requirement` part of the original template description (or any of it subparts), you can find the original template in `.github/PULL_REQUEST_TEMPLATE.md`, and restore the deleted part from there
+                  - **Note:** In case your PR description does not adhere to our PR template and is missing the `### E2E test suite update requirement` section (or any of its subsections), you can find the original PR template in `.github/PULL_REQUEST_TEMPLATE.md`, and restore the missing section from there
                3. After adding the justification, check the "Skip requirement to update E2E test suite for this PR" checkbox
                4. Submit/save changes to the PR description. The check will be triggered automatically and should pass
 

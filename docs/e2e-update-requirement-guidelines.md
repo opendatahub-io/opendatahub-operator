@@ -24,10 +24,10 @@ It is possible to opt-out of this check with proper justification. Please refer 
 - Changes affecting user workflows or UI
 
 ### Opt-out guide
-**Note:** This particular guide is also present in the PR template/description
+**Note:** This particular guide is also present in the default PR template description. In case you are looking to opt-out of the requirement, **it is highly recommended that your PR description adheres to the default PR template** - particularly, please keep the `### E2E test suite update requirement` section and set it up according to the steps below
 
 1. Inspect the above-mentioned guidelines, to determine if the nature of the PR changes allows for skipping this requirement
 2. Provide justification in the PR description under the `#### E2E update requirement opt-out justification` section
-   - **Note:** In case you previusly deleted the `### E2E test suite update requirement` part of the original template description (or any of it subparts), you can find the original template in `.github/PULL_REQUEST_TEMPLATE.md`, and restore the deleted part from there
+   - **Note:** In case your PR description does not adhere to our PR template and is missing the `### E2E test suite update requirement` section (or any of its subsections), you can find the original PR template in `.github/PULL_REQUEST_TEMPLATE.md`, and restore the missing section from there
 3. Check the `Skip requirement to update E2E test suite for this PR` checkbox
 4. Submit/save these changes to the PR description. This will automatically trigger the check.

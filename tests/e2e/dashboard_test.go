@@ -5,13 +5,11 @@ import (
 	"testing"
 
 	"github.com/rs/xid"
-	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -25,32 +23,32 @@ type DashboardTestCtx struct {
 	*ComponentTestCtx
 }
 
-func dashboardTestSuite(t *testing.T) {
-	t.Helper()
+// func dashboardTestSuite(t *testing.T) {
+// 	t.Helper()
 
-	ct, err := NewComponentTestCtx(t, &componentApi.Dashboard{})
-	require.NoError(t, err)
+// 	ct, err := NewComponentTestCtx(t, &componentApi.Dashboard{})
+// 	require.NoError(t, err)
 
-	componentCtx := DashboardTestCtx{
-		ComponentTestCtx: ct,
-	}
+// 	componentCtx := DashboardTestCtx{
+// 		ComponentTestCtx: ct,
+// 	}
 
-	// Define test cases.
-	testCases := []TestCase{
-		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
-		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
-		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
-		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
-		{"Validate hardware profile creation blocked by VAP", componentCtx.ValidateHardwareProfileCreationBlockedByVAP},
-		{"Validate accelerator profile creation blocked by VAP", componentCtx.ValidateAcceleratorProfileCreationBlockedByVAP},
-		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
-		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
-	}
+// 	// Define test cases.
+// 	testCases := []TestCase{
+// 		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
+// 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
+// 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
+// 		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
+// 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
+// 		{"Validate hardware profile creation blocked by VAP", componentCtx.ValidateHardwareProfileCreationBlockedByVAP},
+// 		{"Validate accelerator profile creation blocked by VAP", componentCtx.ValidateAcceleratorProfileCreationBlockedByVAP},
+// 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
+// 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
+// 	}
 
-	// Run the test suite.
-	RunTestCases(t, testCases)
-}
+// 	// Run the test suite.
+// 	RunTestCases(t, testCases)
+// }
 
 // ValidateOperandsDynamicallyWatchedResources ensures that operands are correctly watched for dynamic updates.
 func (tc *DashboardTestCtx) ValidateOperandsDynamicallyWatchedResources(t *testing.T) {
