@@ -94,6 +94,16 @@ func RunTestCases(t *testing.T, testCases []TestCase, opts ...TestCaseOpts) {
 	// Apply all provided options (e.g., parallel execution) to each test case.
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
+			// Set up panic handler for each individual test (must be first defer)
+			defer HandleGlobalPanic()
+
+			// Check for test failure and run diagnostics (only for failures, not panics)
+			defer func() {
+				if t.Failed() {
+					HandleTestFailure(testCase.name)
+				}
+			}()
+
 			// Apply each option to the current test
 			for _, opt := range opts {
 				opt(t)

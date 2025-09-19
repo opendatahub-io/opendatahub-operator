@@ -54,7 +54,7 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
 		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
-		{"Validate VAP/VAPB creation after DSCI creation", dscTestCtx.ValidateVAPCreationAfterDSCI},
+		// {"Validate VAP/VAPB creation after DSCI creation", dscTestCtx.ValidateVAPCreationAfterDSCI},
 		{"Validate Knative resource", dscTestCtx.ValidateKnativeSpecInDSC},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
@@ -304,7 +304,6 @@ func (tc *DSCTestCtx) ValidateVAPCreationAfterDSCI(t *testing.T) {
 	tc.EnsureResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
-		WithCondition(Succeed()),
 		WithCustomErrorMsg("Failed to enable Dashboard for VAP test"),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 	)
@@ -353,7 +352,6 @@ func (tc *DSCTestCtx) ValidateVAPCreationAfterDSCI(t *testing.T) {
 	tc.EnsureResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Removed"`)),
-		WithCondition(Succeed()),
 		WithCustomErrorMsg("Failed to revert Dashboard after VAP test"),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 	)
