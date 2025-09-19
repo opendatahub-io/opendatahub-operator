@@ -78,36 +78,34 @@ func (w *ISVCConnectionWebhook) Handle(ctx context.Context, req admission.Reques
 		}
 
 		// validate the connection annotation and get secret and type, actual action (create/injenct, remove, replace) is moved out of here.
-		validationResp, secretName, connectionType := webhookutils.ValidateServingConnectionAnnotation(ctx, w.Webhook.APIReader, obj, req, allowedTypes)
+		validationResp, newConn := webhookutils.ValidateServingConnectionAnnotation(ctx, w.Webhook.APIReader, obj, req, allowedTypes)
 		if !validationResp.Allowed {
 			return validationResp
 		}
 
 		var action webhookutils.ConnectionAction
-		var oldSecretName, oldConnectionType string
+		var oldConn webhookutils.ConnectionInfo
 
 		if req.Operation == admissionv1.Update {
-			// UPDATE, get old connection type and secret name to determine remove replace.
-			oldSecretName, oldConnectionType, err = w.Webhook.GetOldConnectionInfo(ctx, req)
+			// UPDATE, get old connection info to determine delete/update/none.
+			oldConn, err = w.Webhook.GetOldConnectionInfo(ctx, req)
 			if err != nil {
-				log.Error(err, "Failed to get old connection info")
 				return admission.Errored(http.StatusInternalServerError, err)
 			}
-			action = webhookutils.DetermineConnectionChangeAction(oldSecretName, oldConnectionType, secretName, connectionType)
+			action = webhookutils.DetermineConnectionChangeAction(oldConn, newConn)
 		} else { // CREATE, always inject
 			action = webhookutils.ConnectionActionInject
 		}
 
-		// Handle different actions based on the action
 		switch action {
 		case webhookutils.ConnectionActionInject:
 			// Create ServiceAccount only for S3 connections in non-dry-run mode
 			isDryRun := req.DryRun != nil && *req.DryRun
-			if err := webhookutils.ServiceAccountCreation(ctx, w.Webhook.Client, secretName, connectionType, req.Namespace, isDryRun); err != nil {
+			if err := webhookutils.ServiceAccountCreation(ctx, w.Webhook.Client, newConn.SecretName, newConn.Type, req.Namespace, isDryRun); err != nil {
 				return admission.Errored(http.StatusInternalServerError, err)
 			}
 			// Perform injection for valid connection types
-			injectionPerformed, err := w.performConnectionInjection(ctx, req, secretName, connectionType, obj)
+			injectionPerformed, err := w.performConnectionInjection(ctx, req, obj, newConn)
 			if err != nil {
 				log.Error(err, "Failed to perform connection injection")
 				return admission.Errored(http.StatusInternalServerError, err)
@@ -122,7 +120,7 @@ func (w *ISVCConnectionWebhook) Handle(ctx context.Context, req admission.Reques
 
 		case webhookutils.ConnectionActionRemove:
 			// Perform cleanup when annotation is removed, we do not delete SA but only remove injection part
-			cleanupPerformed, err := w.performConnectionCleanup(ctx, req, obj, oldConnectionType)
+			cleanupPerformed, err := w.performConnectionCleanup(ctx, req, obj, oldConn)
 			if err != nil {
 				log.Error(err, "Failed to perform connection cleanup")
 				return admission.Errored(http.StatusInternalServerError, err)
@@ -136,12 +134,13 @@ func (w *ISVCConnectionWebhook) Handle(ctx context.Context, req admission.Reques
 
 		case webhookutils.ConnectionActionReplace:
 			// Connection changed cleanup old and inject new
-			log.V(1).Info("Connection type/secret changed, performing replacement",
-				"oldType", oldConnectionType, "newType", connectionType,
-				"oldSecret", oldSecretName, "newSecret", secretName)
+			log.V(1).Info("Connection info changed, performing replacement",
+				"oldType", oldConn.Type, "newType", newConn.Type,
+				"oldSecret", oldConn.SecretName, "newSecret", newConn.SecretName,
+				"oldPath", oldConn.Path, "newPath", newConn.Path)
 
 			var cleanupPerformed bool
-			cleanupPerformed, err = w.performConnectionCleanup(ctx, req, obj, oldConnectionType)
+			cleanupPerformed, err = w.performConnectionCleanup(ctx, req, obj, oldConn)
 			if err != nil {
 				log.Error(err, "Failed to cleanup old connection type")
 				return admission.Errored(http.StatusInternalServerError, err)
@@ -153,12 +152,12 @@ func (w *ISVCConnectionWebhook) Handle(ctx context.Context, req admission.Reques
 			}
 			// Create ServiceAccount only for S3 connections in non-dry-run mode
 			isDryRun := req.DryRun != nil && *req.DryRun
-			if err := webhookutils.ServiceAccountCreation(ctx, w.Webhook.Client, secretName, connectionType, req.Namespace, isDryRun); err != nil {
+			if err := webhookutils.ServiceAccountCreation(ctx, w.Webhook.Client, newConn.SecretName, newConn.Type, req.Namespace, isDryRun); err != nil {
 				return admission.Errored(http.StatusInternalServerError, err)
 			}
 
 			// inject the new connection type
-			injectionPerformed, err := w.performConnectionInjection(ctx, req, secretName, connectionType, obj)
+			injectionPerformed, err := w.performConnectionInjection(ctx, req, obj, newConn)
 			if err != nil {
 				log.Error(err, "Failed to inject new connection type")
 				return admission.Errored(http.StatusInternalServerError, err)
@@ -188,90 +187,96 @@ func (w *ISVCConnectionWebhook) Handle(ctx context.Context, req admission.Reques
 func (w *ISVCConnectionWebhook) performConnectionInjection(
 	ctx context.Context,
 	req admission.Request,
-	secretName string,
-	connectionType string,
 	decodedObj *unstructured.Unstructured,
+	connInfo webhookutils.ConnectionInfo,
 ) (bool, error) {
 	log := logf.FromContext(ctx)
 
 	// injection based on connection type
-	switch connectionType {
+	switch connInfo.Type {
 	case webhookutils.ConnectionTypeOCI.String():
-		if err := w.Webhook.InjectOCIImagePullSecrets(decodedObj, IsvcConfigs.ImagePullSecretPath, secretName); err != nil {
+		if err := w.Webhook.InjectOCIImagePullSecrets(decodedObj, IsvcConfigs.ImagePullSecretPath, connInfo.SecretName); err != nil {
 			return false, fmt.Errorf("failed to inject OCI .spec.predictor.imagePullSecrets: %w", err)
 		}
-		log.V(1).Info("Successfully injected OCI .spec.predictor.imagePullSecrets", "secretName", secretName)
+		log.V(1).Info("Successfully injected OCI .spec.predictor.imagePullSecrets", "secretName", connInfo.SecretName)
 		// TODO: inject .spec.model.uri
 		return true, nil
 
 	case webhookutils.ConnectionTypeURI.String():
-		if err := w.injectURIStorageUri(ctx, decodedObj, secretName, req.Namespace); err != nil {
+		if err := w.injectURIStorageUri(ctx, decodedObj, connInfo.SecretName, req.Namespace); err != nil {
 			return false, fmt.Errorf("failed to inject host to .spec.predictor.model.storageUri: %w", err)
 		}
-		log.V(1).Info("Successfully injected URI .spec.predictor.model.storageUri", "secretName", secretName)
+		log.V(1).Info("Successfully injected URI .spec.predictor.model.storageUri", "secretName", connInfo.SecretName)
 		return true, nil
 
 	case webhookutils.ConnectionTypeS3.String():
 		// inject ServiceAccount only for S3 connections
-		if err := w.Webhook.HandleSA(decodedObj, IsvcConfigs.ServiceAccountNamePath, secretName+"-sa"); err != nil {
+		if err := w.Webhook.HandleSA(decodedObj, IsvcConfigs.ServiceAccountNamePath, connInfo.SecretName+"-sa"); err != nil {
 			return false, fmt.Errorf("failed to inject .spec.predictor.serviceAccountName: %w", err)
 		}
-		log.V(1).Info("Successfully injected .spec.predictor.serviceAccountName", "ServiceAccountName", secretName+"-sa")
-		if err := w.injectS3StorageKeyPath(decodedObj, secretName); err != nil {
+		log.V(1).Info("Successfully injected .spec.predictor.serviceAccountName", "ServiceAccountName", connInfo.SecretName+"-sa")
+		if err := w.injectS3StorageKeyPath(decodedObj, connInfo.SecretName); err != nil {
 			return false, fmt.Errorf("failed to inject S3 .spec.predictor.model.storage: %w", err)
 		}
-		log.V(1).Info("Successfully injected S3 .spec.predictor.model.storage", "secretName", secretName)
+		log.V(1).Info("Successfully injected S3 .spec.predictor.model.storage", "secretName", connInfo.SecretName)
 		return true, nil
 
 	default: // this should not enter since ValidateConnectionAnnotation ensures valid types, but keep it for safety
-		log.V(1).Info("Unknown connection type, skipping injection", "connectionType", connectionType)
+		log.V(1).Info("Unknown connection type, skipping injection", "connectionType", connInfo.Type)
 		return false, nil
 	}
 }
 
 // performConnectionCleanup removes previously injected connection fields when the annotation is removed on UPDATE operation.
-// Uses oldConnectionType to determine exactly what needs to be cleaned up.
+// Uses connection type to determine exactly what needs to be cleaned up.
 func (w *ISVCConnectionWebhook) performConnectionCleanup(
 	ctx context.Context,
 	req admission.Request,
 	decodedObj *unstructured.Unstructured,
-	oldConnectionType string,
+	connInfo webhookutils.ConnectionInfo,
 ) (bool, error) {
 	log := logf.FromContext(ctx)
-	log.V(1).Info("Performing connection cleanup for removed annotation", "name", req.Name, "namespace", req.Namespace, "oldConnectionType", oldConnectionType)
+	log.V(1).Info("Performing connection cleanup for removed annotation", "name", req.Name, "namespace", req.Namespace, "oldConnectionType", connInfo.Type)
 
 	cleanupPerformed := true
 
 	// Clean up based on the old connection type or just try cleanup all.
-	switch oldConnectionType {
+	switch connInfo.Type {
 	case "":
-		// no old connection type means we do not know what was there so we need do a full cleanup
+		// no old connection-type-ref means we do not know what was there so we need do a full cleanup
 		// to ensure before injecting the new one
-		if err := w.cleanupOCIImagePullSecrets(decodedObj); err != nil {
-			return false, fmt.Errorf("failed to cleanup OCI .spec.predictor.imagePullSecrets: %w", err)
+		// for oci:
+		if connInfo.SecretName != "" {
+			if err := w.Webhook.CleanupOCIImagePullSecrets(decodedObj, IsvcConfigs.ImagePullSecretPath, connInfo.SecretName); err != nil {
+				return false, fmt.Errorf("failed to cleanup OCI .spec.predictor.imagePullSecrets: %w", err)
+			}
+			log.V(1).Info("Successfully cleaned up OCI .spec.predictor.imagePullSecrets", "secretName", connInfo.SecretName, "name", req.Name, "namespace", req.Namespace)
+		} else {
+			// If we don't know the secret name, remove the entire imagePullSecrets field as fallback
+			unstructured.RemoveNestedField(decodedObj.Object, IsvcConfigs.ImagePullSecretPath...)
+			log.V(1).Info("Successfully cleaned up entire .spec.predictor.imagePullSecrets field", "name", req.Name, "namespace", req.Namespace)
 		}
-		log.V(1).Info("Successfully cleaned up OCI .spec.predictor.imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
 
+		// for uri:
 		if err := w.cleanupURIStorageUri(decodedObj); err != nil {
 			return false, fmt.Errorf("failed to cleanup URI .spec.predictor.model.storageUri: %w", err)
 		}
 		log.V(1).Info("Successfully cleaned up URI .spec.predictor.model.storageUri", "name", req.Name, "namespace", req.Namespace)
 
-		// Clean up ServiceAccountName injection
+		// for s3: clean up ServiceAccountName injection
 		if err := w.Webhook.HandleSA(decodedObj, IsvcConfigs.ServiceAccountNamePath, ""); err != nil {
 			return false, fmt.Errorf("failed to cleanup .spec.predictor.serviceAccountName: %w", err)
 		}
-
 		if err := w.cleanupS3StorageKey(decodedObj); err != nil {
 			return false, fmt.Errorf("failed to cleanup S3 .spec.predictor.model.storage: %w", err)
 		}
 		log.V(1).Info("Successfully cleaned up S3 .spec.predictor.model.storage", "name", req.Name, "namespace", req.Namespace)
 
 	case webhookutils.ConnectionTypeOCI.String():
-		if err := w.cleanupOCIImagePullSecrets(decodedObj); err != nil {
+		if err := w.Webhook.CleanupOCIImagePullSecrets(decodedObj, IsvcConfigs.ImagePullSecretPath, connInfo.SecretName); err != nil {
 			return false, fmt.Errorf("failed to cleanup OCI .spec.predictor.imagePullSecrets: %w", err)
 		}
-		log.V(1).Info("Successfully cleaned up OCI .spec.predictor.imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
+		log.V(1).Info("Successfully cleaned up OCI .spec.predictor.imagePullSecrets", "secretName", connInfo.SecretName, "name", req.Name, "namespace", req.Namespace)
 
 	case webhookutils.ConnectionTypeURI.String():
 		if err := w.cleanupURIStorageUri(decodedObj); err != nil {
@@ -284,6 +289,7 @@ func (w *ISVCConnectionWebhook) performConnectionCleanup(
 		if err := w.Webhook.HandleSA(decodedObj, IsvcConfigs.ServiceAccountNamePath, ""); err != nil {
 			return false, fmt.Errorf("failed to cleanup .spec.predictor.serviceAccountName: %w", err)
 		}
+		// for isvc, we do not handle connection-path, as no cleanup or injectoin for .spec.predictor.model.path
 		if err := w.cleanupS3StorageKey(decodedObj); err != nil {
 			return false, fmt.Errorf("failed to cleanup S3 .spec.predictor.model.storage: %w", err)
 		}
@@ -291,17 +297,11 @@ func (w *ISVCConnectionWebhook) performConnectionCleanup(
 
 	default:
 		// No specific cleanup needed for unknown connection types
-		log.V(1).Info("No specific cleanup needed for connection type", "connectionType", oldConnectionType)
+		log.V(1).Info("No specific cleanup needed for connection type", "connectionType", connInfo.Type)
 		cleanupPerformed = false
 	}
 
 	return cleanupPerformed, nil
-}
-
-// cleanupOCIImagePullSecrets set empty slice to spec.predictor.imagePullSecrets.
-func (w *ISVCConnectionWebhook) cleanupOCIImagePullSecrets(obj *unstructured.Unstructured) error {
-	err := webhookutils.SetNestedValue(obj.Object, []interface{}{}, IsvcConfigs.ImagePullSecretPath)
-	return err
 }
 
 // cleanupURIStorageUri delete the storageUri field from spec.predictor.model.

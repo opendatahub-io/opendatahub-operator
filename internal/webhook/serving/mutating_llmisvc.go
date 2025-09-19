@@ -30,7 +30,7 @@ var LlmisvcConfigs = LLMInferenceServingPath{
 	ServiceAccountNamePath: []string{"spec", "template", "serviceAccountName"},
 }
 
-//+kubebuilder:webhook:path=/platform-connection-llmisvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=llminferenceservices,verbs=create;update,versions=v1beta1,name=connection-llmisvc.opendatahub.io,sideEffects=NoneOnDryRun,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/platform-connection-llmisvc,mutating=true,failurePolicy=fail,groups=serving.kserve.io,resources=llminferenceservices,verbs=create;update,versions=v1alpha1,name=connection-llmisvc.opendatahub.io,sideEffects=NoneOnDryRun,admissionReviewVersions=v1
 //nolint:lll
 
 type LLMISVCConnectionWebhook struct {
@@ -75,22 +75,22 @@ func (w *LLMISVCConnectionWebhook) Handle(ctx context.Context, req admission.Req
 			webhookutils.ConnectionTypeOCI.String(),
 		}
 
-		validationResp, secretName, connectionType := webhookutils.ValidateServingConnectionAnnotation(ctx, w.Webhook.APIReader, obj, req, allowedTypes)
+		validationResp, newConn := webhookutils.ValidateServingConnectionAnnotation(ctx, w.Webhook.APIReader, obj, req, allowedTypes)
 		if !validationResp.Allowed {
 			return validationResp
 		}
 
 		var action webhookutils.ConnectionAction
-		var oldSecretName, oldConnectionType string
+		var oldConn webhookutils.ConnectionInfo
 
 		if req.Operation == admissionv1.Update {
-			// UPDATE, get old connection type and secret name to determine remove replace.
-			oldSecretName, oldConnectionType, err = w.Webhook.GetOldConnectionInfo(ctx, req)
+			// UPDATE, get old connection info to determine remove/replace.
+			oldConn, err = w.Webhook.GetOldConnectionInfo(ctx, req)
 			if err != nil {
-				log.Error(err, "Failed to get old connection info")
 				return admission.Errored(http.StatusInternalServerError, err)
 			}
-			action = webhookutils.DetermineConnectionChangeAction(oldSecretName, oldConnectionType, secretName, connectionType)
+
+			action = webhookutils.DetermineConnectionChangeAction(oldConn, newConn)
 		} else { // CREATE, always inject
 			action = webhookutils.ConnectionActionInject
 		}
@@ -99,11 +99,11 @@ func (w *LLMISVCConnectionWebhook) Handle(ctx context.Context, req admission.Req
 		case webhookutils.ConnectionActionInject:
 			// Create ServiceAccount only for S3 connections in non-dry-run mode
 			isDryRun := req.DryRun != nil && *req.DryRun
-			if err := webhookutils.ServiceAccountCreation(ctx, w.Webhook.Client, secretName, connectionType, req.Namespace, isDryRun); err != nil {
+			if err := webhookutils.ServiceAccountCreation(ctx, w.Webhook.Client, newConn.SecretName, newConn.Type, req.Namespace, isDryRun); err != nil {
 				return admission.Errored(http.StatusInternalServerError, err)
 			}
 			// Perform injection for valid connection types
-			injectionPerformed, err := w.performConnectionInjection(ctx, req, secretName, connectionType, obj)
+			injectionPerformed, err := w.performConnectionInjection(ctx, req, obj, newConn)
 			if err != nil {
 				log.Error(err, "Failed to perform connection injection")
 				return admission.Errored(http.StatusInternalServerError, err)
@@ -118,7 +118,7 @@ func (w *LLMISVCConnectionWebhook) Handle(ctx context.Context, req admission.Req
 
 		case webhookutils.ConnectionActionRemove:
 			// Perform cleanup when annotation is removed, we do not delete SA but only remove injection part
-			cleanupPerformed, err := w.performConnectionCleanup(ctx, req, obj, oldConnectionType)
+			cleanupPerformed, err := w.performConnectionCleanup(ctx, req, obj, oldConn)
 			if err != nil {
 				log.Error(err, "Failed to perform connection cleanup")
 				return admission.Errored(http.StatusInternalServerError, err)
@@ -132,11 +132,12 @@ func (w *LLMISVCConnectionWebhook) Handle(ctx context.Context, req admission.Req
 
 		case webhookutils.ConnectionActionReplace:
 			// Connection changed cleanup old and inject new
-			log.V(1).Info("Connection type/secret changed, performing replacement",
-				"oldType", oldConnectionType, "newType", connectionType,
-				"oldSecret", oldSecretName, "newSecret", secretName)
+			log.V(1).Info("Connection changed, performing replacement",
+				"oldType", oldConn.Type, "newType", newConn.Type,
+				"oldSecret", oldConn.SecretName, "newSecret", newConn.SecretName,
+				"oldPath", oldConn.Path, "newPath", newConn.Path)
 
-			cleanupPerformed, err := w.performConnectionCleanup(ctx, req, obj, oldConnectionType)
+			cleanupPerformed, err := w.performConnectionCleanup(ctx, req, obj, oldConn)
 			if err != nil {
 				log.Error(err, "Failed to cleanup old connection type")
 				return admission.Errored(http.StatusInternalServerError, err)
@@ -148,12 +149,12 @@ func (w *LLMISVCConnectionWebhook) Handle(ctx context.Context, req admission.Req
 			}
 			// Create ServiceAccount only for S3 connections in non-dry-run mode
 			isDryRun := req.DryRun != nil && *req.DryRun
-			if err := webhookutils.ServiceAccountCreation(ctx, w.Webhook.Client, secretName, connectionType, req.Namespace, isDryRun); err != nil {
+			if err := webhookutils.ServiceAccountCreation(ctx, w.Webhook.Client, newConn.SecretName, newConn.Type, req.Namespace, isDryRun); err != nil {
 				return admission.Errored(http.StatusInternalServerError, err)
 			}
 
 			// inject the new connection type
-			injectionPerformed, err := w.performConnectionInjection(ctx, req, secretName, connectionType, obj)
+			injectionPerformed, err := w.performConnectionInjection(ctx, req, obj, newConn)
 			if err != nil {
 				log.Error(err, "Failed to inject new connection type")
 				return admission.Errored(http.StatusInternalServerError, err)
@@ -183,32 +184,31 @@ func (w *LLMISVCConnectionWebhook) Handle(ctx context.Context, req admission.Req
 func (w *LLMISVCConnectionWebhook) performConnectionInjection(
 	ctx context.Context,
 	req admission.Request,
-	secretName string,
-	connectionType string,
 	decodedObj *unstructured.Unstructured,
+	connInfo webhookutils.ConnectionInfo,
 ) (bool, error) {
 	log := logf.FromContext(ctx)
 	var uriValue string
 
 	// injection based on connection type
-	switch connectionType {
+	switch connInfo.Type {
 	case webhookutils.ConnectionTypeURI.String():
 		// TODO: inject serviceaccount for hf://
 		var err error
-		uriValue, err = w.Webhook.GetURIValue(ctx, decodedObj, secretName, req.Namespace)
+		uriValue, err = w.Webhook.GetURIValue(ctx, decodedObj, connInfo.SecretName, req.Namespace)
 		if err != nil {
-			return false, fmt.Errorf("failed to get URI value: %w", err)
+			return false, fmt.Errorf("failed to get URI value from secret %s: %w", connInfo.SecretName, err)
 		}
 		if uriValue == "" {
-			log.V(1).Info("No connection type URI value, skipping injection", "connectionType", connectionType)
+			log.V(1).Info("No connection type URI value, skipping injection", "connectionType", connInfo.Type)
 			return false, nil // Nothing to inject
 		}
 
 	case webhookutils.ConnectionTypeOCI.String():
-		if err := w.Webhook.InjectOCIImagePullSecrets(decodedObj, LlmisvcConfigs.ImagePullSecretPath, secretName); err != nil {
+		if err := w.Webhook.InjectOCIImagePullSecrets(decodedObj, LlmisvcConfigs.ImagePullSecretPath, connInfo.SecretName); err != nil {
 			return false, fmt.Errorf("failed to inject OCI .spec.template.imagePullSecrets: %w", err)
 		}
-		log.V(1).Info("Successfully injected OCI .spec.template.imagePullSecrets", "secretName", secretName)
+		log.V(1).Info("Successfully injected OCI .spec.template.imagePullSecrets", "secretName", connInfo.SecretName)
 
 		// TODO: inject .spec.model.uri
 		// uriValue = webhookutils.GetOCIValue(decodedObj)
@@ -216,30 +216,26 @@ func (w *LLMISVCConnectionWebhook) performConnectionInjection(
 
 	case webhookutils.ConnectionTypeS3.String():
 		// inject ServiceAccount for S3 connections
-		if err := w.Webhook.HandleSA(decodedObj, LlmisvcConfigs.ServiceAccountNamePath, secretName+"-sa"); err != nil {
+		if err := w.Webhook.HandleSA(decodedObj, LlmisvcConfigs.ServiceAccountNamePath, connInfo.SecretName+"-sa"); err != nil {
 			return false, fmt.Errorf("failed to inject .spec.template.serviceAccountName: %w", err)
 		}
-		log.V(1).Info("Successfully injected .spec.template.serviceAccountName", "ServiceAccountName", secretName+"-sa")
+		log.V(1).Info("Successfully injected .spec.template.serviceAccountName", "ServiceAccountName", connInfo.SecretName+"-sa")
 
 		var err error
-		uriValue, err = w.Webhook.GetS3Value(ctx, decodedObj, secretName, req.Namespace)
+		uriValue, err = w.Webhook.BuildS3URI(ctx, connInfo, req.Namespace)
 		if err != nil {
-			return false, fmt.Errorf("failed to get S3 URI value: %w", err)
-		}
-		if uriValue == "" {
-			log.V(1).Info("No S3 URI value, skipping injection", "connectionType", connectionType)
-			return false, nil // Nothing to inject
+			return false, fmt.Errorf("failed to build S3 URI: %w", err)
 		}
 
 	default: // this should not enter since ValidateConnectionAnnotation ensures valid types, but keep it for safety
-		log.V(1).Info("Unknown connection type, skipping injection", "connectionType", connectionType)
+		log.V(1).Info("Unknown connection type, skipping injection", "connectionType", connInfo.Type)
 		return false, nil
 	}
 
 	if err := w.injectModelUri(decodedObj, uriValue); err != nil {
 		return false, fmt.Errorf("failed to inject .spec.model.uri: %w", err)
 	}
-	log.V(1).Info("Successfully injected .spec.model.uri", "secretName", secretName)
+	log.V(1).Info("Successfully injected .spec.model.uri", "secretName", connInfo.SecretName)
 	return true, nil
 }
 
@@ -247,27 +243,64 @@ func (w *LLMISVCConnectionWebhook) performConnectionCleanup(
 	ctx context.Context,
 	req admission.Request,
 	decodedObj *unstructured.Unstructured,
-	oldConnectionType string,
+	connInfo webhookutils.ConnectionInfo,
 ) (bool, error) {
 	log := logf.FromContext(ctx)
-	log.V(1).Info("Performing connection cleanup for removed annotation", "name", req.Name, "namespace", req.Namespace, "oldConnectionType", oldConnectionType)
+	log.V(1).Info("Performing connection cleanup for removed annotation", "name", req.Name, "namespace", req.Namespace, "oldConnectionType", connInfo.Type)
 
-	if oldConnectionType == webhookutils.ConnectionTypeS3.String() { // TODO: we will need handl hf://
+	cleanupPerformed := false
+
+	switch connInfo.Type {
+	case "":
+		// no old connection-type-ref means we do not know what was the old secret used for
+		// so we need do a full cleanup to ensure before injecting the new one
+		// for oci:
+		if connInfo.SecretName != "" {
+			if err := w.Webhook.CleanupOCIImagePullSecrets(decodedObj, LlmisvcConfigs.ImagePullSecretPath, connInfo.SecretName); err != nil {
+				return false, fmt.Errorf("failed to cleanup OCI .spec.template.imagePullSecrets: %w", err)
+			}
+			log.V(1).Info("Successfully cleaned up OCI .spec.template.imagePullSecrets", "secretName", connInfo.SecretName, "name", req.Name, "namespace", req.Namespace)
+		} else {
+			// If we don't know the secret name, remove the entire imagePullSecrets field as fallback
+			unstructured.RemoveNestedField(decodedObj.Object, LlmisvcConfigs.ImagePullSecretPath...)
+			log.V(1).Info("Successfully cleaned up entire .spec.template.imagePullSecrets field", "name", req.Name, "namespace", req.Namespace)
+		}
+
+		// for s3: clean up ServiceAccountName injection
+		if err := w.Webhook.HandleSA(decodedObj, LlmisvcConfigs.ServiceAccountNamePath, ""); err != nil {
+			return false, fmt.Errorf("failed to cleanup .spec.template.serviceAccountName: %w", err)
+		}
+		cleanupPerformed = true
+
+	case webhookutils.ConnectionTypeS3.String(): // TODO: we will need handle hf:// from ConnectionTypeURI
 		// remove ServiceAccountName injection, if we need it in replacement, we ill add it back later.
 		if err := w.Webhook.HandleSA(decodedObj, LlmisvcConfigs.ServiceAccountNamePath, ""); err != nil {
 			return false, fmt.Errorf("failed to cleanup .spec.template.serviceAccountName: %w", err)
 		}
+		cleanupPerformed = true
+
+	case webhookutils.ConnectionTypeOCI.String():
+		if connInfo.SecretName != "" {
+			if err := w.Webhook.CleanupOCIImagePullSecrets(decodedObj, LlmisvcConfigs.ImagePullSecretPath, connInfo.SecretName); err != nil {
+				return false, fmt.Errorf("failed to cleanup OCI .spec.template.imagePullSecrets: %w", err)
+			}
+			log.V(1).Info("Successfully cleaned up OCI .spec.template.imagePullSecrets", "secretName", connInfo.SecretName, "name", req.Name, "namespace", req.Namespace)
+			cleanupPerformed = true
+		} else {
+			log.V(1).Info("No old secret name, skipping cleanup", "name", req.Name, "namespace", req.Namespace)
+		}
 	}
 
+	// for uri, s3, and oci: clean up model URI
 	if hasLLMISVCUri(decodedObj) {
-		if _, err := w.cleanupURIStorageUri(decodedObj); err != nil {
+		if _, err := w.cleanupModelUri(decodedObj); err != nil {
 			return false, fmt.Errorf("failed to cleanup URI .spec.model.uri: %w", err)
 		}
 		log.V(1).Info("Successfully cleaned up from .spec.model.uri", "name", req.Name, "namespace", req.Namespace)
-		return true, nil
+		cleanupPerformed = true
 	}
 
-	return false, nil
+	return cleanupPerformed, nil
 }
 
 // injectModelUri injects URI value into spec.model.uri for LLMISVC connections.
@@ -305,11 +338,10 @@ func hasLLMISVCUri(obj *unstructured.Unstructured) bool {
 	return err == nil && found
 }
 
-// cleanupURIStorageUri delete the uri field from spec.model.
-// cannot just set to empty string, it will fail in validation.
-// do not opt for RemoveNestedField because there is no return to indicate if remove worked.
-func (w *LLMISVCConnectionWebhook) cleanupURIStorageUri(obj *unstructured.Unstructured) (bool, error) {
-	model, found, err := unstructured.NestedMap(obj.Object, "spec", "model")
+// cleanupModelUri removes the entire .spec.model object.
+// Since uri is required for .spec.model, removing the uri means we need to remove .spec.model entirely.
+func (w *LLMISVCConnectionWebhook) cleanupModelUri(obj *unstructured.Unstructured) (bool, error) {
+	_, found, err := unstructured.NestedMap(obj.Object, "spec", "model")
 	if err != nil {
 		return false, fmt.Errorf("failed to get .spec.model: %w", err)
 	}
@@ -318,11 +350,7 @@ func (w *LLMISVCConnectionWebhook) cleanupURIStorageUri(obj *unstructured.Unstru
 		return false, nil
 	}
 
-	// Remove the uri field
-	delete(model, "uri")
-
-	if err := webhookutils.SetNestedValue(obj.Object, model, []string{"spec", "model"}); err != nil {
-		return false, fmt.Errorf("failed to set .spec.model after cleanup: %w", err)
-	}
+	// Remove the entire model object since uri is required
+	unstructured.RemoveNestedField(obj.Object, "spec", "model")
 	return true, nil
 }

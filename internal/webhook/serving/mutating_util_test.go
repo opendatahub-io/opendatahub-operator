@@ -26,7 +26,7 @@ func createTestSecret(name, namespace, connectionType string, data map[string][]
 func hasImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
-			if patch.Path == imagePullSecretsPath {
+			if patch.Path == isvcImagePullSecretsPath {
 				// Should be a single secret in the array
 				if secretsList, ok := patch.Value.([]interface{}); ok && len(secretsList) == 1 {
 					if secretMap, ok := secretsList[0].(map[string]interface{}); ok {
@@ -45,7 +45,7 @@ func hasImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch.JsonPa
 func hasStorageUriPatch(expectedUri string) func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
-			if patch.Path == storageUriPath {
+			if patch.Path == isvcStorageUriPath {
 				if expectedUri == "" {
 					return true
 				}
@@ -60,13 +60,11 @@ func hasStorageUriPatch(expectedUri string) func([]jsonpatch.JsonPatchOperation)
 func hasUriPath(expectedUri string) func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
-			// Check for direct uri path patch
 			if patch.Path == llmisvcModelUriPath {
 				return patch.Value == expectedUri
 			}
 
-			// Check for model object patch (when model section doesn't exist initially)
-			if patch.Path == "/spec/model" {
+			if patch.Path == llmisvcModelPath {
 				if modelMap, ok := patch.Value.(map[string]interface{}); ok {
 					if uri, exists := modelMap["uri"]; exists && uri == expectedUri {
 						return true
@@ -82,13 +80,13 @@ func hasUriPath(expectedUri string) func([]jsonpatch.JsonPatchOperation) bool {
 func hasStorageKeyPatch(expectedStorageKey string) func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
-			if patch.Path == storageKeyPath {
+			if patch.Path == isvcStorageKeyPath {
 				if expectedStorageKey == "" {
 					return true
 				}
 				return patch.Value == expectedStorageKey
 			}
-			if patch.Path == storagePath {
+			if patch.Path == isvcStoragePath {
 				if storageMap, ok := patch.Value.(map[string]interface{}); ok {
 					if key, hasKey := storageMap["key"]; hasKey {
 						if expectedStorageKey == "" {
@@ -103,23 +101,11 @@ func hasStorageKeyPatch(expectedStorageKey string) func([]jsonpatch.JsonPatchOpe
 	}
 }
 
-// oci-v1.
-func hasImagePullSecretsCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
-	return func(patches []jsonpatch.JsonPatchOperation) bool {
-		for _, patch := range patches {
-			if patch.Path == "/spec/predictor/imagePullSecrets/0" && patch.Operation == OperationRemove {
-				return true
-			}
-		}
-		return false
-	}
-}
-
 // uri-v1 for isvc.
 func hasStorageUriCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
-			if patch.Path == storageUriPath && patch.Operation == OperationRemove {
+			if patch.Path == isvcStorageUriPath && patch.Operation == OperationRemove {
 				return true
 			}
 		}
@@ -131,6 +117,9 @@ func hasStorageUriCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
 func hasLLMISVCUriCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
+			if patch.Path == llmisvcModelPath && patch.Operation == OperationRemove {
+				return true
+			}
 			if patch.Path == llmisvcModelUriPath && patch.Operation == OperationRemove {
 				return true
 			}
@@ -146,10 +135,10 @@ func hasS3CleanupPatches() func([]jsonpatch.JsonPatchOperation) bool {
 		hasServiceAccountCleanup := false
 
 		for _, patch := range patches {
-			if patch.Path == storagePath && patch.Operation == OperationRemove {
+			if patch.Path == isvcStoragePath && patch.Operation == OperationRemove {
 				hasStorageCleanup = true
 			}
-			if patch.Path == serviceAccountPath && patch.Operation == OperationRemove {
+			if patch.Path == isvcServiceAccountPath && patch.Operation == OperationRemove {
 				hasServiceAccountCleanup = true
 			}
 		}
@@ -161,7 +150,7 @@ func hasServiceAccountNamePatch() func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		expectedSAName := testSecret + "-sa"
 		for _, patch := range patches {
-			if patch.Path == serviceAccountPath && patch.Value == expectedSAName {
+			if patch.Path == isvcServiceAccountPath && patch.Value == expectedSAName {
 				return true
 			}
 		}
@@ -172,7 +161,7 @@ func hasServiceAccountNamePatch() func([]jsonpatch.JsonPatchOperation) bool {
 func hasServiceAccountNameRemovePatch() func([]jsonpatch.JsonPatchOperation) bool {
 	return func(patches []jsonpatch.JsonPatchOperation) bool {
 		for _, patch := range patches {
-			if patch.Path == serviceAccountPath && patch.Operation == OperationRemove {
+			if patch.Path == isvcServiceAccountPath && patch.Operation == OperationRemove {
 				return true
 			}
 		}
@@ -208,7 +197,7 @@ func hasLLMISVCImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch
 			}
 
 			// Check for template object containing imagePullSecrets
-			if patch.Path == "/spec/template" {
+			if patch.Path == llmisvcTemplatePath {
 				if templateMap, ok := patch.Value.(map[string]interface{}); ok {
 					if imagePullSecretsVal, exists := templateMap["imagePullSecrets"]; exists {
 						if secretsList, ok := imagePullSecretsVal.([]interface{}); ok && len(secretsList) == 1 {
@@ -220,6 +209,37 @@ func hasLLMISVCImagePullSecretsPatch(expectedSecretName string) func([]jsonpatch
 						}
 					}
 				}
+			}
+		}
+		return false
+	}
+}
+
+// for oci-v1.
+// hasISVCImagePullSecretsCleanupPatch checks for imagePullSecrets cleanup in ISVC.
+func hasISVCImagePullSecretsCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		for _, patch := range patches {
+			if patch.Path == isvcImagePullSecretsPath && patch.Operation == OperationRemove {
+				return true
+			}
+			if patch.Path == isvcImagePullSecretsPath && patch.Operation == OperationReplace {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// hasLLMISVCImagePullSecretsCleanupPatch checks for imagePullSecrets cleanup in LLMISVC.
+func hasLLMISVCImagePullSecretsCleanupPatch() func([]jsonpatch.JsonPatchOperation) bool {
+	return func(patches []jsonpatch.JsonPatchOperation) bool {
+		for _, patch := range patches {
+			if patch.Path == llmisvcImagePullSecretsPath && patch.Operation == OperationRemove {
+				return true
+			}
+			if patch.Path == llmisvcImagePullSecretsPath && patch.Operation == OperationReplace {
+				return true
 			}
 		}
 		return false

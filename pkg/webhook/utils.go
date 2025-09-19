@@ -50,6 +50,18 @@ func (ca ConnectionAction) String() string {
 	return string(ca)
 }
 
+// ConnectionInfo holds connection-related information for webhooks.
+type ConnectionInfo struct {
+	SecretName string // name of secret from annoataion connections
+	Type       string // value of the conneciotn-type-ref annoataion from secret
+	Path       string // value of the connection-path annoataion
+}
+
+// IsSecretEmpty returns true if no secret.
+func (ci ConnectionInfo) IsSecretEmpty() bool {
+	return ci.SecretName == ""
+}
+
 type ConnectionType string
 
 const (
@@ -191,20 +203,19 @@ func ValidateSingletonCreation(ctx context.Context, cli client.Reader, req *admi
 //
 // Returns:
 //   - admission.Response: The validation result
-//   - string: The validated secret name (empty if no annotation or validation failed)
-//   - string: The connection type (empty if no annotation or validation failed)
+//   - ConnectionInfo: The validated connection info (empty if no annotation or validation failed)
 func ValidateServingConnectionAnnotation(ctx context.Context,
 	cli client.Reader,
 	decodedObj *unstructured.Unstructured,
 	req admission.Request,
 	allowedTypes []string,
-) (admission.Response, string, string) {
+) (admission.Response, ConnectionInfo) {
 	log := logf.FromContext(ctx)
 
 	// Check if the annotation "opendatahub.io/connections" exists and has a non-empty value, allow operation but return empty secret info
 	annotationValue := resources.GetAnnotation(decodedObj, annotations.Connection)
 	if annotationValue == "" {
-		return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value", annotations.Connection)), "", ""
+		return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value", annotations.Connection)), ConnectionInfo{}
 	}
 
 	// Get the secret's metadata only (PartialObjectMetadata) to check annotations
@@ -212,16 +223,16 @@ func ValidateServingConnectionAnnotation(ctx context.Context,
 	if err := cli.Get(ctx, types.NamespacedName{Name: annotationValue, Namespace: req.Namespace}, secretMeta); err != nil {
 		if k8serr.IsNotFound(err) {
 			return admission.Denied(fmt.Sprintf("Secret '%s' referenced in annotation '%s' not found in namespace '%s'",
-				annotationValue, annotations.Connection, req.Namespace)), "", ""
+				annotationValue, annotations.Connection, req.Namespace)), ConnectionInfo{}
 		}
 		log.Error(err, "failed to get secret metadata", "secretName", annotationValue, "namespace", req.Namespace)
-		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("failed to validate secret: %w", err)), "", ""
+		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("failed to validate secret: %w", err)), ConnectionInfo{}
 	}
 
 	// Additional validation: check the secret's connections-type-ref annotation exists and has a non-empty value
 	connectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
 	if connectionType == "" {
-		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' annotation", annotationValue, annotations.ConnectionTypeRef)), "", ""
+		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' annotation", annotationValue, annotations.ConnectionTypeRef)), ConnectionInfo{}
 	}
 
 	// Validate that the connection type is one of the allowed values
@@ -231,32 +242,44 @@ func ValidateServingConnectionAnnotation(ctx context.Context,
 		// Allow unknown connection types but log a warning and don't perform injection
 		log.Info("Unknown connection type found, allowing operation but skipping injection", "connectionType", connectionType, "allowedTypes", allowedTypes)
 		return admission.Allowed(fmt.Sprintf("Annotation '%s' validation on secret '%s' with unknown type '%s' in namespace '%s'",
-			annotations.Connection, annotationValue, connectionType, req.Namespace)), "", ""
+			annotations.Connection, annotationValue, connectionType, req.Namespace)), ConnectionInfo{}
 	}
-	// Allow the operation and return secret info
-	return admission.Allowed("Connection annotation validation passed"), secretMeta.Name, connectionType
+
+	connectionPath := GetS3Path(decodedObj)
+
+	// Allow the operation and return connection info
+	return admission.Allowed("Connection annotation validation passed"), ConnectionInfo{
+		SecretName: secretMeta.Name,
+		Type:       connectionType,
+		Path:       connectionPath,
+	}
 }
 
 // DetermineConnectionChangeAction determines what action to take for UPDATE operations
 // by comparing old vs new connection info.
-func DetermineConnectionChangeAction(oldSecretName, oldConnectionType, newSecretName, newConnectionType string) ConnectionAction {
+func DetermineConnectionChangeAction(oldConn, newConn ConnectionInfo) ConnectionAction {
 	// Old connection, no new connection => remove
-	if oldSecretName != "" && newSecretName == "" {
+	if !oldConn.IsSecretEmpty() && newConn.IsSecretEmpty() {
 		return ConnectionActionRemove
 	}
 
 	// No old connection, no new connection => none
-	if oldSecretName == "" && newSecretName == "" {
+	if oldConn.IsSecretEmpty() && newConn.IsSecretEmpty() {
 		return ConnectionActionNone
 	}
 
 	// No old connection, new connection => inject
-	if oldSecretName == "" && newSecretName != "" {
+	if oldConn.IsSecretEmpty() && !newConn.IsSecretEmpty() {
 		return ConnectionActionInject
 	}
 
-	// if type changed or same type different secret => replace
-	if oldConnectionType != newConnectionType || oldSecretName != newSecretName {
+	// if type changed or secret changed => replace
+	if oldConn.Type != newConn.Type || oldConn.SecretName != newConn.SecretName {
+		return ConnectionActionReplace
+	}
+
+	// if connection-path changed for S3 connections => replace
+	if newConn.Type == ConnectionTypeS3.String() && oldConn.Path != newConn.Path {
 		return ConnectionActionReplace
 	}
 
@@ -267,6 +290,10 @@ func DetermineConnectionChangeAction(oldSecretName, oldConnectionType, newSecret
 // GetS3Path extracts the connection path from the opendatahub.io/connection-path annotation.
 func GetS3Path(obj *unstructured.Unstructured) string {
 	return resources.GetAnnotation(obj, annotations.ConnectionPath)
+}
+
+func GetConnectionType(obj *unstructured.Unstructured) string {
+	return resources.GetAnnotation(obj, annotations.ConnectionTypeRef)
 }
 
 // CreateSA creates a ServiceAccount and links the secret.
@@ -401,35 +428,46 @@ func (w *BaseServingConnectionWebhook) WebhookPrecheck(ctx context.Context, req 
 }
 
 // GetOldConnectionInfo extracts connection information from the old object in an admission request.
-// This is used during UPDATE operations to determine if connection type has changed.
-func (w *BaseServingConnectionWebhook) GetOldConnectionInfo(ctx context.Context, req admission.Request) (string, string, error) {
+// This is used during UPDATE operations to determine if connection info has changed.
+func (w *BaseServingConnectionWebhook) GetOldConnectionInfo(ctx context.Context, req admission.Request) (ConnectionInfo, error) {
 	log := logf.FromContext(ctx)
 
 	// Decode the old object
 	oldObj := &unstructured.Unstructured{}
 	if err := w.Decoder.DecodeRaw(req.OldObject, oldObj); err != nil {
 		log.Error(err, "failed to decode old object")
-		return "", "", fmt.Errorf("failed to decode old object: %w", err)
+		return ConnectionInfo{}, fmt.Errorf("failed to decode old object: %w", err)
 	}
 
 	// Get old annotation value
 	oldAnnotationValue := resources.GetAnnotation(oldObj, annotations.Connection)
 	if oldAnnotationValue == "" {
-		return "", "", nil // No old connection
+		return ConnectionInfo{}, nil // No old connection
 	}
 
 	// Get old connection type from the secret
 	secretMeta := resources.GvkToPartial(gvk.Secret)
 	if err := w.APIReader.Get(ctx, types.NamespacedName{Name: oldAnnotationValue, Namespace: req.Namespace}, secretMeta); err != nil {
-		if k8serr.IsNotFound(err) {
-			log.V(1).Info("Old secret not found, treating as no old connection", "secretName", oldAnnotationValue)
-			return "", "", nil
+		if k8serr.IsNotFound(err) { // secret itself might be deleted already.
+			log.V(1).Info("Old secret not found, but still need to cleanup references", "secretName", oldAnnotationValue)
+			oldConnectionPath := resources.GetAnnotation(oldObj, annotations.ConnectionPath)
+			return ConnectionInfo{
+				SecretName: oldAnnotationValue,
+				Type:       "", // we won't know which connection-type-ref was set on a already deleted secret
+				Path:       oldConnectionPath,
+			}, nil
 		}
-		return "", "", fmt.Errorf("failed to get old secret metadata: %w", err)
+		return ConnectionInfo{}, fmt.Errorf("failed to get old secret metadata: %w", err)
 	}
 
 	oldConnectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
-	return oldAnnotationValue, oldConnectionType, nil
+	oldConnectionPath := resources.GetAnnotation(oldObj, annotations.ConnectionPath)
+
+	return ConnectionInfo{
+		SecretName: oldAnnotationValue,
+		Type:       oldConnectionType,
+		Path:       oldConnectionPath,
+	}, nil
 }
 
 // HandleSA injects or removes serviceaccount from the specified path.
@@ -468,6 +506,46 @@ func (w *BaseServingConnectionWebhook) InjectOCIImagePullSecrets(obj *unstructur
 	return SetNestedValue(obj.Object, imagePullSecrets, path)
 }
 
+// CleanupOCIImagePullSecrets removes the specified secret from imagePullSecrets array.
+// If secretName is empty, does nothing.
+// If the array becomes empty after removal, the entire field is removed.
+func (w *BaseServingConnectionWebhook) CleanupOCIImagePullSecrets(obj *unstructured.Unstructured, path []string, secretName string) error {
+	if secretName == "" {
+		return nil
+	}
+
+	imagePullSecrets, found, err := unstructured.NestedSlice(obj.Object, path...)
+	if err != nil {
+		return fmt.Errorf("failed to get imagePullSecrets: %w", err)
+	}
+	if !found {
+		return nil
+	}
+
+	var remained []interface{}
+	for _, secret := range imagePullSecrets {
+		if secretMap, ok := secret.(map[string]interface{}); ok {
+			if name, exists := secretMap["name"]; exists && name != secretName {
+				remained = append(remained, secret)
+			}
+		}
+	}
+
+	// Handle the result
+	if len(remained) == 0 {
+		// No secrets left, remove the entire field
+		unstructured.RemoveNestedField(obj.Object, path...)
+	} else {
+		// Update with filtered list
+		err = unstructured.SetNestedSlice(obj.Object, remained, path...)
+		if err != nil {
+			return fmt.Errorf("failed to set filtered imagePullSecrets: %w", err)
+		}
+	}
+
+	return nil
+}
+
 // CreatePatchResponse creates a patch response from the modified object.
 func (w *BaseServingConnectionWebhook) CreatePatchResponse(req admission.Request, obj *unstructured.Unstructured) admission.Response {
 	marshaledObj, err := json.Marshal(obj)
@@ -497,24 +575,26 @@ func (w *BaseServingConnectionWebhook) GetURIValue(ctx context.Context, obj *uns
 	return string(uriHost), nil
 }
 
-// GetS3Value constructs S3 URI value from the secret and connection path annotation.
+// BuildS3URI constructs S3 URI value from the secret and connection path annotation.
 // Returns URI in the format: s3://<AWS_BUCKET>/$annotation.connection-path.
-func (w *BaseServingConnectionWebhook) GetS3Value(ctx context.Context, obj *unstructured.Unstructured, secretName, namespace string) (string, error) {
+func (w *BaseServingConnectionWebhook) BuildS3URI(ctx context.Context, connInfo ConnectionInfo, namespace string) (string, error) {
 	// Fetch the secret to get the S3 bucket data
 	secret := &corev1.Secret{}
-	if err := w.APIReader.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
-		return "", fmt.Errorf("failed to get secret %s: %w", secretName, err)
+	if err := w.APIReader.Get(ctx, types.NamespacedName{Name: connInfo.SecretName, Namespace: namespace}, secret); err != nil {
+		return "", fmt.Errorf("failed to get secret %s: %w", connInfo.SecretName, err)
 	}
 	bucketName, exists := secret.Data["AWS_S3_BUCKET"]
 	if !exists {
 		return "", errors.New("secret does not contain 'AWS_S3_BUCKET' data key")
 	}
-
-	connectionPath := GetS3Path(obj)
-	if connectionPath == "" {
-		return "", errors.New("object does not have connection path annotation")
+	if len(bucketName) == 0 {
+		return "", errors.New("secret 'AWS_S3_BUCKET' data key is empty, cannot use it for s3:// to get model")
 	}
 
-	s3URI := fmt.Sprintf("s3://%s/%s", string(bucketName), connectionPath)
+	if connInfo.Path == "" {
+		return "", errors.New("connection info does not have path")
+	}
+
+	s3URI := fmt.Sprintf("s3://%s/%s", string(bucketName), connInfo.Path)
 	return s3URI, nil
 }

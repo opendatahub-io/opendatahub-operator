@@ -30,17 +30,25 @@ const (
 	testNamespace        = "glue-ns"
 	testInferenceService = "glue-isvc"
 	testSecret           = "glue-secret"
-	OperationRemove      = "remove"
-	// ISVC paths.
-	serviceAccountPath   = "/spec/predictor/serviceAccountName"
-	storageUriPath       = "/spec/predictor/model/storageUri"
-	storagePath          = "/spec/predictor/model/storage"
-	storageKeyPath       = "/spec/predictor/model/storage/key"
-	imagePullSecretsPath = "/spec/predictor/imagePullSecrets" //nolint:gosec
-	// LLMISVC paths.
+
+	OperationAdd     = "add"
+	OperationRemove  = "remove"
+	OperationReplace = "replace"
+)
+
+const (
+	isvcImagePullSecretsPath      = "/spec/predictor/imagePullSecrets"   //nolint:gosec
+	isvcImagePullSecretsIndexPath = "/spec/predictor/imagePullSecrets/0" //nolint:gosec
+	isvcServiceAccountPath        = "/spec/predictor/serviceAccountName"
+	isvcStorageUriPath            = "/spec/predictor/model/storageUri"
+	isvcStoragePath               = "/spec/predictor/model/storage"
+	isvcStorageKeyPath            = "/spec/predictor/model/storage/key"
+
+	llmisvcModelPath            = "/spec/model"
+	llmisvcModelUriPath         = "/spec/model/uri"
 	llmisvcServiceAccountPath   = "/spec/template/serviceAccountName"
 	llmisvcImagePullSecretsPath = "/spec/template/imagePullSecrets" //nolint:gosec
-	llmisvcModelUriPath         = "/spec/model/uri"
+	llmisvcTemplatePath         = "/spec/template"
 )
 
 type TestCase struct {
@@ -566,7 +574,7 @@ func TestISVCConnectionWebhook(t *testing.T) {
 			oldSecretType:      webhookutils.ConnectionTypeOCI.String(),
 			operation:          admissionv1.Update,
 			expectedAllowed:    true,
-			expectedPatchCheck: hasImagePullSecretsCleanupPatch(),
+			expectedPatchCheck: hasISVCImagePullSecretsCleanupPatch(),
 		},
 		{
 			name:            "annotation removed, storageUri is cleanup",
@@ -717,6 +725,20 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			expectedAllowed:    true,
 			expectedPatchCheck: hasUriPath("hf://facebook/new"),
 		},
+		{
+			name:               "annotation as S3 type with connection-path changed, LLMISVC should update URI with new path",
+			secretType:         webhookutils.ConnectionTypeS3.String(),
+			secretNamespace:    testNamespace,
+			secretData:         map[string][]byte{"AWS_S3_BUCKET": []byte("my-bucket")},
+			annotations:        map[string]string{annotations.Connection: "new-s3-secret", annotations.ConnectionPath: "models/new-path"},
+			predictorSpec:      map[string]interface{}{"model": map[string]interface{}{"uri": "s3://my-bucket/models/old-path"}},
+			oldAnnotations:     map[string]string{annotations.Connection: "old-s3-secret", annotations.ConnectionPath: "models/old-path"},
+			oldPredictorSpec:   map[string]interface{}{"model": map[string]interface{}{"uri": "s3://my-bucket/models/old-path"}},
+			oldSecretType:      webhookutils.ConnectionTypeS3.String(),
+			operation:          admissionv1.Update,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasUriPath("s3://my-bucket/models/new-path"),
+		},
 		// cleanup tests
 		{
 			name:            "annotation removed, uri is cleanup for any type of connection previously injected",
@@ -764,6 +786,35 @@ func TestLLMISVCConnectionWebhook(t *testing.T) {
 			operation:          admissionv1.Update,
 			expectedAllowed:    true,
 			expectedPatchCheck: hasLLMISVCServiceAccountCleanupPatch(),
+		},
+		{
+			name:            "annotation removed for OCI type, imagePullSecrets is cleanup",
+			secretType:      "",
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{}, // no annotation
+			predictorSpec: map[string]interface{}{
+				"template": map[string]interface{}{
+					"imagePullSecrets": []interface{}{
+						map[string]interface{}{
+							"name": testSecret,
+						},
+					},
+				},
+			},
+			oldAnnotations: map[string]string{annotations.Connection: testSecret},
+			oldPredictorSpec: map[string]interface{}{
+				"template": map[string]interface{}{
+					"imagePullSecrets": []interface{}{
+						map[string]interface{}{
+							"name": testSecret,
+						},
+					},
+				},
+			},
+			oldSecretType:      webhookutils.ConnectionTypeOCI.String(),
+			operation:          admissionv1.Update,
+			expectedAllowed:    true,
+			expectedPatchCheck: hasLLMISVCImagePullSecretsCleanupPatch(),
 		},
 	}
 	for _, tc := range testCases {
