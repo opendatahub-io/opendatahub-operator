@@ -1700,7 +1700,7 @@ spec:
   - llamastack
   links:
   - name: Red Hat OpenShift AI
-    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.23.0
+    url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2.25
   maintainers:
   - email: managed-open-data-hub@redhat.com
     name: Red Hat Openshift AI
