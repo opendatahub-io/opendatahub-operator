@@ -77,18 +77,15 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		Reason: status.NotReadyReason,
 	}
 
-	// get or generate client secret once for both kube-auth-proxy and OAuth client
-	var clientSecret string
-	if authMode == AuthModeIntegratedOAuth {
-		clientSecret, err = getOrGenerateClientSecret(ctx, rr)
-		if err != nil {
-			condition.Message = fmt.Sprintf("Failed to get or generate client secret: %v", err)
-			gatewayConfig.SetConditions([]common.Condition{condition})
-			return err
-		}
+	// get or generate secrets for kube-auth-proxy (handles OAuth and OIDC modes)
+	clientSecret, cookieSecret, err := getOrGenerateSecrets(ctx, rr, authMode)
+	if err != nil {
+		condition.Message = fmt.Sprintf("Failed to get or generate secrets: %v", err)
+		gatewayConfig.SetConditions([]common.Condition{condition})
+		return err
 	}
 
-	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, clientSecret); err != nil {
+	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, clientSecret, cookieSecret); err != nil {
 		condition.Message = fmt.Sprintf("Failed to deploy auth proxy: %v", err)
 		gatewayConfig.SetConditions([]common.Condition{condition})
 		return err
@@ -164,33 +161,46 @@ func checkAuthModeNone(authMode AuthMode) *common.Condition {
 	return nil
 }
 
-func getOrGenerateClientSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest) (string, error) {
+func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationRequest, authMode AuthMode) (string, string, error) {
 	existingSecret := &corev1.Secret{}
-	err := rr.Client.Get(ctx, types.NamespacedName{
+	secretErr := rr.Client.Get(ctx, types.NamespacedName{
 		Name:      "kube-auth-proxy-creds",
 		Namespace: gatewayNamespace,
 	}, existingSecret)
 
-	if err == nil {
-		if clientSecretBytes, exists := existingSecret.Data["OAUTH2_PROXY_CLIENT_SECRET"]; exists {
-			return string(clientSecretBytes), nil
+	if secretErr == nil {
+		clientSecretBytes, hasClientSecret := existingSecret.Data["OAUTH2_PROXY_CLIENT_SECRET"]
+		cookieSecretBytes, hasCookieSecret := existingSecret.Data["OAUTH2_PROXY_COOKIE_SECRET"]
+
+		if !hasClientSecret || !hasCookieSecret {
+			return "", "", errors.New("existing secret missing required keys")
 		}
-		return "", fmt.Errorf("existing secret missing OAUTH2_PROXY_CLIENT_SECRET key")
+
+		return string(clientSecretBytes), string(cookieSecretBytes), nil
 	}
 
-	if !k8serr.IsNotFound(err) {
-		return "", fmt.Errorf("failed to check for existing secret: %w", err)
+	if !k8serr.IsNotFound(secretErr) {
+		return "", "", fmt.Errorf("failed to check for existing secret: %w", secretErr)
 	}
 
-	clientSecretGen, err := secretgenerator.NewSecret("client-secret", "random", 24)
+	var clientSecretValue string
+	if authMode == AuthModeIntegratedOAuth {
+		clientSecretGen, err := secretgenerator.NewSecret("client-secret", "random", 24)
+		if err != nil {
+			return "", "", fmt.Errorf("failed to generate client secret: %w", err)
+		}
+		clientSecretValue = clientSecretGen.Value
+	}
+
+	cookieSecretGen, err := secretgenerator.NewSecret("cookie-secret", "random", 32)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate client secret: %w", err)
+		return "", "", fmt.Errorf("failed to generate cookie secret: %w", err)
 	}
 
-	return clientSecretGen.Value, nil
+	return clientSecretValue, cookieSecretGen.Value, nil
 }
 
-func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig, clientSecret string) error {
+func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig, clientSecret, cookieSecret string) error {
 	l := logf.FromContext(ctx).WithName("deployAuthProxy")
 
 	if oidcConfig != nil {
@@ -202,7 +212,7 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		l.V(1).Info("configuring kube-auth-proxy for OpenShift OAuth")
 	}
 
-	err := createKubeAuthProxySecret(ctx, rr, clientSecret, oidcConfig)
+	err := createKubeAuthProxySecret(ctx, rr, clientSecret, cookieSecret, oidcConfig)
 	if err != nil {
 		return err
 	}
@@ -222,12 +232,7 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	return nil
 }
 
-func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clientSecret string, oidcConfig *serviceApi.OIDCConfig) error {
-	cookieSecretGen, err := secretgenerator.NewSecret("cookie-secret", "random", 32)
-	if err != nil {
-		return fmt.Errorf("failed to generate cookie secret: %w", err)
-	}
-
+func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clientSecret, cookieSecret string, oidcConfig *serviceApi.OIDCConfig) error {
 	clientId := AuthClientID
 	clientSecretValue := clientSecret
 
@@ -272,16 +277,15 @@ func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationR
 		StringData: map[string]string{
 			"OAUTH2_PROXY_CLIENT_ID":     clientId,
 			"OAUTH2_PROXY_CLIENT_SECRET": clientSecretValue,
-			"OAUTH2_PROXY_COOKIE_SECRET": cookieSecretGen.Value,
+			"OAUTH2_PROXY_COOKIE_SECRET": cookieSecret,
 		},
 	}
 
-	// Use server-side apply for immediate create-or-update
 	opts := []client.PatchOption{
 		client.ForceOwnership,
 		client.FieldOwner(resources.PlatformFieldOwner),
 	}
-	err = resources.Apply(ctx, rr.Client, secret, opts...)
+	err := resources.Apply(ctx, rr.Client, secret, opts...)
 	if err != nil && !k8serr.IsAlreadyExists(err) {
 		return err
 	}
