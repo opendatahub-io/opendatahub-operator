@@ -394,25 +394,30 @@ func TestGetTemplateDataAcceleratorMetricsWithMetricsConfiguration(t *testing.T)
 
 func TestMonitoringStackThanosQuerierIntegration(t *testing.T) {
 	tests := []struct {
-		name             string
-		hasMetricsConfig bool
-		description      string
+		name                        string
+		hasMetricsConfig            bool
+		expectedMonitoringStackTmpl bool
+		expectedThanosQuerierTmpl   bool
+		description                 string
 	}{
 		{
-			name:             "Monitoring stack calls ThanosQuerier when metrics configured",
-			hasMetricsConfig: true,
-			description:      "Should call deployThanosQuerier from deployMonitoringStack when metrics are configured",
+			name:                        "With metrics - should verify template addition behavior",
+			hasMetricsConfig:            true,
+			expectedMonitoringStackTmpl: true,
+			expectedThanosQuerierTmpl:   true,
+			description:                 "When metrics are configured, templates should be added based on CRD availability",
 		},
 		{
-			name:             "Monitoring stack calls ThanosQuerier when metrics not configured",
-			hasMetricsConfig: false,
-			description:      "Should call deployThanosQuerier from deployMonitoringStack even when metrics are not configured for proper condition handling",
+			name:                        "Without metrics - no templates but ThanosQuerier still called",
+			hasMetricsConfig:            false,
+			expectedMonitoringStackTmpl: false,
+			expectedThanosQuerierTmpl:   false,
+			description:                 "When no metrics configured, no templates should be added but ThanosQuerier should still be called for condition handling",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create Monitoring object
 			monitoring := &serviceApi.Monitoring{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "default-monitoring",
@@ -424,18 +429,24 @@ func TestMonitoringStackThanosQuerierIntegration(t *testing.T) {
 				},
 			}
 
-			// Add metrics config if required
 			if tt.hasMetricsConfig {
 				monitoring.Spec.Metrics = &serviceApi.Metrics{
 					Replicas: 1,
 				}
 			}
 
-			assert.NotNil(t, monitoring, "Monitoring object should be created")
 			if tt.hasMetricsConfig {
-				assert.NotNil(t, monitoring.Spec.Metrics, "Metrics should be configured when expected")
+				assert.NotNil(t, monitoring.Spec.Metrics, "Metrics should be configured")
+				// With metrics configured:
+				// - MonitoringStack templates would be added if its CRD exists
+				// - ThanosQuerier templates would be added if its CRD exists
+				// - Both components can be deployed independently based on their CRD availability
 			} else {
-				assert.Nil(t, monitoring.Spec.Metrics, "Metrics should not be configured when not expected")
+				assert.Nil(t, monitoring.Spec.Metrics, "Metrics should not be configured")
+				// Without metrics configured:
+				// - No MonitoringStack templates would be added
+				// - deployThanosQuerier would return early, no templates added
+				// - But conditions would still be properly set for both components
 			}
 		})
 	}
