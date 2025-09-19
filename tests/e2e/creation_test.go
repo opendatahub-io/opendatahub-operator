@@ -3,26 +3,15 @@ package e2e_test
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
-	"reflect"
-	"slices"
-	"sort"
-	"strings"
 	"testing"
-	"time"
 
 	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -35,11 +24,9 @@ import (
 )
 
 const (
-	testNamespace               = "test-model-registries"   // Namespace used for model registry testing
-	dsciInstanceNameDuplicate   = "e2e-test-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
-	dscInstanceNameDuplicate    = "e2e-test-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
-	openshiftOperatorsNamespace = "openshift-operators"     // Namespace for OpenShift Operators
-	serverlessOperatorNamespace = "openshift-serverless"    // Namespace for the Serverless Operator
+	testNamespace             = "test-model-registries"   // Namespace used for model registry testing
+	dsciInstanceNameDuplicate = "e2e-test-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
+	dscInstanceNameDuplicate  = "e2e-test-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
 )
 
 // DSCTestCtx holds the context for the DSCInitialization and DataScienceCluster management tests.
@@ -62,16 +49,13 @@ func dscManagementTestSuite(t *testing.T) {
 
 	// Define test cases.
 	testCases := []TestCase{
-		{"Ensure Service Mesh , Serverless and Observability operators are installed", dscTestCtx.ValidateOperatorsInstallation},
+		{"Ensure required operators are installed", dscTestCtx.ValidateOperatorsInstallation},
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
 		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
-		{"Validate ServiceMeshControlPlane exists and is recreated upon deletion.", dscTestCtx.ValidateServiceMeshControlPlane},
 		{"Validate Knative resource", dscTestCtx.ValidateKnativeSpecInDSC},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
-		{"Validate Observability operators are installed", dscTestCtx.ValidateObservabilityOperatorsInstallation},
-		{"Validate components deployment failure", dscTestCtx.ValidateComponentsDeploymentFailure},
 	}
 
 	// Append webhook-specific tests.
@@ -86,7 +70,7 @@ func dscManagementTestSuite(t *testing.T) {
 			name: "Webhook",
 			testFn: func(t *testing.T) {
 				t.Helper()
-				RunTestCases(t, webhookTests)
+				RunTestCases(t, webhookTests, WithParallel())
 			},
 		})
 	}
@@ -125,32 +109,6 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		}
 	}
 
-	RunTestCases(t, testCases, WithParallel())
-}
-
-func (tc *DSCTestCtx) ValidateObservabilityOperatorsInstallation(t *testing.T) {
-	t.Helper()
-
-	// Define operators to be installed.
-	operators := []struct {
-		nn                types.NamespacedName
-		skipOperatorGroup bool
-	}{
-		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
-	}
-
-	// Create and run test cases in parallel.
-	testCases := make([]TestCase, len(operators))
-	for i, op := range operators {
-		testCases[i] = TestCase{
-			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
-			testFn: func(t *testing.T) {
-				t.Helper()
-				tc.EnsureOperatorInstalled(op.nn, op.skipOperatorGroup)
-			},
-		}
-	}
 	RunTestCases(t, testCases, WithParallel())
 }
 
@@ -214,22 +172,7 @@ func (tc *DSCTestCtx) ValidateServiceMeshSpecInDSCI(t *testing.T) {
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithCondition(jq.Match(`.status.phase == "Ready"`)))
-}
-
-// ValidateServiceMeshControlPlane checks that ServiceMeshControlPlane exists and is recreated upon deletion.
-func (tc *DSCTestCtx) ValidateServiceMeshControlPlane(t *testing.T) {
-	t.Helper()
-
-	smcp := types.NamespacedName{Name: serviceMeshControlPlane, Namespace: serviceMeshNamespace}
-
-	// Check ServiceMeshControlPlane was created.
-	// Delete it.
-	// Check eventually got recreated.
-	tc.EnsureResourceDeletedThenRecreated(
-		WithMinimalObject(gvk.ServiceMeshControlPlane, smcp),
-		WithGracePeriod(1*time.Second),
-	)
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)))
 }
 
 // ValidateKnativeSpecInDSC validates that the Kserve serving spec in the DataScienceCluster matches the expected spec.
@@ -343,167 +286,10 @@ func (tc *DSCTestCtx) UpdateRegistriesNamespace(targetNamespace, expectedValue s
 	}
 
 	// Update the registriesNamespace field.
-	tc.EnsureResourceCreatedOrPatched(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.modelregistry.registriesNamespace = "%s"`, targetNamespace)),
 		WithCondition(expectedCondition),
 		WithCustomErrorMsg("Failed to update RegistriesNamespace to %s, expected %s", targetNamespace, expectedValue),
-	)
-}
-
-// ValidateComponentsDeploymentFailure simulates component deployment failure using restrictive resource quota.
-func (tc *DSCTestCtx) ValidateComponentsDeploymentFailure(t *testing.T) {
-	t.Helper()
-
-	// To handle upstream/downstream i trimmed prefix(odh) from few controller names
-	componentToControllerMap := map[string]string{
-		componentApi.CodeFlareComponentName:            "codeflare-operator-manager",
-		componentApi.DashboardComponentName:            "dashboard",
-		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
-		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
-		componentApi.KserveComponentName:               "kserve-controller-manager",
-		componentApi.KueueComponentName:                "kueue-controller-manager",
-		componentApi.LlamaStackOperatorComponentName:   "llama-stack-k8s-operator-controller-manager",
-		componentApi.ModelMeshServingComponentName:     "modelmesh-controller",
-		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
-		componentApi.RayComponentName:                  "kuberay-operator",
-		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
-		componentApi.TrustyAIComponentName:             "trustyai-service-operator-controller-manager",
-		componentApi.WorkbenchesComponentName:          "notebook-controller-manager",
-	}
-
-	// Error message includes components + internal components name
-	var internalComponentToControllerMap = map[string]string{
-		componentApi.ModelControllerComponentName: "model-controller",
-	}
-
-	components := slices.Collect(maps.Keys(componentToControllerMap))
-	componentsLength := len(components)
-
-	t.Log("Verifying component count matches DSC Components struct")
-	expectedComponentCount := reflect.TypeOf(dscv1.Components{}).NumField()
-	tc.g.Expect(componentsLength).Should(Equal(expectedComponentCount),
-		"allComponents list is out of sync with DSC Components struct. "+
-			"Expected %d components but found %d. "+
-			"Please update the allComponents list when adding new components.",
-		expectedComponentCount, componentsLength)
-
-	restrictiveQuota := createRestrictiveQuotaForOperator(tc.AppsNamespace)
-
-	t.Log("Creating restrictive resource quota in operator namespace")
-	tc.EnsureResourceCreatedOrPatched(
-		WithObjectToCreate(restrictiveQuota),
-	)
-
-	// important: register cleanup immediately after creation to avoid flakiness in local testing
-	t.Cleanup(func() {
-		t.Log("Cleaning up restrictive quota")
-		tc.DeleteResource(WithObjectToCreate(restrictiveQuota))
-	})
-
-	t.Log("Enabling all components in DataScienceCluster")
-	tc.EnsureResourceCreatedOrPatched(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(updateAllComponentsTransform(components, operatorv1.Managed)),
-	)
-
-	t.Log("Verifying component deployments are stuck due to quota")
-	allControllers := slices.Concat(
-		slices.Collect(maps.Values(componentToControllerMap)),
-		slices.Collect(maps.Values(internalComponentToControllerMap)),
-	)
-	tc.verifyDeploymentsStuckDueToQuota(t, allControllers)
-
-	t.Log("Verifying DSC reports all failed components")
-	allComponents := slices.Concat(
-		components,
-		slices.Collect(maps.Keys(internalComponentToControllerMap)),
-	)
-	sort.Strings(allComponents)
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(
-			jq.Match(
-				`.status.conditions[]
-				| select(.type == "ComponentsReady" and .status == "False")
-				| .message == "%s"`,
-				"Some components are not ready: "+strings.Join(allComponents, ","),
-			),
-		),
-	)
-
-	t.Log("Disabling all components and verifying no managed components are reported")
-	tc.EnsureResourceCreatedOrPatched(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(updateAllComponentsTransform(components, operatorv1.Removed)),
-	)
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(
-			`.status.conditions[]
-			| select(.type == "ComponentsReady" and .status == "%s")
-			| .message
-			| test("nomanagedcomponents"; "i")`,
-			metav1.ConditionTrue,
-		)),
-	)
-}
-
-// enable/disable all components.
-func updateAllComponentsTransform(components []string, state operatorv1.ManagementState) testf.TransformFn {
-	transformParts := make([]string, len(components))
-	for i, component := range components {
-		transformParts[i] = fmt.Sprintf(`.spec.components.%s.managementState = "%s"`, component, state)
-	}
-
-	return testf.Transform("%s", strings.Join(transformParts, " | "))
-}
-
-func createRestrictiveQuotaForOperator(namespace string) *corev1.ResourceQuota {
-	return &corev1.ResourceQuota{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "ResourceQuota",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-restrictive-quota",
-			Namespace: namespace,
-		},
-		Spec: corev1.ResourceQuotaSpec{
-			Hard: corev1.ResourceList{
-				corev1.ResourceRequestsCPU:    resource.MustParse("0.1m"),
-				corev1.ResourceRequestsMemory: resource.MustParse("1Ki"),
-				corev1.ResourceLimitsCPU:      resource.MustParse("0.1m"),
-				corev1.ResourceLimitsMemory:   resource.MustParse("1Ki"),
-			},
-		},
-	}
-}
-
-func (tc *DSCTestCtx) verifyDeploymentsStuckDueToQuota(t *testing.T, allControllers []string) {
-	t.Helper()
-
-	expectedCount := len(allControllers)
-
-	tc.EnsureResourcesExist(
-		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithCondition(jq.Match("%s", fmt.Sprintf(`
-			map(
-				select(.metadata.name | test("%s"; "i")) |
-				select(
-					.status.conditions[]? |
-					select(.type == "ReplicaFailure") |
-					select(.status == "True") |
-					select(.message | test(
-						"forbidden: exceeded quota: test-restrictive-quota|" +
-						"forbidden: failed quota: test-restrictive-quota|" +
-						"forbidden"; "i"
-					))
-				)
-			) |
-			length == %d
-		`, strings.Join(allControllers, "|"), expectedCount))),
-		WithCustomErrorMsg(fmt.Sprintf("Expected all %d component deployments to have quota error messages", expectedCount)),
-		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 	)
 }

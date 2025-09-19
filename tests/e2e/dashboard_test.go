@@ -42,12 +42,7 @@ func dashboardTestSuite(t *testing.T) {
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate dynamically watches operands", componentCtx.ValidateOperandsDynamicallyWatchedResources},
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
-		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
-		{"Validate route deletion recovery", componentCtx.ValidateRouteDeletionRecovery},
-		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
-		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
@@ -98,11 +93,24 @@ func (tc *DashboardTestCtx) ValidateCRDReinstated(t *testing.T) {
 	t.Helper()
 
 	crds := []CRD{
-		{Name: "acceleratorprofiles.dashboard.opendatahub.io", Version: ""},
-		{Name: "hardwareprofiles.dashboard.opendatahub.io", Version: ""},
+		{Name: "acceleratorprofiles.dashboard.opendatahub.io", Version: ""}, // todo: remove this when CRD is not included
+		{Name: "hardwareprofiles.dashboard.opendatahub.io", Version: ""},    // todo: remove this when CRD is not included
 		{Name: "odhapplications.dashboard.opendatahub.io", Version: ""},
 		{Name: "odhdocuments.dashboard.opendatahub.io", Version: ""},
 	}
 
 	tc.ValidateCRDsReinstated(t, crds)
+}
+
+// ValidateAllDeletionRecovery runs the standard set of deletion recovery tests.
+func (tc *DashboardTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
+	t.Helper()
+
+	// Run all the standard recovery tests first
+	tc.ComponentTestCtx.ValidateAllDeletionRecovery(t)
+
+	// Add Dashboard-specific recovery test
+	t.Run("Route deletion recovery", func(t *testing.T) {
+		tc.ValidateResourceDeletionRecovery(t, gvk.Route)
+	})
 }

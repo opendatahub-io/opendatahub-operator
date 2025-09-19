@@ -93,6 +93,12 @@ var (
 		Kind:    "Deployment",
 	}
 
+	ResourceQuota = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "ResourceQuota",
+	}
+
 	Group = schema.GroupVersionKind{
 		Group:   rbacv1.SchemeGroupVersion.Group,
 		Version: rbacv1.SchemeGroupVersion.Version,
@@ -495,6 +501,12 @@ var (
 		Kind:    "ServiceMonitor",
 	}
 
+	PrometheusRule = schema.GroupVersionKind{
+		Group:   "monitoring.rhobs",
+		Version: "v1",
+		Kind:    "PrometheusRule",
+	}
+
 	ServiceMesh = schema.GroupVersionKind{
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,
@@ -519,9 +531,15 @@ var (
 		Kind:    "Authorino",
 	}
 
-	PrometheusRule = schema.GroupVersionKind{
-		Group:   "monitoring.rhobs",
+	ValidatingAdmissionPolicy = schema.GroupVersionKind{
+		Group:   "admissionregistration.k8s.io",
 		Version: "v1",
-		Kind:    "PrometheusRule",
+		Kind:    "ValidatingAdmissionPolicy",
+	}
+
+	ValidatingAdmissionPolicyBinding = schema.GroupVersionKind{
+		Group:   "admissionregistration.k8s.io",
+		Version: "v1",
+		Kind:    "ValidatingAdmissionPolicyBinding",
 	}
 )
