@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -161,11 +161,11 @@ func dsciPredicates(_ client.Client) predicate.Funcs {
 		},
 
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			dsciOld, ok := e.ObjectOld.(*dsciv1.DSCInitialization)
+			dsciOld, ok := e.ObjectOld.(*dsciv2.DSCInitialization)
 			if !ok {
 				return false
 			}
-			dsciNew, ok := e.ObjectNew.(*dsciv1.DSCInitialization)
+			dsciNew, ok := e.ObjectNew.(*dsciv2.DSCInitialization)
 			if !ok {
 				return false
 			}

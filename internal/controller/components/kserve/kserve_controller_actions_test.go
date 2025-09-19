@@ -12,7 +12,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -60,7 +60,7 @@ func TestCheckPreConditions_ServiceMeshUnmanaged(t *testing.T) {
 	ks := componentApi.Kserve{}
 	ks.Spec.Serving.ManagementState = operatorv1.Managed
 
-	dsci := dsciv1.DSCInitialization{}
+	dsci := dsciv2.DSCInitialization{}
 	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Removed,
 	}
@@ -93,7 +93,7 @@ func TestCheckPreConditions_ServiceMeshManaged_NoOperators(t *testing.T) {
 	ks := componentApi.Kserve{}
 	ks.Spec.Serving.ManagementState = operatorv1.Managed
 
-	dsci := dsciv1.DSCInitialization{}
+	dsci := dsciv2.DSCInitialization{}
 	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Managed,
 	}
@@ -135,7 +135,7 @@ func TestCheckPreConditions_ServiceMeshManaged_NoServerlessOperator(t *testing.T
 	ks := componentApi.Kserve{}
 	ks.Spec.Serving.ManagementState = operatorv1.Managed
 
-	dsci := dsciv1.DSCInitialization{}
+	dsci := dsciv2.DSCInitialization{}
 	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Managed,
 	}
@@ -177,7 +177,7 @@ func TestCheckPreConditions_ServiceMeshManaged_NoServiceMeshOperator(t *testing.
 	ks := componentApi.Kserve{}
 	ks.Spec.Serving.ManagementState = operatorv1.Managed
 
-	dsci := dsciv1.DSCInitialization{}
+	dsci := dsciv2.DSCInitialization{}
 	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Managed,
 	}
@@ -223,7 +223,7 @@ func TestCheckPreConditions_ServiceMeshManaged_AllOperator(t *testing.T) {
 	ks.Spec.Serving.ManagementState = operatorv1.Managed
 
 	// Set ServiceMesh condition to True since we're testing operator checks
-	dsci := dsciv1.DSCInitialization{}
+	dsci := dsciv2.DSCInitialization{}
 	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Managed,
 	}
@@ -271,7 +271,7 @@ func TestCheckPreConditions_ServiceMeshConditionNotTrue(t *testing.T) {
 	ks := componentApi.Kserve{}
 	ks.Spec.Serving.ManagementState = operatorv1.Managed
 
-	dsci := dsciv1.DSCInitialization{}
+	dsci := dsciv2.DSCInitialization{}
 	// Set ServiceMesh to Managed
 	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Managed,
@@ -315,7 +315,7 @@ func TestCheckPreConditions_RawServiceConfig(t *testing.T) {
 	ksHeaded.Spec.DefaultDeploymentMode = componentApi.RawDeployment
 	ksHeaded.Spec.RawDeploymentServiceConfig = componentApi.KserveRawHeaded
 
-	dsci := dsciv1.DSCInitialization{}
+	dsci := dsciv2.DSCInitialization{}
 	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Removed,
 	}
@@ -379,7 +379,7 @@ func TestCleanUpTemplatedResources_withAuthorino(t *testing.T) {
 	ksHeaded.Spec.DefaultDeploymentMode = componentApi.Serverless
 	ksHeaded.Spec.Serving.ManagementState = operatorv1.Managed
 
-	dsci := dsciv1.DSCInitialization{}
+	dsci := dsciv2.DSCInitialization{}
 	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Managed,
 	}
@@ -440,7 +440,7 @@ func TestCleanUpTemplatedResources_withoutAuthorino(t *testing.T) {
 	ksHeaded.Spec.DefaultDeploymentMode = componentApi.Serverless
 	ksHeaded.Spec.Serving.ManagementState = operatorv1.Managed
 
-	dsci := dsciv1.DSCInitialization{}
+	dsci := dsciv2.DSCInitialization{}
 	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
 		ManagementState: operatorv1.Managed,
 	}

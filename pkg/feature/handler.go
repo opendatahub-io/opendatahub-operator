@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 )
@@ -102,7 +102,7 @@ func (fh *FeaturesHandler) Delete(ctx context.Context, cli client.Client) error 
 // and add them to the handler's registry.
 type FeaturesProvider func(registry FeaturesRegistry) error
 
-func ClusterFeaturesHandler(dsci *dsciv1.DSCInitialization, def ...FeaturesProvider) *FeaturesHandler {
+func ClusterFeaturesHandler(dsci *dsciv2.DSCInitialization, def ...FeaturesProvider) *FeaturesHandler {
 	return &FeaturesHandler{
 		targetNamespace:   dsci.Spec.ApplicationsNamespace,
 		owner:             dsci,

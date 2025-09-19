@@ -14,8 +14,8 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -59,14 +59,14 @@ var (
 	}
 
 	DataScienceCluster = schema.GroupVersionKind{
-		Group:   dscv1.GroupVersion.Group,
-		Version: dscv1.GroupVersion.Version,
+		Group:   dscv2.GroupVersion.Group,
+		Version: dscv2.GroupVersion.Version,
 		Kind:    "DataScienceCluster",
 	}
 
 	DSCInitialization = schema.GroupVersionKind{
-		Group:   dsciv1.GroupVersion.Group,
-		Version: dsciv1.GroupVersion.Version,
+		Group:   dsciv2.GroupVersion.Group,
+		Version: dsciv2.GroupVersion.Version,
 		Kind:    "DSCInitialization",
 	}
 

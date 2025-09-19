@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -72,7 +72,7 @@ func TestDSCInitialization_ValidatingWebhook(t *testing.T) {
 		{
 			name: "Denies deletion if DSC exists",
 			existingObjs: []client.Object{
-				&dscv1.DataScienceCluster{
+				&dscv2.DataScienceCluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "dsc-1",
 						Namespace: ns,

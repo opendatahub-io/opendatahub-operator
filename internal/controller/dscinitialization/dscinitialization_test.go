@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
@@ -40,7 +40,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: workingNamespace}, foundApplicationNamespace)).ShouldNot(Succeed())
 			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
-			foundDsci := &dsciv1.DSCInitialization{}
+			foundDsci := &dsciv2.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
 				WithContext(ctx).
 				WithTimeout(timeout).
@@ -94,7 +94,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			// when
 			desiredDsci := createDSCI(operatorv1.Removed, operatorv1.Managed, monitoringNamespace2)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
-			foundDsci := &dsciv1.DSCInitialization{}
+			foundDsci := &dsciv2.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
 				WithContext(ctx).
 				WithTimeout(timeout).
@@ -135,7 +135,7 @@ var _ = Describe("DataScienceCluster initialization", func() {
 			// when
 			desiredDsci := createDSCI(operatorv1.Managed, operatorv1.Managed, monitoringNamespace)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
-			foundDsci := &dsciv1.DSCInitialization{}
+			foundDsci := &dsciv2.DSCInitialization{}
 			Eventually(dscInitializationIsReady(applicationName, workingNamespace, foundDsci)).
 				WithContext(ctx).
 				WithTimeout(timeout).
@@ -196,8 +196,8 @@ var _ = Describe("DataScienceCluster initialization", func() {
 })
 
 func cleanupCustomizedResources(ctx context.Context) {
-	Expect(k8sClient.DeleteAllOf(ctx, &dsciv1.DSCInitialization{})).To(Succeed())
-	Eventually(noInstanceExistsIn(customizedAppNs, &dsciv1.DSCInitializationList{})).
+	Expect(k8sClient.DeleteAllOf(ctx, &dsciv2.DSCInitialization{})).To(Succeed())
+	Eventually(noInstanceExistsIn(customizedAppNs, &dsciv2.DSCInitializationList{})).
 		WithContext(ctx).
 		WithTimeout(timeout).
 		WithPolling(interval).
@@ -223,12 +223,12 @@ func cleanupCustomizedResources(ctx context.Context) {
 func cleanupResources(ctx context.Context) {
 	defaultNamespace := client.InNamespace(workingNamespace)
 	appNamespace := client.InNamespace(applicationNamespace)
-	Expect(k8sClient.DeleteAllOf(ctx, &dsciv1.DSCInitialization{}, defaultNamespace)).To(Succeed())
+	Expect(k8sClient.DeleteAllOf(ctx, &dsciv2.DSCInitialization{}, defaultNamespace)).To(Succeed())
 
 	Expect(k8sClient.DeleteAllOf(ctx, &networkingv1.NetworkPolicy{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(ctx, &corev1.ConfigMap{}, appNamespace)).To(Succeed())
 
-	Eventually(noInstanceExistsIn(workingNamespace, &dsciv1.DSCInitializationList{})).
+	Eventually(noInstanceExistsIn(workingNamespace, &dsciv2.DSCInitializationList{})).
 		WithContext(ctx).
 		WithTimeout(timeout).
 		WithPolling(interval).
@@ -267,8 +267,8 @@ func objectExists(name string, namespace string, obj client.Object) func(ctx con
 	}
 }
 
-func createDSCI(enableMonitoring operatorv1.ManagementState, enableTrustedCABundle operatorv1.ManagementState, monitoringNS string) *dsciv1.DSCInitialization {
-	return &dsciv1.DSCInitialization{
+func createDSCI(enableMonitoring operatorv1.ManagementState, enableTrustedCABundle operatorv1.ManagementState, monitoringNS string) *dsciv2.DSCInitialization {
+	return &dsciv2.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
 			APIVersion: "v1",
@@ -277,7 +277,7 @@ func createDSCI(enableMonitoring operatorv1.ManagementState, enableTrustedCABund
 			Name:      applicationName,
 			Namespace: workingNamespace,
 		},
-		Spec: dsciv1.DSCInitializationSpec{
+		Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: applicationNamespace,
 			Monitoring: serviceApi.DSCIMonitoring{
 				ManagementSpec: common.ManagementSpec{ManagementState: enableMonitoring},
@@ -285,15 +285,15 @@ func createDSCI(enableMonitoring operatorv1.ManagementState, enableTrustedCABund
 					Namespace: monitoringNS,
 				},
 			},
-			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
+			TrustedCABundle: &dsciv2.TrustedCABundleSpec{
 				ManagementState: enableTrustedCABundle,
 			},
 		},
 	}
 }
 
-func createCustomizedDSCI(appNS string) *dsciv1.DSCInitialization {
-	return &dsciv1.DSCInitialization{
+func createCustomizedDSCI(appNS string) *dsciv2.DSCInitialization {
+	return &dsciv2.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
 			APIVersion: "v1",
@@ -302,7 +302,7 @@ func createCustomizedDSCI(appNS string) *dsciv1.DSCInitialization {
 			Name:      applicationName,
 			Namespace: workingNamespace,
 		},
-		Spec: dsciv1.DSCInitializationSpec{
+		Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: appNS,
 			Monitoring: serviceApi.DSCIMonitoring{
 				ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
@@ -310,14 +310,14 @@ func createCustomizedDSCI(appNS string) *dsciv1.DSCInitialization {
 					Namespace: monitoringNamespace,
 				},
 			},
-			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
+			TrustedCABundle: &dsciv2.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
 			},
 		},
 	}
 }
 
-func dscInitializationIsReady(name string, namespace string, dsciObj *dsciv1.DSCInitialization) func(ctx context.Context) bool {
+func dscInitializationIsReady(name string, namespace string, dsciObj *dsciv2.DSCInitialization) func(ctx context.Context) bool {
 	return func(ctx context.Context) bool {
 		_ = k8sClient.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, dsciObj)
 

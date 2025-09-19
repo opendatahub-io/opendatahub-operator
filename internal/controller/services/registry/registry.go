@@ -8,7 +8,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 )
 
 // ServiceHandler is an interface to manage a service
@@ -16,7 +16,7 @@ import (
 type ServiceHandler interface {
 	Init(platform common.Platform) error
 	GetName() string
-	GetManagementState(platform common.Platform, dsci *dsciv1.DSCInitialization) operatorv1.ManagementState
+	GetManagementState(platform common.Platform, dsci *dsciv2.DSCInitialization) operatorv1.ManagementState
 	NewReconciler(ctx context.Context, mgr ctrl.Manager) error
 }
 

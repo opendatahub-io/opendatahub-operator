@@ -15,12 +15,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
-//+kubebuilder:webhook:path=/mutate-datasciencecluster,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=datasciencecluster-defaulter.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/mutate-datasciencecluster,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1;v2,name=datasciencecluster-defaulter.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
 // Defaulter implements webhook.CustomDefaulter for DataScienceCluster resources.
@@ -41,7 +41,7 @@ var _ webhook.CustomDefaulter = &Defaulter{}
 // Returns:
 //   - error: Always nil (for future extensibility).
 func (d *Defaulter) SetupWithManager(mgr ctrl.Manager) error {
-	mutateWebhook := admission.WithCustomDefaulter(mgr.GetScheme(), &dscv1.DataScienceCluster{}, d)
+	mutateWebhook := admission.WithCustomDefaulter(mgr.GetScheme(), &dscv2.DataScienceCluster{}, d)
 	mutateWebhook.LogConstructor = webhookutils.NewWebhookLogConstructor(d.Name)
 	mgr.GetWebhookServer().Register("/mutate-datasciencecluster", mutateWebhook)
 	// No error to return currently, but return nil for future extensibility
@@ -57,7 +57,7 @@ func (d *Defaulter) SetupWithManager(mgr ctrl.Manager) error {
 // Returns:
 //   - error: If the object is not a DataScienceCluster, or if defaulting fails.
 func (d *Defaulter) Default(ctx context.Context, obj runtime.Object) error {
-	dsc, isDSC := obj.(*dscv1.DataScienceCluster)
+	dsc, isDSC := obj.(*dscv2.DataScienceCluster)
 	if !isDSC {
 		log := logf.FromContext(ctx)
 		err := fmt.Errorf("expected DataScienceCluster but got a different type: %T", obj)
@@ -76,7 +76,7 @@ func (d *Defaulter) Default(ctx context.Context, obj runtime.Object) error {
 // Parameters:
 //   - ctx: Context for the admission request (logger is extracted from here).
 //   - dsc: The DataScienceCluster object to mutate.
-func (d *Defaulter) applyDefaults(ctx context.Context, dsc *dscv1.DataScienceCluster) {
+func (d *Defaulter) applyDefaults(ctx context.Context, dsc *dscv2.DataScienceCluster) {
 	log := logf.FromContext(ctx)
 	// If ModelRegistry is enabled and RegistriesNamespace is empty, it sets it to the default value.
 	modelRegistry := &dsc.Spec.Components.ModelRegistry

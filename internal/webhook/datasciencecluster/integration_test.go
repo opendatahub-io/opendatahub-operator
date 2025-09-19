@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
@@ -31,8 +31,8 @@ func createDSCI(g Gomega, ctx context.Context, k8sClient client.Client, ns strin
 }
 
 // WithModelRegistryDefaulting returns a functional option that sets ModelRegistry fields to trigger defaulting logic in tests.
-func WithModelRegistryDefaulting() func(*dscv1.DataScienceCluster) {
-	return func(dsc *dscv1.DataScienceCluster) {
+func WithModelRegistryDefaulting() func(*dscv2.DataScienceCluster) {
+	return func(dsc *dscv2.DataScienceCluster) {
 		dsc.Spec.Components.ModelRegistry.ManagementState = operatorv1.Managed
 		dsc.Spec.Components.ModelRegistry.RegistriesNamespace = ""
 	}
@@ -79,7 +79,7 @@ func TestDataScienceCluster_Integration(t *testing.T) {
 				}
 			},
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				dsc := &dscv1.DataScienceCluster{}
+				dsc := &dscv2.DataScienceCluster{}
 				key := types.NamespacedName{Name: "dsc-delete", Namespace: ns}
 				g.Expect(k8sClient.Get(ctx, key, dsc)).To(Succeed(), "should find the DataScienceCluster created in setup")
 				g.Expect(dsc.Name).To(Equal("dsc-delete"), "should have the expected name")
@@ -95,7 +95,7 @@ func TestDataScienceCluster_Integration(t *testing.T) {
 				dsc := envtestutil.NewDSC("dsc-defaulting", ns, WithModelRegistryDefaulting())
 				g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed(), "should allow creation of DataScienceCluster for defaulting test")
 
-				fetched := &dscv1.DataScienceCluster{}
+				fetched := &dscv2.DataScienceCluster{}
 				g.Eventually(func() string {
 					if err := k8sClient.Get(ctx, types.NamespacedName{Name: "dsc-defaulting", Namespace: ns}, fetched); err != nil {
 						t.Logf("Get failed in Eventually polling: %v", err)

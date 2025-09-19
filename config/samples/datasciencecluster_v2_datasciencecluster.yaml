@@ -1,0 +1,9 @@
+apiVersion: datasciencecluster.opendatahub.io/v2
+kind: DataScienceCluster
+metadata:
+  labels:
+    app.kubernetes.io/name: opendatahub-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: datasciencecluster-sample
+spec:
+  # TODO(user): Add fields here

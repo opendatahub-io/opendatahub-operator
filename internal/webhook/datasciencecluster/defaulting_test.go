@@ -5,7 +5,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
 
@@ -69,7 +69,7 @@ func TestDefaulter_DefaultingLogic(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			dsc := &dscv1.DataScienceCluster{}
+			dsc := &dscv2.DataScienceCluster{}
 			if tc.managementState != nil || tc.registriesNamespace != nil {
 				// Only set ModelRegistry if at least one field is set
 				if tc.managementState != nil {

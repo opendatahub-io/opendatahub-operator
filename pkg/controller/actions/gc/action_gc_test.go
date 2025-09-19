@@ -28,7 +28,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
@@ -174,7 +174,7 @@ func TestGcAction(t *testing.T) {
 
 			rr := types.ReconciliationRequest{
 				Client: cli,
-				DSCI: &dsciv1.DSCInitialization{
+				DSCI: &dsciv2.DSCInitialization{
 					ObjectMeta: metav1.ObjectMeta{
 						Generation: 1,
 					},
@@ -402,7 +402,7 @@ func TestGcActionOwn(t *testing.T) {
 
 			rr := types.ReconciliationRequest{
 				Client: cli,
-				DSCI: &dsciv1.DSCInitialization{
+				DSCI: &dsciv2.DSCInitialization{
 					ObjectMeta: metav1.ObjectMeta{
 						Generation: 1,
 					},
@@ -515,7 +515,7 @@ func TestGcActionCluster(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		DSCI: &dsciv1.DSCInitialization{
+		DSCI: &dsciv2.DSCInitialization{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
@@ -655,7 +655,7 @@ func TestGcActionOnce(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		DSCI: &dsciv1.DSCInitialization{
+		DSCI: &dsciv2.DSCInitialization{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
 			},
