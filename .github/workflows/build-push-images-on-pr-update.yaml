@@ -4,7 +4,7 @@ on:
     types: [ opened, synchronize, reopened ]
     paths:
       - 'bundle/**'
-      - 'config/**'
+      - 'odh-config/**'
       - 'Dockerfiles/**'
       - 'internal/**'
       - 'pkg/**'
