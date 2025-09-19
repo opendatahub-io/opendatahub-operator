@@ -1,20 +1,22 @@
 package e2e_test
 
 import (
-	"encoding/json"
 	"strconv"
 	"strings"
 	"testing"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhAnnotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
@@ -41,104 +43,80 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 
 	// Define test cases.
 	testCases := []TestCase{
-		{"codeflare present in the cluster before upgrade, after upgrade not removed", v2Tov3UpgradeTestCtx.ValidateCodeFlareSupportRemovalNotRemoveComponent},
+		{"codeflare resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateCodeFlareResourcePreservation},
 	}
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
 }
 
-func (tc *V2Tov3UpgradeTestCtx) ValidateCodeFlareSupportRemovalNotRemoveComponent(t *testing.T) {
+func (tc *V2Tov3UpgradeTestCtx) ValidateCodeFlareResourcePreservation(t *testing.T) {
+	t.Helper()
+
+	tc.ValidateComponentResourcePreservation(t, gvk.CodeFlare, defaultCodeFlareComponentName)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) ValidateComponentResourcePreservation(t *testing.T, componentGVK schema.GroupVersionKind, componentName string) {
 	t.Helper()
 
 	nn := types.NamespacedName{
-		Name: defaultCodeFlareComponentName,
+		Name: componentName,
 	}
-
-	t.Cleanup(func() {
-		tc.DeleteResource(
-			WithMinimalObject(gvk.CodeFlare, nn),
-			WithIgnoreNotFound(true),
-			WithCustomErrorMsg("Failed to delete CodeFlare component resource '%s'", defaultCodeFlareComponentName),
-		)
-	})
 
 	dsc := tc.FetchDataScienceCluster()
 
-	dscOwnerReference := metav1.OwnerReference{
-		APIVersion:         gvk.DataScienceCluster.GroupVersion().String(),
-		Kind:               gvk.DataScienceCluster.Kind,
-		Name:               dsc.GetName(),
-		UID:                dsc.GetUID(),
-		BlockOwnerDeletion: ptr.To(true),
-		Controller:         ptr.To(true),
-	}
-	marshalledOwnerReference, err := json.Marshal(dscOwnerReference)
-	require.NoError(t, err)
+	tc.createOperatorManagedComponent(componentGVK, componentName, dsc)
 
-	tc.EnsureResourceCreatedOrPatched(
-		WithMinimalObject(gvk.CodeFlare, nn),
-		WithMutateFunc(testf.Transform(`
-		.metadata.ownerReferences = [%s] |
-		.metadata.labels["%s"] = "%s" |
-		.metadata.annotations["%s"] = "%s" |
-		.metadata.annotations["%s"] = "%s" |
-		.metadata.annotations["%s"] = "%s" |
-		.metadata.annotations["%s"] = "%s"`,
-			marshalledOwnerReference,
-			labels.PlatformPartOf,
-			strings.ToLower(gvk.DataScienceCluster.Kind),
-			odhAnnotations.PlatformVersion,
-			dsc.Status.Release.Version.String(),
-			odhAnnotations.PlatformType,
-			string(dsc.Status.Release.Name),
-			odhAnnotations.InstanceGeneration,
-			strconv.Itoa(int(dsc.GetGeneration())),
-			odhAnnotations.InstanceUID,
-			string(dsc.GetUID()),
-		)),
-		WithCustomErrorMsg("Failed to create or update CodeFlare component resource '%s'", defaultCodeFlareComponentName),
+	tc.triggerDSCReconciliation(t)
+
+	// Verify component still exists after reconciliation (was not removed)
+	tc.EnsureResourceExistsConsistently(WithMinimalObject(gvk.CodeFlare, nn),
+		WithCustomErrorMsg("CodeFlare component resource '%s' was expected to exist but was not found", defaultCodeFlareComponentName),
 	)
 
-	tc.triggerDSCReconciliation(t, "modelregistry", operatorv1.Managed)
-
-	tc.EnsureResourceExistsConsistently(
-		WithMinimalObject(gvk.CodeFlare, nn),
-		WithCustomErrorMsg("CodeFlare component resource '%s' was expected to exist but was not found", defaultCodeFlareComponentName),
+	// Cleanup
+	tc.DeleteResource(
+		WithMinimalObject(componentGVK, nn),
+		WithWaitForDeletion(true),
 	)
 }
 
-func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T, componentToEnable string, managementState operatorv1.ManagementState) {
+func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 	t.Helper()
 
-	// This is needed to trigger another DSC reconciliation
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentToEnable, managementState)),
-		WithCustomErrorMsg("Failed to update DSC resource '%s'", tc.DataScienceClusterNamespacedName.Name),
+		WithMutateFunc(testf.Transform(`.spec.components.dashboard = {}`)),
+		WithCondition(jq.Match(`.metadata.generation == .status.observedGeneration`)),
+		WithCustomErrorMsg("Failed to trigger DSC reconciliation"),
 	)
+}
 
-	// We only need the reconciliation loop to complete execution, so we remove the
-	// component without waiting for it to be ready to speed up the test execution
+func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedComponent(componentGVK schema.GroupVersionKind, componentName string, dsc *dscv1.DataScienceCluster) client.Object {
+	existingComponent := resources.GvkToUnstructured(componentGVK)
+	existingComponent.SetName(componentName)
+
+	resources.SetLabels(existingComponent, map[string]string{
+		labels.PlatformPartOf: strings.ToLower(gvk.DataScienceCluster.Kind),
+	})
+
+	resources.SetAnnotations(existingComponent, map[string]string{
+		odhAnnotations.ManagedByODHOperator: "true",
+		odhAnnotations.PlatformVersion:      dsc.Status.Release.Version.String(),
+		odhAnnotations.PlatformType:         string(dsc.Status.Release.Name),
+		odhAnnotations.InstanceGeneration:   strconv.Itoa(int(dsc.GetGeneration())),
+		odhAnnotations.InstanceUID:          string(dsc.GetUID()),
+	})
+
+	err := controllerutil.SetOwnerReference(dsc, existingComponent, tc.Scheme())
+	tc.g.Expect(err).NotTo(HaveOccurred(),
+		"Failed to set owner reference from DataScienceCluster '%s' to %s component '%s'",
+		dsc.GetName(), componentGVK.Kind, componentName)
+
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentToEnable, operatorv1.Removed)),
-		WithCustomErrorMsg("Failed to remove DSC resource '%s' component '%s'", tc.DataScienceClusterNamespacedName.Name, componentToEnable),
+		WithObjectToCreate(existingComponent),
+		WithCustomErrorMsg("Failed to create existing %s component for preservation test", componentGVK.Kind),
 	)
 
-	tc.g.Eventually(
-		func(g Gomega) {
-			dscAfterUpdate := tc.FetchDataScienceCluster()
-			status := dscAfterUpdate.GetStatus()
-
-			// Check that the DataScienceCluster has been reconciled by verifying observedGeneration
-			currentGeneration := dscAfterUpdate.GetGeneration()
-			observedGeneration := status.ObservedGeneration
-			g.Expect(currentGeneration).To(Equal(observedGeneration),
-				"DataScienceCluster '%s' should have been reconciled (observedGeneration should match generation)",
-				tc.DataScienceClusterNamespacedName.Name,
-				componentToEnable,
-			)
-		},
-	).Should(Succeed())
+	return existingComponent
 }
