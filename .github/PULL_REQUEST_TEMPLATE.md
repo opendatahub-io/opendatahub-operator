@@ -39,6 +39,6 @@ To opt-out of this requirement:
 - [ ] Skip requirement to update E2E test suite for this PR
 4. Submit/save these changes to the PR description. This will automatically trigger the check.
 
-#### E2E update requirement opt-out justification:
+#### E2E update requirement opt-out justification
 <!--- If you checked the box above, please provide a short summary of reasons for opting-out of this requirement -->
 <!--- This section can be left empty if you're not opting out of the E2E requirement -->

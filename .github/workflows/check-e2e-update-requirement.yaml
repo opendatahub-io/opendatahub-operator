@@ -64,7 +64,7 @@ jobs:
               
               const validateJustification = (text) => {
                 // Create regex for the PR description title level (#### is used in PR description)
-                const titleRegex = new RegExp(`^\\s*####\\s*E2E update requirement opt-out justification:\\s*$`, 'im');
+                const titleRegex = new RegExp(`^\\s*####\\s*E2E update requirement opt-out justification\\s*:?\\s*$`, 'im');
                 const titleMatch = text.match(titleRegex);
                 
                 if (!titleMatch) {
@@ -76,7 +76,7 @@ jobs:
                 const contentAfterTitle = text.substring(titleIndex);
                 
                 // find the next title at same or higher depth => this will determine the end of the justification content
-                const nextTitleRegex = /^\s*#{1,4}\s+/m;
+                const nextTitleRegex = /^\s*#{1,4}\s*\S+/m;
                 const nextTitleMatch = contentAfterTitle.match(nextTitleRegex);
                 
                 let justificationContent;
