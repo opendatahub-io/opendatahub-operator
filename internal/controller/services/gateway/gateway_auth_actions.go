@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -76,16 +77,15 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		Reason: status.NotReadyReason,
 	}
 
-	// generate client secret once for both kube-auth-proxy and OAuth client
+	// get or generate client secret once for both kube-auth-proxy and OAuth client
 	var clientSecret string
 	if authMode == AuthModeIntegratedOAuth {
-		clientSecretGen, err := secretgenerator.NewSecret("client-secret", "random", 24)
+		clientSecret, err = getOrGenerateClientSecret(ctx, rr)
 		if err != nil {
-			condition.Message = fmt.Sprintf("Failed to generate client secret: %v", err)
+			condition.Message = fmt.Sprintf("Failed to get or generate client secret: %v", err)
 			gatewayConfig.SetConditions([]common.Condition{condition})
 			return err
 		}
-		clientSecret = clientSecretGen.Value
 	}
 
 	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, clientSecret); err != nil {
@@ -164,6 +164,32 @@ func checkAuthModeNone(authMode AuthMode) *common.Condition {
 	return nil
 }
 
+func getOrGenerateClientSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest) (string, error) {
+	existingSecret := &corev1.Secret{}
+	err := rr.Client.Get(ctx, types.NamespacedName{
+		Name:      "kube-auth-proxy-creds",
+		Namespace: gatewayNamespace,
+	}, existingSecret)
+
+	if err == nil {
+		if clientSecretBytes, exists := existingSecret.Data["OAUTH2_PROXY_CLIENT_SECRET"]; exists {
+			return string(clientSecretBytes), nil
+		}
+		return "", fmt.Errorf("existing secret missing OAUTH2_PROXY_CLIENT_SECRET key")
+	}
+
+	if !k8serr.IsNotFound(err) {
+		return "", fmt.Errorf("failed to check for existing secret: %w", err)
+	}
+
+	clientSecretGen, err := secretgenerator.NewSecret("client-secret", "random", 24)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate client secret: %w", err)
+	}
+
+	return clientSecretGen.Value, nil
+}
+
 func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig, clientSecret string) error {
 	l := logf.FromContext(ctx).WithName("deployAuthProxy")
 
@@ -181,23 +207,7 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return err
 	}
 
-	secret := &corev1.Secret{}
-	err = rr.Client.Get(ctx, types.NamespacedName{
-		Name:      "kube-auth-proxy-creds",
-		Namespace: gatewayNamespace,
-	}, secret)
-	if err != nil {
-		if k8serr.IsNotFound(err) {
-			// secret not ready yet - trying next reconciliation
-			l.V(1).Info("kube-auth-proxy secret not found, creating secret", "secret", "kube-auth-proxy-creds")
-			return nil
-		}
-		// log but continue - secret might still be getting created
-		l.V(1).Info("unable to verify kube-auth-proxy secret status, creating secret", "error", err, "secret", "kube-auth-proxy-creds")
-		return nil
-	}
-
-	l.V(1).Info("secret is ready, proceeding with dependent resources", "secret", "kube-auth-proxy-creds")
+	l.V(1).Info("secret created, proceeding with dependent resources", "secret", "kube-auth-proxy-creds")
 
 	err = createKubeAuthProxyService(rr)
 	if err != nil {
@@ -247,6 +257,10 @@ func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationR
 	}
 
 	secret := &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Secret",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "kube-auth-proxy-creds",
 			Namespace: gatewayNamespace,
@@ -262,7 +276,16 @@ func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationR
 		},
 	}
 
-	return rr.AddResources(secret)
+	// Use server-side apply for immediate create-or-update
+	opts := []client.PatchOption{
+		client.ForceOwnership,
+		client.FieldOwner(resources.PlatformFieldOwner),
+	}
+	err = resources.Apply(ctx, rr.Client, secret, opts...)
+	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return err
+	}
+	return nil
 }
 
 func createKubeAuthProxyDeployment(ctx context.Context, rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig) error {
