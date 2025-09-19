@@ -9,6 +9,7 @@ on:
       - 'internal/**'
       - 'pkg/**'
       - 'cmd/main.go'
+    branches: [ 'main' ]
 
 permissions:
   contents: read
@@ -101,7 +102,7 @@ jobs:
               console.log(`Justification found in PR description: ${prDescriptionHasJustification}`);
               
               if (!prDescriptionHasJustification) {
-                console.log('❌ FAILURE: PR author opted-out of the E2E test suite update requirement, but no justification was found in PR description');
+                console.log('❌ FAILURE: PR author opted-out of the E2E test suite update requirement, but no justification was found in PR description. A GitHub bot will add a comment on the PR with error report and instructions on how to proceed...');
                 checkResult = {
                   status: 'failure',
                   reason: 'PR author opted-out of the E2E test suite update requirement, but no justification was found in PR description',
@@ -121,7 +122,7 @@ jobs:
             } else {
               // skip e2e update requirement checkbox is not checked
               // => verify e2e tests were added/updated
-              console.log('Requirement to update E2E test suite was is not set to be skipped, checking for e2e test updates in the PR...');
+              console.log('Requirement to update E2E test suite was not set to be skipped, checking for e2e test updates in the PR...');
               
               const { data: files } = await github.rest.pulls.listFiles({
                 owner,
@@ -139,7 +140,7 @@ jobs:
               console.log('Modified files:', files.map(f => f.filename).join(', '));
               
               if (!e2eFilesModified) {
-                console.log('❌ FAILURE: No e2e tests updated and skip checkbox not checked');
+                console.log('❌ FAILURE: No e2e tests updated and skip checkbox not checked. A GitHub bot will add a comment on the PR with error report and instructions on how to proceed...');
                 checkResult = {
                   status: 'failure',
                   reason: 'No e2e tests updated and skip checkbox not checked',
