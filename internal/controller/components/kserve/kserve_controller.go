@@ -81,6 +81,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		OwnsGVK(gvk.AuthorizationPolicyv1beta1, reconciler.Dynamic(actions.IfGVKInstalled(gvk.AuthorizationPolicyv1beta1))).
 		OwnsGVK(gvk.LLMInferenceServiceConfigV1Alpha1, reconciler.Dynamic(actions.IfGVKInstalled(gvk.LLMInferenceServiceConfigV1Alpha1))).
 		OwnsGVK(gvk.LLMInferenceServiceV1Alpha1, reconciler.Dynamic(actions.IfGVKInstalled(gvk.LLMInferenceServiceV1Alpha1))).
+		OwnsGVK(gvk.InferencePoolV1alpha2, reconciler.Dynamic(actions.IfGVKInstalled(gvk.InferencePoolV1alpha2))).
+		OwnsGVK(gvk.InferenceModelV1alpha2, reconciler.Dynamic(actions.IfGVKInstalled(gvk.InferenceModelV1alpha2))).
 
 		// operands - watched
 		//
