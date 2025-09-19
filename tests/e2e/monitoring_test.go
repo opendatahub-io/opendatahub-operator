@@ -94,6 +94,8 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test OpenTelemetry Collector Configurations", monitoringServiceCtx.ValidateOpenTelemetryCollectorConfigurations},
 		{"Test OpenTelemetry Collector replicas", monitoringServiceCtx.ValidateMonitoringCRCollectorReplicas},
 		{"Test Instrumentation CR Traces Creation", monitoringServiceCtx.ValidateInstrumentationCRTracesWhenSet},
+		{"Validate OpenTelemetry Collector custom metrics exporters", monitoringServiceCtx.ValidateOpenTelemetryCollectorCustomMetricsExporters},
+		{"Validate metrics exporters schema validation", monitoringServiceCtx.ValidateMetricsExportersSchemaValidation},
 		{"Test Instrumentation CR Traces Configuration", monitoringServiceCtx.ValidateInstrumentationCRTracesConfiguration},
 		// {"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
 		{"Validate CEL blocks invalid monitoring configs", monitoringServiceCtx.ValidateCELBlocksInvalidMonitoringConfigs},
@@ -1034,8 +1036,15 @@ func withNoCollectorReplicas() testf.TransformFn {
 // withCustomMetricsExporters returns a transform that sets custom metrics exporters.
 func withCustomMetricsExporters() testf.TransformFn {
 	return testf.Transform(`.spec.monitoring.metrics.exporters = {
-		"debug": "verbosity: detailed",
-        "%s": "endpoint: http://custom-backend:4317\ntls:\n  insecure: true"
+		"debug": {
+			"verbosity": "detailed"
+		},
+        "%s": {
+			"endpoint": "http://custom-backend:4317",
+			"tls": {
+				"insecure": true
+			}
+		}
 	}`, OtlpCustomExporter)
 }
 
@@ -1092,4 +1101,168 @@ func withMonitoringTraces(backend, secret, size, retention string) testf.Transfo
 	}
 
 	return testf.TransformPipeline(transforms...)
+}
+
+func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorCustomMetricsExporters(t *testing.T) {
+	t.Helper()
+
+	// Configure DSCI with custom metrics exporters
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringMetricsWithCustomExporters(),
+		)),
+	)
+
+	// First verify the Monitoring service is ready
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
+	)
+
+	// Verify OpenTelemetry Collector has custom exporters configured
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: OpenTelemetryCollectorName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			jq.Match(`.spec.config.exporters | has("prometheus")`),      // Built-in exporter
+			jq.Match(`.spec.config.exporters | has("debug")`),           // Custom exporter 1
+			jq.Match(`.spec.config.exporters | has("otlphttp/custom")`), // Custom exporter 2
+			jq.Match(`.spec.config.exporters.debug.verbosity == "detailed"`),
+			jq.Match(`.spec.config.exporters."otlphttp/custom".endpoint == "https://custom-backend:4318"`),
+			jq.Match(`.spec.config.exporters."otlphttp/custom".headers."api-key" == "test-key"`),
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | length == 3`), // prometheus + 2 custom
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | contains(["prometheus"])`),
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | contains(["debug"])`),
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | contains(["otlphttp/custom"])`),
+		)),
+	)
+}
+
+// setMonitoringMetricsWithCustomExporters creates a transformation function that sets metrics with custom exporters for testing.
+func setMonitoringMetricsWithCustomExporters() testf.TransformFn {
+	return testf.Transform(`.spec.monitoring.metrics = {
+        "storage": {
+            "size": "5Gi",
+            "retention": "90d"
+        },
+        "exporters": {
+            "debug": {
+                "verbosity": "detailed"
+            },
+            "otlphttp/custom": {
+                "endpoint": "https://custom-backend:4318",
+                "headers": {
+                    "api-key": "test-key"
+                }
+            }
+        }
+    }`)
+}
+
+// ValidateMetricsExportersSchemaValidation tests that schema validation works correctly for metrics exporters in E2E environment.
+func (tc *MonitoringTestCtx) ValidateMetricsExportersSchemaValidation(t *testing.T) {
+	t.Helper()
+
+	testCases := []struct {
+		name        string
+		transforms  testf.TransformFn
+		shouldFail  bool
+		description string
+	}{
+		{
+			name: "valid_exporters_pass_validation",
+			transforms: testf.TransformPipeline(
+				testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+				testf.Transform(`.spec.monitoring.metrics = {
+					"storage": {"size": "5Gi", "retention": "90d"},
+					"exporters": {
+						"debug": {"verbosity": "detailed"},
+						"otlp/test": {"endpoint": "https://test-backend.svc.cluster.local:4317"}
+					}
+				}`),
+			),
+			shouldFail:  false,
+			description: "Valid exporters should pass schema validation",
+		},
+		{
+			name: "invalid_compression_fails_validation",
+			transforms: testf.TransformPipeline(
+				testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+				testf.Transform(`.spec.monitoring.metrics = {
+					"storage": {"size": "5Gi", "retention": "90d"},
+					"exporters": {
+						"otlp/test": {
+							"endpoint": "https://test-backend:4317",
+							"compression": "invalid-compression"
+						}
+					}
+				}`),
+			),
+			shouldFail:  true,
+			description: "Invalid compression value should fail schema validation",
+		},
+		{
+			name: "missing_required_endpoint_fails_validation",
+			transforms: testf.TransformPipeline(
+				testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+				testf.Transform(`.spec.monitoring.metrics = {
+					"storage": {"size": "5Gi", "retention": "90d"},
+					"exporters": {
+						"otlp/test": {"headers": {"auth": "token"}}
+					}
+				}`),
+			),
+			shouldFail:  true,
+			description: "Missing required endpoint should fail schema validation",
+		},
+		{
+			name: "insecure_external_endpoint_fails_validation",
+			transforms: testf.TransformPipeline(
+				testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+				testf.Transform(`.spec.monitoring.metrics = {
+					"storage": {"size": "5Gi", "retention": "90d"},
+					"exporters": {
+						"otlp/test": {"endpoint": "http://external-service.com:4317"}
+					}
+				}`),
+			),
+			shouldFail:  true,
+			description: "Insecure HTTP endpoint to external service should fail security validation",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Helper()
+
+			if testCase.shouldFail {
+				// For tests that should fail, we expect the Monitoring CR to report an error condition
+				tc.updateMonitoringConfig(testCase.transforms)
+
+				// Wait a bit for the validation to be processed
+				tc.EnsureResourceExists(
+					WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+					WithCondition(
+						jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionFalse),
+					),
+					WithCustomErrorMsg("Expected schema validation to fail for: %s", testCase.description),
+				)
+			} else {
+				// For tests that should pass, we expect the Monitoring CR to be ready
+				tc.updateMonitoringConfig(testCase.transforms)
+
+				tc.EnsureResourceExists(
+					WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+					WithCondition(
+						jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+					),
+					WithCustomErrorMsg("Expected schema validation to pass for: %s", testCase.description),
+				)
+			}
+
+			// Cleanup after each test case
+			tc.cleanupAllMonitoringConfiguration()
+		})
+	}
 }
