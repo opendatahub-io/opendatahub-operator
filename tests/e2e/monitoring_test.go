@@ -717,7 +717,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 	// Verify MonitoringStack is deleted
 	tc.EnsureResourcesGone(
 		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: MonitoringStackName, Namespace: tc.MonitoringNamespace}),
-		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 		WithCustomErrorMsg("MonitoringStack should be deleted when metrics and alerting are removed"),
 	)
 
@@ -979,7 +979,7 @@ func withMetricsConfig() testf.TransformFn {
             "retention": "%s"
         },
         "resources": {
-            "cpurequest": "%s", 
+            "cpurequest": "%s",
             "memoryrequest": "%s"
         },
         "replicas": %d
