@@ -362,37 +362,38 @@ func addReplicasData(ctx context.Context, rr *odhtypes.ReconciliationRequest, me
 
 // addExportersData adds custom metrics exporters data to the template data map.
 func addExportersData(metrics *serviceApi.Metrics, templateData map[string]any) error {
-	if metrics.Exporters == nil {
+	// Early return if no exporters are configured
+	// getTemplateData() already pre-initializes MetricsExporters and MetricsExporterNames
+	if len(metrics.Exporters) == 0 {
 		return nil
 	}
 
+	// Initialize for processing exporters
 	validExporters := make(map[string]interface{})
-	exporterNames := make([]string, 0, len(metrics.Exporters))
+	exporterNames := make([]string, 0)
 
-	for name, configYAML := range metrics.Exporters {
-		if isReservedExporterName(name) {
-			return fmt.Errorf("exporter name '%s' is reserved and cannot be used", name)
+	// Reuse the existing validateExporters function that handles runtime.RawExtension
+	validatedExporters, err := validateExporters(metrics.Exporters)
+	if err != nil {
+		return err
+	}
+
+	// Convert the validated YAML strings to map[string]interface{} for template rendering
+	for name, configYAML := range validatedExporters {
+		var cfg map[string]interface{}
+		if err := yaml.Unmarshal([]byte(configYAML), &cfg); err != nil {
+			return fmt.Errorf("failed to unmarshal validated exporter config for '%s': %w", name, err)
 		}
-
-		// Trim and parse YAML configuration string
-		cfgStr := strings.TrimSpace(configYAML)
-		var cfg interface{}
-		if err := yaml.Unmarshal([]byte(cfgStr), &cfg); err != nil {
-			return fmt.Errorf("invalid YAML configuration for exporter '%s': %w", name, err)
+		if cfg == nil {
+			cfg = map[string]interface{}{}
 		}
-
-		// Require a mapping/object to avoid invalid collector config
-		cfgMap, ok := cfg.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("exporter '%s' configuration must be a YAML mapping/object", name)
-		}
-
-		validExporters[name] = cfgMap
+		validExporters[name] = cfg
 		exporterNames = append(exporterNames, name)
 	}
 
 	// Ensure deterministic order in templates/pipelines
 	sort.Strings(exporterNames)
+
 	templateData["MetricsExporters"] = validExporters
 	templateData["MetricsExporterNames"] = exporterNames
 
@@ -457,14 +458,4 @@ func getStringValueOrDefault(value, defaultValue string) string {
 		return defaultValue
 	}
 	return value
-}
-
-// isReservedExporterName checks if an exporter name conflicts with built-in exporters.
-func isReservedExporterName(name string) bool {
-	switch name {
-	case "prometheus", "otlp/tempo":
-		return true
-	default:
-		return false
-	}
 }

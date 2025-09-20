@@ -19,6 +19,11 @@ import (
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
+// stringToRawExtension converts a YAML string to a runtime.RawExtension for testing.
+func stringToRawExtension(yamlStr string) runtime.RawExtension {
+	return runtime.RawExtension{Raw: []byte(yamlStr)}
+}
+
 func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 	ctx := t.Context()
 
@@ -123,7 +128,7 @@ func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 func TestCustomMetricsExporters(t *testing.T) {
 	tests := []struct {
 		name                 string
-		exporters            map[string]string
+		exporters            map[string]runtime.RawExtension
 		expectError          bool
 		errorMsg             string
 		expectedParsedConfig map[string]interface{} // Add expected parsed output
@@ -131,14 +136,14 @@ func TestCustomMetricsExporters(t *testing.T) {
 	}{
 		{
 			name: "valid custom exporters",
-			exporters: map[string]string{
-				"logging":     "loglevel: debug",
-				"otlp/jaeger": "endpoint: http://jaeger:4317\ntls:\n  insecure: true",
+			exporters: map[string]runtime.RawExtension{
+				"debug":       stringToRawExtension("verbosity: detailed"),
+				"otlp/jaeger": stringToRawExtension("endpoint: http://jaeger:4317\ntls:\n  insecure: true"),
 			},
 			expectError: false,
 			expectedParsedConfig: map[string]interface{}{
-				"logging": map[string]interface{}{
-					"loglevel": "debug",
+				"debug": map[string]interface{}{
+					"verbosity": "detailed",
 				},
 				"otlp/jaeger": map[string]interface{}{
 					"endpoint": "http://jaeger:4317",
@@ -147,77 +152,85 @@ func TestCustomMetricsExporters(t *testing.T) {
 					},
 				},
 			},
-			expectedNames: []string{"logging", "otlp/jaeger"}, // Note: sorted order
+			expectedNames: []string{"debug", "otlp/jaeger"}, // Note: sorted order
 		},
 		{
-			name:                 "empty exporters map",
-			exporters:            map[string]string{},
-			expectError:          false,
-			expectedParsedConfig: map[string]interface{}{},
-			expectedNames:        []string{},
+			name:        "empty exporters map",
+			exporters:   map[string]runtime.RawExtension{},
+			expectError: false,
+			// With early return optimization, template data won't be set for empty maps
+			// getTemplateData() pre-initializes these fields, so templates still work
+			expectedParsedConfig: nil, // Not set due to early return
+			expectedNames:        nil, // Not set due to early return
 		},
 		{
-			name:                 "nil exporters (metrics defined but no exporters)",
-			exporters:            nil,
-			expectError:          false,
-			expectedParsedConfig: map[string]interface{}{},
-			expectedNames:        []string{},
+			name:        "nil exporters (metrics defined but no exporters)",
+			exporters:   nil,
+			expectError: false,
+			// With early return optimization, template data won't be set for nil
+			// getTemplateData() pre-initializes these fields, so templates still work
+			expectedParsedConfig: nil, // Not set due to early return
+			expectedNames:        nil, // Not set due to early return
 		},
 		{
 			name: "reserved name prometheus",
-			exporters: map[string]string{
-				"prometheus": "endpoint: http://example.com",
+			exporters: map[string]runtime.RawExtension{
+				"prometheus": stringToRawExtension("endpoint: http://example.com"),
 			},
 			expectError: true,
 			errorMsg:    "reserved",
 		},
 		{
 			name: "reserved name otlp/tempo",
-			exporters: map[string]string{
-				"otlp/tempo": "endpoint: http://tempo.example.com",
+			exporters: map[string]runtime.RawExtension{
+				"otlp/tempo": stringToRawExtension("endpoint: http://tempo.example.com"),
 			},
 			expectError: true,
 			errorMsg:    "reserved",
 		},
 		{
 			name: "invalid YAML",
-			exporters: map[string]string{
-				"logging": "loglevel: [unclosed",
+			exporters: map[string]runtime.RawExtension{
+				"debug": stringToRawExtension("verbosity: [unclosed"),
 			},
 			expectError: true,
-			errorMsg:    "invalid YAML",
+			errorMsg:    "failed to unmarshal exporter config",
 		},
 		{
 			name: "empty YAML string",
-			exporters: map[string]string{
-				"logging": "",
+			exporters: map[string]runtime.RawExtension{
+				"debug": stringToRawExtension(""),
 			},
-			expectError: true,
-			errorMsg:    "must be a YAML mapping/object",
+			expectError:          false, // validateExporters skips empty configs
+			expectedParsedConfig: map[string]interface{}{},
+			expectedNames:        []string{},
 		},
 		{
 			name: "whitespace-only YAML string",
-			exporters: map[string]string{
-				"logging": "   \n  ",
+			exporters: map[string]runtime.RawExtension{
+				"debug": stringToRawExtension("   \n  "),
 			},
-			expectError: true,
-			errorMsg:    "must be a YAML mapping/object",
+			expectError: false, // validateExporters parses whitespace as empty map
+			expectedParsedConfig: map[string]interface{}{
+				"debug": map[string]interface{}{},
+			},
+			expectedNames: []string{"debug"},
 		},
 		{
 			name: "scalar YAML (not object)",
-			exporters: map[string]string{
-				"logging": "debug", // This is a scalar, not an object
+			exporters: map[string]runtime.RawExtension{
+				"debug": stringToRawExtension("debug"), // This is a scalar, not an object
 			},
 			expectError: true,
-			errorMsg:    "must be a YAML mapping/object",
+			errorMsg:    "failed to unmarshal exporter config",
 		},
 		{
 			name: "list YAML (not object)",
-			exporters: map[string]string{
-				"logging": "- endpoint: http://example:4317",
+			exporters: map[string]runtime.RawExtension{
+				"debug": stringToRawExtension("- endpoint: http://example:4317"),
 			},
 			expectError: true,
-			errorMsg:    "must be a YAML mapping/object",
+			errorMsg:    "failed to unmarshal exporter config",
 		},
 	}
 
@@ -288,29 +301,40 @@ func TestCustomMetricsExporters(t *testing.T) {
 					return
 				}
 
-				// For cases with actual exporters, verify content
-				if tt.expectedParsedConfig != nil {
-					// Validate counts match expected
-					if len(exporterMap) != len(tt.expectedParsedConfig) {
-						t.Errorf("Expected %d exporters, got %d", len(tt.expectedParsedConfig), len(exporterMap))
+				// Handle different test scenarios based on early return optimization
+				if tt.expectedParsedConfig == nil && tt.expectedNames == nil {
+					// Early return case - template data should have pre-initialized empty values
+					if len(exporterMap) != 0 {
+						t.Errorf("Expected empty exporters map for early return case, got %+v", exporterMap)
 					}
-					if len(namesList) != len(tt.expectedNames) {
-						t.Errorf("Expected %d exporter names, got %d", len(tt.expectedNames), len(namesList))
+					if len(namesList) != 0 {
+						t.Errorf("Expected empty names list for early return case, got %+v", namesList)
 					}
-					// Validate parsed configuration matches expected (deep comparison)
-					if !reflect.DeepEqual(exporterMap, tt.expectedParsedConfig) {
-						t.Errorf("Parsed configuration doesn't match expected.\nGot: %+v\nExpected: %+v", exporterMap, tt.expectedParsedConfig)
+				} else {
+					// Normal case with actual exporters - verify content
+					if tt.expectedParsedConfig != nil {
+						// Validate counts match expected
+						if len(exporterMap) != len(tt.expectedParsedConfig) {
+							t.Errorf("Expected %d exporters, got %d", len(tt.expectedParsedConfig), len(exporterMap))
+						}
+						if len(namesList) != len(tt.expectedNames) {
+							t.Errorf("Expected %d exporter names, got %d", len(tt.expectedNames), len(namesList))
+						}
+						// Validate parsed configuration matches expected (deep comparison)
+						if !reflect.DeepEqual(exporterMap, tt.expectedParsedConfig) {
+							t.Errorf("Parsed configuration doesn't match expected.\nGot: %+v\nExpected: %+v", exporterMap, tt.expectedParsedConfig)
+						}
 					}
-				}
 
-				// Names are expected to be sorted deterministically
-				if tt.expectedNames != nil {
-					if len(namesList) != len(tt.expectedNames) {
-						t.Fatalf("Expected %d exporter names, got %d", len(tt.expectedNames), len(namesList))
-					}
-					for i := range tt.expectedNames {
-						if namesList[i] != tt.expectedNames[i] {
-							t.Fatalf("Exporter names not sorted as expected.\nExpected: %v\nActual:   %v", tt.expectedNames, namesList)
+					// Names are expected to be sorted deterministically
+					if tt.expectedNames != nil {
+						if len(namesList) != len(tt.expectedNames) {
+							t.Fatalf("Expected %d exporter names, got %d", len(tt.expectedNames), len(namesList))
+						}
+						for i := range tt.expectedNames {
+							if namesList[i] != tt.expectedNames[i] {
+								t.Fatalf("Exporter names not sorted as expected.\nExpected: %v\nActual:   %v", tt.expectedNames, namesList)
+							}
 						}
 					}
 				}

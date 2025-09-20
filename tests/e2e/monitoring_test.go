@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -1087,4 +1088,64 @@ func withMonitoringTraces(backend, secret, size, retention string) testf.Transfo
 	}
 
 	return testf.TransformPipeline(transforms...)
+}
+
+func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorCustomMetricsExporters(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Configure DSCI with custom metrics exporters
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringMetricsWithCustomExporters(),
+		)),
+	)
+
+	// First verify the Monitoring service is ready
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`)),
+	)
+
+	// Verify OpenTelemetry Collector has custom exporters configured
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: "data-science-collector", Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(And(
+			jq.Match(`.spec.config.exporters | has("prometheus")`),      // Built-in exporter
+			jq.Match(`.spec.config.exporters | has("debug")`),           // Custom exporter 1
+			jq.Match(`.spec.config.exporters | has("otlphttp/custom")`), // Custom exporter 2
+			jq.Match(`.spec.config.exporters.debug.verbosity == "detailed"`),
+			jq.Match(`.spec.config.exporters."otlphttp/custom".endpoint == "http://custom-backend:4318"`),
+			jq.Match(`.spec.config.exporters."otlphttp/custom".headers."api-key" == "test-key"`),
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | length == 3`), // prometheus + 2 custom
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | contains(["prometheus"])`),
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | contains(["debug"])`),
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | contains(["otlphttp/custom"])`),
+		)),
+	)
+}
+
+// setMonitoringMetricsWithCustomExporters creates a transformation function that sets only custom exporters for testing.
+func setMonitoringMetricsWithCustomExporters() testf.TransformFn {
+	return func(obj *unstructured.Unstructured) error {
+		// Minimal config - only what's needed for exporters testing
+		metricsConfig := map[string]interface{}{
+			"exporters": map[string]interface{}{
+				"debug": map[string]interface{}{
+					"verbosity": "detailed",
+				},
+				"otlphttp/custom": map[string]interface{}{
+					"endpoint": "http://custom-backend:4318",
+					"headers": map[string]interface{}{
+						"api-key": "test-key",
+					},
+				},
+			},
+		}
+
+		return unstructured.SetNestedField(obj.Object, metricsConfig, "spec", "monitoring", "metrics")
+	}
 }
