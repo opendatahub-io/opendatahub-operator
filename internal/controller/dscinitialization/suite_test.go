@@ -47,6 +47,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -123,6 +124,7 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(templatev1.Install(testScheme))
 	utilruntime.Must(configv1.Install(testScheme))
 	utilruntime.Must(serviceApi.AddToScheme(testScheme))
+	utilruntime.Must(infrav1alpha1.AddToScheme(testScheme))
 	// +kubebuilder:scaffold:scheme
 
 	cli, err := client.New(cfg, client.Options{Scheme: testScheme})

@@ -6,6 +6,7 @@ metadata:
     opendatahub.io/description: 'Provides a baseline hardware profile with 2 CPUs and 4Gi memory by default, adjustable up to 4 CPUs and 8Gi memory.'
     opendatahub.io/disabled: 'false'
     opendatahub.io/display-name: default-profile
+    opendatahub.io/managed: "false"
   name: default-profile
   namespace: opendatahub
 spec:
