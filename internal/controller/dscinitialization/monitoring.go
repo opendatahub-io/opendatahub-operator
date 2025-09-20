@@ -49,7 +49,6 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 			map[string]string{
 				"(.*)-(.*)workbenches(.*).rules":                     "",
 				"(.*)-(.*)rhods-dashboard(.*).rules":                 "",
-				"(.*)-(.*)codeflare(.*).rules":                       "",
 				"(.*)-(.*)data-science-pipelines-operator(.*).rules": "",
 				"(.*)-(.*)model-mesh(.*).rules":                      "",
 				"(.*)-(.*)odh-model-controller(.*).rules":            "",

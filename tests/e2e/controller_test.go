@@ -81,6 +81,7 @@ type TestContextConfig struct {
 	operatorControllerTest bool
 	operatorResilienceTest bool
 	webhookTest            bool
+	v2tov3upgradeTest      bool
 	TestTimeouts           TestTimeouts
 }
 
@@ -122,7 +123,6 @@ var (
 			componentApi.KueueComponentName:                kueueTestSuite,
 			componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
 			componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
-			componentApi.CodeFlareComponentName:            codeflareTestSuite,
 			componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 			componentApi.KserveComponentName:               kserveTestSuite,
 			componentApi.ModelMeshServingComponentName:     modelMeshServingTestSuite,
@@ -259,6 +259,11 @@ func TestOdhOperator(t *testing.T) {
 	mustRun(t, Components.String(), Components.Run)
 	mustRun(t, Services.String(), Services.Run)
 
+	// Run V2 to V3 upgrade test suites
+	if testOpts.v2tov3upgradeTest {
+		mustRun(t, "V2 to V3 upgrade E2E Tests", v2Tov3UpgradeTestSuite)
+	}
+
 	// Run operator resilience test suites after functional tests
 	if testOpts.operatorResilienceTest {
 		mustRun(t, "Operator Resilience E2E Tests", operatorResilienceTestSuite)
@@ -328,6 +333,8 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-operator-controller", viper.GetEnvPrefix()+"_OPERATOR_CONTROLLER"))
 	pflag.Bool("test-operator-resilience", true, "run operator resilience tests")
 	checkEnvVarBindingError(viper.BindEnv("test-operator-resilience", viper.GetEnvPrefix()+"_OPERATOR_RESILIENCE"))
+	pflag.Bool("test-operator-v2tov3upgrade", true, "run V2 to V3 upgrade tests")
+	checkEnvVarBindingError(viper.BindEnv("test-operator-v2tov3upgrade", viper.GetEnvPrefix()+"_OPERATOR_V2TOV3UPGRADE"))
 	pflag.Bool("test-webhook", true, "run webhook tests")
 	checkEnvVarBindingError(viper.BindEnv("test-webhook", viper.GetEnvPrefix()+"_WEBHOOK"))
 
@@ -378,6 +385,7 @@ func TestMain(m *testing.M) {
 	}
 	testOpts.operatorControllerTest = viper.GetBool("test-operator-controller")
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
+	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
 	testOpts.webhookTest = viper.GetBool("test-webhook")
 	Components.enabled = viper.GetBool("test-components")
 	Components.flags = viper.GetStringSlice("test-component")
