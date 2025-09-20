@@ -369,10 +369,11 @@ func (w *ISVCConnectionWebhook) injectS3StorageKeyPath(obj *unstructured.Unstruc
 		return fmt.Errorf("failed to get or create nested map for storage: %w", err)
 	}
 	storageMap["key"] = secretName
-	s3path := webhookutils.GetS3Path(obj)
-	if s3path != "" {
-		storageMap["path"] = s3path
-	}
+	// TODO: to enable below once we decided to support path in isvc. We need a test to cover this part.
+	// s3path := webhookutils.GetS3Path(obj)
+	// if s3path != "" {
+	//	storageMap["path"] = s3path
+	// }
 	model["storage"] = storageMap
 
 	if err := webhookutils.SetNestedValue(obj.Object, model, IsvcConfigs.ModelPath); err != nil {
