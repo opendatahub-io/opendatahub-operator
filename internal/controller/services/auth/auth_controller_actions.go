@@ -43,11 +43,11 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 		},
 		{
 			FS:   resourcesFS,
-			Path: AllowedGroupRoleTemplate,
+			Path: AdminGroupClusterRoleTemplate,
 		},
 		{
 			FS:   resourcesFS,
-			Path: AdminGroupClusterRoleTemplate,
+			Path: AllowedGroupClusterRoleTemplate,
 		},
 	}
 
@@ -144,7 +144,7 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 		return err
 	}
 
-	err = bindRole(ctx, rr, ai.Spec.AllowedGroups, "allowedgroup-rolebinding", "allowedgroup-role")
+	err = bindClusterRole(ctx, rr, ai.Spec.AllowedGroups, "allowedgroupcluster-rolebinding", "allowedgroupcluster-role")
 	if err != nil {
 		return err
 	}
