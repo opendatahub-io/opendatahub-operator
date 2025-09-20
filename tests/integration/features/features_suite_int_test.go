@@ -70,6 +70,13 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(config).NotTo(BeNil())
 
+	DeferCleanup(func() {
+		By("DeferCleanup: tearing down the test environment")
+		if envTest != nil {
+			Expect(envTest.Stop()).To(Succeed())
+		}
+	})
+
 	err = featurev1.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 
