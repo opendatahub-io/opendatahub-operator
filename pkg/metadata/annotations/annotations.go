@@ -29,4 +29,9 @@ const (
 const Connection = "opendatahub.io/connections"
 
 // ConnectionTypeRef annotation for specifying the type of connection.
+// TODO: rename connection-type-protocol.
 const ConnectionTypeRef = "opendatahub.io/connection-type-ref"
+
+// ConnectionPath annotation for specifying the path under bucket(s3) to use for the connection.
+// TODO: extend to oci.
+const ConnectionPath = "opendatahub.io/connection-path"
