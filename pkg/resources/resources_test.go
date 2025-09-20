@@ -314,6 +314,35 @@ func TestObjectFromUnstructured(t *testing.T) {
 	})
 }
 
+func TestFormatObjectReference(t *testing.T) {
+	cases := []struct {
+		name      string
+		gvk       schema.GroupVersionKind
+		namespace string
+		objName   string
+		expected  string
+	}{
+		{name: "namespaced", gvk: gvk.Deployment, namespace: "myns", objName: "mydeploy", expected: "apps/v1, Kind=Deployment myns/mydeploy"},
+		{name: "cluster-scoped", gvk: gvk.ClusterRole, namespace: "", objName: "cluster-admin", expected: "rbac.authorization.k8s.io/v1, Kind=ClusterRole cluster-admin"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &unstructured.Unstructured{}
+			u.SetGroupVersionKind(tc.gvk)
+			if tc.namespace != "" {
+				u.SetNamespace(tc.namespace)
+			}
+			u.SetName(tc.objName)
+
+			actual := resources.FormatObjectReference(u)
+			if actual != tc.expected {
+				t.Fatalf("unexpected reference: got %q, want %q", actual, tc.expected)
+			}
+		})
+	}
+}
+
 func TestHasCRD(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
