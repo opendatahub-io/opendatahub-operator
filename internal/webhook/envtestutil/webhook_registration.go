@@ -23,7 +23,7 @@ import (
 //   - Testing any workflow that creates resources matching multiple webhook selectors
 //   - You need all webhooks to be available to avoid "webhook endpoint not found" errors
 func RegisterWebhooks(mgr manager.Manager) error {
-	// Register Kueue webhook
+	// Register Kueue webhook for all resource types
 	kueueValidator := &kueuewebhook.Validator{
 		Client:  mgr.GetAPIReader(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
