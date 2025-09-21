@@ -1830,7 +1830,7 @@ spec:
     containerPort: 443
     deploymentName: rhods-operator
     failurePolicy: Fail
-    generateName: kserve-kueuelabels-validator.opendatahub.io
+    generateName: kserve-isvc-kueuelabels-validator.opendatahub.io
     rules:
     - apiGroups:
       - serving.kserve.io
@@ -1841,6 +1841,26 @@ spec:
       - UPDATE
       resources:
       - inferenceservices
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-kueue
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: rhods-operator
+    failurePolicy: Fail
+    generateName: kserve-llmisvc-kueuelabels-validator.opendatahub.io
+    rules:
+    - apiGroups:
+      - serving.kserve.io
+      apiVersions:
+      - v1alpha1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - llminferenceservices
     sideEffects: None
     targetPort: 9443
     type: ValidatingAdmissionWebhook

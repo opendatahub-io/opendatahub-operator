@@ -90,6 +90,8 @@ func TestKueueWebhook_Integration(t *testing.T) {
 				},
 				20*time.Second,
 				envtestutil.WithNotebook(),
+				envtestutil.WithInferenceService(),
+				envtestutil.WithLlmInferenceService(),
 			)
 
 			t.Cleanup(teardown)
