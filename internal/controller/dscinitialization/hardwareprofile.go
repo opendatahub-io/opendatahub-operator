@@ -30,7 +30,7 @@ func (r *DSCInitializationReconciler) CreateVAP(ctx context.Context, dscInit *ds
 
 	// proceed if any CRDs exist
 	if !apCRDExists && !dhpCRDExists {
-		log.V(1).Info("Both CRD not exist, skipping handling for HardwareProfile")
+		log.V(1).Info("Both CRDs not exist, skipping creation for VAP/VAPB")
 		return nil
 	}
 
