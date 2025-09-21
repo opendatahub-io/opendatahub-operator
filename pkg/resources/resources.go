@@ -399,6 +399,16 @@ func FormatUnstructuredName(obj *unstructured.Unstructured) string {
 	return obj.GetNamespace() + string(types.Separator) + obj.GetName()
 }
 
+func FormatObjectReference(u *unstructured.Unstructured) string {
+	gvk := u.GroupVersionKind().String()
+	name := u.GetName()
+	ns := u.GetNamespace()
+	if ns != "" {
+		return gvk + " " + ns + "/" + name
+	}
+	return gvk + " " + name
+}
+
 // RemoveOwnerReferences removes all owner references from a Kubernetes object that match the provided predicate.
 //
 // This function iterates through the OwnerReferences of the given object, filters out those that satisfy
@@ -522,7 +532,9 @@ func Apply(ctx context.Context, cli client.Client, in client.Object, opts ...cli
 
 	err = cli.Patch(ctx, u, client.Apply, opts...)
 	if err != nil {
-		return fmt.Errorf("unable to patch object %s: %w", u, err)
+		// Include GVK and namespace/name for debugging context without logging sensitive object data
+		objRef := FormatObjectReference(u)
+		return fmt.Errorf("unable to patch %s: %w", objRef, err)
 	}
 
 	// Write back the modified object so callers can access the patched object.
@@ -574,7 +586,9 @@ func ApplyStatus(ctx context.Context, cli client.Client, in client.Object, opts 
 	case k8serr.IsNotFound(err): // Cannot be removed like in Apply func because reconciler_finalizer_test.go would then throw an error, needs extensive test rewrite
 		return nil
 	case err != nil:
-		return fmt.Errorf("unable to patch object status %s: %w", u, err)
+		// Include GVK and namespace/name for debugging context without logging sensitive object data
+		objRef := FormatObjectReference(u)
+		return fmt.Errorf("unable to patch %s status: %w", objRef, err)
 	}
 
 	// Write back the modified object so callers can access the patched object.
