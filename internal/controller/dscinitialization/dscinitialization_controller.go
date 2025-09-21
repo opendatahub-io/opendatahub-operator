@@ -28,6 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -382,6 +383,14 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			&serviceApi.Auth{},
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
+		Watches( // TODO: this might not be needed after v3.0.
+			&apiextensionsv1.CustomResourceDefinition{},
+			handler.EnqueueRequestsFromMapFunc(r.watchHWProfileCRDResource),
+			builder.WithPredicates(predicate.Or(
+				rp.CreatedOrUpdatedName("acceleratorprofiles.dashboard.opendatahub.io"),
+				rp.CreatedOrUpdatedName("hardwareprofiles.dashboard.opendatahub.io"),
+			)),
+		).
 		Complete(r)
 }
 
@@ -515,4 +524,28 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		return err
 	}
 	return nil
+}
+
+// watchHWProfileCRDResource triggers DSCI reconciliation when Dashboard AcceleratorProfile/HWProfile CRDs are created.
+// This ensures VAP/VAPB resources can be created when Dashboard CRDs become available.
+// TODO: this is a temporary solution to ensure VAP/VAPB resources are created when Dashboard CRDs become available, it should be removed in v3.0.
+func (r *DSCInitializationReconciler) watchHWProfileCRDResource(ctx context.Context, a client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
+
+	log.V(1).Info("Dashboard CRD change detected, triggering DSCI reconciliation for VAP/VAPB resources", "CRD", a.GetName())
+
+	instanceList := &dsciv1.DSCInitializationList{}
+	if err := r.Client.List(ctx, instanceList); err != nil {
+		log.Error(err, "Failed to get DSCInitializationList")
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
+	}
+
+	if len(instanceList.Items) == 0 {
+		// No DSCI found, but trigger anyway for default name in case of race conditions
+		// If no DSCI actually exists, the reconcile request will be ignored
+		log.V(1).Info("No DSCI instances found, triggering default-dsci reconciliation as fallback to create VAP/VAPB")
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
+	}
+
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name}}}
 }
