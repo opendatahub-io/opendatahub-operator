@@ -23,7 +23,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
-	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -161,7 +161,7 @@ func SetupEnvAndClientWithCRDs(
 	ctx, env, teardown := SetupEnvAndClient(t, registerWebhooks, timeout)
 
 	// Register HardwareProfile types (always needed for hardware profile webhook tests)
-	if err := hwpv1alpha1.AddToScheme(env.Scheme()); err != nil {
+	if err := infrav1.AddToScheme(env.Scheme()); err != nil {
 		t.Fatalf("failed to add HardwareProfile types to scheme: %v", err)
 	}
 
@@ -332,12 +332,12 @@ func NewAuth(name, namespace string, adminGroups, allowedGroups []string, opts .
 //   - opts: Optional functional options to mutate the object.
 //
 // Returns:
-//   - *hwpv1alpha1.HardwareProfile: The constructed HardwareProfile object.
-func NewHardwareProfile(name, namespace string, opts ...ObjectOption) *hwpv1alpha1.HardwareProfile {
-	hwp := &hwpv1alpha1.HardwareProfile{
+//   - *infrav1.HardwareProfile: The constructed HardwareProfile object.
+func NewHardwareProfile(name, namespace string, opts ...ObjectOption) *infrav1.HardwareProfile {
+	hwp := &infrav1.HardwareProfile{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       gvk.HardwareProfile.Kind,
-			APIVersion: hwpv1alpha1.GroupVersion.String(),
+			APIVersion: infrav1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -518,9 +518,9 @@ func WithAnnotation(key, value string) ObjectOption {
 //
 // Returns:
 //   - ObjectOption: A functional option that sets the hardware profile spec.
-func WithHardwareProfileSpec(spec hwpv1alpha1.HardwareProfileSpec) ObjectOption {
+func WithHardwareProfileSpec(spec infrav1.HardwareProfileSpec) ObjectOption {
 	return func(obj client.Object) {
-		if hwp, ok := obj.(*hwpv1alpha1.HardwareProfile); ok {
+		if hwp, ok := obj.(*infrav1.HardwareProfile); ok {
 			hwp.Spec = spec
 		}
 	}
@@ -533,11 +533,11 @@ func WithHardwareProfileSpec(spec hwpv1alpha1.HardwareProfileSpec) ObjectOption 
 //
 // Returns:
 //   - ObjectOption: A functional option that adds the resource identifiers to the hardware profile.
-func WithResourceIdentifiers(identifiers ...hwpv1alpha1.HardwareIdentifier) ObjectOption {
+func WithResourceIdentifiers(identifiers ...infrav1.HardwareIdentifier) ObjectOption {
 	return func(obj client.Object) {
-		if hwp, ok := obj.(*hwpv1alpha1.HardwareProfile); ok {
+		if hwp, ok := obj.(*infrav1.HardwareProfile); ok {
 			if hwp.Spec.Identifiers == nil {
-				hwp.Spec.Identifiers = make([]hwpv1alpha1.HardwareIdentifier, 0)
+				hwp.Spec.Identifiers = make([]infrav1.HardwareIdentifier, 0)
 			}
 			hwp.Spec.Identifiers = append(hwp.Spec.Identifiers, identifiers...)
 		}
@@ -554,7 +554,7 @@ func WithResourceIdentifiers(identifiers ...hwpv1alpha1.HardwareIdentifier) Obje
 // Returns:
 //   - ObjectOption: A functional option that adds a CPU resource identifier to the hardware profile.
 func WithCPUIdentifier(minCount, defaultCount string, maxCount ...string) ObjectOption {
-	identifier := hwpv1alpha1.HardwareIdentifier{
+	identifier := infrav1.HardwareIdentifier{
 		DisplayName:  "CPU",
 		Identifier:   "cpu",
 		MinCount:     intstr.FromString(minCount),
@@ -575,7 +575,7 @@ func WithCPUIdentifier(minCount, defaultCount string, maxCount ...string) Object
 // Returns:
 //   - ObjectOption: A functional option that adds a Memory resource identifier to the hardware profile.
 func WithMemoryIdentifier(minCount, defaultCount string, maxCount ...string) ObjectOption {
-	identifier := hwpv1alpha1.HardwareIdentifier{
+	identifier := infrav1.HardwareIdentifier{
 		DisplayName:  "Memory",
 		Identifier:   "memory",
 		MinCount:     intstr.FromString(minCount),
@@ -597,7 +597,7 @@ func WithMemoryIdentifier(minCount, defaultCount string, maxCount ...string) Obj
 // Returns:
 //   - ObjectOption: A functional option that adds a GPU resource identifier to the hardware profile.
 func WithGPUIdentifier(identifier, minCount, defaultCount string, maxCount ...string) ObjectOption {
-	hwIdentifier := hwpv1alpha1.HardwareIdentifier{
+	hwIdentifier := infrav1.HardwareIdentifier{
 		DisplayName:  "GPU",
 		Identifier:   identifier,
 		MinCount:     intstr.FromString(minCount),
@@ -618,8 +618,8 @@ func WithGPUIdentifier(identifier, minCount, defaultCount string, maxCount ...st
 //   - ObjectOption: A functional option that adds Kueue scheduling configuration to the hardware profile.
 func WithKueueScheduling(localQueueName string, priorityClass ...string) ObjectOption {
 	return func(obj client.Object) {
-		if hwp, ok := obj.(*hwpv1alpha1.HardwareProfile); ok {
-			kueueSpec := &hwpv1alpha1.KueueSchedulingSpec{
+		if hwp, ok := obj.(*infrav1.HardwareProfile); ok {
+			kueueSpec := &infrav1.KueueSchedulingSpec{
 				LocalQueueName: localQueueName,
 			}
 
@@ -630,10 +630,10 @@ func WithKueueScheduling(localQueueName string, priorityClass ...string) ObjectO
 
 			// Initialize or merge with existing SchedulingSpec
 			if hwp.Spec.SchedulingSpec == nil {
-				hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{}
+				hwp.Spec.SchedulingSpec = &infrav1.SchedulingSpec{}
 			}
 
-			hwp.Spec.SchedulingSpec.SchedulingType = hwpv1alpha1.QueueScheduling
+			hwp.Spec.SchedulingSpec.SchedulingType = infrav1.QueueScheduling
 			hwp.Spec.SchedulingSpec.Kueue = kueueSpec
 		}
 	}
@@ -649,14 +649,14 @@ func WithKueueScheduling(localQueueName string, priorityClass ...string) ObjectO
 //   - ObjectOption: A functional option that adds node scheduling configuration to the hardware profile.
 func WithNodeScheduling(nodeSelector map[string]string, tolerations []corev1.Toleration) ObjectOption {
 	return func(obj client.Object) {
-		if hwp, ok := obj.(*hwpv1alpha1.HardwareProfile); ok {
+		if hwp, ok := obj.(*infrav1.HardwareProfile); ok {
 			// Initialize or merge with existing SchedulingSpec
 			if hwp.Spec.SchedulingSpec == nil {
-				hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{}
+				hwp.Spec.SchedulingSpec = &infrav1.SchedulingSpec{}
 			}
 
-			hwp.Spec.SchedulingSpec.SchedulingType = hwpv1alpha1.NodeScheduling
-			hwp.Spec.SchedulingSpec.Node = &hwpv1alpha1.NodeSchedulingSpec{
+			hwp.Spec.SchedulingSpec.SchedulingType = infrav1.NodeScheduling
+			hwp.Spec.SchedulingSpec.Node = &infrav1.NodeSchedulingSpec{
 				NodeSelector: nodeSelector,
 				Tolerations:  tolerations,
 			}
@@ -684,15 +684,15 @@ func WithNodeSelector(nodeSelector map[string]string) ObjectOption {
 //   - ObjectOption: A functional option that adds tolerations to the hardware profile's node scheduling configuration.
 func WithTolerations(tolerations []corev1.Toleration) ObjectOption {
 	return func(obj client.Object) {
-		if hwp, ok := obj.(*hwpv1alpha1.HardwareProfile); ok {
+		if hwp, ok := obj.(*infrav1.HardwareProfile); ok {
 			if hwp.Spec.SchedulingSpec == nil {
-				hwp.Spec.SchedulingSpec = &hwpv1alpha1.SchedulingSpec{
-					SchedulingType: hwpv1alpha1.NodeScheduling,
-					Node:           &hwpv1alpha1.NodeSchedulingSpec{},
+				hwp.Spec.SchedulingSpec = &infrav1.SchedulingSpec{
+					SchedulingType: infrav1.NodeScheduling,
+					Node:           &infrav1.NodeSchedulingSpec{},
 				}
 			}
 			if hwp.Spec.SchedulingSpec.Node == nil {
-				hwp.Spec.SchedulingSpec.Node = &hwpv1alpha1.NodeSchedulingSpec{}
+				hwp.Spec.SchedulingSpec.Node = &infrav1.NodeSchedulingSpec{}
 			}
 			hwp.Spec.SchedulingSpec.Node.Tolerations = tolerations
 		}
@@ -700,7 +700,7 @@ func WithTolerations(tolerations []corev1.Toleration) ObjectOption {
 }
 
 // setOptionalMaxCount is a helper function to set MaxCount only when a meaningful value is provided.
-func setOptionalMaxCount(identifier *hwpv1alpha1.HardwareIdentifier, maxCount ...string) {
+func setOptionalMaxCount(identifier *infrav1.HardwareIdentifier, maxCount ...string) {
 	if len(maxCount) > 0 && maxCount[0] != "" {
 		maxCountIntStr := intstr.FromString(maxCount[0])
 		identifier.MaxCount = &maxCountIntStr
