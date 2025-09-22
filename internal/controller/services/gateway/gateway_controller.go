@@ -58,6 +58,8 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{}).
 		OwnsGVK(gvk.GatewayClass).
 		WithAction(createGatewayInfrastructure).
+		WithAction(createKubeAuthProxyInfrastructure).
+		WithAction(createEnvoyFilter).
 		WithAction(template.NewAction()).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
