@@ -1,6 +1,6 @@
 //go:build !nowebhook
 
-package datasciencecluster
+package v1
 
 import (
 	"context"
@@ -17,10 +17,10 @@ import (
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
-//+kubebuilder:webhook:path=/validate-datasciencecluster,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create,versions=v1,name=datasciencecluster-validator.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-datasciencecluster-v1,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create,versions=v1,name=datasciencecluster-v1-validator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
-// Validator implements webhook.AdmissionHandler for DataScienceCluster validation webhooks.
+// Validator implements webhook.AdmissionHandler for DataScienceCluster v1 validation webhooks.
 // It enforces singleton creation rules for DataScienceCluster resources and always allows their deletion.
 type Validator struct {
 	Client client.Reader
@@ -39,14 +39,14 @@ var _ admission.Handler = &Validator{}
 //   - error: Always nil (for future extensibility).
 func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 	hookServer := mgr.GetWebhookServer()
-	hookServer.Register("/validate-datasciencecluster", &webhook.Admission{
+	hookServer.Register("/validate-datasciencecluster-v1", &webhook.Admission{
 		Handler:        v,
 		LogConstructor: webhookutils.NewWebhookLogConstructor(v.Name),
 	})
 	return nil
 }
 
-// Handle processes admission requests for create operations on DataScienceCluster resources.
+// Handle processes admission requests for create operations on DataScienceCluster v1 resources.
 // It enforces singleton rules, allowing other operations by default.
 //
 // Parameters:
@@ -63,7 +63,7 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		resp = webhookutils.ValidateSingletonCreation(ctx, v.Client, &req, gvk.DataScienceCluster.Kind)
+		resp = webhookutils.ValidateSingletonCreation(ctx, v.Client, &req, gvk.DataScienceCluster)
 	default:
 		resp.Allowed = true // initialize Allowed to be true in case Operation falls into "default" case
 	}
@@ -72,5 +72,5 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 		return resp
 	}
 
-	return admission.Allowed(fmt.Sprintf("Operation %s on %s allowed", req.Operation, req.Kind.Kind))
+	return admission.Allowed(fmt.Sprintf("Operation %s on %s v1 allowed", req.Operation, req.Kind.Kind))
 }

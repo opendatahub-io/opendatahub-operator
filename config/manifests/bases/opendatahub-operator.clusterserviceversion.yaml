@@ -42,6 +42,11 @@ spec:
       displayName: Data Science Cluster
       kind: DataScienceCluster
       name: datascienceclusters.datasciencecluster.opendatahub.io
+      version: v2
+    - description: DataScienceCluster is the Schema for the datascienceclusters API.
+      displayName: Data Science Cluster
+      kind: DataScienceCluster
+      name: datascienceclusters.datasciencecluster.opendatahub.io
       version: v1
     - description: DataSciencePipelines is the Schema for the datasciencepipelines
         API
@@ -49,6 +54,11 @@ spec:
       kind: DataSciencePipelines
       name: datasciencepipelines.components.platform.opendatahub.io
       version: v1alpha1
+    - description: DSCInitialization is the Schema for the dscinitializations API.
+      displayName: DSCInitialization
+      kind: DSCInitialization
+      name: dscinitializations.dscinitialization.opendatahub.io
+      version: v2
     - description: DSCInitialization is the Schema for the dscinitializations API.
       displayName: DSCInitialization
       kind: DSCInitialization

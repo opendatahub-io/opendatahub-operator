@@ -7,7 +7,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
@@ -31,12 +31,12 @@ func authorizationCondition(reason, message string) *common.Condition {
 	}
 }
 
-func createCapabilityReporter(cli client.Client, object *dsciv1.DSCInitialization, successfulCondition *common.Condition) *status.Reporter[*dsciv1.DSCInitialization] {
-	return status.NewStatusReporter[*dsciv1.DSCInitialization](
+func createCapabilityReporter(cli client.Client, object *dsciv2.DSCInitialization, successfulCondition *common.Condition) *status.Reporter[*dsciv2.DSCInitialization] {
+	return status.NewStatusReporter[*dsciv2.DSCInitialization](
 		cli,
 		object,
-		func(err error) status.SaveStatusFunc[*dsciv1.DSCInitialization] {
-			return func(saved *dsciv1.DSCInitialization) {
+		func(err error) status.SaveStatusFunc[*dsciv2.DSCInitialization] {
+			return func(saved *dsciv2.DSCInitialization) {
 				actualCondition := successfulCondition.DeepCopy()
 				if err != nil {
 					actualCondition.Status = metav1.ConditionFalse

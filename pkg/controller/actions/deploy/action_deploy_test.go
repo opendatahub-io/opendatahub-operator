@@ -27,8 +27,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -74,7 +74,7 @@ func TestDeployAction(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		DSCI:   &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSCI:   &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -163,7 +163,7 @@ func TestDeployNotOwnedSkip(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		DSCI:   &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSCI:   &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -229,7 +229,7 @@ func TestDeployNotOwnedCreate(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		DSCI:   &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSCI:   &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -291,8 +291,8 @@ func TestDeployDeOwn(t *testing.T) {
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(true)
 		}),
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSCI: &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -443,7 +443,7 @@ func deployClusterRoles(t *testing.T, ctx context.Context, cli client.Client, ro
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		DSCI: &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: xid.New().String(),
 		}},
 		Instance: &componentApi.Dashboard{
@@ -510,7 +510,7 @@ func TestDeployCRD(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		DSCI: &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: id,
 		}},
 		Instance: &componentApi.Dashboard{
@@ -581,7 +581,7 @@ func TestDeployOwnerRef(t *testing.T) {
 	utilruntime.Must(corev1.AddToScheme(s))
 	utilruntime.Must(appsv1.AddToScheme(s))
 	utilruntime.Must(apiextensionsv1.AddToScheme(s))
-	utilruntime.Must(dscv1.AddToScheme(s))
+	utilruntime.Must(dscv2.AddToScheme(s))
 	utilruntime.Must(componentApi.AddToScheme(s))
 	utilruntime.Must(rbacv1.AddToScheme(s))
 
@@ -612,7 +612,7 @@ func TestDeployOwnerRef(t *testing.T) {
 	err = cli.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 	g.Expect(err).ToNot(HaveOccurred())
 
-	dsc := &dscv1.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc"}}
+	dsc := &dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "default-dsc"}}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 
 	err = cli.Create(ctx, dsc)
@@ -685,7 +685,7 @@ func TestDeployOwnerRef(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		DSCI: &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: id,
 		}},
 		Instance: instance,

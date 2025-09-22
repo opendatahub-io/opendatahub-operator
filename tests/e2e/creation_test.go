@@ -12,6 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -93,9 +97,8 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: serverlessOperatorNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
 		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: opentelemetryOpName, Namespace: opentelemetryOpNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
 	}
 
 	// Create and run test cases in parallel.
@@ -118,7 +121,7 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 	t.Helper()
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace, tc.MonitoringNamespace)),
+		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, dsciv2.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name),
 
@@ -133,7 +136,7 @@ func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 	t.Helper()
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name)),
+		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name, dscv2.GroupVersion.String())),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DataScienceCluster resource %s", tc.DataScienceClusterNamespacedName.Name),
 
@@ -238,16 +241,22 @@ func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCIDuplication(t *testing.T) {
 	t.Helper()
 
-	dup := CreateDSCI(dsciInstanceNameDuplicate, tc.AppsNamespace, tc.MonitoringNamespace)
-	tc.EnsureResourceIsUnique(dup)
+	dup := CreateDSCI(dsciInstanceNameDuplicate, dsciv2.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)
+	tc.EnsureResourceIsUnique(dup, "Error validating DSCInitialization duplication")
+
+	dup = CreateDSCI(dsciInstanceNameDuplicate, dsciv1.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)
+	tc.EnsureResourceIsUnique(dup, "Error validating DSCInitialization duplication v1")
 }
 
 // ValidateDSCDuplication ensures that no duplicate DataScienceCluster resource can be created.
 func (tc *DSCTestCtx) ValidateDSCDuplication(t *testing.T) {
 	t.Helper()
 
-	dup := CreateDSC(dscInstanceNameDuplicate)
+	dup := CreateDSC(dscInstanceNameDuplicate, dscv2.GroupVersion.String())
 	tc.EnsureResourceIsUnique(dup, "Error validating DataScienceCluster duplication")
+
+	dup = CreateDSC(dscInstanceNameDuplicate, dscv1.GroupVersion.String())
+	tc.EnsureResourceIsUnique(dup, "Error validating DataScienceCluster duplication v1")
 }
 
 // ValidateModelRegistryConfig validates the ModelRegistry configuration changes based on ManagementState.
