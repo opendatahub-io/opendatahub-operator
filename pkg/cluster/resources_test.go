@@ -12,8 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -103,7 +103,7 @@ func TestGetClusterSingletons(t *testing.T) {
 
 		{
 			name: "Single DSCInitialization instance found",
-			objs: []client.Object{&dsciv1.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: "test-dsci"}}},
+			objs: []client.Object{&dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: "test-dsci"}}},
 			err:  nil,
 			fn:   dsciFn,
 		},
@@ -116,16 +116,16 @@ func TestGetClusterSingletons(t *testing.T) {
 		{
 			name: "Multiple DSCInitialization instances found",
 			objs: []client.Object{
-				&dsciv1.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: "dsci-1"}},
-				&dsciv1.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: "dsci-2"}},
+				&dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: "dsci-1"}},
+				&dsciv2.DSCInitialization{ObjectMeta: metav1.ObjectMeta{Name: "dsci-2"}},
 			},
-			err: errors.New("failed to get a valid dscinitialization.opendatahub.io/v1, Kind=DSCInitialization instance, expected to find 1 instance, found 2"),
+			err: errors.New("failed to get a valid dscinitialization.opendatahub.io/v2, Kind=DSCInitialization instance, expected to find 1 instance, found 2"),
 			fn:  dsciFn,
 		},
 
 		{
 			name: "Single DataScienceCluster instance found",
-			objs: []client.Object{&dscv1.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"}}},
+			objs: []client.Object{&dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "test-dsc"}}},
 			err:  nil,
 			fn:   dscFn,
 		},
@@ -138,10 +138,10 @@ func TestGetClusterSingletons(t *testing.T) {
 		{
 			name: "Multiple DataScienceCluster instances found",
 			objs: []client.Object{
-				&dscv1.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "dsc-1"}},
-				&dscv1.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "dsc-2"}},
+				&dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "dsc-1"}},
+				&dscv2.DataScienceCluster{ObjectMeta: metav1.ObjectMeta{Name: "dsc-2"}},
 			},
-			err: errors.New("failed to get a valid datasciencecluster.opendatahub.io/v1, Kind=DataScienceCluster instance, expected to find 1 instance, found 2"),
+			err: errors.New("failed to get a valid datasciencecluster.opendatahub.io/v2, Kind=DataScienceCluster instance, expected to find 1 instance, found 2"),
 			fn:  dscFn,
 		},
 	}

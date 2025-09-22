@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtype "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -21,9 +21,9 @@ const (
 )
 
 func initialize(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	instance, ok := rr.Instance.(*dscv1.DataScienceCluster)
+	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv1.DataScienceCluster)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
 	if instance.Status.InstalledComponents == nil {
@@ -57,7 +57,7 @@ func checkPreConditions(ctx context.Context, rr *odhtype.ReconciliationRequest) 
 }
 
 func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcile.Request {
-	instanceList := &dscv1.DataScienceClusterList{}
+	instanceList := &dscv2.DataScienceClusterList{}
 	err := cli.List(ctx, instanceList)
 	if err != nil {
 		return nil
@@ -72,9 +72,9 @@ func watchDataScienceClusters(ctx context.Context, cli client.Client) []reconcil
 }
 
 func provisionComponents(_ context.Context, rr *odhtype.ReconciliationRequest) error {
-	instance, ok := rr.Instance.(*dscv1.DataScienceCluster)
+	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv1.DataScienceCluster)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
 	if instance.Status.InstalledComponents == nil {
@@ -105,9 +105,9 @@ func provisionComponents(_ context.Context, rr *odhtype.ReconciliationRequest) e
 }
 
 func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
-	instance, ok := rr.Instance.(*dscv1.DataScienceCluster)
+	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a dscv1.DataScienceCluster)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
 	if instance.Status.InstalledComponents == nil {
