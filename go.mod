@@ -35,6 +35,7 @@ require (
 )
 
 replace (
+	// TODO: added to keep the same k8s version as before, it can probably be safely updated
 	k8s.io/api => k8s.io/api v0.32.4
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.32.4
 	k8s.io/apimachinery => k8s.io/apimachinery v0.32.4
@@ -124,6 +125,8 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	k8s.io/code-generator v0.33.0 // indirect
+	k8s.io/gengo/v2 v2.0.0-20250207200755-1244d31929d7 // indirect
 	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
 	sigs.k8s.io/controller-tools v0.18.0 // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
