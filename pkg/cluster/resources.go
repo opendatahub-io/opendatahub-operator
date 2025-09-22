@@ -59,17 +59,14 @@ func GetSingleton[T client.Object](ctx context.Context, cli client.Client, obj T
 		return err
 	}
 
-	instances := unstructured.UnstructuredList{}
-	instances.SetAPIVersion(objGVK.GroupVersion().String())
-	instances.SetKind(objGVK.Kind)
-
-	if err := cli.List(ctx, &instances); err != nil {
-		return fmt.Errorf("failed to list resources of type %s: %w", objGVK, err)
+	instances, err := ListGVK(ctx, cli, objGVK)
+	if err != nil {
+		return err
 	}
 
-	switch len(instances.Items) {
+	switch len(instances) {
 	case 1:
-		if err := cli.Scheme().Convert(&instances.Items[0], obj, ctx); err != nil {
+		if err := cli.Scheme().Convert(&instances[0], obj, ctx); err != nil {
 			return fmt.Errorf("failed to convert resource to %T: %w", obj, err)
 		}
 		return nil
@@ -87,7 +84,7 @@ func GetSingleton[T client.Object](ctx context.Context, cli client.Client, obj T
 			"",
 		)
 	default:
-		return fmt.Errorf("failed to get a valid %s instance, expected to find 1 instance, found %d", objGVK, len(instances.Items))
+		return fmt.Errorf("failed to get a valid %s instance, expected to find 1 instance, found %d", objGVK, len(instances))
 	}
 }
 
@@ -359,4 +356,15 @@ func HasCRDWithVersion(ctx context.Context, cli client.Client, gk schema.GroupKi
 	default:
 		return true, nil
 	}
+}
+
+func ListGVK(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind) ([]unstructured.Unstructured, error) {
+	resources := unstructured.UnstructuredList{}
+	resources.SetAPIVersion(gvk.GroupVersion().String())
+	resources.SetKind(gvk.Kind)
+
+	if err := cli.List(ctx, &resources); err != nil {
+		return nil, fmt.Errorf("failed to list resources of type %s: %w", gvk, err)
+	}
+	return resources.Items, nil
 }
