@@ -32,7 +32,7 @@ func WithTTL(ttl time.Duration) CacheOpt {
 	}
 }
 
-func newCache(opts ...CacheOpt) *Cache {
+func NewCache(opts ...CacheOpt) *Cache {
 	c := Cache{
 		ttl: DefaultCacheTTL,
 	}
@@ -92,6 +92,45 @@ func (r *Cache) Has(original *unstructured.Unstructured, modified *unstructured.
 	_, exists, _ := r.s.GetByKey(key)
 
 	return exists, nil
+}
+
+func (r *Cache) Delete(original *unstructured.Unstructured, modified *unstructured.Unstructured) error {
+	if original == nil || modified == nil {
+		return nil // nothing to delete
+	}
+
+	key, err := r.computeCacheKey(original, modified)
+	if err != nil {
+		return fmt.Errorf("failed to compute cacheKey for deletion: %w", err)
+	}
+
+	if key == "" {
+		return nil
+	}
+
+	// Check if key exists before deleting to make Delete idempotent
+	_, exists, _ := r.s.GetByKey(key)
+	if !exists {
+		return nil // Already deleted or never existed - success
+	}
+	return r.s.Delete(key)
+}
+
+// ProcessCacheEntry determines whether resource deployment should be skipped based on cache state.
+// Returns true if the resource is cached and deployment should be skipped, false if deployment should proceed.
+// Always proceeds (bypasses cache) for objects with deletionTimestamp and cleans up stale cache entries.
+func (r *Cache) ProcessCacheEntry(original *unstructured.Unstructured, modified *unstructured.Unstructured) (bool, error) {
+	// If object is being deleted, remove from cache and proceed with deployment
+	if original != nil && !original.GetDeletionTimestamp().IsZero() {
+		// Clean up stale cache entry
+		if err := r.Delete(original, modified); err != nil {
+			// Log error but don't fail - cache cleanup is the best effort
+			klog.V(4).Infof("Failed to delete cache entry for %s: %v", klog.KObj(original), err)
+		}
+		return false, nil // always proceed for deleting objects
+	}
+
+	return r.Has(original, modified)
 }
 
 func (r *Cache) Sync() {
