@@ -91,6 +91,7 @@ linters:
         - kubernetes.Interface
         - gomega.AsyncAssertion
         - labels.Selector
+        - manager.Manager
     lll:
       line-length: 180
     nolintlint:
