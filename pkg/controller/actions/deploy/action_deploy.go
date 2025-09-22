@@ -99,7 +99,7 @@ func WithAnnotations(values map[string]string) ActionOpts {
 
 func WithCache(opts ...CacheOpt) ActionOpts {
 	return func(action *Action) {
-		action.cache = newCache(opts...)
+		action.cache = NewCache(opts...)
 	}
 }
 
@@ -170,6 +170,24 @@ func (a *Action) run(ctx context.Context, rr *odhTypes.ReconciliationRequest) er
 	return nil
 }
 
+// ShouldSkip determines whether resource deployment should be skipped based on cache state.
+// Returns true if the resource is cached and deployment should be skipped, false if deployment should proceed.
+// Delegates to cache for deletion timestamp handling and cache cleanup.
+func (a *Action) ShouldSkip(current *unstructured.Unstructured, desired *unstructured.Unstructured) (bool, error) {
+	// Defensive: desired is expected non-nil; proceed if misuse happens.
+	if desired == nil {
+		return false, nil
+	}
+
+	// Always proceed if no cache configured
+	if a.cache == nil {
+		return false, nil
+	}
+
+	// Delegate to cache for skip decision and deletion timestamp handling
+	return a.cache.ProcessCacheEntry(current, desired)
+}
+
 func (a *Action) deployCRD(
 	ctx context.Context,
 	rr *odhTypes.ReconciliationRequest,
@@ -180,22 +198,18 @@ func (a *Action) deployCRD(
 	resources.SetAnnotations(&obj, a.annotations)
 	resources.SetLabel(&obj, labels.PlatformPartOf, labels.Platform)
 
+	shouldSkip, err := a.ShouldSkip(current, &obj)
+	if err != nil {
+		return false, err
+	}
+	if shouldSkip {
+		return false, nil
+	}
+
 	// backup copy for caching
 	origObj := obj.DeepCopy()
 
-	if a.cache != nil {
-		cached, err := a.cache.Has(current, &obj)
-		if err != nil {
-			return false, fmt.Errorf("failed to check cache for object: %w", err)
-		}
-		if cached {
-			// no changes, no need to re-deploy it
-			return false, nil
-		}
-	}
-
 	var deployedObj *unstructured.Unstructured
-	var err error
 
 	ops := []client.PatchOption{
 		client.ForceOwnership,
@@ -255,22 +269,18 @@ func (a *Action) deploy(
 		resources.SetLabel(&obj, labels.PlatformPartOf, fo)
 	}
 
+	shouldSkip, err := a.ShouldSkip(current, &obj)
+	if err != nil {
+		return false, err
+	}
+	if shouldSkip {
+		return false, nil
+	}
+
 	// backup copy for caching
 	origObj := obj.DeepCopy()
 
-	if a.cache != nil {
-		cached, err := a.cache.Has(current, &obj)
-		if err != nil {
-			return false, fmt.Errorf("failed to check cache for object: %w", err)
-		}
-		if cached {
-			// no changes, no need to re-deploy it
-			return false, nil
-		}
-	}
-
 	var deployedObj *unstructured.Unstructured
-	var err error
 
 	switch {
 	// The object is explicitly marked as not owned by the operator in the manifests,
