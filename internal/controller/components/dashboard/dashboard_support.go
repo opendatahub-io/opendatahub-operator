@@ -65,6 +65,14 @@ func defaultManifestInfo(p common.Platform) odhtypes.ManifestInfo {
 	}
 }
 
+func bffManifestsPath() odhtypes.ManifestInfo {
+	return odhtypes.ManifestInfo{
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: ComponentName,
+		SourcePath: "modular-architecture",
+	}
+}
+
 func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
 	consoleLinkDomain, err := cluster.GetDomain(ctx, cli)
 	if err != nil {
