@@ -25,6 +25,10 @@ DEFAULT_MANIFESTS_PATH ?= opt/manifests
 CGO_ENABLED ?= 1
 USE_LOCAL = false
 
+OS=$(shell uname -s)
+ARCH=$(shell uname -m)
+
+
 # BUNDLE_CHANNELS defines the bundle channel used in the bundle
 BUNDLE_CHANNELS := --channels=fast
 
@@ -43,17 +47,16 @@ endif
 
 ## Tool Binaries
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
-CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
+CONTROLLER_GEN ?= go run sigs.k8s.io/controller-tools/cmd/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
-CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
+CRD_REF_DOCS ?= go run github.com/elastic/crd-ref-docs
 GINKGO ?= $(LOCALBIN)/ginkgo
 YQ ?= $(LOCALBIN)/yq
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.7.0
-CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
 GOLANGCI_LINT_VERSION ?= v2.1.2
 YQ_VERSION ?= v4.12.2
@@ -61,7 +64,7 @@ YQ_VERSION ?= v4.12.2
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 #ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.20)
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
-CRD_REF_DOCS_VERSION = 0.2.0
+
 # Add to tool versions section
 GINKGO_VERSION ?= v2.23.4
 
@@ -142,13 +145,13 @@ output:crd:artifacts:config=config/crd/external
 endef
 
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	$(call fetch-external-crds,github.com/openshift/api,user/v1)
 
 .PHONY: generate
-generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+generate: ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 GOLANGCI_TMP_FILE = .golangci.mktmp.yml
@@ -189,7 +192,7 @@ ifeq ($(shell uname -s),Darwin)
     SED_COMMAND = gsed
 endif
 .PHONY: api-docs
-api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs, render managementstate with marker
+api-docs: ## Creates API docs using https://github.com/elastic/crd-ref-docs, render managementstate with marker
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
 	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)|g" ./docs/api-overview.md
@@ -273,11 +276,6 @@ kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
 $(KUSTOMIZE): $(LOCALBIN)
 	$(call go-install-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v5,$(KUSTOMIZE_VERSION))
 
-.PHONY: controller-gen
-controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
-$(CONTROLLER_GEN): $(LOCALBIN)
-	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen,$(CONTROLLER_TOOLS_VERSION))
-
 .PHONY: yq
 yq: $(YQ) ## Download yq locally if necessary.
 $(YQ): $(LOCALBIN)
@@ -296,14 +294,6 @@ golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
 
-OS=$(shell uname -s)
-ARCH=$(shell uname -m)
-.PHONY: crd-ref-docs
-crd-ref-docs: $(CRD_REF_DOCS)
-$(CRD_REF_DOCS): $(LOCALBIN)
-	test -s $(CRD_REF_DOCS) || ( \
-		curl -sSL https://github.com/elastic/crd-ref-docs/releases/download/v$(CRD_REF_DOCS_VERSION)/crd-ref-docs_$(CRD_REF_DOCS_VERSION)_$(OS)_$(ARCH).tar.gz | tar -xzf - -C $(LOCALBIN) crd-ref-docs \
-	)
 
 .PHONY: new-component
 new-component: $(LOCALBIN)/component-codegen

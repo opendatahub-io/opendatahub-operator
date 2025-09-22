@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.17.3
+    controller-gen.kubebuilder.io/version: v0.18.0
   creationTimestamp: null
   name: gatewayconfigs.services.platform.opendatahub.io
 spec:
@@ -118,11 +118,7 @@ spec:
                     type: string
                 type: object
               domain:
-                description: Domain configuration for the gateway
-                type: string
-              namespace:
-                default: openshift-ingress
-                description: Namespace where the gateway resources should be deployed
+                description: Domain configuration for the GatewayConfig
                 type: string
             type: object
           status:
