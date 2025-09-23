@@ -107,13 +107,47 @@ metadata:
               "managementState": "Managed"
             }
           }
+        },
+        {
+          "apiVersion": "infrastructure.opendatahub.io/v1",
+          "kind": "HardwareProfile",
+          "metadata": {
+            "annotations": {
+              "opendatahub.io/dashboard-feature-visibility": "[]",
+              "opendatahub.io/description": "Provides a baseline hardware profile with 2 CPUs and 4Gi memory by default, adjustable up to 4 CPUs and 8Gi memory.",
+              "opendatahub.io/disabled": "false",
+              "opendatahub.io/display-name": "default-profile"
+            },
+            "name": "default-profile",
+            "namespace": "opendatahub"
+          },
+          "spec": {
+            "identifiers": [
+              {
+                "defaultCount": 2,
+                "displayName": "CPU",
+                "identifier": "cpu",
+                "maxCount": 4,
+                "minCount": 1,
+                "resourceType": "CPU"
+              },
+              {
+                "defaultCount": "4Gi",
+                "displayName": "Memory",
+                "identifier": "memory",
+                "maxCount": "8Gi",
+                "minCount": "2Gi",
+                "resourceType": "Memory"
+              }
+            ]
+          }
         }
       ]
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-09-12T15:33:37Z"
+    createdAt: "2025-09-22T20:01:51Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -253,6 +287,9 @@ spec:
       version: v1alpha1
     - kind: FeatureTracker
       name: featuretrackers.features.opendatahub.io
+      version: v1
+    - kind: HardwareProfile
+      name: hardwareprofiles.infrastructure.opendatahub.io
       version: v1
     - description: HardwareProfile is the Schema for the hardwareprofiles API.
       displayName: Hardware Profile

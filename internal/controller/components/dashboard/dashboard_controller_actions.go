@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	infraAPI "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
@@ -37,12 +37,12 @@ type DashboardHardwareProfile struct {
 }
 
 type DashboardHardwareProfileSpec struct {
-	DisplayName  string                        `json:"displayName"`
-	Enabled      bool                          `json:"enabled"`
-	Description  string                        `json:"description,omitempty"`
-	Tolerations  []corev1.Toleration           `json:"tolerations,omitempty"`
-	Identifiers  []infraAPI.HardwareIdentifier `json:"identifiers,omitempty"`
-	NodeSelector map[string]string             `json:"nodeSelector,omitempty"`
+	DisplayName  string                       `json:"displayName"`
+	Enabled      bool                         `json:"enabled"`
+	Description  string                       `json:"description,omitempty"`
+	Tolerations  []corev1.Toleration          `json:"tolerations,omitempty"`
+	Identifiers  []infrav1.HardwareIdentifier `json:"identifiers,omitempty"`
+	NodeSelector map[string]string            `json:"nodeSelector,omitempty"`
 }
 
 type DashboardHardwareProfileList struct {
@@ -186,7 +186,7 @@ func reconcileHardwareProfiles(ctx context.Context, rr *odhtypes.ReconciliationR
 			return fmt.Errorf("failed to convert dashboard hardware profile: %w", err)
 		}
 
-		infraHWP := &infraAPI.HardwareProfile{}
+		infraHWP := &infrav1.HardwareProfile{}
 		err := rr.Client.Get(ctx, client.ObjectKey{
 			Name:      dashboardHardwareProfile.Name,
 			Namespace: dashboardHardwareProfile.Namespace,
@@ -220,16 +220,16 @@ func createInfraHWP(ctx context.Context, rr *odhtypes.ReconciliationRequest, log
 	annotations["opendatahub.io/description"] = dashboardhwp.Spec.Description
 	annotations["opendatahub.io/disabled"] = strconv.FormatBool(!dashboardhwp.Spec.Enabled)
 
-	infraHardwareProfile := &infraAPI.HardwareProfile{
+	infraHardwareProfile := &infrav1.HardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        dashboardhwp.Name,
 			Namespace:   dashboardhwp.Namespace,
 			Annotations: annotations,
 		},
-		Spec: infraAPI.HardwareProfileSpec{
-			SchedulingSpec: &infraAPI.SchedulingSpec{
-				SchedulingType: infraAPI.NodeScheduling,
-				Node: &infraAPI.NodeSchedulingSpec{
+		Spec: infrav1.HardwareProfileSpec{
+			SchedulingSpec: &infrav1.SchedulingSpec{
+				SchedulingType: infrav1.NodeScheduling,
+				Node: &infrav1.NodeSchedulingSpec{
 					NodeSelector: dashboardhwp.Spec.NodeSelector,
 					Tolerations:  dashboardhwp.Spec.Tolerations,
 				},
@@ -246,7 +246,8 @@ func createInfraHWP(ctx context.Context, rr *odhtypes.ReconciliationRequest, log
 	return nil
 }
 
-func updateInfraHWP(ctx context.Context, rr *odhtypes.ReconciliationRequest, logger logr.Logger, dashboardhwp *DashboardHardwareProfile, infrahwp *infraAPI.HardwareProfile) error {
+func updateInfraHWP(
+	ctx context.Context, rr *odhtypes.ReconciliationRequest, logger logr.Logger, dashboardhwp *DashboardHardwareProfile, infrahwp *infrav1.HardwareProfile) error {
 	if infrahwp.Annotations == nil {
 		infrahwp.Annotations = make(map[string]string)
 	}
@@ -258,9 +259,9 @@ func updateInfraHWP(ctx context.Context, rr *odhtypes.ReconciliationRequest, log
 	infrahwp.Annotations["opendatahub.io/description"] = dashboardhwp.Spec.Description
 	infrahwp.Annotations["opendatahub.io/disabled"] = strconv.FormatBool(!dashboardhwp.Spec.Enabled)
 
-	infrahwp.Spec.SchedulingSpec = &infraAPI.SchedulingSpec{
-		SchedulingType: infraAPI.NodeScheduling,
-		Node: &infraAPI.NodeSchedulingSpec{
+	infrahwp.Spec.SchedulingSpec = &infrav1.SchedulingSpec{
+		SchedulingType: infrav1.NodeScheduling,
+		Node: &infrav1.NodeSchedulingSpec{
 			NodeSelector: dashboardhwp.Spec.NodeSelector,
 			Tolerations:  dashboardhwp.Spec.Tolerations,
 		},

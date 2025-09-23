@@ -18,7 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -634,7 +634,7 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 		name              string
 		workloadName      string
 		profileName       string
-		profileSpec       *infrav1alpha1.HardwareProfileSpec
+		profileSpec       *infrav1.HardwareProfileSpec
 		shouldBlock       bool
 		expectedError     string
 		errorMsg          string
@@ -642,8 +642,8 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 	}
 
 	// Common hardware profile specs for this test function
-	basicProfile := &infrav1alpha1.HardwareProfileSpec{
-		Identifiers: []infrav1alpha1.HardwareIdentifier{
+	basicProfile := &infrav1.HardwareProfileSpec{
+		Identifiers: []infrav1.HardwareIdentifier{
 			{
 				DisplayName:  "CPU",
 				Identifier:   "cpu",
@@ -654,8 +654,8 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 		},
 	}
 
-	resourceInjectionProfile := &infrav1alpha1.HardwareProfileSpec{
-		Identifiers: []infrav1alpha1.HardwareIdentifier{
+	resourceInjectionProfile := &infrav1.HardwareProfileSpec{
+		Identifiers: []infrav1.HardwareIdentifier{
 			{
 				DisplayName:  "CPU",
 				Identifier:   "cpu",
@@ -680,8 +680,8 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 		},
 	}
 
-	nodeSchedulingProfile := &infrav1alpha1.HardwareProfileSpec{
-		Identifiers: []infrav1alpha1.HardwareIdentifier{
+	nodeSchedulingProfile := &infrav1.HardwareProfileSpec{
+		Identifiers: []infrav1.HardwareIdentifier{
 			{
 				DisplayName:  "GPU",
 				Identifier:   "nvidia.com/gpu",
@@ -690,9 +690,9 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 				ResourceType: "Accelerator",
 			},
 		},
-		SchedulingSpec: &infrav1alpha1.SchedulingSpec{
-			SchedulingType: infrav1alpha1.NodeScheduling,
-			Node: &infrav1alpha1.NodeSchedulingSpec{
+		SchedulingSpec: &infrav1.SchedulingSpec{
+			SchedulingType: infrav1.NodeScheduling,
+			Node: &infrav1.NodeSchedulingSpec{
 				NodeSelector: map[string]string{
 					"accelerator": "nvidia-tesla-v100",
 					"zone":        "us-west1-a",
