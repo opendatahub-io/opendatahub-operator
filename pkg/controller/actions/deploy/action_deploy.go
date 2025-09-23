@@ -179,13 +179,25 @@ func (a *Action) ShouldSkip(current *unstructured.Unstructured, desired *unstruc
 		return false, nil
 	}
 
+	// Skip deployment if current object is terminating
+	// The action will be re-triggered once the object gets deleted
+	if current != nil && !current.GetDeletionTimestamp().IsZero() {
+		// Clean up cache if configured
+		if a.cache != nil {
+			if err := a.cache.Delete(current, desired); err != nil {
+				return false, err
+			}
+		}
+		return true, nil // skip deployment
+	}
+
 	// Always proceed if no cache configured
 	if a.cache == nil {
 		return false, nil
 	}
 
-	// Delegate to cache for skip decision and deletion timestamp handling
-	return a.cache.ProcessCacheEntry(current, desired)
+	// Return normal cache decision for non-terminating objects
+	return a.cache.Has(current, desired)
 }
 
 func (a *Action) deployCRD(
