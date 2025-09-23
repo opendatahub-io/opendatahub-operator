@@ -25,6 +25,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
@@ -514,7 +515,7 @@ func WithHardwareProfileNamespace(namespace string) ObjectOption {
 		if annotations == nil {
 			annotations = make(map[string]string)
 		}
-		annotations["opendatahub.io/hardware-profile-namespace"] = namespace
+		annotations[hardwareprofile.HardwareProfileNamespaceAnnotation] = namespace
 		obj.SetAnnotations(annotations)
 	}
 }

@@ -337,7 +337,7 @@ func testCrossNamespaceHardwareProfile(g Gomega, ctx context.Context, k8sClient 
 	g.Expect(k8sClient.Create(ctx, notebook)).To(Succeed())
 
 	// Verify the hardware profile namespace annotation was set correctly
-	g.Expect(resources.GetAnnotation(notebook, "opendatahub.io/hardware-profile-namespace")).Should(Equal(hwpNs))
+	g.Expect(resources.GetAnnotation(notebook, hardwareprofilewebhook.HardwareProfileNamespaceAnnotation)).Should(Equal(hwpNs))
 }
 
 // testUpdateOperationForWorkload is a generic helper for testing update operations.
@@ -356,7 +356,7 @@ func testUpdateOperationForWorkload(g Gomega, ctx context.Context, k8sClient cli
 	workloadCopy, ok := workload.DeepCopyObject().(client.Object)
 	g.Expect(ok).To(BeTrue(), "workload copy should be client.Object")
 	workloadCopy.SetAnnotations(map[string]string{
-		"opendatahub.io/hardware-profile-name": "update-profile",
+		hardwareprofilewebhook.HardwareProfileNameAnnotation: "update-profile",
 	})
 
 	g.Expect(k8sClient.Update(ctx, workloadCopy)).To(Succeed())

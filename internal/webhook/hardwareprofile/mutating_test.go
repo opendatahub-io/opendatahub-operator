@@ -349,7 +349,7 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 				notebook.SetName(testNotebook)
 				// No namespace set
 				notebook.SetAnnotations(map[string]string{
-					"opendatahub.io/hardware-profile-name": testHardwareProfile,
+					hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
 				})
 				return notebook
 			}(),
@@ -468,7 +468,7 @@ func TestHardwareProfile_ConvertIntOrStringToQuantity(t *testing.T) {
 			notebook.SetName(testNotebook)
 			notebook.SetNamespace(testNamespace)
 			notebook.SetAnnotations(map[string]string{
-				"opendatahub.io/hardware-profile-name": testHardwareProfile,
+				hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
 			})
 			// Set minimal spec structure without containers so resources will be injected
 			err := unstructured.SetNestedMap(notebook.Object, map[string]interface{}{
@@ -552,7 +552,7 @@ func TestHardwareProfile_UnsupportedWorkloadKind(t *testing.T) {
 	notebookUnstructured.SetName(testNotebook)
 	notebookUnstructured.SetNamespace(testNamespace)
 	notebookUnstructured.SetAnnotations(map[string]string{
-		"opendatahub.io/hardware-profile-name": testHardwareProfile,
+		hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
 	})
 
 	// Set malformed spec that will cause container access to fail
@@ -1143,8 +1143,8 @@ func TestHardwareProfile_SupportsCrossNamespaceAccess_InferenceService(t *testin
 		if annotations == nil {
 			annotations = make(map[string]string)
 		}
-		annotations["opendatahub.io/hardware-profile-name"] = testHardwareProfile
-		annotations["opendatahub.io/hardware-profile-namespace"] = hwpNamespace
+		annotations[hardwareprofile.HardwareProfileNameAnnotation] = testHardwareProfile
+		annotations[hardwareprofile.HardwareProfileNamespaceAnnotation] = hwpNamespace
 		obj.SetAnnotations(annotations)
 	})
 
@@ -1358,9 +1358,76 @@ func TestHardwareProfile_ResourceInjection_LLMInferenceService(t *testing.T) {
 
 			resp := injector.Handle(ctx, req)
 			g.Expect(resp.Allowed).Should(BeTrue())
+
 			g.Expect(hasResourcePatches(resp.Patches)).Should(Equal(tc.expectResourcePatch))
 		})
 	}
+}
+
+// TestHardwareProfile_CreatesContainerStructure_LLMInferenceService tests is specical for LLMInferenceService if user set .spec:{}.
+func TestHardwareProfile_CreatesContainerStructure_LLMInferenceService(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create hardware profile with CPU and memory identifiers (including limits)
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("0", "4", "8"),         // min: 0, default: 4, max: 8
+		envtestutil.WithMemoryIdentifier("0", "8Gi", "16Gi"), // min: 0, default: 8Gi, max: 16Gi
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create LLMInferenceService with empty spec: {}
+	workload := &unstructured.Unstructured{}
+	workload.SetAPIVersion(gvk.LLMInferenceServiceV1Alpha1.GroupVersion().String())
+	workload.SetKind(gvk.LLMInferenceServiceV1Alpha1.Kind)
+	workload.SetName(testLLMInferenceService)
+	workload.SetNamespace(testNamespace)
+	workload.SetAnnotations(map[string]string{
+		hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
+	})
+	// Set spec: {}
+	workload.Object["spec"] = map[string]interface{}{}
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Create,
+		workload,
+		gvk.LLMInferenceServiceV1Alpha1,
+		metav1.GroupVersionResource{
+			Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+			Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+			Resource: "llminferenceservices",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Verify that we have patches that create the container structure and inject resources
+	hasContainerPatches := false
+	hasResourcePatches := false
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "/spec/template") {
+			if patchValue, ok := patch.Value.(map[string]interface{}); ok {
+				if containers, ok := patchValue["containers"].([]interface{}); ok && len(containers) > 0 {
+					if container, ok := containers[0].(map[string]interface{}); ok {
+						// Verify the container has the expected name "main"
+						if name, ok := container["name"].(string); ok && name == "main" {
+							hasContainerPatches = true
+						}
+						if _, hasResources := container["resources"]; hasResources {
+							hasResourcePatches = true
+						}
+					}
+				}
+			}
+		}
+	}
+	g.Expect(hasContainerPatches).Should(BeTrue(), "should create container default name as main")
+	g.Expect(hasResourcePatches).Should(BeTrue(), "should inject resources into created container")
 }
 
 // TestHardwareProfile_SchedulingConfiguration_LLMInferenceService tests that hardware profiles with different
@@ -1426,7 +1493,7 @@ func TestHardwareProfile_SchedulingConfiguration_LLMInferenceService(t *testing.
 				t,
 				admissionv1.Create,
 				workload,
-				gvk.InferenceServices,
+				gvk.LLMInferenceServiceV1Alpha1,
 				metav1.GroupVersionResource{
 					Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
 					Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
@@ -1461,8 +1528,8 @@ func TestHardwareProfile_SupportsCrossNamespaceAccess_LLMInferenceService(t *tes
 		if annotations == nil {
 			annotations = make(map[string]string)
 		}
-		annotations["opendatahub.io/hardware-profile-name"] = testHardwareProfile
-		annotations["opendatahub.io/hardware-profile-namespace"] = hwpNamespace
+		annotations[hardwareprofile.HardwareProfileNameAnnotation] = testHardwareProfile
+		annotations[hardwareprofile.HardwareProfileNamespaceAnnotation] = hwpNamespace
 		obj.SetAnnotations(annotations)
 	})
 
@@ -1470,11 +1537,11 @@ func TestHardwareProfile_SupportsCrossNamespaceAccess_LLMInferenceService(t *tes
 		t,
 		admissionv1.Create,
 		workload,
-		gvk.InferenceServices,
+		gvk.LLMInferenceServiceV1Alpha1,
 		metav1.GroupVersionResource{
 			Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
 			Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
-			Resource: "inferenceservices",
+			Resource: "llminferenceservices",
 		},
 	)
 
