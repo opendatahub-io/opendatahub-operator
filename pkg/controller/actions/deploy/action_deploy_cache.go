@@ -116,23 +116,6 @@ func (r *Cache) Delete(original *unstructured.Unstructured, modified *unstructur
 	return r.s.Delete(key)
 }
 
-// ProcessCacheEntry determines whether resource deployment should be skipped based on cache state.
-// Returns true if the resource is cached and deployment should be skipped, false if deployment should proceed.
-// Always proceeds (bypasses cache) for objects with deletionTimestamp and cleans up stale cache entries.
-func (r *Cache) ProcessCacheEntry(original *unstructured.Unstructured, modified *unstructured.Unstructured) (bool, error) {
-	// If object is being deleted, remove from cache and proceed with deployment
-	if original != nil && !original.GetDeletionTimestamp().IsZero() {
-		// Clean up stale cache entry
-		if err := r.Delete(original, modified); err != nil {
-			// Log error but don't fail - cache cleanup is the best effort
-			klog.V(4).Infof("Failed to delete cache entry for %s: %v", klog.KObj(original), err)
-		}
-		return false, nil // always proceed for deleting objects
-	}
-
-	return r.Has(original, modified)
-}
-
 func (r *Cache) Sync() {
 	r.s.List()
 }
