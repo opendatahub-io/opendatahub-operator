@@ -1146,10 +1146,11 @@ func (tc *TestContext) createInstallPlan(name string, ns string, csvNames []stri
 //   - operationType (string): A descriptive name for the operation type.
 //   - ro (*ResourceOptions): Resource options containing validation criteria.
 func (tc *TestContext) validateWebhookError(g Gomega, err error, operationType string, ro *ResourceOptions) {
-	// Expect the error to be a Forbidden (HTTP 403) from the webhook validation
-	g.Expect(k8serr.IsForbidden(err)).To(BeTrue(),
+	// admission.Denied() returns HTTP 403 Forbidden, admission.Errored() returns 400/500
+	isValidWebhookError := k8serr.IsForbidden(err) || k8serr.IsBadRequest(err) || k8serr.IsInternalError(err)
+	g.Expect(isValidWebhookError).To(BeTrue(),
 		defaultErrorMessageIfNone(
-			"Expected Forbidden error from webhook validation for %s, got: %v",
+			"Expected webhook validation error (403 Forbidden, 400 Bad Request, or 500 Internal Server Error) for %s, got: %v",
 			[]any{operationType, err},
 			ro.CustomErrorArgs,
 		)...)

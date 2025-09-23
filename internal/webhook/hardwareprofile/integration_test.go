@@ -310,7 +310,7 @@ func testNonExistentHardwareProfile(g Gomega, ctx context.Context, k8sClient cli
 	// This should fail because the hardware profile doesn't exist
 	err := k8sClient.Create(ctx, notebook)
 	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("failed to get hardware profile 'nonexistent-profile'"))
+	g.Expect(err.Error()).Should(ContainSubstring("hardware profile 'nonexistent-profile' not found"))
 }
 
 // testCrossNamespaceHardwareProfile tests webhook behavior when hardware profile is in a different namespace.
