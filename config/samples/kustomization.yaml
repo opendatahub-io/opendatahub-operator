@@ -6,3 +6,4 @@ resources:
 - datasciencecluster_v1_datasciencecluster.yaml
 - dscinitialization_v1_dscinitialization.yaml
 - services_v1alpha1_auth.yaml
+- hardwareprofile_v1_hardwareprofile.yaml
