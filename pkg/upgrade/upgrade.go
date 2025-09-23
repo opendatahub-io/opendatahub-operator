@@ -7,6 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -19,10 +22,12 @@ import (
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -263,6 +268,11 @@ func CleanupExistingResource(ctx context.Context,
 	multiErr = multierror.Append(multiErr, cleanupModelControllerLegacyDeployment(ctx, cli, d.Spec.ApplicationsNamespace))
 	// cleanup deprecated kueue ValidatingAdmissionPolicyBinding
 	multiErr = multierror.Append(multiErr, cleanupDeprecatedKueueVAPB(ctx, cli))
+
+	// HardwareProfile migration as described in RHOAIENG-33158
+	if cluster.GetRelease().Version.Major == 3 && oldReleaseVersion.Version.Major <= 2 {
+		multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, d.Spec.ApplicationsNamespace))
+	}
 
 	return multiErr.ErrorOrNil()
 }
@@ -645,4 +655,719 @@ func cleanupDeprecatedKueueVAPB(ctx context.Context, cli client.Client) error {
 	}
 
 	return nil
+}
+
+const (
+	notebooksProfileType = "notebooks"
+)
+
+func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string) error {
+	var multiErr *multierror.Error
+
+	// Get OdhDashboardConfig to extract container sizes
+	odhConfig, err := getOdhDashboardConfig(ctx, cli, applicationNS)
+	if err != nil {
+		return fmt.Errorf("failed to get OdhDashboardConfig: %w", err)
+	}
+
+	// 1. Create 2 HWPs for each AcceleratorProfile (notebooks and serving)
+	multiErr = multierror.Append(multiErr, MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, applicationNS, odhConfig))
+
+	// 2. Create 1 HWP for each container size (notebook and model server sizes)
+	multiErr = multierror.Append(multiErr, MigrateContainerSizesToHardwareProfiles(ctx, cli, applicationNS, odhConfig))
+
+	// 3. Create special HWP for InferenceServices without AP/container size
+	multiErr = multierror.Append(multiErr, CreateSpecialHardwareProfile(ctx, cli, applicationNS))
+
+	return multiErr.ErrorOrNil()
+}
+
+// MigrateAcceleratorProfilesToHardwareProfiles migrates AcceleratorProfiles to HardwareProfiles
+// as described in RHOAIENG-33158. This creates 2 HWPs for each AP (notebooks and serving).
+func MigrateAcceleratorProfilesToHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string, odhConfig *unstructured.Unstructured) error {
+	log := logf.FromContext(ctx)
+
+	apList, err := getAcceleratorProfiles(ctx, cli, applicationNS)
+	if err != nil {
+		return fmt.Errorf("failed to get AcceleratorProfile list: %w", err)
+	}
+	if apList == nil || len(apList.Items) == 0 {
+		log.Info("No AcceleratorProfiles found, skipping migration")
+		return nil
+	}
+
+	// Get notebooks-only toleration if applicable
+	notebooksOnlyToleration, err := getNotebooksOnlyToleration(odhConfig)
+	if err != nil {
+		return fmt.Errorf("failed to get notebooks-only toleration: %w", err)
+	}
+
+	// Calculate container resource limits
+	notebookContainerCounts, err := CalculateContainerResourceLimits(odhConfig, "notebookSizes")
+	if err != nil {
+		return fmt.Errorf("failed to calculate notebook container limits: %w", err)
+	}
+	// default min limits only for serving HWP, max limits are not set
+	servingContainerCounts := map[string]string{
+		"minMemory": "1Gi",
+		"minCpu":    "1",
+	}
+
+	var multiErr *multierror.Error
+
+	// Create 2 HWPs for each AcceleratorProfile
+	for _, ap := range apList.Items {
+		// Create notebooks HWP
+		if err := createHardwareProfileFromAcceleratorProfile(cli, ctx, ap, "notebooks", notebookContainerCounts, notebooksOnlyToleration); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create notebooks HWP for AP %s: %w", ap.GetName(), err))
+			continue
+		}
+
+		// Create serving HWP
+		if err := createHardwareProfileFromAcceleratorProfile(cli, ctx, ap, "serving", servingContainerCounts, nil); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create serving HWP for AP %s: %w", ap.GetName(), err))
+			continue
+		}
+	}
+
+	return multiErr.ErrorOrNil()
+}
+
+func createHardwareProfileFromAcceleratorProfile(cli client.Client, ctx context.Context,
+	ap unstructured.Unstructured, profileType string, containerCounts map[string]string,
+	toleration []corev1.Toleration) error {
+	log := logf.FromContext(ctx)
+	apName := ap.GetName()
+	hwp, err := generateHardwareProfileFromAcceleratorProfile(ap, profileType, containerCounts, toleration)
+	if err != nil {
+		return fmt.Errorf("failed to generate %s HardwareProfile for AcceleratorProfile '%s' (profileType: %s): %w", profileType, apName, profileType, err)
+	}
+
+	if err := cli.Create(ctx, hwp); err != nil {
+		if !k8serr.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create %s HardwareProfile '%s' for AcceleratorProfile '%s' (profileType: %s): %w", profileType, hwp.GetName(), apName, profileType, err)
+		} else {
+			log.Info(fmt.Sprintf("%s HardwareProfile already exists for AcceleratorProfile", profileType),
+				"hardwareProfileName", hwp.GetName(), "acceleratorProfileName", apName, "profileType", profileType)
+		}
+	} else {
+		log.Info(fmt.Sprintf("%s HardwareProfile created for AcceleratorProfile", profileType),
+			"hardwareProfileName", hwp.GetName(), "acceleratorProfileName", apName, "profileType", profileType)
+	}
+	return nil
+}
+
+func getAcceleratorProfiles(ctx context.Context, cli client.Client, applicationNS string) (*unstructured.UnstructuredList, error) {
+	apList := &unstructured.UnstructuredList{}
+	apList.SetGroupVersionKind(gvk.DashboardAcceleratorProfile)
+	err := cli.List(ctx, apList, client.InNamespace(applicationNS))
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return apList, nil
+}
+
+// MigrateContainerSizesToHardwareProfiles migrates container sizes to HardwareProfiles
+// as described in RHOAIENG-33158. This creates 1 HWP for each container size.
+func MigrateContainerSizesToHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string, odhConfig *unstructured.Unstructured) error {
+	var multiErr *multierror.Error
+
+	// Get notebooks-only toleration if applicable
+	notebooksOnlyToleration, err := getNotebooksOnlyToleration(odhConfig)
+	if err != nil {
+		return fmt.Errorf("failed to get notebooks-only toleration: %w", err)
+	}
+
+	// Create HWPs for notebook container sizes
+	notebookSizes, err := getContainerSizes(odhConfig, "notebookSizes")
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to get notebook sizes: %w", err))
+	} else {
+		for _, size := range notebookSizes {
+			if err := createHardwareProfileFromContainerSize(ctx, cli, size, "notebooks", notebooksOnlyToleration, applicationNS); err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create HWP for notebook size %s: %w", size.Name, err))
+				continue
+			}
+		}
+	}
+
+	// Create HWPs for model server container sizes
+	modelServerSizes, err := getContainerSizes(odhConfig, "modelServerSizes")
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to get model server sizes: %w", err))
+	} else {
+		for _, size := range modelServerSizes {
+			if err := createHardwareProfileFromContainerSize(ctx, cli, size, "serving", nil, applicationNS); err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create HWP for model server size %s: %w", size.Name, err))
+				continue
+			}
+		}
+	}
+
+	return multiErr.ErrorOrNil()
+}
+
+func createHardwareProfileFromContainerSize(ctx context.Context, cli client.Client, size ContainerSize,
+	sizeType string, notebooksOnlyToleration []corev1.Toleration, applicationNS string) error {
+	log := logf.FromContext(ctx)
+
+	hwp := generateHardwareProfileFromContainerSize(size, sizeType, notebooksOnlyToleration, applicationNS)
+
+	if err := cli.Create(ctx, hwp); err != nil {
+		if !k8serr.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create HardwareProfile resource '%s' for container size '%s' "+
+				"(profileType: %s, namespace: %s): %w", hwp.GetName(), size.Name, sizeType, applicationNS, err)
+		} else {
+			log.Info("HardwareProfile already exists",
+				"hardwareProfileName", hwp.GetName(),
+				"containerSize", size.Name,
+				"profileType", sizeType,
+				"namespace", applicationNS,
+			)
+		}
+	} else {
+		log.Info("Successfully created HardwareProfile",
+			"hardwareProfileName", hwp.GetName(),
+			"containerSize", size.Name,
+			"profileType", sizeType,
+			"namespace", applicationNS,
+		)
+	}
+	return nil
+}
+
+// CreateSpecialHardwareProfile creates the special HWP for InferenceServices
+// without associated AcceleratorProfile or container size as described in RHOAIENG-33158.
+func CreateSpecialHardwareProfile(ctx context.Context, cli client.Client, applicationNS string) error {
+	log := logf.FromContext(ctx)
+
+	specialHWP := &infrav1.HardwareProfile{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: infrav1.GroupVersion.String(),
+			Kind:       "HardwareProfile",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "custom-serving",
+			Namespace: applicationNS,
+			Annotations: map[string]string{
+				"opendatahub.io/dashboard-feature-visibility": "model-serving",
+				"opendatahub.io/modified-date":                time.Now().Format(time.RFC3339),
+				"opendatahub.io/display-name":                 "custom-serving",
+				"opendatahub.io/description":                  "",
+				"opendatahub.io/disabled":                     "false",
+			},
+		},
+		Spec: infrav1.HardwareProfileSpec{
+			Identifiers: []infrav1.HardwareIdentifier{
+				{
+					Identifier:   "cpu",
+					DisplayName:  "cpu",
+					ResourceType: "CPU",
+					MinCount:     intstr.FromString("1"),
+					DefaultCount: intstr.FromString("1"),
+				},
+				{
+					Identifier:   "memory",
+					DisplayName:  "memory",
+					ResourceType: "Memory",
+					MinCount:     intstr.FromString("1Gi"),
+					DefaultCount: intstr.FromString("1Gi"),
+				},
+			},
+		},
+	}
+
+	if err := cli.Create(ctx, specialHWP); err != nil {
+		if !k8serr.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create special HWP: %w", err)
+		}
+		log.Info("Special HWP already exists", "name", specialHWP.GetName())
+	} else {
+		log.Info("Created special HWP", "name", specialHWP.GetName())
+	}
+
+	return nil
+}
+
+// Helper functions for HardwareProfile migration
+
+func getOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS string) (*unstructured.Unstructured, error) {
+	odhConfig := &unstructured.Unstructured{}
+	odhConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
+
+	// Try to get the OdhDashboardConfig
+	err := cli.Get(ctx, client.ObjectKey{Name: "odh-dashboard-config", Namespace: applicationNS}, odhConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return odhConfig, nil
+}
+
+func CalculateContainerResourceLimits(odhConfig *unstructured.Unstructured, sizeType string) (map[string]string, error) {
+	containerSizes, err := getContainerSizes(odhConfig, sizeType)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(containerSizes) == 0 {
+		return getDefaultResourceLimits(), nil
+	}
+
+	return calculateResourceLimitsFromSizes(containerSizes), nil
+}
+
+// getDefaultResourceLimits returns default resource limits when no container sizes are found.
+func getDefaultResourceLimits() map[string]string {
+	return map[string]string{
+		"maxMemory": "120Gi",
+		"minMemory": "8Gi",
+		"maxCpu":    "30",
+		"minCpu":    "1",
+	}
+}
+
+// calculateResourceLimitsFromSizes processes container sizes and calculates min/max resource limits.
+func calculateResourceLimitsFromSizes(containerSizes []ContainerSize) map[string]string {
+	limits := &resourceLimits{}
+
+	for _, size := range containerSizes {
+		limits.updateMemoryLimits(size.Resources.Requests.Memory, size.Resources.Limits.Memory)
+		limits.updateCpuLimits(size.Resources.Requests.Cpu, size.Resources.Limits.Cpu)
+	}
+
+	return limits.toMap()
+}
+
+// resourceLimits holds the calculated min/max resource values.
+type resourceLimits struct {
+	maxMemory, minMemory string
+	maxCpu, minCpu       string
+}
+
+// updateMemoryLimits updates memory limits based on request and limit values.
+func (r *resourceLimits) updateMemoryLimits(requestMemory, limitMemory string) {
+	candidateMax := selectMaxResource(requestMemory, limitMemory, CompareMemory)
+	if candidateMax != "" {
+		r.maxMemory = selectMaxFromCandidates(r.maxMemory, candidateMax, CompareMemory)
+	}
+
+	candidateMin := selectMinResource(requestMemory, limitMemory, CompareMemory)
+	if candidateMin != "" {
+		r.minMemory = selectMinFromCandidates(r.minMemory, candidateMin, CompareMemory)
+	}
+}
+
+// updateCpuLimits updates CPU limits based on request and limit values.
+func (r *resourceLimits) updateCpuLimits(requestCpu, limitCpu string) {
+	candidateMax := selectMaxResource(requestCpu, limitCpu, CompareCpu)
+	if candidateMax != "" {
+		r.maxCpu = selectMaxFromCandidates(r.maxCpu, candidateMax, CompareCpu)
+	}
+
+	candidateMin := selectMinResource(requestCpu, limitCpu, CompareCpu)
+	if candidateMin != "" {
+		r.minCpu = selectMinFromCandidates(r.minCpu, candidateMin, CompareCpu)
+	}
+}
+
+// toMap converts resourceLimits to a map, applying defaults for missing values.
+func (r *resourceLimits) toMap() map[string]string {
+	if r.minMemory == "" {
+		r.minMemory = "1Mi"
+	}
+	if r.minCpu == "" {
+		r.minCpu = "1"
+	}
+
+	return map[string]string{
+		"maxMemory": r.maxMemory,
+		"minMemory": r.minMemory,
+		"maxCpu":    r.maxCpu,
+		"minCpu":    r.minCpu,
+	}
+}
+
+// selectMaxResource selects the maximum value between request and limit.
+func selectMaxResource(request, limit string, compareFunc func(string, string) int) string {
+	switch {
+	case request != "" && limit != "":
+		if compareFunc(request, limit) > 0 {
+			return request
+		}
+		return limit
+	case request != "":
+		return request
+	case limit != "":
+		return limit
+	default:
+		return ""
+	}
+}
+
+// selectMinResource selects the minimum value between request and limit.
+func selectMinResource(request, limit string, compareFunc func(string, string) int) string {
+	switch {
+	case request != "" && limit != "":
+		if compareFunc(request, limit) < 0 {
+			return request
+		}
+		return limit
+	case request != "":
+		return request
+	case limit != "":
+		return limit
+	default:
+		return ""
+	}
+}
+
+// selectMaxFromCandidates selects the maximum between existing and candidate values.
+func selectMaxFromCandidates(existing, candidate string, compareFunc func(string, string) int) string {
+	if existing == "" || compareFunc(candidate, existing) > 0 {
+		return candidate
+	}
+	return existing
+}
+
+// selectMinFromCandidates selects the minimum between existing and candidate values.
+func selectMinFromCandidates(existing, candidate string, compareFunc func(string, string) int) string {
+	if existing == "" || compareFunc(candidate, existing) < 0 {
+		return candidate
+	}
+	return existing
+}
+
+type ContainerSize struct {
+	Name      string
+	Resources struct {
+		Requests struct {
+			Cpu    string
+			Memory string
+		}
+		Limits struct {
+			Cpu    string
+			Memory string
+		}
+	}
+}
+
+func getContainerSizes(odhConfig *unstructured.Unstructured, sizeType string) ([]ContainerSize, error) {
+	spec, found, err := unstructured.NestedMap(odhConfig.Object, "spec")
+	if err != nil || !found {
+		return nil, errors.New("failed to get spec from OdhDashboardConfig")
+	}
+
+	sizes, found, err := unstructured.NestedSlice(spec, sizeType)
+	if err != nil || !found {
+		return []ContainerSize{}, err
+	}
+
+	containerSizes := make([]ContainerSize, 0, len(sizes))
+	for _, size := range sizes {
+		sizeMap, ok := size.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		containerSize := ContainerSize{}
+		if name, ok := sizeMap["name"].(string); ok {
+			containerSize.Name = name
+		}
+
+		if resources, ok := sizeMap["resources"].(map[string]interface{}); ok {
+			if requests, ok := resources["requests"].(map[string]interface{}); ok {
+				if cpu, ok := requests["cpu"].(string); ok {
+					containerSize.Resources.Requests.Cpu = cpu
+				}
+				if memory, ok := requests["memory"].(string); ok {
+					containerSize.Resources.Requests.Memory = memory
+				}
+			}
+			if limits, ok := resources["limits"].(map[string]interface{}); ok {
+				if cpu, ok := limits["cpu"].(string); ok {
+					containerSize.Resources.Limits.Cpu = cpu
+				}
+				if memory, ok := limits["memory"].(string); ok {
+					containerSize.Resources.Limits.Memory = memory
+				}
+			}
+		}
+
+		containerSizes = append(containerSizes, containerSize)
+	}
+
+	return containerSizes, nil
+}
+
+func getNotebooksOnlyToleration(odhConfig *unstructured.Unstructured) ([]corev1.Toleration, error) {
+	spec, found, err := unstructured.NestedMap(odhConfig.Object, "spec")
+	if err != nil || !found {
+		return nil, err
+	}
+
+	notebookController, found, err := unstructured.NestedMap(spec, "notebookController")
+	if err != nil || !found {
+		return nil, err
+	}
+
+	enabled, found, err := unstructured.NestedBool(notebookController, "enabled")
+	if err != nil || !found || !enabled {
+		return nil, err
+	}
+
+	tolerationSettings, found, err := unstructured.NestedMap(notebookController, "notebookTolerationSettings")
+	if err != nil || !found {
+		return nil, err
+	}
+
+	tolerationEnabled, found, err := unstructured.NestedBool(tolerationSettings, "enabled")
+	if err != nil || !found || !tolerationEnabled {
+		return nil, err
+	}
+
+	key, found, err := unstructured.NestedString(tolerationSettings, "key")
+	if err != nil || !found || key == "" {
+		return nil, err
+	}
+
+	// Create toleration from settings
+	toleration := corev1.Toleration{
+		Key: key,
+	}
+
+	if value, found, err := unstructured.NestedString(tolerationSettings, "value"); err == nil && found {
+		toleration.Value = value
+	}
+
+	if operator, found, err := unstructured.NestedString(tolerationSettings, "operator"); err == nil && found {
+		toleration.Operator = corev1.TolerationOperator(operator)
+	}
+
+	if effect, found, err := unstructured.NestedString(tolerationSettings, "effect"); err == nil && found {
+		toleration.Effect = corev1.TaintEffect(effect)
+	}
+
+	return []corev1.Toleration{toleration}, nil
+}
+
+func generateHardwareProfileFromAcceleratorProfile(ap unstructured.Unstructured, profileType string,
+	containerCounts map[string]string, notebooksOnlyToleration []corev1.Toleration) (*infrav1.HardwareProfile, error) {
+	// Extract AP fields
+	apName := ap.GetName()
+	apNamespace := ap.GetNamespace()
+
+	spec, found, err := unstructured.NestedMap(ap.Object, "spec")
+	if err != nil || !found {
+		return nil, errors.New("failed to get spec from AcceleratorProfile")
+	}
+
+	identifier, _ := spec["identifier"].(string)
+	displayName, _ := spec["displayName"].(string)
+	description, _ := spec["description"].(string)
+	enabled, _ := spec["enabled"].(bool)
+
+	// Create HWP name
+	hwpName := fmt.Sprintf("%s-%s", apName, profileType)
+
+	// Create annotations
+	annotations := map[string]string{
+		"opendatahub.io/dashboard-feature-visibility": GetFeatureVisibility(profileType),
+		"opendatahub.io/modified-date":                time.Now().Format(time.RFC3339),
+		"opendatahub.io/display-name":                 displayName,
+		"opendatahub.io/description":                  description,
+		"opendatahub.io/disabled":                     strconv.FormatBool(!enabled),
+	}
+
+	// Copy existing annotations from AP
+	if apAnnotations := ap.GetAnnotations(); apAnnotations != nil {
+		for k, v := range apAnnotations {
+			annotations[k] = v
+		}
+	}
+
+	// Create identifiers
+	identifiers := []infrav1.HardwareIdentifier{
+		{
+			Identifier:   identifier,
+			DisplayName:  identifier,
+			ResourceType: "Accelerator",
+			MinCount:     intstr.FromInt(1),
+			DefaultCount: intstr.FromInt(1),
+		},
+		{
+			Identifier:   "cpu",
+			DisplayName:  "cpu",
+			ResourceType: "CPU",
+			MinCount:     intstr.FromString(containerCounts["minCpu"]),
+			DefaultCount: intstr.FromString(containerCounts["minCpu"]),
+		},
+		{
+			Identifier:   "memory",
+			DisplayName:  "memory",
+			ResourceType: "Memory",
+			MinCount:     intstr.FromString(containerCounts["minMemory"]),
+			DefaultCount: intstr.FromString(containerCounts["minMemory"]),
+		},
+	}
+
+	// Add max counts for notebooks profile
+	if profileType == notebooksProfileType {
+		if maxCpu, ok := containerCounts["maxCpu"]; ok && maxCpu != "" {
+			identifiers[1].MaxCount = &intstr.IntOrString{Type: intstr.String, StrVal: maxCpu}
+		}
+		if maxMemory, ok := containerCounts["maxMemory"]; ok && maxMemory != "" {
+			identifiers[2].MaxCount = &intstr.IntOrString{Type: intstr.String, StrVal: maxMemory}
+		}
+	}
+
+	// Get tolerations from AP
+	var tolerations []corev1.Toleration
+	if apTolerations, found, err := unstructured.NestedSlice(spec, "tolerations"); err == nil && found {
+		for _, tol := range apTolerations {
+			if tolMap, ok := tol.(map[string]interface{}); ok {
+				toleration := corev1.Toleration{}
+				if key, ok := tolMap["key"].(string); ok {
+					toleration.Key = key
+				}
+				if value, ok := tolMap["value"].(string); ok {
+					toleration.Value = value
+				}
+				if operator, ok := tolMap["operator"].(string); ok {
+					toleration.Operator = corev1.TolerationOperator(operator)
+				}
+				if effect, ok := tolMap["effect"].(string); ok {
+					toleration.Effect = corev1.TaintEffect(effect)
+				}
+				tolerations = append(tolerations, toleration)
+			}
+		}
+	}
+
+	// Add notebooks-only toleration for notebooks profile
+	if profileType == notebooksProfileType && len(notebooksOnlyToleration) > 0 {
+		tolerations = append(tolerations, notebooksOnlyToleration...)
+	}
+
+	// Create scheduling spec if tolerations exist
+	var schedulingSpec *infrav1.SchedulingSpec
+	if len(tolerations) > 0 {
+		schedulingSpec = &infrav1.SchedulingSpec{
+			SchedulingType: infrav1.NodeScheduling,
+			Node: &infrav1.NodeSchedulingSpec{
+				Tolerations: tolerations,
+			},
+		}
+	}
+
+	return &infrav1.HardwareProfile{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: infrav1.GroupVersion.String(),
+			Kind:       "HardwareProfile",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        hwpName,
+			Namespace:   apNamespace,
+			Annotations: annotations,
+		},
+		Spec: infrav1.HardwareProfileSpec{
+			Identifiers:    identifiers,
+			SchedulingSpec: schedulingSpec,
+		},
+	}, nil
+}
+
+func generateHardwareProfileFromContainerSize(size ContainerSize, profileType string,
+	notebooksOnlyToleration []corev1.Toleration, namespace string) *infrav1.HardwareProfile {
+	// Create HWP name
+	hwpName := fmt.Sprintf("containerSize-%s-%s", size.Name, profileType)
+
+	// Create annotations
+	annotations := map[string]string{
+		"opendatahub.io/dashboard-feature-visibility": GetFeatureVisibility(profileType),
+		"opendatahub.io/modified-date":                time.Now().Format(time.RFC3339),
+		"opendatahub.io/display-name":                 size.Name,
+		"opendatahub.io/description":                  "",
+		"opendatahub.io/disabled":                     "false",
+	}
+
+	// Create identifiers
+	identifiers := []infrav1.HardwareIdentifier{
+		{
+			Identifier:   "cpu",
+			DisplayName:  "cpu",
+			ResourceType: "CPU",
+			MinCount:     intstr.FromString(size.Resources.Requests.Cpu),
+			MaxCount:     &intstr.IntOrString{Type: intstr.String, StrVal: size.Resources.Limits.Cpu},
+			DefaultCount: intstr.FromString(size.Resources.Requests.Cpu),
+		},
+		{
+			Identifier:   "memory",
+			DisplayName:  "memory",
+			ResourceType: "Memory",
+			MinCount:     intstr.FromString(size.Resources.Requests.Memory),
+			MaxCount:     &intstr.IntOrString{Type: intstr.String, StrVal: size.Resources.Limits.Memory},
+			DefaultCount: intstr.FromString(size.Resources.Requests.Memory),
+		},
+	}
+
+	// Create scheduling spec if tolerations exist
+	var schedulingSpec *infrav1.SchedulingSpec
+	if len(notebooksOnlyToleration) > 0 {
+		schedulingSpec = &infrav1.SchedulingSpec{
+			SchedulingType: infrav1.NodeScheduling,
+			Node: &infrav1.NodeSchedulingSpec{
+				Tolerations: notebooksOnlyToleration,
+			},
+		}
+	}
+
+	return &infrav1.HardwareProfile{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: infrav1.GroupVersion.String(),
+			Kind:       "HardwareProfile",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        hwpName,
+			Namespace:   namespace,
+			Annotations: annotations,
+		},
+		Spec: infrav1.HardwareProfileSpec{
+			Identifiers:    identifiers,
+			SchedulingSpec: schedulingSpec,
+		},
+	}
+}
+
+func GetFeatureVisibility(profileType string) string {
+	switch profileType {
+	case "notebooks":
+		return "workbench"
+	case "serving":
+		return "model-serving"
+	default:
+		return "workbench"
+	}
+}
+
+// Helper functions for resource comparison.
+func CompareMemory(mem1, mem2 string) int {
+	q1, err1 := resource.ParseQuantity(mem1)
+	q2, err2 := resource.ParseQuantity(mem2)
+	if err1 != nil || err2 != nil {
+		return strings.Compare(mem1, mem2)
+	}
+	return q1.Cmp(q2) // -1,0,1
+}
+
+func CompareCpu(cpu1, cpu2 string) int {
+	q1, err1 := resource.ParseQuantity(cpu1)
+	q2, err2 := resource.ParseQuantity(cpu2)
+	if err1 != nil || err2 != nil {
+		return strings.Compare(cpu1, cpu2)
+	}
+	return q1.Cmp(q2)
 }
