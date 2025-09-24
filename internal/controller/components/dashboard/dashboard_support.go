@@ -29,25 +29,25 @@ const (
 )
 
 var (
-	sectionTitle = map[common.Platform]string{
+	SectionTitle = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "OpenShift Self Managed Services",
 		cluster.ManagedRhoai:     "OpenShift Managed Services",
 		cluster.OpenDataHub:      "OpenShift Open Data Hub",
 	}
 
-	baseConsoleURL = map[common.Platform]string{
+	BaseConsoleURL = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "https://rhods-dashboard-",
 		cluster.ManagedRhoai:     "https://rhods-dashboard-",
 		cluster.OpenDataHub:      "https://odh-dashboard-",
 	}
 
-	overlaysSourcePaths = map[common.Platform]string{
+	OverlaysSourcePaths = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "/rhoai/onprem",
 		cluster.ManagedRhoai:     "/rhoai/addon",
 		cluster.OpenDataHub:      "/odh",
 	}
 
-	imagesMap = map[string]string{
+	ImagesMap = map[string]string{
 		"odh-dashboard-image":     "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 		"model-registry-ui-image": "RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE",
 	}
@@ -57,15 +57,15 @@ var (
 	}
 )
 
-func defaultManifestInfo(p common.Platform) odhtypes.ManifestInfo {
+func DefaultManifestInfo(p common.Platform) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
 		ContextDir: ComponentName,
-		SourcePath: overlaysSourcePaths[p],
+		SourcePath: OverlaysSourcePaths[p],
 	}
 }
 
-func bffManifestsPath() odhtypes.ManifestInfo {
+func BffManifestsPath() odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
 		ContextDir: ComponentName,
@@ -73,19 +73,25 @@ func bffManifestsPath() odhtypes.ManifestInfo {
 	}
 }
 
-func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
+func ComputeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
 	consoleLinkDomain, err := cluster.GetDomain(ctx, cli)
 	if err != nil {
 		return nil, fmt.Errorf("error getting console route URL %s : %w", consoleLinkDomain, err)
 	}
 
 	return map[string]string{
-		"dashboard-url": baseConsoleURL[platform] + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
-		"section-title": sectionTitle[platform],
+		"dashboard-url": BaseConsoleURL[platform] + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
+		"section-title": SectionTitle[platform],
 	}, nil
 }
 
-func computeComponentName() string {
+// ComputeComponentName returns the appropriate legacy component name based on the platform.
+// Platforms whose release.Name equals cluster.SelfManagedRhoai or cluster.ManagedRhoai
+// return LegacyComponentNameDownstream, while all others return LegacyComponentNameUpstream.
+// This distinction exists because these specific platforms use legacy downstream vs upstream
+// naming conventions. This is historical behavior that must be preserved - do not change
+// return values as this maintains compatibility with existing deployments.
+func ComputeComponentName() string {
 	release := cluster.GetRelease()
 
 	name := LegacyComponentNameUpstream

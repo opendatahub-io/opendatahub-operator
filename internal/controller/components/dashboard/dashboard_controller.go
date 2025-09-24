@@ -18,6 +18,7 @@ package dashboard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	consolev1 "github.com/openshift/api/console/v1"
@@ -45,8 +46,12 @@ import (
 )
 
 // NewComponentReconciler creates a ComponentReconciler for the Dashboard API.
-func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	componentName := computeComponentName()
+func (s *ComponentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	if mgr == nil {
+		return errors.New("could not create the dashboard controller: manager cannot be nil")
+	}
+
+	componentName := ComputeComponentName()
 
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.Dashboard{}).
 		// operands - owned
@@ -97,7 +102,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		}), reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardHardwareProfile))).
 		WithAction(initialize).
 		WithAction(devFlags).
-		WithAction(setKustomizedParams).
+		WithAction(SetKustomizedParams).
 		WithAction(configureDependencies).
 		WithAction(kustomize.NewAction(
 			// Those are the default labels added by the legacy deploy method
@@ -111,10 +116,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
-		WithAction(customizeResources).
+		WithAction(CustomizeResources).
 		WithAction(deploy.NewAction()).
 		WithAction(deployments.NewAction()).
-		WithAction(reconcileHardwareProfiles).
+		WithAction(ReconcileHardwareProfiles).
 		WithAction(updateStatus).
 		// must be the final action
 		WithAction(gc.NewAction(

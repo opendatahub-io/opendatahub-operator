@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -30,6 +31,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
+// rfc1123NamespaceRegex is a precompiled regex for validating namespace names.
+// according to RFC1123 DNS label rules.
+var rfc1123NamespaceRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+
 type DashboardHardwareProfile struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -52,7 +57,22 @@ type DashboardHardwareProfileList struct {
 }
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	rr.Manifests = []odhtypes.ManifestInfo{defaultManifestInfo(rr.Release.Name)}
+	// Validate required fields
+	if rr.Client == nil {
+		return errors.New("client is required but was nil")
+	}
+
+	if rr.DSCI == nil {
+		return errors.New("DSCI is required but was nil")
+	}
+
+	// Validate Instance type
+	_, ok := rr.Instance.(*componentApi.Dashboard)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Dashboard", rr.Instance)
+	}
+
+	rr.Manifests = []odhtypes.ManifestInfo{DefaultManifestInfo(rr.Release.Name)}
 
 	return nil
 }
@@ -60,7 +80,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	dashboard, ok := rr.Instance.(*componentApi.Dashboard)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.Dashboard)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentApi.Dashboard", rr.Instance)
 	}
 
 	if dashboard.Spec.DevFlags == nil {
@@ -83,7 +103,7 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-func customizeResources(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+func CustomizeResources(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	for i := range rr.Resources {
 		if rr.Resources[i].GroupVersionKind() == gvk.OdhDashboardConfig {
 			// mark the resource as not supposed to be managed by the operator
@@ -95,10 +115,14 @@ func customizeResources(_ context.Context, rr *odhtypes.ReconciliationRequest) e
 	return nil
 }
 
-func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name, &rr.DSCI.Spec)
+func SetKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	extraParamsMap, err := ComputeKustomizeVariable(ctx, rr.Client, rr.Release.Name, &rr.DSCI.Spec)
 	if err != nil {
-		return errors.New("failed to set variable for url, section-title etc")
+		return fmt.Errorf("failed to set variable for url, section-title etc: %w", err)
+	}
+
+	if len(rr.Manifests) == 0 {
+		return errors.New("no manifests available")
 	}
 
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, extraParamsMap); err != nil {
@@ -107,23 +131,90 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	return nil
 }
 
+// validateNamespace validates that a namespace name conforms to RFC1123 DNS label rules
+// and has a maximum length of 63 characters as required by Kubernetes.
+func validateNamespace(namespace string) error {
+	if namespace == "" {
+		return errors.New("namespace cannot be empty")
+	}
+
+	// Check length constraint (max 63 characters)
+	if len(namespace) > 63 {
+		return fmt.Errorf("namespace '%s' exceeds maximum length of 63 characters (length: %d)", namespace, len(namespace))
+	}
+
+	// RFC1123 DNS label regex: must start and end with alphanumeric character,
+	// can contain alphanumeric characters and hyphens in the middle
+	// Pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+	if !rfc1123NamespaceRegex.MatchString(namespace) {
+		return fmt.Errorf("namespace '%s' must be lowercase and conform to RFC1123 DNS label rules: "+
+			"a–z, 0–9, '-', start/end with alphanumeric", namespace)
+	}
+
+	return nil
+}
+
+// resourceExists checks if a resource with the same Group/Version/Kind/Namespace/Name
+// already exists in the ReconciliationRequest's Resources slice.
+func resourceExists(resources []unstructured.Unstructured, candidate client.Object) bool {
+	if candidate == nil {
+		return false
+	}
+
+	candidateName := candidate.GetName()
+	candidateNamespace := candidate.GetNamespace()
+	candidateGVK := candidate.GetObjectKind().GroupVersionKind()
+
+	for _, existing := range resources {
+		if existing.GetName() == candidateName &&
+			existing.GetNamespace() == candidateNamespace &&
+			existing.GroupVersionKind() == candidateGVK {
+			return true
+		}
+	}
+
+	return false
+}
+
 func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if rr.Release.Name == cluster.OpenDataHub {
 		return nil
 	}
 
-	err := rr.AddResources(&corev1.Secret{
+	// Check for nil client before proceeding
+	if rr.Client == nil {
+		return errors.New("client cannot be nil")
+	}
+
+	// Check for nil DSCI before accessing its properties
+	if rr.DSCI == nil {
+		return errors.New("DSCI cannot be nil")
+	}
+
+	// Validate namespace before attempting to create resources
+	if err := validateNamespace(rr.DSCI.Spec.ApplicationsNamespace); err != nil {
+		return fmt.Errorf("invalid namespace: %w", err)
+	}
+
+	// Create the anaconda secret resource
+	anacondaSecret := &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "anaconda-ce-access",
+			Name:      "anaconda-access-secret",
 			Namespace: rr.DSCI.Spec.ApplicationsNamespace,
 		},
 		Type: corev1.SecretTypeOpaque,
-	})
+	}
 
+	// Check if the resource already exists to avoid duplicates
+	if resourceExists(rr.Resources, anacondaSecret) {
+		return nil
+	}
+
+	err := rr.AddResources(anacondaSecret)
 	if err != nil {
 		return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 	}
@@ -132,9 +223,25 @@ func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest
 }
 
 func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr == nil {
+		return errors.New("reconciliation request is nil")
+	}
+
+	if rr.Instance == nil {
+		return errors.New("instance is nil")
+	}
+
+	if rr.Client == nil {
+		return errors.New("client is nil")
+	}
+
+	if rr.DSCI == nil {
+		return errors.New("DSCI is nil")
+	}
+
 	d, ok := rr.Instance.(*componentApi.Dashboard)
 	if !ok {
-		return errors.New("instance is not of type *odhTypes.Dashboard")
+		return errors.New("instance is not of type *componentApi.Dashboard")
 	}
 
 	// url
@@ -154,13 +261,20 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 
 	d.Status.URL = ""
 	if len(rl.Items) == 1 {
-		d.Status.URL = resources.IngressHost(rl.Items[0])
+		host := resources.IngressHost(rl.Items[0])
+		if host != "" {
+			d.Status.URL = "https://" + host
+		}
 	}
 
 	return nil
 }
 
-func reconcileHardwareProfiles(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func ReconcileHardwareProfiles(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr.Client == nil {
+		return errors.New("client is nil")
+	}
+
 	// If the dashboard HWP CRD doesn't exist, skip any migration logic
 	dashHwpCRDExists, err := cluster.HasCRD(ctx, rr.Client, gvk.DashboardHardwareProfile)
 	if err != nil {
@@ -180,38 +294,47 @@ func reconcileHardwareProfiles(ctx context.Context, rr *odhtypes.ReconciliationR
 
 	logger := log.FromContext(ctx)
 	for _, hwprofile := range dashboardHardwareProfiles.Items {
-		var dashboardHardwareProfile DashboardHardwareProfile
-
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(hwprofile.Object, &dashboardHardwareProfile); err != nil {
-			return fmt.Errorf("failed to convert dashboard hardware profile: %w", err)
-		}
-
-		infraHWP := &infrav1.HardwareProfile{}
-		err := rr.Client.Get(ctx, client.ObjectKey{
-			Name:      dashboardHardwareProfile.Name,
-			Namespace: dashboardHardwareProfile.Namespace,
-		}, infraHWP)
-
-		if k8serr.IsNotFound(err) {
-			if err = createInfraHWP(ctx, rr, logger, &dashboardHardwareProfile); err != nil {
-				return fmt.Errorf("failed to create infrastructure hardware profile: %w", err)
-			}
-			continue
-		}
-
-		if err != nil {
-			return fmt.Errorf("failed to get infrastructure hardware profile: %w", err)
-		}
-
-		err = updateInfraHWP(ctx, rr, logger, &dashboardHardwareProfile, infraHWP)
-		if err != nil {
-			return fmt.Errorf("failed to update existing infrastructure hardware profile: %w", err)
+		if err := ProcessHardwareProfile(ctx, rr, logger, hwprofile); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func createInfraHWP(ctx context.Context, rr *odhtypes.ReconciliationRequest, logger logr.Logger, dashboardhwp *DashboardHardwareProfile) error {
+// processHardwareProfile processes a single dashboard hardware profile.
+func ProcessHardwareProfile(ctx context.Context, rr *odhtypes.ReconciliationRequest, logger logr.Logger, hwprofile unstructured.Unstructured) error {
+	var dashboardHardwareProfile DashboardHardwareProfile
+
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(hwprofile.Object, &dashboardHardwareProfile); err != nil {
+		return fmt.Errorf("failed to convert dashboard hardware profile: %w", err)
+	}
+
+	infraHWP := &infrav1.HardwareProfile{}
+	err := rr.Client.Get(ctx, client.ObjectKey{
+		Name:      dashboardHardwareProfile.Name,
+		Namespace: dashboardHardwareProfile.Namespace,
+	}, infraHWP)
+
+	if k8serr.IsNotFound(err) {
+		if err = CreateInfraHWP(ctx, rr, logger, &dashboardHardwareProfile); err != nil {
+			return fmt.Errorf("failed to create infrastructure hardware profile: %w", err)
+		}
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to get infrastructure hardware profile: %w", err)
+	}
+
+	err = UpdateInfraHWP(ctx, rr, logger, &dashboardHardwareProfile, infraHWP)
+	if err != nil {
+		return fmt.Errorf("failed to update existing infrastructure hardware profile: %w", err)
+	}
+
+	return nil
+}
+
+func CreateInfraHWP(ctx context.Context, rr *odhtypes.ReconciliationRequest, logger logr.Logger, dashboardhwp *DashboardHardwareProfile) error {
 	annotations := make(map[string]string)
 	maps.Copy(annotations, dashboardhwp.Annotations)
 
@@ -246,7 +369,7 @@ func createInfraHWP(ctx context.Context, rr *odhtypes.ReconciliationRequest, log
 	return nil
 }
 
-func updateInfraHWP(
+func UpdateInfraHWP(
 	ctx context.Context, rr *odhtypes.ReconciliationRequest, logger logr.Logger, dashboardhwp *DashboardHardwareProfile, infrahwp *infrav1.HardwareProfile) error {
 	if infrahwp.Annotations == nil {
 		infrahwp.Annotations = make(map[string]string)

@@ -22,32 +22,32 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-type componentHandler struct{}
+type ComponentHandler struct{}
 
 func init() { //nolint:gochecknoinits
-	cr.Add(&componentHandler{})
+	cr.Add(&ComponentHandler{})
 }
 
-func (s *componentHandler) GetName() string {
+func (s *ComponentHandler) GetName() string {
 	return componentApi.DashboardComponentName
 }
 
-func (s *componentHandler) Init(platform common.Platform) error {
-	mi := defaultManifestInfo(platform)
+func (s *ComponentHandler) Init(platform common.Platform) error {
+	mi := DefaultManifestInfo(platform)
 
-	if err := odhdeploy.ApplyParams(mi.String(), "params.env", imagesMap); err != nil {
+	if err := odhdeploy.ApplyParams(mi.String(), "params.env", ImagesMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mi, err)
 	}
 
-	extra := bffManifestsPath()
-	if err := odhdeploy.ApplyParams(extra.String(), "params.env", imagesMap); err != nil {
+	extra := BffManifestsPath()
+	if err := odhdeploy.ApplyParams(extra.String(), "params.env", ImagesMap); err != nil {
 		return fmt.Errorf("failed to update modular-architecture images on path %s: %w", extra, err)
 	}
 
 	return nil
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
+func (s *ComponentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
 	return &componentApi.Dashboard{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.DashboardKind,
@@ -65,18 +65,27 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 	}
 }
 
-func (s *componentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool {
+func (s *ComponentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool {
 	return dsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
 }
 
-func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
+func (s *ComponentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
+
+	if rr.Client == nil {
+		return cs, errors.New("client is nil")
+	}
 
 	c := componentApi.Dashboard{}
 	c.Name = componentApi.DashboardInstanceName
 
-	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&c), &c); err != nil && !k8serr.IsNotFound(err) {
-		return cs, nil
+	dashboardCRExists := true
+	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&c), &c); err != nil {
+		if k8serr.IsNotFound(err) {
+			dashboardCRExists = false
+		} else {
+			return cs, fmt.Errorf("failed to get Dashboard CR: %w", err)
+		}
 	}
 
 	dsc, ok := rr.Instance.(*dscv1.DataScienceCluster)
@@ -92,7 +101,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
-	if s.IsEnabled(dsc) {
+	if s.IsEnabled(dsc) && dashboardCRExists {
 		dsc.Status.InstalledComponents[LegacyComponentNameUpstream] = true
 		dsc.Status.Components.Dashboard.DashboardCommonStatus = c.Status.DashboardCommonStatus.DeepCopy()
 
@@ -109,6 +118,13 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 			conditions.WithMessage("Component ManagementState is set to %s", string(ms)),
 			conditions.WithSeverity(common.ConditionSeverityInfo),
 		)
+		// For Removed and Unmanaged states, condition should be Unknown
+		// For Managed state without Dashboard CR, condition should be False
+		if ms == operatorv1.Managed {
+			cs = metav1.ConditionFalse
+		} else {
+			cs = metav1.ConditionUnknown
+		}
 	}
 
 	return cs, nil

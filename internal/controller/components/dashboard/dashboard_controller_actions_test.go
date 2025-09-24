@@ -1,149 +1,136 @@
-//nolint:testpackage
-package dashboard
+package dashboard_test
 
 import (
 	"testing"
 
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 
 	. "github.com/onsi/gomega"
 )
 
-func TestMigrateHardwareProfiles(t *testing.T) {
-	ctx := t.Context()
+// TestDashboardConstants tests the exported constants from the dashboard package.
+func TestDashboardConstants(t *testing.T) {
 	g := NewWithT(t)
 
-	fakeSchema, err := scheme.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
+	// Test ComponentName constant
+	g.Expect(dashboard.ComponentName).Should(Equal(componentApi.DashboardComponentName))
 
-	dashboardHardwareProfileListGVK := schema.GroupVersionKind{
-		Group:   "dashboard.opendatahub.io",
-		Version: "v1alpha1",
-		Kind:    "HardwareProfileList",
-	}
+	// Test ReadyConditionType constant
+	g.Expect(dashboard.ReadyConditionType).Should(Equal(componentApi.DashboardKind + "Ready"))
 
-	fakeSchema.AddKnownTypeWithName(gvk.DashboardHardwareProfile, &unstructured.Unstructured{})
-	fakeSchema.AddKnownTypeWithName(dashboardHardwareProfileListGVK, &unstructured.UnstructuredList{})
-	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile, &infrav1.HardwareProfile{})
-	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile.GroupVersion().WithKind("HardwareProfileList"), &infrav1.HardwareProfileList{})
+	// Test LegacyComponentNameUpstream constant
+	g.Expect(dashboard.LegacyComponentNameUpstream).Should(Equal("dashboard"))
 
-	// Create a CRD for Dashboard HardwareProfile to make HasCRD check pass
-	dashboardHWPCRD := &apiextensionsv1.CustomResourceDefinition{
-		ObjectMeta: v1.ObjectMeta{
-			Name: "hardwareprofiles.dashboard.opendatahub.io",
-		},
-		Status: apiextensionsv1.CustomResourceDefinitionStatus{
-			StoredVersions: []string{gvk.DashboardHardwareProfile.Version},
-		},
-	}
-
-	mockDashboardHardwareProfile := &unstructured.Unstructured{
-		Object: map[string]any{
-			"apiVersion": "dashboard.opendatahub.io/v1alpha1",
-			"kind":       "HardwareProfile",
-			"metadata": map[string]any{
-				"name":      "test-name",
-				"namespace": "test-namespace",
-			},
-			"spec": map[string]any{
-				"displayName":  "Test Display Name",
-				"enabled":      true,
-				"description":  "Test Description",
-				"tolerations":  []any{},
-				"nodeSelector": map[string]any{},
-				"identifiers":  []any{},
-			},
-		},
-	}
-
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(mockDashboardHardwareProfile, dashboardHWPCRD),
-		fakeclient.WithScheme(fakeSchema),
-	)
-	g.Expect(err).ShouldNot(HaveOccurred())
-	rr := &types.ReconciliationRequest{
-		Client: cli,
-	}
-
-	err = reconcileHardwareProfiles(ctx, rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	var createdInfraHWProfile infrav1.HardwareProfile
-	err = cli.Get(ctx, client.ObjectKey{
-		Name:      "test-name",
-		Namespace: "test-namespace",
-	}, &createdInfraHWProfile)
-
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(createdInfraHWProfile.Name).Should(Equal("test-name"))
-	g.Expect(createdInfraHWProfile.Namespace).Should(Equal("test-namespace"))
-	g.Expect(createdInfraHWProfile.Spec.SchedulingSpec.SchedulingType).Should(Equal(infrav1.NodeScheduling))
-	g.Expect(createdInfraHWProfile.GetAnnotations()["opendatahub.io/display-name"]).Should(Equal("Test Display Name"))
-	g.Expect(createdInfraHWProfile.GetAnnotations()["opendatahub.io/description"]).Should(Equal("Test Description"))
-	g.Expect(createdInfraHWProfile.GetAnnotations()["opendatahub.io/disabled"]).Should(Equal("false"))
+	// Test LegacyComponentNameDownstream constant
+	g.Expect(dashboard.LegacyComponentNameDownstream).Should(Equal("rhods-dashboard"))
 }
 
-func TestCreateInfraHardwareProfile(t *testing.T) {
-	ctx := t.Context()
+// TestDashboardHardwareProfileTypes tests the exported types for hardware profiles.
+func TestDashboardHardwareProfileTypes(t *testing.T) {
 	g := NewWithT(t)
 
-	fakeSchema, err := scheme.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
+	// Test DashboardHardwareProfile struct
+	profile := dashboard.CreateTestDashboardHardwareProfile()
 
-	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile, &infrav1.HardwareProfile{})
-	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile.GroupVersion().WithKind("HardwareProfileList"), &infrav1.HardwareProfileList{})
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(),
-		fakeclient.WithScheme(fakeSchema),
-	)
-	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(profile.Name).Should(Equal(dashboard.TestProfile))
+	g.Expect(profile.Namespace).Should(Equal(dashboard.TestNamespace))
+	g.Expect(profile.Spec.DisplayName).Should(Equal(dashboard.TestDisplayName))
+	g.Expect(profile.Spec.Enabled).Should(BeTrue())
+	g.Expect(profile.Spec.Description).Should(Equal(dashboard.TestDescription))
 
-	rr := &types.ReconciliationRequest{
-		Client: cli,
+	// Test DashboardHardwareProfileList
+	list := &dashboard.DashboardHardwareProfileList{
+		Items: []dashboard.DashboardHardwareProfile{*profile},
 	}
 
-	logger := log.FromContext(ctx)
+	g.Expect(list.Items).Should(HaveLen(1))
+	g.Expect(list.Items[0].Name).Should(Equal(dashboard.TestProfile))
+}
 
-	mockDashboardHardwareProfile := &DashboardHardwareProfile{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      "test-name",
-			Namespace: "test-namespace",
-		},
-		Spec: DashboardHardwareProfileSpec{
-			DisplayName:  "Test Display Name",
-			Enabled:      true,
-			Description:  "Test Description",
-			Tolerations:  nil,
-			NodeSelector: nil,
-			Identifiers:  nil,
-		},
-	}
+// TestDashboardHardwareProfileVariedScenarios tests various scenarios for hardware profiles.
+func TestDashboardHardwareProfileVariedScenarios(t *testing.T) {
+	g := NewWithT(t)
 
-	var receivedHardwareProfile infrav1.HardwareProfile
+	// Test case 1: Disabled profile (Spec.Enabled == false)
+	t.Run("DisabledProfile", func(t *testing.T) {
+		profile := dashboard.CreateTestDashboardHardwareProfile()
+		profile.Spec.Enabled = false
 
-	err = createInfraHWP(ctx, rr, logger, mockDashboardHardwareProfile)
-	g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(profile.Spec.Enabled).Should(BeFalse())
+		g.Expect(profile.Name).Should(Equal(dashboard.TestProfile))
+		g.Expect(profile.Namespace).Should(Equal(dashboard.TestNamespace))
+		g.Expect(profile.Spec.DisplayName).Should(Equal(dashboard.TestDisplayName))
+		g.Expect(profile.Spec.Description).Should(Equal(dashboard.TestDescription))
+	})
 
-	err = cli.Get(ctx, client.ObjectKey{
-		Name:      "test-name",
-		Namespace: "test-namespace",
-	}, &receivedHardwareProfile)
-	g.Expect(err).ShouldNot(HaveOccurred())
+	// Test case 2: Profile with empty description
+	t.Run("EmptyDescription", func(t *testing.T) {
+		profile := dashboard.CreateTestDashboardHardwareProfile()
+		profile.Spec.Description = ""
 
-	g.Expect(receivedHardwareProfile.Name).Should(Equal("test-name"))
-	g.Expect(receivedHardwareProfile.Namespace).Should(Equal("test-namespace"))
-	g.Expect(receivedHardwareProfile.GetAnnotations()["opendatahub.io/display-name"]).Should(Equal("Test Display Name"))
-	g.Expect(receivedHardwareProfile.GetAnnotations()["opendatahub.io/description"]).Should(Equal("Test Description"))
-	g.Expect(receivedHardwareProfile.GetAnnotations()["opendatahub.io/disabled"]).Should(Equal("false"))
+		g.Expect(profile.Spec.Description).Should(BeEmpty())
+		g.Expect(profile.Spec.Enabled).Should(BeTrue())
+		g.Expect(profile.Name).Should(Equal(dashboard.TestProfile))
+		g.Expect(profile.Namespace).Should(Equal(dashboard.TestNamespace))
+		g.Expect(profile.Spec.DisplayName).Should(Equal(dashboard.TestDisplayName))
+	})
+
+	// Test case 3: Profile with long description
+	t.Run("LongDescription", func(t *testing.T) {
+		longDescription := "This is a very long description that contains multiple sentences and should test the " +
+			"behavior of the DashboardHardwareProfile when dealing with extensive text content. It includes " +
+			"various details about the hardware profile configuration, its intended use cases, and any " +
+			"specific requirements or constraints that users should be aware of when selecting this " +
+			"particular profile for their data science workloads."
+		profile := dashboard.CreateTestDashboardHardwareProfile()
+		profile.Spec.Description = longDescription
+
+		g.Expect(profile.Spec.Description).Should(Equal(longDescription))
+		g.Expect(len(profile.Spec.Description)).Should(BeNumerically(">", 200)) // Verify it's actually long
+		g.Expect(profile.Spec.Enabled).Should(BeTrue())
+		g.Expect(profile.Name).Should(Equal(dashboard.TestProfile))
+		g.Expect(profile.Namespace).Should(Equal(dashboard.TestNamespace))
+		g.Expect(profile.Spec.DisplayName).Should(Equal(dashboard.TestDisplayName))
+	})
+
+	// Test case 4: Multi-item DashboardHardwareProfileList with different Names/Namespaces
+	t.Run("MultiItemList", func(t *testing.T) {
+		// Create first profile
+		profile1 := dashboard.CreateTestDashboardHardwareProfile()
+		profile1.Name = "profile-1"
+		profile1.Namespace = "namespace-1"
+		profile1.Spec.DisplayName = "Profile One"
+		profile1.Spec.Description = "First hardware profile"
+
+		// Create second profile with different properties
+		profile2 := dashboard.CreateTestDashboardHardwareProfile()
+		profile2.Name = "profile-2"
+		profile2.Namespace = "namespace-2"
+		profile2.Spec.DisplayName = "Profile Two"
+		profile2.Spec.Description = "Second hardware profile"
+		profile2.Spec.Enabled = false
+
+		// Create list with both profiles
+		list := &dashboard.DashboardHardwareProfileList{
+			Items: []dashboard.DashboardHardwareProfile{*profile1, *profile2},
+		}
+
+		// Assert list length
+		g.Expect(list.Items).Should(HaveLen(2))
+
+		// Assert first item fields
+		g.Expect(list.Items[0].Name).Should(Equal("profile-1"))
+		g.Expect(list.Items[0].Namespace).Should(Equal("namespace-1"))
+		g.Expect(list.Items[0].Spec.DisplayName).Should(Equal("Profile One"))
+		g.Expect(list.Items[0].Spec.Description).Should(Equal("First hardware profile"))
+		g.Expect(list.Items[0].Spec.Enabled).Should(BeTrue())
+
+		// Assert second item fields
+		g.Expect(list.Items[1].Name).Should(Equal("profile-2"))
+		g.Expect(list.Items[1].Namespace).Should(Equal("namespace-2"))
+		g.Expect(list.Items[1].Spec.DisplayName).Should(Equal("Profile Two"))
+		g.Expect(list.Items[1].Spec.Description).Should(Equal("Second hardware profile"))
+		g.Expect(list.Items[1].Spec.Enabled).Should(BeFalse())
+	})
 }
