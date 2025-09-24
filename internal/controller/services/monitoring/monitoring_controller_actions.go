@@ -117,8 +117,8 @@ func deployMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return errors.New("instance is not of type *services.Monitoring")
 	}
 
-	// No monitoring stack configuration
-	if monitoring.Spec.Metrics == nil {
+	metricsEnabled := monitoring.Spec.Metrics != nil
+	if !metricsEnabled {
 		rr.Conditions.MarkFalse(
 			status.ConditionMonitoringStackAvailable,
 			conditions.WithReason(status.MetricsNotConfiguredReason),
@@ -129,59 +129,58 @@ func deployMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationReque
 			conditions.WithReason(status.MetricsNotConfiguredReason),
 			conditions.WithMessage(status.MetricsNotConfiguredMessage),
 		)
-		// Since ThanosQuerier is always deployed together with monitoring stack,
-		// also deploy it here to handle its conditions properly
-		return deployThanosQuerier(ctx, rr)
 	}
 
-	msExists, err := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack)
-	if err != nil {
-		return fmt.Errorf("failed to check if CRD MonitoringStack exists: %w", err)
+	if metricsEnabled {
+		msExists, err := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack)
+		if err != nil {
+			return fmt.Errorf("failed to check if CRD MonitoringStack exists: %w", err)
+		}
+		if !msExists {
+			// CRD not available, skip monitoring stack deployment (this is expected when monitoring stack operator is not installed)
+			rr.Conditions.MarkFalse(
+				status.ConditionMonitoringStackAvailable,
+				conditions.WithReason(gvk.MonitoringStack.Kind+"CRDNotFoundReason"),
+				conditions.WithMessage("%s CRD Not Found", gvk.MonitoringStack.Kind),
+			)
+			rr.Conditions.MarkFalse(
+				status.ConditionNamespaceRestrictedMetricsAvailable,
+				conditions.WithReason(gvk.MonitoringStack.Kind+"CRDNotFoundReason"),
+				conditions.WithMessage("%s CRD Not Found", gvk.MonitoringStack.Kind),
+			)
+			return nil
+		}
+
+		rr.Conditions.MarkTrue(status.ConditionMonitoringStackAvailable)
+		rr.Conditions.MarkTrue(status.ConditionNamespaceRestrictedMetricsAvailable)
+
+		template := []odhtypes.TemplateInfo{
+			{
+				FS:   resourcesFS,
+				Path: MonitoringStackTemplate,
+			},
+			{
+				FS:   resourcesFS,
+				Path: PrometheusRouteTemplate,
+			},
+			{
+				FS:   resourcesFS,
+				Path: PrometheusSecureRBACTemplate,
+			},
+			{
+				FS:   resourcesFS,
+				Path: PrometheusServiceOverrideTemplate,
+			},
+			{
+				FS:   resourcesFS,
+				Path: PrometheusNetworkPolicyTemplate,
+			},
+		}
+
+		rr.Templates = append(rr.Templates, template...)
 	}
-	if !msExists {
-		// CRD not available, skip monitoring stack deployment (this is expected when monitoring stack operator is not installed)
-		rr.Conditions.MarkFalse(
-			status.ConditionMonitoringStackAvailable,
-			conditions.WithReason(gvk.MonitoringStack.Kind+"CRDNotFoundReason"),
-			conditions.WithMessage("%s CRD Not Found", gvk.MonitoringStack.Kind),
-		)
-		rr.Conditions.MarkFalse(
-			status.ConditionNamespaceRestrictedMetricsAvailable,
-			conditions.WithReason(gvk.MonitoringStack.Kind+"CRDNotFoundReason"),
-			conditions.WithMessage("%s CRD Not Found", gvk.MonitoringStack.Kind),
-		)
-		return nil
-	}
 
-	rr.Conditions.MarkTrue(status.ConditionMonitoringStackAvailable)
-	rr.Conditions.MarkTrue(status.ConditionNamespaceRestrictedMetricsAvailable)
-
-	template := []odhtypes.TemplateInfo{
-		{
-			FS:   resourcesFS,
-			Path: MonitoringStackTemplate,
-		},
-		{
-			FS:   resourcesFS,
-			Path: PrometheusRouteTemplate,
-		},
-		{
-			FS:   resourcesFS,
-			Path: PrometheusSecureRBACTemplate,
-		},
-		{
-			FS:   resourcesFS,
-			Path: PrometheusServiceOverrideTemplate,
-		},
-		{
-			FS:   resourcesFS,
-			Path: PrometheusNetworkPolicyTemplate,
-		},
-	}
-
-	rr.Templates = append(rr.Templates, template...)
-
-	return deployThanosQuerier(ctx, rr)
+	return nil
 }
 
 func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -485,13 +484,9 @@ func deployNamespaceRestrictedMetrics(ctx context.Context, rr *odhtypes.Reconcil
 }
 
 func deployThanosQuerier(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	_, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
-	}
-
-	if monitoring.Spec.Metrics == nil {
-		return nil
 	}
 
 	tqExists, err := cluster.HasCRD(ctx, rr.Client, gvk.ThanosQuerier)
