@@ -3463,7 +3463,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `monitoringStackCPULimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPULimit specifies the maximum CPU allocation (e.g., "500m", "2") | 500m |  |
+| `monitoringStackCPULimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPULimit specifies the maximum CPU allocation (e.g., "500m", "2") | 1 |  |
 | `monitoringStackCPURequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5") | 100m |  |
 | `monitoringStackMemoryLimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi") | 512Mi |  |
 | `monitoringStackMemoryRequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi") | 256Mi |  |

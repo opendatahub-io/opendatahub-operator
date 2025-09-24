@@ -45,7 +45,7 @@ var defaultResources = map[string]map[string]string{
 		"CPULimit":      "1",
 		"CPURequest":    "100m",
 		"MemoryLimit":   "512Mi",
-		"MemoryRequest": "512Mi",
+		"MemoryRequest": "256Mi",
 	},
 	"Collector": {
 		"CPULimit":      "1",

@@ -63,7 +63,7 @@ type Metrics struct {
 // MetricsResources defines the resource requests and limits for the monitoring service
 type MetricsResources struct {
 	// CPULimit specifies the maximum CPU allocation (e.g., "500m", "2")
-	// +kubebuilder:default="500m"
+	// +kubebuilder:default="1"
 	MonitoringStackCPULimit resource.Quantity `json:"monitoringStackCPULimit,omitempty"`
 	// CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5")
 	// +kubebuilder:default="100m"
