@@ -159,7 +159,7 @@ spec:
                             anyOf:
                             - type: integer
                             - type: string
-                            default: 500m
+                            default: "1"
                             description: CPULimit specifies the maximum CPU allocation
                               (e.g., "500m", "2")
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
@@ -230,7 +230,7 @@ spec:
                       rule: self == oldSelf
                   resources:
                     description: Resources defines the resource requests and limits
-                      for monitoring service components
+                      for shared monitoring components
                     properties:
                       collectorCPULimit:
                         anyOf:
@@ -329,23 +329,6 @@ spec:
                           rule: 'self.backend != ''pv'' ? has(self.secret) : true'
                         - message: Size is supported when backend is pv only
                           rule: 'self.backend != ''pv'' ? !has(self.size) : true'
-                      tls:
-                        description: TLS configuration for Tempo gRPC connections
-                        properties:
-                          caConfigMap:
-                            description: |-
-                              CAConfigMap specifies the name of the ConfigMap containing the CA certificate
-                              Required for mutual TLS authentication
-                            type: string
-                          certificateSecret:
-                            description: |-
-                              CertificateSecret specifies the name of the secret containing TLS certificates
-                              If not specified, OpenShift service serving certificates will be used
-                            type: string
-                          enabled:
-                            default: true
-                            description: Enabled enables TLS for Tempo gRPC connections
-                            type: boolean
                       tempoResources:
                         description: TempoResources defines the resource requests
                           and limits for the tempo-stack
@@ -388,6 +371,24 @@ spec:
                               "1Gi")
                             pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                             x-kubernetes-int-or-string: true
+                        type: object
+                      tls:
+                        description: TLS configuration for Tempo gRPC connections
+                        properties:
+                          caConfigMap:
+                            description: |-
+                              CAConfigMap specifies the name of the ConfigMap containing the CA certificate
+                              Required for mutual TLS authentication
+                            type: string
+                          certificateSecret:
+                            description: |-
+                              CertificateSecret specifies the name of the secret containing TLS certificates
+                              If not specified, OpenShift service serving certificates will be used
+                            type: string
+                          enabled:
+                            default: true
+                            description: Enabled enables TLS for Tempo gRPC connections
+                            type: boolean
                         type: object
                     required:
                     - storage
