@@ -34,8 +34,8 @@ func dataSciencePipelinesTestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate argoWorkflowsControllers options", componentCtx.ValidateArgoWorkflowsControllersOptions},
+		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	}
 
@@ -60,7 +60,7 @@ func (tc *DataSciencePipelinesTestCtx) ValidateConditions(t *testing.T) {
 func (tc *DataSciencePipelinesTestCtx) ValidateArgoWorkflowsControllersOptions(t *testing.T) {
 	t.Helper()
 
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.datasciencepipelines.argoWorkflowsControllers.managementState = "%s"`, operatorv1.Removed)),
 		WithCondition(
