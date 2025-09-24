@@ -32,7 +32,7 @@ const (
 	// RoleBinding names to bind roles to specific groups.
 	adminGroupRoleBindingName = "admingroup-rolebinding"
 
-	// ClusterRole and ClusterRoleBinding names for admin group access at cluster level.
+	// ClusterRole and ClusterRoleBinding names for group access at cluster level.
 	adminGroupClusterRoleName          = "admingroupcluster-role"
 	adminGroupClusterRoleBindingName   = "admingroupcluster-rolebinding"
 	allowedGroupClusterRoleName        = "allowedgroupcluster-role"
