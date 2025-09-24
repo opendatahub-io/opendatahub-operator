@@ -91,9 +91,9 @@ func (w *ConnectionWebhook) Handle(ctx context.Context, req admission.Request) a
 				webhookutils.ConnectionTypeProtocolOCI.String(),
 			},
 			annotations.ConnectionTypeRef: {
-				webhookutils.ConnectionTypeRefURI.String(), //nolint:staticcheck // deprecated but supported for backward compatibility.
-				webhookutils.ConnectionTypeRefS3.String(),  //nolint:staticcheck // deprecated but supported for backward compatibility.
-				webhookutils.ConnectionTypeRefOCI.String(), //nolint:staticcheck // deprecated but supported for backward compatibility.
+				webhookutils.ConnectionTypeRefURI.String(),
+				webhookutils.ConnectionTypeRefS3.String(),
+				webhookutils.ConnectionTypeRefOCI.String(),
 			},
 		}
 
@@ -260,21 +260,21 @@ func (w *ConnectionWebhook) performConnectionInjection(
 
 	// injection based on connection type
 	switch connectionType {
-	case webhookutils.ConnectionTypeProtocolOCI.String(), webhookutils.ConnectionTypeRefOCI.String(): //nolint:staticcheck
+	case webhookutils.ConnectionTypeProtocolOCI.String(), webhookutils.ConnectionTypeRefOCI.String():
 		if err := w.injectOCIImagePullSecrets(decodedObj, secretName); err != nil {
 			return false, fmt.Errorf("failed to inject OCI imagePullSecrets: %w", err)
 		}
 		log.V(1).Info("Successfully injected OCI imagePullSecrets", "secretName", secretName)
 		return true, nil
 
-	case webhookutils.ConnectionTypeProtocolURI.String(), webhookutils.ConnectionTypeRefURI.String(): //nolint:staticcheck
+	case webhookutils.ConnectionTypeProtocolURI.String(), webhookutils.ConnectionTypeRefURI.String():
 		if err := w.injectURIStorageUri(ctx, decodedObj, secretName, req.Namespace); err != nil {
 			return false, fmt.Errorf("failed to inject URI storageUri: %w", err)
 		}
 		log.V(1).Info("Successfully injected URI storageUri from secret", "secretName", secretName)
 		return true, nil
 
-	case webhookutils.ConnectionTypeProtocolS3.String(), webhookutils.ConnectionTypeRefS3.String(): //nolint:staticcheck
+	case webhookutils.ConnectionTypeProtocolS3.String(), webhookutils.ConnectionTypeRefS3.String():
 		// inject ServiceAccount only for S3 connections
 		if err := w.handleSA(decodedObj, secretName+"-sa"); err != nil {
 			log.Error(err, "Failed to inject ServiceAccount")
@@ -335,21 +335,21 @@ func (w *ConnectionWebhook) performConnectionCleanup(
 		}
 		log.V(1).Info("Successfully cleaned up S3 storage key", "name", req.Name, "namespace", req.Namespace)
 
-	case webhookutils.ConnectionTypeProtocolOCI.String(), webhookutils.ConnectionTypeRefOCI.String(): //nolint:staticcheck
+	case webhookutils.ConnectionTypeProtocolOCI.String(), webhookutils.ConnectionTypeRefOCI.String():
 		if err := w.cleanupOCIImagePullSecrets(decodedObj); err != nil {
 			log.Error(err, "Failed to cleanup OCI imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
 			return false, fmt.Errorf("failed to cleanup OCI imagePullSecrets: %w", err)
 		}
 		log.V(1).Info("Successfully cleaned up OCI imagePullSecrets", "name", req.Name, "namespace", req.Namespace)
 
-	case webhookutils.ConnectionTypeProtocolURI.String(), webhookutils.ConnectionTypeRefURI.String(): //nolint:staticcheck
+	case webhookutils.ConnectionTypeProtocolURI.String(), webhookutils.ConnectionTypeRefURI.String():
 		if err := w.cleanupURIStorageUri(decodedObj); err != nil {
 			log.Error(err, "Failed to cleanup URI storageUri", "name", req.Name, "namespace", req.Namespace)
 			return false, fmt.Errorf("failed to cleanup URI storageUri: %w", err)
 		}
 		log.V(1).Info("Successfully cleaned up URI storageUri", "name", req.Name, "namespace", req.Namespace)
 
-	case webhookutils.ConnectionTypeProtocolS3.String(), webhookutils.ConnectionTypeRefS3.String(): //nolint:staticcheck
+	case webhookutils.ConnectionTypeProtocolS3.String(), webhookutils.ConnectionTypeRefS3.String():
 		// remove ServiceAccountName injection, if we need it in replacement, we ill add it back later.
 		if err := w.handleSA(decodedObj, ""); err != nil {
 			log.Error(err, "Failed to cleanup ServiceAccountName")

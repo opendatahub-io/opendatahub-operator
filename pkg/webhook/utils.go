@@ -51,17 +51,14 @@ const (
 	ConnectionTypeProtocolOCI ConnectionType = "oci"
 )
 
-// Deprecated: ConnectionTypeRef constants are deprecated in favor of ConnectionTypeProtocol constants.
+// ConnectionTypeRef constants are deprecated in favor of ConnectionTypeProtocol constants.
 // Use ConnectionTypeProtocolURI, ConnectionTypeProtocolS3, and ConnectionTypeProtocolOCI instead.
 const (
 	// ConnectionTypeRefURI represents uri connections.
-	// Deprecated: Use ConnectionTypeProtocolURI instead.
 	ConnectionTypeRefURI ConnectionType = "uri-v1"
 	// ConnectionTypeRefS3 represents s3 connections.
-	// Deprecated: Use ConnectionTypeProtocolS3 instead.
 	ConnectionTypeRefS3 ConnectionType = "s3"
 	// ConnectionTypeRefOCI represents oci connections.
-	// Deprecated: Use ConnectionTypeProtocolOCI instead.
 	ConnectionTypeRefOCI ConnectionType = "oci-v1"
 )
 
@@ -222,8 +219,8 @@ func DecodeUnstructured(decoder admission.Decoder, req admission.Request) (*unst
 // If the connection annotation doesn't exist or is empty, it allows the operation.
 // If the connection annotation exists and has a non-empty value, it validates that the value references
 // a valid secret in the same namespace.
-// Additionally it checks the secret connection type. If it can't find the connection type, it denies the operation.
-// If the connection type is unknown, it allows the operation but skips the injection.
+// Additionally it checks the secret connection type. If it can't find the connection type or if it is unknown,
+// it allows the operation but skips the injection.
 //
 // Parameters:
 //   - ctx: Context for the API call (logger is extracted from here).
@@ -264,13 +261,15 @@ func ValidateInferenceServiceConnectionAnnotation(ctx context.Context,
 	// Validate the connection type
 	connectionType, isValidType := ValidateInferenceServiceConnectionType(secretMeta, allowedTypes)
 
-	// If neither connection type is missing, deny the operation
+	// If neither connection type is present, allow the operation but skip injection
 	if connectionType == "" {
-		return admission.Denied(fmt.Sprintf("Secret '%s' does not have '%s' or '%s' annotation",
+		log.Info(fmt.Sprintf("Secret does not have '%s' or '%s' annotation, allowing operation but skipping injection",
+			annotations.ConnectionTypeProtocol, annotations.ConnectionTypeRef), "connectionType", connectionType, "allowedTypes", allowedTypes)
+		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' or '%s' annotation",
 			annotationValue, annotations.ConnectionTypeProtocol, annotations.ConnectionTypeRef)), "", ""
 	}
 
-	// Allow unknown connection types but log a warning and don't perform injection
+	// Allow unknown connection types but log a warning and skip injection
 	if !isValidType {
 		log.Info("Unknown connection type found, allowing operation but skipping injection", "connectionType", connectionType, "allowedTypes", allowedTypes)
 		return admission.Allowed(fmt.Sprintf("Annotation '%s' validation on secret '%s' with unknown type '%s' in namespace '%s'",

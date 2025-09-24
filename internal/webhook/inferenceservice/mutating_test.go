@@ -642,7 +642,7 @@ func TestDeprecatedConnectionTypeRefAnnotation(t *testing.T) {
 	testCases := []TestCase{
 		{
 			name:            "deprecated ConnectionTypeRef S3 annotation should work",
-			secretType:      webhookutils.ConnectionTypeRefS3.String(), //nolint:staticcheck
+			secretType:      webhookutils.ConnectionTypeRefS3.String(),
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret},
 			predictorSpec:   map[string]interface{}{"model": map[string]interface{}{}},
@@ -654,7 +654,7 @@ func TestDeprecatedConnectionTypeRefAnnotation(t *testing.T) {
 		},
 		{
 			name:               "deprecated ConnectionTypeRef URI annotation should work",
-			secretType:         webhookutils.ConnectionTypeRefURI.String(), //nolint:staticcheck
+			secretType:         webhookutils.ConnectionTypeRefURI.String(),
 			secretNamespace:    testNamespace,
 			secretData:         map[string][]byte{"URI": []byte("https://example.com/model")},
 			annotations:        map[string]string{annotations.Connection: testSecret},
@@ -665,7 +665,7 @@ func TestDeprecatedConnectionTypeRefAnnotation(t *testing.T) {
 		},
 		{
 			name:               "deprecated ConnectionTypeRef OCI annotation should work",
-			secretType:         webhookutils.ConnectionTypeRefOCI.String(), //nolint:staticcheck
+			secretType:         webhookutils.ConnectionTypeRefOCI.String(),
 			secretNamespace:    testNamespace,
 			annotations:        map[string]string{annotations.Connection: testSecret},
 			operation:          admissionv1.Create,
@@ -684,17 +684,17 @@ func TestDeprecatedConnectionTypeRefAnnotation(t *testing.T) {
 	}
 }
 
-// TestConnectionTypeValidationDenial tests that operations are denied when neither annotation exists.
-func TestConnectionTypeValidationDenial(t *testing.T) {
+// TestConnectionTypeValidationAllowed tests that operations are allowed when neither annotation exists.
+func TestConnectionTypeValidationAllowed(t *testing.T) {
 	testCases := []TestCase{
 		{
-			name:            "secret without connection type annotations should be denied",
+			name:            "secret without connection type annotations should be allowed",
 			secretType:      "", // Will be handled specially in the custom secret creator
 			secretNamespace: testNamespace,
 			annotations:     map[string]string{annotations.Connection: testSecret},
 			operation:       admissionv1.Create,
-			expectedAllowed: false,
-			expectedMessage: "does not have",
+			expectedAllowed: true,
+			expectedMessage: "No connection injection performed",
 		},
 	}
 
@@ -727,9 +727,9 @@ func TestValidateInferenceServiceConnectionType(t *testing.T) {
 			webhookutils.ConnectionTypeProtocolOCI.String(),
 		},
 		annotations.ConnectionTypeRef: {
-			webhookutils.ConnectionTypeRefURI.String(), //nolint:staticcheck
-			webhookutils.ConnectionTypeRefS3.String(),  //nolint:staticcheck
-			webhookutils.ConnectionTypeRefOCI.String(), //nolint:staticcheck
+			webhookutils.ConnectionTypeRefURI.String(),
+			webhookutils.ConnectionTypeRefS3.String(),
+			webhookutils.ConnectionTypeRefOCI.String(),
 		},
 	}
 
@@ -750,8 +750,8 @@ func TestValidateInferenceServiceConnectionType(t *testing.T) {
 		{
 			name:               "empty protocol falls back to ref",
 			protocolAnnotation: "",
-			refAnnotation:      webhookutils.ConnectionTypeRefOCI.String(), //nolint:staticcheck
-			expectedType:       webhookutils.ConnectionTypeRefOCI.String(), //nolint:staticcheck
+			refAnnotation:      webhookutils.ConnectionTypeRefOCI.String(),
+			expectedType:       webhookutils.ConnectionTypeRefOCI.String(),
 			expectedValid:      true,
 		},
 		{
