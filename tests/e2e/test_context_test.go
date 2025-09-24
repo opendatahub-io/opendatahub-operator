@@ -110,13 +110,13 @@ func (tc *TestContext) OverrideEventuallyTimeout(timeout, pollInterval time.Dura
 
 	// Override with new values
 	tc.g.SetDefaultEventuallyTimeout(timeout)
-	tc.g.SetDefaultConsistentlyPollingInterval(pollInterval)
+	tc.g.SetDefaultEventuallyPollingInterval(pollInterval)
 
 	// Return a function to reset them back
 	return func() {
 		// Override with new values
 		tc.g.SetDefaultEventuallyTimeout(previousTimeout)
-		tc.g.SetDefaultConsistentlyPollingInterval(previousPollInterval)
+		tc.g.SetDefaultEventuallyPollingInterval(previousPollInterval)
 	}
 }
 
@@ -232,6 +232,110 @@ func (tc *TestContext) EnsureResourceExistsConsistently(opts ...ResourceOpts) *u
 	return u
 }
 
+// EventuallyResourceCreated attempts to create a new Kubernetes resource.
+// This function calls Create() directly and will fail if the resource already exists.
+// Use EventuallyResourceCreatedOrUpdated if you need creation-or-update semantics.
+//
+// Behavior is controlled by the following optional flags:
+//   - WithObjectToCreate: Specifies the resource object to create (required).
+//   - WithCondition: Validates the resource state after creation.
+//
+// Parameters:
+//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
+//
+// Returns:
+//   - *unstructured.Unstructured: The newly created resource object.
+func (tc *TestContext) EventuallyResourceCreated(opts ...ResourceOpts) *unstructured.Unstructured {
+	// Create a ResourceOptions object based on the provided opts.
+	ro := tc.NewResourceOptions(opts...)
+
+	// Default the condition to Succeed() if it's not provided.
+	if ro.Condition == nil {
+		ro.Condition = Succeed()
+	}
+
+	// Create adapter function to match the signature
+	createFn := func(obj *unstructured.Unstructured, fn ...func(obj *unstructured.Unstructured) error) *testf.EventuallyValue[*unstructured.Unstructured] {
+		if len(fn) > 0 && fn[0] != nil {
+			_ = fn[0](obj) // Apply mutation
+		}
+		return tc.g.Create(obj, ro.NN)
+	}
+
+	return eventuallyResourceApplied(ro, createFn)
+}
+
+// EventuallyResourceUpdated attempts to update an existing Kubernetes resource.
+// This function calls Update() directly and will fail if the resource doesn't exist.
+// Use EventuallyResourceCreatedOrUpdated if you need creation-or-update semantics.
+//
+// Behavior is controlled by the following optional flags:
+//   - WithMutateFunc: Defines how to modify the resource during update (required).
+//   - WithCondition: Validates the resource state after update.
+//
+// Parameters:
+//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
+//
+// Returns:
+//   - *unstructured.Unstructured: The updated resource object.
+func (tc *TestContext) EventuallyResourceUpdated(opts ...ResourceOpts) *unstructured.Unstructured {
+	// Create a ResourceOptions object based on the provided opts.
+	ro := tc.NewResourceOptions(opts...)
+
+	// Default the condition to Succeed() if it's not provided.
+	if ro.Condition == nil {
+		ro.Condition = Succeed()
+	}
+
+	updateFn := func(obj *unstructured.Unstructured, fn ...func(obj *unstructured.Unstructured) error) *testf.EventuallyValue[*unstructured.Unstructured] {
+		// Default to no-op if no function provided
+		mutationFn := func(obj *unstructured.Unstructured) error { return nil }
+		if len(fn) > 0 && fn[0] != nil {
+			mutationFn = fn[0]
+		}
+		return tc.g.Update(ro.GVK, ro.NN, mutationFn)
+	}
+
+	return eventuallyResourceApplied(ro, updateFn)
+}
+
+// EventuallyResourcePatched attempts to patch an existing Kubernetes resource.
+// This function calls Patch() directly and will fail if the resource doesn't exist.
+// Use EventuallyResourceCreatedOrPatched if you need creation-or-patch semantics.
+//
+// Behavior is controlled by the following optional flags:
+//   - WithMutateFunc: Defines how to modify the resource during patch (required).
+//   - WithCondition: Validates the resource state after patch.
+//
+// Parameters:
+//   - opts (...ResourceOpts): Optional functional arguments that customize the behavior of the operation.
+//
+// Returns:
+//   - *unstructured.Unstructured: The patched resource object.
+func (tc *TestContext) EventuallyResourcePatched(opts ...ResourceOpts) *unstructured.Unstructured {
+	// Create a ResourceOptions object based on the provided opts.
+	ro := tc.NewResourceOptions(opts...)
+
+	// Default the condition to Succeed() if it's not provided.
+	if ro.Condition == nil {
+		ro.Condition = Succeed()
+	}
+
+	// Create adapter function to match the signature
+	patchFn := func(obj *unstructured.Unstructured, fn ...func(obj *unstructured.Unstructured) error) *testf.EventuallyValue[*unstructured.Unstructured] {
+		// Default to no-op if no function provided
+		mutationFn := func(obj *unstructured.Unstructured) error { return nil }
+		if len(fn) > 0 && fn[0] != nil {
+			mutationFn = fn[0]
+		}
+
+		return tc.g.Patch(ro.GVK, ro.NN, mutationFn)
+	}
+
+	// Apply the resource using eventuallyResourceApplied with CreateOrPatch.
+	return eventuallyResourceApplied(ro, patchFn)
+}
+
 // EventuallyResourceCreatedOrUpdated ensures that a given Kubernetes resource exists.
 // If the resource is missing, it will be created; if it already exists, it will be updated
 // using the provided mutation function. This function retries until the operation succeeds.
@@ -290,7 +394,7 @@ func (tc *TestContext) ConsistentlyResourceCreatedOrUpdated(opts ...ResourceOpts
 	return consistentlyResourceApplied(ro, tc.g.CreateOrUpdate)
 }
 
-// EnsureResourceCreatedOrPatched ensures that a given Kubernetes resource exists.
+// EventuallyResourceCreatedOrPatched ensures that a given Kubernetes resource exists.
 // If the resource is missing, it will be created; if it already exists, it will be patched.
 // If a condition is provided, it will be evaluated; otherwise, Succeed() is used.
 //
@@ -299,7 +403,7 @@ func (tc *TestContext) ConsistentlyResourceCreatedOrUpdated(opts ...ResourceOpts
 //
 // Returns:
 //   - *unstructured.Unstructured: The existing or newly created (patched) resource object.
-func (tc *TestContext) EnsureResourceCreatedOrPatched(opts ...ResourceOpts) *unstructured.Unstructured {
+func (tc *TestContext) EventuallyResourceCreatedOrPatched(opts ...ResourceOpts) *unstructured.Unstructured {
 	// Create a ResourceOptions object based on the provided opts.
 	ro := tc.NewResourceOptions(opts...)
 
@@ -873,8 +977,13 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 
 	// Step 2.5: Ensure the resource is actually deleted before looking for recreation
 	tc.g.Eventually(func(g Gomega) {
-		u, err := fetchResource(ro)
+		// Use direct client.Get() instead of fetchResource() to avoid nested Eventually calls
+		u, err := tc.g.Get(ro.GVK, ro.NN).Get()
 		if err != nil {
+			// For NotFound errors, the resource is successfully deleted
+			if k8serr.IsNotFound(err) {
+				return // Resource is successfully deleted
+			}
 			g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch %s %s during deletion check", ro.GVK.Kind, ro.ResourceID)
 			return // This fails the Eventually iteration, causing retry
 		}
@@ -898,7 +1007,8 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 
 	tc.g.Eventually(func(g Gomega) {
 		// Poll without nesting Eventually to avoid compounded timeouts
-		u, err := fetchResource(ro)
+		// Use direct client.Get() instead of fetchResource() to avoid nested Eventually calls
+		u, err := tc.g.Get(ro.GVK, ro.NN).Get()
 		g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch %s %s", ro.GVK.Kind, ro.ResourceID)
 		g.Expect(u).NotTo(BeNil(), "Expected %s %s to be recreated", ro.GVK.Kind, ro.ResourceID)
 		recreatedResource = u
@@ -1463,11 +1573,21 @@ func (tc *TestContext) tryRemoveFinalizers(gvk schema.GroupVersionKind, nn types
 
 	// Try to remove finalizers by fetching the existing resource first
 	// This avoids validation issues with minimal objects that have empty specs
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithFetchedObject(gvk, nn),
 		WithMutateFunc(testf.Transform(`.metadata.finalizers = []`)),
 		WithIgnoreNotFound(true),
-		WithAcceptableErr(meta.IsNoMatchError, "IsNoMatchError"),
+		WithAcceptableErr(func(err error) bool {
+			if err == nil {
+				return false
+			}
+			// Accept various cleanup-related errors to make tryRemoveFinalizers more robust
+			return meta.IsNoMatchError(err) || // CRD doesn't exist
+				k8serr.IsNotFound(err) || // Resource doesn't exist
+				k8serr.IsInvalid(err) || // Resource validation errors
+				k8serr.IsConflict(err) || // Resource version conflicts
+				strings.Contains(err.Error(), "resourceVersion should not be set on objects to be created") // Generic resource version creation errors
+		}, "AcceptableCleanupError"),
 		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout), // Short timeout for best-effort
 	)
 }
