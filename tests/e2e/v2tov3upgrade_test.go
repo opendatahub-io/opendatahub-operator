@@ -131,7 +131,7 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateRayRaiseErrorIfCodeFlarePresent(t *testi
 func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 	t.Helper()
 
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard = {}`)),
 		WithCondition(jq.Match(`.metadata.generation == .status.observedGeneration`)),

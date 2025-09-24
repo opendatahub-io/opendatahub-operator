@@ -106,12 +106,8 @@ func (tc *CfgMapDeletionTestCtx) RemoveDeletionConfigMap(t *testing.T) {
 	t.Helper()
 
 	// Delete the config map
-	propagationPolicy := metav1.DeletePropagationForeground
 	tc.DeleteResource(
 		WithMinimalObject(gvk.ConfigMap, tc.ConfigMapNamespacedName),
-		WithClientDeleteOptions(
-			&client.DeleteOptions{
-				PropagationPolicy: &propagationPolicy,
-			}),
+		WithForegroundDeletion(),
 	)
 }
