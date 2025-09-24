@@ -122,7 +122,7 @@ func bindClusterRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, gr
 	}
 	err := rr.AddResources(crb)
 	if err != nil {
-		return errors.New("error creating RoleBinding for group")
+		return errors.New("error creating ClusterRoleBinding for group")
 	}
 
 	return nil
