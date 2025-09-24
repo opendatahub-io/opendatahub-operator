@@ -438,10 +438,10 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRCollectorReplicas(t *testing.T)
 		WithCustomErrorMsg("CollectorReplicas should be updated to %d by DSCInitialization controller", testReplicas),
 	)
 
-	// Cleanup: Reset collectorReplicas to default to prevent test contamination
+	// Cleanup: Remove collectorReplicas to prevent test contamination
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.collectorReplicas = %d`, defaultReplicas)),
+		WithMutateFunc(withNoCollectorReplicas()),
 	)
 }
 
@@ -718,6 +718,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 	tc.EnsureResourcesGone(
 		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: MonitoringStackName, Namespace: tc.MonitoringNamespace}),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithRemoveFinalizersOnDelete(true), // Remove finalizers if deletion is stuck
 		WithCustomErrorMsg("MonitoringStack should be deleted when metrics and alerting are removed"),
 	)
 
@@ -751,6 +752,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 				Name:      resource.name,
 				Namespace: tc.MonitoringNamespace,
 			}),
+			WithRemoveFinalizersOnDelete(true),
 		)
 	}
 }
@@ -767,7 +769,10 @@ func (tc *MonitoringTestCtx) ensureMonitoringCleanSlate(t *testing.T, secretName
 	tc.updateMonitoringConfig(withManagementState(operatorv1.Removed))
 
 	// Wait for all monitoring resources to be cleaned up
-	tc.EnsureResourcesGone(WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}))
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithRemoveFinalizersOnDelete(true), // Remove finalizers just in case it stuck.
+	)
 
 	// Clean up TempoStack and associated secret (if provided)
 	tc.cleanupTempoStackAndSecret(secretName)
