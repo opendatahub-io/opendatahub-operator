@@ -291,7 +291,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		// Create default HWProfile CR
-		if err = r.ManageHWProfileCR(ctx, instance, platform); err != nil {
+		if err = r.ManageDefaultHWProfileCR(ctx, instance, platform); err != nil {
 			log.Info("failed to create default HardwareProfile CR")
 			return ctrl.Result{}, err
 		}

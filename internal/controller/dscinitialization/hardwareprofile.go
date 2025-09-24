@@ -46,7 +46,7 @@ func (r *DSCInitializationReconciler) CreateVAP(ctx context.Context, dscInit *ds
 }
 
 // deploy hardware profile CR with dsci as owner, but allow user change by annotation set to false.
-func (r *DSCInitializationReconciler) ManageHWProfileCR(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform common.Platform) error {
+func (r *DSCInitializationReconciler) ManageDefaultHWProfileCR(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
 	if platform == "" { // this is for test to skip creation.
