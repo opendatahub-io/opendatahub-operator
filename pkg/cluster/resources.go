@@ -23,6 +23,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -134,6 +135,19 @@ func GetDSCI(ctx context.Context, cli client.Client) (*dsciv1.DSCInitialization,
 	default:
 		return nil, fmt.Errorf("failed to get a valid %s instance, expected to find 1 instance, found %d", gvk.DSCInitialization, len(instances.Items))
 	}
+}
+
+// GetHardwareProfile retrieves a specific HardwareProfile instance by name and namespace.
+func GetHardwareProfile(ctx context.Context, cli client.Client, name, namespace string) (*infrav1.HardwareProfile, error) {
+	hwProfile := &infrav1.HardwareProfile{}
+	err := cli.Get(ctx, client.ObjectKey{
+		Name:      name,
+		Namespace: namespace,
+	}, hwProfile)
+	if err != nil {
+		return nil, err
+	}
+	return hwProfile, nil
 }
 
 // UpdatePodSecurityRolebinding update default rolebinding which is created in applications namespace by manifests
