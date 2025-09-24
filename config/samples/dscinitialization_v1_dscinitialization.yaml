@@ -14,12 +14,6 @@ spec:
     namespace: 'opendatahub'
     metrics: {}
   applicationsNamespace: 'opendatahub'
-  serviceMesh:
-    controlPlane:
-      metricsCollection: Istio
-      name: data-science-smcp
-      namespace: istio-system
-    managementState: "Unmanaged"
   trustedCABundle:
     managementState: "Managed"
     customCABundle: ""

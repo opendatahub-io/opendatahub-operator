@@ -31,7 +31,6 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -121,14 +120,6 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform
 			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 				Namespace: monNamespace,
 				Metrics:   &serviceApi.Metrics{},
-			},
-		},
-		ServiceMesh: &infrav1.ServiceMeshSpec{
-			ManagementState: "Managed",
-			ControlPlane: infrav1.ControlPlaneSpec{
-				Name:              "data-science-smcp",
-				Namespace:         "istio-system",
-				MetricsCollection: "Istio",
 			},
 		},
 		TrustedCABundle: &dsciv1.TrustedCABundleSpec{

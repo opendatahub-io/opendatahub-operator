@@ -1065,7 +1065,6 @@ func (in *Kserve) DeepCopyObject() runtime.Object {
 func (in *KserveCommonSpec) DeepCopyInto(out *KserveCommonSpec) {
 	*out = *in
 	in.DevFlagsSpec.DeepCopyInto(&out.DevFlagsSpec)
-	out.Serving = in.Serving
 	out.NIM = in.NIM
 }
 
