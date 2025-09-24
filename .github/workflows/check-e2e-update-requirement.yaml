@@ -1,0 +1,178 @@
+name: Check requirement to update E2E test suite
+on:
+  pull_request:
+    types: [ opened, synchronize, edited ]
+    paths:
+      - 'bundle/**'
+      - 'config/**'
+      - 'Dockerfiles/**'
+      - 'internal/**'
+      - 'pkg/**'
+      - 'cmd/main.go'
+    branches: [ 'main' ]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+jobs:
+  check-e2e-update-requirement:
+    name: Check requirement to update E2E test suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Save PR info
+        run: |
+          echo "${{ github.event.number }}" > pr_number.txt
+          echo "${{ github.event.pull_request.user.login }}" > pr_author.txt
+
+      - name: Check requirement to update E2E test suite
+        id: check-e2e
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const { owner, repo } = context.repo;
+            const prNumber = context.issue.number;
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: prNumber,
+            });
+
+            const prBody = pr.body || '';
+            const skipE2eChecked = /- \[x\]\s*Skip requirement to update E2E test suite for this PR/i.test(prBody);
+            
+            console.log(`Skip e2e checkbox checked: ${skipE2eChecked}`);
+            
+            let checkResult = {
+              status: 'success',
+              reason: '',
+              needsComment: false,
+              commentType: ''
+            };
+            
+            if (skipE2eChecked) {
+              console.log('Skip e2e checkbox is checked, looking for justification in PR description...');
+              
+              const validateJustification = (text) => {
+                // Create regex for the PR description title level (#### is used in PR description)
+                const titleRegex = new RegExp(`^\\s*####\\s*E2E update requirement opt-out justification\\s*:?\\s*$`, 'im');
+                const titleMatch = text.match(titleRegex);
+                
+                if (!titleMatch) {
+                  return false;
+                }
+                
+                // Get the justification content below the title
+                const titleIndex = titleMatch.index + titleMatch[0].length;
+                const contentAfterTitle = text.substring(titleIndex);
+                
+                // find the next title at same or higher depth => this will determine the end of the justification content
+                const nextTitleRegex = /^\s*#{1,4}\s*\S+/m;
+                const nextTitleMatch = contentAfterTitle.match(nextTitleRegex);
+                
+                let justificationContent;
+                if (nextTitleMatch) {
+                  // next title found => get content only until this next title
+                  justificationContent = contentAfterTitle.substring(0, nextTitleMatch.index);
+                } else {
+                  // no next title found => take all the remaining content
+                  justificationContent = contentAfterTitle;
+                }
+                
+                // check if there's a non-empty justification comment - ignoring whitespace, HTML comments, and empty lines
+                const justificationComment = justificationContent
+                  .replace(/<!--[\s\S]*?-->/g, '')
+                  .replace(/^\s*$/gm, '')
+                  .trim();
+                
+                return justificationComment.length > 0;
+              };
+              
+              // Check if justification is provided in PR description
+              const prDescriptionHasJustification = validateJustification(prBody);
+              console.log(`Justification found in PR description: ${prDescriptionHasJustification}`);
+              
+              if (!prDescriptionHasJustification) {
+                console.log('❌ FAILURE: PR author opted-out of the E2E test suite update requirement, but no justification was found in PR description. A GitHub bot will add a comment on the PR with error report and instructions on how to proceed...');
+                checkResult = {
+                  status: 'failure',
+                  reason: 'PR author opted-out of the E2E test suite update requirement, but no justification was found in PR description',
+                  needsComment: true,
+                  commentType: 'missing_justification'
+                };
+              } else {
+                console.log(`Found justification from PR author`);
+                console.log('✅ SUCCESS: PR author opted-out of the E2E test suite update requirement and provided a justification');
+                checkResult = {
+                  status: 'success',
+                  reason: 'PR author opted-out of the E2E test suite update requirement and provided a justification',
+                  needsComment: false,
+                  commentType: ''
+                };
+              }
+            } else {
+              // skip e2e update requirement checkbox is not checked
+              // => verify e2e tests were added/updated
+              console.log('Requirement to update E2E test suite was not set to be skipped, checking for e2e test updates in the PR...');
+              
+              const { data: files } = await github.rest.pulls.listFiles({
+                owner,
+                repo,
+                pull_number: prNumber,
+              });
+              
+              // Check if any files in tests/e2e directory were modified
+              const e2eFilesModified = files.some(file => 
+                file.filename.startsWith('tests/e2e/') && 
+                ['added', 'modified', 'renamed'].includes(file.status)
+              );
+              
+              console.log(`E2E files modified: ${e2eFilesModified}`);
+              console.log('Modified files:', files.map(f => f.filename).join(', '));
+              
+              if (!e2eFilesModified) {
+                console.log('❌ FAILURE: No e2e tests updated and skip checkbox not checked. A GitHub bot will add a comment on the PR with error report and instructions on how to proceed...');
+                checkResult = {
+                  status: 'failure',
+                  reason: 'No e2e tests updated and skip checkbox not checked',
+                  needsComment: true,
+                  commentType: 'missing_e2e_tests'
+                };
+              } else {
+                console.log('✅ SUCCESS: E2E tests were added/updated in the PR');
+                checkResult = {
+                  status: 'success',
+                  reason: 'E2E tests were added/updated in the PR',
+                  needsComment: false,
+                  commentType: ''
+                };
+              }
+            }
+            
+            // save results to files for the comment workflow
+            fs.writeFileSync('check_result.json', JSON.stringify(checkResult));
+            
+            if (checkResult.status === 'failure') {
+              core.setFailed(`❌ FAILURE: ${checkResult.reason}`);
+            } else {
+              console.log('✅ SUCCESS: E2E requirement check passed');
+            }
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-check-results
+          path: |
+            pr_number.txt
+            pr_author.txt
+            check_result.json

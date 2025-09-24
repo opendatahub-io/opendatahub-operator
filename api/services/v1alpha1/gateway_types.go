@@ -36,35 +36,17 @@ var _ common.PlatformObject = (*GatewayConfig)(nil)
 
 // GatewayConfigSpec defines the desired state of GatewayConfig
 type GatewayConfigSpec struct {
-	// Authentication configuration
+	// OIDC configuration (used when cluster is in OIDC authentication mode)
 	// +optional
-	Auth GatewayAuthSpec `json:"auth"`
+	OIDC *OIDCConfig `json:"oidc,omitempty"`
 
 	// Certificate management
 	// +optional
 	Certificate *infrav1.CertificateSpec `json:"certificate,omitempty"`
 
-	// Domain configuration for the gateway
+	// Domain configuration for the GatewayConfig
 	// +optional
 	Domain string `json:"domain,omitempty"`
-
-	// Namespace where the gateway resources should be deployed
-	// +kubebuilder:default="openshift-ingress"
-	// +optional
-	Namespace string `json:"namespace,omitempty"`
-}
-
-// GatewayAuthSpec defines authentication configuration for the gateway
-type GatewayAuthSpec struct {
-	// Authentication mode: "openshift-oauth" | "oidc" | "auto"
-	// +kubebuilder:validation:Enum=openshift-oauth;oidc;auto
-	// +kubebuilder:default="auto"
-	// +optional
-	Mode string `json:"mode,omitempty"`
-
-	// OIDC configuration (required when mode="oidc")
-	// +optional
-	OIDC *OIDCConfig `json:"oidc,omitempty"`
 }
 
 // OIDCConfig defines OIDC provider configuration
@@ -73,7 +55,11 @@ type OIDCConfig struct {
 	// +kubebuilder:validation:Required
 	IssuerURL string `json:"issuerURL"`
 
-	// Reference to secret containing clientID and clientSecret
+	// OIDC client ID
+	// +kubebuilder:validation:Required
+	ClientID string `json:"clientID"`
+
+	// Reference to secret containing client secret
 	// +kubebuilder:validation:Required
 	ClientSecretRef corev1.SecretKeySelector `json:"clientSecretRef"`
 }

@@ -13,7 +13,6 @@ declare -A COMPONENT_MANIFESTS=(
     ["modelmeshserving"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0:config"
     ["kserve"]="opendatahub-io:kserve:release-v0.15:config"
     ["kueue"]="opendatahub-io:kueue:dev:config"
-    ["codeflare"]="opendatahub-io:codeflare-operator:main:config"
     ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation:config"
     ["modelregistry"]="opendatahub-io:model-registry-operator:main:config"
@@ -32,6 +31,7 @@ declare -A PLATFORM_MANIFESTS=(
     ["osd-configs"]="config/osd-configs"
     ["monitoring"]="config/monitoring"
     ["kueue-configs"]="config/kueue-configs"
+    ["hardwareprofiles"]="config/hardwareprofiles"
 )
 
 # Allow overwriting repo using flags component=repo

@@ -48,53 +48,6 @@ spec:
           spec:
             description: GatewayConfigSpec defines the desired state of GatewayConfig
             properties:
-              auth:
-                description: Authentication configuration
-                properties:
-                  mode:
-                    default: auto
-                    description: 'Authentication mode: "openshift-oauth" | "oidc"
-                      | "auto"'
-                    enum:
-                    - openshift-oauth
-                    - oidc
-                    - auto
-                    type: string
-                  oidc:
-                    description: OIDC configuration (required when mode="oidc")
-                    properties:
-                      clientSecretRef:
-                        description: Reference to secret containing clientID and clientSecret
-                        properties:
-                          key:
-                            description: The key of the secret to select from.  Must
-                              be a valid secret key.
-                            type: string
-                          name:
-                            default: ""
-                            description: |-
-                              Name of the referent.
-                              This field is effectively required, but due to backwards compatibility is
-                              allowed to be empty. Instances of this type with an empty value here are
-                              almost certainly wrong.
-                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            type: string
-                          optional:
-                            description: Specify whether the Secret or its key must
-                              be defined
-                            type: boolean
-                        required:
-                        - key
-                        type: object
-                        x-kubernetes-map-type: atomic
-                      issuerURL:
-                        description: OIDC issuer URL
-                        type: string
-                    required:
-                    - clientSecretRef
-                    - issuerURL
-                    type: object
-                type: object
               certificate:
                 description: Certificate management
                 properties:
@@ -118,12 +71,47 @@ spec:
                     type: string
                 type: object
               domain:
-                description: Domain configuration for the gateway
+                description: Domain configuration for the GatewayConfig
                 type: string
-              namespace:
-                default: openshift-ingress
-                description: Namespace where the gateway resources should be deployed
-                type: string
+              oidc:
+                description: OIDC configuration (used when cluster is in OIDC authentication
+                  mode)
+                properties:
+                  clientID:
+                    description: OIDC client ID
+                    type: string
+                  clientSecretRef:
+                    description: Reference to secret containing client secret
+                    properties:
+                      key:
+                        description: The key of the secret to select from.  Must be
+                          a valid secret key.
+                        type: string
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      optional:
+                        description: Specify whether the Secret or its key must be
+                          defined
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  issuerURL:
+                    description: OIDC issuer URL
+                    type: string
+                required:
+                - clientID
+                - clientSecretRef
+                - issuerURL
+                type: object
             type: object
           status:
             description: GatewayConfigStatus defines the observed state of GatewayConfig

@@ -209,7 +209,7 @@ func getIndexedResource(rs []unstructured.Unstructured, obj any, g schema.GroupV
 
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(rs[idx].Object, obj)
 	if err != nil {
-		return idx, fmt.Errorf("failed converting to %T from unstructured %v: %w", obj, rs[idx].Object, err)
+		return idx, fmt.Errorf("failed converting to %T from resource %s: %w", obj, resources.FormatObjectReference(&rs[idx]), err)
 	}
 
 	return idx, nil
