@@ -107,6 +107,17 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
+	DeferCleanup(func() {
+		By("DeferCleanup: cancelling context and tearing down test environment")
+		if gCancel != nil {
+			gCancel()
+		}
+		if testEnv != nil {
+			err := testEnv.Stop()
+			Expect(err).NotTo(HaveOccurred())
+		}
+	})
+
 	utilruntime.Must(clientgoscheme.AddToScheme(testScheme))
 	utilruntime.Must(dsciv1.AddToScheme(testScheme))
 	utilruntime.Must(dscv1.AddToScheme(testScheme))
