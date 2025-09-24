@@ -2,11 +2,11 @@ apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
   name: authn-filter
-  namespace: openshift-ingress
+  namespace: {{.GatewayNamespace}}
 spec:
   workloadSelector:
     labels:
-      gateway.networking.k8s.io/gateway-name: odh-gateway
+      gateway.networking.k8s.io/gateway-name: {{.GatewayName}}
   configPatches:
   - applyTo: HTTP_FILTER
     match:
@@ -26,8 +26,8 @@ spec:
           transport_api_version: V3
           http_service:
             server_uri:
-              uri: https://kube-auth-proxy.openshift-ingress.svc.cluster.local:8443/oauth2/auth
-              cluster: kube-auth-proxy
+              uri: https://{{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local:8443/oauth2/auth
+              cluster: {{.KubeAuthProxyServiceName}}
               timeout: 0.5s
             authorization_request:
               allowed_headers:
@@ -71,7 +71,7 @@ spec:
     patch:
       operation: ADD
       value:
-        name: kube-auth-proxy
+        name: {{.KubeAuthProxyServiceName}}
         type: STRICT_DNS
         connect_timeout: 0.5s
         transport_socket:
@@ -82,13 +82,13 @@ spec:
               validation_context:
                 trusted_ca:
                   filename: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
-            sni: kube-auth-proxy.openshift-ingress.svc.cluster.local
+            sni: {{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local
         load_assignment:
-          cluster_name: kube-auth-proxy
+          cluster_name: {{.KubeAuthProxyServiceName}}
           endpoints:
           - lb_endpoints:
             - endpoint:
                 address:
                   socket_address:
-                    address: kube-auth-proxy.openshift-ingress.svc.cluster.local
+                    address: {{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local
                     port_value: 8443

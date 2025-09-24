@@ -57,11 +57,21 @@ func (h *ServiceHandler) GetManagementState(platform common.Platform, _ *dsciv1.
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{}).
 		OwnsGVK(gvk.GatewayClass).
-		WithAction(createGatewayInfrastructure).
+		OwnsGVK(gvk.KubernetesGateway).
+		OwnsGVK(gvk.HTTPRoute).
+		OwnsGVK(gvk.OAuthClient).
+		OwnsGVK(gvk.Secret).
+		OwnsGVK(gvk.Service).
+		OwnsGVK(gvk.Deployment).
+		OwnsGVK(gvk.EnvoyFilter).
+		OwnsGVK(gvk.DestinationRule).
+		WithAction(createGatewayInfrastructure). // all dynamically created.
 		WithAction(createKubeAuthProxyInfrastructure).
 		WithAction(createEnvoyFilter).
 		WithAction(createDestinationRule).
-		WithAction(template.NewAction()).
+		WithAction(template.NewAction(
+			template.WithDataFn(getTemplateData),
+		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).

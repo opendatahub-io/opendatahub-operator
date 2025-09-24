@@ -23,30 +23,21 @@ import (
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-//go:embed resources/*.yaml
+//go:embed resources
 var gatewayResources embed.FS
 
-const (
-	gatewayNamespace = "openshift-ingress"
-	gatewayName      = "odh-gateway"
-	gatewayClassName = "odh-gateway-class"
-)
-
+// cretae gatewayclass, gateway with cert.
 func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createGatewayInfrastructure")
 
@@ -56,17 +47,13 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	}
 	l.V(1).Info("Creating Gateway infrastructure", "gateway", gatewayConfig.Name)
 
-	domain := gatewayConfig.Spec.Domain
-	if domain == "" {
-		clusterDomain, err := cluster.GetDomain(ctx, rr.Client)
-		if err != nil {
-			return fmt.Errorf("failed to get cluster domain: %w", err)
-		}
-		domain = fmt.Sprintf("%s.%s", gatewayName, clusterDomain)
-	}
-
 	if err := createGatewayClass(rr); err != nil {
 		return fmt.Errorf("failed to create GatewayClass: %w", err)
+	}
+
+	domain, err := getDomain(ctx, rr, gatewayConfig)
+	if err != nil {
+		return err
 	}
 
 	certSecretName, err := handleCertificates(ctx, rr, gatewayConfig, domain)
@@ -87,152 +74,180 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	return nil
 }
 
-func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
-	gatewayClass := &gwapiv1.GatewayClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: gatewayClassName,
-		},
-		Spec: gwapiv1.GatewayClassSpec{
-			ControllerName: "openshift.io/gateway-controller/v1",
-		},
+// check mode and deploy auth proxy(secret + svc + deployment) + oauth client (if integrated mode) + httproute.
+func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	l := logf.FromContext(ctx).WithName("createAuthProxy")
+
+	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
+	if !ok {
+		return errors.New("instance is not of type *services.GatewayConfig")
 	}
 
-	return rr.AddResources(gatewayClass)
-}
+	l.V(1).Info("creating auth proxy for gateway", "gateway", gatewayConfig.Name)
 
-func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig, domain string) (string, error) {
-	certConfig := gatewayConfig.Spec.Certificate
-	if certConfig == nil {
-		certConfig = &infrav1.CertificateSpec{
-			Type: infrav1.OpenshiftDefaultIngress,
-		}
-	}
-
-	secretName := certConfig.SecretName
-	if secretName == "" {
-		secretName = fmt.Sprintf("%s-tls", gatewayConfig.Name)
-	}
-
-	switch certConfig.Type {
-	case infrav1.OpenshiftDefaultIngress:
-		return handleOpenshiftDefaultCertificate(ctx, rr, secretName)
-	case infrav1.SelfSigned:
-		return handleSelfSignedCertificate(ctx, rr, secretName, domain)
-	case infrav1.Provided:
-		return secretName, nil
-	default:
-		return "", fmt.Errorf("unsupported certificate type: %s", certConfig.Type)
-	}
-}
-
-func handleOpenshiftDefaultCertificate(ctx context.Context, rr *odhtypes.ReconciliationRequest, secretName string) (string, error) {
-	err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, gatewayNamespace)
+	authMode, err := detectClusterAuthMode(ctx, rr)
 	if err != nil {
-		return "", fmt.Errorf("failed to propagate default ingress certificate: %w", err)
+		return fmt.Errorf("failed to detect cluster authentication mode: %w", err)
 	}
+	l.V(1).Info("detected cluster authentication mode", "mode", authMode)
 
-	return secretName, nil
-}
-
-func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.ReconciliationRequest, secretName string, domain string) (string, error) {
-	hostname := fmt.Sprintf("%s.%s", gatewayName, domain)
-
-	err := cluster.CreateSelfSignedCertificate(
-		ctx,
-		rr.Client,
-		secretName,
-		hostname,
-		gatewayNamespace,
-	)
-	if err != nil {
-		return "", fmt.Errorf("failed to create self-signed certificate: %w", err)
-	}
-
-	return secretName, nil
-}
-
-func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
-	if gatewayConfig.Spec.Certificate == nil {
-		return string(infrav1.OpenshiftDefaultIngress)
-	}
-	return string(gatewayConfig.Spec.Certificate.Type)
-}
-
-func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string) error {
-	listeners := createListeners(certSecretName, domain)
-
-	gateway := &gwapiv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      gatewayName,
-			Namespace: gatewayNamespace,
-		},
-		Spec: gwapiv1.GatewaySpec{
-			GatewayClassName: gatewayClassName,
-			Listeners:        listeners,
-		},
-	}
-
-	return rr.AddResources(gateway)
-}
-
-func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
-	listeners := []gwapiv1.Listener{}
-
-	if certSecretName != "" {
-		from := gwapiv1.NamespacesFromAll
-		httpsMode := gwapiv1.TLSModeTerminate
-		hostname := gwapiv1.Hostname(domain)
-		httpsListener := gwapiv1.Listener{
-			Name:     "https",
-			Protocol: gwapiv1.HTTPSProtocolType,
-			Port:     443,
-			Hostname: &hostname,
-			TLS: &gwapiv1.GatewayTLSConfig{
-				Mode: &httpsMode,
-				CertificateRefs: []gwapiv1.SecretObjectReference{
-					{
-						Name: gwapiv1.ObjectName(certSecretName),
-					},
-				},
-			},
-			AllowedRoutes: &gwapiv1.AllowedRoutes{
-				Namespaces: &gwapiv1.RouteNamespaces{
-					From: &from,
-				},
-			},
+	var oidcConfig *serviceApi.OIDCConfig
+	switch authMode {
+	case AuthModeOIDC:
+		if gatewayConfig.Spec.OIDC == nil {
+			rr.Conditions.MarkFalse(
+				status.ConditionTypeReady,
+				conditions.WithReason(status.NotReadyReason),
+				conditions.WithMessage(status.AuthProxyOIDCModeWithoutConfigMessage),
+			)
+			return nil // TODO: is this logic correct? no oidc but to use oidc and not error out.
 		}
-		listeners = append(listeners, httpsListener)
+		oidcConfig = gatewayConfig.Spec.OIDC
+		l.V(1).Info("configuring "+kubeAuthProxyName+" for external OIDC",
+			"issuerURL", oidcConfig.IssuerURL,
+			"clientID", oidcConfig.ClientID,
+			"secretRef", oidcConfig.ClientSecretRef.Name)
+
+	case AuthModeIntegratedOAuth:
+		l.V(1).Info("configuring " + kubeAuthProxyName + " for OpenShift OAuth")
+
+	case AuthModeNone:
+		rr.Conditions.MarkFalse(
+			status.ConditionTypeReady,
+			conditions.WithReason(status.NotReadyReason), // TODO: is this logic correct? user do not want it, we should not mark it as not ready.
+			conditions.WithMessage(status.AuthProxyExternalAuthNoDeploymentMessage),
+		)
+		return nil
 	}
 
-	return listeners
+	// Get secret values for both OIDC and IntegratedOAuth modes
+	clientID, clientSecret, cookieSecret, err := getSecretValues(ctx, rr, authMode, oidcConfig)
+	if err != nil {
+		return fmt.Errorf("failed to get secret values: %w", err)
+	}
+
+	// Create the secret dynamically first
+	if err := createSecret(ctx, rr, clientID, clientSecret, cookieSecret); err != nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionTypeReady,
+			conditions.WithReason(status.NotReadyReason),
+			conditions.WithMessage("%s: %v", status.AuthProxyFailedGenerateSecretMessage, err),
+		)
+		return fmt.Errorf("failed to create auth proxy secret: %w", err)
+	}
+
+	// For IntegratedOAuth mode, create OAuth client after secret is created
+	if authMode == AuthModeIntegratedOAuth {
+		if err := createOAuthClient(ctx, rr); err != nil {
+			rr.Conditions.MarkFalse(
+				status.ConditionTypeReady,
+				conditions.WithReason(status.NotReadyReason),
+				conditions.WithMessage("%s: %v", status.AuthProxyFailedOAuthClientMessage, err),
+			)
+			return fmt.Errorf("failed to create OAuth client: %w", err)
+		}
+		l.V(1).Info("OAuth client created successfully")
+	}
+
+	// Add KubeAuthProxy templates to the reconciliation request
+	kubeAuthProxyTemplates := []odhtypes.TemplateInfo{
+		{
+			FS:   gatewayResources,
+			Path: KubeAuthProxyDeploymentTemplate,
+		},
+		{
+			FS:   gatewayResources,
+			Path: KubeAuthProxyServiceTemplate,
+		},
+		{
+			FS:   gatewayResources,
+			Path: KubeAuthProxyHTTPRouteTemplate,
+		},
+	}
+	rr.Templates = append(rr.Templates, kubeAuthProxyTemplates...)
+
+	return nil
+}
+
+func createEnvoyFilter(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	l := logf.FromContext(ctx).WithName("createEnvoyFilter")
+
+	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
+	if !ok {
+		return errors.New("instance is not of type *services.GatewayConfig")
+	}
+
+	l.V(1).Info("creating  envoyfilter for gateway", "gateway", gatewayConfig.Name)
+
+	// Add EnvoyFilter template to the reconciliation request
+	envoyFilterTemplate := []odhtypes.TemplateInfo{
+		{
+			FS:   gatewayResources,
+			Path: EnvoyFilterTemplate,
+		},
+	}
+	rr.Templates = append(rr.Templates, envoyFilterTemplate...)
+
+	return nil
 }
 
 func createDestinationRule(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createDestinationRule")
 	l.V(1).Info("Creating DestinationRule for TLS configuration")
 
-	// using yaml templates due to complexity of k8s api struct for destination rule
-	yamlContent, err := gatewayResources.ReadFile("resources/destinationrule-tls.yaml")
+	// Add DestinationRule template to the reconciliation request
+	destinationRuleTemplate := []odhtypes.TemplateInfo{
+		{
+			FS:   gatewayResources,
+			Path: DestinationRuleTemplate,
+		},
+	}
+	rr.Templates = append(rr.Templates, destinationRuleTemplate...)
+
+	return nil
+}
+
+func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
+	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
+	if !ok {
+		return nil, errors.New("instance is not of type *services.GatewayConfig")
+	}
+
+	// Detect auth mode and get OIDC config
+	authMode, err := detectClusterAuthMode(ctx, rr)
 	if err != nil {
-		return fmt.Errorf("failed to read DestinationRule template: %w", err)
+		return nil, fmt.Errorf("failed to detect cluster authentication mode: %w", err)
 	}
 
-	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
-	unstructuredObjects, err := resources.Decode(decoder, yamlContent)
+	// Get domain for redirect URL, if not set in spec then fall back to cluster domain
+	domain, err := getDomain(ctx, rr, gatewayConfig)
 	if err != nil {
-		return fmt.Errorf("failed to decode DestinationRule YAML: %w", err)
+		return nil, fmt.Errorf("failed to resolve domain: %w", err)
 	}
 
-	if len(unstructuredObjects) != 1 {
-		return fmt.Errorf("expected exactly 1 DestinationRule object, got %d", len(unstructuredObjects))
+	isOIDC := authMode == AuthModeOIDC
+
+	templateData := map[string]any{
+		"GatewayNamespace":         gatewayNamespace,
+		"GatewayName":              gatewayName,
+		"KubeAuthProxyServiceName": kubeAuthProxyName,
+		"KubeAuthProxyCredsSecret": kubeAuthProxyCredsSecret,
+		"KubeAuthProxyTLSSecret":   kubeAuthProxyTLSSecret,
+		"IsOIDC":                   isOIDC,
+		"Domain":                   domain,
+		"RedirectURL":              fmt.Sprintf("https://%s/oauth2/callback", domain),
 	}
 
-	l.V(1).Info("Successfully created DestinationRule configuration")
-	return rr.AddResources(&unstructuredObjects[0])
+	// Add OIDC-specific data if needed
+	if isOIDC && gatewayConfig.Spec.OIDC != nil {
+		templateData["OIDCIssuerURL"] = gatewayConfig.Spec.OIDC.IssuerURL
+		templateData["OIDCInsecureSkipVerify"] = false // TODO: need to check if this is correct or need more logic.
+	}
+	return templateData, nil
 }
 
 func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
+	_, ok := rr.Instance.(*serviceApi.GatewayConfig)
 	if !ok {
 		return errors.New("instance is not of type *services.GatewayConfig")
 	}
@@ -244,14 +259,11 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 	}, gateway)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			gatewayConfig.SetConditions([]common.Condition{
-				{
-					Type:    status.ConditionTypeReady,
-					Status:  metav1.ConditionFalse,
-					Reason:  status.NotReadyReason,
-					Message: status.GatewayNotFoundMessage,
-				},
-			})
+			rr.Conditions.MarkFalse(
+				status.ConditionTypeReady,
+				conditions.WithReason(status.NotReadyReason),
+				conditions.WithMessage(status.GatewayNotFoundMessage),
+			)
 			return nil
 		}
 		return fmt.Errorf("failed to get Gateway: %w", err)
@@ -265,24 +277,19 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 		}
 	}
 
-	conditionStatus := metav1.ConditionFalse
-	reason := status.NotReadyReason
-	message := status.GatewayNotReadyMessage
-
 	if isReady {
-		conditionStatus = metav1.ConditionTrue
-		reason = status.ReadyReason
-		message = status.GatewayReadyMessage
+		rr.Conditions.MarkTrue(
+			status.ConditionTypeReady,
+			conditions.WithReason(status.ReadyReason),
+			conditions.WithMessage(status.GatewayReadyMessage),
+		)
+	} else {
+		rr.Conditions.MarkFalse(
+			status.ConditionTypeReady,
+			conditions.WithReason(status.NotReadyReason),
+			conditions.WithMessage(status.GatewayNotReadyMessage),
+		)
 	}
-
-	gatewayConfig.SetConditions([]common.Condition{
-		{
-			Type:    status.ConditionTypeReady,
-			Status:  conditionStatus,
-			Reason:  reason,
-			Message: message,
-		},
-	})
 
 	return nil
 }

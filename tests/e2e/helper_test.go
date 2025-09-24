@@ -172,7 +172,7 @@ func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv1.DSCIniti
 				CustomCABundle:  "",
 			},
 			ServiceMesh: &infrav1.ServiceMeshSpec{
-				ManagementState: operatorv1.Managed,
+				ManagementState: operatorv1.Managed, // TODO: we shouldskip servicemesh for e2e tests if we wanna test gateway
 				ControlPlane: infrav1.ControlPlaneSpec{
 					Name:              serviceMeshControlPlane,
 					Namespace:         serviceMeshNamespace,
@@ -223,7 +223,7 @@ func CreateDSC(name string) *dscv1.DataScienceCluster {
 					KserveCommonSpec: componentApi.KserveCommonSpec{
 						DefaultDeploymentMode: componentApi.Serverless,
 						Serving: infrav1.ServingSpec{
-							ManagementState: operatorv1.Managed,
+							ManagementState: operatorv1.Managed, // TODO: after servicemesh is removed, skip tests
 							Name:            knativeServingNamespace,
 							IngressGateway: infrav1.GatewaySpec{
 								Certificate: infrav1.CertificateSpec{

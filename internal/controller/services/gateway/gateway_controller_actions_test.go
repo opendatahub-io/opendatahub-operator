@@ -59,10 +59,14 @@ func TestCreateGatewayClass(t *testing.T) {
 func TestGetCertificateType(t *testing.T) {
 	g := NewWithT(t)
 
-	t.Run("returns default when certificate is nil", func(t *testing.T) {
+	t.Run("returns default when certificate type not specified by user", func(t *testing.T) {
 		gateway := &serviceApi.GatewayConfig{
 			Spec: serviceApi.GatewayConfigSpec{
-				Certificate: nil,
+				IngressGateway: infrav1.GatewaySpec{
+					Certificate: infrav1.CertificateSpec{
+						SecretName: "some-secret",
+					},
+				},
 			},
 		}
 
@@ -73,8 +77,10 @@ func TestGetCertificateType(t *testing.T) {
 	t.Run("returns certificate type when specified", func(t *testing.T) {
 		gateway := &serviceApi.GatewayConfig{
 			Spec: serviceApi.GatewayConfigSpec{
-				Certificate: &infrav1.CertificateSpec{
-					Type: infrav1.SelfSigned,
+				IngressGateway: infrav1.GatewaySpec{
+					Certificate: infrav1.CertificateSpec{
+						Type: infrav1.SelfSigned,
+					},
 				},
 			},
 		}
@@ -82,4 +88,36 @@ func TestGetCertificateType(t *testing.T) {
 		certType := getCertificateType(gateway)
 		g.Expect(certType).To(Equal(string(infrav1.SelfSigned)))
 	})
+}
+
+func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
+	listeners := []gwapiv1.Listener{}
+
+	if certSecretName != "" {
+		from := gwapiv1.NamespacesFromAll
+		httpsMode := gwapiv1.TLSModeTerminate
+		hostname := gwapiv1.Hostname(domain)
+		httpsListener := gwapiv1.Listener{
+			Name:     "https",
+			Protocol: gwapiv1.HTTPSProtocolType,
+			Port:     443,
+			Hostname: &hostname,
+			TLS: &gwapiv1.GatewayTLSConfig{
+				Mode: &httpsMode,
+				CertificateRefs: []gwapiv1.SecretObjectReference{
+					{
+						Name: gwapiv1.ObjectName(certSecretName),
+					},
+				},
+			},
+			AllowedRoutes: &gwapiv1.AllowedRoutes{
+				Namespaces: &gwapiv1.RouteNamespaces{
+					From: &from,
+				},
+			},
+		}
+		listeners = append(listeners, httpsListener)
+	}
+
+	return listeners
 }

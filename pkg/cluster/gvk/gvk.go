@@ -2,6 +2,7 @@ package gvk
 
 import (
 	configv1 "github.com/openshift/api/config/v1"
+	oauthv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -322,6 +323,12 @@ var (
 		Kind:    "Lease",
 	}
 
+	DestinationRule = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1",
+		Kind:    "DestinationRule",
+	}
+
 	EnvoyFilter = schema.GroupVersionKind{
 		Group:   "networking.istio.io",
 		Version: "v1alpha3",
@@ -362,6 +369,18 @@ var (
 		Group:   gwapiv1.GroupVersion.Group,
 		Version: gwapiv1.GroupVersion.Version,
 		Kind:    "Gateway",
+	}
+
+	HTTPRoute = schema.GroupVersionKind{
+		Group:   gwapiv1.GroupVersion.Group,
+		Version: gwapiv1.GroupVersion.Version,
+		Kind:    "HTTPRoute",
+	}
+
+	OAuthClient = schema.GroupVersionKind{
+		Group:   oauthv1.GroupVersion.Group,
+		Version: oauthv1.GroupVersion.Version,
+		Kind:    "OAuthClient",
 	}
 
 	Auth = schema.GroupVersionKind{

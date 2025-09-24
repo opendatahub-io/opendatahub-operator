@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright 2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,10 +25,11 @@ import (
 
 const (
 	GatewayServiceName = "gateway"
-	// GatewayInstanceName the name of the GatewayConfig instance singleton.
+	// GatewayConfigName the name of the GatewayConfig instance singleton.
 	// value should match whats set in the XValidation below
-	GatewayInstanceName = "default-gateway"
-	GatewayKind         = "GatewayConfig"
+	GatewayConfigName           = "default-gateway"
+	GatewayKind                 = "GatewayConfig"
+	DefaultGatewayTLSSecretName = "default-gateway-tls"
 )
 
 // Check that the component implements common.PlatformObject.
@@ -40,27 +41,19 @@ type GatewayConfigSpec struct {
 	// +optional
 	OIDC *OIDCConfig `json:"oidc,omitempty"`
 
-	// Certificate management
-	// +optional
-	Certificate *infrav1.CertificateSpec `json:"certificate,omitempty"`
-
-	// Domain configuration for the GatewayConfig
-	// +optional
-	Domain string `json:"domain,omitempty"`
+	// TODO: once ossm v2 is removed this spec definition should move in service package
+	IngressGateway infrav1.GatewaySpec `json:"ingressGateway,omitempty"`
 }
 
 // OIDCConfig defines OIDC provider configuration
 type OIDCConfig struct {
 	// OIDC issuer URL
-	// +kubebuilder:validation:Required
 	IssuerURL string `json:"issuerURL"`
 
 	// OIDC client ID
-	// +kubebuilder:validation:Required
 	ClientID string `json:"clientID"`
 
 	// Reference to secret containing client secret
-	// +kubebuilder:validation:Required
 	ClientSecretRef corev1.SecretKeySelector `json:"clientSecretRef"`
 }
 

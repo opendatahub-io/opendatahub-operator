@@ -1,0 +1,68 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: {{.KubeAuthProxyServiceName}}
+  namespace: {{.GatewayNamespace}}
+  labels:
+    app: {{.KubeAuthProxyServiceName}}
+    platform.opendatahub.io/part-of: gatewayconfig
+spec:
+  selector:
+    matchLabels:
+      app: {{.KubeAuthProxyServiceName}}
+  template:
+    metadata:
+      labels:
+        app: {{.KubeAuthProxyServiceName}}
+    spec:
+      volumes:
+        - name: tls-certs
+          secret:
+            secretName: {{.KubeAuthProxyTLSSecret}}
+      containers:
+        - name: {{.KubeAuthProxyServiceName}}
+          image: quay.io/jtanner/kube-auth-proxy@sha256:434580fd42d73727d62566ff6d8336219a31b322798b48096ed167daaec42f07
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{.KubeAuthProxyCredsSecret}}
+                  key: OAUTH2_PROXY_CLIENT_ID
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{.KubeAuthProxyCredsSecret}}
+                  key: OAUTH2_PROXY_CLIENT_SECRET
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{.KubeAuthProxyCredsSecret}}
+                  key: OAUTH2_PROXY_COOKIE_SECRET
+          ports:
+            - name: http
+              containerPort: 4180
+            - name: https
+              containerPort: 8443
+          volumeMounts:
+            - name: tls-certs
+              readOnly: true
+              mountPath: /etc/tls/private
+          args:
+            - "--http-address=0.0.0.0:4180"
+            - "--email-domain=*"
+            - "--upstream=static://200"
+            - "--skip-provider-button"
+            - "--pass-access-token=true"
+            - "--set-xauthrequest=true"
+            - "--redirect-url={{.RedirectURL}}"
+            {{- if .IsOIDC }}
+            - "--provider=oidc"
+            - "--oidc-issuer-url={{.OIDCIssuerURL}}"
+            - "--ssl-insecure-skip-verify={{.OIDCInsecureSkipVerify}}"  # TODO: need to check if this is correct to hardcode skip verify.
+            {{- else }}
+            - "--provider=openshift"
+            - "--scope=user:full"
+            - "--tls-cert-file=/etc/tls/private/tls.crt"
+            - "--tls-key-file=/etc/tls/private/tls.key"
+            - "--https-address=0.0.0.0:8443"
+            {{- end }}

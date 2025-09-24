@@ -49,12 +49,13 @@ func TestServiceTypesConformToPlatformObject(t *testing.T) {
 			name: "Gateway",
 			instance: &GatewayConfig{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "gateway",
+					Name: GatewayConfigName,
 				},
 				Spec: GatewayConfigSpec{
-					Domain: "example.com",
-					Certificate: &infrav1.CertificateSpec{
-						Type: infrav1.SelfSigned,
+					IngressGateway: infrav1.GatewaySpec{
+						Certificate: infrav1.CertificateSpec{
+							Type: infrav1.SelfSigned,
+						},
 					},
 				},
 				Status: GatewayConfigStatus{

@@ -57,6 +57,10 @@ func cleanupCoreOperatorResources(t *testing.T, tc *TestContext) {
 
 	// Delete Auth CR (cluster-scoped, not affected by namespace deletion)
 	deleteResources(gvk.Auth)
+	// Delete GatewayConfig CR (cluster-scoped, not affected by namespace deletion)
+	deleteResources(gvk.GatewayConfig)
+	// Delete HarewareProfile CR (cluster-scoped, not affected by namespace deletion)
+	deleteResources(gvk.HardwareProfile)
 }
 
 // cleanupKueueTestResources cleans up Kueue test resources including ClusterQueue, LocalQueue, and test namespace.
