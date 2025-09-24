@@ -104,6 +104,7 @@ func (tc *ComponentTestCtx) ValidateComponentDisabled(t *testing.T) {
 				}.AsSelector(),
 			},
 		),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 	)
 
 	// Ensure that the resources associated with the component do not exist

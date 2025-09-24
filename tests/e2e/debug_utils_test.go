@@ -598,7 +598,7 @@ func debugDSCIStatus() {
 	// Check DSCI (prerequisite for DSC)
 	dsci := &unstructured.Unstructured{}
 	dsci.SetGroupVersionKind(gvk.DSCInitialization)
-	err := globalDebugClient.Get(context.TODO(), types.NamespacedName{Name: "default-dsci"}, dsci)
+	err := globalDebugClient.Get(context.TODO(), types.NamespacedName{Name: dsciInstanceName}, dsci)
 	if err != nil && !errors.IsNotFound(err) {
 		log.Printf("Failed to get DSCI: %v", err)
 		return
@@ -615,7 +615,7 @@ func debugDSCIStatus() {
 	// Check DSC (singleton resource - depends on DSCI)
 	dsc := &unstructured.Unstructured{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
-	err = globalDebugClient.Get(context.TODO(), types.NamespacedName{Name: "default-dsc"}, dsc)
+	err = globalDebugClient.Get(context.TODO(), types.NamespacedName{Name: dscInstanceName}, dsc)
 	if err != nil && !errors.IsNotFound(err) {
 		log.Printf("Failed to get DSC: %v", err)
 		return
