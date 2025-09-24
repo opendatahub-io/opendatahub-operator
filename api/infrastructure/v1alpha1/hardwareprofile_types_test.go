@@ -48,7 +48,7 @@ func TestHardwareProfileSpecStructure(t *testing.T) {
 	}
 
 	spec := HardwareProfileSpec{
-		Identifiers:   ids,
+		Identifiers:    ids,
 		SchedulingSpec: queueSpec,
 	}
 
@@ -82,7 +82,7 @@ func TestHardwareProfileNodeScheduling(t *testing.T) {
 		SchedulingType: NodeScheduling,
 		Node: &NodeSchedulingSpec{
 			NodeSelector: map[string]string{
-				"kubernetes.io/arch": "amd64",
+				"kubernetes.io/arch":             "amd64",
 				"node-role.kubernetes.io/worker": "",
 			},
 			Tolerations: []corev1.Toleration{
@@ -138,7 +138,7 @@ func TestHardwareProfileDeepCopy(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: HardwareProfileSpec{
-			Identifiers: []HardwareIdentifier{{DisplayName: "CPU", Identifier: "cpu", MinCount: intstr.FromInt32(1), DefaultCount: intstr.FromInt32(1), ResourceType: "CPU"}},
+			Identifiers:    []HardwareIdentifier{{DisplayName: "CPU", Identifier: "cpu", MinCount: intstr.FromInt32(1), DefaultCount: intstr.FromInt32(1), ResourceType: "CPU"}},
 			SchedulingSpec: &SchedulingSpec{SchedulingType: QueueScheduling, Kueue: &KueueSchedulingSpec{LocalQueueName: "q1"}},
 		},
 	}
@@ -168,7 +168,7 @@ func TestV1HardwareProfile(t *testing.T) {
 			Namespace: "default",
 		},
 		Spec: infrastructurev1.HardwareProfileSpec{
-			Identifiers: []infrastructurev1.HardwareIdentifier{{DisplayName: "CPU", Identifier: "cpu", MinCount: intstr.FromInt32(1), DefaultCount: intstr.FromInt32(1), ResourceType: "CPU"}},
+			Identifiers:    []infrastructurev1.HardwareIdentifier{{DisplayName: "CPU", Identifier: "cpu", MinCount: intstr.FromInt32(1), DefaultCount: intstr.FromInt32(1), ResourceType: "CPU"}},
 			SchedulingSpec: &infrastructurev1.SchedulingSpec{SchedulingType: infrastructurev1.QueueScheduling, Kueue: &infrastructurev1.KueueSchedulingSpec{LocalQueueName: "q1"}},
 		},
 	}
