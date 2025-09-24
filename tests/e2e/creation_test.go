@@ -296,7 +296,7 @@ func (tc *DSCTestCtx) UpdateRegistriesNamespace(targetNamespace, expectedValue s
 	}
 
 	// Update the registriesNamespace field.
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.modelregistry.registriesNamespace = "%s"`, targetNamespace)),
 		WithCondition(expectedCondition),
@@ -319,7 +319,7 @@ func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
 	)
 
 	// update default hardwareprofile to different value and check it is updated.
-	tc.EnsureResourceCreatedOrPatched(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
 		WithMutateFunc(testf.Transform(`
 			.spec.identifiers[0].defaultCount = 4 |

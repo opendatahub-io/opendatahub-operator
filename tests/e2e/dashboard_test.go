@@ -113,7 +113,7 @@ func (tc *DashboardTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 
 	// Add Dashboard-specific recovery test
 	t.Run("Route deletion recovery", func(t *testing.T) {
-		tc.ValidateResourceDeletionRecovery(t, gvk.Route)
+		tc.ValidateResourceDeletionRecovery(t, gvk.Route, types.NamespacedName{Namespace: tc.AppsNamespace})
 	})
 }
 
