@@ -301,7 +301,7 @@ func ReconcileHardwareProfiles(ctx context.Context, rr *odhtypes.ReconciliationR
 	return nil
 }
 
-// processHardwareProfile processes a single dashboard hardware profile.
+// ProcessHardwareProfile processes a single dashboard hardware profile.
 func ProcessHardwareProfile(ctx context.Context, rr *odhtypes.ReconciliationRequest, logger logr.Logger, hwprofile unstructured.Unstructured) error {
 	var dashboardHardwareProfile DashboardHardwareProfile
 

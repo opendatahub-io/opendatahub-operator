@@ -8,6 +8,7 @@ import (
 
 	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -87,9 +88,14 @@ func testReconcileHardwareProfilesCRDNotExists(t *testing.T) {
 func testReconcileHardwareProfilesCRDExistsNoProfiles(t *testing.T) {
 	t.Helper()
 	// Create a mock CRD but no hardware profiles (empty list scenario)
-	crd := &unstructured.Unstructured{}
-	crd.SetGroupVersionKind(gvk.CustomResourceDefinition)
-	crd.SetName(dashboardctrl.DashboardHWPCRDName)
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hardwareprofiles.dashboard.opendatahub.io",
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{"v1alpha1"},
+		},
+	}
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(crd))
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
@@ -220,9 +226,9 @@ func testReconcileHardwareProfilesWithConversionError(t *testing.T) {
 
 func testReconcileHardwareProfilesWithCreateError(t *testing.T) {
 	t.Helper()
-	// This test verifies that dashboardctrl.ReconcileHardwareProfiles returns an error
-	// when the CRD exists and the Create operation fails for HardwareProfile objects.
-	// The test setup ensures the CRD check passes and the Create path is exercised.
+	// This test verifies that the hardware profile processing returns an error
+	// when the Create operation fails for HardwareProfile objects.
+	// We test the ProcessHardwareProfile function directly to avoid CRD check issues.
 
 	// Create a mock dashboard hardware profile
 	dashboardHWP := &unstructured.Unstructured{}
@@ -238,20 +244,16 @@ func testReconcileHardwareProfilesWithCreateError(t *testing.T) {
 		},
 	}
 
-	// Create a mock CRD to ensure the function doesn't exit early
-	crd := &unstructured.Unstructured{}
-	crd.SetGroupVersionKind(gvk.CustomResourceDefinition)
-	crd.SetName(dashboardctrl.DashboardHWPCRDName)
-
 	// Create a mock client that will fail on Create operations for HardwareProfile objects
 	cli, err := fakeclient.New(
-		fakeclient.WithObjects(dashboardHWP, crd),
+		fakeclient.WithObjects(dashboardHWP),
 		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
 			Create: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
 				// Fail on Create operations for HardwareProfile objects
-				gvk := obj.GetObjectKind().GroupVersionKind()
-				t.Logf("Create interceptor called for object: %s, GVK: %+v", obj.GetName(), gvk)
-				if gvk.Kind == "HardwareProfile" && gvk.Group == "infrastructure.opendatahub.io" {
+				t.Logf("Create interceptor called for object: %s, type: %T", obj.GetName(), obj)
+
+				// Check if it's an infrastructure HardwareProfile by type
+				if _, ok := obj.(*infrav1.HardwareProfile); ok {
 					t.Logf("Triggering create error for HardwareProfile")
 					return errors.New("simulated create error")
 				}
@@ -265,11 +267,15 @@ func testReconcileHardwareProfilesWithCreateError(t *testing.T) {
 	rr.Client = cli
 
 	ctx := t.Context()
-	err = dashboardctrl.ReconcileHardwareProfiles(ctx, rr)
+	logger := log.FromContext(ctx)
 
-	// The function should not return an error because the CRD check fails
-	// and the function returns early without processing the hardware profiles
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+	// Test ProcessHardwareProfile directly to avoid CRD check issues
+	err = dashboardctrl.ProcessHardwareProfile(ctx, rr, logger, *dashboardHWP)
+	t.Logf("ProcessHardwareProfile returned error: %v", err)
+
+	// The function should return an error because the Create operation fails
+	// and the function should propagate the Create error rather than returning nil
+	gomega.NewWithT(t).Expect(err).Should(gomega.HaveOccurred())
 }
 
 func testReconcileHardwareProfilesWithDifferentNamespace(t *testing.T) {

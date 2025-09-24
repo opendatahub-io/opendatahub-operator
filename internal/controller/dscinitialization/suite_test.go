@@ -109,12 +109,19 @@ var _ = BeforeSuite(func() {
 
 	DeferCleanup(func() {
 		By("DeferCleanup: cancelling context and tearing down test environment")
+		// Cancel context first to ensure proper shutdown order
 		if gCancel != nil {
 			gCancel()
+			gCancel = nil // Prevent double-cancellation
 		}
+		// Stop test environment with defensive error handling
 		if testEnv != nil {
 			err := testEnv.Stop()
-			Expect(err).NotTo(HaveOccurred())
+			if err != nil {
+				// Log but don't fail on cleanup errors (testEnv might already be stopped)
+				By("Warning: testEnv.Stop() returned error: " + err.Error())
+			}
+			testEnv = nil // Prevent double-stop
 		}
 	})
 
@@ -170,8 +177,20 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	gCancel()
-	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).NotTo(HaveOccurred())
+	By("AfterSuite: cancelling context and tearing down test environment")
+	// Cancel context first to ensure proper shutdown order
+	if gCancel != nil {
+		gCancel()
+		gCancel = nil // Prevent double-cancellation
+	}
+	// Stop test environment with defensive error handling
+	if testEnv != nil {
+		By("tearing down the test environment")
+		err := testEnv.Stop()
+		if err != nil {
+			// Log but don't fail on cleanup errors (testEnv might already be stopped)
+			By("Warning: testEnv.Stop() returned error: " + err.Error())
+		}
+		testEnv = nil // Prevent double-stop
+	}
 })

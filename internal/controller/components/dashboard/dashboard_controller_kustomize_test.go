@@ -30,7 +30,7 @@ func setupTempDirWithParams(t *testing.T) string {
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	// Create a params.env file in the manifest directory
-	paramsEnvPath := filepath.Join(manifestDir, paramsEnvFileName)
+	paramsEnvPath := filepath.Join(manifestDir, "params.env")
 	paramsEnvContent := dashboardctrl.InitialParamsEnvContent
 	err = os.WriteFile(paramsEnvPath, []byte(paramsEnvContent), 0600)
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
@@ -70,7 +70,7 @@ func verifyParamsEnvModified(t *testing.T, tempDir string, expectedURL, expected
 	t.Helper()
 	g := gomega.NewWithT(t)
 
-	paramsEnvPath := filepath.Join(tempDir, dashboardctrl.ComponentName, "odh", paramsEnvFileName)
+	paramsEnvPath := filepath.Join(tempDir, dashboardctrl.ComponentName, "odh", "params.env")
 	content, err := os.ReadFile(paramsEnvPath)
 	g.Expect(err).ShouldNot(gomega.HaveOccurred())
 
