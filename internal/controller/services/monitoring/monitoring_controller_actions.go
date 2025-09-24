@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -34,6 +35,8 @@ const (
 	InstrumentationTemplate                 = "resources/instrumentation.tmpl.yaml"
 	ThanosQuerierTemplate                   = "resources/thanos-querier-cr.tmpl.yaml"
 	ThanosQuerierRouteTemplate              = "resources/thanos-querier-route.tmpl.yaml"
+	PersesTempoDatasourceTemplate           = "resources/perses-tempo-datasource.tmpl.yaml"
+	PersesTempoDashboardTemplate            = "resources/perses-tempo-dashboard.tmpl.yaml"
 )
 
 // CRDRequirement defines a required CRD and its associated condition for monitoring components.
@@ -410,6 +413,82 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 	if len(addErrors) > 0 || len(cleanupErrors) > 0 {
 		return errors.New("errors occurred while adding or cleaning up prometheus rules for components")
 	}
+
+	return nil
+}
+
+func deployPersesDatasource(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	// Check if PersesDatasource CRD exists first
+	persesExists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDatasource)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD PersesDatasource exists: %w", err)
+	}
+
+	// Only create Perses datasource if traces are configured
+	if monitoring.Spec.Traces == nil {
+		// Clean up existing datasource and dashboard if CRD exists
+		if persesExists {
+			// Delete datasource
+			datasource := &unstructured.Unstructured{}
+			datasource.SetGroupVersionKind(gvk.PersesDatasource)
+			datasource.SetName("tempo-datasource")
+			datasource.SetNamespace(monitoring.Spec.Namespace)
+
+			if err := rr.Client.Delete(ctx, datasource); err != nil {
+				if !k8serr.IsNotFound(err) {
+					return fmt.Errorf("failed to delete PersesDatasource: %w", err)
+				}
+			}
+
+			// Delete dashboard
+			dashboard := &unstructured.Unstructured{}
+			dashboard.SetGroupVersionKind(gvk.PersesDashboard)
+			dashboard.SetName("rhoai-tempo-traces")
+			dashboard.SetNamespace(monitoring.Spec.Namespace)
+
+			if err := rr.Client.Delete(ctx, dashboard); err != nil {
+				if !k8serr.IsNotFound(err) {
+					return fmt.Errorf("failed to delete PersesDashboard: %w", err)
+				}
+			}
+		}
+
+		rr.Conditions.MarkFalse(
+			status.ConditionPersesTempoDataSourceAvailable,
+			conditions.WithReason(status.TracesNotConfiguredReason),
+			conditions.WithMessage(status.TracesNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	if !persesExists {
+		rr.Conditions.MarkFalse(
+			status.ConditionPersesTempoDataSourceAvailable,
+			conditions.WithReason(gvk.PersesDatasource.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage("%s CRD Not Found", gvk.PersesDatasource.Kind),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesTempoDataSourceAvailable)
+
+	// Deploy both datasource and dashboard
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesTempoDatasourceTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: PersesTempoDashboardTemplate,
+		},
+	}
+	rr.Templates = append(rr.Templates, templates...)
 
 	return nil
 }
