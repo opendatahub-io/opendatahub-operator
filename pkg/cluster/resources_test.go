@@ -275,4 +275,25 @@ func TestListConfigMapUsingGVK(t *testing.T) {
 		g.Expect(res).ShouldNot(BeEmpty())
 		g.Expect(res).Should(HaveLen(2))
 	})
+
+	t.Run("should retrieve ConfigMap list successfully in specific namespace", func(t *testing.T) {
+		g := NewWithT(t)
+		ns := "test-namespace"
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(
+				&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "configmap1"}},
+				&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "configmap2", Namespace: ns}},
+			),
+		)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		res, err := cluster.ListGVK(ctx, cli, gvk.ConfigMap, client.InNamespace(ns))
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(res).ShouldNot(BeEmpty())
+		g.Expect(res).Should(HaveLen(1))
+		g.Expect(res[0].GetName()).Should(Equal("configmap2"))
+		g.Expect(res[0].GetNamespace()).Should(Equal(ns))
+	})
 }
