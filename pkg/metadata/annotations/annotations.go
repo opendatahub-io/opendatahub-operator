@@ -29,4 +29,8 @@ const (
 const Connection = "opendatahub.io/connections"
 
 // ConnectionTypeRef annotation for specifying the type of connection.
+// Deprecated: Use ConnectionTypeProtocol instead.
 const ConnectionTypeRef = "opendatahub.io/connection-type-ref"
+
+// ConnectionTypeProtocol annotation for specifying the type of connection.
+const ConnectionTypeProtocol = "opendatahub.io/connection-type-protocol"
