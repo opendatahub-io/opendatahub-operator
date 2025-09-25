@@ -82,21 +82,9 @@ func createConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		return fmt.Errorf("resource instance %v is not a componentApi.TrustyAI)", rr.Instance)
 	}
 
-	// Extract values and convert string to boolean for configmap
-	permitCodeExecutionStr := trustyai.Spec.Eval.LMEval.PermitCodeExecution
-	permitOnlineStr := trustyai.Spec.Eval.LMEval.PermitOnline
-
-	// Default to "deny" if empty
-	if permitCodeExecutionStr == "" {
-		permitCodeExecutionStr = EvalPermissionDeny
-	}
-	if permitOnlineStr == "" {
-		permitOnlineStr = EvalPermissionDeny
-	}
-
 	// Convert to boolean for configmap
-	permitCodeExecution := permitCodeExecutionStr == EvalPermissionAllow
-	permitOnline := permitOnlineStr == EvalPermissionAllow
+	permitCodeExecution := trustyai.Spec.Eval.LMEval.PermitCodeExecution == EvalPermissionAllow
+	permitOnline := trustyai.Spec.Eval.LMEval.PermitOnline == EvalPermissionAllow
 
 	// Create extra ConfigMap for DSC configuration
 	configMap := &corev1.ConfigMap{
