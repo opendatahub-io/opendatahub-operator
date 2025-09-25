@@ -4,7 +4,7 @@ metadata:
   name: odh-tls-rule
   namespace: openshift-ingress
   labels:
-    app.kubernetes.io/part-of: odh-gateway
+    app.kubernetes.io/part-of: data-science-gateway
 spec:
   host: '*'
   trafficPolicy:

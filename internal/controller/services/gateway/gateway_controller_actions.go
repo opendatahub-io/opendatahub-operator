@@ -38,14 +38,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-//go:embed resources/*.yaml
+//go:embed resources
 var gatewayResources embed.FS
-
-const (
-	gatewayNamespace = "openshift-ingress"
-	gatewayName      = "odh-gateway"
-	gatewayClassName = "odh-gateway-class"
-)
 
 func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createGatewayInfrastructure")
@@ -56,13 +50,9 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	}
 	l.V(1).Info("Creating Gateway infrastructure", "gateway", gatewayConfig.Name)
 
-	domain := gatewayConfig.Spec.Domain
-	if domain == "" {
-		clusterDomain, err := cluster.GetDomain(ctx, rr.Client)
-		if err != nil {
-			return fmt.Errorf("failed to get cluster domain: %w", err)
-		}
-		domain = fmt.Sprintf("%s.%s", gatewayName, clusterDomain)
+	domain, err := ResolveDomain(ctx, rr.Client, gatewayConfig, DefaultGatewayName)
+	if err != nil {
+		return fmt.Errorf("failed to resolve domain: %w", err)
 	}
 
 	if err := createGatewayClass(rr); err != nil {
@@ -74,15 +64,15 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		return fmt.Errorf("failed to handle certificates: %w", err)
 	}
 
-	if err := createGateway(rr, certSecretName, domain); err != nil {
+	if err := createGateway(rr, certSecretName, domain, DefaultGatewayName); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 
 	l.V(1).Info("Successfully created Gateway infrastructure",
-		"gateway", gatewayName,
-		"namespace", gatewayNamespace,
+		"gateway", DefaultGatewayName,
+		"namespace", GatewayNamespace,
 		"domain", domain,
-		"certificateType", getCertificateType(gatewayConfig))
+		"certificateType", GetCertificateType(gatewayConfig))
 
 	return nil
 }
@@ -90,10 +80,10 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 	gatewayClass := &gwapiv1.GatewayClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: gatewayClassName,
+			Name: GatewayClassName,
 		},
 		Spec: gwapiv1.GatewayClassSpec{
-			ControllerName: "openshift.io/gateway-controller/v1",
+			ControllerName: gwapiv1.GatewayController(GatewayControllerName),
 		},
 	}
 
@@ -126,7 +116,7 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 }
 
 func handleOpenshiftDefaultCertificate(ctx context.Context, rr *odhtypes.ReconciliationRequest, secretName string) (string, error) {
-	err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, gatewayNamespace)
+	err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, GatewayNamespace)
 	if err != nil {
 		return "", fmt.Errorf("failed to propagate default ingress certificate: %w", err)
 	}
@@ -135,14 +125,12 @@ func handleOpenshiftDefaultCertificate(ctx context.Context, rr *odhtypes.Reconci
 }
 
 func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.ReconciliationRequest, secretName string, domain string) (string, error) {
-	hostname := fmt.Sprintf("%s.%s", gatewayName, domain)
-
 	err := cluster.CreateSelfSignedCertificate(
 		ctx,
 		rr.Client,
 		secretName,
-		hostname,
-		gatewayNamespace,
+		domain,
+		GatewayNamespace,
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create self-signed certificate: %w", err)
@@ -151,60 +139,21 @@ func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.Reconciliatio
 	return secretName, nil
 }
 
-func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
-	if gatewayConfig.Spec.Certificate == nil {
-		return string(infrav1.OpenshiftDefaultIngress)
-	}
-	return string(gatewayConfig.Spec.Certificate.Type)
-}
-
-func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string) error {
-	listeners := createListeners(certSecretName, domain)
+func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, gatewayName string) error {
+	listeners := CreateListeners(certSecretName, domain)
 
 	gateway := &gwapiv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gatewayName,
-			Namespace: gatewayNamespace,
+			Namespace: GatewayNamespace,
 		},
 		Spec: gwapiv1.GatewaySpec{
-			GatewayClassName: gatewayClassName,
+			GatewayClassName: gwapiv1.ObjectName(GatewayClassName),
 			Listeners:        listeners,
 		},
 	}
 
 	return rr.AddResources(gateway)
-}
-
-func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
-	listeners := []gwapiv1.Listener{}
-
-	if certSecretName != "" {
-		from := gwapiv1.NamespacesFromAll
-		httpsMode := gwapiv1.TLSModeTerminate
-		hostname := gwapiv1.Hostname(domain)
-		httpsListener := gwapiv1.Listener{
-			Name:     "https",
-			Protocol: gwapiv1.HTTPSProtocolType,
-			Port:     443,
-			Hostname: &hostname,
-			TLS: &gwapiv1.GatewayTLSConfig{
-				Mode: &httpsMode,
-				CertificateRefs: []gwapiv1.SecretObjectReference{
-					{
-						Name: gwapiv1.ObjectName(certSecretName),
-					},
-				},
-			},
-			AllowedRoutes: &gwapiv1.AllowedRoutes{
-				Namespaces: &gwapiv1.RouteNamespaces{
-					From: &from,
-				},
-			},
-		}
-		listeners = append(listeners, httpsListener)
-	}
-
-	return listeners
 }
 
 func createDestinationRule(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -239,8 +188,8 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 
 	gateway := &gwapiv1.Gateway{}
 	err := rr.Client.Get(ctx, types.NamespacedName{
-		Name:      gatewayName,
-		Namespace: gatewayNamespace,
+		Name:      DefaultGatewayName,
+		Namespace: GatewayNamespace,
 	}, gateway)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
