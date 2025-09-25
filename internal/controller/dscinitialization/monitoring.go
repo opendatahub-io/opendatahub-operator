@@ -74,7 +74,7 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 	}
 
 	if initial == "init" {
-		err := cluster.UpdatePodSecurityRolebinding(ctx, r.Client, dscInit.Spec.Monitoring.Namespace, "redhat-ods-monitoring")
+		err := cluster.UpdatePodSecurityRolebinding(ctx, r.Client, dscInit.Spec.Monitoring.Namespace, "data-science-monitoring")
 		if err != nil {
 			return fmt.Errorf("error to update monitoring security rolebinding: %w", err)
 		}

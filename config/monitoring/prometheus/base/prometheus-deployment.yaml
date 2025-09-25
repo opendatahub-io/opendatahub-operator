@@ -134,7 +134,7 @@ spec:
           name: prometheus-secret
 
         - mountPath: /etc/prometheus/ca
-          name: prometheus-service-ca
+          name: data-science-prometheus-service-ca
 
       - name: alertmanager-proxy
         args:
@@ -259,9 +259,9 @@ spec:
         configMap:
           defaultMode: 420
           name: prometheus
-      - name: prometheus-service-ca
+      - name: data-science-prometheus-service-ca
         configMap:
-          name: prometheus-service-ca
+          name: data-science-prometheus-service-ca
       - name: prometheus-secret
         secret:
           secretName: prometheus-secret

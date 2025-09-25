@@ -10,7 +10,7 @@ metadata:
     prometheus: k8s
     role: recording-rules
     app: rhods
-  name: rhods-rules
+  name: data-science-rules
   namespace: redhat-ods-monitoring
 spec:
   groups:
