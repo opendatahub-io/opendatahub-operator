@@ -328,6 +328,12 @@ var (
 		Kind:    "EnvoyFilter",
 	}
 
+	DestinationRule = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1",
+		Kind:    "DestinationRule",
+	}
+
 	AuthorizationPolicy = schema.GroupVersionKind{
 		Group:   "security.istio.io",
 		Version: "v1",
