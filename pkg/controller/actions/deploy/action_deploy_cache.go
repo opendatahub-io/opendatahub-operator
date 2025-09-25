@@ -108,11 +108,6 @@ func (r *Cache) Delete(original *unstructured.Unstructured, modified *unstructur
 		return nil
 	}
 
-	// Check if key exists before deleting to make Delete idempotent
-	_, exists, _ := r.s.GetByKey(key)
-	if !exists {
-		return nil // Already deleted or never existed - success
-	}
 	return r.s.Delete(key)
 }
 
