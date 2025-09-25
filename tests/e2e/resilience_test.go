@@ -341,10 +341,7 @@ func (tc *OperatorResilienceTestCtx) createZeroPodQuotaForOperator() {
 	}
 
 	// First, ensure the ResourceQuota is created
-	tc.EventuallyResourceCreated(
-		WithObjectToCreate(quota),
-		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
-	)
+	tc.EventuallyResourceCreated(WithObjectToCreate(quota))
 
 	// Then, wait for the ResourceQuota to become active (status populated by controller)
 	tc.EnsureResourceExists(

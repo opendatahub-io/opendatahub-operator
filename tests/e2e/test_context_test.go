@@ -257,7 +257,9 @@ func (tc *TestContext) EventuallyResourceCreated(opts ...ResourceOpts) *unstruct
 	// Create adapter function to match the signature
 	createFn := func(obj *unstructured.Unstructured, fn ...func(obj *unstructured.Unstructured) error) *testf.EventuallyValue[*unstructured.Unstructured] {
 		if len(fn) > 0 && fn[0] != nil {
-			_ = fn[0](obj) // Apply mutation
+			if err := fn[0](obj); err != nil {
+				tc.g.Expect(err).NotTo(HaveOccurred(), "failed to apply create mutation")
+			}
 		}
 		return tc.g.Create(obj, ro.NN)
 	}
@@ -270,7 +272,7 @@ func (tc *TestContext) EventuallyResourceCreated(opts ...ResourceOpts) *unstruct
 // Use EventuallyResourceCreatedOrUpdated if you need creation-or-update semantics.
 //
 // Behavior is controlled by the following optional flags:
-//   - WithMutateFunc: Defines how to modify the resource during update (required).
+//   - WithMutateFunc: Defines how to modify the resource during update (optional; if omitted, a no-op update is attempted).
 //   - WithCondition: Validates the resource state after update.
 //
 // Parameters:
@@ -513,16 +515,16 @@ func (tc *TestContext) EnsureResourcesExist(opts ...ResourceOpts) []unstructured
 	var resourcesList []unstructured.Unstructured
 
 	tc.g.Eventually(func(g Gomega) {
-		resourcesList, _ := fetchResources(ro)
-
-		// If no condition is provided, simply ensure the list is not empty
-		g.Expect(resourcesList).NotTo(BeEmpty(), resourceEmptyErrorMsg, ro.ResourceID, ro.GVK.Kind)
+		resourcesList, _ = fetchResourcesSync(ro)
 
 		// If a condition is provided via WithCondition, apply it inside the Eventually block
 		if ro.Condition != nil {
 			// Apply the condition matcher (e.g., length check, label check, etc.)
 			applyMatchers(g, ro.ResourceID, ro.GVK, resourcesList, nil, ro.Condition, ro.CustomErrorArgs)
 		}
+
+		// If no condition is provided, simply ensure the list is not empty
+		g.Expect(resourcesList).NotTo(BeEmpty(), resourceEmptyErrorMsg, ro.ResourceID, ro.GVK.Kind)
 	}).Should(Succeed())
 
 	return resourcesList
@@ -978,7 +980,7 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 	// Step 2.5: Ensure the resource is actually deleted before looking for recreation
 	tc.g.Eventually(func(g Gomega) {
 		// Use direct client.Get() instead of fetchResource() to avoid nested Eventually calls
-		u, err := tc.g.Get(ro.GVK, ro.NN).Get()
+		u, err := fetchResourceSync(ro)
 		if err != nil {
 			// For NotFound errors, the resource is successfully deleted
 			if k8serr.IsNotFound(err) {
@@ -1008,7 +1010,7 @@ func (tc *TestContext) EnsureResourceDeletedThenRecreated(opts ...ResourceOpts) 
 	tc.g.Eventually(func(g Gomega) {
 		// Poll without nesting Eventually to avoid compounded timeouts
 		// Use direct client.Get() instead of fetchResource() to avoid nested Eventually calls
-		u, err := tc.g.Get(ro.GVK, ro.NN).Get()
+		u, err := fetchResourceSync(ro)
 		g.Expect(err).NotTo(HaveOccurred(), "Failed to fetch %s %s", ro.GVK.Kind, ro.ResourceID)
 		g.Expect(u).NotTo(BeNil(), "Expected %s %s to be recreated", ro.GVK.Kind, ro.ResourceID)
 		recreatedResource = u
@@ -1588,7 +1590,6 @@ func (tc *TestContext) tryRemoveFinalizers(gvk schema.GroupVersionKind, nn types
 				k8serr.IsConflict(err) || // Resource version conflicts
 				strings.Contains(err.Error(), "resourceVersion should not be set on objects to be created") // Generic resource version creation errors
 		}, "AcceptableCleanupError"),
-		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout), // Short timeout for best-effort
 	)
 }
 
