@@ -18,6 +18,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard/dashboard_test"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -51,10 +52,10 @@ func testCompleteReconciliationFlow(t *testing.T) {
 	dsci := &dsciv1.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testDSCIName,
-			Namespace: dashboard.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 		},
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 	err = cli.Create(t.Context(), dsci)
@@ -73,7 +74,7 @@ func testCompleteReconciliationFlow(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      componentApi.DashboardInstanceName,
-			Namespace: dashboard.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 		},
 		Spec: componentApi.DashboardSpec{
 			DashboardCommonSpec: componentApi.DashboardCommonSpec{
@@ -129,10 +130,10 @@ func testReconciliationWithDevFlags(t *testing.T) {
 	dsci := &dsciv1.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testDSCIName,
-			Namespace: dashboard.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 		},
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 	err = cli.Create(t.Context(), dsci)
@@ -144,7 +145,7 @@ func testReconciliationWithDevFlags(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      componentApi.DashboardInstanceName,
-			Namespace: dashboard.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 		},
 		Spec: componentApi.DashboardSpec{
 			DashboardCommonSpec: componentApi.DashboardCommonSpec{
@@ -188,10 +189,10 @@ func testReconciliationWithHardwareProfiles(t *testing.T) {
 	dsci := &dsciv1.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testDSCIName,
-			Namespace: dashboard.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 		},
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 	err = cli.Create(t.Context(), dsci)
@@ -216,7 +217,7 @@ func testReconciliationWithHardwareProfiles(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      componentApi.DashboardInstanceName,
-			Namespace: dashboard.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 		},
 		Spec: componentApi.DashboardSpec{
 			DashboardCommonSpec: componentApi.DashboardCommonSpec{
@@ -245,15 +246,15 @@ func testReconciliationWithHardwareProfiles(t *testing.T) {
 	// Verify infrastructure hardware profile was created
 	var infraHWP infrav1.HardwareProfile
 	err = cli.Get(t.Context(), client.ObjectKey{
-		Name:      dashboard.TestProfile,
-		Namespace: dashboard.TestNamespace,
+		Name:      dashboard_test.TestProfile,
+		Namespace: dashboard_test.TestNamespace,
 	}, &infraHWP)
 	// The hardware profile might not be created if the CRD doesn't exist or other conditions
 	if err != nil {
 		// This is expected in some test scenarios
 		t.Logf("Hardware profile not found (expected in some scenarios): %v", err)
 	} else {
-		g.Expect(infraHWP.Name).Should(Equal(dashboard.TestProfile))
+		g.Expect(infraHWP.Name).Should(Equal(dashboard_test.TestProfile))
 	}
 }
 
@@ -265,10 +266,10 @@ func testReconciliationWithRoute(t *testing.T) {
 	dsci := &dsciv1.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testDSCIName,
-			Namespace: dashboard.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 		},
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 	err = cli.Create(t.Context(), dsci)
@@ -280,18 +281,18 @@ func testReconciliationWithRoute(t *testing.T) {
 	route := &routev1.Route{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "odh-dashboard",
-			Namespace: dashboard.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 			Labels: map[string]string{
 				labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
 			},
 		},
 		Spec: routev1.RouteSpec{
-			Host: dashboard.TestRouteHost,
+			Host: dashboard_test.TestRouteHost,
 		},
 		Status: routev1.RouteStatus{
 			Ingress: []routev1.RouteIngress{
 				{
-					Host: dashboard.TestRouteHost,
+					Host: dashboard_test.TestRouteHost,
 					Conditions: []routev1.RouteIngressCondition{
 						{
 							Type:   routev1.RouteAdmitted,
@@ -310,7 +311,7 @@ func testReconciliationWithRoute(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      componentApi.DashboardInstanceName,
-			Namespace: dashboard.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 		},
 		Spec: componentApi.DashboardSpec{
 			DashboardCommonSpec: componentApi.DashboardCommonSpec{
@@ -339,7 +340,7 @@ func testReconciliationWithRoute(t *testing.T) {
 	// Verify URL was set
 	dashboardInstance, ok := rr.Instance.(*componentApi.Dashboard)
 	g.Expect(ok).Should(BeTrue())
-	g.Expect(dashboardInstance.Status.URL).Should(Equal("https://" + dashboard.TestRouteHost))
+	g.Expect(dashboardInstance.Status.URL).Should(Equal("https://" + dashboard_test.TestRouteHost))
 }
 
 func testReconciliationErrorHandling(t *testing.T) {
@@ -353,7 +354,7 @@ func testReconciliationErrorHandling(t *testing.T) {
 		Instance: &componentApi.Kserve{}, // Wrong type
 		DSCI: &dsciv1.DSCInitialization{
 			Spec: dsciv1.DSCInitializationSpec{
-				ApplicationsNamespace: dashboard.TestNamespace,
+				ApplicationsNamespace: dashboard_test.TestNamespace,
 			},
 		},
 		Release: common.Release{Name: cluster.OpenDataHub},
@@ -394,14 +395,14 @@ func createTestCRD(name string) *unstructured.Unstructured {
 func createTestDashboardHardwareProfile() *unstructured.Unstructured {
 	profile := &unstructured.Unstructured{}
 	profile.SetGroupVersionKind(gvk.DashboardHardwareProfile)
-	profile.SetName(dashboard.TestProfile)
-	profile.SetNamespace(dashboard.TestNamespace)
+	profile.SetName(dashboard_test.TestProfile)
+	profile.SetNamespace(dashboard_test.TestNamespace)
 	profile.Object["spec"] = map[string]interface{}{
-		"displayName": dashboard.TestDisplayName,
+		"displayName": dashboard_test.TestDisplayName,
 		"enabled":     true,
-		"description": dashboard.TestDescription,
+		"description": dashboard_test.TestDescription,
 		"nodeSelector": map[string]interface{}{
-			dashboard.NodeTypeKey: "gpu",
+			dashboard_test.NodeTypeKey: "gpu",
 		},
 	}
 	return profile

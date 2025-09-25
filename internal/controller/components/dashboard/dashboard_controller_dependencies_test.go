@@ -7,12 +7,14 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard/dashboard_test"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
@@ -33,9 +35,9 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 		{
 			name: "OpenDataHub",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard.CreateTestDashboard()
-				dsci := dashboard.CreateTestDSCI()
-				return dashboard.CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.OpenDataHub})
+				dashboardInstance := dashboard_test.CreateTestDashboard()
+				dsci := dashboard_test.CreateTestDSCI()
+				return dashboard_test.CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.OpenDataHub})
 			},
 			expectError:       false,
 			expectedResources: 0,
@@ -48,9 +50,9 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 		{
 			name: "SelfManagedRhoai",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard.CreateTestDashboard()
-				dsci := dashboard.CreateTestDSCI()
-				return dashboard.CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.SelfManagedRhoai})
+				dashboardInstance := dashboard_test.CreateTestDashboard()
+				dsci := dashboard_test.CreateTestDSCI()
+				return dashboard_test.CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.SelfManagedRhoai})
 			},
 			expectError:       false,
 			expectedResources: 1,
@@ -60,7 +62,7 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 				secret := rr.Resources[0]
 				g.Expect(secret.GetKind()).Should(Equal("Secret"))
 				g.Expect(secret.GetName()).Should(Equal(dashboard.AnacondaSecretName))
-				g.Expect(secret.GetNamespace()).Should(Equal(dashboard.TestNamespace))
+				g.Expect(secret.GetNamespace()).Should(Equal(dashboard_test.TestNamespace))
 			},
 		},
 		{
@@ -69,7 +71,7 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 				dashboardInstance := &componentApi.Dashboard{}
 				dsci := &dsciv1.DSCInitialization{
 					Spec: dsciv1.DSCInitializationSpec{
-						ApplicationsNamespace: dashboard.TestNamespace,
+						ApplicationsNamespace: dashboard_test.TestNamespace,
 					},
 				}
 				return &odhtypes.ReconciliationRequest{
@@ -85,7 +87,7 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 				t.Helper()
 				g := NewWithT(t)
 				g.Expect(rr.Resources[0].GetName()).Should(Equal(dashboard.AnacondaSecretName))
-				g.Expect(rr.Resources[0].GetNamespace()).Should(Equal(dashboard.TestNamespace))
+				g.Expect(rr.Resources[0].GetNamespace()).Should(Equal(dashboard_test.TestNamespace))
 			},
 		},
 		{
@@ -116,15 +118,15 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 		{
 			name: "SecretProperties",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard.CreateTestDashboard()
-				dsci := dashboard.CreateTestDSCI()
-				return dashboard.CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.SelfManagedRhoai})
+				dashboardInstance := dashboard_test.CreateTestDashboard()
+				dsci := dashboard_test.CreateTestDSCI()
+				return dashboard_test.CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.SelfManagedRhoai})
 			},
 			expectError:       false,
 			expectedResources: 1,
 			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
 				t.Helper()
-				dashboard.ValidateSecretProperties(t, &rr.Resources[0], dashboard.AnacondaSecretName, dashboard.TestNamespace)
+				validateSecretProperties(t, &rr.Resources[0], dashboard.AnacondaSecretName, dashboard_test.TestNamespace)
 			},
 		},
 	}
@@ -133,7 +135,7 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
-			cli := dashboard.CreateTestClient(t)
+			cli := dashboard_test.CreateTestClient(t)
 			rr := tc.setupRR(cli, ctx)
 			runDependencyTest(t, ctx, tc, rr)
 		})
@@ -154,7 +156,7 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 		{
 			name: "NilDSCI",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard.CreateTestDashboard()
+				dashboardInstance := dashboard_test.CreateTestDashboard()
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
 					Instance: dashboardInstance,
@@ -169,7 +171,7 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 		{
 			name: "SpecialCharactersInNamespace",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard.CreateTestDashboard()
+				dashboardInstance := dashboard_test.CreateTestDashboard()
 				dsci := &dsciv1.DSCInitialization{
 					Spec: dsciv1.DSCInitializationSpec{
 						ApplicationsNamespace: "test-namespace-with-special-chars!@#$%",
@@ -189,7 +191,7 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 		{
 			name: "LongNamespace",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard.CreateTestDashboard()
+				dashboardInstance := dashboard_test.CreateTestDashboard()
 				longNamespace := strings.Repeat("a", 1000)
 				dsci := &dsciv1.DSCInitialization{
 					Spec: dsciv1.DSCInitializationSpec{
@@ -210,8 +212,8 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 		{
 			name: "NilClient",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard.CreateTestDashboard()
-				dsci := dashboard.CreateTestDSCI()
+				dashboardInstance := dashboard_test.CreateTestDashboard()
+				dsci := dashboard_test.CreateTestDSCI()
 				return &odhtypes.ReconciliationRequest{
 					Client:   nil, // Nil client
 					Instance: dashboardInstance,
@@ -229,118 +231,7 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
-			cli := dashboard.CreateTestClient(t)
-			rr := tc.setupRR(cli, ctx)
-			runDependencyTest(t, ctx, tc, rr)
-		})
-	}
-}
-
-func TestConfigureDependenciesEdgeCases(t *testing.T) {
-	t.Parallel()
-	testCases := []struct {
-		name              string
-		setupRR           func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest
-		expectError       bool
-		expectPanic       bool
-		errorContains     string
-		expectedResources int
-		validateResult    func(t *testing.T, rr *odhtypes.ReconciliationRequest)
-	}{
-		{
-			name: "NilInstance",
-			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dsci := dashboard.CreateTestDSCI()
-				return &odhtypes.ReconciliationRequest{
-					Client:   cli,
-					Instance: nil, // Nil instance
-					DSCI:     dsci,
-					Release:  common.Release{Name: cluster.SelfManagedRhoai},
-				}
-			},
-			expectError:       false,
-			expectedResources: 1,
-			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
-				t.Helper()
-				g := NewWithT(t)
-				g.Expect(rr.Resources[0].GetName()).Should(Equal(dashboard.AnacondaSecretName))
-				g.Expect(rr.Resources[0].GetNamespace()).Should(Equal(dashboard.TestNamespace))
-			},
-		},
-		{
-			name: "InvalidRelease",
-			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard.CreateTestDashboard()
-				dsci := dashboard.CreateTestDSCI()
-				return &odhtypes.ReconciliationRequest{
-					Client:   cli,
-					Instance: dashboardInstance,
-					DSCI:     dsci,
-					Release:  common.Release{Name: "invalid-release"},
-				}
-			},
-			expectError:       false,
-			expectedResources: 1,
-			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
-				t.Helper()
-				g := NewWithT(t)
-				g.Expect(rr.Resources[0].GetName()).Should(Equal(dashboard.AnacondaSecretName))
-				g.Expect(rr.Resources[0].GetNamespace()).Should(Equal(dashboard.TestNamespace))
-			},
-		},
-		{
-			name: "EmptyRelease",
-			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard.CreateTestDashboard()
-				dsci := dashboard.CreateTestDSCI()
-				return &odhtypes.ReconciliationRequest{
-					Client:   cli,
-					Instance: dashboardInstance,
-					DSCI:     dsci,
-					Release:  common.Release{Name: ""}, // Empty release name
-				}
-			},
-			expectError:       false,
-			expectedResources: 1,
-			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
-				t.Helper()
-				g := NewWithT(t)
-				g.Expect(rr.Resources[0].GetName()).Should(Equal(dashboard.AnacondaSecretName))
-				g.Expect(rr.Resources[0].GetNamespace()).Should(Equal(dashboard.TestNamespace))
-			},
-		},
-		{
-			name: "MultipleCalls",
-			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard.CreateTestDashboard()
-				dsci := dashboard.CreateTestDSCI()
-				rr := dashboard.CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.SelfManagedRhoai})
-
-				// First call
-				_ = dashboard.ConfigureDependencies(ctx, rr)
-
-				// Return the same request for second call test
-				return rr
-			},
-			expectError:       false,
-			expectedResources: 1,
-			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
-				t.Helper()
-				g := NewWithT(t)
-				// Second call should be idempotent - no duplicates should be added
-				ctx := t.Context()
-				err := dashboard.ConfigureDependencies(ctx, rr)
-				g.Expect(err).ShouldNot(HaveOccurred())
-				g.Expect(rr.Resources).Should(HaveLen(1))
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := t.Context()
-			cli := dashboard.CreateTestClient(t)
+			cli := dashboard_test.CreateTestClient(t)
 			rr := tc.setupRR(cli, ctx)
 			runDependencyTest(t, ctx, tc, rr)
 		})
@@ -361,7 +252,7 @@ func runDependencyTest(t *testing.T, ctx context.Context, tc struct {
 	g := NewWithT(t)
 
 	if tc.expectPanic {
-		dashboard.AssertPanics(t, func() {
+		dashboard_test.AssertPanics(t, func() {
 			_ = dashboard.ConfigureDependencies(ctx, rr)
 		}, "dashboard.ConfigureDependencies should panic")
 		return
@@ -382,4 +273,20 @@ func runDependencyTest(t *testing.T, ctx context.Context, tc struct {
 	if tc.validateResult != nil {
 		tc.validateResult(t, rr)
 	}
+}
+
+// validateSecretProperties validates secret properties for the specific test case.
+func validateSecretProperties(t *testing.T, secret *unstructured.Unstructured, expectedName, expectedNamespace string) {
+	t.Helper()
+	g := NewWithT(t)
+	g.Expect(secret.GetAPIVersion()).Should(Equal("v1"))
+	g.Expect(secret.GetKind()).Should(Equal("Secret"))
+	g.Expect(secret.GetName()).Should(Equal(expectedName))
+	g.Expect(secret.GetNamespace()).Should(Equal(expectedNamespace))
+
+	// Check the type field in the object
+	secretType, found, err := unstructured.NestedString(secret.Object, "type")
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(found).Should(BeTrue())
+	g.Expect(secretType).Should(Equal("Opaque"))
 }

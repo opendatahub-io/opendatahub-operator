@@ -1,20 +1,19 @@
 // This file contains shared helper functions for dashboard controller tests.
 // These functions are used across multiple test files to reduce code duplication.
-// All functions are private (lowercase) to prevent accidental usage in production code.
-package dashboard
+// Helper functions are intended for testing purposes only.
+package dashboard_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -23,22 +22,18 @@ import (
 
 // TestData contains test fixtures and configuration values.
 const (
-	TestPath = "/test/path"
-
-	TestManifestURIInternal   = "https://example.com/manifests.tar.gz"
-	TestPlatform              = "test-platform"
-	TestSelfManagedPlatform   = "self-managed"
-	TestNamespace             = "test-namespace"
-	TestProfile               = "test-profile"
-	TestDisplayName           = "Test Display Name"
-	TestDescription           = "Test Description"
-	TestDomain                = "apps.example.com"
-	TestRouteHost             = "odh-dashboard-test-namespace.apps.example.com"
-	TestCustomPath            = "/custom/path"
-	ErrorDownloadingManifests = "error downloading manifests"
-	NodeTypeKey               = "node-type"
-	NvidiaGPUKey              = "nvidia.com/gpu"
-	DashboardHWPCRDName       = "dashboardhardwareprofiles.dashboard.opendatahub.io"
+	TestPath                = "/test/path"
+	TestNamespace           = "test-namespace"
+	TestPlatform            = "test-platform"
+	TestSelfManagedPlatform = "self-managed"
+	TestProfile             = "test-profile"
+	TestDisplayName         = "Test Display Name"
+	TestDescription         = "Test Description"
+	TestDomain              = "apps.example.com"
+	TestRouteHost           = "odh-dashboard-test-namespace.apps.example.com"
+	NodeTypeKey             = "node-type"
+	NvidiaGPUKey            = "nvidia.com/gpu"
+	DashboardHWPCRDName     = "dashboardhardwareprofiles.dashboard.opendatahub.io"
 )
 
 // ErrorMessages contains error message templates for test assertions.
@@ -123,19 +118,6 @@ func CreateTestDashboard() *componentApi.Dashboard {
 	}
 }
 
-// createTestDashboardWithCustomDevFlags creates a dashboard instance with DevFlags configuration.
-func CreateTestDashboardWithCustomDevFlags(devFlags *common.DevFlags) *componentApi.Dashboard {
-	return &componentApi.Dashboard{
-		Spec: componentApi.DashboardSpec{
-			DashboardCommonSpec: componentApi.DashboardCommonSpec{
-				DevFlagsSpec: common.DevFlagsSpec{
-					DevFlags: devFlags,
-				},
-			},
-		},
-	}
-}
-
 // createTestDSCI creates a DSCI instance for testing.
 func CreateTestDSCI() *dsciv1.DSCInitialization {
 	return &dsciv1.DSCInitialization{
@@ -172,22 +154,6 @@ func CreateTestReconciliationRequestWithManifests(
 	}
 }
 
-// validateSecretProperties validates common secret properties.
-func ValidateSecretProperties(t *testing.T, secret *unstructured.Unstructured, expectedName, expectedNamespace string) {
-	t.Helper()
-	g := gomega.NewWithT(t)
-	g.Expect(secret.GetAPIVersion()).Should(gomega.Equal("v1"))
-	g.Expect(secret.GetKind()).Should(gomega.Equal("Secret"))
-	g.Expect(secret.GetName()).Should(gomega.Equal(expectedName))
-	g.Expect(secret.GetNamespace()).Should(gomega.Equal(expectedNamespace))
-
-	// Check the type field in the object
-	secretType, found, err := unstructured.NestedString(secret.Object, "type")
-	g.Expect(err).ShouldNot(gomega.HaveOccurred())
-	g.Expect(found).Should(gomega.BeTrue())
-	g.Expect(secretType).Should(gomega.Equal("Opaque"))
-}
-
 // assertPanics is a helper function that verifies a function call panics.
 func AssertPanics(t *testing.T, fn func(), message string) {
 	t.Helper()
@@ -203,29 +169,14 @@ func AssertPanics(t *testing.T, fn func(), message string) {
 	fn()
 }
 
-// SetupTestReconciliationRequestSimple creates a test reconciliation request with default values (simple version).
-func SetupTestReconciliationRequestSimple(t *testing.T) *odhtypes.ReconciliationRequest {
-	t.Helper()
-	return &odhtypes.ReconciliationRequest{
-		Client:   nil,
-		Instance: nil,
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
-				ApplicationsNamespace: TestNamespace,
-			},
-		},
-		Release: common.Release{Name: cluster.OpenDataHub},
-	}
-}
-
 // CreateTestDashboardHardwareProfile creates a test dashboard hardware profile.
-func CreateTestDashboardHardwareProfile() *DashboardHardwareProfile {
-	return &DashboardHardwareProfile{
+func CreateTestDashboardHardwareProfile() *dashboard.DashboardHardwareProfile {
+	return &dashboard.DashboardHardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      TestProfile,
 			Namespace: TestNamespace,
 		},
-		Spec: DashboardHardwareProfileSpec{
+		Spec: dashboard.DashboardHardwareProfileSpec{
 			DisplayName: TestDisplayName,
 			Enabled:     true,
 			Description: TestDescription,
@@ -233,37 +184,11 @@ func CreateTestDashboardHardwareProfile() *DashboardHardwareProfile {
 	}
 }
 
-// runDevFlagsTestCases runs the test cases for DevFlags tests.
-func RunDevFlagsTestCases(t *testing.T, ctx context.Context, testCases []struct {
-	name           string
-	setupDashboard func() *componentApi.Dashboard
-	setupRR        func(dashboardInstance *componentApi.Dashboard) *odhtypes.ReconciliationRequest
-	expectError    bool
-	errorContains  string
-	validateResult func(t *testing.T, rr *odhtypes.ReconciliationRequest)
-}) {
+// SetupTestReconciliationRequestSimple creates a simple test reconciliation request.
+func SetupTestReconciliationRequestSimple(t *testing.T) *odhtypes.ReconciliationRequest {
 	t.Helper()
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			g := gomega.NewWithT(t)
-			dashboardInstance := tc.setupDashboard()
-			rr := tc.setupRR(dashboardInstance)
-
-			err := DevFlags(ctx, rr)
-
-			if tc.expectError {
-				g.Expect(err).Should(gomega.HaveOccurred())
-				if tc.errorContains != "" {
-					g.Expect(err.Error()).Should(gomega.ContainSubstring(tc.errorContains))
-				}
-			} else {
-				g.Expect(err).ShouldNot(gomega.HaveOccurred())
-			}
-
-			if tc.validateResult != nil {
-				tc.validateResult(t, rr)
-			}
-		})
-	}
+	cli := CreateTestClient(t)
+	dashboard := CreateTestDashboard()
+	dsci := CreateTestDSCI()
+	return CreateTestReconciliationRequest(cli, dashboard, dsci, common.Release{Name: cluster.OpenDataHub})
 }

@@ -12,7 +12,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard/dashboard_test"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
@@ -20,8 +22,7 @@ import (
 )
 
 const (
-	testConfigName    = "test-config"
-	managedAnnotation = "opendatahub.io/managed"
+	testConfigName = "test-config"
 )
 
 // testScheme is a shared scheme for testing, initialized once.
@@ -38,34 +39,40 @@ func createTestScheme() *runtime.Scheme {
 }
 
 func TestCustomizeResources(t *testing.T) {
-	t.Run("WithOdhDashboardConfig", testCustomizeResourcesWithOdhDashboardConfig)
+	t.Run("WithOdhDashboardConfig", func(t *testing.T) {
+		cli, err := fakeclient.New()
+		NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
+
+		// Create a resource with OdhDashboardConfig GVK
+		odhDashboardConfig := &unstructured.Unstructured{}
+		odhDashboardConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
+		odhDashboardConfig.SetName(testConfigName)
+		odhDashboardConfig.SetNamespace(dashboard_test.TestNamespace)
+
+		resources := []unstructured.Unstructured{*odhDashboardConfig}
+		testCustomizeResourcesWithOdhDashboardConfig(t, cli, resources)
+	})
 	t.Run("WithoutOdhDashboardConfig", testCustomizeResourcesWithoutOdhDashboardConfig)
 	t.Run("EmptyResources", testCustomizeResourcesEmptyResources)
 	t.Run("MultipleResources", testCustomizeResourcesMultipleResources)
 }
 
-func testCustomizeResourcesWithOdhDashboardConfig(t *testing.T) {
+func testCustomizeResourcesWithOdhDashboardConfig(t *testing.T, cli client.Client, resources []unstructured.Unstructured) {
 	t.Helper()
-	cli, err := fakeclient.New()
-	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
+	NewWithT(t).Expect(cli).ShouldNot(BeNil(), "Client should not be nil")
+	NewWithT(t).Expect(resources).ShouldNot(BeEmpty(), "Resources should not be empty")
 
-	// Create a resource with OdhDashboardConfig GVK
-	odhDashboardConfig := &unstructured.Unstructured{}
-	odhDashboardConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
-	odhDashboardConfig.SetName(testConfigName)
-	odhDashboardConfig.SetNamespace(dashboardctrl.TestNamespace)
-
-	rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
+	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
-	rr.Resources = []unstructured.Unstructured{*odhDashboardConfig}
+	rr.Resources = resources
 
 	ctx := t.Context()
-	err = dashboardctrl.CustomizeResources(ctx, rr)
+	err := dashboardctrl.CustomizeResources(ctx, rr)
 	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
 	// Check that the annotation was set
-	NewWithT(t).Expect(rr.Resources[0].GetAnnotations()).Should(HaveKey(managedAnnotation))
-	NewWithT(t).Expect(rr.Resources[0].GetAnnotations()[managedAnnotation]).Should(Equal("false"))
+	NewWithT(t).Expect(rr.Resources[0].GetAnnotations()).Should(HaveKey(annotations.ManagedByODHOperator))
+	NewWithT(t).Expect(rr.Resources[0].GetAnnotations()[annotations.ManagedByODHOperator]).Should(Equal("false"))
 }
 
 func testCustomizeResourcesWithoutOdhDashboardConfig(t *testing.T) {
@@ -77,7 +84,7 @@ func testCustomizeResourcesWithoutOdhDashboardConfig(t *testing.T) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testConfigName,
-			Namespace: dashboardctrl.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 		},
 	}
 	configMap.SetGroupVersionKind(schema.GroupVersionKind{
@@ -86,7 +93,7 @@ func testCustomizeResourcesWithoutOdhDashboardConfig(t *testing.T) {
 		Kind:    "ConfigMap",
 	})
 
-	rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
+	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 	rr.Resources = []unstructured.Unstructured{*unstructuredFromObject(t, configMap)}
 
@@ -95,7 +102,7 @@ func testCustomizeResourcesWithoutOdhDashboardConfig(t *testing.T) {
 	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
 	// Check that no annotation was set
-	NewWithT(t).Expect(rr.Resources[0].GetAnnotations()).ShouldNot(HaveKey(managedAnnotation))
+	NewWithT(t).Expect(rr.Resources[0].GetAnnotations()).ShouldNot(HaveKey(annotations.ManagedByODHOperator))
 }
 
 func testCustomizeResourcesEmptyResources(t *testing.T) {
@@ -103,7 +110,7 @@ func testCustomizeResourcesEmptyResources(t *testing.T) {
 	cli, err := fakeclient.New()
 	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
-	rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
+	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 	rr.Resources = []unstructured.Unstructured{}
 
@@ -121,12 +128,12 @@ func testCustomizeResourcesMultipleResources(t *testing.T) {
 	odhDashboardConfig := &unstructured.Unstructured{}
 	odhDashboardConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
 	odhDashboardConfig.SetName(testConfigName)
-	odhDashboardConfig.SetNamespace(dashboardctrl.TestNamespace)
+	odhDashboardConfig.SetNamespace(dashboard_test.TestNamespace)
 
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-configmap",
-			Namespace: dashboardctrl.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 		},
 	}
 	configMap.SetGroupVersionKind(schema.GroupVersionKind{
@@ -135,7 +142,7 @@ func testCustomizeResourcesMultipleResources(t *testing.T) {
 		Kind:    "ConfigMap",
 	})
 
-	rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
+	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 	rr.Resources = []unstructured.Unstructured{
 		*unstructuredFromObject(t, configMap),
@@ -150,10 +157,10 @@ func testCustomizeResourcesMultipleResources(t *testing.T) {
 
 	for _, resource := range rr.Resources {
 		if resource.GetObjectKind().GroupVersionKind() == gvk.OdhDashboardConfig && resource.GetName() == testConfigName {
-			NewWithT(t).Expect(resource.GetAnnotations()).Should(HaveKey(managedAnnotation))
-			NewWithT(t).Expect(resource.GetAnnotations()[managedAnnotation]).Should(Equal("false"))
+			NewWithT(t).Expect(resource.GetAnnotations()).Should(HaveKey(annotations.ManagedByODHOperator))
+			NewWithT(t).Expect(resource.GetAnnotations()[annotations.ManagedByODHOperator]).Should(Equal("false"))
 		} else {
-			NewWithT(t).Expect(resource.GetAnnotations()).ShouldNot(HaveKey(managedAnnotation))
+			NewWithT(t).Expect(resource.GetAnnotations()).ShouldNot(HaveKey(annotations.ManagedByODHOperator))
 		}
 	}
 }
@@ -172,17 +179,7 @@ func unstructuredFromObject(t *testing.T, obj client.Object) *unstructured.Unstr
 
 	unstructuredObj, err := resources.ObjectToUnstructured(testScheme, obj)
 	if err != nil {
-		// Log the error for debugging but create a fallback unstructured object
-		t.Logf("ObjectToUnstructured failed for object %+v with GVK %+v, creating fallback unstructured: %v", obj, originalGVK, err)
-
-		// Create a basic Unstructured with the original GVK as fallback
-		fallback := &unstructured.Unstructured{}
-		fallback.SetGroupVersionKind(originalGVK)
-		fallback.SetName(obj.GetName())
-		fallback.SetNamespace(obj.GetNamespace())
-		fallback.SetLabels(obj.GetLabels())
-		fallback.SetAnnotations(obj.GetAnnotations())
-		return fallback
+		t.Fatalf("ObjectToUnstructured failed for object %+v with GVK %+v: %v", obj, originalGVK, err)
 	}
 	return unstructuredObj
 }

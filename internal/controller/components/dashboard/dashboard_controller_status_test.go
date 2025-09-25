@@ -16,6 +16,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard/dashboard_test"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -46,7 +47,7 @@ func TestUpdateStatusNoRoutes(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -71,7 +72,7 @@ func TestUpdateStatusWithRoute(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -79,18 +80,18 @@ func TestUpdateStatusWithRoute(t *testing.T) {
 	route := &routev1.Route{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "odh-dashboard",
-			Namespace: dashboard.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 			Labels: map[string]string{
 				"platform.opendatahub.io/part-of": "dashboard",
 			},
 		},
 		Spec: routev1.RouteSpec{
-			Host: dashboard.TestRouteHost,
+			Host: dashboard_test.TestRouteHost,
 		},
 		Status: routev1.RouteStatus{
 			Ingress: []routev1.RouteIngress{
 				{
-					Host: dashboard.TestRouteHost,
+					Host: dashboard_test.TestRouteHost,
 					Conditions: []routev1.RouteIngressCondition{
 						{
 							Type:   routev1.RouteAdmitted,
@@ -113,7 +114,7 @@ func TestUpdateStatusWithRoute(t *testing.T) {
 
 	err = dashboard.UpdateStatus(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(dashboardInstance.Status.URL).Should(Equal("https://" + dashboard.TestRouteHost))
+	g.Expect(dashboardInstance.Status.URL).Should(Equal("https://" + dashboard_test.TestRouteHost))
 }
 
 func TestUpdateStatusInvalidInstance(t *testing.T) {
@@ -149,7 +150,7 @@ func TestUpdateStatusWithMultipleRoutes(t *testing.T) {
 	route1 := &routev1.Route{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "odh-dashboard-1",
-			Namespace: dashboard.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 			Labels: map[string]string{
 				labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
 			},
@@ -175,7 +176,7 @@ func TestUpdateStatusWithMultipleRoutes(t *testing.T) {
 	route2 := &routev1.Route{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "odh-dashboard-2",
-			Namespace: dashboard.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 			Labels: map[string]string{
 				labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
 			},
@@ -207,7 +208,7 @@ func TestUpdateStatusWithMultipleRoutes(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -234,7 +235,7 @@ func TestUpdateStatusWithRouteNoIngress(t *testing.T) {
 	route := &routev1.Route{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "odh-dashboard",
-			Namespace: dashboard.TestNamespace,
+			Namespace: dashboard_test.TestNamespace,
 			Labels: map[string]string{
 				labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
 			},
@@ -251,7 +252,7 @@ func TestUpdateStatusWithRouteNoIngress(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -285,7 +286,7 @@ func TestUpdateStatusListError(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 

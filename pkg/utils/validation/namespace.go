@@ -41,7 +41,7 @@ func ValidateNamespace(namespace string) error {
 	// Pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$.
 	if !rfc1123NamespaceRegex.MatchString(namespace) {
 		return fmt.Errorf("namespace '%s' must be lowercase and conform to RFC1123 DNS label rules: "+
-			"a–z, 0–9, '-', start/end with alphanumeric", namespace)
+			"a-z, 0-9, '-', start/end with alphanumeric", namespace)
 	}
 
 	return nil

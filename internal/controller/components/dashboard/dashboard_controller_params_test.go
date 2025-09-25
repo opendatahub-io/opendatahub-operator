@@ -13,6 +13,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard/dashboard_test"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -38,7 +39,7 @@ func TestSetKustomizedParams(t *testing.T) {
 
 	// Create a params.env file in the manifest directory
 	paramsEnvPath := filepath.Join(manifestDir, paramsEnvFileName)
-	paramsEnvContent := dashboardctrl.InitialParamsEnvContent
+	paramsEnvContent := dashboard_test.InitialParamsEnvContent
 	err = os.WriteFile(paramsEnvPath, []byte(paramsEnvContent), 0600)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -49,7 +50,7 @@ func TestSetKustomizedParams(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboardctrl.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -70,7 +71,7 @@ func TestSetKustomizedParams(t *testing.T) {
 	ingress.SetNamespace("")
 
 	// Set the domain in the spec
-	err = unstructured.SetNestedField(ingress.Object, dashboardctrl.TestDomain, "spec", "domain")
+	err = unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	err = cli.Create(ctx, ingress)
@@ -84,7 +85,7 @@ func TestSetKustomizedParams(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Check that the dashboard-url was updated with the expected value
-	expectedDashboardURL := "https://odh-dashboard-" + dashboardctrl.TestNamespace + ".apps.example.com"
+	expectedDashboardURL := "https://odh-dashboard-" + dashboard_test.TestNamespace + ".apps.example.com"
 	g.Expect(string(updatedContent)).Should(ContainSubstring("dashboard-url=" + expectedDashboardURL))
 
 	// Check that the section-title was updated with the expected value
@@ -106,7 +107,7 @@ func TestSetKustomizedParamsError(t *testing.T) {
 
 	// Create a params.env file in the manifest directory
 	paramsEnvPath := filepath.Join(manifestDir, paramsEnvFileName)
-	paramsEnvContent := dashboardctrl.InitialParamsEnvContent
+	paramsEnvContent := dashboard_test.InitialParamsEnvContent
 	err = os.WriteFile(paramsEnvPath, []byte(paramsEnvContent), 0600)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -117,7 +118,7 @@ func TestSetKustomizedParamsError(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboardctrl.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -134,8 +135,8 @@ func TestSetKustomizedParamsError(t *testing.T) {
 	// Test without creating the ingress resource (should fail to get domain)
 	err = dashboardctrl.SetKustomizedParams(ctx, rr)
 	g.Expect(err).To(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring(dashboardctrl.ErrorFailedToSetVariable))
-	t.Logf(dashboardctrl.LogSetKustomizedParamsError, err)
+	g.Expect(err.Error()).Should(ContainSubstring(dashboard_test.ErrorFailedToSetVariable))
+	t.Logf(dashboard_test.LogSetKustomizedParamsError, err)
 }
 
 func TestSetKustomizedParamsInvalidManifest(t *testing.T) {
@@ -152,7 +153,7 @@ func TestSetKustomizedParamsInvalidManifest(t *testing.T) {
 
 	// Create a params.env file in the manifest directory
 	paramsEnvPath := filepath.Join(manifestDir, paramsEnvFileName)
-	paramsEnvContent := dashboardctrl.InitialParamsEnvContent
+	paramsEnvContent := dashboard_test.InitialParamsEnvContent
 	err = os.WriteFile(paramsEnvPath, []byte(paramsEnvContent), 0600)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -163,7 +164,7 @@ func TestSetKustomizedParamsInvalidManifest(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboardctrl.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -184,7 +185,7 @@ func TestSetKustomizedParamsInvalidManifest(t *testing.T) {
 	ingress.SetNamespace("")
 
 	// Set the domain in the spec
-	err = unstructured.SetNestedField(ingress.Object, dashboardctrl.TestDomain, "spec", "domain")
+	err = unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	err = cli.Create(ctx, ingress)
@@ -207,7 +208,7 @@ func TestSetKustomizedParamsWithEmptyManifests(t *testing.T) {
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
 	ingress.SetName("cluster")
 	ingress.SetNamespace("")
-	err := unstructured.SetNestedField(ingress.Object, dashboardctrl.TestDomain, "spec", "domain")
+	err := unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
@@ -216,7 +217,7 @@ func TestSetKustomizedParamsWithEmptyManifests(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboardctrl.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -243,7 +244,7 @@ func TestSetKustomizedParamsWithNilManifests(t *testing.T) {
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
 	ingress.SetName("cluster")
 	ingress.SetNamespace("")
-	err := unstructured.SetNestedField(ingress.Object, dashboardctrl.TestDomain, "spec", "domain")
+	err := unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
@@ -252,7 +253,7 @@ func TestSetKustomizedParamsWithNilManifests(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboardctrl.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -279,7 +280,7 @@ func TestSetKustomizedParamsWithInvalidManifestPath(t *testing.T) {
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
 	ingress.SetName("cluster")
 	ingress.SetNamespace("")
-	err := unstructured.SetNestedField(ingress.Object, dashboardctrl.TestDomain, "spec", "domain")
+	err := unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
@@ -288,7 +289,7 @@ func TestSetKustomizedParamsWithInvalidManifestPath(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboardctrl.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -316,7 +317,7 @@ func TestSetKustomizedParamsWithMultipleManifests(t *testing.T) {
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
 	ingress.SetName("cluster")
 	ingress.SetNamespace("")
-	err := unstructured.SetNestedField(ingress.Object, dashboardctrl.TestDomain, "spec", "domain")
+	err := unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
@@ -325,7 +326,7 @@ func TestSetKustomizedParamsWithMultipleManifests(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboardctrl.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -335,15 +336,15 @@ func TestSetKustomizedParamsWithMultipleManifests(t *testing.T) {
 		DSCI:     dsci,
 		Release:  common.Release{Name: cluster.OpenDataHub},
 		Manifests: []odhtypes.ManifestInfo{
-			{Path: dashboardctrl.TestPath, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
-			{Path: dashboardctrl.TestPath, ContextDir: dashboardctrl.ComponentName, SourcePath: "/bff"},
+			{Path: dashboard_test.TestPath, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+			{Path: dashboard_test.TestPath, ContextDir: dashboardctrl.ComponentName, SourcePath: "/bff"},
 		},
 	}
 
 	// Should work with multiple manifests (uses first one)
 	err = dashboardctrl.SetKustomizedParams(ctx, rr)
 	if err != nil {
-		g.Expect(err.Error()).Should(ContainSubstring(dashboardctrl.ErrorFailedToUpdateParams))
+		g.Expect(err.Error()).Should(ContainSubstring(dashboard_test.ErrorFailedToUpdateParams))
 	} else {
 		t.Log("dashboardctrl.SetKustomizedParams handled multiple manifests gracefully")
 	}
@@ -358,7 +359,7 @@ func TestSetKustomizedParamsWithNilDSCI(t *testing.T) {
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
 	ingress.SetName("cluster")
 	ingress.SetNamespace("")
-	err := unstructured.SetNestedField(ingress.Object, dashboardctrl.TestDomain, "spec", "domain")
+	err := unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
@@ -372,7 +373,7 @@ func TestSetKustomizedParamsWithNilDSCI(t *testing.T) {
 		DSCI:     nil, // Nil DSCI
 		Release:  common.Release{Name: cluster.OpenDataHub},
 		Manifests: []odhtypes.ManifestInfo{
-			{Path: dashboardctrl.TestPath, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+			{Path: dashboard_test.TestPath, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
 		},
 	}
 
@@ -395,7 +396,7 @@ func TestSetKustomizedParamsWithNoManifestsError(t *testing.T) {
 	ingress.SetNamespace("")
 
 	// Set the domain in the spec
-	err = unstructured.SetNestedField(ingress.Object, dashboardctrl.TestDomain, "spec", "domain")
+	err = unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	err = cli.Create(ctx, ingress)
@@ -404,7 +405,7 @@ func TestSetKustomizedParamsWithNoManifestsError(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboardctrl.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -437,7 +438,7 @@ func TestSetKustomizedParamsWithDifferentReleases(t *testing.T) {
 
 	// Create a params.env file in the manifest directory
 	paramsEnvPath := filepath.Join(manifestDir, paramsEnvFileName)
-	paramsEnvContent := dashboardctrl.InitialParamsEnvContent
+	paramsEnvContent := dashboard_test.InitialParamsEnvContent
 	err = os.WriteFile(paramsEnvPath, []byte(paramsEnvContent), 0600)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -448,7 +449,7 @@ func TestSetKustomizedParamsWithDifferentReleases(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboardctrl.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -466,7 +467,7 @@ func TestSetKustomizedParamsWithDifferentReleases(t *testing.T) {
 	ingress.SetNamespace("")
 
 	// Set the domain in the spec
-	err = unstructured.SetNestedField(ingress.Object, dashboardctrl.TestDomain, "spec", "domain")
+	err = unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	err = cli.Create(ctx, ingress)
@@ -486,7 +487,7 @@ func TestSetKustomizedParamsWithDifferentReleases(t *testing.T) {
 
 			err = dashboardctrl.SetKustomizedParams(ctx, rr)
 			if err != nil {
-				g.Expect(err.Error()).Should(ContainSubstring(dashboardctrl.ErrorFailedToUpdateParams))
+				g.Expect(err.Error()).Should(ContainSubstring(dashboard_test.ErrorFailedToUpdateParams))
 				t.Logf("dashboardctrl.SetKustomizedParams returned error: %v", err)
 			} else {
 				t.Logf("dashboardctrl.SetKustomizedParams handled release gracefully")

@@ -1,6 +1,6 @@
 // This file contains tests that require access to internal dashboard functions.
 // These tests verify internal implementation details that are not exposed through the public API.
-// These tests need to access unexported functions like dashboard.CustomizeResources.
+// These tests verify dashboard functionality by calling exported functions like dashboard.CustomizeResources.
 package dashboard_test
 
 import (
@@ -12,6 +12,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard/dashboard_test"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -29,7 +30,7 @@ func TestCustomizeResourcesInternal(t *testing.T) {
 	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -60,7 +61,7 @@ func TestCustomizeResourcesNoOdhDashboardConfig(t *testing.T) {
 	}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 

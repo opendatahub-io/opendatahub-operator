@@ -12,6 +12,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard/dashboard_test"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -31,7 +32,7 @@ func setupTempDirWithParams(t *testing.T) string {
 
 	// Create a params.env file in the manifest directory
 	paramsEnvPath := filepath.Join(manifestDir, "params.env")
-	paramsEnvContent := dashboardctrl.InitialParamsEnvContent
+	paramsEnvContent := dashboard_test.InitialParamsEnvContent
 	err = os.WriteFile(paramsEnvPath, []byte(paramsEnvContent), 0600)
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
@@ -47,7 +48,7 @@ func createIngressResource(t *testing.T) *unstructured.Unstructured {
 	ingress.SetNamespace("")
 
 	// Set the domain in the spec
-	err := unstructured.SetNestedField(ingress.Object, dashboardctrl.TestDomain, "spec", "domain")
+	err := unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	return ingress
@@ -79,7 +80,7 @@ func verifyParamsEnvModified(t *testing.T, tempDir string, expectedURL, expected
 	g.Expect(contentStr).Should(gomega.ContainSubstring(expectedTitle))
 
 	// Verify the content is different from initial content
-	g.Expect(contentStr).ShouldNot(gomega.Equal(dashboardctrl.InitialParamsEnvContent))
+	g.Expect(contentStr).ShouldNot(gomega.Equal(dashboard_test.InitialParamsEnvContent))
 }
 
 func TestSetKustomizedParamsTable(t *testing.T) {
@@ -98,7 +99,7 @@ func TestSetKustomizedParamsTable(t *testing.T) {
 				ingress := createIngressResource(t)
 				cli := createFakeClientWithIngress(t, ingress)
 
-				rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 				rr.Client = cli
 				rr.Manifests = []odhtypes.ManifestInfo{
 					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
@@ -109,7 +110,7 @@ func TestSetKustomizedParamsTable(t *testing.T) {
 			verifyFunc: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
 				t.Helper()
 				// Verify that the params.env file was actually modified
-				expectedURL := "https://odh-dashboard-" + dashboardctrl.TestNamespace + "." + dashboardctrl.TestDomain
+				expectedURL := "https://odh-dashboard-" + dashboard_test.TestNamespace + "." + dashboard_test.TestDomain
 				expectedTitle := dashboardctrl.SectionTitle[cluster.OpenDataHub]
 				verifyParamsEnvModified(t, rr.Manifests[0].Path, expectedURL, expectedTitle)
 			},
@@ -125,7 +126,7 @@ func TestSetKustomizedParamsTable(t *testing.T) {
 				gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 				// Don't create the ingress resource, so domain lookup will fail
-				rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 				rr.Client = cli
 				rr.Manifests = []odhtypes.ManifestInfo{
 					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
@@ -133,7 +134,7 @@ func TestSetKustomizedParamsTable(t *testing.T) {
 				return rr
 			},
 			expectedError:  true,
-			errorSubstring: dashboardctrl.ErrorFailedToSetVariable,
+			errorSubstring: dashboard_test.ErrorFailedToSetVariable,
 		},
 		{
 			name: "EmptyManifests",
@@ -142,7 +143,7 @@ func TestSetKustomizedParamsTable(t *testing.T) {
 				ingress := createIngressResource(t)
 				cli := createFakeClientWithIngress(t, ingress)
 
-				rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 				rr.Client = cli
 				rr.Manifests = []odhtypes.ManifestInfo{} // Empty manifests
 				return rr
@@ -157,7 +158,7 @@ func TestSetKustomizedParamsTable(t *testing.T) {
 				ingress := createIngressResource(t)
 				cli := createFakeClientWithIngress(t, ingress)
 
-				rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 				rr.Client = cli
 				rr.Manifests = nil // Nil manifests
 				return rr
@@ -172,7 +173,7 @@ func TestSetKustomizedParamsTable(t *testing.T) {
 				ingress := createIngressResource(t)
 				cli := createFakeClientWithIngress(t, ingress)
 
-				rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 				rr.Client = cli
 				rr.Manifests = []odhtypes.ManifestInfo{
 					{Path: "/invalid/path", ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
@@ -190,7 +191,7 @@ func TestSetKustomizedParamsTable(t *testing.T) {
 				cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
 				gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-				rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 				rr.Client = cli
 				rr.Manifests = []odhtypes.ManifestInfo{
 					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
@@ -202,7 +203,7 @@ func TestSetKustomizedParamsTable(t *testing.T) {
 			verifyFunc: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
 				t.Helper()
 				// Verify that the params.env file was actually modified
-				expectedURL := "https://odh-dashboard-" + dashboardctrl.TestNamespace + "." + dashboardctrl.TestDomain
+				expectedURL := "https://odh-dashboard-" + dashboard_test.TestNamespace + "." + dashboard_test.TestDomain
 				expectedTitle := dashboardctrl.SectionTitle[cluster.OpenDataHub]
 				verifyParamsEnvModified(t, rr.Manifests[0].Path, expectedURL, expectedTitle)
 			},
@@ -216,7 +217,7 @@ func TestSetKustomizedParamsTable(t *testing.T) {
 				cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
 				gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-				rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 				rr.Client = cli
 				rr.Release = common.Release{Name: cluster.SelfManagedRhoai}
 				rr.Manifests = []odhtypes.ManifestInfo{
@@ -228,7 +229,7 @@ func TestSetKustomizedParamsTable(t *testing.T) {
 			verifyFunc: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
 				t.Helper()
 				// Verify that the params.env file was actually modified with SelfManagedRhoai values
-				expectedURL := "https://rhods-dashboard-" + dashboardctrl.TestNamespace + "." + dashboardctrl.TestDomain
+				expectedURL := "https://rhods-dashboard-" + dashboard_test.TestNamespace + "." + dashboard_test.TestDomain
 				expectedTitle := "OpenShift Self Managed Services"
 				verifyParamsEnvModified(t, rr.Manifests[0].Path, expectedURL, expectedTitle)
 			},

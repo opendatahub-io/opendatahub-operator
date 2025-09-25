@@ -10,6 +10,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard/dashboard_test"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -26,7 +27,7 @@ func TestInitialize(t *testing.T) {
 
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard.TestNamespace,
+			ApplicationsNamespace: dashboard_test.TestNamespace,
 		},
 	}
 
@@ -122,11 +123,8 @@ func TestInitErrorPaths(t *testing.T) {
 	// Test with invalid platform that might cause errors
 	// This tests the error handling in the Init function
 	platforms := []common.Platform{
-		"invalid-platform",
-		"",
-		"unknown-platform",
-		"test-platform-with-errors",
-		"platform-that-might-fail",
+		"",                 // Empty platform
+		"invalid-platform", // Invalid platform name
 	}
 
 	for _, platform := range platforms {
@@ -135,7 +133,7 @@ func TestInitErrorPaths(t *testing.T) {
 			// It might fail due to missing manifest paths, but should not panic
 			defer func() {
 				if r := recover(); r != nil {
-					t.Errorf(dashboard.ErrorInitPanicked, platform, r)
+					t.Errorf(dashboard_test.ErrorInitPanicked, platform, r)
 				}
 			}()
 
@@ -143,7 +141,7 @@ func TestInitErrorPaths(t *testing.T) {
 			// We expect this to fail due to missing manifest paths
 			// but it should fail gracefully with a specific error
 			if err != nil {
-				g.Expect(err.Error()).Should(ContainSubstring(dashboard.ErrorFailedToUpdate))
+				g.Expect(err.Error()).Should(ContainSubstring(dashboard_test.ErrorFailedToUpdate))
 			}
 		})
 	}
@@ -186,7 +184,7 @@ func validateInitResult(t *testing.T, tc struct {
 	}
 
 	if result.PanicRecovered != nil {
-		t.Errorf(dashboard.ErrorInitPanicked, tc.platform, result.PanicRecovered)
+		t.Errorf(dashboard_test.ErrorInitPanicked, tc.platform, result.PanicRecovered)
 		return
 	}
 
@@ -211,13 +209,13 @@ func TestInitErrorCases(t *testing.T) {
 		{
 			name:                 "non-existent-platform",
 			platform:             common.Platform("non-existent-platform"),
-			expectErrorSubstring: dashboard.ErrorFailedToUpdate,
+			expectErrorSubstring: dashboard_test.ErrorFailedToUpdate,
 			expectPanic:          false,
 		},
 		{
-			name:                 "dashboard.TestPlatform",
-			platform:             common.Platform(dashboard.TestPlatform),
-			expectErrorSubstring: dashboard.ErrorFailedToUpdate,
+			name:                 "dashboard_test.TestPlatform",
+			platform:             common.Platform(dashboard_test.TestPlatform),
+			expectErrorSubstring: dashboard_test.ErrorFailedToUpdate,
 			expectPanic:          false,
 		},
 	}
@@ -262,7 +260,7 @@ func TestInitWithVariousPlatforms(t *testing.T) {
 			// Test that Init handles different platforms gracefully
 			defer func() {
 				if r := recover(); r != nil {
-					t.Errorf(dashboard.ErrorInitPanicked, tc.platform, r)
+					t.Errorf(dashboard_test.ErrorInitPanicked, tc.platform, r)
 				}
 			}()
 
@@ -271,7 +269,7 @@ func TestInitWithVariousPlatforms(t *testing.T) {
 			// We're testing that it doesn't panic and handles different platforms
 			if err != nil {
 				// If it fails, it should fail with a specific error message
-				g.Expect(err.Error()).Should(ContainSubstring(dashboard.ErrorFailedToUpdate))
+				g.Expect(err.Error()).Should(ContainSubstring(dashboard_test.ErrorFailedToUpdate))
 			}
 		})
 	}
@@ -297,7 +295,7 @@ func TestInitWithEmptyPlatform(t *testing.T) {
 	// The function should either succeed or fail gracefully
 	if err != nil {
 		// If it fails, it should fail with a specific error message
-		g.Expect(err.Error()).Should(ContainSubstring(dashboard.ErrorFailedToUpdate))
+		g.Expect(err.Error()).Should(ContainSubstring(dashboard_test.ErrorFailedToUpdate))
 	}
 }
 
@@ -307,13 +305,13 @@ func TestInitWithFirstApplyParamsError(t *testing.T) {
 	handler := &dashboard.ComponentHandler{}
 
 	// Test with a platform that might cause issues
-	platform := common.Platform(dashboard.TestPlatform)
+	platform := common.Platform(dashboard_test.TestPlatform)
 
 	// The function should handle ApplyParams errors gracefully
 	err := handler.Init(platform)
 	// The function might not always return an error depending on the actual ApplyParams behavior
 	if err != nil {
-		g.Expect(err.Error()).Should(ContainSubstring(dashboard.ErrorFailedToUpdateImages))
+		g.Expect(err.Error()).Should(ContainSubstring(dashboard_test.ErrorFailedToUpdateImages))
 		t.Logf("Init returned error (expected): %v", err)
 	} else {
 		// If no error occurs, that's also acceptable behavior
@@ -331,7 +329,7 @@ func TestInitWithSecondApplyParamsError(t *testing.T) {
 	platforms := []common.Platform{
 		common.Platform("upstream"),
 		common.Platform("downstream"),
-		common.Platform(dashboard.TestSelfManagedPlatform),
+		common.Platform(dashboard_test.TestSelfManagedPlatform),
 		common.Platform("managed"),
 	}
 
@@ -340,8 +338,8 @@ func TestInitWithSecondApplyParamsError(t *testing.T) {
 		// The function should handle different platforms gracefully
 		if err != nil {
 			g.Expect(err.Error()).Should(Or(
-				ContainSubstring(dashboard.ErrorFailedToUpdateImages),
-				ContainSubstring(dashboard.ErrorFailedToUpdateModularImages),
+				ContainSubstring(dashboard_test.ErrorFailedToUpdateImages),
+				ContainSubstring(dashboard_test.ErrorFailedToUpdateModularImages),
 			))
 			t.Logf("Init returned error for platform %s (expected): %v", platform, err)
 		} else {
@@ -360,8 +358,8 @@ func TestInitWithInvalidPlatform(t *testing.T) {
 	err := handler.Init(common.Platform(""))
 	if err != nil {
 		g.Expect(err.Error()).Should(Or(
-			ContainSubstring(dashboard.ErrorFailedToUpdateImages),
-			ContainSubstring(dashboard.ErrorFailedToUpdateModularImages),
+			ContainSubstring(dashboard_test.ErrorFailedToUpdateImages),
+			ContainSubstring(dashboard_test.ErrorFailedToUpdateModularImages),
 		))
 		t.Logf("Init returned error for empty platform (expected): %v", err)
 	} else {
@@ -372,8 +370,8 @@ func TestInitWithInvalidPlatform(t *testing.T) {
 	err = handler.Init(common.Platform("test-platform-with-special-chars!@#$%"))
 	if err != nil {
 		g.Expect(err.Error()).Should(Or(
-			ContainSubstring(dashboard.ErrorFailedToUpdateImages),
-			ContainSubstring(dashboard.ErrorFailedToUpdateModularImages),
+			ContainSubstring(dashboard_test.ErrorFailedToUpdateImages),
+			ContainSubstring(dashboard_test.ErrorFailedToUpdateModularImages),
 		))
 		t.Logf("Init returned error for special chars platform (expected): %v", err)
 	} else {
@@ -392,8 +390,8 @@ func TestInitWithLongPlatform(t *testing.T) {
 	err := handler.Init(longPlatform)
 	if err != nil {
 		g.Expect(err.Error()).Should(Or(
-			ContainSubstring(dashboard.ErrorFailedToUpdateImages),
-			ContainSubstring(dashboard.ErrorFailedToUpdateModularImages),
+			ContainSubstring(dashboard_test.ErrorFailedToUpdateImages),
+			ContainSubstring(dashboard_test.ErrorFailedToUpdateModularImages),
 		))
 		t.Logf("Init returned error for long platform (expected): %v", err)
 	} else {
@@ -411,8 +409,8 @@ func TestInitWithNilPlatform(t *testing.T) {
 	err := handler.Init(common.Platform("nil-test"))
 	if err != nil {
 		g.Expect(err.Error()).Should(Or(
-			ContainSubstring(dashboard.ErrorFailedToUpdateImages),
-			ContainSubstring(dashboard.ErrorFailedToUpdateModularImages),
+			ContainSubstring(dashboard_test.ErrorFailedToUpdateImages),
+			ContainSubstring(dashboard_test.ErrorFailedToUpdateModularImages),
 		))
 		t.Logf("Init returned error for nil-like platform (expected): %v", err)
 	} else {
@@ -427,14 +425,14 @@ func TestInitMultipleCalls(t *testing.T) {
 	handler := &dashboard.ComponentHandler{}
 
 	// Test multiple calls to ensure consistency
-	platform := common.Platform(dashboard.TestPlatform)
+	platform := common.Platform(dashboard_test.TestPlatform)
 
 	for i := range 3 {
 		err := handler.Init(platform)
 		if err != nil {
 			g.Expect(err.Error()).Should(Or(
-				ContainSubstring(dashboard.ErrorFailedToUpdateImages),
-				ContainSubstring(dashboard.ErrorFailedToUpdateModularImages),
+				ContainSubstring(dashboard_test.ErrorFailedToUpdateImages),
+				ContainSubstring(dashboard_test.ErrorFailedToUpdateModularImages),
 			))
 			t.Logf("Init call %d returned error (expected): %v", i+1, err)
 		} else {
