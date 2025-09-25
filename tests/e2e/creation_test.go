@@ -361,7 +361,7 @@ func (tc *DSCTestCtx) ValidateVAPCreationAfterDSCI(t *testing.T) {
 func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
 	t.Helper()
 
-	// verifed default hardwareprofile exists and api version is correct on v1.
+	// verified default hardwareprofile exists and api version is correct on v1.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
 		WithCondition(And(

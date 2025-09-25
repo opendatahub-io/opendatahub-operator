@@ -70,14 +70,6 @@ var _ = BeforeSuite(func() {
 		}
 	})
 
-	var _ = AfterSuite(func() {
-		By("tearing down the test environment")
-		if testEnv != nil {
-			err := testEnv.Stop()
-			Expect(err).NotTo(HaveOccurred())
-		}
-	})
-
 	err = serviceApi.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -87,10 +79,4 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-})
-
-var _ = AfterSuite(func() {
-	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).NotTo(HaveOccurred())
 })

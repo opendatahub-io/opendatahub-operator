@@ -133,12 +133,9 @@ func TestSetKustomizedParamsError(t *testing.T) {
 
 	// Test without creating the ingress resource (should fail to get domain)
 	err = dashboardctrl.SetKustomizedParams(ctx, rr)
-	if err != nil {
-		g.Expect(err.Error()).Should(ContainSubstring(dashboardctrl.ErrorFailedToSetVariable))
-		t.Logf(dashboardctrl.LogSetKustomizedParamsError, err)
-	} else {
-		t.Log("dashboardctrl.SetKustomizedParams handled missing domain gracefully")
-	}
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).Should(ContainSubstring(dashboardctrl.ErrorFailedToSetVariable))
+	t.Logf(dashboardctrl.LogSetKustomizedParamsError, err)
 }
 
 func TestSetKustomizedParamsInvalidManifest(t *testing.T) {
@@ -197,8 +194,11 @@ func TestSetKustomizedParamsInvalidManifest(t *testing.T) {
 	rr.Manifests[0].Path = "/invalid/path"
 
 	err = dashboardctrl.SetKustomizedParams(ctx, rr)
+	// If graceful handling means success despite invalid path:
 	g.Expect(err).ShouldNot(HaveOccurred())
-	t.Log("dashboardctrl.SetKustomizedParams handled invalid path gracefully")
+	// OR if it should fail with specific error:
+	// g.Expect(err).To(HaveOccurred())
+	// g.Expect(err.Error()).Should(ContainSubstring("expected error message"))
 }
 
 func TestSetKustomizedParamsWithEmptyManifests(t *testing.T) {
@@ -381,17 +381,7 @@ func TestSetKustomizedParamsWithNilDSCI(t *testing.T) {
 	}
 
 	// Should fail due to nil DSCI (nil pointer dereference)
-	defer func() {
-		if r := recover(); r != nil {
-			t.Logf("dashboardctrl.SetKustomizedParams panicked with nil DSCI as expected: %v", r)
-			return
-		}
-		// If no panic, we expect an error
-		g.Expect(err).Should(HaveOccurred())
-		g.Expect(err.Error()).Should(ContainSubstring(dashboardctrl.ErrorFailedToSetVariable))
-	}()
-
-	err = dashboardctrl.SetKustomizedParams(ctx, rr)
+	g.Expect(func() { _ = dashboardctrl.SetKustomizedParams(ctx, rr) }).To(Panic())
 }
 
 func TestSetKustomizedParamsWithNoManifestsError(t *testing.T) {

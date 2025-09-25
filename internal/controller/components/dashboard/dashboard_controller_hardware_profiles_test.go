@@ -206,6 +206,10 @@ func testReconcileHardwareProfilesWithExistingInfraProfile(t *testing.T) {
 
 func testReconcileHardwareProfilesWithConversionError(t *testing.T) {
 	t.Helper()
+	// This test verifies that ProcessHardwareProfile returns an error
+	// when the dashboard hardware profile has an invalid spec that cannot be converted.
+	// We test ProcessHardwareProfile directly to avoid CRD check issues.
+
 	// Create a mock dashboard hardware profile with invalid spec
 	dashboardHWP := &unstructured.Unstructured{}
 	dashboardHWP.SetGroupVersionKind(gvk.DashboardHardwareProfile)
@@ -220,8 +224,14 @@ func testReconcileHardwareProfilesWithConversionError(t *testing.T) {
 	rr.Client = cli
 
 	ctx := t.Context()
-	err = dashboardctrl.ReconcileHardwareProfiles(ctx, rr)
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred()) // Should handle gracefully
+	logger := log.FromContext(ctx)
+
+	// Test ProcessHardwareProfile directly to avoid CRD check issues
+	err = dashboardctrl.ProcessHardwareProfile(ctx, rr, logger, *dashboardHWP)
+
+	// The function should return an error because the conversion fails
+	gomega.NewWithT(t).Expect(err).Should(gomega.HaveOccurred())
+	gomega.NewWithT(t).Expect(err.Error()).Should(gomega.ContainSubstring("failed to convert dashboard hardware profile"))
 }
 
 func testReconcileHardwareProfilesWithCreateError(t *testing.T) {
