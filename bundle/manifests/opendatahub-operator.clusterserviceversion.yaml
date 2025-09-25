@@ -128,7 +128,7 @@ metadata:
       "llamastackoperators.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v3.1.374-925
+  name: opendatahub-operator.v3.0.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1568,7 +1568,7 @@ spec:
                   value: /opt/manifests
                 - name: ODH_PLATFORM_TYPE
                   value: OpenDataHub
-                image: quay.io/wenzhou/opendatahub-operator:3.1.374-925
+                image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -1656,7 +1656,7 @@ spec:
   selector:
     matchLabels:
       component: opendatahub-operator
-  version: 3.1.374-925
+  version: 3.0.0
   webhookdefinitions:
   - admissionReviewVersions:
     - v1

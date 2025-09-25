@@ -115,13 +115,23 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 
 	switch certConfig.Type {
 	case infrav1.OpenshiftDefaultIngress:
-		if err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, gatewayNamespace); err != nil {
+		if err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, gatewayNamespace,
+			cluster.WithLabels( // add label easy to know it is from us.
+				labels.PlatformPartOf, serviceApi.GatewayServiceName,
+			),
+			cluster.OwnedBy(gatewayConfig, rr.Client.Scheme()), // set ownerreference for cleanup
+		); err != nil {
 			return "", fmt.Errorf("failed to propagate default ingress certificate: %w", err)
 		}
 		return secretName, nil
 	case infrav1.SelfSigned:
 		hostname := fmt.Sprintf("%s.%s", gatewayName, domain)
-		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, hostname, gatewayNamespace); err != nil {
+		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, hostname, gatewayNamespace,
+			cluster.WithLabels( // add label easy to know it is from us.
+				labels.PlatformPartOf, serviceApi.GatewayServiceName,
+			),
+			cluster.OwnedBy(gatewayConfig, rr.Client.Scheme()), // set ownerreference for cleanup
+		); err != nil {
 			return "", fmt.Errorf("failed to create self-signed certificate: %w", err)
 		}
 		return secretName, nil

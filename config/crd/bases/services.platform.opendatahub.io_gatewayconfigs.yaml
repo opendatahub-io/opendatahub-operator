@@ -192,8 +192,8 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: GatewayConfig name must be default-gateway
-          rule: self.metadata.name == 'default-gateway'
+        - message: GatewayConfig name must be data-science-gatewayconfig
+          rule: self.metadata.name == 'data-science-gatewayconfig'
     served: true
     storage: true
     subresources:

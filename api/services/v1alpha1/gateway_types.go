@@ -27,9 +27,9 @@ const (
 	GatewayServiceName = "gateway"
 	// GatewayConfigName the name of the GatewayConfig instance singleton.
 	// value should match whats set in the XValidation below
-	GatewayConfigName           = "default-gateway"
+	GatewayConfigName           = "data-science-gatewayconfig"
 	GatewayKind                 = "GatewayConfig"
-	DefaultGatewayTLSSecretName = "default-gateway-tls"
+	DefaultGatewayTLSSecretName = "data-science-gateway-tls"
 )
 
 // Check that the component implements common.PlatformObject.
@@ -65,7 +65,7 @@ type GatewayConfigStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-gateway'",message="GatewayConfig name must be default-gateway"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'data-science-gatewayconfig'",message="GatewayConfig name must be data-science-gatewayconfig"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 

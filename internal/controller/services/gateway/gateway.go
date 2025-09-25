@@ -25,6 +25,7 @@ const (
 	kubeAuthProxyName        = "kube-auth-proxy"
 	kubeAuthProxyCredsSecret = "kube-auth-proxy-creds" //nolint:gosec
 	kubeAuthProxyTLSSecret   = "kube-auth-proxy-tls"   //nolint:gosec
+	DestinationRuleName      = "data-science-tls-rule"
 )
 
 const (

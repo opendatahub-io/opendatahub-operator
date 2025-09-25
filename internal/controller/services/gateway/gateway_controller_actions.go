@@ -37,7 +37,7 @@ import (
 //go:embed resources
 var gatewayResources embed.FS
 
-// cretae gatewayclass, gateway with cert.
+// Create GatewayClass, Gateway with certificate.
 func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createGatewayInfrastructure")
 
@@ -74,7 +74,7 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	return nil
 }
 
-// check mode and deploy auth proxy(secret + svc + deployment) + oauth client (if integrated mode) + httproute.
+// Check authentication mode and deploy auth proxy (secret + service + deployment) + OAuth client (if integrated mode) + HTTPRoute.
 func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createAuthProxy")
 
@@ -236,6 +236,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"IsOIDC":                   isOIDC,
 		"Domain":                   domain,
 		"RedirectURL":              fmt.Sprintf("https://%s/oauth2/callback", domain),
+		"DestinationRuleName":      DestinationRuleName,
 	}
 
 	// Add OIDC-specific data if needed

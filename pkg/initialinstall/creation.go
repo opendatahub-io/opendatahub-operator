@@ -170,7 +170,7 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (common.Release,
 }
 
 // CreateDefaultGateway creates a default instance of GatewayConfig
-// If there exists default-gateway instance already, it will not update it.
+// If there exists data-science-gatewayconfig instance already, it will not update it.
 func CreateDefaultGateway(ctx context.Context, cli client.Client) error {
 	log := logf.FromContext(ctx)
 
