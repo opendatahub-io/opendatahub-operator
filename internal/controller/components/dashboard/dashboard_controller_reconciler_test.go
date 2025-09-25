@@ -4,6 +4,9 @@ package dashboard
 import (
 	"strings"
 	"testing"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
 func TestNewComponentReconcilerUnit(t *testing.T) {
@@ -39,6 +42,18 @@ func testNewComponentReconcilerWithNilManager(t *testing.T) {
 // testComponentNameComputation tests that the component name computation logic works correctly.
 func testComponentNameComputation(t *testing.T) {
 	t.Helper()
+
+	// Save the current global release state to avoid race conditions with parallel tests
+	originalRelease := cluster.GetRelease()
+	
+	// Set the release info to a known deterministic value for testing
+	// Use OpenDataHub as the deterministic test value
+	cluster.SetReleaseForTesting(common.Release{Name: cluster.OpenDataHub})
+	
+	// Restore the original global state in cleanup to avoid affecting parallel tests
+	t.Cleanup(func() {
+		cluster.SetReleaseForTesting(originalRelease)
+	})
 
 	// Test that ComputeComponentName returns a valid component name
 	componentName := ComputeComponentName()
