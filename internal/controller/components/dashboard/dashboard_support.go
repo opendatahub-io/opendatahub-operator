@@ -91,19 +91,23 @@ func ComputeKustomizeVariable(ctx context.Context, cli client.Client, platform c
 	}, nil
 }
 
-// ComputeComponentName returns the appropriate legacy component name based on the platform.
+// ComputeComponentNameWithRelease returns the appropriate legacy component name based on the provided release.
 // Platforms whose release.Name equals cluster.SelfManagedRhoai or cluster.ManagedRhoai
 // return LegacyComponentNameDownstream, while all others return LegacyComponentNameUpstream.
 // This distinction exists because these specific platforms use legacy downstream vs upstream
 // naming conventions. This is historical behavior that must be preserved - do not change
 // return values as this maintains compatibility with existing deployments.
-func ComputeComponentName() string {
-	release := cluster.GetRelease()
-
+func ComputeComponentNameWithRelease(release common.Release) string {
 	name := LegacyComponentNameUpstream
 	if release.Name == cluster.SelfManagedRhoai || release.Name == cluster.ManagedRhoai {
 		name = LegacyComponentNameDownstream
 	}
 
 	return name
+}
+
+// ComputeComponentName returns the appropriate legacy component name based on the platform.
+// This function maintains backward compatibility by using the global release state.
+func ComputeComponentName() string {
+	return ComputeComponentNameWithRelease(cluster.GetRelease())
 }

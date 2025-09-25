@@ -1,496 +1,347 @@
-// This file contains tests for dashboard controller parameter functionality.
-// These tests verify the dashboardctrl.SetKustomizedParams function and related parameter logic.
+// Consolidated tests for dashboard controller parameter functionality.
+// This file provides comprehensive test coverage for SetKustomizedParams function,
+// combining and improving upon the test coverage from the original parameter tests.
 package dashboard_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard/dashboard_test"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
-
-	. "github.com/onsi/gomega"
 )
 
-const paramsEnvFileName = "params.env"
-const errorNoManifestsAvailable = "no manifests available"
+const (
+	consolidatedParamsEnvFileName = "params.env"
+	odhDashboardURLPrefix         = "https://odh-dashboard-"
+	rhodsDashboardURLPrefix       = "https://rhods-dashboard-"
+)
 
-func TestSetKustomizedParams(t *testing.T) {
-	ctx := t.Context()
-	g := NewWithT(t)
-
+// setupTempDirWithParamsConsolidated creates a temporary directory with the proper structure and params.env file.
+func setupTempDirWithParamsConsolidated(t *testing.T) string {
+	t.Helper()
 	// Create a temporary directory for the test
 	tempDir := t.TempDir()
 
 	// Create the directory structure that matches the manifest path
 	manifestDir := filepath.Join(tempDir, dashboardctrl.ComponentName, "odh")
 	err := os.MkdirAll(manifestDir, 0755)
-	g.Expect(err).ShouldNot(HaveOccurred())
+	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	// Create a params.env file in the manifest directory
-	paramsEnvPath := filepath.Join(manifestDir, paramsEnvFileName)
+	paramsEnvPath := filepath.Join(manifestDir, consolidatedParamsEnvFileName)
 	paramsEnvContent := dashboard_test.InitialParamsEnvContent
 	err = os.WriteFile(paramsEnvPath, []byte(paramsEnvContent), 0600)
-	g.Expect(err).ShouldNot(HaveOccurred())
+	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	// Create a mock client that returns a domain
-	cli, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
+	return tempDir
+}
 
-	dashboardInstance := &componentApi.Dashboard{}
-	dsci := &dsciv1.DSCInitialization{
-		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard_test.TestNamespace,
-		},
-	}
-
-	rr := &odhtypes.ReconciliationRequest{
-		Client:   cli,
-		Instance: dashboardInstance,
-		DSCI:     dsci,
-		Release:  common.Release{Name: cluster.OpenDataHub},
-		Manifests: []odhtypes.ManifestInfo{
-			{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
-		},
-	}
-
-	// Mock the domain function by creating an ingress resource
+// createIngressResourceConsolidated creates an ingress resource with the test domain.
+func createIngressResourceConsolidated(t *testing.T) *unstructured.Unstructured {
+	t.Helper()
 	ingress := &unstructured.Unstructured{}
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
 	ingress.SetName("cluster")
 	ingress.SetNamespace("")
 
 	// Set the domain in the spec
-	err = unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
-	g.Expect(err).ShouldNot(HaveOccurred())
+	err := unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
+	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	err = cli.Create(ctx, ingress)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	err = dashboardctrl.SetKustomizedParams(ctx, rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Verify that the params.env file was updated with the correct values
-	updatedContent, err := os.ReadFile(paramsEnvPath)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Check that the dashboard-url was updated with the expected value
-	expectedDashboardURL := "https://odh-dashboard-" + dashboard_test.TestNamespace + ".apps.example.com"
-	g.Expect(string(updatedContent)).Should(ContainSubstring("dashboard-url=" + expectedDashboardURL))
-
-	// Check that the section-title was updated with the expected value
-	expectedSectionTitle := dashboardctrl.SectionTitle[cluster.OpenDataHub]
-	g.Expect(string(updatedContent)).Should(ContainSubstring("section-title=" + expectedSectionTitle))
+	return ingress
 }
 
-func TestSetKustomizedParamsError(t *testing.T) {
-	ctx := t.Context()
-	g := NewWithT(t)
-
-	// Create a temporary directory for the test
-	tempDir := t.TempDir()
-
-	// Create the directory structure that matches the manifest path
-	manifestDir := filepath.Join(tempDir, dashboardctrl.ComponentName, "odh")
-	err := os.MkdirAll(manifestDir, 0755)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Create a params.env file in the manifest directory
-	paramsEnvPath := filepath.Join(manifestDir, paramsEnvFileName)
-	paramsEnvContent := dashboard_test.InitialParamsEnvContent
-	err = os.WriteFile(paramsEnvPath, []byte(paramsEnvContent), 0600)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Create a mock client that will fail to get domain
+// createFakeClientWithIngressConsolidated creates a fake client with an ingress resource.
+func createFakeClientWithIngressConsolidated(t *testing.T, ingress *unstructured.Unstructured) client.Client {
+	t.Helper()
 	cli, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
+	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	dashboardInstance := &componentApi.Dashboard{}
-	dsci := &dsciv1.DSCInitialization{
-		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard_test.TestNamespace,
-		},
-	}
+	err = cli.Create(t.Context(), ingress)
+	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	rr := &odhtypes.ReconciliationRequest{
-		Client:   cli,
-		Instance: dashboardInstance,
-		DSCI:     dsci,
-		Release:  common.Release{Name: cluster.OpenDataHub},
-		Manifests: []odhtypes.ManifestInfo{
-			{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
-		},
-	}
-
-	// Test without creating the ingress resource (should fail to get domain)
-	err = dashboardctrl.SetKustomizedParams(ctx, rr)
-	g.Expect(err).To(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring(dashboard_test.ErrorFailedToSetVariable))
-	t.Logf(dashboard_test.LogSetKustomizedParamsError, err)
+	return cli
 }
 
-func TestSetKustomizedParamsInvalidManifest(t *testing.T) {
-	ctx := t.Context()
-	g := NewWithT(t)
-
-	// Create a temporary directory for the test
-	tempDir := t.TempDir()
-
-	// Create the directory structure that matches the manifest path
-	manifestDir := filepath.Join(tempDir, dashboardctrl.ComponentName, "odh")
-	err := os.MkdirAll(manifestDir, 0755)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Create a params.env file in the manifest directory
-	paramsEnvPath := filepath.Join(manifestDir, paramsEnvFileName)
-	paramsEnvContent := dashboard_test.InitialParamsEnvContent
-	err = os.WriteFile(paramsEnvPath, []byte(paramsEnvContent), 0600)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Create a mock client that returns a domain
+// createFakeClientWithoutIngressConsolidated creates a fake client without an ingress resource.
+func createFakeClientWithoutIngressConsolidated(t *testing.T) client.Client {
+	t.Helper()
 	cli, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	dashboardInstance := &componentApi.Dashboard{}
-	dsci := &dsciv1.DSCInitialization{
-		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard_test.TestNamespace,
-		},
-	}
-
-	rr := &odhtypes.ReconciliationRequest{
-		Client:   cli,
-		Instance: dashboardInstance,
-		DSCI:     dsci,
-		Release:  common.Release{Name: cluster.OpenDataHub},
-		Manifests: []odhtypes.ManifestInfo{
-			{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
-		},
-	}
-
-	// Mock the domain function by creating an ingress resource
-	ingress := &unstructured.Unstructured{}
-	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
-	ingress.SetName("cluster")
-	ingress.SetNamespace("")
-
-	// Set the domain in the spec
-	err = unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	err = cli.Create(ctx, ingress)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Test with invalid manifest path
-	rr.Manifests[0].Path = "/invalid/path"
-
-	err = dashboardctrl.SetKustomizedParams(ctx, rr)
-	// Should handle missing params.env gracefully (no error):
-	g.Expect(err).ShouldNot(HaveOccurred())
+	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+	return cli
 }
 
-func TestSetKustomizedParamsWithEmptyManifests(t *testing.T) {
-	ctx := t.Context()
-	g := NewWithT(t)
+// verifyParamsEnvModifiedConsolidated checks that the params.env file was actually modified with expected values.
+func verifyParamsEnvModifiedConsolidated(t *testing.T, tempDir string, expectedURL, expectedTitle string) {
+	t.Helper()
+	g := gomega.NewWithT(t)
 
-	// Create the OpenShift ingress resource that computeKustomizeVariable needs
-	ingress := &unstructured.Unstructured{}
-	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
-	ingress.SetName("cluster")
-	ingress.SetNamespace("")
-	err := unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
-	g.Expect(err).ShouldNot(HaveOccurred())
+	paramsEnvPath := filepath.Join(tempDir, dashboardctrl.ComponentName, "odh", consolidatedParamsEnvFileName)
+	content, err := os.ReadFile(paramsEnvPath)
+	g.Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
-	g.Expect(err).ShouldNot(HaveOccurred())
+	contentStr := string(content)
+	g.Expect(contentStr).Should(gomega.ContainSubstring(expectedURL))
+	g.Expect(contentStr).Should(gomega.ContainSubstring(expectedTitle))
 
-	dashboardInstance := &componentApi.Dashboard{}
-	dsci := &dsciv1.DSCInitialization{
-		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard_test.TestNamespace,
-		},
-	}
-
-	rr := &odhtypes.ReconciliationRequest{
-		Client:    cli,
-		Instance:  dashboardInstance,
-		DSCI:      dsci,
-		Release:   common.Release{Name: cluster.OpenDataHub},
-		Manifests: []odhtypes.ManifestInfo{}, // Empty manifests
-	}
-
-	// Should fail due to empty manifests
-	err = dashboardctrl.SetKustomizedParams(ctx, rr)
-	g.Expect(err).To(HaveOccurred())
-	g.Expect(err.Error()).To(ContainSubstring(errorNoManifestsAvailable))
+	// Verify the content is different from initial content
+	g.Expect(contentStr).ShouldNot(gomega.Equal(dashboard_test.InitialParamsEnvContent))
 }
 
-func TestSetKustomizedParamsWithNilManifests(t *testing.T) {
-	ctx := t.Context()
-	g := NewWithT(t)
-
-	// Create the OpenShift ingress resource that computeKustomizeVariable needs
-	ingress := &unstructured.Unstructured{}
-	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
-	ingress.SetName("cluster")
-	ingress.SetNamespace("")
-	err := unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	dashboardInstance := &componentApi.Dashboard{}
-	dsci := &dsciv1.DSCInitialization{
-		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard_test.TestNamespace,
-		},
-	}
-
-	rr := &odhtypes.ReconciliationRequest{
-		Client:    cli,
-		Instance:  dashboardInstance,
-		DSCI:      dsci,
-		Release:   common.Release{Name: cluster.OpenDataHub},
-		Manifests: nil, // Nil manifests
-	}
-
-	// Should fail due to nil manifests
-	err = dashboardctrl.SetKustomizedParams(ctx, rr)
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring(errorNoManifestsAvailable))
+// testCase represents a single test case for SetKustomizedParams function.
+type testCase struct {
+	name           string
+	setupFunc      func(t *testing.T) *odhtypes.ReconciliationRequest
+	expectedError  bool
+	errorSubstring string
+	verifyFunc     func(t *testing.T, rr *odhtypes.ReconciliationRequest)
 }
 
-func TestSetKustomizedParamsWithInvalidManifestPath(t *testing.T) {
-	ctx := t.Context()
-	g := NewWithT(t)
+// getComprehensiveTestCases returns all test cases for SetKustomizedParams function.
+func getComprehensiveTestCases() []testCase {
+	return []testCase{
+		{
+			name: "BasicSuccess",
+			setupFunc: func(t *testing.T) *odhtypes.ReconciliationRequest {
+				t.Helper()
+				tempDir := setupTempDirWithParamsConsolidated(t)
+				ingress := createIngressResourceConsolidated(t)
+				cli := createFakeClientWithIngressConsolidated(t, ingress)
 
-	// Create the OpenShift ingress resource that computeKustomizeVariable needs
-	ingress := &unstructured.Unstructured{}
-	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
-	ingress.SetName("cluster")
-	ingress.SetNamespace("")
-	err := unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	dashboardInstance := &componentApi.Dashboard{}
-	dsci := &dsciv1.DSCInitialization{
-		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard_test.TestNamespace,
-		},
-	}
-
-	rr := &odhtypes.ReconciliationRequest{
-		Client:   cli,
-		Instance: dashboardInstance,
-		DSCI:     dsci,
-		Release:  common.Release{Name: cluster.OpenDataHub},
-		Manifests: []odhtypes.ManifestInfo{
-			{Path: "/invalid/path", ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
-		},
-	}
-
-	// Should handle missing params.env gracefully (no error):
-	err = dashboardctrl.SetKustomizedParams(ctx, rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-}
-
-func TestSetKustomizedParamsWithMultipleManifests(t *testing.T) {
-	ctx := t.Context()
-	g := NewWithT(t)
-
-	// Create the OpenShift ingress resource that computeKustomizeVariable needs
-	ingress := &unstructured.Unstructured{}
-	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
-	ingress.SetName("cluster")
-	ingress.SetNamespace("")
-	err := unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	dashboardInstance := &componentApi.Dashboard{}
-	dsci := &dsciv1.DSCInitialization{
-		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard_test.TestNamespace,
-		},
-	}
-
-	rr := &odhtypes.ReconciliationRequest{
-		Client:   cli,
-		Instance: dashboardInstance,
-		DSCI:     dsci,
-		Release:  common.Release{Name: cluster.OpenDataHub},
-		Manifests: []odhtypes.ManifestInfo{
-			{Path: dashboard_test.TestPath, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
-			{Path: dashboard_test.TestPath, ContextDir: dashboardctrl.ComponentName, SourcePath: "/bff"},
-		},
-	}
-
-	// Should work with multiple manifests (uses first one)
-	err = dashboardctrl.SetKustomizedParams(ctx, rr)
-	if err != nil {
-		g.Expect(err.Error()).Should(ContainSubstring(dashboard_test.ErrorFailedToUpdateParams))
-	} else {
-		t.Log("dashboardctrl.SetKustomizedParams handled multiple manifests gracefully")
-	}
-}
-
-func TestSetKustomizedParamsWithNilDSCI(t *testing.T) {
-	ctx := t.Context()
-	g := NewWithT(t)
-
-	// Create the OpenShift ingress resource that computeKustomizeVariable needs
-	ingress := &unstructured.Unstructured{}
-	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
-	ingress.SetName("cluster")
-	ingress.SetNamespace("")
-	err := unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	dashboardInstance := &componentApi.Dashboard{}
-
-	rr := &odhtypes.ReconciliationRequest{
-		Client:   cli,
-		Instance: dashboardInstance,
-		DSCI:     nil, // Nil DSCI
-		Release:  common.Release{Name: cluster.OpenDataHub},
-		Manifests: []odhtypes.ManifestInfo{
-			{Path: dashboard_test.TestPath, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
-		},
-	}
-
-	// Should fail due to nil DSCI (nil pointer dereference)
-	g.Expect(func() { _ = dashboardctrl.SetKustomizedParams(ctx, rr) }).To(Panic())
-}
-
-func TestSetKustomizedParamsWithNoManifestsError(t *testing.T) {
-	ctx := t.Context()
-	g := NewWithT(t)
-
-	// Create a client that returns a domain
-	cli, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Create an ingress resource to provide domain
-	ingress := &unstructured.Unstructured{}
-	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
-	ingress.SetName("cluster")
-	ingress.SetNamespace("")
-
-	// Set the domain in the spec
-	err = unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	err = cli.Create(ctx, ingress)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	dashboardInstance := &componentApi.Dashboard{}
-	dsci := &dsciv1.DSCInitialization{
-		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard_test.TestNamespace,
-		},
-	}
-
-	rr := &odhtypes.ReconciliationRequest{
-		Client:    cli,
-		Instance:  dashboardInstance,
-		DSCI:      dsci,
-		Release:   common.Release{Name: cluster.OpenDataHub},
-		Manifests: []odhtypes.ManifestInfo{}, // Empty manifests - should cause "no manifests available" error
-	}
-
-	// Test with empty manifests (should fail with "no manifests available" error)
-	err = dashboardctrl.SetKustomizedParams(ctx, rr)
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring(errorNoManifestsAvailable))
-	t.Logf("dashboardctrl.SetKustomizedParams failed with empty manifests as expected: %v", err)
-}
-
-func TestSetKustomizedParamsWithDifferentReleases(t *testing.T) {
-	ctx := t.Context()
-	g := NewWithT(t)
-
-	// Create a temporary directory for the test
-	tempDir := t.TempDir()
-
-	// Create the directory structure that matches the manifest path
-	manifestDir := filepath.Join(tempDir, dashboardctrl.ComponentName, "odh")
-	err := os.MkdirAll(manifestDir, 0755)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Create a params.env file in the manifest directory
-	paramsEnvPath := filepath.Join(manifestDir, paramsEnvFileName)
-	paramsEnvContent := dashboard_test.InitialParamsEnvContent
-	err = os.WriteFile(paramsEnvPath, []byte(paramsEnvContent), 0600)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Create a mock client that returns a domain
-	cli, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	dashboardInstance := &componentApi.Dashboard{}
-	dsci := &dsciv1.DSCInitialization{
-		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: dashboard_test.TestNamespace,
-		},
-	}
-
-	// Test with different releases
-	releases := []common.Release{
-		{Name: cluster.OpenDataHub},
-		{Name: cluster.ManagedRhoai},
-		{Name: cluster.SelfManagedRhoai},
-	}
-
-	// Mock the domain function by creating an ingress resource once
-	ingress := &unstructured.Unstructured{}
-	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
-	ingress.SetName("cluster")
-	ingress.SetNamespace("")
-
-	// Set the domain in the spec
-	err = unstructured.SetNestedField(ingress.Object, dashboard_test.TestDomain, "spec", "domain")
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	err = cli.Create(ctx, ingress)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	for _, release := range releases {
-		t.Run("test", func(t *testing.T) {
-			rr := &odhtypes.ReconciliationRequest{
-				Client:   cli,
-				Instance: dashboardInstance,
-				DSCI:     dsci,
-				Release:  release,
-				Manifests: []odhtypes.ManifestInfo{
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+				rr.Client = cli
+				rr.Manifests = []odhtypes.ManifestInfo{
 					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
-				},
-			}
+				}
+				return rr
+			},
+			expectedError: false,
+			verifyFunc: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
+				t.Helper()
+				expectedURL := odhDashboardURLPrefix + dashboard_test.TestNamespace + "." + dashboard_test.TestDomain
+				expectedTitle := dashboardctrl.SectionTitle[cluster.OpenDataHub]
+				verifyParamsEnvModifiedConsolidated(t, rr.Manifests[0].Path, expectedURL, expectedTitle)
+			},
+		},
+		{
+			name: "MissingIngress",
+			setupFunc: func(t *testing.T) *odhtypes.ReconciliationRequest {
+				t.Helper()
+				tempDir := setupTempDirWithParamsConsolidated(t)
+				cli := createFakeClientWithoutIngressConsolidated(t)
 
-			err = dashboardctrl.SetKustomizedParams(ctx, rr)
-			if err != nil {
-				g.Expect(err.Error()).Should(ContainSubstring(dashboard_test.ErrorFailedToUpdateParams))
-				t.Logf("dashboardctrl.SetKustomizedParams returned error: %v", err)
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+				rr.Client = cli
+				rr.Manifests = []odhtypes.ManifestInfo{
+					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+				}
+				return rr
+			},
+			expectedError:  true,
+			errorSubstring: dashboard_test.ErrorFailedToSetVariable,
+		},
+		{
+			name: "EmptyManifests",
+			setupFunc: func(t *testing.T) *odhtypes.ReconciliationRequest {
+				t.Helper()
+				ingress := createIngressResourceConsolidated(t)
+				cli := createFakeClientWithIngressConsolidated(t, ingress)
+
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+				rr.Client = cli
+				rr.Manifests = []odhtypes.ManifestInfo{} // Empty manifests
+				return rr
+			},
+			expectedError:  true,
+			errorSubstring: "no manifests available",
+		},
+		{
+			name: "NilManifests",
+			setupFunc: func(t *testing.T) *odhtypes.ReconciliationRequest {
+				t.Helper()
+				ingress := createIngressResourceConsolidated(t)
+				cli := createFakeClientWithIngressConsolidated(t, ingress)
+
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+				rr.Client = cli
+				rr.Manifests = nil // Nil manifests
+				return rr
+			},
+			expectedError:  true,
+			errorSubstring: "no manifests available",
+		},
+		{
+			name: "InvalidManifestPath",
+			setupFunc: func(t *testing.T) *odhtypes.ReconciliationRequest {
+				t.Helper()
+				ingress := createIngressResourceConsolidated(t)
+				cli := createFakeClientWithIngressConsolidated(t, ingress)
+
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+				rr.Client = cli
+				rr.Manifests = []odhtypes.ManifestInfo{
+					{Path: "/invalid/path", ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+				}
+				return rr
+			},
+			expectedError: false, // ApplyParams handles missing files gracefully by returning nil
+		},
+		{
+			name: "MultipleManifests",
+			setupFunc: func(t *testing.T) *odhtypes.ReconciliationRequest {
+				t.Helper()
+				tempDir := setupTempDirWithParamsConsolidated(t)
+				ingress := createIngressResourceConsolidated(t)
+				cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
+				gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+				rr.Client = cli
+				rr.Manifests = []odhtypes.ManifestInfo{
+					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/bff"},
+				}
+				return rr
+			},
+			expectedError: false, // Should work with multiple manifests (uses first one)
+			verifyFunc: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
+				t.Helper()
+				expectedURL := odhDashboardURLPrefix + dashboard_test.TestNamespace + "." + dashboard_test.TestDomain
+				expectedTitle := dashboardctrl.SectionTitle[cluster.OpenDataHub]
+				verifyParamsEnvModifiedConsolidated(t, rr.Manifests[0].Path, expectedURL, expectedTitle)
+			},
+		},
+		{
+			name: "DifferentReleases_SelfManagedRhoai",
+			setupFunc: func(t *testing.T) *odhtypes.ReconciliationRequest {
+				t.Helper()
+				tempDir := setupTempDirWithParamsConsolidated(t)
+				ingress := createIngressResourceConsolidated(t)
+				cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
+				gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+				rr.Client = cli
+				rr.Release = common.Release{Name: cluster.SelfManagedRhoai}
+				rr.Manifests = []odhtypes.ManifestInfo{
+					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+				}
+				return rr
+			},
+			expectedError: false,
+			verifyFunc: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
+				t.Helper()
+				expectedURL := rhodsDashboardURLPrefix + dashboard_test.TestNamespace + "." + dashboard_test.TestDomain
+				expectedTitle := "OpenShift Self Managed Services"
+				verifyParamsEnvModifiedConsolidated(t, rr.Manifests[0].Path, expectedURL, expectedTitle)
+			},
+		},
+		{
+			name: "DifferentReleases_ManagedRhoai",
+			setupFunc: func(t *testing.T) *odhtypes.ReconciliationRequest {
+				t.Helper()
+				tempDir := setupTempDirWithParamsConsolidated(t)
+				ingress := createIngressResourceConsolidated(t)
+				cli, err := fakeclient.New(fakeclient.WithObjects(ingress))
+				gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+
+				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+				rr.Client = cli
+				rr.Release = common.Release{Name: cluster.ManagedRhoai}
+				rr.Manifests = []odhtypes.ManifestInfo{
+					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+				}
+				return rr
+			},
+			expectedError: false,
+			verifyFunc: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
+				t.Helper()
+				expectedURL := rhodsDashboardURLPrefix + dashboard_test.TestNamespace + "." + dashboard_test.TestDomain
+				expectedTitle := dashboardctrl.SectionTitle[cluster.ManagedRhoai]
+				verifyParamsEnvModifiedConsolidated(t, rr.Manifests[0].Path, expectedURL, expectedTitle)
+			},
+		},
+		{
+			name: "NilDSCI",
+			setupFunc: func(t *testing.T) *odhtypes.ReconciliationRequest {
+				t.Helper()
+				ingress := createIngressResourceConsolidated(t)
+				cli := createFakeClientWithIngressConsolidated(t, ingress)
+
+				dashboardInstance := &componentApi.Dashboard{}
+				rr := &odhtypes.ReconciliationRequest{
+					Client:   cli,
+					Instance: dashboardInstance,
+					DSCI:     nil, // Nil DSCI
+					Release:  common.Release{Name: cluster.OpenDataHub},
+					Manifests: []odhtypes.ManifestInfo{
+						{Path: dashboard_test.TestPath, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+					},
+				}
+				return rr
+			},
+			expectedError:  true,
+			errorSubstring: "runtime error: invalid memory address or nil pointer dereference", // Panic converted to error
+		},
+	}
+}
+
+// runTestWithPanicRecovery runs a test function with panic recovery for consistent error handling.
+func runTestWithPanicRecovery(t *testing.T, testFunc func() error) error {
+	t.Helper()
+	var err error
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// Convert panic to error for consistent testing
+				err = fmt.Errorf("panic occurred: %v", r)
+			}
+		}()
+		err = testFunc()
+	}()
+	return err
+}
+
+// TestSetKustomizedParamsComprehensive provides comprehensive test coverage for SetKustomizedParams function.
+func TestSetKustomizedParamsComprehensive(t *testing.T) {
+	tests := getComprehensiveTestCases()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			g := gomega.NewWithT(t)
+
+			rr := tt.setupFunc(t)
+
+			// Use panic recovery for consistent error handling
+			err := runTestWithPanicRecovery(t, func() error {
+				return dashboardctrl.SetKustomizedParams(ctx, rr)
+			})
+
+			if tt.expectedError {
+				g.Expect(err).Should(gomega.HaveOccurred())
+				if tt.errorSubstring != "" {
+					g.Expect(err.Error()).Should(gomega.ContainSubstring(tt.errorSubstring))
+				}
 			} else {
-				t.Logf("dashboardctrl.SetKustomizedParams handled release gracefully")
+				g.Expect(err).ShouldNot(gomega.HaveOccurred())
+				// Run verification function if provided
+				if tt.verifyFunc != nil {
+					tt.verifyFunc(t, rr)
+				}
 			}
 		})
 	}

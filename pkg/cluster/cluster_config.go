@@ -99,12 +99,6 @@ func GetClusterInfo() ClusterInfo {
 	return clusterConfig.ClusterInfo
 }
 
-// SetReleaseForTesting sets the release for testing purposes.
-// This function should only be used in tests to avoid race conditions.
-func SetReleaseForTesting(release common.Release) {
-	clusterConfig.Release = release
-}
-
 func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	ingress := &unstructured.Unstructured{}
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
