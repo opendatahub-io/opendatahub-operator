@@ -60,6 +60,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(createGatewayInfrastructure).
 		WithAction(createKubeAuthProxyInfrastructure).
 		WithAction(createEnvoyFilter).
+		WithAction(createDestinationRule).
 		WithAction(template.NewAction()).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),

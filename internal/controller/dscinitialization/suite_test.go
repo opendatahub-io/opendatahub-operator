@@ -47,6 +47,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	dscictrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -107,6 +108,17 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
+	DeferCleanup(func() {
+		By("DeferCleanup: cancelling context and tearing down test environment")
+		if gCancel != nil {
+			gCancel()
+		}
+		if testEnv != nil {
+			err := testEnv.Stop()
+			Expect(err).NotTo(HaveOccurred())
+		}
+	})
+
 	utilruntime.Must(clientgoscheme.AddToScheme(testScheme))
 	utilruntime.Must(dsciv1.AddToScheme(testScheme))
 	utilruntime.Must(dscv1.AddToScheme(testScheme))
@@ -123,6 +135,7 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(templatev1.Install(testScheme))
 	utilruntime.Must(configv1.Install(testScheme))
 	utilruntime.Must(serviceApi.AddToScheme(testScheme))
+	utilruntime.Must(infrav1.AddToScheme(testScheme))
 	// +kubebuilder:scaffold:scheme
 
 	cli, err := client.New(cfg, client.Options{Scheme: testScheme})
