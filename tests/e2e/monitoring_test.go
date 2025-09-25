@@ -471,7 +471,7 @@ func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRCreation(t *testing.T) {
 				jq.Match(`.spec.storage.traces.size == "%s"`, TracesStorageSize1Gi),
 				// Validate the backend is set to pv
 				jq.Match(`.spec.storage.traces.backend == "pv"`),
-				// Validate retention is set to 24h
+				// Validate retention is set to DefaultRetention (formatted as "%s")
 				jq.Match(`.spec.extraConfig.tempo.compactor.compaction.block_retention == "%s"`, FormattedRetention),
 			),
 		),

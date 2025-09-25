@@ -490,19 +490,18 @@ func (tc *ComponentTestCtx) ValidateRBACDeletionRecovery(t *testing.T) {
 
 	// RBAC resource types in dependency order (referenced resources first)
 	rbacResourceTypes := []struct {
-		gvk         schema.GroupVersionKind
-		nn          types.NamespacedName
-		description string
+		gvk schema.GroupVersionKind
+		nn  types.NamespacedName
 	}{
-		{gvk.ClusterRole, types.NamespacedName{}, "ClusterRole"},
-		{gvk.Role, types.NamespacedName{Namespace: tc.AppsNamespace}, "Role"},
-		{gvk.ClusterRoleBinding, types.NamespacedName{}, "ClusterRoleBinding"},
-		{gvk.RoleBinding, types.NamespacedName{Namespace: tc.AppsNamespace}, "RoleBinding"},
+		{gvk.ClusterRole, types.NamespacedName{}},
+		{gvk.Role, types.NamespacedName{Namespace: tc.AppsNamespace}},
+		{gvk.ClusterRoleBinding, types.NamespacedName{}},
+		{gvk.RoleBinding, types.NamespacedName{Namespace: tc.AppsNamespace}},
 	}
 
 	// Test each RBAC resource type sequentially to avoid dependency conflicts
 	for _, rbacType := range rbacResourceTypes {
-		t.Run(rbacType.description+" deletion recovery", func(t *testing.T) {
+		t.Run(rbacType.gvk.Kind+" deletion recovery", func(t *testing.T) {
 			t.Helper()
 			// Don't run in parallel due to RBAC interdependencies
 			tc.ValidateResourceDeletionRecovery(t, rbacType.gvk, rbacType.nn)
