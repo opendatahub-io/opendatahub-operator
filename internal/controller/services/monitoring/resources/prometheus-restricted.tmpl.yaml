@@ -1,0 +1,220 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus-restricted
+  namespace: {{.Namespace}}
+  labels:
+    app: prometheus-restricted
+    platform.opendatahub.io/part-of: monitoring
+  ownerReferences:
+  - apiVersion: {{.Component.APIVersion}}
+    kind: {{.Component.Kind}}
+    name: {{.Component.Name}}
+    uid: {{.Component.UID}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-restricted
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+  {{- if .DSCI }}
+  ownerReferences:
+  - apiVersion: {{.DSCI.APIVersion}}
+    kind: {{.DSCI.Kind}}
+    name: {{.DSCI.Name}}
+    uid: {{.DSCI.UID}}
+  {{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: odh:prometheus-metrics-reader
+subjects:
+  - kind: ServiceAccount
+    name: prometheus-restricted
+    namespace: {{.Namespace}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-restricted-auth-delegator
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+  {{- if .DSCI }}
+  ownerReferences:
+  - apiVersion: {{.DSCI.APIVersion}}
+    kind: {{.DSCI.Kind}}
+    name: {{.DSCI.Name}}
+    uid: {{.DSCI.UID}}
+  {{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: prometheus-restricted
+    namespace: {{.Namespace}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-restricted-config
+  namespace: {{.Namespace}}
+  labels:
+    app: prometheus-restricted
+    platform.opendatahub.io/part-of: monitoring
+  ownerReferences:
+  - apiVersion: {{.Component.APIVersion}}
+    kind: {{.Component.Kind}}
+    name: {{.Component.Name}}
+    uid: {{.Component.UID}}
+data:
+  kube-rbac-proxy.yaml: |
+    authorization:
+      rewrites:
+        byQueryParameter:
+          name: "namespace"
+      resourceAttributes:
+        group: ""
+        resource: services
+        subresource: proxy
+        namespace: "{{ "{{ .Value }}" }}"
+        name: data-science-monitoringstack-prometheus
+        verb: get
+    upstreams:
+      - upstream: http://127.0.0.1:9091/
+        path: /
+        rewriteTarget: /
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-restricted
+  namespace: {{.Namespace}}
+  labels:
+    app: prometheus-restricted
+    platform.opendatahub.io/part-of: monitoring
+  ownerReferences:
+  - apiVersion: {{.Component.APIVersion}}
+    kind: {{.Component.Kind}}
+    name: {{.Component.Name}}
+    uid: {{.Component.UID}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus-restricted
+  template:
+    metadata:
+      labels:
+        app: prometheus-restricted
+    spec:
+      serviceAccountName: prometheus-restricted
+      containers:
+        # kube-rbac-proxy for authentication and authorization
+        - name: kube-rbac-proxy
+          image: gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0
+          args:
+            - --secure-listen-address=0.0.0.0:8443
+            - --upstream=http://127.0.0.1:9091/
+            - --config-file=/etc/kube-rbac-proxy/kube-rbac-proxy.yaml
+            - --tls-cert-file=/etc/tls/private/tls.crt
+            - --tls-private-key-file=/etc/tls/private/tls.key
+            - --tls-min-version=VersionTLS12
+            - --tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+            - --logtostderr=true
+            - --v=2
+          ports:
+            - containerPort: 8443
+              name: https
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 20m
+              memory: 40Mi
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          terminationMessagePolicy: FallbackToLogsOnError
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kube-rbac-proxy
+              readOnly: true
+            - name: tls
+              mountPath: /etc/tls/private
+              readOnly: true
+            - name: client-ca
+              mountPath: /etc/client-ca
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+        # prom-label-proxy for namespace filtering
+        - name: prom-label-proxy
+          image: quay.io/prometheuscommunity/prom-label-proxy:v0.8.0
+          args:
+            - --insecure-listen-address=127.0.0.1:9091
+            - --upstream=http://prometheus-operated.{{.Namespace}}.svc:9090
+            - --label=namespace
+            - --enable-label-apis
+          resources:
+            limits:
+              cpu: 20m
+              memory: 40Mi
+            requests:
+              cpu: 10m
+              memory: 20Mi
+          terminationMessagePolicy: FallbackToLogsOnError
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-restricted-config
+        - name: tls
+          secret:
+            secretName: prometheus-restricted-tls
+        - name: client-ca
+          configMap:
+            name: prometheus-client-ca
+            optional: true
+      nodeSelector:
+        kubernetes.io/os: linux
+      securityContext:
+        runAsNonRoot: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-restricted
+  namespace: {{.Namespace}}
+  labels:
+    app: prometheus-restricted
+    platform.opendatahub.io/part-of: monitoring
+  ownerReferences:
+  - apiVersion: {{.Component.APIVersion}}
+    kind: {{.Component.Kind}}
+    name: {{.Component.Name}}
+    uid: {{.Component.UID}}
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: prometheus-restricted-tls
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: https
+  selector:
+    app: prometheus-restricted

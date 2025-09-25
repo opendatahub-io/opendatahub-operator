@@ -494,7 +494,7 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		},
 	}
 
-	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && (dsci.Spec.Monitoring.Metrics.Storage != nil || dsci.Spec.Monitoring.Metrics.Resources != nil)
+	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && (dsci.Spec.Monitoring.Metrics.Storage != nil || dsci.Spec.Monitoring.Metrics.Resources != nil || len(dsci.Spec.Monitoring.Metrics.Exporters) > 0)
 	tracesEnabled := dsci.Spec.Monitoring.Traces != nil
 
 	if metricsEnabled {

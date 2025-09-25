@@ -23,6 +23,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -88,6 +89,9 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.Monitoring{}).
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
+		Owns(&rbacv1.ClusterRole{}).
+		Owns(&rbacv1.ClusterRoleBinding{}).
+		Owns(&networkingv1.NetworkPolicy{}).
 		// operands - openshift
 		Owns(&routev1.Route{}).
 		// operands - owned dynmically depends on external operators are installed for monitoring
@@ -133,6 +137,8 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deployTempo).
 		WithAction(deployOpenTelemetryCollector).
 		WithAction(deployInstrumentation).
+		WithAction(deployThanosQuerier).
+		WithAction(deployNamespaceRestrictedMetrics).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
