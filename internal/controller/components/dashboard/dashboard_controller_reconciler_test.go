@@ -45,11 +45,11 @@ func testComponentNameComputation(t *testing.T) {
 
 	// Save the current global release state to avoid race conditions with parallel tests
 	originalRelease := cluster.GetRelease()
-	
+
 	// Set the release info to a known deterministic value for testing
 	// Use OpenDataHub as the deterministic test value
 	cluster.SetReleaseForTesting(common.Release{Name: cluster.OpenDataHub})
-	
+
 	// Restore the original global state in cleanup to avoid affecting parallel tests
 	t.Cleanup(func() {
 		cluster.SetReleaseForTesting(originalRelease)

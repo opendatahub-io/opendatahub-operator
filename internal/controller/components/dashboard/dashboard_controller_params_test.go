@@ -194,9 +194,8 @@ func TestSetKustomizedParamsInvalidManifest(t *testing.T) {
 	rr.Manifests[0].Path = "/invalid/path"
 
 	err = dashboardctrl.SetKustomizedParams(ctx, rr)
-	// Should fail with invalid manifest path:
-	g.Expect(err).To(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("failed to update params.env from /invalid/path"))
+	// Should handle missing params.env gracefully (no error):
+	g.Expect(err).ShouldNot(HaveOccurred())
 }
 
 func TestSetKustomizedParamsWithEmptyManifests(t *testing.T) {
@@ -303,10 +302,9 @@ func TestSetKustomizedParamsWithInvalidManifestPath(t *testing.T) {
 		},
 	}
 
-	// Should fail with invalid manifest path:
+	// Should handle missing params.env gracefully (no error):
 	err = dashboardctrl.SetKustomizedParams(ctx, rr)
-	g.Expect(err).To(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("failed to update params.env from /invalid/path"))
+	g.Expect(err).ShouldNot(HaveOccurred())
 }
 
 func TestSetKustomizedParamsWithMultipleManifests(t *testing.T) {

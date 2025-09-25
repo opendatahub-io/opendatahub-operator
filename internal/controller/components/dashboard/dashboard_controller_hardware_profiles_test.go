@@ -28,6 +28,9 @@ const (
 	disabledKey    = "opendatahub.io/disabled"
 	customKey      = "custom-annotation"
 	customValue    = "custom-value"
+
+	// CRD name for dashboard hardware profiles.
+	dashboardHWPCRDName = "hardwareprofiles.dashboard.opendatahub.io"
 )
 
 // createDashboardHWP creates a dashboardctrl.DashboardHardwareProfile unstructured object with the specified parameters.
@@ -90,7 +93,7 @@ func testReconcileHardwareProfilesCRDExistsNoProfiles(t *testing.T) {
 	// Create a mock CRD but no hardware profiles (empty list scenario)
 	crd := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "hardwareprofiles.dashboard.opendatahub.io",
+			Name: dashboardHWPCRDName,
 		},
 		Status: apiextensionsv1.CustomResourceDefinitionStatus{
 			StoredVersions: []string{"v1alpha1"},
@@ -113,7 +116,7 @@ func testReconcileHardwareProfilesCRDExistsWithProfiles(t *testing.T) {
 	// Create a mock CRD and dashboard hardware profile
 	crd := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "hardwareprofiles.dashboard.opendatahub.io",
+			Name: dashboardHWPCRDName,
 		},
 		Status: apiextensionsv1.CustomResourceDefinitionStatus{
 			StoredVersions: []string{"v1alpha1"},
@@ -148,7 +151,7 @@ func testReconcileHardwareProfilesWithValidProfiles(t *testing.T) {
 	// Create a mock CRD and multiple mock dashboard hardware profiles
 	crd := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "hardwareprofiles.dashboard.opendatahub.io",
+			Name: dashboardHWPCRDName,
 		},
 		Status: apiextensionsv1.CustomResourceDefinitionStatus{
 			StoredVersions: []string{"v1alpha1"},
@@ -173,7 +176,7 @@ func testReconcileHardwareProfilesWithMultipleProfiles(t *testing.T) {
 	// Create a mock CRD and multiple mock dashboard hardware profiles
 	crd := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "hardwareprofiles.dashboard.opendatahub.io",
+			Name: dashboardHWPCRDName,
 		},
 		Status: apiextensionsv1.CustomResourceDefinitionStatus{
 			StoredVersions: []string{"v1alpha1"},
@@ -198,7 +201,7 @@ func testReconcileHardwareProfilesWithExistingInfraProfile(t *testing.T) {
 	// Create a mock CRD and dashboard hardware profile
 	crd := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "hardwareprofiles.dashboard.opendatahub.io",
+			Name: dashboardHWPCRDName,
 		},
 		Status: apiextensionsv1.CustomResourceDefinitionStatus{
 			StoredVersions: []string{"v1alpha1"},
@@ -325,7 +328,7 @@ func testReconcileHardwareProfilesWithDifferentNamespace(t *testing.T) {
 	// Create a mock CRD and dashboard hardware profile in different namespace
 	crd := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "hardwareprofiles.dashboard.opendatahub.io",
+			Name: dashboardHWPCRDName,
 		},
 		Status: apiextensionsv1.CustomResourceDefinitionStatus{
 			StoredVersions: []string{"v1alpha1"},
@@ -360,7 +363,7 @@ func testReconcileHardwareProfilesWithDisabledProfiles(t *testing.T) {
 	// Create a mock CRD and dashboard hardware profile that is disabled
 	crd := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "hardwareprofiles.dashboard.opendatahub.io",
+			Name: dashboardHWPCRDName,
 		},
 		Status: apiextensionsv1.CustomResourceDefinitionStatus{
 			StoredVersions: []string{"v1alpha1"},
@@ -395,7 +398,7 @@ func testReconcileHardwareProfilesWithMixedScenarios(t *testing.T) {
 	// Create a mock CRD and multiple profiles with different scenarios
 	crd := &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "hardwareprofiles.dashboard.opendatahub.io",
+			Name: dashboardHWPCRDName,
 		},
 		Status: apiextensionsv1.CustomResourceDefinitionStatus{
 			StoredVersions: []string{"v1alpha1"},
