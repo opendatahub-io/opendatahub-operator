@@ -1,17 +1,11 @@
 // This file contains tests for dashboard utility functions.
 // These tests verify the utility functions in dashboard_controller_actions.go.
-//
-//nolint:testpackage
-package dashboard
+package dashboard_test
 
 import (
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/validation"
 
 	. "github.com/onsi/gomega"
 )
@@ -117,7 +111,7 @@ func TestValidateNamespace(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := validateNamespace(tc.namespace)
+			err := validation.ValidateNamespace(tc.namespace)
 
 			g := NewWithT(t)
 			if tc.expectError {
@@ -130,188 +124,4 @@ func TestValidateNamespace(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestResourceExists(t *testing.T) {
-	t.Parallel()
-	testCases := []struct {
-		name      string
-		resources []unstructured.Unstructured
-		candidate client.Object
-		expected  bool
-	}{
-		{
-			name:      "NilCandidate",
-			resources: []unstructured.Unstructured{},
-			candidate: nil,
-			expected:  false,
-		},
-		{
-			name:      "EmptyResources",
-			resources: []unstructured.Unstructured{},
-			candidate: createTestObject("test", "namespace", schema.GroupVersionKind{
-				Group:   "test",
-				Version: "v1",
-				Kind:    "Test",
-			}),
-			expected: false,
-		},
-		{
-			name: "MatchingResource",
-			resources: []unstructured.Unstructured{
-				*createTestUnstructured("test", "namespace", schema.GroupVersionKind{
-					Group:   "test",
-					Version: "v1",
-					Kind:    "Test",
-				}),
-			},
-			candidate: createTestObject("test", "namespace", schema.GroupVersionKind{
-				Group:   "test",
-				Version: "v1",
-				Kind:    "Test",
-			}),
-			expected: true,
-		},
-		{
-			name: "NonMatchingName",
-			resources: []unstructured.Unstructured{
-				*createTestUnstructured("different", "namespace", schema.GroupVersionKind{
-					Group:   "test",
-					Version: "v1",
-					Kind:    "Test",
-				}),
-			},
-			candidate: createTestObject("test", "namespace", schema.GroupVersionKind{
-				Group:   "test",
-				Version: "v1",
-				Kind:    "Test",
-			}),
-			expected: false,
-		},
-		{
-			name: "NonMatchingNamespace",
-			resources: []unstructured.Unstructured{
-				*createTestUnstructured("test", "different", schema.GroupVersionKind{
-					Group:   "test",
-					Version: "v1",
-					Kind:    "Test",
-				}),
-			},
-			candidate: createTestObject("test", "namespace", schema.GroupVersionKind{
-				Group:   "test",
-				Version: "v1",
-				Kind:    "Test",
-			}),
-			expected: false,
-		},
-		{
-			name: "NonMatchingGVK",
-			resources: []unstructured.Unstructured{
-				*createTestUnstructured("test", "namespace", schema.GroupVersionKind{
-					Group:   "different",
-					Version: "v1",
-					Kind:    "Test",
-				}),
-			},
-			candidate: createTestObject("test", "namespace", schema.GroupVersionKind{
-				Group:   "test",
-				Version: "v1",
-				Kind:    "Test",
-			}),
-			expected: false,
-		},
-		{
-			name: "MultipleResourcesWithMatch",
-			resources: []unstructured.Unstructured{
-				*createTestUnstructured("test1", "namespace", schema.GroupVersionKind{
-					Group:   "test",
-					Version: "v1",
-					Kind:    "Test",
-				}),
-				*createTestUnstructured("test2", "namespace", schema.GroupVersionKind{
-					Group:   "test",
-					Version: "v1",
-					Kind:    "Test",
-				}),
-				*createTestUnstructured("test", "namespace", schema.GroupVersionKind{
-					Group:   "test",
-					Version: "v1",
-					Kind:    "Test",
-				}),
-			},
-			candidate: createTestObject("test", "namespace", schema.GroupVersionKind{
-				Group:   "test",
-				Version: "v1",
-				Kind:    "Test",
-			}),
-			expected: true,
-		},
-		{
-			name: "MultipleResourcesNoMatch",
-			resources: []unstructured.Unstructured{
-				*createTestUnstructured("test1", "namespace", schema.GroupVersionKind{
-					Group:   "test",
-					Version: "v1",
-					Kind:    "Test",
-				}),
-				*createTestUnstructured("test2", "namespace", schema.GroupVersionKind{
-					Group:   "test",
-					Version: "v1",
-					Kind:    "Test",
-				}),
-			},
-			candidate: createTestObject("test", "namespace", schema.GroupVersionKind{
-				Group:   "test",
-				Version: "v1",
-				Kind:    "Test",
-			}),
-			expected: false,
-		},
-		{
-			name: "MatchingWithDifferentNamespace",
-			resources: []unstructured.Unstructured{
-				*createTestUnstructured("test", "namespace1", schema.GroupVersionKind{
-					Group:   "test",
-					Version: "v1",
-					Kind:    "Test",
-				}),
-			},
-			candidate: createTestObject("test", "namespace2", schema.GroupVersionKind{
-				Group:   "test",
-				Version: "v1",
-				Kind:    "Test",
-			}),
-			expected: false,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			result := resourceExists(tc.resources, tc.candidate)
-
-			g := NewWithT(t)
-			g.Expect(result).Should(Equal(tc.expected))
-		})
-	}
-}
-
-// Helper functions for creating test objects.
-func createTestObject(_, namespace string, gvk schema.GroupVersionKind) client.Object {
-	obj := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test",
-			Namespace: namespace,
-		},
-	}
-	obj.SetGroupVersionKind(gvk)
-	return obj
-}
-
-func createTestUnstructured(name, namespace string, gvk schema.GroupVersionKind) *unstructured.Unstructured {
-	obj := &unstructured.Unstructured{}
-	obj.SetName(name)
-	obj.SetNamespace(namespace)
-	obj.SetGroupVersionKind(gvk)
-	return obj
 }

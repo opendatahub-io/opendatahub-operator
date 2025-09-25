@@ -1,14 +1,17 @@
 // This file contains tests that require access to internal dashboard functions.
 // These tests verify internal implementation details that are not exposed through the public API.
-// These tests need to access unexported functions like CustomizeResources.
-package dashboard
+// These tests need to access unexported functions like dashboard.CustomizeResources.
+package dashboard_test
 
 import (
 	"testing"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -23,21 +26,22 @@ func TestCustomizeResourcesInternal(t *testing.T) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dashboard := &componentApi.Dashboard{}
+	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: TestNamespace,
+			ApplicationsNamespace: dashboard.TestNamespace,
 		},
 	}
 
 	rr := &odhtypes.ReconciliationRequest{
-		Client:   cli,
-		Instance: dashboard,
-		DSCI:     dsci,
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Client:    cli,
+		Instance:  dashboardInstance,
+		DSCI:      dsci,
+		Release:   common.Release{Name: cluster.OpenDataHub},
+		Resources: []unstructured.Unstructured{},
 	}
 
-	err = CustomizeResources(ctx, rr)
+	err = dashboard.CustomizeResources(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 }
 
@@ -49,25 +53,26 @@ func TestCustomizeResourcesNoOdhDashboardConfig(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Create dashboard without ODH dashboard config
-	dashboard := &componentApi.Dashboard{
+	dashboardInstance := &componentApi.Dashboard{
 		Spec: componentApi.DashboardSpec{
 			// No ODH dashboard config specified
 		},
 	}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: TestNamespace,
+			ApplicationsNamespace: dashboard.TestNamespace,
 		},
 	}
 
 	rr := &odhtypes.ReconciliationRequest{
-		Client:   cli,
-		Instance: dashboard,
-		DSCI:     dsci,
-		Release:  common.Release{Name: cluster.OpenDataHub},
+		Client:    cli,
+		Instance:  dashboardInstance,
+		DSCI:      dsci,
+		Release:   common.Release{Name: cluster.OpenDataHub},
+		Resources: []unstructured.Unstructured{},
 	}
 
-	// Test that CustomizeResources handles missing ODH dashboard config gracefully
-	err = CustomizeResources(ctx, rr)
+	// Test that dashboard.CustomizeResources handles missing ODH dashboard config gracefully
+	err = dashboard.CustomizeResources(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 }

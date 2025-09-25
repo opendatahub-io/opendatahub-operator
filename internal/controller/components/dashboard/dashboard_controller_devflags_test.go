@@ -1,8 +1,6 @@
 // This file contains tests for dashboard controller dev flags functionality.
-// These tests verify the devFlags function and related dev flags logic.
-//
-//nolint:testpackage
-package dashboard
+// These tests verify the dashboard.DevFlags function and related dev flags logic.
+package dashboard_test
 
 import (
 	"testing"
@@ -11,6 +9,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
@@ -25,27 +24,27 @@ const (
 func TestDevFlagsBasicCases(t *testing.T) {
 	ctx := t.Context()
 
-	cli := createTestClient(t)
-	setupTempManifestPath(t)
-	dsci := createTestDSCI()
+	cli := dashboard.CreateTestClient(t)
+	dashboard.SetupTempManifestPath(t)
+	dsci := dashboard.CreateTestDSCI()
 
 	testCases := []struct {
 		name           string
 		setupDashboard func() *componentApi.Dashboard
-		setupRR        func(dashboard *componentApi.Dashboard) *odhtypes.ReconciliationRequest
+		setupRR        func(dashboardInstance *componentApi.Dashboard) *odhtypes.ReconciliationRequest
 		expectError    bool
 		errorContains  string
 		validateResult func(t *testing.T, rr *odhtypes.ReconciliationRequest)
 	}{
 		{
 			name:           "NoDevFlagsSet",
-			setupDashboard: createTestDashboard,
-			setupRR: func(dashboard *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
-				return createTestReconciliationRequestWithManifests(
-					cli, dashboard, dsci,
+			setupDashboard: dashboard.CreateTestDashboard,
+			setupRR: func(dashboardInstance *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
+				return dashboard.CreateTestReconciliationRequestWithManifests(
+					cli, dashboardInstance, dsci,
 					common.Release{Name: cluster.OpenDataHub},
 					[]odhtypes.ManifestInfo{
-						{Path: TestPath, ContextDir: ComponentName, SourcePath: "/odh"},
+						{Path: dashboard.TestPath, ContextDir: dashboard.ComponentName, SourcePath: "/odh"},
 					},
 				)
 			},
@@ -53,26 +52,47 @@ func TestDevFlagsBasicCases(t *testing.T) {
 			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
 				t.Helper()
 				g := NewWithT(t)
-				g.Expect(rr.Manifests[0].Path).Should(Equal(TestPath))
+				g.Expect(rr.Manifests[0].Path).Should(Equal(dashboard.TestPath))
 			},
 		},
 	}
 
-	runDevFlagsTestCases(t, ctx, testCases)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			dashboardInstance := tc.setupDashboard()
+			rr := tc.setupRR(dashboardInstance)
+
+			err := dashboard.DevFlags(ctx, rr)
+
+			if tc.expectError {
+				g.Expect(err).Should(HaveOccurred())
+				if tc.errorContains != "" {
+					g.Expect(err.Error()).Should(ContainSubstring(tc.errorContains))
+				}
+			} else {
+				g.Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			if tc.validateResult != nil {
+				tc.validateResult(t, rr)
+			}
+		})
+	}
 }
 
 // TestDevFlagsWithCustomManifests tests DevFlags with custom manifest configurations.
 func TestDevFlagsWithCustomManifests(t *testing.T) {
 	ctx := t.Context()
 
-	cli := createTestClient(t)
-	setupTempManifestPath(t)
-	dsci := createTestDSCI()
+	cli := dashboard.CreateTestClient(t)
+	dashboard.SetupTempManifestPath(t)
+	dsci := dashboard.CreateTestDSCI()
 
 	testCases := []struct {
 		name           string
 		setupDashboard func() *componentApi.Dashboard
-		setupRR        func(dashboard *componentApi.Dashboard) *odhtypes.ReconciliationRequest
+		setupRR        func(dashboardInstance *componentApi.Dashboard) *odhtypes.ReconciliationRequest
 		expectError    bool
 		errorContains  string
 		validateResult func(t *testing.T, rr *odhtypes.ReconciliationRequest)
@@ -80,34 +100,34 @@ func TestDevFlagsWithCustomManifests(t *testing.T) {
 		{
 			name: "WithDevFlags",
 			setupDashboard: func() *componentApi.Dashboard {
-				return createTestDashboardWithCustomDevFlags(&common.DevFlags{
+				return dashboard.CreateTestDashboardWithCustomDevFlags(&common.DevFlags{
 					Manifests: []common.ManifestsConfig{
 						{
 							URI:        "https://github.com/test/repo/tarball/main",
 							ContextDir: "manifests",
-							SourcePath: TestCustomPath,
+							SourcePath: dashboard.TestCustomPath,
 						},
 					},
 				})
 			},
-			setupRR: func(dashboard *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
-				return createTestReconciliationRequestWithManifests(
-					cli, dashboard, dsci,
+			setupRR: func(dashboardInstance *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
+				return dashboard.CreateTestReconciliationRequestWithManifests(
+					cli, dashboardInstance, dsci,
 					common.Release{Name: cluster.OpenDataHub},
 					[]odhtypes.ManifestInfo{
-						{Path: TestPath, ContextDir: ComponentName, SourcePath: "/odh"},
+						{Path: dashboard.TestPath, ContextDir: dashboard.ComponentName, SourcePath: "/odh"},
 					},
 				)
 			},
 			expectError:   true,
-			errorContains: ErrorDownloadingManifests,
+			errorContains: dashboard.ErrorDownloadingManifests,
 		},
 		{
 			name: "InvalidInstance",
 			setupDashboard: func() *componentApi.Dashboard {
 				return &componentApi.Dashboard{}
 			},
-			setupRR: func(dashboard *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
+			setupRR: func(dashboardInstance *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
 					Instance: &componentApi.Kserve{}, // Wrong type
@@ -126,8 +146,8 @@ func TestDevFlagsWithCustomManifests(t *testing.T) {
 								DevFlags: &common.DevFlags{
 									Manifests: []common.ManifestsConfig{
 										{
-											SourcePath: TestCustomPath,
-											URI:        TestManifestURIInternal,
+											SourcePath: dashboard.TestCustomPath,
+											URI:        dashboard.TestManifestURIInternal,
 										},
 									},
 								},
@@ -136,17 +156,17 @@ func TestDevFlagsWithCustomManifests(t *testing.T) {
 					},
 				}
 			},
-			setupRR: func(dashboard *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
+			setupRR: func(dashboardInstance *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
 				return &odhtypes.ReconciliationRequest{
 					Client:    cli,
-					Instance:  dashboard,
+					Instance:  dashboardInstance,
 					DSCI:      dsci,
 					Release:   common.Release{Name: cluster.OpenDataHub},
 					Manifests: []odhtypes.ManifestInfo{}, // Empty manifests
 				}
 			},
 			expectError:   true,
-			errorContains: ErrorDownloadingManifests,
+			errorContains: dashboard.ErrorDownloadingManifests,
 		},
 		{
 			name: "WithMultipleManifests",
@@ -172,38 +192,59 @@ func TestDevFlagsWithCustomManifests(t *testing.T) {
 					},
 				}
 			},
-			setupRR: func(dashboard *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
+			setupRR: func(dashboardInstance *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
-					Instance: dashboard,
+					Instance: dashboardInstance,
 					DSCI:     dsci,
 					Release:  common.Release{Name: cluster.OpenDataHub},
 					Manifests: []odhtypes.ManifestInfo{
-						{Path: TestPath, ContextDir: ComponentName, SourcePath: "/odh"},
-						{Path: TestPath, ContextDir: ComponentName, SourcePath: "/bff"},
+						{Path: dashboard.TestPath, ContextDir: dashboard.ComponentName, SourcePath: "/odh"},
+						{Path: dashboard.TestPath, ContextDir: dashboard.ComponentName, SourcePath: "/bff"},
 					},
 				}
 			},
 			expectError:   true,
-			errorContains: ErrorDownloadingManifests,
+			errorContains: dashboard.ErrorDownloadingManifests,
 		},
 	}
 
-	runDevFlagsTestCases(t, ctx, testCases)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			dashboardInstance := tc.setupDashboard()
+			rr := tc.setupRR(dashboardInstance)
+
+			err := dashboard.DevFlags(ctx, rr)
+
+			if tc.expectError {
+				g.Expect(err).Should(HaveOccurred())
+				if tc.errorContains != "" {
+					g.Expect(err.Error()).Should(ContainSubstring(tc.errorContains))
+				}
+			} else {
+				g.Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			if tc.validateResult != nil {
+				tc.validateResult(t, rr)
+			}
+		})
+	}
 }
 
 // TestDevFlagsWithEmptyManifests tests DevFlags with empty manifest configurations.
 func TestDevFlagsWithEmptyManifests(t *testing.T) {
 	ctx := t.Context()
 
-	cli := createTestClient(t)
-	setupTempManifestPath(t)
-	dsci := createTestDSCI()
+	cli := dashboard.CreateTestClient(t)
+	dashboard.SetupTempManifestPath(t)
+	dsci := dashboard.CreateTestDSCI()
 
 	testCases := []struct {
 		name           string
 		setupDashboard func() *componentApi.Dashboard
-		setupRR        func(dashboard *componentApi.Dashboard) *odhtypes.ReconciliationRequest
+		setupRR        func(dashboardInstance *componentApi.Dashboard) *odhtypes.ReconciliationRequest
 		expectError    bool
 		errorContains  string
 		validateResult func(t *testing.T, rr *odhtypes.ReconciliationRequest)
@@ -223,14 +264,14 @@ func TestDevFlagsWithEmptyManifests(t *testing.T) {
 					},
 				}
 			},
-			setupRR: func(dashboard *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
+			setupRR: func(dashboardInstance *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
-					Instance: dashboard,
+					Instance: dashboardInstance,
 					DSCI:     dsci,
 					Release:  common.Release{Name: cluster.OpenDataHub},
 					Manifests: []odhtypes.ManifestInfo{
-						{Path: TestPath, ContextDir: ComponentName, SourcePath: "/odh"},
+						{Path: dashboard.TestPath, ContextDir: dashboard.ComponentName, SourcePath: "/odh"},
 					},
 				}
 			},
@@ -239,26 +280,47 @@ func TestDevFlagsWithEmptyManifests(t *testing.T) {
 				t.Helper()
 				g := NewWithT(t)
 				g.Expect(rr.Manifests).Should(HaveLen(1))
-				g.Expect(rr.Manifests[0].Path).Should(Equal(TestPath))
+				g.Expect(rr.Manifests[0].Path).Should(Equal(dashboard.TestPath))
 			},
 		},
 	}
 
-	runDevFlagsTestCases(t, ctx, testCases)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			dashboardInstance := tc.setupDashboard()
+			rr := tc.setupRR(dashboardInstance)
+
+			err := dashboard.DevFlags(ctx, rr)
+
+			if tc.expectError {
+				g.Expect(err).Should(HaveOccurred())
+				if tc.errorContains != "" {
+					g.Expect(err.Error()).Should(ContainSubstring(tc.errorContains))
+				}
+			} else {
+				g.Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			if tc.validateResult != nil {
+				tc.validateResult(t, rr)
+			}
+		})
+	}
 }
 
 // TestDevFlagsWithInvalidConfigs tests DevFlags with invalid configurations.
 func TestDevFlagsWithInvalidConfigs(t *testing.T) {
 	ctx := t.Context()
 
-	cli := createTestClient(t)
-	setupTempManifestPath(t)
-	dsci := createTestDSCI()
+	cli := dashboard.CreateTestClient(t)
+	dashboard.SetupTempManifestPath(t)
+	dsci := dashboard.CreateTestDSCI()
 
 	testCases := []struct {
 		name           string
 		setupDashboard func() *componentApi.Dashboard
-		setupRR        func(dashboard *componentApi.Dashboard) *odhtypes.ReconciliationRequest
+		setupRR        func(dashboardInstance *componentApi.Dashboard) *odhtypes.ReconciliationRequest
 		expectError    bool
 		errorContains  string
 		validateResult func(t *testing.T, rr *odhtypes.ReconciliationRequest)
@@ -282,33 +344,33 @@ func TestDevFlagsWithInvalidConfigs(t *testing.T) {
 					},
 				}
 			},
-			setupRR: func(dashboard *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
+			setupRR: func(dashboardInstance *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
-					Instance: dashboard,
+					Instance: dashboardInstance,
 					DSCI:     dsci,
 					Release:  common.Release{Name: cluster.OpenDataHub},
 					Manifests: []odhtypes.ManifestInfo{
-						{Path: TestPath, ContextDir: ComponentName, SourcePath: "/odh"},
+						{Path: dashboard.TestPath, ContextDir: dashboard.ComponentName, SourcePath: "/odh"},
 					},
 				}
 			},
 			expectError:   true,
-			errorContains: ErrorDownloadingManifests,
+			errorContains: dashboard.ErrorDownloadingManifests,
 		},
 		{
 			name: "WithNilClient",
 			setupDashboard: func() *componentApi.Dashboard {
 				return &componentApi.Dashboard{}
 			},
-			setupRR: func(dashboard *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
+			setupRR: func(dashboardInstance *componentApi.Dashboard) *odhtypes.ReconciliationRequest {
 				return &odhtypes.ReconciliationRequest{
 					Client:   nil, // Nil client
-					Instance: dashboard,
+					Instance: dashboardInstance,
 					DSCI:     dsci,
 					Release:  common.Release{Name: cluster.OpenDataHub},
 					Manifests: []odhtypes.ManifestInfo{
-						{Path: TestPath, ContextDir: ComponentName, SourcePath: "/odh"},
+						{Path: dashboard.TestPath, ContextDir: dashboard.ComponentName, SourcePath: "/odh"},
 					},
 				}
 			},
@@ -316,24 +378,45 @@ func TestDevFlagsWithInvalidConfigs(t *testing.T) {
 		},
 	}
 
-	runDevFlagsTestCases(t, ctx, testCases)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			dashboardInstance := tc.setupDashboard()
+			rr := tc.setupRR(dashboardInstance)
+
+			err := dashboard.DevFlags(ctx, rr)
+
+			if tc.expectError {
+				g.Expect(err).Should(HaveOccurred())
+				if tc.errorContains != "" {
+					g.Expect(err.Error()).Should(ContainSubstring(tc.errorContains))
+				}
+			} else {
+				g.Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			if tc.validateResult != nil {
+				tc.validateResult(t, rr)
+			}
+		})
+	}
 }
 
 func TestDevFlagsWithNilDevFlagsWhenDevFlagsNil(t *testing.T) {
 	ctx := t.Context()
 	g := NewWithT(t)
 
-	dashboard := &componentApi.Dashboard{
+	dashboardInstance := &componentApi.Dashboard{
 		Spec: componentApi.DashboardSpec{
 			// DevFlags is nil by default
 		},
 	}
 
 	rr := &odhtypes.ReconciliationRequest{
-		Instance: dashboard,
+		Instance: dashboardInstance,
 	}
 
-	err := devFlags(ctx, rr)
+	err := dashboard.DevFlags(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 }
 
@@ -342,7 +425,7 @@ func TestDevFlagsWithDownloadErrorWhenDownloadFails(t *testing.T) {
 	ctx := t.Context()
 	g := NewWithT(t)
 
-	dashboard := &componentApi.Dashboard{
+	dashboardInstance := &componentApi.Dashboard{
 		Spec: componentApi.DashboardSpec{
 			DashboardCommonSpec: componentApi.DashboardCommonSpec{
 				DevFlagsSpec: common.DevFlagsSpec{
@@ -359,22 +442,22 @@ func TestDevFlagsWithDownloadErrorWhenDownloadFails(t *testing.T) {
 	}
 
 	rr := &odhtypes.ReconciliationRequest{
-		Instance: dashboard,
+		Instance: dashboardInstance,
 	}
 
-	err := devFlags(ctx, rr)
+	err := dashboard.DevFlags(ctx, rr)
 	// Assert that download failure should return an error
 	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring(ErrorDownloadingManifests))
+	g.Expect(err.Error()).Should(ContainSubstring(dashboard.ErrorDownloadingManifests))
 }
 
 // TestDevFlagsSourcePathCases tests various SourcePath scenarios in a table-driven approach.
 func TestDevFlagsSourcePathCases(t *testing.T) {
 	ctx := t.Context()
 
-	cli := createTestClient(t)
-	setupTempManifestPath(t)
-	dsci := createTestDSCI()
+	cli := dashboard.CreateTestClient(t)
+	dashboard.SetupTempManifestPath(t)
+	dsci := dashboard.CreateTestDSCI()
 
 	testCases := []struct {
 		name          string
@@ -385,10 +468,10 @@ func TestDevFlagsSourcePathCases(t *testing.T) {
 	}{
 		{
 			name:          "valid SourcePath",
-			sourcePath:    TestCustomPath,
+			sourcePath:    dashboard.TestCustomPath,
 			expectError:   true, // Download will fail with real URL
 			errorContains: ErrorDownloadingManifestsPrefix,
-			expectedPath:  TestCustomPath,
+			expectedPath:  dashboard.TestCustomPath,
 		},
 		{
 			name:          "empty SourcePath",
@@ -408,14 +491,14 @@ func TestDevFlagsSourcePathCases(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			dashboard := &componentApi.Dashboard{
+			dashboardInstance := &componentApi.Dashboard{
 				Spec: componentApi.DashboardSpec{
 					DashboardCommonSpec: componentApi.DashboardCommonSpec{
 						DevFlagsSpec: common.DevFlagsSpec{
 							DevFlags: &common.DevFlags{
 								Manifests: []common.ManifestsConfig{
 									{
-										URI:        TestManifestURIInternal,
+										URI:        dashboard.TestManifestURIInternal,
 										SourcePath: tc.sourcePath,
 									},
 								},
@@ -425,31 +508,31 @@ func TestDevFlagsSourcePathCases(t *testing.T) {
 				},
 			}
 
-			rr := createTestReconciliationRequestWithManifests(
-				cli, dashboard, dsci,
+			rr := dashboard.CreateTestReconciliationRequestWithManifests(
+				cli, dashboardInstance, dsci,
 				common.Release{Name: cluster.OpenDataHub},
 				[]odhtypes.ManifestInfo{
-					{Path: TestPath, ContextDir: ComponentName, SourcePath: "/odh"},
+					{Path: dashboard.TestPath, ContextDir: dashboard.ComponentName, SourcePath: "/odh"},
 				},
 			)
 
-			err := devFlags(ctx, rr)
+			err := dashboard.DevFlags(ctx, rr)
 
 			// Assert expected error behavior (download will fail with real URL)
-			require.Error(t, err, "devFlags should return error for case: %s", tc.name)
+			require.Error(t, err, "dashboard.DevFlags should return error for case: %s", tc.name)
 			require.Contains(t, err.Error(), tc.errorContains,
 				"error message should contain '%s' for case: %s", tc.errorContains, tc.name)
 
 			// Assert dashboard instance type
-			dashboard, ok := rr.Instance.(*componentApi.Dashboard)
+			_, ok := rr.Instance.(*componentApi.Dashboard)
 			require.True(t, ok, "expected Instance to be *componentApi.Dashboard for case: %s", tc.name)
 
 			// Assert manifest processing
-			require.NotEmpty(t, dashboard.Spec.DevFlags.Manifests,
+			require.NotEmpty(t, dashboardInstance.Spec.DevFlags.Manifests,
 				"expected at least one manifest in DevFlags for case: %s", tc.name)
 
 			// Assert SourcePath preservation in dashboard spec (before download failure)
-			actualPath := dashboard.Spec.DevFlags.Manifests[0].SourcePath
+			actualPath := dashboardInstance.Spec.DevFlags.Manifests[0].SourcePath
 			require.Equal(t, tc.expectedPath, actualPath,
 				"SourcePath should be preserved as expected for case: %s", tc.name)
 		})
@@ -460,15 +543,15 @@ func TestDevFlagsSourcePathCases(t *testing.T) {
 func TestDevFlagsWithMultipleManifestsWhenMultipleProvided(t *testing.T) {
 	ctx := t.Context()
 
-	dashboard := &componentApi.Dashboard{
+	dashboardInstance := &componentApi.Dashboard{
 		Spec: componentApi.DashboardSpec{
 			DashboardCommonSpec: componentApi.DashboardCommonSpec{
 				DevFlagsSpec: common.DevFlagsSpec{
 					DevFlags: &common.DevFlags{
 						Manifests: []common.ManifestsConfig{
 							{
-								URI:        TestManifestURIInternal,
-								SourcePath: TestCustomPath,
+								URI:        dashboard.TestManifestURIInternal,
+								SourcePath: dashboard.TestCustomPath,
 							},
 							{
 								URI:        "https://example.com/manifests2.tar.gz",
@@ -482,30 +565,30 @@ func TestDevFlagsWithMultipleManifestsWhenMultipleProvided(t *testing.T) {
 	}
 
 	rr := &odhtypes.ReconciliationRequest{
-		Instance: dashboard,
+		Instance: dashboardInstance,
 	}
 
-	err := devFlags(ctx, rr)
+	err := dashboard.DevFlags(ctx, rr)
 
-	// Assert that devFlags returns an error due to download failure
-	require.Error(t, err, "devFlags should return error when using real URLs that will fail to download")
+	// Assert that dashboard.DevFlags returns an error due to download failure
+	require.Error(t, err, "dashboard.DevFlags should return error when using real URLs that will fail to download")
 	require.Contains(t, err.Error(), ErrorDownloadingManifestsPrefix,
 		"error message should contain 'error downloading manifests'")
 
 	// Assert that the dashboard instance is preserved
-	dashboard, ok := rr.Instance.(*componentApi.Dashboard)
+	_, ok := rr.Instance.(*componentApi.Dashboard)
 	require.True(t, ok, "expected Instance to be *componentApi.Dashboard")
 
 	// Assert that multiple manifests are preserved in the dashboard spec
-	require.NotEmpty(t, dashboard.Spec.DevFlags.Manifests,
+	require.NotEmpty(t, dashboardInstance.Spec.DevFlags.Manifests,
 		"expected multiple manifests in DevFlags")
-	require.Len(t, dashboard.Spec.DevFlags.Manifests, 2,
+	require.Len(t, dashboardInstance.Spec.DevFlags.Manifests, 2,
 		"expected exactly 2 manifests in DevFlags")
 
 	// Assert SourcePath preservation for both manifests
-	require.Equal(t, TestCustomPath, dashboard.Spec.DevFlags.Manifests[0].SourcePath,
+	require.Equal(t, dashboard.TestCustomPath, dashboardInstance.Spec.DevFlags.Manifests[0].SourcePath,
 		"first manifest SourcePath should be preserved")
-	require.Equal(t, TestCustomPath2, dashboard.Spec.DevFlags.Manifests[1].SourcePath,
+	require.Equal(t, TestCustomPath2, dashboardInstance.Spec.DevFlags.Manifests[1].SourcePath,
 		"second manifest SourcePath should be preserved")
 }
 
@@ -513,7 +596,7 @@ func TestDevFlagsWithMultipleManifestsWhenMultipleProvided(t *testing.T) {
 func TestDevFlagsWithNilManifestsWhenManifestsNil(t *testing.T) {
 	ctx := t.Context()
 
-	dashboard := &componentApi.Dashboard{
+	dashboardInstance := &componentApi.Dashboard{
 		Spec: componentApi.DashboardSpec{
 			DashboardCommonSpec: componentApi.DashboardCommonSpec{
 				DevFlagsSpec: common.DevFlagsSpec{
@@ -526,19 +609,19 @@ func TestDevFlagsWithNilManifestsWhenManifestsNil(t *testing.T) {
 	}
 
 	rr := &odhtypes.ReconciliationRequest{
-		Instance: dashboard,
+		Instance: dashboardInstance,
 	}
 
-	err := devFlags(ctx, rr)
+	err := dashboard.DevFlags(ctx, rr)
 
-	// Assert that devFlags returns no error when manifests is nil
-	require.NoError(t, err, "devFlags should not return error when manifests is nil")
+	// Assert that dashboard.DevFlags returns no error when manifests is nil
+	require.NoError(t, err, "dashboard.DevFlags should not return error when manifests is nil")
 
 	// Assert that the dashboard instance is preserved
-	dashboard, ok := rr.Instance.(*componentApi.Dashboard)
+	_, ok := rr.Instance.(*componentApi.Dashboard)
 	require.True(t, ok, "expected Instance to be *componentApi.Dashboard")
 
 	// Assert that nil manifests are preserved in the dashboard spec
-	require.Nil(t, dashboard.Spec.DevFlags.Manifests,
+	require.Nil(t, dashboardInstance.Spec.DevFlags.Manifests,
 		"manifests should remain nil in DevFlags")
 }

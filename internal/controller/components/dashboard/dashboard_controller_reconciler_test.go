@@ -1,11 +1,11 @@
-//nolint:testpackage // allow testing unexported internals because these tests exercise package-private reconciliation logic
-package dashboard
+package dashboard_test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -24,7 +24,7 @@ func TestNewComponentReconcilerUnit(t *testing.T) {
 
 func testNewComponentReconcilerWithNilManager(t *testing.T) {
 	t.Helper()
-	handler := &ComponentHandler{}
+	handler := &dashboard.ComponentHandler{}
 	ctx := t.Context()
 
 	t.Run("ReturnsErrorWithNilManager", func(t *testing.T) {
@@ -55,16 +55,16 @@ func testComponentNameComputation(t *testing.T) {
 		cluster.SetReleaseForTesting(originalRelease)
 	})
 
-	// Test that ComputeComponentName returns a valid component name
-	componentName := ComputeComponentName()
+	// Test that dashboard.ComputeComponentName returns a valid component name
+	componentName := dashboard.ComputeComponentName()
 
 	// Verify the component name is not empty
 	if componentName == "" {
-		t.Error("Expected ComputeComponentName to return non-empty string")
+		t.Error("Expected dashboard.ComputeComponentName to return non-empty string")
 	}
 
 	// Verify the component name is one of the expected values
-	validNames := []string{LegacyComponentNameUpstream, LegacyComponentNameDownstream}
+	validNames := []string{dashboard.LegacyComponentNameUpstream, dashboard.LegacyComponentNameDownstream}
 	valid := false
 	for _, validName := range validNames {
 		if componentName == validName {
@@ -74,13 +74,13 @@ func testComponentNameComputation(t *testing.T) {
 	}
 
 	if !valid {
-		t.Errorf("Expected ComputeComponentName to return one of %v, but got: %s", validNames, componentName)
+		t.Errorf("Expected dashboard.ComputeComponentName to return one of %v, but got: %s", validNames, componentName)
 	}
 
 	// Test that multiple calls return the same result (deterministic)
-	componentName2 := ComputeComponentName()
+	componentName2 := dashboard.ComputeComponentName()
 	if componentName != componentName2 {
-		t.Error("Expected ComputeComponentName to be deterministic, but got different results")
+		t.Error("Expected dashboard.ComputeComponentName to be deterministic, but got different results")
 	}
 }
 
@@ -108,7 +108,7 @@ func testNewComponentReconcilerErrorHandling(t *testing.T) {
 	t.Helper()
 
 	// Test that the function handles various error conditions gracefully
-	handler := &ComponentHandler{}
+	handler := &dashboard.ComponentHandler{}
 	ctx := t.Context()
 
 	err := handler.NewComponentReconciler(ctx, nil)

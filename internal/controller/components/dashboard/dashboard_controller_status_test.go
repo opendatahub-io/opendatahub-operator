@@ -1,8 +1,6 @@
 // This file contains tests for dashboard controller status update functionality.
-// These tests verify the updateStatus function and related status logic.
-//
-//nolint:testpackage
-package dashboard
+// These tests verify the dashboard.UpdateStatus function and related status logic.
+package dashboard_test
 
 import (
 	"context"
@@ -17,6 +15,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -44,22 +43,22 @@ func TestUpdateStatusNoRoutes(t *testing.T) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dashboard := &componentApi.Dashboard{}
+	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: TestNamespace,
+			ApplicationsNamespace: dashboard.TestNamespace,
 		},
 	}
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   cli,
-		Instance: dashboard,
+		Instance: dashboardInstance,
 		DSCI:     dsci,
 	}
 
-	err = updateStatus(ctx, rr)
+	err = dashboard.UpdateStatus(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(dashboard.Status.URL).Should(BeEmpty())
+	g.Expect(dashboardInstance.Status.URL).Should(BeEmpty())
 }
 
 func TestUpdateStatusWithRoute(t *testing.T) {
@@ -69,10 +68,10 @@ func TestUpdateStatusWithRoute(t *testing.T) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dashboard := &componentApi.Dashboard{}
+	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: TestNamespace,
+			ApplicationsNamespace: dashboard.TestNamespace,
 		},
 	}
 
@@ -80,18 +79,18 @@ func TestUpdateStatusWithRoute(t *testing.T) {
 	route := &routev1.Route{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "odh-dashboard",
-			Namespace: TestNamespace,
+			Namespace: dashboard.TestNamespace,
 			Labels: map[string]string{
 				"platform.opendatahub.io/part-of": "dashboard",
 			},
 		},
 		Spec: routev1.RouteSpec{
-			Host: TestRouteHost,
+			Host: dashboard.TestRouteHost,
 		},
 		Status: routev1.RouteStatus{
 			Ingress: []routev1.RouteIngress{
 				{
-					Host: TestRouteHost,
+					Host: dashboard.TestRouteHost,
 					Conditions: []routev1.RouteIngressCondition{
 						{
 							Type:   routev1.RouteAdmitted,
@@ -108,13 +107,13 @@ func TestUpdateStatusWithRoute(t *testing.T) {
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   cli,
-		Instance: dashboard,
+		Instance: dashboardInstance,
 		DSCI:     dsci,
 	}
 
-	err = updateStatus(ctx, rr)
+	err = dashboard.UpdateStatus(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(dashboard.Status.URL).Should(Equal("https://" + TestRouteHost))
+	g.Expect(dashboardInstance.Status.URL).Should(Equal("https://" + dashboard.TestRouteHost))
 }
 
 func TestUpdateStatusInvalidInstance(t *testing.T) {
@@ -134,7 +133,7 @@ func TestUpdateStatusInvalidInstance(t *testing.T) {
 		},
 	}
 
-	err = updateStatus(ctx, rr)
+	err = dashboard.UpdateStatus(ctx, rr)
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(err.Error()).Should(ContainSubstring("is not of type *componentApi.Dashboard"))
 }
@@ -150,7 +149,7 @@ func TestUpdateStatusWithMultipleRoutes(t *testing.T) {
 	route1 := &routev1.Route{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "odh-dashboard-1",
-			Namespace: TestNamespace,
+			Namespace: dashboard.TestNamespace,
 			Labels: map[string]string{
 				labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
 			},
@@ -176,7 +175,7 @@ func TestUpdateStatusWithMultipleRoutes(t *testing.T) {
 	route2 := &routev1.Route{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "odh-dashboard-2",
-			Namespace: TestNamespace,
+			Namespace: dashboard.TestNamespace,
 			Labels: map[string]string{
 				labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
 			},
@@ -205,23 +204,23 @@ func TestUpdateStatusWithMultipleRoutes(t *testing.T) {
 	err = cli.Create(ctx, route2)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dashboard := &componentApi.Dashboard{}
+	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: TestNamespace,
+			ApplicationsNamespace: dashboard.TestNamespace,
 		},
 	}
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   cli,
-		Instance: dashboard,
+		Instance: dashboardInstance,
 		DSCI:     dsci,
 	}
 
 	// When there are multiple routes, the URL should be empty
-	err = updateStatus(ctx, rr)
+	err = dashboard.UpdateStatus(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(dashboard.Status.URL).Should(Equal(""))
+	g.Expect(dashboardInstance.Status.URL).Should(Equal(""))
 }
 
 func TestUpdateStatusWithRouteNoIngress(t *testing.T) {
@@ -235,7 +234,7 @@ func TestUpdateStatusWithRouteNoIngress(t *testing.T) {
 	route := &routev1.Route{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "odh-dashboard",
-			Namespace: TestNamespace,
+			Namespace: dashboard.TestNamespace,
 			Labels: map[string]string{
 				labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
 			},
@@ -249,22 +248,22 @@ func TestUpdateStatusWithRouteNoIngress(t *testing.T) {
 	err = cli.Create(ctx, route)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dashboard := &componentApi.Dashboard{}
+	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: TestNamespace,
+			ApplicationsNamespace: dashboard.TestNamespace,
 		},
 	}
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   cli,
-		Instance: dashboard,
+		Instance: dashboardInstance,
 		DSCI:     dsci,
 	}
 
-	err = updateStatus(ctx, rr)
+	err = dashboard.UpdateStatus(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(dashboard.Status.URL).Should(Equal(""))
+	g.Expect(dashboardInstance.Status.URL).Should(Equal(""))
 }
 
 func TestUpdateStatusListError(t *testing.T) {
@@ -276,28 +275,28 @@ func TestUpdateStatusListError(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Create a mock client that intentionally injects a List error for Route objects to simulate a failing
-	// route-list operation and verify updateStatus returns that error (including the expected error substring
+	// route-list operation and verify dashboard.UpdateStatus returns that error (including the expected error substring
 	// "failed to list routes")
 	mockCli := &MockClient{
 		Client:    baseCli,
 		listError: errors.New("failed to list routes"),
 	}
 
-	dashboard := &componentApi.Dashboard{}
+	dashboardInstance := &componentApi.Dashboard{}
 	dsci := &dsciv1.DSCInitialization{
 		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: TestNamespace,
+			ApplicationsNamespace: dashboard.TestNamespace,
 		},
 	}
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   mockCli,
-		Instance: dashboard,
+		Instance: dashboardInstance,
 		DSCI:     dsci,
 	}
 
 	// Test the case where list fails
-	err = updateStatus(ctx, rr)
+	err = dashboard.UpdateStatus(ctx, rr)
 	g.Expect(err).Should(HaveOccurred())
 	g.Expect(err.Error()).Should(ContainSubstring("failed to list routes"))
 }

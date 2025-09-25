@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -74,6 +75,10 @@ func BffManifestsPath() odhtypes.ManifestInfo {
 }
 
 func ComputeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
+	if dscispec == nil {
+		return nil, errors.New("dscispec is nil")
+	}
+
 	consoleLinkDomain, err := cluster.GetDomain(ctx, cli)
 	if err != nil {
 		return nil, fmt.Errorf("error getting console route URL %s : %w", consoleLinkDomain, err)

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -16,6 +15,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -46,7 +47,7 @@ func TestCustomizeResources(t *testing.T) {
 func testCustomizeResourcesWithOdhDashboardConfig(t *testing.T) {
 	t.Helper()
 	cli, err := fakeclient.New()
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
 	// Create a resource with OdhDashboardConfig GVK
 	odhDashboardConfig := &unstructured.Unstructured{}
@@ -60,17 +61,17 @@ func testCustomizeResourcesWithOdhDashboardConfig(t *testing.T) {
 
 	ctx := t.Context()
 	err = dashboardctrl.CustomizeResources(ctx, rr)
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
 	// Check that the annotation was set
-	gomega.NewWithT(t).Expect(rr.Resources[0].GetAnnotations()).Should(gomega.HaveKey(managedAnnotation))
-	gomega.NewWithT(t).Expect(rr.Resources[0].GetAnnotations()[managedAnnotation]).Should(gomega.Equal("false"))
+	NewWithT(t).Expect(rr.Resources[0].GetAnnotations()).Should(HaveKey(managedAnnotation))
+	NewWithT(t).Expect(rr.Resources[0].GetAnnotations()[managedAnnotation]).Should(Equal("false"))
 }
 
 func testCustomizeResourcesWithoutOdhDashboardConfig(t *testing.T) {
 	t.Helper()
 	cli, err := fakeclient.New()
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
 	// Create a resource without OdhDashboardConfig GVK
 	configMap := &corev1.ConfigMap{
@@ -91,16 +92,16 @@ func testCustomizeResourcesWithoutOdhDashboardConfig(t *testing.T) {
 
 	ctx := t.Context()
 	err = dashboardctrl.CustomizeResources(ctx, rr)
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
 	// Check that no annotation was set
-	gomega.NewWithT(t).Expect(rr.Resources[0].GetAnnotations()).ShouldNot(gomega.HaveKey(managedAnnotation))
+	NewWithT(t).Expect(rr.Resources[0].GetAnnotations()).ShouldNot(HaveKey(managedAnnotation))
 }
 
 func testCustomizeResourcesEmptyResources(t *testing.T) {
 	t.Helper()
 	cli, err := fakeclient.New()
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
 	rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
@@ -108,13 +109,13 @@ func testCustomizeResourcesEmptyResources(t *testing.T) {
 
 	ctx := t.Context()
 	err = dashboardctrl.CustomizeResources(ctx, rr)
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 }
 
 func testCustomizeResourcesMultipleResources(t *testing.T) {
 	t.Helper()
 	cli, err := fakeclient.New()
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
 	// Create multiple resources, one with OdhDashboardConfig GVK
 	odhDashboardConfig := &unstructured.Unstructured{}
@@ -143,20 +144,18 @@ func testCustomizeResourcesMultipleResources(t *testing.T) {
 
 	ctx := t.Context()
 	err = dashboardctrl.CustomizeResources(ctx, rr)
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
-    
-    gomega.NewWithT(t).Expect(rr.Resources).Should(HaveLen(2))
+	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
-    for resource := range rr.Resources {
-      if resource.GetObjectKind().GroupVersionKind()
- == gvk.OdhDashboardConfig && resource.GetName() == testConfigName {
-         gomega.NewWithT(t).Expect(resource.GetAnnotations()).Should(gomega.HaveKey(managedAnnotation))
-         gomega.NewWithT(t).Expect(resource.GetAnnotations()[managedAnnotation]).Should(gomega.Equal("false"))
+	NewWithT(t).Expect(rr.Resources).Should(HaveLen(2))
 
-      } else {
-        	gomega.NewWithT(t).Expect(resource.GetAnnotations()).ShouldNot(gomega.HaveKey(managedAnnotation))
-      }
-    }
+	for _, resource := range rr.Resources {
+		if resource.GetObjectKind().GroupVersionKind() == gvk.OdhDashboardConfig && resource.GetName() == testConfigName {
+			NewWithT(t).Expect(resource.GetAnnotations()).Should(HaveKey(managedAnnotation))
+			NewWithT(t).Expect(resource.GetAnnotations()[managedAnnotation]).Should(Equal("false"))
+		} else {
+			NewWithT(t).Expect(resource.GetAnnotations()).ShouldNot(HaveKey(managedAnnotation))
+		}
+	}
 }
 
 // Helper function to convert any object to unstructured.

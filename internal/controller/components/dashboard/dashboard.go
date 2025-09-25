@@ -22,6 +22,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
+const (
+	// AnacondaSecretName is the name of the anaconda access secret.
+	AnacondaSecretName = "anaconda-ce-access" //nolint:gosec // This is a Kubernetes secret name, not a credential
+)
+
 type ComponentHandler struct{}
 
 func init() { //nolint:gochecknoinits

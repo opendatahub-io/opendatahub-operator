@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -29,11 +28,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/validation"
 )
-
-// rfc1123NamespaceRegex is a precompiled regex for validating namespace names.
-// according to RFC1123 DNS label rules.
-var rfc1123NamespaceRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
 type DashboardHardwareProfile struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -56,7 +52,7 @@ type DashboardHardwareProfileList struct {
 	Items           []DashboardHardwareProfile `json:"items"`
 }
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func Initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Validate required fields
 	if rr.Client == nil {
 		return errors.New("client is required but was nil")
@@ -77,7 +73,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func DevFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	dashboard, ok := rr.Instance.(*componentApi.Dashboard)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.Dashboard", rr.Instance)
@@ -131,29 +127,6 @@ func SetKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	return nil
 }
 
-// validateNamespace validates that a namespace name conforms to RFC1123 DNS label rules
-// and has a maximum length of 63 characters as required by Kubernetes.
-func validateNamespace(namespace string) error {
-	if namespace == "" {
-		return errors.New("namespace cannot be empty")
-	}
-
-	// Check length constraint (max 63 characters)
-	if len(namespace) > 63 {
-		return fmt.Errorf("namespace '%s' exceeds maximum length of 63 characters (length: %d)", namespace, len(namespace))
-	}
-
-	// RFC1123 DNS label regex: must start and end with alphanumeric character,
-	// can contain alphanumeric characters and hyphens in the middle
-	// Pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-	if !rfc1123NamespaceRegex.MatchString(namespace) {
-		return fmt.Errorf("namespace '%s' must be lowercase and conform to RFC1123 DNS label rules: "+
-			"a–z, 0–9, '-', start/end with alphanumeric", namespace)
-	}
-
-	return nil
-}
-
 // resourceExists checks if a resource with the same Group/Version/Kind/Namespace/Name
 // already exists in the ReconciliationRequest's Resources slice.
 func resourceExists(resources []unstructured.Unstructured, candidate client.Object) bool {
@@ -176,7 +149,7 @@ func resourceExists(resources []unstructured.Unstructured, candidate client.Obje
 	return false
 }
 
-func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+func ConfigureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if rr.Release.Name == cluster.OpenDataHub {
 		return nil
 	}
@@ -192,7 +165,7 @@ func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest
 	}
 
 	// Validate namespace before attempting to create resources
-	if err := validateNamespace(rr.DSCI.Spec.ApplicationsNamespace); err != nil {
+	if err := validation.ValidateNamespace(rr.DSCI.Spec.ApplicationsNamespace); err != nil {
 		return fmt.Errorf("invalid namespace: %w", err)
 	}
 
@@ -203,7 +176,7 @@ func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "anaconda-access-secret",
+			Name:      AnacondaSecretName,
 			Namespace: rr.DSCI.Spec.ApplicationsNamespace,
 		},
 		Type: corev1.SecretTypeOpaque,
@@ -222,7 +195,7 @@ func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest
 	return nil
 }
 
-func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func UpdateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if rr == nil {
 		return errors.New("reconciliation request is nil")
 	}
