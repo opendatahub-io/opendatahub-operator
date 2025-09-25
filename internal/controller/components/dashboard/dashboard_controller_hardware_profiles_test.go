@@ -110,10 +110,18 @@ func testReconcileHardwareProfilesCRDExistsNoProfiles(t *testing.T) {
 
 func testReconcileHardwareProfilesCRDExistsWithProfiles(t *testing.T) {
 	t.Helper()
-	// Create a mock dashboard hardware profile
+	// Create a mock CRD and dashboard hardware profile
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hardwareprofiles.dashboard.opendatahub.io",
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{"v1alpha1"},
+		},
+	}
 	dashboardHWP := createDashboardHWP(t, dashboardctrl.TestProfile, true, "gpu")
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(dashboardHWP))
+	cli, err := fakeclient.New(fakeclient.WithObjects(crd, dashboardHWP))
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
@@ -137,11 +145,19 @@ func testReconcileHardwareProfilesCRDCheckError(t *testing.T) {
 
 func testReconcileHardwareProfilesWithValidProfiles(t *testing.T) {
 	t.Helper()
-	// Create multiple mock dashboard hardware profiles
+	// Create a mock CRD and multiple mock dashboard hardware profiles
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hardwareprofiles.dashboard.opendatahub.io",
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{"v1alpha1"},
+		},
+	}
 	profile1 := createDashboardHWP(t, "profile1", true, "gpu")
 	profile2 := createDashboardHWP(t, "profile2", true, "cpu")
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(profile1, profile2))
+	cli, err := fakeclient.New(fakeclient.WithObjects(crd, profile1, profile2))
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
@@ -154,11 +170,19 @@ func testReconcileHardwareProfilesWithValidProfiles(t *testing.T) {
 
 func testReconcileHardwareProfilesWithMultipleProfiles(t *testing.T) {
 	t.Helper()
-	// Create multiple mock dashboard hardware profiles
+	// Create a mock CRD and multiple mock dashboard hardware profiles
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hardwareprofiles.dashboard.opendatahub.io",
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{"v1alpha1"},
+		},
+	}
 	profile1 := createDashboardHWP(t, "profile1", true, "gpu")
 	profile2 := createDashboardHWP(t, "profile2", false, "cpu")
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(profile1, profile2))
+	cli, err := fakeclient.New(fakeclient.WithObjects(crd, profile1, profile2))
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
@@ -171,7 +195,15 @@ func testReconcileHardwareProfilesWithMultipleProfiles(t *testing.T) {
 
 func testReconcileHardwareProfilesWithExistingInfraProfile(t *testing.T) {
 	t.Helper()
-	// Create a mock dashboard hardware profile
+	// Create a mock CRD and dashboard hardware profile
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hardwareprofiles.dashboard.opendatahub.io",
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{"v1alpha1"},
+		},
+	}
 	dashboardHWP := createDashboardHWP(t, dashboardctrl.TestProfile, true, "gpu")
 
 	// Create an existing infrastructure hardware profile
@@ -193,7 +225,7 @@ func testReconcileHardwareProfilesWithExistingInfraProfile(t *testing.T) {
 		},
 	}
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(dashboardHWP, existingInfraHWP))
+	cli, err := fakeclient.New(fakeclient.WithObjects(crd, dashboardHWP, existingInfraHWP))
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
@@ -290,7 +322,15 @@ func testReconcileHardwareProfilesWithCreateError(t *testing.T) {
 
 func testReconcileHardwareProfilesWithDifferentNamespace(t *testing.T) {
 	t.Helper()
-	// Create a mock dashboard hardware profile in different namespace
+	// Create a mock CRD and dashboard hardware profile in different namespace
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hardwareprofiles.dashboard.opendatahub.io",
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{"v1alpha1"},
+		},
+	}
 	dashboardHWP := &unstructured.Unstructured{}
 	dashboardHWP.SetGroupVersionKind(gvk.DashboardHardwareProfile)
 	dashboardHWP.SetName(dashboardctrl.TestProfile)
@@ -304,7 +344,7 @@ func testReconcileHardwareProfilesWithDifferentNamespace(t *testing.T) {
 		},
 	}
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(dashboardHWP))
+	cli, err := fakeclient.New(fakeclient.WithObjects(crd, dashboardHWP))
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
@@ -317,7 +357,15 @@ func testReconcileHardwareProfilesWithDifferentNamespace(t *testing.T) {
 
 func testReconcileHardwareProfilesWithDisabledProfiles(t *testing.T) {
 	t.Helper()
-	// Create a mock dashboard hardware profile that is disabled
+	// Create a mock CRD and dashboard hardware profile that is disabled
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hardwareprofiles.dashboard.opendatahub.io",
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{"v1alpha1"},
+		},
+	}
 	dashboardHWP := &unstructured.Unstructured{}
 	dashboardHWP.SetGroupVersionKind(gvk.DashboardHardwareProfile)
 	dashboardHWP.SetName(dashboardctrl.TestProfile)
@@ -331,7 +379,7 @@ func testReconcileHardwareProfilesWithDisabledProfiles(t *testing.T) {
 		},
 	}
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(dashboardHWP))
+	cli, err := fakeclient.New(fakeclient.WithObjects(crd, dashboardHWP))
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
@@ -344,7 +392,15 @@ func testReconcileHardwareProfilesWithDisabledProfiles(t *testing.T) {
 
 func testReconcileHardwareProfilesWithMixedScenarios(t *testing.T) {
 	t.Helper()
-	// Create multiple profiles with different scenarios
+	// Create a mock CRD and multiple profiles with different scenarios
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hardwareprofiles.dashboard.opendatahub.io",
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{"v1alpha1"},
+		},
+	}
 	profile1 := &unstructured.Unstructured{}
 	profile1.SetGroupVersionKind(gvk.DashboardHardwareProfile)
 	profile1.SetName("enabled-profile")
@@ -371,7 +427,7 @@ func testReconcileHardwareProfilesWithMixedScenarios(t *testing.T) {
 		},
 	}
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(profile1, profile2))
+	cli, err := fakeclient.New(fakeclient.WithObjects(crd, profile1, profile2))
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	rr := dashboardctrl.SetupTestReconciliationRequestSimple(t)
