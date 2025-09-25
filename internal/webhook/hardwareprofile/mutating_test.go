@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -40,7 +40,7 @@ func setupTestEnvironment(t *testing.T) (*runtime.Scheme, context.Context) {
 	sch, err := scheme.New()
 	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
-	err = hwpv1alpha1.AddToScheme(sch)
+	err = infrav1.AddToScheme(sch)
 	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
 	return sch, t.Context()
@@ -196,7 +196,7 @@ func TestHardwareProfile_DeniesWhenProfileNotFound(t *testing.T) {
 
 	resp := injector.Handle(ctx, req)
 	g.Expect(resp.Allowed).Should(BeFalse())
-	g.Expect(resp.Result.Message).Should(ContainSubstring("failed to get hardware profile 'nonexistent'"))
+	g.Expect(resp.Result.Message).Should(ContainSubstring("hardware profile 'nonexistent' not found"))
 }
 
 // TestHardwareProfile_ResourceInjection_Notebook tests that hardware profiles with resource requirements are applied correctly to Notebook workloads.
@@ -503,7 +503,7 @@ func TestHardwareProfile_SetsNamespaceAnnotation(t *testing.T) {
 	sch, ctx := setupTestEnvironment(t)
 
 	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
-		envtestutil.WithResourceIdentifiers(hwpv1alpha1.HardwareIdentifier{
+		envtestutil.WithResourceIdentifiers(infrav1.HardwareIdentifier{
 			DisplayName:  "Test Resource",
 			Identifier:   "test.com/resource",
 			MinCount:     intstr.FromString("1"),
@@ -880,7 +880,7 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 			injector:      createWebhookInjector(fake.NewClientBuilder().WithScheme(sch).Build(), sch),
 			workload:      envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile("non-existent")),
 			expectAllowed: false,
-			expectMessage: "failed to get hardware profile 'non-existent'",
+			expectMessage: "hardware profile 'non-existent' not found",
 		},
 		{
 			name: "empty hardware profile configuration",
@@ -1098,7 +1098,7 @@ func TestHardwareProfile_ConvertIntOrStringToQuantity(t *testing.T) {
 			// We need to test this through the webhook since the function is not exported
 			// Create a hardware profile with the test value
 			hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
-				envtestutil.WithResourceIdentifiers(hwpv1alpha1.HardwareIdentifier{
+				envtestutil.WithResourceIdentifiers(infrav1.HardwareIdentifier{
 					DisplayName:  "Test Resource",
 					Identifier:   "test.com/resource",
 					DefaultCount: tc.input,

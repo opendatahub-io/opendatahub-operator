@@ -106,6 +106,7 @@ const (
 	ConditionOpenTelemetryCollectorAvailable = "OpenTelemetryCollectorAvailable"
 	ConditionInstrumentationAvailable        = "InstrumentationAvailable"
 	ConditionAlertingAvailable               = "AlertingAvailable"
+	ConditionThanosQuerierAvailable          = "ThanosQuerierAvailable"
 )
 
 const (
@@ -192,6 +193,19 @@ const (
 	TempoOperatorMissingMessage                  = "Tempo operator must be installed for traces configuration"
 	COOMissingMessage                            = "ClusterObservability operator must be installed for metrics configuration"
 	OpenTelemetryCollectorOperatorMissingMessage = "OpenTelemetryCollector operator must be installed for OpenTelemetry configuration"
+
+	GatewayNotFoundMessage = "Gateway resource not found"
+	GatewayNotReadyMessage = "Gateway is not ready"
+	GatewayReadyMessage    = "Gateway is ready"
+
+	// Gateway Authentication messages.
+	AuthProxyDeployedMessage                 = "Auth proxy deployed successfully"
+	AuthProxyFailedDeployMessage             = "Failed to deploy auth proxy"
+	AuthProxyFailedOAuthClientMessage        = "Failed to create OAuth client"
+	AuthProxyFailedCallbackRouteMessage      = "Failed to create auth callback route"
+	AuthProxyFailedGenerateSecretMessage     = "Failed to generate client secret"
+	AuthProxyOIDCModeWithoutConfigMessage    = "Cluster is in OIDC mode but GatewayConfig has no OIDC configuration"
+	AuthProxyExternalAuthNoDeploymentMessage = "Cluster uses external authentication, no gateway auth proxy deployed"
 )
 
 // setConditions is a helper function to set multiple conditions at once.

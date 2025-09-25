@@ -3,7 +3,7 @@ package e2e_test
 import (
 	"testing"
 
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/require"
 )
 
 type OperatorTestCtx struct {
@@ -15,7 +15,8 @@ func odhOperatorTestSuite(t *testing.T) {
 
 	// Initialize the test context.
 	tc, err := NewTestContext(t)
-	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to initialize test context")
+	require.NoError(t, err, "Failed to initialize test context")
+
 	// Create an instance of test context.
 	operatorTestCtx := OperatorTestCtx{
 		TestContext: tc,
@@ -55,7 +56,6 @@ func (tc *OperatorTestCtx) ValidateOwnedCRDs(t *testing.T) {
 		{"ModelController CRD", "modelcontrollers.components.platform.opendatahub.io"},
 		{"Monitoring CRD", "monitorings.services.platform.opendatahub.io"},
 		{"LlamaStackOperator CRD", "llamastackoperators.components.platform.opendatahub.io"},
-		{"CodeFlare CRD", "codeflares.components.platform.opendatahub.io"},
 		{"Auth CRD", "auths.services.platform.opendatahub.io"},
 	}
 

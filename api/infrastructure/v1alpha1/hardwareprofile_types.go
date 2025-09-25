@@ -128,6 +128,7 @@ type HardwareProfileStatus struct {
 
 // +kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+// +kubebuilder:deprecatedversion:warning="infrastructure.opendatahub.io/v1alpha1 is deprecated; please use infrastructure.opendatahub.io/v1"
 
 // HardwareProfile is the Schema for the hardwareprofiles API.
 type HardwareProfile struct {

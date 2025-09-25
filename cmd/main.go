@@ -70,7 +70,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
-	infrastructurev1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
+	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
@@ -85,7 +85,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 
-	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/codeflare"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/feastoperator"
@@ -116,7 +115,8 @@ var (
 func init() { //nolint:gochecknoinits
 	utilruntime.Must(componentApi.AddToScheme(scheme))
 	utilruntime.Must(serviceApi.AddToScheme(scheme))
-	utilruntime.Must(infrastructurev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(infrav1alpha1.AddToScheme(scheme))
+	utilruntime.Must(infrav1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsciv1.AddToScheme(scheme))
@@ -444,10 +444,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 				Name: serviceApi.GatewayInstanceName,
 			},
 			Spec: serviceApi.GatewayConfigSpec{
-				Namespace: "openshift-ingress",
-				Auth: serviceApi.GatewayAuthSpec{
-					Mode: "auto",
-				},
 				Certificate: &infrav1.CertificateSpec{
 					Type:       infrav1.OpenshiftDefaultIngress,
 					SecretName: "default-gateway-tls",
@@ -478,20 +474,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	if err != nil {
 		setupLog.Error(err, "error scheduling Gateway creation")
 		os.Exit(1)
-	}
-
-	// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
-	var patchODCFunc manager.RunnableFunc = func(ctx context.Context) error {
-		if err := upgrade.PatchOdhDashboardConfig(ctx, setupClient, oldReleaseVersion, release); err != nil {
-			setupLog.Error(err, "Unable to patch the odhdashboardconfig")
-			return err
-		}
-		return nil
-	}
-
-	err = mgr.Add(patchODCFunc)
-	if err != nil {
-		setupLog.Error(err, "Error patching odhdashboardconfig")
 	}
 
 	// Cleanup resources from previous v2 releases
@@ -586,6 +568,7 @@ func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platfor
 
 	namespaceConfigs["istio-system"] = cache.Config{}        // for serivcemonitor: data-science-smcp-pilot-monitor
 	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
+	namespaceConfigs["openshift-ingress"] = cache.Config{}   // for gateway auth proxy resources
 
 	return namespaceConfigs, nil
 }

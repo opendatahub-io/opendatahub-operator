@@ -52,8 +52,7 @@ func TestServiceTypesConformToPlatformObject(t *testing.T) {
 					Name: "gateway",
 				},
 				Spec: GatewayConfigSpec{
-					Namespace: "openshift-ingress",
-					Domain:    "example.com",
+					Domain: "example.com",
 					Certificate: &infrav1.CertificateSpec{
 						Type: infrav1.SelfSigned,
 					},

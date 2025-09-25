@@ -23,10 +23,12 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -44,6 +46,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -280,6 +283,19 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return ctrl.Result{}, err
 		}
 
+		// Create HardwareProfile related resources
+		// VAP/VAPB for blocking Dashboard's HWProfile/AcceleratorProfile
+		if err = r.CreateVAP(ctx, instance); err != nil {
+			log.Info("failed to create VAP/VAPB for blocking Dashboard's HWProfile/AcceleratorProfile")
+			return ctrl.Result{}, err
+		}
+
+		// Create default HWProfile CR
+		if err = r.ManageDefaultHWProfileCR(ctx, instance, platform); err != nil {
+			log.Info("failed to create default HardwareProfile CR")
+			return ctrl.Result{}, err
+		}
+
 		// Finish reconciling
 		_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
@@ -348,6 +364,15 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 					predicate.LabelChangedPredicate{},
 					rp.ServiceMeshStatusCondition,
 				))).
+		Owns( // ensure always have default one for AcceleratorProfile/HardwareProfile blocking
+			&admissionregistrationv1.ValidatingAdmissionPolicy{},
+		).
+		Owns( // ensure always have default one for AcceleratorProfile/HardwareProfile blocking
+			&admissionregistrationv1.ValidatingAdmissionPolicyBinding{},
+		).
+		Owns( // ensure always have one platform's HardwareProfile in the cluster.
+			&infrav1.HardwareProfile{},
+			builder.WithPredicates(rp.Deleted())).
 		Watches(
 			&dscv1.DataScienceCluster{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
@@ -368,6 +393,14 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 		Watches(
 			&serviceApi.Auth{},
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
+		).
+		Watches( // TODO: this might not be needed after v3.0.
+			&apiextensionsv1.CustomResourceDefinition{},
+			handler.EnqueueRequestsFromMapFunc(r.watchHWProfileCRDResource),
+			builder.WithPredicates(predicate.Or(
+				rp.CreatedOrUpdatedName("acceleratorprofiles.dashboard.opendatahub.io"),
+				rp.CreatedOrUpdatedName("hardwareprofiles.dashboard.opendatahub.io"),
+			)),
 		).
 		Complete(r)
 }
@@ -502,4 +535,28 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		return err
 	}
 	return nil
+}
+
+// watchHWProfileCRDResource triggers DSCI reconciliation when Dashboard AcceleratorProfile/HWProfile CRDs are created.
+// This ensures VAP/VAPB resources can be created when Dashboard CRDs become available.
+// TODO: this is a temporary solution to ensure VAP/VAPB resources are created when Dashboard CRDs become available, it should be removed in v3.0.
+func (r *DSCInitializationReconciler) watchHWProfileCRDResource(ctx context.Context, a client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
+
+	log.V(1).Info("Dashboard CRD change detected, triggering DSCI reconciliation for VAP/VAPB resources", "CRD", a.GetName())
+
+	instanceList := &dsciv1.DSCInitializationList{}
+	if err := r.Client.List(ctx, instanceList); err != nil {
+		log.Error(err, "Failed to get DSCInitializationList")
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
+	}
+
+	if len(instanceList.Items) == 0 {
+		// No DSCI found, but trigger anyway for default name in case of race conditions
+		// If no DSCI actually exists, the reconcile request will be ignored
+		log.V(1).Info("No DSCI instances found, triggering default-dsci reconciliation as fallback to create VAP/VAPB")
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
+	}
+
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name}}}
 }

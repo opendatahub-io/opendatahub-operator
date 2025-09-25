@@ -38,6 +38,7 @@ var (
 		"kserve-controller":                "RELATED_IMAGE_ODH_KSERVE_CONTROLLER_IMAGE",
 		"kserve-router":                    "RELATED_IMAGE_ODH_KSERVE_ROUTER_IMAGE",
 		"kserve-storage-initializer":       "RELATED_IMAGE_ODH_KSERVE_STORAGE_INITIALIZER_IMAGE",
+		"kserve-llm-d":                     "RELATED_IMAGE_RHAIIS_VLLM_CUDA_IMAGE",
 		"kserve-llm-d-inference-scheduler": "RELATED_IMAGE_ODH_LLM_D_INFERENCE_SCHEDULER_IMAGE",
 		"kserve-llm-d-routing-sidecar":     "RELATED_IMAGE_ODH_LLM_D_ROUTING_SIDECAR_IMAGE",
 		"oauth-proxy":                      "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
@@ -208,7 +209,7 @@ func getIndexedResource(rs []unstructured.Unstructured, obj any, g schema.GroupV
 
 	err := runtime.DefaultUnstructuredConverter.FromUnstructured(rs[idx].Object, obj)
 	if err != nil {
-		return idx, fmt.Errorf("failed converting to %T from unstructured %v: %w", obj, rs[idx].Object, err)
+		return idx, fmt.Errorf("failed converting to %T from resource %s: %w", obj, resources.FormatObjectReference(&rs[idx]), err)
 	}
 
 	return idx, nil
