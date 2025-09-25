@@ -124,7 +124,7 @@ func getComprehensiveTestCases() []testCase {
 				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 				rr.Client = cli
 				rr.Manifests = []odhtypes.ManifestInfo{
-					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "odh"},
 				}
 				return rr
 			},
@@ -146,7 +146,7 @@ func getComprehensiveTestCases() []testCase {
 				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 				rr.Client = cli
 				rr.Manifests = []odhtypes.ManifestInfo{
-					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "odh"},
 				}
 				return rr
 			},
@@ -193,7 +193,7 @@ func getComprehensiveTestCases() []testCase {
 				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 				rr.Client = cli
 				rr.Manifests = []odhtypes.ManifestInfo{
-					{Path: "/invalid/path", ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+					{Path: "/invalid/path", ContextDir: dashboardctrl.ComponentName, SourcePath: "odh"},
 				}
 				return rr
 			},
@@ -211,8 +211,8 @@ func getComprehensiveTestCases() []testCase {
 				rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
 				rr.Client = cli
 				rr.Manifests = []odhtypes.ManifestInfo{
-					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
-					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/bff"},
+					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "odh"},
+					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "bff"},
 				}
 				return rr
 			},
@@ -237,7 +237,7 @@ func getComprehensiveTestCases() []testCase {
 				rr.Client = cli
 				rr.Release = common.Release{Name: cluster.SelfManagedRhoai}
 				rr.Manifests = []odhtypes.ManifestInfo{
-					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "odh"},
 				}
 				return rr
 			},
@@ -262,7 +262,7 @@ func getComprehensiveTestCases() []testCase {
 				rr.Client = cli
 				rr.Release = common.Release{Name: cluster.ManagedRhoai}
 				rr.Manifests = []odhtypes.ManifestInfo{
-					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+					{Path: tempDir, ContextDir: dashboardctrl.ComponentName, SourcePath: "odh"},
 				}
 				return rr
 			},
@@ -288,7 +288,7 @@ func getComprehensiveTestCases() []testCase {
 					DSCI:     nil, // Nil DSCI
 					Release:  common.Release{Name: cluster.OpenDataHub},
 					Manifests: []odhtypes.ManifestInfo{
-						{Path: dashboard_test.TestPath, ContextDir: dashboardctrl.ComponentName, SourcePath: "/odh"},
+						{Path: dashboard_test.TestPath, ContextDir: dashboardctrl.ComponentName, SourcePath: "odh"},
 					},
 				}
 				return rr
