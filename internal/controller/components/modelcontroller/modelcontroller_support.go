@@ -28,6 +28,7 @@ var (
 		"vllm-cpu-image":          "RELATED_IMAGE_ODH_VLLM_CPU_IMAGE",
 		"vllm-gaudi-image":        "RELATED_IMAGE_ODH_VLLM_GAUDI_IMAGE",
 		"vllm-rocm-image":         "RELATED_IMAGE_ODH_VLLM_ROCM_IMAGE",
+		"vllm-spyre-image":        "RELATED_IMAGE_RHAIIS_VLLM_SPYRE_IMAGE",
 		"guardrails-detector-huggingface-runtime-image": "RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE",
 	}
 
