@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -34,6 +35,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 //go:embed resources/*.yaml
@@ -203,6 +205,30 @@ func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
 	}
 
 	return listeners
+}
+
+func createDestinationRule(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	l := logf.FromContext(ctx).WithName("createDestinationRule")
+	l.V(1).Info("Creating DestinationRule for TLS configuration")
+
+	// using yaml templates due to complexity of k8s api struct for destination rule
+	yamlContent, err := gatewayResources.ReadFile("resources/destinationrule-tls.yaml")
+	if err != nil {
+		return fmt.Errorf("failed to read DestinationRule template: %w", err)
+	}
+
+	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
+	unstructuredObjects, err := resources.Decode(decoder, yamlContent)
+	if err != nil {
+		return fmt.Errorf("failed to decode DestinationRule YAML: %w", err)
+	}
+
+	if len(unstructuredObjects) != 1 {
+		return fmt.Errorf("expected exactly 1 DestinationRule object, got %d", len(unstructuredObjects))
+	}
+
+	l.V(1).Info("Successfully created DestinationRule configuration")
+	return rr.AddResources(&unstructuredObjects[0])
 }
 
 func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
