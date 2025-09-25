@@ -47,7 +47,7 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 			},
 		},
 		{
-			name: "NonOpenDataHub",
+			name: "SelfManagedRhoai",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
 				dashboard := createTestDashboard()
 				dsci := createTestDSCI()
