@@ -43,12 +43,23 @@ func (ca ConnectionAction) String() string {
 type ConnectionType string
 
 const (
-	// ConnectionTypeURI represents uri connections.
-	ConnectionTypeURI ConnectionType = "uri-v1"
-	// ConnectionTypeS3 represents s3 connections.
-	ConnectionTypeS3 ConnectionType = "s3"
-	// ConnectionTypeOCI represents oci connections.
-	ConnectionTypeOCI ConnectionType = "oci-v1"
+	// ConnectionTypeProtocolURI represents uri connections.
+	ConnectionTypeProtocolURI ConnectionType = "uri"
+	// ConnectionTypeProtocolS3 represents s3 connections.
+	ConnectionTypeProtocolS3 ConnectionType = "s3"
+	// ConnectionTypeProtocolOCI represents oci connections.
+	ConnectionTypeProtocolOCI ConnectionType = "oci"
+)
+
+// ConnectionTypeRef constants are deprecated in favor of ConnectionTypeProtocol constants.
+// Use ConnectionTypeProtocolURI, ConnectionTypeProtocolS3, and ConnectionTypeProtocolOCI instead.
+const (
+	// ConnectionTypeRefURI represents uri connections.
+	ConnectionTypeRefURI ConnectionType = "uri-v1"
+	// ConnectionTypeRefS3 represents s3 connections.
+	ConnectionTypeRefS3 ConnectionType = "s3"
+	// ConnectionTypeRefOCI represents oci connections.
+	ConnectionTypeRefOCI ConnectionType = "oci-v1"
 )
 
 func (ct ConnectionType) String() string {
@@ -83,12 +94,12 @@ func HandleServiceAccountCreation(ctx context.Context, cli client.Client, secret
 	log := logf.FromContext(ctx)
 
 	switch {
-	case connectionType == ConnectionTypeS3.String() && !isDryRun:
+	case (connectionType == ConnectionTypeProtocolS3.String() || connectionType == ConnectionTypeRefS3.String()) && !isDryRun:
 		if err := CreateServiceAccount(ctx, cli, secretName, namespace); err != nil {
 			log.Error(err, "Failed to create ServiceAccount for new S3 connection")
 			return err
 		}
-	case connectionType == ConnectionTypeS3.String() && isDryRun:
+	case (connectionType == ConnectionTypeProtocolS3.String() || connectionType == ConnectionTypeRefS3.String()) && isDryRun:
 		log.V(1).Info("Skipping ServiceAccount creation in dry-run mode", "secretName", secretName)
 	default:
 		log.V(1).Info("Skipping ServiceAccount creation for non-S3 connection type", "connectionType", connectionType, "secretName", secretName)
@@ -205,17 +216,18 @@ func DecodeUnstructured(decoder admission.Decoder, req admission.Request) (*unst
 }
 
 // ValidateInferenceServiceConnectionAnnotation validates the connection annotation  "opendatahub.io/connections"
-// If the annotation exists and has a non-empty value, it validates that the value references
-// a valid secret in the same namespace. Additionally, it checks the secret's connection type
-// annotation and rejects requests with invalid configurations. (see allowedTypes)
-// If the annotation doesn't exist or is empty, it allows the operation.
+// If the connection annotation doesn't exist or is empty, it allows the operation.
+// If the connection annotation exists and has a non-empty value, it validates that the value references
+// a valid secret in the same namespace.
+// Additionally it checks the secret connection type. If it can't find the connection type or if it is unknown,
+// it allows the operation but skips the injection.
 //
 // Parameters:
 //   - ctx: Context for the API call (logger is extracted from here).
 //   - cli: The controller-runtime reader to use for getting secrets.
 //   - decodedObj: The decoded unstructured object.
 //   - req: The admission request being processed.
-//   - allowedTypes: List of allowed connection types for validation.
+//   - allowedTypes: Map of allowed connection types for validation.
 //
 // Returns:
 //   - admission.Response: The validation result
@@ -225,11 +237,11 @@ func ValidateInferenceServiceConnectionAnnotation(ctx context.Context,
 	cli client.Reader,
 	decodedObj *unstructured.Unstructured,
 	req admission.Request,
-	allowedTypes []string,
+	allowedTypes map[string][]string,
 ) (admission.Response, string, string) {
 	log := logf.FromContext(ctx)
 
-	// Check if the annotation "opendatahub.io/connections" exists and has a non-empty value, allow operation but return empty secret info
+	// Check if the annotation "opendatahub.io/connections" exists and if it has an empty value, allow operation but return empty secret info
 	annotationValue := resources.GetAnnotation(decodedObj, annotations.Connection)
 	if annotationValue == "" {
 		return admission.Allowed(fmt.Sprintf("Annotation '%s' not present or empty value", annotations.Connection)), "", ""
@@ -246,23 +258,60 @@ func ValidateInferenceServiceConnectionAnnotation(ctx context.Context,
 		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("failed to validate secret: %w", err)), "", ""
 	}
 
-	// Additional validation: check the secret's connections-type-ref annotation exists and has a non-empty value
-	connectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
+	// Validate the connection type
+	connectionType, isValidType := ValidateInferenceServiceConnectionType(secretMeta, allowedTypes)
+
+	// If neither connection type is present, allow the operation but skip injection
 	if connectionType == "" {
-		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' annotation", annotationValue, annotations.ConnectionTypeRef)), "", ""
+		log.Info(fmt.Sprintf("Secret does not have '%s' or '%s' annotation, allowing operation but skipping injection",
+			annotations.ConnectionTypeProtocol, annotations.ConnectionTypeRef), "connectionType", connectionType, "allowedTypes", allowedTypes)
+		return admission.Allowed(fmt.Sprintf("Secret '%s' does not have '%s' or '%s' annotation",
+			annotationValue, annotations.ConnectionTypeProtocol, annotations.ConnectionTypeRef)), "", ""
 	}
 
-	// Validate that the connection type is one of the allowed values
-	isValidType := slices.Contains(allowedTypes, connectionType)
-
+	// Allow unknown connection types but log a warning and skip injection
 	if !isValidType {
-		// Allow unknown connection types but log a warning and don't perform injection
 		log.Info("Unknown connection type found, allowing operation but skipping injection", "connectionType", connectionType, "allowedTypes", allowedTypes)
 		return admission.Allowed(fmt.Sprintf("Annotation '%s' validation on secret '%s' with unknown type '%s' in namespace '%s'",
 			annotations.Connection, annotationValue, connectionType, req.Namespace)), "", ""
 	}
+
 	// Allow the operation and return secret info
 	return admission.Allowed("Connection annotation validation passed"), secretMeta.Name, connectionType
+}
+
+// ValidateInferenceServiceConnectionType fetches the connection type from the secret metadata and validates it against the allowed types.
+// It first checks the secret's connection type protocol annotation "opendatahub.io/connection-type-protocol".
+// If the connection type protocol annotation doesn't exist, it falls back to the deprecated connection type ref
+// annotation "opendatahub.io/connection-type-ref".
+// If neither annotation exists, it returns an empty connection type.
+//
+// Parameters:
+//   - secretMeta: The secret metadata to validate.
+//   - allowedTypes: Map of allowed connection types for validation.
+//
+// Returns:
+//   - string: The connection type (empty if no annotation)
+//   - bool: True if the connection type is in the allowed types, false otherwise
+func ValidateInferenceServiceConnectionType(secretMeta *metav1.PartialObjectMetadata, allowedTypes map[string][]string) (string, bool) {
+	// First check the connection type protocol annotation
+	connectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeProtocol)
+	if connectionType != "" {
+		// If it exists, check that the connection type is one of the allowed values
+		isValidType := slices.Contains(allowedTypes[annotations.ConnectionTypeProtocol], connectionType)
+		return connectionType, isValidType
+	}
+
+	// If the connection type protocol annotation doesn't exist, check the deprecated connection type ref annotation
+	connectionType = resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
+	if connectionType != "" {
+		// If it exists, check that the connection type is one of the allowed values
+		isValidType := slices.Contains(allowedTypes[annotations.ConnectionTypeRef], connectionType)
+		return connectionType, isValidType
+	}
+
+	// If neither annotation exists, return empty connection type
+	return "", false
 }
 
 // DetermineConnectionChangeAction determines what action to take for UPDATE operations
