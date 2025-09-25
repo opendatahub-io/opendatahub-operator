@@ -1,7 +1,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: rhods-monitor-federation
+  name: data-science-monitor-federation
   namespace: redhat-ods-monitoring
   labels:
     monitor-component: rhods-resources
