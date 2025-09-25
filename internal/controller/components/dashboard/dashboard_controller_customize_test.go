@@ -144,34 +144,19 @@ func testCustomizeResourcesMultipleResources(t *testing.T) {
 	ctx := t.Context()
 	err = dashboardctrl.CustomizeResources(ctx, rr)
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+    
+    gomega.NewWithT(t).Expect(rr.Resources).Should(HaveLen(2))
 
-	// Find resources by GVK and name instead of relying on array order
-	var odhDashboardConfigResource *unstructured.Unstructured
-	var configMapResource *unstructured.Unstructured
+    for resource := range rr.Resources {
+      if resource.GetObjectKind().GroupVersionKind()
+ == gvk.OdhDashboardConfig && resource.GetName() == testConfigName {
+         gomega.NewWithT(t).Expect(resource.GetAnnotations()).Should(gomega.HaveKey(managedAnnotation))
+         gomega.NewWithT(t).Expect(resource.GetAnnotations()[managedAnnotation]).Should(gomega.Equal("false"))
 
-	for i := range rr.Resources {
-		resource := &rr.Resources[i]
-		resourceGVK := resource.GetObjectKind().GroupVersionKind()
-
-		// Find OdhDashboardConfig resource
-		if resourceGVK == gvk.OdhDashboardConfig && resource.GetName() == testConfigName {
-			odhDashboardConfigResource = resource
-		}
-
-		// Find ConfigMap resource
-		if resourceGVK.Kind == "ConfigMap" && resource.GetName() == "test-configmap" {
-			configMapResource = resource
-		}
-	}
-
-	// Verify we found both resources
-	gomega.NewWithT(t).Expect(odhDashboardConfigResource).ShouldNot(gomega.BeNil(), "OdhDashboardConfig resource should be found")
-	gomega.NewWithT(t).Expect(configMapResource).ShouldNot(gomega.BeNil(), "ConfigMap resource should be found")
-
-	// Check that only the OdhDashboardConfig resource got the annotation
-	gomega.NewWithT(t).Expect(configMapResource.GetAnnotations()).ShouldNot(gomega.HaveKey(managedAnnotation))
-	gomega.NewWithT(t).Expect(odhDashboardConfigResource.GetAnnotations()).Should(gomega.HaveKey(managedAnnotation))
-	gomega.NewWithT(t).Expect(odhDashboardConfigResource.GetAnnotations()[managedAnnotation]).Should(gomega.Equal("false"))
+      } else {
+        	gomega.NewWithT(t).Expect(resource.GetAnnotations()).ShouldNot(gomega.HaveKey(managedAnnotation))
+      }
+    }
 }
 
 // Helper function to convert any object to unstructured.
