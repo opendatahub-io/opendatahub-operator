@@ -358,12 +358,12 @@ func HasCRDWithVersion(ctx context.Context, cli client.Client, gk schema.GroupKi
 	}
 }
 
-func ListGVK(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind) ([]unstructured.Unstructured, error) {
+func ListGVK(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, listOptions ...client.ListOption) ([]unstructured.Unstructured, error) {
 	resources := unstructured.UnstructuredList{}
 	resources.SetAPIVersion(gvk.GroupVersion().String())
 	resources.SetKind(gvk.Kind)
 
-	if err := cli.List(ctx, &resources); err != nil {
+	if err := cli.List(ctx, &resources, listOptions...); err != nil {
 		return nil, fmt.Errorf("failed to list resources of type %s: %w", gvk, err)
 	}
 	return resources.Items, nil

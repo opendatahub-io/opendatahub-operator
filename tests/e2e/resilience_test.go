@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
@@ -179,6 +180,14 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	t.Log("Creating zero-pod quota (blocks everything)")
 	tc.createZeroPodQuotaForOperator()
 
+	allControllers := slices.Concat(
+		slices.Collect(maps.Values(componentToControllerMap)),
+		slices.Collect(maps.Values(internalComponentToControllerMap)),
+	)
+
+	t.Log("Rollout deployments restart to trigger resource quota if pod already exists")
+	tc.rolloutDeployments(t, allControllers)
+
 	t.Log("Enabling all components in DataScienceCluster")
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -186,11 +195,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	)
 
 	t.Log("Verifying component deployments are stuck due to quota")
-
-	allControllers := slices.Concat(
-		slices.Collect(maps.Values(componentToControllerMap)),
-		slices.Collect(maps.Values(internalComponentToControllerMap)),
-	)
 	tc.verifyDeploymentsStuckDueToQuota(t, allControllers)
 
 	t.Log("Verifying DSC reports all failed components")
@@ -456,4 +460,28 @@ func updateAllComponentsTransform(components []string, state operatorv1.Manageme
 	}
 
 	return testf.Transform("%s", strings.Join(transformParts, " | "))
+}
+
+func (tc *OperatorResilienceTestCtx) rolloutDeployments(t *testing.T, allControllers []string) {
+	t.Helper()
+
+	existingDeployments := tc.FetchResources(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(&client.ListOptions{Namespace: tc.AppsNamespace}),
+	)
+
+	deploymentExists := make(map[string]bool)
+	for _, dep := range existingDeployments {
+		deploymentExists[dep.GetName()] = true
+	}
+
+	for _, deployment := range allControllers {
+		if deploymentExists[deployment] {
+			t.Logf("Triggering rollout restart for deployment: %s", deployment)
+			tc.EventuallyResourceCreatedOrUpdated(
+				WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace, Name: deployment}),
+				WithMutateFunc(testf.Transform(`.spec.template.metadata.annotations["kubectl.kubernetes.io/restartedAt"] = "%s"`, time.Now().Format(time.RFC3339))),
+			)
+		}
+	}
 }
