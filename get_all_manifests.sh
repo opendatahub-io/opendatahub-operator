@@ -15,7 +15,6 @@ declare -A COMPONENT_MANIFESTS=(
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@acd85c3bcc5bd8c24d7f17b2adc8a585051ac083:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@acd85c3bcc5bd8c24d7f17b2adc8a585051ac083:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main@366c43e7605642d6df7abd9f84cfad1661169278:manifests"
-    ["modelmeshserving"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0@a08e0016fb0c77f275f9e6f3d1b54ac9657e0b69:config"
     ["kserve"]="opendatahub-io:kserve:release-v0.15@10c8df0b70fb5d467fbec04aecd452096bd3a732:config"
     ["kueue"]="opendatahub-io:kueue:dev@c7e5105e597d92831decdd9e972dc9fdf940edf3:config"
     ["ray"]="opendatahub-io:kuberay:dev@16256e088bb7e34671b080e299e63f79539779c2:ray-operator/config"
