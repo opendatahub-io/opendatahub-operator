@@ -41,6 +41,7 @@ var _ common.PlatformObject = (*ModelMeshServing)(nil)
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 
 // ModelMeshServing is the Schema for the modelmeshservings API
+// Deprecated: ModelMeshServing is deprecated and will be removed in RHOAI 3.0. Use KServe instead.
 type ModelMeshServing struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
