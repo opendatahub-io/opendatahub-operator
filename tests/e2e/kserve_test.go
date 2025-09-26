@@ -494,19 +494,14 @@ func (tc *KserveTestCtx) ValidateConnectionWebhookInjection(t *testing.T) {
 func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Secret, types.NamespacedName{Name: secretName, Namespace: namespace}),
-		WithMutateFunc(func(obj *unstructured.Unstructured) error {
-			obj.SetAnnotations(map[string]string{
-				annotations.ConnectionTypeRef: "oci-v1",
-			})
-
-			if err := unstructured.SetNestedField(obj.Object, string(corev1.SecretTypeOpaque), "type"); err != nil {
-				return err
-			}
-
-			return unstructured.SetNestedStringMap(obj.Object, map[string]string{
-				"credential": "mysecretjson",
-			}, "data")
-		}),
+		WithMutateFunc(testf.TransformPipeline(
+			// Set connection type annotation
+			testf.Transform(`.metadata.annotations."%s" = "%s"`, annotations.ConnectionTypeProtocol, "oci"),
+			// Set secret type
+			testf.Transform(`.type = "%s"`, string(corev1.SecretTypeOpaque)),
+			// Set secret data
+			testf.Transform(`.data = {"credential": "mysecretjson"}`),
+		)),
 		WithCustomErrorMsg("Failed to create connection secret"),
 	)
 }
