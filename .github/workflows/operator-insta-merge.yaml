@@ -5,6 +5,7 @@ on:
     branches:
       - 'rhoai-2.1[6-9]+'  # Trigger the workflow on pushes to any rhoai-* branch
       - 'rhoai-2.2[0-9]+'  # Trigger the workflow on pushes to any rhoai-2.20 branch and above
+      - 'rhoai-3.[0-9]{1,2}' # Trigger the workflow on pushes to any rhoai-3.x branch
     types:
       - opened
       - reopened
