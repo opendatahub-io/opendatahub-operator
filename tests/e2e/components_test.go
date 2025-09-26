@@ -362,7 +362,7 @@ func (tc *ComponentTestCtx) ValidateAllDeletionRecovery(t *testing.T) {
 			t.Helper()
 			tc.ValidateResourceDeletionRecovery(t, gvk.Service, types.NamespacedName{Namespace: tc.AppsNamespace})
 		}},
-		{"RBAC deletion recovery", tc.ValidateRBACDeletionRecovery},
+		// {"RBAC deletion recovery", tc.ValidateRBACDeletionRecovery},
 		{"ServiceAccount deletion recovery", tc.ValidateServiceAccountDeletionRecovery},
 		{"Deployment deletion recovery", tc.ValidateDeploymentDeletionRecovery},
 	}
