@@ -42,7 +42,7 @@ const (
 	OtlpTempoExporter      = "otlp/tempo"
 	MetricsCPURequest      = "100m"
 	MetricsMemoryRequest   = "256Mi"
-	MetricsCPULimit        = "500m"
+	MetricsCPULimit        = 1
 	MetricsMemoryLimit     = "512Mi"
 	MetricsDefaultReplicas = 2
 
@@ -98,6 +98,7 @@ func monitoringTestSuite(t *testing.T) {
 		// {"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
 		{"Validate CEL blocks invalid monitoring configs", monitoringServiceCtx.ValidateCELBlocksInvalidMonitoringConfigs},
 		{"Validate CEL allows valid monitoring configs", monitoringServiceCtx.ValidateCELAllowsValidMonitoringConfigs},
+		{"Validate setting requests and limits", monitoringServiceCtx.ValidateSettingRequestsAndLimits},
 		{"Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled},
 	}
 
@@ -189,7 +190,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *te
 			// Validate memory request is set to MetricsMemoryRequest
 			jq.Match(`.spec.resources.requests.memory == "%s"`, MetricsMemoryRequest),
 			// Validate CPU limit defaults to MetricsCPULimit
-			jq.Match(`.spec.resources.limits.cpu == "%s"`, MetricsCPULimit),
+			jq.Match(`.spec.resources.limits.cpu == %d`, MetricsCPULimit),
 			// Validate memory limit defaults to MetricsMemoryLimit
 			jq.Match(`.spec.resources.limits.memory == "%s"`, MetricsMemoryLimit),
 			// Validate replicas is set to MetricsDefaultReplicas when it was not specified in DSCI
@@ -298,6 +299,7 @@ func (tc *MonitoringTestCtx) ValidateCELAllowsValidMonitoringConfigs(t *testing.
 				withManagementState(operatorv1.Managed),
 				withEmptyMetrics(),
 				withNoAlerting(),
+				withNoCollectorReplicas(),
 			),
 			description: "Empty metrics should be allowed without alerting",
 		},
@@ -984,8 +986,8 @@ func withMetricsConfig() testf.TransformFn {
             "retention": "%s"
         },
         "resources": {
-            "cpurequest": "%s",
-            "memoryrequest": "%s"
+            "monitoringStackCPURequest": "%s",
+            "monitoringStackMemoryRequest": "%s"
         },
         "replicas": %d
     }`, MetricsStorageSize, MetricsRetention, MetricsCPURequest, MetricsMemoryRequest, MetricsDefaultReplicas)
@@ -1092,4 +1094,66 @@ func withMonitoringTraces(backend, secret, size, retention string) testf.Transfo
 	}
 
 	return testf.TransformPipeline(transforms...)
+}
+
+func (tc *MonitoringTestCtx) ValidateSettingRequestsAndLimits(t *testing.T) {
+	t.Helper()
+
+	tc.ensureMonitoringCleanSlate(t, "")
+
+	// update monitoring config with requests and limits
+	limitsTransforms := append(
+		[]testf.TransformFn{
+			testf.Transform(`.spec.monitoring.resources.collectorCPULimit = "4"`),
+			testf.Transform(`.spec.monitoring.resources.collectorMemoryLimit = "1000Mi"`),
+			testf.Transform(`.spec.monitoring.metrics.resources.monitoringStackCPULimit = "4"`),
+			testf.Transform(`.spec.monitoring.metrics.resources.monitoringStackMemoryLimit = "1000Mi"`),
+		},
+		withManagementState(operatorv1.Managed),
+	)
+
+	tc.updateMonitoringConfig(limitsTransforms...)
+
+	// ensure monitoring resource exists with requests and limits
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: "default-monitoring"}),
+		WithCondition(
+			And(
+				jq.Match(`.spec.resources.collectorCPULimit == "4"`),
+				jq.Match(`.spec.resources.collectorMemoryLimit == "1000Mi"`),
+				jq.Match(`.spec.resources.collectorCPURequest == "100m"`),
+				jq.Match(`.spec.resources.collectorMemoryRequest == "256Mi"`),
+				jq.Match(`.spec.metrics.resources.monitoringStackCPULimit == "4"`),
+				jq.Match(`.spec.metrics.resources.monitoringStackMemoryLimit == "1000Mi"`),
+				jq.Match(`.spec.metrics.resources.monitoringStackCPURequest == "100m"`),
+				jq.Match(`.spec.metrics.resources.monitoringStackMemoryRequest == "256Mi"`),
+			),
+		),
+	)
+
+	// ensure monitoring stack resource exists with requests and limits
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{Name: "data-science-monitoringstack", Namespace: tc.MonitoringNamespace}),
+		WithCondition(
+			And(
+				jq.Match(`(.spec.resources.limits.cpu == 4) or (.spec.resources.limits.cpu == "4")`),
+				jq.Match(`.spec.resources.limits.memory == "1000Mi"`),
+				jq.Match(`.spec.resources.requests.cpu == "100m"`),
+				jq.Match(`.spec.resources.requests.memory == "256Mi"`),
+			),
+		),
+	)
+
+	// ensure open telemetry collector resource exists with requests and limits
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: "data-science-collector", Namespace: tc.MonitoringNamespace}),
+		WithCondition(
+			And(
+				jq.Match(`(.spec.resources.limits.cpu == 4) or (.spec.resources.limits.cpu == "4")`),
+				jq.Match(`.spec.resources.limits.memory == "1000Mi"`),
+				jq.Match(`.spec.resources.requests.cpu == "100m"`),
+				jq.Match(`.spec.resources.requests.memory == "256Mi"`),
+			),
+		),
+	)
 }
