@@ -10,7 +10,6 @@ declare -A COMPONENT_MANIFESTS=(
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main:manifests"
-    ["modelmeshserving"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0:config"
     ["kserve"]="opendatahub-io:kserve:release-v0.15:config"
     ["kueue"]="opendatahub-io:kueue:dev:config"
     ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config"
