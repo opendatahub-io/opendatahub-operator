@@ -51,6 +51,27 @@ func TestNewCRObject(t *testing.T) {
 	)))
 }
 
+func TestEvalCRObjectSerialization(t *testing.T) {
+	g := NewWithT(t)
+	handler := &componentHandler{}
+
+	// Create DSC with no eval fields specified
+	dsc := createDSCWithTrustyAI(operatorv1.Managed)
+
+	cr := handler.NewCRObject(dsc)
+	g.Expect(cr).ShouldNot(BeNil())
+
+	// Test JSON serialization to ensure required fields are present
+	trustyaiCR, ok := cr.(*componentApi.TrustyAI)
+	g.Expect(ok).Should(BeTrue(), "Expected cr to be of type *componentApi.TrustyAI")
+	g.Expect(trustyaiCR).Should(WithTransform(json.Marshal, And(
+		jq.Match(`.spec.eval.lmeval.permitCodeExecution == "%s"`, EvalPermissionDeny),
+		jq.Match(`.spec.eval.lmeval.permitOnline == "%s"`, EvalPermissionDeny),
+		jq.Match(`.spec.eval.lmeval | has("permitCodeExecution")`),
+		jq.Match(`.spec.eval.lmeval | has("permitOnline")`),
+	)))
+}
+
 func TestIsEnabled(t *testing.T) {
 	handler := &componentHandler{}
 
@@ -347,13 +368,25 @@ func createTrustyAICR(ready bool) *componentApi.TrustyAI {
 
 func createTrustyAICRWithConfig(permitCodeExecution, permitOnline bool) *componentApi.TrustyAI {
 	c := createTrustyAICR(true)
-	c.Spec.Eval.LMEval.PermitCodeExecution = permitCodeExecution
-	c.Spec.Eval.LMEval.PermitOnline = permitOnline
+	if permitCodeExecution {
+		c.Spec.Eval.LMEval.PermitCodeExecution = EvalPermissionAllow
+	} else {
+		c.Spec.Eval.LMEval.PermitCodeExecution = EvalPermissionDeny
+	}
+	if permitOnline {
+		c.Spec.Eval.LMEval.PermitOnline = EvalPermissionAllow
+	} else {
+		c.Spec.Eval.LMEval.PermitOnline = EvalPermissionDeny
+	}
 	return c
 }
 
 func createTrustyAICRWithPartialConfig(allowCodeExecution bool) *componentApi.TrustyAI {
 	c := createTrustyAICR(true)
-	c.Spec.Eval.LMEval.PermitCodeExecution = allowCodeExecution
+	if allowCodeExecution {
+		c.Spec.Eval.LMEval.PermitCodeExecution = EvalPermissionAllow
+	} else {
+		c.Spec.Eval.LMEval.PermitCodeExecution = EvalPermissionDeny
+	}
 	return c
 }
