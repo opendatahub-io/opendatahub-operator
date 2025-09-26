@@ -36,6 +36,9 @@ func CleanupPreviousTestResources(t *testing.T) {
 
 	// Cleanup Kueue cluster-scoped resources
 	cleanupKueueTestResources(t, tc)
+
+	// Cleanup CodeFlare resources
+	cleanupCodeFlareTestResources(t, tc)
 }
 
 // cleanupCoreOperatorResources deletes DataScienceCluster and DSCInitialization resources.
@@ -101,4 +104,17 @@ func cleanupKueueTestResources(t *testing.T, tc *TestContext) {
 	// Uninstall ocp kueue operator if present
 	t.Logf("Uninstalling kueue operator")
 	tc.UninstallOperator(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace})
+}
+
+func cleanupCodeFlareTestResources(t *testing.T, tc *TestContext) {
+	t.Helper()
+
+	// Cleanup CodeFlare resources
+	t.Logf("Cleaning up CodeFlare resources")
+	tc.DeleteResource(
+		WithMinimalObject(gvk.CodeFlare, types.NamespacedName{Name: defaultCodeFlareComponentName}),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(false),
+		WithAcceptableErr(meta.IsNoMatchError, "IsNoMatchError"),
+	)
 }

@@ -5,13 +5,14 @@ import (
 	"strings"
 	"testing"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhAnnotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -43,7 +44,8 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 
 	// Define test cases.
 	testCases := []TestCase{
-		{"codeflare resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateCodeFlareResourcePreservation},
+		{"codeflare present in the cluster before upgrade, after upgrade not removed", v2Tov3UpgradeTestCtx.ValidateCodeFlareResourcePreservation},
+		{"ray raise error if codeflare component present in the cluster", v2Tov3UpgradeTestCtx.ValidateRayRaiseErrorIfCodeFlarePresent},
 	}
 
 	// Run the test suite.
@@ -81,6 +83,51 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateComponentResourcePreservation(t *testing
 	)
 }
 
+func (tc *V2Tov3UpgradeTestCtx) ValidateRayRaiseErrorIfCodeFlarePresent(t *testing.T) {
+	t.Helper()
+
+	dsc := tc.FetchDataScienceCluster()
+	tc.createOperatorManagedComponent(gvk.CodeFlare, defaultCodeFlareComponentName, dsc)
+
+	tc.updateComponentStateInDataScienceCluster(t, gvk.Ray.Kind, operatorv1.Managed)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(
+				`.status.conditions[]
+				| select(.type == "ComponentsReady" and .status == "False")
+				| .message == "%s"`,
+				"Some components are not ready: ray",
+			),
+			jq.Match(
+				`.status.conditions[]
+				| select(.type == "RayReady" and .status == "False")
+				| .message == "%s"`,
+				status.CodeFlarePresentMessage,
+			),
+		)),
+	)
+
+	tc.DeleteResource(
+		WithMinimalObject(gvk.CodeFlare, types.NamespacedName{Name: defaultCodeFlareComponentName}),
+		WithWaitForDeletion(true),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(
+				`.status.conditions[]
+				| select(.type == "RayReady") | .status == "True"`,
+			),
+		)),
+	)
+
+	// Cleanup
+	tc.updateComponentStateInDataScienceCluster(t, gvk.Ray.Kind, operatorv1.Removed)
+}
+
 func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 	t.Helper()
 
@@ -92,7 +139,7 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 	)
 }
 
-func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedComponent(componentGVK schema.GroupVersionKind, componentName string, dsc *dscv1.DataScienceCluster) client.Object {
+func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedComponent(componentGVK schema.GroupVersionKind, componentName string, dsc *dscv1.DataScienceCluster) {
 	existingComponent := resources.GvkToUnstructured(componentGVK)
 	existingComponent.SetName(componentName)
 
@@ -117,6 +164,13 @@ func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedComponent(componentGVK sche
 		WithObjectToCreate(existingComponent),
 		WithCustomErrorMsg("Failed to create existing %s component for preservation test", componentGVK.Kind),
 	)
+}
 
-	return existingComponent
+func (tc *V2Tov3UpgradeTestCtx) updateComponentStateInDataScienceCluster(t *testing.T, kind string, managementState operatorv1.ManagementState) {
+	t.Helper()
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(kind), managementState)),
+	)
 }
