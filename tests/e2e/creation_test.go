@@ -54,7 +54,7 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
 		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
-		// {"Validate VAP/VAPB creation after DSCI creation", dscTestCtx.ValidateVAPCreationAfterDSCI},
+		{"Validate VAP/VAPB creation after DSCI creation", dscTestCtx.ValidateVAPCreationAfterDSCI},
 		{"Validate Knative resource", dscTestCtx.ValidateKnativeSpecInDSC},
 		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
