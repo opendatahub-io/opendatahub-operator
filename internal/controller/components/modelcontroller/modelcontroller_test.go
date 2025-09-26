@@ -22,7 +22,6 @@ import (
 
 	// side import for component registry.
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
-	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelmeshserving"
 
 	. "github.com/onsi/gomega"
 )
@@ -59,23 +58,23 @@ func TestNewCRObject(t *testing.T) {
 			expectedModelregState:   operatorv1.Removed,
 		},
 		{
-			name:                    "should create ModelController CR when ModelMeshServing is Managed",
+			name:                    "should create ModelController CR as Removed when only ModelMeshServing is Managed (RHOAI 3.0 behavior)",
 			kserveState:             operatorv1.Removed,
 			modelmeshservingState:   operatorv1.Managed,
 			modelregistryState:      operatorv1.Removed,
-			expectedManagementState: operatorv1.Managed,
+			expectedManagementState: operatorv1.Removed,
 			expectedKserveState:     operatorv1.Removed,
-			expectedModelmeshState:  operatorv1.Managed,
+			expectedModelmeshState:  operatorv1.Removed, // Always removed in RHOAI 3.0
 			expectedModelregState:   operatorv1.Removed,
 		},
 		{
-			name:                    "should create ModelController CR when both KServe and ModelMeshServing are Managed",
+			name:                    "should create ModelController CR when KServe is Managed (ModelMeshServing ignored in RHOAI 3.0)",
 			kserveState:             operatorv1.Managed,
 			modelmeshservingState:   operatorv1.Managed,
 			modelregistryState:      operatorv1.Managed,
 			expectedManagementState: operatorv1.Managed,
 			expectedKserveState:     operatorv1.Managed,
-			expectedModelmeshState:  operatorv1.Managed,
+			expectedModelmeshState:  operatorv1.Removed, // Always removed in RHOAI 3.0
 			expectedModelregState:   operatorv1.Managed,
 		},
 		{
@@ -128,13 +127,13 @@ func TestIsEnabled(t *testing.T) {
 			matcher:               BeTrue(),
 		},
 		{
-			name:                  "should return true when ModelMeshServing is Managed",
+			name:                  "should return false when only ModelMeshServing is Managed (RHOAI 3.0 behavior)",
 			kserveState:           operatorv1.Removed,
 			modelmeshservingState: operatorv1.Managed,
-			matcher:               BeTrue(),
+			matcher:               BeFalse(),
 		},
 		{
-			name:                  "should return true when both KServe and ModelMeshServing are Managed",
+			name:                  "should return true when KServe is Managed (ModelMeshServing ignored in RHOAI 3.0)",
 			kserveState:           operatorv1.Managed,
 			modelmeshservingState: operatorv1.Managed,
 			matcher:               BeTrue(),
@@ -206,7 +205,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		dsc := createDSCWithModelController(operatorv1.Removed, operatorv1.Managed, operatorv1.Removed)
+		dsc := createDSCWithModelController(operatorv1.Managed, operatorv1.Removed, operatorv1.Removed)
 		modelcontroller := createModelControllerCR(false)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, modelcontroller))

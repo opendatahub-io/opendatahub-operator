@@ -38,20 +38,16 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		kState = operatorv1.Managed
 	}
 
+	// ModelMeshServing is deprecated and always removed in RHOAI 3.0
 	mState := operatorv1.Removed
-	if dsc.Spec.Components.ModelMeshServing.ManagementState == operatorv1.Managed {
-		mState = operatorv1.Managed
-	}
 
 	mrState := operatorv1.Removed
 	if dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
 		mrState = operatorv1.Managed
 	}
 
-	managementState := operatorv1.Removed
-	if kState == operatorv1.Managed || mState == operatorv1.Managed {
-		managementState = operatorv1.Managed
-	}
+	// ModelController is enabled only by KServe in RHOAI 3.0
+	managementState := kState
 
 	return &componentApi.ModelController{
 		TypeMeta: metav1.TypeMeta{
@@ -92,14 +88,9 @@ func (s *componentHandler) Init(_ common.Platform) error {
 }
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
-	switch {
-	case cr.IsComponentEnabled(componentApi.ModelMeshServingComponentName, dsc):
-		return true
-	case cr.IsComponentEnabled(componentApi.KserveComponentName, dsc):
-		return true
-	default:
-		return false
-	}
+	// ModelController is enabled only by KServe in RHOAI 3.0
+	// ModelMeshServing no longer enables ModelController
+	return cr.IsComponentEnabled(componentApi.KserveComponentName, dsc)
 }
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
