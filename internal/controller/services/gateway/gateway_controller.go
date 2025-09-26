@@ -79,7 +79,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(gc.NewAction()).
 		Build(ctx)
 	if err != nil {
-		return fmt.Errorf("could not create the Gateway controller: %w", err)
+		return fmt.Errorf("could not create the GatewayConfig controller: %w", err)
 	}
 
 	return nil

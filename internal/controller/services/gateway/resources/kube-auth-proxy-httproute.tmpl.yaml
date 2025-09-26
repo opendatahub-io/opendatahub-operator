@@ -1,7 +1,7 @@
 kind: HTTPRoute
 apiVersion: gateway.networking.k8s.io/v1
 metadata:
-  name: oauth-callback-route
+  name: {{.OAuthCallbackRouteName}}
   namespace: {{.GatewayNamespace}}
 spec:
   parentRefs:

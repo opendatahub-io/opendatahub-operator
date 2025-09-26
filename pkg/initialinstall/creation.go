@@ -16,6 +16,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
@@ -186,7 +187,7 @@ func CreateDefaultGateway(ctx context.Context, cli client.Client) error {
 			IngressGateway: infrav1.GatewaySpec{
 				Certificate: infrav1.CertificateSpec{
 					Type:       infrav1.OpenshiftDefaultIngress,
-					SecretName: serviceApi.DefaultGatewayTLSSecretName,
+					SecretName: gateway.DefaultGatewayTLSSecretName,
 				},
 			},
 		},

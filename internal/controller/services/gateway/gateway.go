@@ -8,30 +8,29 @@ const (
 	ServiceName = serviceApi.GatewayServiceName
 )
 
-type AuthMode string
-
 const (
-	AuthModeIntegratedOAuth AuthMode = "IntegratedOAuth"
-	AuthModeOIDC            AuthMode = "OIDC"
-	AuthModeNone            AuthMode = "None"
-	AuthClientID                     = "odh"
+	AuthClientID = "data-science-gateway"
 )
 
 const (
-	gatewayNamespace = "openshift-ingress"
-	gatewayName      = "data-science-gateway"
-	gatewayClassName = "data-science-gateway-class"
-
-	kubeAuthProxyName        = "kube-auth-proxy"
-	kubeAuthProxyCredsSecret = "kube-auth-proxy-creds" //nolint:gosec
-	kubeAuthProxyTLSSecret   = "kube-auth-proxy-tls"   //nolint:gosec
+	// for gateway part.
+	GatewayNamespace            = "openshift-ingress"
+	GatewayName                 = "data-science-gateway"
+	GatewayClassName            = "data-science-gateway-class"
+	DefaultGatewayTLSSecretName = "data-science-gateway-tls"
+	// for auth part.
+	KubeAuthProxyName        = "kube-auth-proxy"
+	KubeAuthProxyCredsSecret = "kube-auth-proxy-creds" //nolint:gosec
+	KubeAuthProxyTLSSecret   = "kube-auth-proxy-tls"   //nolint:gosec
+	OAuthCallbackRouteName   = "oauth-callback-route"
+	AuthnFilterName          = "authn-filter"
 	DestinationRuleName      = "data-science-tls-rule"
 )
 
 const (
-	KubeAuthProxyDeploymentTemplate = "resources/kube-auth-proxy-deployment.tmpl.yaml"
-	KubeAuthProxyServiceTemplate    = "resources/kube-auth-proxy-svc.tmpl.yaml"
-	KubeAuthProxyHTTPRouteTemplate  = "resources/kube-auth-proxy-httproute.tmpl.yaml"
-	EnvoyFilterTemplate             = "resources/envoyfilter-authn.tmpl.yaml"
-	DestinationRuleTemplate         = "resources/destinationrule-tls.tmpl.yaml"
+	kubeAuthProxyDeploymentTemplate = "resources/kube-auth-proxy-deployment.tmpl.yaml"
+	kubeAuthProxyServiceTemplate    = "resources/kube-auth-proxy-svc.tmpl.yaml"
+	kubeAuthProxyHTTPRouteTemplate  = "resources/kube-auth-proxy-httproute.tmpl.yaml"
+	envoyFilterTemplate             = "resources/envoyfilter-authn.tmpl.yaml"
+	destinationRuleTemplate         = "resources/destinationrule-tls.tmpl.yaml"
 )

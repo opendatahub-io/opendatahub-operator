@@ -30,6 +30,7 @@ import (
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -48,7 +49,7 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	l.V(1).Info("Creating Gateway infrastructure", "gateway", gatewayConfig.Name)
 
 	if err := createGatewayClass(rr); err != nil {
-		return fmt.Errorf("failed to create GatewayClass: %w", err)
+		return fmt.Errorf("failed to create GatewayClass %s: %w", GatewayClassName, err)
 	}
 
 	domain, err := getDomain(ctx, rr, gatewayConfig)
@@ -66,8 +67,8 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	}
 
 	l.V(1).Info("Successfully created Gateway infrastructure",
-		"gateway", gatewayName,
-		"namespace", gatewayNamespace,
+		"gateway", GatewayName,
+		"namespace", GatewayNamespace,
 		"domain", domain,
 		"certificateType", getCertificateType(gatewayConfig))
 
@@ -85,7 +86,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 
 	l.V(1).Info("creating auth proxy for gateway", "gateway", gatewayConfig.Name)
 
-	authMode, err := detectClusterAuthMode(ctx, rr)
+	authMode, err := cluster.GetClusterAuthenticationMode(ctx, rr.Client)
 	if err != nil {
 		return fmt.Errorf("failed to detect cluster authentication mode: %w", err)
 	}
@@ -93,7 +94,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 
 	var oidcConfig *serviceApi.OIDCConfig
 	switch authMode {
-	case AuthModeOIDC:
+	case cluster.AuthModeOIDC:
 		if gatewayConfig.Spec.OIDC == nil {
 			rr.Conditions.MarkFalse(
 				status.ConditionTypeReady,
@@ -103,15 +104,15 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 			return nil // TODO: is this logic correct? no oidc but to use oidc and not error out.
 		}
 		oidcConfig = gatewayConfig.Spec.OIDC
-		l.V(1).Info("configuring "+kubeAuthProxyName+" for external OIDC",
+		l.V(1).Info("configuring "+KubeAuthProxyName+" for external OIDC",
 			"issuerURL", oidcConfig.IssuerURL,
 			"clientID", oidcConfig.ClientID,
 			"secretRef", oidcConfig.ClientSecretRef.Name)
 
-	case AuthModeIntegratedOAuth:
-		l.V(1).Info("configuring " + kubeAuthProxyName + " for OpenShift OAuth")
+	case cluster.AuthModeIntegratedOAuth: // default mode.
+		l.V(1).Info("configuring " + KubeAuthProxyName + " for OpenShift OAuth")
 
-	case AuthModeNone:
+	case cluster.AuthModeNone:
 		rr.Conditions.MarkFalse(
 			status.ConditionTypeReady,
 			conditions.WithReason(status.NotReadyReason), // TODO: is this logic correct? user do not want it, we should not mark it as not ready.
@@ -137,7 +138,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	}
 
 	// For IntegratedOAuth mode, create OAuth client after secret is created
-	if authMode == AuthModeIntegratedOAuth {
+	if authMode == cluster.AuthModeIntegratedOAuth {
 		if err := createOAuthClient(ctx, rr); err != nil {
 			rr.Conditions.MarkFalse(
 				status.ConditionTypeReady,
@@ -153,15 +154,15 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	kubeAuthProxyTemplates := []odhtypes.TemplateInfo{
 		{
 			FS:   gatewayResources,
-			Path: KubeAuthProxyDeploymentTemplate,
+			Path: kubeAuthProxyDeploymentTemplate,
 		},
 		{
 			FS:   gatewayResources,
-			Path: KubeAuthProxyServiceTemplate,
+			Path: kubeAuthProxyServiceTemplate,
 		},
 		{
 			FS:   gatewayResources,
-			Path: KubeAuthProxyHTTPRouteTemplate,
+			Path: kubeAuthProxyHTTPRouteTemplate,
 		},
 	}
 	rr.Templates = append(rr.Templates, kubeAuthProxyTemplates...)
@@ -177,13 +178,13 @@ func createEnvoyFilter(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 		return errors.New("instance is not of type *services.GatewayConfig")
 	}
 
-	l.V(1).Info("creating  envoyfilter for gateway", "gateway", gatewayConfig.Name)
+	l.V(1).Info("creating EnvoyFilter for gateway", "gateway", gatewayConfig.Name)
 
 	// Add EnvoyFilter template to the reconciliation request
 	envoyFilterTemplate := []odhtypes.TemplateInfo{
 		{
 			FS:   gatewayResources,
-			Path: EnvoyFilterTemplate,
+			Path: envoyFilterTemplate,
 		},
 	}
 	rr.Templates = append(rr.Templates, envoyFilterTemplate...)
@@ -199,7 +200,7 @@ func createDestinationRule(ctx context.Context, rr *odhtypes.ReconciliationReque
 	destinationRuleTemplate := []odhtypes.TemplateInfo{
 		{
 			FS:   gatewayResources,
-			Path: DestinationRuleTemplate,
+			Path: destinationRuleTemplate,
 		},
 	}
 	rr.Templates = append(rr.Templates, destinationRuleTemplate...)
@@ -214,7 +215,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	}
 
 	// Detect auth mode and get OIDC config
-	authMode, err := detectClusterAuthMode(ctx, rr)
+	authMode, err := cluster.GetClusterAuthenticationMode(ctx, rr.Client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect cluster authentication mode: %w", err)
 	}
@@ -225,14 +226,16 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		return nil, fmt.Errorf("failed to resolve domain: %w", err)
 	}
 
-	isOIDC := authMode == AuthModeOIDC
+	isOIDC := authMode == cluster.AuthModeOIDC
 
 	templateData := map[string]any{
-		"GatewayNamespace":         gatewayNamespace,
-		"GatewayName":              gatewayName,
-		"KubeAuthProxyServiceName": kubeAuthProxyName,
-		"KubeAuthProxyCredsSecret": kubeAuthProxyCredsSecret,
-		"KubeAuthProxyTLSSecret":   kubeAuthProxyTLSSecret,
+		"GatewayNamespace":         GatewayNamespace,
+		"GatewayName":              GatewayName,
+		"KubeAuthProxyServiceName": KubeAuthProxyName,
+		"KubeAuthProxyCredsSecret": KubeAuthProxyCredsSecret,
+		"KubeAuthProxyTLSSecret":   KubeAuthProxyTLSSecret,
+		"OAuthCallbackRouteName":   OAuthCallbackRouteName,
+		"AuthnFilterName":          AuthnFilterName,
 		"IsOIDC":                   isOIDC,
 		"Domain":                   domain,
 		"RedirectURL":              fmt.Sprintf("https://%s/oauth2/callback", domain),
@@ -255,8 +258,8 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 
 	gateway := &gwapiv1.Gateway{}
 	err := rr.Client.Get(ctx, types.NamespacedName{
-		Name:      gatewayName,
-		Namespace: gatewayNamespace,
+		Name:      GatewayName,
+		Namespace: GatewayNamespace,
 	}, gateway)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {

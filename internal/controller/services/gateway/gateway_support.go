@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	configv1 "github.com/openshift/api/config/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -26,7 +25,7 @@ import (
 func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 	gatewayClass := &gwapiv1.GatewayClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: gatewayClassName,
+			Name: GatewayClassName,
 		},
 		Spec: gwapiv1.GatewayClassSpec{
 			ControllerName: "openshift.io/gateway-controller/v1",
@@ -53,7 +52,7 @@ func getDomain(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayC
 		if err != nil {
 			return "", fmt.Errorf("failed to get cluster domain: %w", err) // TODO: check, old logic was to use cluster.local in this case.
 		}
-		domain = fmt.Sprintf("%s.%s", gatewayName, clusterDomain)
+		domain = fmt.Sprintf("%s.%s", GatewayName, clusterDomain)
 	}
 	return domain, nil
 }
@@ -89,11 +88,11 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 
 	gateway := &gwapiv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      gatewayName,
-			Namespace: gatewayNamespace,
+			Name:      GatewayName,
+			Namespace: GatewayNamespace,
 		},
 		Spec: gwapiv1.GatewaySpec{
-			GatewayClassName: gatewayClassName,
+			GatewayClassName: GatewayClassName,
 			Listeners:        listeners,
 		},
 	}
@@ -115,9 +114,9 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 
 	switch certConfig.Type {
 	case infrav1.OpenshiftDefaultIngress:
-		if err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, gatewayNamespace,
+		if err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, GatewayNamespace,
 			cluster.WithLabels( // add label easy to know it is from us.
-				labels.PlatformPartOf, serviceApi.GatewayServiceName,
+				labels.PlatformPartOf, ServiceName,
 			),
 			cluster.OwnedBy(gatewayConfig, rr.Client.Scheme()), // set ownerreference for cleanup
 		); err != nil {
@@ -125,10 +124,10 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 		}
 		return secretName, nil
 	case infrav1.SelfSigned:
-		hostname := fmt.Sprintf("%s.%s", gatewayName, domain)
-		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, hostname, gatewayNamespace,
+		hostname := fmt.Sprintf("%s.%s", GatewayName, domain)
+		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, hostname, GatewayNamespace,
 			cluster.WithLabels( // add label easy to know it is from us.
-				labels.PlatformPartOf, serviceApi.GatewayServiceName,
+				labels.PlatformPartOf, ServiceName,
 			),
 			cluster.OwnedBy(gatewayConfig, rr.Client.Scheme()), // set ownerreference for cleanup
 		); err != nil {
@@ -151,8 +150,8 @@ func createSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clien
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      kubeAuthProxyCredsSecret,
-			Namespace: gatewayNamespace,
+			Name:      KubeAuthProxyCredsSecret,
+			Namespace: GatewayNamespace,
 		},
 		Type: corev1.SecretTypeOpaque,
 	}
@@ -174,36 +173,19 @@ func createSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clien
 	return err
 }
 
-func detectClusterAuthMode(ctx context.Context, rr *odhtypes.ReconciliationRequest) (AuthMode, error) {
-	auth := &configv1.Authentication{}
-	if err := rr.Client.Get(ctx, types.NamespacedName{Name: "cluster"}, auth); err != nil {
-		return "", fmt.Errorf("failed to get cluster authentication config: %w", err)
-	}
-
-	switch auth.Spec.Type {
-	case "OIDC":
-		return AuthModeOIDC, nil
-	case "None":
-		return AuthModeNone, nil
-	default:
-		// IntegratedOAuth is the default (includes "" and "IntegratedOAuth")
-		return AuthModeIntegratedOAuth, nil
-	}
-}
-
 func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Read client secret from kube-auth-proxy-creds secret
 	authSecret := &corev1.Secret{}
 	if err := rr.Client.Get(ctx, types.NamespacedName{
-		Name:      kubeAuthProxyCredsSecret,
-		Namespace: gatewayNamespace,
+		Name:      KubeAuthProxyCredsSecret,
+		Namespace: GatewayNamespace,
 	}, authSecret); err != nil {
-		return fmt.Errorf("failed to get auth proxy secret %s/%s: %w", gatewayNamespace, kubeAuthProxyCredsSecret, err)
+		return fmt.Errorf("failed to get auth proxy secret %s/%s: %w", GatewayNamespace, KubeAuthProxyCredsSecret, err)
 	}
 
 	clientSecretBytes, exists := authSecret.Data["OAUTH2_PROXY_CLIENT_SECRET"]
 	if !exists {
-		return fmt.Errorf("OAUTH2_PROXY_CLIENT_SECRET not found in secret %s/%s", gatewayNamespace, kubeAuthProxyCredsSecret)
+		return fmt.Errorf("OAUTH2_PROXY_CLIENT_SECRET not found in secret %s/%s", GatewayNamespace, KubeAuthProxyCredsSecret)
 	}
 	clientSecret := string(clientSecretBytes)
 
@@ -212,7 +194,7 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 		return fmt.Errorf("failed to get cluster domain: %w", err)
 	}
 
-	redirectURL := fmt.Sprintf("https://%s.%s/oauth2/callback", gatewayName, clusterDomain)
+	redirectURL := fmt.Sprintf("https://%s.%s/oauth2/callback", GatewayName, clusterDomain)
 
 	oauthClient := &oauthv1.OAuthClient{
 		ObjectMeta: metav1.ObjectMeta{
@@ -226,17 +208,21 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	return rr.AddResources(oauthClient)
 }
 
-func getSecretValues(ctx context.Context, rr *odhtypes.ReconciliationRequest, authMode AuthMode, oidcConfig *serviceApi.OIDCConfig) (string, string, string, error) {
+func getSecretValues(
+	ctx context.Context,
+	rr *odhtypes.ReconciliationRequest,
+	authMode cluster.AuthenticationMode,
+	oidcConfig *serviceApi.OIDCConfig) (string, string, string, error) {
 	// Check if kube-auth-proxy-creds already exists and is valid
 	existingSecret := &corev1.Secret{}
 	secretErr := rr.Client.Get(ctx, types.NamespacedName{
-		Name:      kubeAuthProxyCredsSecret,
-		Namespace: gatewayNamespace,
+		Name:      KubeAuthProxyCredsSecret,
+		Namespace: GatewayNamespace,
 	}, existingSecret)
 
 	// Fast exit on NotFound errors
 	if secretErr != nil && !k8serr.IsNotFound(secretErr) {
-		return "", "", "", fmt.Errorf("failed to check existing secret %s/%s: %w", gatewayNamespace, kubeAuthProxyCredsSecret, secretErr)
+		return "", "", "", fmt.Errorf("failed to check existing secret %s/%s: %w", GatewayNamespace, KubeAuthProxyCredsSecret, secretErr)
 	}
 
 	// If secret exists, validate and reuse its values
@@ -253,17 +239,17 @@ func getSecretValues(ctx context.Context, rr *odhtypes.ReconciliationRequest, au
 	var clientSecretValue, clientID string
 
 	switch authMode {
-	case AuthModeOIDC:
+	case cluster.AuthModeOIDC:
 		// OIDC mode: get client secret from external secret
 		clientID = oidcConfig.ClientID
 
 		externalSecret := &corev1.Secret{}
 		if err := rr.Client.Get(ctx, types.NamespacedName{
 			Name:      oidcConfig.ClientSecretRef.Name,
-			Namespace: gatewayNamespace,
+			Namespace: GatewayNamespace,
 		}, externalSecret); err != nil {
 			return "", "", "", fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
-				gatewayNamespace, oidcConfig.ClientSecretRef.Name, err)
+				GatewayNamespace, oidcConfig.ClientSecretRef.Name, err)
 		}
 
 		key := oidcConfig.ClientSecretRef.Key
@@ -274,10 +260,10 @@ func getSecretValues(ctx context.Context, rr *odhtypes.ReconciliationRequest, au
 		if secretValue, exists := externalSecret.Data[key]; exists {
 			clientSecretValue = string(secretValue)
 		} else {
-			return "", "", "", fmt.Errorf("key '%s' not found in OIDC secret %s/%s", key, gatewayNamespace, oidcConfig.ClientSecretRef.Name)
+			return "", "", "", fmt.Errorf("key '%s' not found in OIDC secret %s/%s", key, GatewayNamespace, oidcConfig.ClientSecretRef.Name)
 		}
 
-	case AuthModeIntegratedOAuth:
+	case cluster.AuthModeIntegratedOAuth:
 		// OAuth mode: generate new client secret
 		clientID = AuthClientID
 

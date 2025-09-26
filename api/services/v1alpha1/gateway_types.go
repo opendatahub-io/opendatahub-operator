@@ -25,11 +25,8 @@ import (
 
 const (
 	GatewayServiceName = "gateway"
-	// GatewayConfigName the name of the GatewayConfig instance singleton.
-	// value should match whats set in the XValidation below
-	GatewayConfigName           = "data-science-gatewayconfig"
-	GatewayKind                 = "GatewayConfig"
-	DefaultGatewayTLSSecretName = "data-science-gateway-tls"
+	GatewayConfigName  = "data-science-gatewayconfig"
+	GatewayConfigKind  = "GatewayConfig"
 )
 
 // Check that the component implements common.PlatformObject.
