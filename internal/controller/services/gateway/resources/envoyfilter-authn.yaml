@@ -6,7 +6,7 @@ metadata:
 spec:
   workloadSelector:
     labels:
-      gateway.networking.k8s.io/gateway-name: odh-gateway
+      gateway.networking.k8s.io/gateway-name: data-science-gateway
   configPatches:
   - applyTo: HTTP_FILTER
     match:
