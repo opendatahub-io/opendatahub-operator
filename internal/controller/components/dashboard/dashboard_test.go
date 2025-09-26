@@ -11,6 +11,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -182,9 +183,16 @@ func testEnabledComponentWithCR(t *testing.T, handler *dashboard.ComponentHandle
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dashboardInstance))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
+	dsci := &dsciv1.DSCInitialization{
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: testNamespace,
+		},
+	}
+
 	cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
+		DSCI:       dsci,
 		Conditions: conditions.NewManager(dsc, dashboard.ReadyConditionType),
 	})
 
@@ -208,12 +216,19 @@ func testDisabledComponent(t *testing.T, handler *dashboard.ComponentHandler) {
 
 	dsc := createDSCWithDashboard(operatorv1.Removed)
 
+	dsci := &dsciv1.DSCInitialization{
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: testNamespace,
+		},
+	}
+
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
+		DSCI:       dsci,
 		Conditions: conditions.NewManager(dsc, dashboard.ReadyConditionType),
 	})
 
@@ -237,12 +252,19 @@ func testEmptyManagementState(t *testing.T, handler *dashboard.ComponentHandler)
 
 	dsc := createDSCWithDashboard("")
 
+	dsci := &dsciv1.DSCInitialization{
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: testNamespace,
+		},
+	}
+
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
+		DSCI:       dsci,
 		Conditions: conditions.NewManager(dsc, dashboard.ReadyConditionType),
 	})
 
@@ -266,12 +288,19 @@ func testDashboardCRNotFound(t *testing.T, handler *dashboard.ComponentHandler) 
 
 	dsc := createDSCWithDashboard(operatorv1.Managed)
 
+	dsci := &dsciv1.DSCInitialization{
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: testNamespace,
+		},
+	}
+
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
+		DSCI:       dsci,
 		Conditions: conditions.NewManager(dsc, dashboard.ReadyConditionType),
 	})
 
@@ -287,12 +316,19 @@ func testInvalidInstanceType(t *testing.T, handler *dashboard.ComponentHandler) 
 
 	invalidInstance := &componentApi.Dashboard{}
 
+	dsci := &dsciv1.DSCInitialization{
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: testNamespace,
+		},
+	}
+
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   invalidInstance,
+		DSCI:       dsci,
 		Conditions: conditions.NewManager(&dscv1.DataScienceCluster{}, dashboard.ReadyConditionType),
 	})
 
@@ -311,6 +347,13 @@ func testDashboardCRWithoutReadyCondition(t *testing.T, handler *dashboard.Compo
 	dashboardInstance := &componentApi.Dashboard{}
 	dashboardInstance.SetGroupVersionKind(gvk.Dashboard)
 	dashboardInstance.SetName(componentApi.DashboardInstanceName)
+	dashboardInstance.SetNamespace(testNamespace)
+
+	dsci := &dsciv1.DSCInitialization{
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: testNamespace,
+		},
+	}
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dashboardInstance))
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -318,6 +361,7 @@ func testDashboardCRWithoutReadyCondition(t *testing.T, handler *dashboard.Compo
 	cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
+		DSCI:       dsci,
 		Conditions: conditions.NewManager(dsc, dashboard.ReadyConditionType),
 	})
 
@@ -333,11 +377,17 @@ func testDashboardCRWithReadyConditionTrue(t *testing.T, handler *dashboard.Comp
 
 	dsc := createDSCWithDashboard(operatorv1.Managed)
 
+	dsci := &dsciv1.DSCInitialization{
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: testNamespace,
+		},
+	}
+
 	// Test with ConditionTrue - function should return ConditionTrue when Ready is True
 	dashboardTrue := &componentApi.Dashboard{}
 	dashboardTrue.SetGroupVersionKind(gvk.Dashboard)
 	dashboardTrue.SetName(componentApi.DashboardInstanceName)
-	// Dashboard is cluster-scoped, so no namespace needed
+	dashboardTrue.SetNamespace(testNamespace)
 	dashboardTrue.Status.Conditions = []common.Condition{
 		{
 			Type:   status.ConditionTypeReady,
@@ -352,6 +402,7 @@ func testDashboardCRWithReadyConditionTrue(t *testing.T, handler *dashboard.Comp
 	cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
+		DSCI:       dsci,
 		Conditions: conditions.NewManager(dsc, dashboard.ReadyConditionType),
 	})
 
@@ -375,12 +426,19 @@ func testDifferentManagementStates(t *testing.T, handler *dashboard.ComponentHan
 		t.Run(string(state), func(t *testing.T) {
 			dsc := createDSCWithDashboard(state)
 
+			dsci := &dsciv1.DSCInitialization{
+				Spec: dsciv1.DSCInitializationSpec{
+					ApplicationsNamespace: testNamespace,
+				},
+			}
+
 			cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 				Client:     cli,
 				Instance:   dsc,
+				DSCI:       dsci,
 				Conditions: conditions.NewManager(dsc, dashboard.ReadyConditionType),
 			})
 
@@ -424,9 +482,16 @@ func testNilClient(t *testing.T, handler *dashboard.ComponentHandler) {
 
 	dsc := createDSCWithDashboard(operatorv1.Managed)
 
+	dsci := &dsciv1.DSCInitialization{
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: testNamespace,
+		},
+	}
+
 	cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 		Client:     nil,
 		Instance:   dsc,
+		DSCI:       dsci,
 		Conditions: conditions.NewManager(dsc, dashboard.ReadyConditionType),
 	})
 
@@ -444,9 +509,16 @@ func testNilInstance(t *testing.T, handler *dashboard.ComponentHandler) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
+	dsci := &dsciv1.DSCInitialization{
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: testNamespace,
+		},
+	}
+
 	cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 		Client:     cli,
 		Instance:   nil,
+		DSCI:       dsci,
 		Conditions: conditions.NewManager(&dscv1.DataScienceCluster{}, dashboard.ReadyConditionType),
 	})
 
@@ -470,6 +542,7 @@ func createDashboardCR(ready bool) *componentApi.Dashboard {
 	c := componentApi.Dashboard{}
 	c.SetGroupVersionKind(gvk.Dashboard)
 	c.SetName(componentApi.DashboardInstanceName)
+	c.SetNamespace(testNamespace)
 
 	if ready {
 		c.Status.Conditions = []common.Condition{{

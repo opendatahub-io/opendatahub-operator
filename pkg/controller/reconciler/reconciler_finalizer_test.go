@@ -80,8 +80,7 @@ func (f *MockManager) GetControllerOptions() config.Controller {
 }
 func (f *MockManager) GetHTTPClient() *http.Client { return &http.Client{} }
 
-//nolint:ireturn
-func (f *MockManager) GetWebhookServer() webhook.Server { return nil }
+func (f *MockManager) GetWebhookServer() webhook.Server { return nil } //nolint:ireturn
 
 //nolint:ireturn
 func setupTest(mockDashboard *componentApi.Dashboard) (context.Context, *MockManager, client.WithWatch) {

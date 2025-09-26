@@ -12,7 +12,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -269,7 +271,7 @@ func TestComponentHandlerUpdateDSCStatus(t *testing.T) {
 			name:           "DashboardCRExistsAndEnabled",
 			setupRR:        setupDashboardExistsRR,
 			expectError:    false,
-			expectedStatus: metav1.ConditionFalse,
+			expectedStatus: metav1.ConditionTrue,
 			validateResult: validateDashboardExists,
 		},
 		{
@@ -325,6 +327,11 @@ func setupNilClientRR() *odhtypes.ReconciliationRequest {
 	return &odhtypes.ReconciliationRequest{
 		Client:   nil,
 		Instance: &dscv1.DataScienceCluster{},
+		DSCI: &dsciv1.DSCInitialization{
+			Spec: dsciv1.DSCInitializationSpec{
+				ApplicationsNamespace: testNamespace,
+			},
+		},
 	}
 }
 
@@ -335,9 +342,19 @@ func setupDashboardExistsRR() *odhtypes.ReconciliationRequest {
 	}
 	dashboard := &componentApi.Dashboard{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: componentApi.DashboardInstanceName,
+			Name:      componentApi.DashboardInstanceName,
+			Namespace: testNamespace,
 		},
 		Status: componentApi.DashboardStatus{
+			Status: common.Status{
+				Conditions: []common.Condition{
+					{
+						Type:   status.ConditionTypeReady,
+						Status: metav1.ConditionTrue,
+						Reason: "ComponentReady",
+					},
+				},
+			},
 			DashboardCommonStatus: componentApi.DashboardCommonStatus{
 				URL: "https://dashboard.example.com",
 			},
@@ -366,8 +383,13 @@ func setupDashboardExistsRR() *odhtypes.ReconciliationRequest {
 	}
 
 	return &odhtypes.ReconciliationRequest{
-		Client:     cli,
-		Instance:   dsc,
+		Client:   cli,
+		Instance: dsc,
+		DSCI: &dsciv1.DSCInitialization{
+			Spec: dsciv1.DSCInitializationSpec{
+				ApplicationsNamespace: testNamespace,
+			},
+		},
 		Conditions: &conditions.Manager{},
 	}
 }
@@ -398,6 +420,7 @@ func setupDashboardNotExistsRR() *odhtypes.ReconciliationRequest {
 	return &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
+		DSCI:       &dsciv1.DSCInitialization{},
 		Conditions: &conditions.Manager{},
 	}
 }
@@ -430,6 +453,7 @@ func setupDashboardDisabledRR() *odhtypes.ReconciliationRequest {
 	return &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
+		DSCI:       &dsciv1.DSCInitialization{},
 		Conditions: &conditions.Manager{},
 	}
 }
