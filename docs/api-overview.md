@@ -2535,7 +2535,6 @@ an Istio Gateway.
 
 
 _Appears in:_
-- [GatewayConfigSpec](#gatewayconfigspec)
 - [GatewaySpec](#gatewayspec)
 
 | Field | Description | Default | Validation |
@@ -2571,6 +2570,7 @@ GatewaySpec represents the configuration of the Ingress Gateways.
 
 
 _Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
 - [ServingSpec](#servingspec)
 
 | Field | Description | Default | Validation |
@@ -3143,8 +3143,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
-| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
-| `domain` _string_ | Domain configuration for the GatewayConfig |  |  |
+| `ingressGateway` _[GatewaySpec](#gatewayspec)_ |  |  |  |
 
 
 #### GatewayConfigStatus
@@ -3337,9 +3336,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `issuerURL` _string_ | OIDC issuer URL |  | Required: \{\} <br /> |
-| `clientID` _string_ | OIDC client ID |  | Required: \{\} <br /> |
-| `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing client secret |  | Required: \{\} <br /> |
+| `issuerURL` _string_ | OIDC issuer URL |  |  |
+| `clientID` _string_ | OIDC client ID |  |  |
+| `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing client secret |  |  |
 
 
 #### ServiceMesh

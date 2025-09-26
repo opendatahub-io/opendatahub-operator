@@ -10,6 +10,17 @@ package dscinitialization
 /* Auth */
 // +kubebuilder:rbac:groups="config.openshift.io",resources=authentications,verbs=get;watch;list
 
+/* Authn/Authz */
+// +kubebuilder:rbac:groups="networking.istio.io",resources=envoyfilters,verbs=*
+// +kubebuilder:rbac:groups="networking.istio.io",resources=destinationrules,verbs=*
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs/finalizers,verbs=update
+// Gateway API resources (what the controller actually creates)
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;gatewayclasses;httproutes,verbs=get;list;watch;create;update;patch;delete
+// OpenShift OAuth resources (for integrated OAuth mode)
+// +kubebuilder:rbac:groups="oauth.openshift.io",resources=oauthclients,verbs=create;delete;get;list;patch;update;watch
+
 /* Service Mesh Integration */
 // +kubebuilder:rbac:groups="maistra.io",resources=servicemeshcontrolplanes,verbs=create;delete;get;list;patch;update;use;watch
 // +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmemberrolls,verbs=create;get;list;patch;update;use;watch
@@ -20,7 +31,6 @@ package dscinitialization
 // +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/finalizers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices,verbs=*
 // +kubebuilder:rbac:groups="networking.istio.io",resources=gateways,verbs=*
-// +kubebuilder:rbac:groups="networking.istio.io",resources=envoyfilters,verbs=*
 // +kubebuilder:rbac:groups="security.istio.io",resources=authorizationpolicies,verbs=*
 // +kubebuilder:rbac:groups="authorino.kuadrant.io",resources=authconfigs,verbs=*
 // +kubebuilder:rbac:groups="operator.authorino.kuadrant.io",resources=authorinos,verbs=*

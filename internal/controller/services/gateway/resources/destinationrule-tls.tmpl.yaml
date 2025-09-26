@@ -1,10 +1,10 @@
 apiVersion: networking.istio.io/v1
 kind: DestinationRule
 metadata:
-  name: odh-tls-rule
-  namespace: openshift-ingress
+  name: {{.DestinationRuleName}}
+  namespace: {{.GatewayNamespace}}
   labels:
-    app.kubernetes.io/part-of: odh-gateway
+    app.kubernetes.io/part-of: {{.GatewayName}}
 spec:
   host: '*'
   trafficPolicy:

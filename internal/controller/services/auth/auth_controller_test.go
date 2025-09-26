@@ -105,25 +105,26 @@ func TestServiceHandler_Init(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 }
 
-// TestIsDefaultAuthMethod validates the OpenShift authentication method detection logic.
-// This function determines whether the operator should create default admin groups
+// TestIsIntegratedOAuth validates the OpenShift authentication method detection logic.
+// This function determines whether the cluster uses IntegratedOAuth authentication mode,
+// which also controls whether the operator should create default admin groups
 // based on the cluster's authentication configuration. The test ensures:
 //
-// 1. IntegratedOAuth is correctly identified as default (should create groups)
-// 2. Empty auth type is correctly identified as default (should create groups)
-// 3. Custom auth types are correctly identified as non-default (should not create groups)
+// 1. IntegratedOAuth type returns true (operator should create admin groups)
+// 2. Empty auth type returns true (defaults to IntegratedOAuth, should create groups)
+// 3. Custom auth types return false (operator should not create admin groups)
 // 4. Missing authentication objects are handled with proper errors
 //
 // Authentication Types and Behavior:
-// - IntegratedOAuth (default): Create default admin groups
-// - "" (empty, default): Create default admin groups
-// - "None": Do not create default admin groups
-// - Custom types: Do not create default admin groups
+// - IntegratedOAuth: Returns true, operator creates default admin groups
+// - "" (empty, defaults to IntegratedOAuth): Returns true, operator creates admin groups
+// - "None": Returns false, operator does not create admin groups
+// - Custom types: Returns false, operator does not create admin groups
 // - Missing object: Return error (cluster configuration issue)
 //
 // This is critical for security because it determines whether the operator will
 // automatically create admin groups that could grant elevated access.
-func TestIsDefaultAuthMethod(t *testing.T) {
+func TestIsIntegratedOAuth(t *testing.T) {
 	ctx := t.Context()
 
 	tests := []struct {
@@ -145,10 +146,10 @@ func TestIsDefaultAuthMethod(t *testing.T) {
 			},
 			expectError:    false,
 			expectedResult: true,
-			description:    "IntegratedOAuth should be considered default auth method",
+			description:    "IntegratedOAuth should return true",
 		},
 		{
-			name: "should return true for empty type",
+			name: "should return true for empty type (defaults to IntegratedOAuth)",
 			authObject: &configv1.Authentication{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: cluster.ClusterAuthenticationObj,
@@ -159,10 +160,10 @@ func TestIsDefaultAuthMethod(t *testing.T) {
 			},
 			expectError:    false,
 			expectedResult: true,
-			description:    "Empty type should be considered default auth method",
+			description:    "Empty type should be treated as IntegratedOAuth (default)",
 		},
 		{
-			name: "should return false for other auth types",
+			name: "should return false for custom auth types",
 			authObject: &configv1.Authentication{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: cluster.ClusterAuthenticationObj,
@@ -173,7 +174,7 @@ func TestIsDefaultAuthMethod(t *testing.T) {
 			},
 			expectError:    false,
 			expectedResult: false,
-			description:    "Other auth types should not be considered default auth method",
+			description:    "Other auth types should return false (not IntegratedOAuth)",
 		},
 		{
 			name: "should return false for None",
@@ -187,7 +188,7 @@ func TestIsDefaultAuthMethod(t *testing.T) {
 			},
 			expectError:    false,
 			expectedResult: false,
-			description:    "None should not be considered default auth method",
+			description:    "None should return false (not IntegratedOAuth)",
 		},
 		{
 			name:           "should handle missing authentication object",
@@ -214,7 +215,7 @@ func TestIsDefaultAuthMethod(t *testing.T) {
 			}
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			result, err := auth.IsDefaultAuthMethod(ctx, cli)
+			result, err := cluster.IsIntegratedOAuth(ctx, cli)
 
 			if tt.expectError {
 				g.Expect(err).Should(HaveOccurred(), tt.description)

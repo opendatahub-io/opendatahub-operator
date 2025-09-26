@@ -822,6 +822,7 @@ rules:
 - apiGroups:
   - networking.istio.io
   resources:
+  - destinationrules
   - envoyfilters
   - gateways
   - virtualservices

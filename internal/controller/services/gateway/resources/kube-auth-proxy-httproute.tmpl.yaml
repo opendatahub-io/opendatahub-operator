@@ -1,0 +1,17 @@
+kind: HTTPRoute
+apiVersion: gateway.networking.k8s.io/v1
+metadata:
+  name: {{.OAuthCallbackRouteName}}
+  namespace: {{.GatewayNamespace}}
+spec:
+  parentRefs:
+    - name: {{.GatewayName}}
+      namespace: {{.GatewayNamespace}}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /oauth2
+      backendRefs:
+        - name: {{.KubeAuthProxyServiceName}}
+          port: 8443
