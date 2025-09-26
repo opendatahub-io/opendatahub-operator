@@ -35,10 +35,6 @@ const (
 	AuthModeNone            AuthMode = "None"
 )
 
-const (
-	AuthClientID = "odh"
-)
-
 func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createAuthProxy")
 
@@ -48,6 +44,12 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	}
 
 	l.V(1).Info("creating auth proxy for gateway", "gateway", gatewayConfig.Name)
+
+	// Resolve domain consistently with createGatewayInfrastructure
+	domain, err := ResolveDomain(ctx, rr.Client, gatewayConfig, DefaultGatewayName)
+	if err != nil {
+		return fmt.Errorf("failed to resolve domain: %w", err)
+	}
 
 	authMode, err := detectClusterAuthMode(ctx, rr)
 	if err != nil {
@@ -71,22 +73,16 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		oidcConfig = gatewayConfig.Spec.OIDC
 	}
 
-	condition := common.Condition{
-		Type:   status.ConditionTypeReady,
-		Status: metav1.ConditionFalse,
-		Reason: status.NotReadyReason,
-	}
-
 	// get or generate secrets for kube-auth-proxy (handles OAuth and OIDC modes)
 	clientSecret, cookieSecret, err := getOrGenerateSecrets(ctx, rr, authMode)
 	if err != nil {
-		condition.Message = fmt.Sprintf("Failed to get or generate secrets: %v", err)
+		condition := CreateErrorCondition("Failed to get or generate secrets", err)
 		gatewayConfig.SetConditions([]common.Condition{condition})
 		return err
 	}
 
-	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, clientSecret, cookieSecret); err != nil {
-		condition.Message = fmt.Sprintf("Failed to deploy auth proxy: %v", err)
+	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, clientSecret, cookieSecret, domain); err != nil {
+		condition := CreateErrorCondition("Failed to deploy auth proxy", err)
 		gatewayConfig.SetConditions([]common.Condition{condition})
 		return err
 	}
@@ -94,7 +90,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	if authMode == AuthModeIntegratedOAuth {
 		err = createOAuthClient(ctx, rr, clientSecret)
 		if err != nil {
-			condition.Message = fmt.Sprintf("Failed to create OAuth client: %v", err)
+			condition := CreateErrorCondition("Failed to create OAuth client", err)
 			gatewayConfig.SetConditions([]common.Condition{condition})
 			return err
 		}
@@ -102,7 +98,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 
 	err = createOAuthCallbackRoute(rr)
 	if err != nil {
-		condition.Message = fmt.Sprintf("Failed to create OAuth callback route: %v", err)
+		condition := CreateErrorCondition("Failed to create OAuth callback route", err)
 		gatewayConfig.SetConditions([]common.Condition{condition})
 		return err
 	}
@@ -164,8 +160,8 @@ func checkAuthModeNone(authMode AuthMode) *common.Condition {
 func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationRequest, authMode AuthMode) (string, string, error) {
 	existingSecret := &corev1.Secret{}
 	secretErr := rr.Client.Get(ctx, types.NamespacedName{
-		Name:      "kube-auth-proxy-creds",
-		Namespace: gatewayNamespace,
+		Name:      KubeAuthProxySecretsName,
+		Namespace: GatewayNamespace,
 	}, existingSecret)
 
 	if secretErr == nil {
@@ -185,14 +181,14 @@ func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationReques
 
 	var clientSecretValue string
 	if authMode == AuthModeIntegratedOAuth {
-		clientSecretGen, err := secretgenerator.NewSecret("client-secret", "random", 24)
+		clientSecretGen, err := secretgenerator.NewSecret("client-secret", "random", ClientSecretLength)
 		if err != nil {
 			return "", "", fmt.Errorf("failed to generate client secret: %w", err)
 		}
 		clientSecretValue = clientSecretGen.Value
 	}
 
-	cookieSecretGen, err := secretgenerator.NewSecret("cookie-secret", "random", 32)
+	cookieSecretGen, err := secretgenerator.NewSecret("cookie-secret", "random", CookieSecretLength)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate cookie secret: %w", err)
 	}
@@ -200,7 +196,7 @@ func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationReques
 	return clientSecretValue, cookieSecretGen.Value, nil
 }
 
-func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig, clientSecret, cookieSecret string) error {
+func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig, clientSecret, cookieSecret string, domain string) error {
 	l := logf.FromContext(ctx).WithName("deployAuthProxy")
 
 	if oidcConfig != nil {
@@ -224,7 +220,7 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return err
 	}
 
-	err = createKubeAuthProxyDeployment(ctx, rr, oidcConfig)
+	err = createKubeAuthProxyDeployment(rr, oidcConfig, domain)
 	if err != nil {
 		return err
 	}
@@ -242,22 +238,22 @@ func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationR
 		secret := &corev1.Secret{}
 		err := rr.Client.Get(ctx, types.NamespacedName{
 			Name:      oidcConfig.ClientSecretRef.Name,
-			Namespace: gatewayNamespace,
+			Namespace: GatewayNamespace,
 		}, secret)
 		if err != nil {
 			return fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
-				gatewayNamespace, oidcConfig.ClientSecretRef.Name, err)
+				GatewayNamespace, oidcConfig.ClientSecretRef.Name, err)
 		}
 
 		key := oidcConfig.ClientSecretRef.Key
 		if key == "" {
-			key = "clientSecret"
+			key = DefaultClientSecretKey
 		}
 		if secretValue, exists := secret.Data[key]; exists {
 			clientSecretValue = string(secretValue)
 		} else {
 			return fmt.Errorf("key '%s' not found in secret %s/%s",
-				key, gatewayNamespace, oidcConfig.ClientSecretRef.Name)
+				key, GatewayNamespace, oidcConfig.ClientSecretRef.Name)
 		}
 	}
 
@@ -267,11 +263,9 @@ func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationR
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kube-auth-proxy-creds",
-			Namespace: gatewayNamespace,
-			Labels: map[string]string{
-				"app": "kube-auth-proxy",
-			},
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+			Labels:    KubeAuthProxyLabels,
 		},
 		Type: corev1.SecretTypeOpaque,
 		StringData: map[string]string{
@@ -292,51 +286,45 @@ func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationR
 	return nil
 }
 
-func createKubeAuthProxyDeployment(ctx context.Context, rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig) error {
+func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig, domain string) error {
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kube-auth-proxy",
-			Namespace: gatewayNamespace,
-			Labels: map[string]string{
-				"app": "kube-auth-proxy",
-			},
+			Name:      KubeAuthProxyName,
+			Namespace: GatewayNamespace,
+			Labels:    KubeAuthProxyLabels,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": "kube-auth-proxy",
-				},
+				MatchLabels: KubeAuthProxyLabels,
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"app": "kube-auth-proxy",
-					},
+					Labels: KubeAuthProxyLabels,
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name: "kube-auth-proxy",
+							Name: KubeAuthProxyName,
 							// TODO: replace with conflux kube auth proxy image
-							Image: "quay.io/jtanner/kube-auth-proxy@sha256:434580fd42d73727d62566ff6d8336219a31b322798b48096ed167daaec42f07",
+							Image: KubeAuthProxyImage,
 							Ports: []corev1.ContainerPort{
 								{
-									ContainerPort: 4180,
+									ContainerPort: AuthProxyHTTPPort,
 									Name:          "http",
 								},
 								{
-									ContainerPort: 8443,
+									ContainerPort: AuthProxyHTTPSPort,
 									Name:          "https",
 								},
 							},
-							Args: buildOAuth2ProxyArgs(ctx, rr, oidcConfig),
+							Args: buildOAuth2ProxyArgs(oidcConfig, domain),
 							Env: []corev1.EnvVar{
 								{
 									Name: "OAUTH2_PROXY_CLIENT_ID",
 									ValueFrom: &corev1.EnvVarSource{
 										SecretKeyRef: &corev1.SecretKeySelector{
 											LocalObjectReference: corev1.LocalObjectReference{
-												Name: "kube-auth-proxy-creds",
+												Name: KubeAuthProxySecretsName,
 											},
 											Key: "OAUTH2_PROXY_CLIENT_ID",
 										},
@@ -347,7 +335,7 @@ func createKubeAuthProxyDeployment(ctx context.Context, rr *odhtypes.Reconciliat
 									ValueFrom: &corev1.EnvVarSource{
 										SecretKeyRef: &corev1.SecretKeySelector{
 											LocalObjectReference: corev1.LocalObjectReference{
-												Name: "kube-auth-proxy-creds",
+												Name: KubeAuthProxySecretsName,
 											},
 											Key: "OAUTH2_PROXY_CLIENT_SECRET",
 										},
@@ -358,7 +346,7 @@ func createKubeAuthProxyDeployment(ctx context.Context, rr *odhtypes.Reconciliat
 									ValueFrom: &corev1.EnvVarSource{
 										SecretKeyRef: &corev1.SecretKeySelector{
 											LocalObjectReference: corev1.LocalObjectReference{
-												Name: "kube-auth-proxy-creds",
+												Name: KubeAuthProxySecretsName,
 											},
 											Key: "OAUTH2_PROXY_COOKIE_SECRET",
 										},
@@ -367,8 +355,8 @@ func createKubeAuthProxyDeployment(ctx context.Context, rr *odhtypes.Reconciliat
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "tls-certs",
-									MountPath: "/etc/tls/private",
+									Name:      TLSCertsVolumeName,
+									MountPath: TLSCertsMountPath,
 									ReadOnly:  true,
 								},
 							},
@@ -376,10 +364,10 @@ func createKubeAuthProxyDeployment(ctx context.Context, rr *odhtypes.Reconciliat
 					},
 					Volumes: []corev1.Volume{
 						{
-							Name: "tls-certs",
+							Name: TLSCertsVolumeName,
 							VolumeSource: corev1.VolumeSource{
 								Secret: &corev1.SecretVolumeSource{
-									SecretName: "kube-auth-proxy-tls",
+									SecretName: KubeAuthProxyTLSName,
 								},
 							},
 						},
@@ -392,15 +380,10 @@ func createKubeAuthProxyDeployment(ctx context.Context, rr *odhtypes.Reconciliat
 	return rr.AddResources(deployment)
 }
 
-func buildOAuth2ProxyArgs(ctx context.Context, rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig) []string {
-	clusterDomain, err := cluster.GetDomain(ctx, rr.Client)
-	if err != nil {
-		clusterDomain = "cluster.local" // I guess?
-	}
-
-	redirectURL := fmt.Sprintf("https://%s.%s/oauth2/callback", gatewayName, clusterDomain)
+func buildOAuth2ProxyArgs(oidcConfig *serviceApi.OIDCConfig, domain string) []string {
+	redirectURL := fmt.Sprintf("https://%s/oauth2/callback", domain)
 	baseArgs := []string{
-		"--http-address=0.0.0.0:4180",
+		fmt.Sprintf("--http-address=0.0.0.0:%d", AuthProxyHTTPPort),
 		"--email-domain=*",
 		"--upstream=static://200",
 		"--skip-provider-button",
@@ -419,9 +402,9 @@ func buildOAuth2ProxyArgs(ctx context.Context, rr *odhtypes.ReconciliationReques
 		return append(baseArgs, []string{
 			"--provider=openshift",
 			"--scope=user:full",
-			"--tls-cert-file=/etc/tls/private/tls.crt",
-			"--tls-key-file=/etc/tls/private/tls.key",
-			"--https-address=0.0.0.0:8443",
+			"--tls-cert-file=" + TLSCertsMountPath + "/tls.crt",
+			"--tls-key-file=" + TLSCertsMountPath + "/tls.key",
+			fmt.Sprintf("--https-address=0.0.0.0:%d", AuthProxyHTTPSPort),
 		}...)
 	}
 }
@@ -429,24 +412,20 @@ func buildOAuth2ProxyArgs(ctx context.Context, rr *odhtypes.ReconciliationReques
 func createKubeAuthProxyService(rr *odhtypes.ReconciliationRequest) error {
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kube-auth-proxy",
-			Namespace: gatewayNamespace,
-			Labels: map[string]string{
-				"app": "kube-auth-proxy",
-			},
+			Name:      KubeAuthProxyName,
+			Namespace: GatewayNamespace,
+			Labels:    KubeAuthProxyLabels,
 			Annotations: map[string]string{
-				"service.beta.openshift.io/serving-cert-secret-name": "kube-auth-proxy-tls",
+				"service.beta.openshift.io/serving-cert-secret-name": KubeAuthProxyTLSName,
 			},
 		},
 		Spec: corev1.ServiceSpec{
-			Selector: map[string]string{
-				"app": "kube-auth-proxy",
-			},
+			Selector: KubeAuthProxyLabels,
 			Ports: []corev1.ServicePort{
 				{
 					Name:       "https",
-					Port:       8443,
-					TargetPort: intstr.FromInt(8443),
+					Port:       AuthProxyHTTPSPort,
+					TargetPort: intstr.FromInt(AuthProxyHTTPSPort),
 				},
 			},
 		},
@@ -481,7 +460,8 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 		return fmt.Errorf("failed to get cluster domain: %w", err)
 	}
 
-	redirectURL := fmt.Sprintf("https://%s.%s/oauth2/callback", gatewayName, clusterDomain)
+	// Get platform-specific gateway name
+	redirectURL := fmt.Sprintf("https://%s.%s/oauth2/callback", DefaultGatewayName, clusterDomain)
 
 	oauthClient := &oauthv1.OAuthClient{
 		ObjectMeta: metav1.ObjectMeta{
@@ -496,21 +476,22 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 }
 
 func createOAuthCallbackRoute(rr *odhtypes.ReconciliationRequest) error {
+	// Get platform-specific gateway name
 	pathPrefix := gwapiv1.PathMatchPathPrefix
-	gatewayNS := gwapiv1.Namespace(gatewayNamespace)
-	port := gwapiv1.PortNumber(8443)
-	path := "/oauth2"
+	gatewayNS := gwapiv1.Namespace(GatewayNamespace)
+	port := gwapiv1.PortNumber(AuthProxyHTTPSPort)
+	path := AuthProxyOAuth2Path
 
 	httpRoute := &gwapiv1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "oauth-callback-route",
-			Namespace: gatewayNamespace,
+			Name:      OAuthCallbackRouteName,
+			Namespace: GatewayNamespace,
 		},
 		Spec: gwapiv1.HTTPRouteSpec{
 			CommonRouteSpec: gwapiv1.CommonRouteSpec{
 				ParentRefs: []gwapiv1.ParentReference{
 					{
-						Name:      gwapiv1.ObjectName(gatewayName),
+						Name:      gwapiv1.ObjectName(DefaultGatewayName),
 						Namespace: &gatewayNS,
 					},
 				},
@@ -529,7 +510,7 @@ func createOAuthCallbackRoute(rr *odhtypes.ReconciliationRequest) error {
 						{
 							BackendRef: gwapiv1.BackendRef{
 								BackendObjectReference: gwapiv1.BackendObjectReference{
-									Name: "kube-auth-proxy",
+									Name: gwapiv1.ObjectName(KubeAuthProxyName),
 									Port: &port,
 								},
 							},
