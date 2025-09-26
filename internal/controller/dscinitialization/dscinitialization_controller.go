@@ -264,18 +264,29 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 
-		// handle changes to ServiceMesh section of DSCI spec
-		if err := r.handleServiceMesh(ctx, instance); err != nil {
-			log.Error(err, "failed to handle change to ServiceMesh spec in DSCI")
-			return ctrl.Result{}, err
-		}
+		// legacy ServiceMesh FeatureTracker cleanup, retained from the remove ServiceMesh controller
+		// TODO where exactly to put this logic ?
+		// ftNames := []string{
+		// 	instance.Spec.ApplicationsNamespace + "-mesh-shared-configmap",
+		// 	instance.Spec.ApplicationsNamespace + "-mesh-control-plane-creation",
+		// 	instance.Spec.ApplicationsNamespace + "-mesh-metrics-collection",
+		// 	instance.Spec.ApplicationsNamespace + "-enable-proxy-injection-in-authorino-deployment",
+		// 	instance.Spec.ApplicationsNamespace + "-mesh-control-plane-external-authz",
+		// }
+		// for _, name := range ftNames {
+		// 	ft := featuresv1.FeatureTracker{
+		// 		ObjectMeta: metav1.ObjectMeta{
+		// 			Name: name,
+		// 		},
+		// 	}
 
-		// Sync ServiceMesh conditions to DSCI status
-		if instance.Spec.ServiceMesh != nil && instance.Spec.ServiceMesh.ManagementState != operatorv1.Removed {
-			if err := r.syncServiceMeshConditions(ctx, instance); err != nil {
-				log.Error(err, "failed to sync ServiceMesh conditions to DSCI")
-			}
-		}
+		// 	err := r.Client.Delete(ctx, &ft, client.PropagationPolicy(metav1.DeletePropagationForeground))
+		// 	if k8serr.IsNotFound(err) {
+		// 		continue
+		// 	} else if err != nil {
+		// 		return ctrl.Result{}, fmt.Errorf("failed to delete FeatureTracker %s: %w", ft.GetName(), err)
+		// 	}
+		// }
 
 		// Create Auth
 		if err = r.CreateAuth(ctx, platform); err != nil {
@@ -357,13 +368,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.PersistentVolumeClaim{},
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&serviceApi.ServiceMesh{},
-			builder.WithPredicates(
-				predicate.Or(
-					predicate.GenerationChangedPredicate{},
-					predicate.LabelChangedPredicate{},
-					rp.ServiceMeshStatusCondition,
-				))).
 		Owns( // ensure always have default one for AcceleratorProfile/HardwareProfile blocking
 			&admissionregistrationv1.ValidatingAdmissionPolicy{},
 		).

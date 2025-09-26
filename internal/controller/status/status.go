@@ -99,7 +99,6 @@ const (
 	ConditionServiceMeshAvailable            = "ServiceMeshAvailable"
 	ConditionArgoWorkflowAvailable           = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady             = "ComponentsReady"
-	ConditionServingAvailable                = "ServingAvailable"
 	ConditionMonitoringAvailable             = "MonitoringAvailable"
 	ConditionMonitoringStackAvailable        = "MonitoringStackAvailable"
 	ConditionTempoAvailable                  = "TempoAvailable"
