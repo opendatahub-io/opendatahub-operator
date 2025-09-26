@@ -18,6 +18,7 @@ package dashboard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	consolev1 "github.com/openshift/api/console/v1"
@@ -45,8 +46,12 @@ import (
 )
 
 // NewComponentReconciler creates a ComponentReconciler for the Dashboard API.
-func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	componentName := computeComponentName()
+func (s *ComponentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	if mgr == nil {
+		return errors.New("could not create the dashboard controller: manager cannot be nil")
+	}
+
+	componentName := ComputeComponentName()
 
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.Dashboard{}).
 		// operands - owned
@@ -95,10 +100,10 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			GenericFunc: func(tge event.TypedGenericEvent[client.Object]) bool { return false },
 			DeleteFunc:  func(tde event.TypedDeleteEvent[client.Object]) bool { return false },
 		}), reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardHardwareProfile))).
-		WithAction(initialize).
-		WithAction(devFlags).
-		WithAction(setKustomizedParams).
-		WithAction(configureDependencies).
+		WithAction(Initialize).
+		WithAction(DevFlags).
+		WithAction(SetKustomizedParams).
+		WithAction(ConfigureDependencies).
 		WithAction(kustomize.NewAction(
 			// Those are the default labels added by the legacy deploy method
 			// and should be preserved as the original plugin were affecting
@@ -111,18 +116,18 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
-		WithAction(customizeResources).
+		WithAction(CustomizeResources).
 		WithAction(deploy.NewAction()).
 		WithAction(deployments.NewAction()).
-		WithAction(reconcileHardwareProfiles).
-		WithAction(updateStatus).
+		WithAction(ReconcileHardwareProfiles).
+		WithAction(UpdateStatus).
 		// must be the final action
 		WithAction(gc.NewAction(
 			gc.WithUnremovables(gvk.OdhDashboardConfig),
 		)).
 		// declares the list of additional, controller specific conditions that are
 		// contributing to the controller readiness status
-		WithConditions(conditionTypes...).
+		WithConditions(ConditionTypes...).
 		Build(ctx)
 
 	if err != nil {
