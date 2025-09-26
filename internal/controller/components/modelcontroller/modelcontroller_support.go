@@ -20,7 +20,16 @@ const (
 
 var (
 	imageParamMap = map[string]string{
-		"odh-model-controller": "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+		"odh-model-controller":    "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
+		"caikit-tgis-image":       "RELATED_IMAGE_ODH_CAIKIT_TGIS_SERVING_IMAGE",
+		"caikit-standalone-image": "RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE",
+		"ovms-image":              "RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE",
+		"vllm-cuda-image":         "RELATED_IMAGE_ODH_VLLM_CUDA_IMAGE",
+		"vllm-cpu-image":          "RELATED_IMAGE_ODH_VLLM_CPU_IMAGE",
+		"vllm-gaudi-image":        "RELATED_IMAGE_ODH_VLLM_GAUDI_IMAGE",
+		"vllm-rocm-image":         "RELATED_IMAGE_ODH_VLLM_ROCM_IMAGE",
+		"vllm-spyre-image":        "RELATED_IMAGE_RHAIIS_VLLM_SPYRE_IMAGE",
+		"guardrails-detector-huggingface-runtime-image": "RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE",
 	}
 
 	conditionTypes = []string{
