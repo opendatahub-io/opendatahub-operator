@@ -1761,7 +1761,7 @@ spec:
     containerPort: 443
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
-    generateName: hardwareprofile-kserve-injector.opendatahub.io
+    generateName: hardwareprofile-isvc-injector.opendatahub.io
     rules:
     - apiGroups:
       - serving.kserve.io
@@ -1772,6 +1772,26 @@ spec:
       - UPDATE
       resources:
       - inferenceservices
+    sideEffects: None
+    targetPort: 9443
+    type: MutatingAdmissionWebhook
+    webhookPath: /mutate-hardware-profile
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: hardwareprofile-llmisvc-injector.opendatahub.io
+    rules:
+    - apiGroups:
+      - serving.kserve.io
+      apiVersions:
+      - v1alpha1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - llminferenceservices
     sideEffects: None
     targetPort: 9443
     type: MutatingAdmissionWebhook
