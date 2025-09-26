@@ -272,9 +272,9 @@ func (in *Metrics) DeepCopyInto(out *Metrics) {
 	}
 	if in.Exporters != nil {
 		in, out := &in.Exporters, &out.Exporters
-		*out = make(map[string]string, len(*in))
+		*out = make(map[string]runtime.RawExtension, len(*in))
 		for key, val := range *in {
-			(*out)[key] = val
+			(*out)[key] = *val.DeepCopy()
 		}
 	}
 }

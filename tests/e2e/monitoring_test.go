@@ -94,6 +94,7 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test OpenTelemetry Collector Configurations", monitoringServiceCtx.ValidateOpenTelemetryCollectorConfigurations},
 		{"Test OpenTelemetry Collector replicas", monitoringServiceCtx.ValidateMonitoringCRCollectorReplicas},
 		{"Test Instrumentation CR Traces Creation", monitoringServiceCtx.ValidateInstrumentationCRTracesWhenSet},
+		{"Validate OpenTelemetry Collector custom metrics exporters", monitoringServiceCtx.ValidateOpenTelemetryCollectorCustomMetricsExporters},
 		{"Test Instrumentation CR Traces Configuration", monitoringServiceCtx.ValidateInstrumentationCRTracesConfiguration},
 		// {"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
 		{"Validate CEL blocks invalid monitoring configs", monitoringServiceCtx.ValidateCELBlocksInvalidMonitoringConfigs},
@@ -1034,8 +1035,15 @@ func withNoCollectorReplicas() testf.TransformFn {
 // withCustomMetricsExporters returns a transform that sets custom metrics exporters.
 func withCustomMetricsExporters() testf.TransformFn {
 	return testf.Transform(`.spec.monitoring.metrics.exporters = {
-		"debug": "verbosity: detailed",
-        "%s": "endpoint: http://custom-backend:4317\ntls:\n  insecure: true"
+		"debug": {
+			"verbosity": "detailed"
+		},
+        "%s": {
+			"endpoint": "http://custom-backend:4317",
+			"tls": {
+				"insecure": true
+			}
+		}
 	}`, OtlpCustomExporter)
 }
 
@@ -1092,4 +1100,61 @@ func withMonitoringTraces(backend, secret, size, retention string) testf.Transfo
 	}
 
 	return testf.TransformPipeline(transforms...)
+}
+
+func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorCustomMetricsExporters(t *testing.T) {
+	t.Helper()
+
+	// Configure DSCI with custom metrics exporters
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			setMonitoringMetricsWithCustomExporters(),
+		)),
+	)
+
+	// First verify the Monitoring service is ready
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
+	)
+
+	// Verify OpenTelemetry Collector has custom exporters configured
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{Name: OpenTelemetryCollectorName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			jq.Match(`.spec.config.exporters | has("prometheus")`),      // Built-in exporter
+			jq.Match(`.spec.config.exporters | has("debug")`),           // Custom exporter 1
+			jq.Match(`.spec.config.exporters | has("otlphttp/custom")`), // Custom exporter 2
+			jq.Match(`.spec.config.exporters.debug.verbosity == "detailed"`),
+			jq.Match(`.spec.config.exporters."otlphttp/custom".endpoint == "http://custom-backend:4318"`),
+			jq.Match(`.spec.config.exporters."otlphttp/custom".headers."api-key" == "test-key"`),
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | length == 3`), // prometheus + 2 custom
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | contains(["prometheus"])`),
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | contains(["debug"])`),
+			jq.Match(`.spec.config.service.pipelines.metrics.exporters | contains(["otlphttp/custom"])`),
+		)),
+	)
+}
+
+// setMonitoringMetricsWithCustomExporters creates a transformation function that sets metrics with custom exporters for testing.
+func setMonitoringMetricsWithCustomExporters() testf.TransformFn {
+	return testf.Transform(`.spec.monitoring.metrics = {
+        "storage": {
+            "size": "5Gi",
+            "retention": "90d"
+        },
+        "exporters": {
+            "debug": {
+                "verbosity": "detailed"
+            },
+            "otlphttp/custom": {
+                "endpoint": "http://custom-backend:4318",
+                "headers": {
+                    "api-key": "test-key"
+                }
+            }
+        }
+    }`)
 }
