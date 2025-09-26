@@ -62,6 +62,14 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
+	DeferCleanup(func() {
+		By("DeferCleanup: tearing down the test environment")
+		if testEnv != nil {
+			err := testEnv.Stop()
+			Expect(err).NotTo(HaveOccurred())
+		}
+	})
+
 	err = componentApi.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 

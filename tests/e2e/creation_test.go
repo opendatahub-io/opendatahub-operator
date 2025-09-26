@@ -56,6 +56,7 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
 		{"Validate VAP/VAPB creation after DSCI creation", dscTestCtx.ValidateVAPCreationAfterDSCI},
 		{"Validate Knative resource", dscTestCtx.ValidateKnativeSpecInDSC},
+		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
 	}
@@ -354,5 +355,54 @@ func (tc *DSCTestCtx) ValidateVAPCreationAfterDSCI(t *testing.T) {
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Removed"`)),
 		WithCustomErrorMsg("Failed to revert Dashboard after VAP test"),
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+	)
+}
+
+func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
+	t.Helper()
+
+	// verifed default hardwareprofile exists and api version is correct on v1.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithCondition(And(
+			jq.Match(`.spec.identifiers[0].defaultCount == 2`),
+			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
+			jq.Match(`.apiVersion == "infrastructure.opendatahub.io/v1"`),
+		)),
+		WithCustomErrorMsg("Default hardwareprofile should have defaultCount=2, managed=false, and use v1 API version"),
+	)
+
+	// update default hardwareprofile to different value and check it is updated.
+	tc.EnsureResourceCreatedOrPatched(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithMutateFunc(testf.Transform(`
+			.spec.identifiers[0].defaultCount = 4 |
+			.metadata.annotations["opendatahub.io/managed"] = "false"
+		`)),
+		WithCondition(And(
+			Succeed(),
+			jq.Match(`.spec.identifiers[0].defaultCount == 4`),
+			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
+		)),
+		WithCustomErrorMsg("Failed to update defaultCount from 2 to 4"),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithCondition(jq.Match(`.spec.identifiers[0].defaultCount == 4`)),
+		WithCustomErrorMsg("Should have defaultCount to 4 but now got %s", jq.Match(`.spec.identifiers[0].defaultCount`)),
+	)
+
+	// delete default hardwareprofile and check it is recreated with default values.
+	tc.DeleteResource(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+	)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithCondition(And(
+			jq.Match(`.spec.identifiers[0].defaultCount == 2`),
+			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
+		)),
+		WithCustomErrorMsg("Hardware profile was not recreated with default values"),
 	)
 }
