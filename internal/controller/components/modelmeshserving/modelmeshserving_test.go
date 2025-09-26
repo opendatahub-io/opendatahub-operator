@@ -11,7 +11,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -203,8 +203,8 @@ func TestUpdateDSCStatus(t *testing.T) {
 	})
 }
 
-func createDSCWithModelMeshServing(managementState operatorv1.ManagementState) *dscv1.DataScienceCluster {
-	dsc := dscv1.DataScienceCluster{}
+func createDSCWithModelMeshServing(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {
+	dsc := dscv2.DataScienceCluster{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 	dsc.SetName("test-dsc")
 

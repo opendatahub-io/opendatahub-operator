@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
@@ -115,7 +115,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		// resource
 		Watches(
-			&dsciv1.DSCInitialization{},
+			&dsciv2.DSCInitialization{},
 			reconciler.WithEventHandler(handlers.ToNamed(componentApi.KserveInstanceName)),
 			reconciler.WithPredicates(predicate.Or(generation.New(), resources.DSCIReadiness, resources.DSCIServiceMeshCondition)),
 		).

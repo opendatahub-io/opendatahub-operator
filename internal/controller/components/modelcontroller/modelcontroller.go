@@ -12,7 +12,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -31,7 +31,7 @@ func (s *componentHandler) GetName() string {
 	return componentApi.ModelControllerComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
 	// extra logic to set the management .spec.component.managementState, to not leave blank {}
 	kState := operatorv1.Removed
 	if dsc.Spec.Components.Kserve.ManagementState == operatorv1.Managed {
@@ -91,7 +91,7 @@ func (s *componentHandler) Init(_ common.Platform) error {
 	return nil
 }
 
-func (s *componentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool {
+func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 	switch {
 	case cr.IsComponentEnabled(componentApi.ModelMeshServingComponentName, dsc):
 		return true
@@ -112,7 +112,7 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, nil
 	}
 
-	dsc, ok := rr.Instance.(*dscv1.DataScienceCluster)
+	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}

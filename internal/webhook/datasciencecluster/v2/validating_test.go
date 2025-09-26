@@ -1,4 +1,4 @@
-package datasciencecluster_test
+package v2_test
 
 import (
 	"testing"
@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
+	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
@@ -17,9 +17,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// TestDataScienceCluster_ValidatingWebhook exercises the validating webhook logic for DataScienceCluster resources.
+// TestDataScienceClusterV2_ValidatingWebhook exercises the validating webhook logic for DataScienceCluster v2 resources.
 // It verifies singleton enforcement and deletion rules using table-driven tests and a fake client.
-func TestDataScienceCluster_ValidatingWebhook(t *testing.T) {
+func TestDataScienceClusterV2_ValidatingWebhook(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -44,7 +44,7 @@ func TestDataScienceCluster_ValidatingWebhook(t *testing.T) {
 				gvk.DataScienceCluster,
 				metav1.GroupVersionResource{
 					Group:    gvk.DataScienceCluster.Group,
-					Version:  gvk.DataScienceCluster.Version,
+					Version:  "v2",
 					Resource: "datascienceclusters",
 				},
 			),
@@ -62,7 +62,7 @@ func TestDataScienceCluster_ValidatingWebhook(t *testing.T) {
 				gvk.DataScienceCluster,
 				metav1.GroupVersionResource{
 					Group:    gvk.DataScienceCluster.Group,
-					Version:  gvk.DataScienceCluster.Version,
+					Version:  "v2",
 					Resource: "datascienceclusters",
 				},
 			),
@@ -78,7 +78,7 @@ func TestDataScienceCluster_ValidatingWebhook(t *testing.T) {
 				gvk.DataScienceCluster,
 				metav1.GroupVersionResource{
 					Group:    gvk.DataScienceCluster.Group,
-					Version:  gvk.DataScienceCluster.Version,
+					Version:  "v2",
 					Resource: "datascienceclusters",
 				},
 			),
@@ -92,9 +92,9 @@ func TestDataScienceCluster_ValidatingWebhook(t *testing.T) {
 			objs := append([]client.Object{}, tc.existingObjs...)
 			objs = append(objs, envtestutil.NewDSCI("dsci-for-dsc", ns))
 			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(objs...).Build()
-			validator := &datasciencecluster.Validator{
+			validator := &v2webhook.Validator{
 				Client: cli,
-				Name:   "test",
+				Name:   "test-v2",
 			}
 			resp := validator.Handle(ctx, tc.req)
 			t.Logf("Admission response: Allowed=%v, Result=%+v", resp.Allowed, resp.Result)

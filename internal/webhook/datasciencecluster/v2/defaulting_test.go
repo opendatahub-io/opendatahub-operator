@@ -1,13 +1,13 @@
-package datasciencecluster_test
+package v2_test
 
 import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
+	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 
 	. "github.com/onsi/gomega"
 )
@@ -22,14 +22,14 @@ func ptrString(s string) *string {
 	return &s
 }
 
-// TestDefaulter_DefaultingLogic exercises the defaulting webhook logic for DataScienceCluster resources.
+// TestDefaulterV2_DefaultingLogic exercises the defaulting webhook logic for DataScienceCluster v2 resources.
 //
 // It uses a table-driven approach to verify:
 //   - The default RegistriesNamespace is set if empty and ManagementState is Managed.
 //   - A custom RegistriesNamespace is not overwritten if set.
 //   - No defaulting occurs if ManagementState is not Managed.
 //   - No defaulting occurs if ModelRegistry is not set at all (upgrade case).
-func TestDefaulter_DefaultingLogic(t *testing.T) {
+func TestDefaulterV2_DefaultingLogic(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -69,7 +69,7 @@ func TestDefaulter_DefaultingLogic(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			dsc := &dscv1.DataScienceCluster{}
+			dsc := &dscv2.DataScienceCluster{}
 			if tc.managementState != nil || tc.registriesNamespace != nil {
 				// Only set ModelRegistry if at least one field is set
 				if tc.managementState != nil {
@@ -80,7 +80,7 @@ func TestDefaulter_DefaultingLogic(t *testing.T) {
 				}
 			}
 
-			defaulter := &datasciencecluster.Defaulter{Name: "test"}
+			defaulter := &v2webhook.Defaulter{Name: "test-v2"}
 			err := defaulter.Default(ctx, dsc)
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(dsc.Spec.Components.ModelRegistry.RegistriesNamespace).To(Equal(tc.expectedNamespace))

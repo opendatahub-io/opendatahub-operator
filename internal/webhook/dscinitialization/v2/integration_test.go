@@ -1,4 +1,4 @@
-package dscinitialization_test
+package v2_test
 
 import (
 	"context"
@@ -8,17 +8,17 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	v2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 
 	. "github.com/onsi/gomega"
 )
 
-// TestDSCIWebhook_Integration exercises the validating webhook logic for DSCInitialization resources.
+// TestDSCIWebhookV2_Integration exercises the validating webhook logic for DSCInitialization v2 resources.
 // It uses table-driven tests to verify singleton enforcement and deletion restrictions in a real envtest environment.
-func TestDSCIWebhook_Integration(t *testing.T) {
+func TestDSCIWebhookV2_Integration(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -33,10 +33,10 @@ func TestDSCIWebhook_Integration(t *testing.T) {
 			},
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
 				dsci1 := envtestutil.NewDSCI("dsci-one", ns)
-				g.Expect(k8sClient.Create(ctx, dsci1)).To(Succeed(), "should allow creation of first DSCI")
+				g.Expect(k8sClient.Create(ctx, dsci1)).To(Succeed(), "should allow creation of first DSCI v2")
 				dsci2 := envtestutil.NewDSCI("dsci-two", ns)
 				err := k8sClient.Create(ctx, dsci2)
-				g.Expect(err).NotTo(Succeed(), "should not allow creation of a second DSCI")
+				g.Expect(err).NotTo(Succeed(), "should not allow creation of a second DSCI v2")
 			},
 		},
 		{
@@ -47,9 +47,9 @@ func TestDSCIWebhook_Integration(t *testing.T) {
 				}
 			},
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
-				dsci := &dsciv1.DSCInitialization{}
+				dsci := &dsciv2.DSCInitialization{}
 				key := types.NamespacedName{Name: "dsci-delete", Namespace: ns}
-				g.Expect(k8sClient.Get(ctx, key, dsci)).To(Succeed(), "should get DSCI for deletion test")
+				g.Expect(k8sClient.Get(ctx, key, dsci)).To(Succeed(), "should get DSCI v2 for deletion test")
 				g.Expect(k8sClient.Delete(ctx, dsci)).To(Succeed(), "should allow deletion if no DSC exists")
 			},
 		},
@@ -62,7 +62,7 @@ func TestDSCIWebhook_Integration(t *testing.T) {
 			ctx, env, teardown := envtestutil.SetupEnvAndClient(
 				t,
 				[]envt.RegisterWebhooksFn{
-					dscinitialization.RegisterWebhooks,
+					v2webhook.RegisterWebhooks,
 				},
 				envtestutil.DefaultWebhookTimeout,
 			)
