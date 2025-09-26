@@ -2,11 +2,12 @@ package testf
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/onsi/gomega"
 	gomegaTypes "github.com/onsi/gomega/types"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -159,7 +160,7 @@ func (t *WithT) Get(
 
 			err := t.Client().Get(ctx, nn, &u, option...)
 			switch {
-			case errors.IsNotFound(err):
+			case k8serr.IsNotFound(err):
 				return nil, nil
 			case err != nil:
 				return nil, StopErr(err, "failed to get resource: %s, nn: %s", gvk, nn.String())
@@ -234,7 +235,7 @@ func (t *WithT) CreateOrUpdate(
 			_, err := controllerutil.CreateOrUpdate(ctx, t.Client(), obj, mutationFn)
 
 			switch {
-			case errors.IsForbidden(err):
+			case k8serr.IsForbidden(err):
 				return nil, StopErr(
 					err,
 					"failed to create or update resource: %s, nn: %s",
@@ -325,7 +326,7 @@ func (t *WithT) Update(
 
 			err := t.Client().Get(ctx, nn, u)
 			switch {
-			case errors.IsNotFound(err):
+			case k8serr.IsNotFound(err):
 				return nil, nil
 			case err != nil:
 				return nil, StopErr(err, "failed to get resource: %s, nn: %s", gvk, nn.String())
@@ -342,13 +343,68 @@ func (t *WithT) Update(
 
 			err = t.Client().Update(ctx, in, option...)
 			switch {
-			case errors.IsForbidden(err):
+			case k8serr.IsForbidden(err):
 				return nil, StopErr(err, "failed to update resource: %s, nn: %s", gvk, nn.String())
 			case err != nil:
 				return nil, err
 			default:
 				return in, nil
 			}
+		},
+	}
+}
+
+// Patch performs a patch operation on an existing Kubernetes resource, applying a function to mutate the resource
+// before patching. Unlike CreateOrPatch, this will fail if the resource doesn't exist.
+// The result is wrapped in an EventuallyValue, which can be used in Gomega assertions.
+//
+// Parameters:
+//   - gvk (schema.GroupVersionKind): The GroupVersionKind of the resource to patch.
+//   - nn (types.NamespacedName): The namespace and name of the resource to patch.
+//   - fn (func): A function that applies modifications to the resource before patching.
+//   - option (...client.PatchOption): Optional client options for the patch operation.
+//
+// Returns:
+//   - *EventuallyValue[*unstructured.Unstructured]: The eventually available patched resource.
+func (t *WithT) Patch(
+	gvk schema.GroupVersionKind,
+	nn types.NamespacedName,
+	fn func(obj *unstructured.Unstructured) error,
+	option ...client.PatchOption,
+) *EventuallyValue[*unstructured.Unstructured] {
+	return &EventuallyValue[*unstructured.Unstructured]{
+		ctx: t.Context(),
+		g:   t.WithT,
+		f: func(ctx context.Context) (*unstructured.Unstructured, error) {
+			u := resources.GvkToUnstructured(gvk)
+
+			err := t.Client().Get(ctx, nn, u)
+			switch {
+			case k8serr.IsNotFound(err):
+				return nil, nil
+			case err != nil:
+				return nil, StopErr(err, "failed to get resource for patch: %s, nn: %s", gvk, nn.String())
+			}
+
+			// Create patch from current state
+			original, ok := u.DeepCopyObject().(client.Object)
+			if !ok {
+				return nil, StopErr(errors.New("object does not implement client.Object"), "failed to create patch from object: %s", gvk)
+			}
+			patch := client.MergeFrom(original)
+
+			// Apply the mutation function
+			if err := fn(u); err != nil {
+				return nil, StopErr(err, "failed to apply patch function")
+			}
+
+			// Apply the patch
+			err = t.Client().Patch(ctx, u, patch, option...)
+			if err != nil {
+				return nil, StopErr(err, "failed to patch resource: %s, nn: %s", gvk, nn.String())
+			}
+
+			return u, nil
 		},
 	}
 }
@@ -379,7 +435,7 @@ func (t *WithT) Delete(
 
 			err := t.Client().Delete(ctx, u, option...)
 			switch {
-			case errors.IsNotFound(err):
+			case k8serr.IsNotFound(err):
 				return nil
 			case err != nil:
 				return StopErr(err, "failed to delete resource: %s, nn: %s", gvk, nn.String())
@@ -412,7 +468,7 @@ func (t *WithT) DeleteAll(
 
 			err := t.Client().DeleteAllOf(ctx, u, option...)
 			switch {
-			case errors.IsNotFound(err):
+			case k8serr.IsNotFound(err):
 				return nil
 			case err != nil:
 				return StopErr(err, "failed to delete all resources of type: %s", gvk)

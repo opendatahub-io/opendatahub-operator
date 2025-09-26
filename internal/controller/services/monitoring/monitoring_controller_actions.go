@@ -35,6 +35,12 @@ const (
 	ThanosQuerierRouteTemplate       = "resources/thanos-querier-route.tmpl.yaml"
 )
 
+// CRDRequirement defines a required CRD and its associated condition for monitoring components.
+type CRDRequirement struct {
+	GVK           schema.GroupVersionKind
+	ConditionType string
+}
+
 var componentRules = map[string]string{
 	componentApi.DashboardComponentName:            "rhods-dashboard",
 	componentApi.WorkbenchesComponentName:          "workbenches",
@@ -66,6 +72,36 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	}
 
 	return nil
+}
+
+// validateRequiredCRDs checks multiple CRDs and sets conditions consistently.
+// Returns true if all CRDs exist, false otherwise.
+func validateRequiredCRDs(ctx context.Context, rr *odhtypes.ReconciliationRequest, requirements []CRDRequirement) bool {
+	allExist := true
+	for _, req := range requirements {
+		exists, err := cluster.HasCRD(ctx, rr.Client, req.GVK)
+		if err != nil {
+			return false // or handle error appropriately
+		}
+		if !exists {
+			setConditionFalse(rr, req.ConditionType,
+				req.GVK.Kind+"CRDNotFoundReason",
+				fmt.Sprintf("%s CRD Not Found", req.GVK.Kind))
+			allExist = false
+		}
+	}
+	return allExist
+}
+
+// setConditionFalse sets a condition to False with the specified reason and message.
+// This helper reduces code duplication and ensures uniform condition handling across
+// all monitoring components for various failure scenarios (missing CRDs, not managed, not configured, etc.).
+func setConditionFalse(rr *odhtypes.ReconciliationRequest, conditionType, reason, message string) {
+	rr.Conditions.MarkFalse(
+		conditionType,
+		conditions.WithReason(reason),
+		conditions.WithMessage("%s", message),
+	)
 }
 
 // if DSC has component as Removed, we remove component's Prom Rules.
@@ -105,54 +141,102 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	})
 }
 
-func deployMonitoringStack(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+// deployMonitoringStackWithQuerier handles deployment of both MonitoringStack and ThanosQuerier components.
+// These components are deployed together as ThanosQuerier depends on MonitoringStack for proper functioning.
+func deployMonitoringStackWithQuerier(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
 	}
 
-	// No monitoring stack configuration
+	// Early exit if no metrics configuration
 	if monitoring.Spec.Metrics == nil {
-		rr.Conditions.MarkFalse(
-			status.ConditionMonitoringStackAvailable,
-			conditions.WithReason(status.MetricsNotConfiguredReason),
-			conditions.WithMessage(status.MetricsNotConfiguredMessage),
-		)
-		// Since ThanosQuerier is always deployed together with monitoring stack,
-		// also deploy it here to handle its conditions properly
-		return deployThanosQuerier(ctx, rr)
+		setConditionFalse(rr, status.ConditionMonitoringStackAvailable, status.MetricsNotConfiguredReason, status.MetricsNotConfiguredMessage)
+		setConditionFalse(rr, status.ConditionThanosQuerierAvailable, status.MetricsNotConfiguredReason, status.MetricsNotConfiguredMessage)
+		return nil
 	}
 
-	msExists, err := cluster.HasCRD(ctx, rr.Client, gvk.MonitoringStack)
-	if err != nil {
-		return fmt.Errorf("failed to check if CRD MonitoringStack exists: %w", err)
-	}
-	if !msExists {
-		// CRD not available, skip monitoring stack deployment (this is expected when monitoring stack operator is not installed)
-		rr.Conditions.MarkFalse(
-			status.ConditionMonitoringStackAvailable,
-			conditions.WithReason(gvk.MonitoringStack.Kind+"CRDNotFoundReason"),
-			conditions.WithMessage("%s CRD Not Found", gvk.MonitoringStack.Kind),
-		)
-		return deployThanosQuerier(ctx, rr)
+	// Define required CRDs and their corresponding conditions for validation
+	requirements := []CRDRequirement{
+		{GVK: gvk.MonitoringStack, ConditionType: status.ConditionMonitoringStackAvailable},
+		{GVK: gvk.ThanosQuerier, ConditionType: status.ConditionThanosQuerierAvailable},
 	}
 
+	// Skip deployment if any required CRD is missing
+	if !validateRequiredCRDs(ctx, rr, requirements) {
+		return nil
+	}
+
+	// All prerequisites met, mark both components as available and deploy
 	rr.Conditions.MarkTrue(status.ConditionMonitoringStackAvailable)
+	rr.Conditions.MarkTrue(status.ConditionThanosQuerierAvailable)
 
-	template := []odhtypes.TemplateInfo{
-		{
-			FS:   resourcesFS,
-			Path: MonitoringStackTemplate,
-		},
-		{
-			FS:   resourcesFS,
-			Path: PrometheusRouteTemplate,
-		},
+	// Prepare and deploy both component templates atomically
+	templates := []odhtypes.TemplateInfo{
+		{FS: resourcesFS, Path: MonitoringStackTemplate},
+		{FS: resourcesFS, Path: PrometheusRouteTemplate},
+		{FS: resourcesFS, Path: ThanosQuerierTemplate},
+		{FS: resourcesFS, Path: ThanosQuerierRouteTemplate},
 	}
 
-	rr.Templates = append(rr.Templates, template...)
+	// Deploy both components atomically with the same generation annotation
+	rr.Templates = append(rr.Templates, templates...)
+	return nil
+}
 
-	return deployThanosQuerier(ctx, rr)
+// deployTracingStack handles deployment of both Tempo and Instrumentation components.
+// These components work together for distributed tracing - Tempo stores traces while
+// Instrumentation configures auto-instrumentation for applications.
+func deployTracingStack(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	// Early exit if no traces configuration - both components require traces to be configured
+	if monitoring.Spec.Traces == nil {
+		setConditionFalse(rr, status.ConditionTempoAvailable,
+			status.TracesNotConfiguredReason, status.TracesNotConfiguredMessage)
+		setConditionFalse(rr, status.ConditionInstrumentationAvailable,
+			status.TracesNotConfiguredReason, status.TracesNotConfiguredMessage)
+		return nil
+	}
+
+	traces := monitoring.Spec.Traces
+
+	// Determine required Tempo CRD based on storage backend
+	var tempoCRD schema.GroupVersionKind
+	var tempoTemplate string
+	if traces.Storage.Backend == "pv" {
+		tempoCRD = gvk.TempoMonolithic
+		tempoTemplate = TempoMonolithicTemplate
+	} else {
+		tempoCRD = gvk.TempoStack
+		tempoTemplate = TempoStackTemplate
+	}
+
+	// Define required CRDs for both tracing components
+	requirements := []CRDRequirement{
+		{GVK: tempoCRD, ConditionType: status.ConditionTempoAvailable},
+		{GVK: gvk.Instrumentation, ConditionType: status.ConditionInstrumentationAvailable},
+	}
+
+	// Skip deployment if any required CRD is missing
+	if !validateRequiredCRDs(ctx, rr, requirements) {
+		return nil
+	}
+
+	// All prerequisites met, mark both components as available and deploy
+	rr.Conditions.MarkTrue(status.ConditionTempoAvailable)
+	rr.Conditions.MarkTrue(status.ConditionInstrumentationAvailable)
+
+	templates := []odhtypes.TemplateInfo{
+		{FS: resourcesFS, Path: tempoTemplate},
+		{FS: resourcesFS, Path: InstrumentationTemplate},
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
+	return nil
 }
 
 func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -202,109 +286,6 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 		{
 			FS:   resourcesFS,
 			Path: CollectorServiceMonitorsTemplate,
-		},
-	}
-	rr.Templates = append(rr.Templates, template...)
-
-	return nil
-}
-
-// deployTempo creates Tempo resources based on the Monitoring CR configuration.
-func deployTempo(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
-	if !ok {
-		return errors.New("instance is not of type *services.Monitoring")
-	}
-
-	// Read traces configuration directly from Monitoring CR
-	if monitoring.Spec.Traces == nil {
-		// No traces configuration - GC action will clean up any existing Tempo resources
-		rr.Conditions.MarkFalse(
-			status.ConditionTempoAvailable,
-			conditions.WithReason(status.TracesNotConfiguredReason),
-			conditions.WithMessage(status.TracesNotConfiguredMessage),
-		)
-		return nil
-	}
-
-	traces := monitoring.Spec.Traces
-
-	var requiredCRD schema.GroupVersionKind
-	var templatePath string
-	if traces.Storage.Backend == "pv" {
-		requiredCRD = gvk.TempoMonolithic
-		templatePath = TempoMonolithicTemplate
-	} else {
-		requiredCRD = gvk.TempoStack
-		templatePath = TempoStackTemplate
-	}
-
-	crdExists, err := cluster.HasCRD(ctx, rr.Client, requiredCRD)
-	if err != nil {
-		return fmt.Errorf("failed to check if CRD exists: %w", err)
-	}
-	if !crdExists {
-		// CRD not available, skip tempo deployment (this is expected when tempo operator is not installed)
-		rr.Conditions.MarkFalse(
-			status.ConditionTempoAvailable,
-			conditions.WithReason(requiredCRD.Kind+"CRDNotFoundReason"),
-			conditions.WithMessage("%s CRD Not Found", requiredCRD.Kind),
-		)
-		return nil
-	}
-
-	rr.Conditions.MarkTrue(status.ConditionTempoAvailable)
-
-	template := []odhtypes.TemplateInfo{
-		{
-			FS:   resourcesFS,
-			Path: templatePath,
-		},
-	}
-	rr.Templates = append(rr.Templates, template...)
-
-	return nil
-}
-
-// deployInstrumentation manages OpenTelemetry Instrumentation CRs using templates.
-func deployInstrumentation(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
-	if !ok {
-		return errors.New("instance is not of type *serviceApi.Monitoring")
-	}
-
-	// Only create instrumentation CR if traces are configured
-	if monitoring.Spec.Traces == nil {
-		// If traces are not configured, GC will clean up any existing instrumentation CRs
-		rr.Conditions.MarkFalse(
-			status.ConditionInstrumentationAvailable,
-			conditions.WithReason(status.TracesNotConfiguredReason),
-			conditions.WithMessage(status.TracesNotConfiguredMessage),
-		)
-		return nil
-	}
-
-	// Traces are configured, check if Instrumentation CRD exists before creating the template
-	instrumentationCRDExists, err := cluster.HasCRD(ctx, rr.Client, gvk.Instrumentation)
-	if err != nil {
-		return fmt.Errorf("failed to check if Instrumentation CRD exists: %w", err)
-	}
-	if !instrumentationCRDExists {
-		rr.Conditions.MarkFalse(
-			status.ConditionInstrumentationAvailable,
-			conditions.WithReason(gvk.Instrumentation.Kind+"CRDNotFoundReason"),
-			conditions.WithMessage("%s CRD Not Found", gvk.Instrumentation.Kind),
-		)
-		return nil
-	}
-
-	rr.Conditions.MarkTrue(status.ConditionInstrumentationAvailable)
-
-	// Add instrumentation template to be rendered
-	template := []odhtypes.TemplateInfo{
-		{
-			FS:   resourcesFS,
-			Path: InstrumentationTemplate,
 		},
 	}
 	rr.Templates = append(rr.Templates, template...)
@@ -419,47 +400,6 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 	if len(addErrors) > 0 || len(cleanupErrors) > 0 {
 		return errors.New("errors occurred while adding or cleaning up prometheus rules for components")
 	}
-
-	return nil
-}
-
-func deployThanosQuerier(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
-	if !ok {
-		return errors.New("instance is not of type *services.Monitoring")
-	}
-
-	if monitoring.Spec.Metrics == nil {
-		return nil
-	}
-
-	tqExists, err := cluster.HasCRD(ctx, rr.Client, gvk.ThanosQuerier)
-	if err != nil {
-		return fmt.Errorf("failed to check if CRD ThanosQuerier exists: %w", err)
-	}
-	if !tqExists {
-		rr.Conditions.MarkFalse(
-			status.ConditionThanosQuerierAvailable,
-			conditions.WithReason(gvk.ThanosQuerier.Kind+"CRDNotFoundReason"),
-			conditions.WithMessage("%s CRD Not Found", gvk.ThanosQuerier.Kind),
-		)
-		return nil
-	}
-
-	rr.Conditions.MarkTrue(status.ConditionThanosQuerierAvailable)
-
-	template := []odhtypes.TemplateInfo{
-		{
-			FS:   resourcesFS,
-			Path: ThanosQuerierTemplate,
-		},
-		{
-			FS:   resourcesFS,
-			Path: ThanosQuerierRouteTemplate,
-		},
-	}
-
-	rr.Templates = append(rr.Templates, template...)
 
 	return nil
 }

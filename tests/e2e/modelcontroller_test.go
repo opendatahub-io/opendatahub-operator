@@ -99,7 +99,7 @@ func (tc *ModelControllerTestCtx) ValidateComponentDeployed(
 	status metav1.ConditionStatus,
 ) {
 	// Ensure the components are updated with the correct states in DataScienceCluster.
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
 			testf.TransformPipeline(
