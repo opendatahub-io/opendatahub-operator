@@ -127,7 +127,7 @@ func (s *ComponentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		)).
 		// declares the list of additional, controller specific conditions that are
 		// contributing to the controller readiness status
-		WithConditions(conditionTypes...).
+		WithConditions(ConditionTypes...).
 		Build(ctx)
 
 	if err != nil {

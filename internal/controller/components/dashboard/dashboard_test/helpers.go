@@ -43,7 +43,7 @@ const (
 	ErrorInitPanicked                = "Init panicked with platform %s: %v"
 	ErrorFailedToSetVariable         = "failed to set variable"
 	ErrorFailedToUpdateImages        = "failed to update images on path"
-	ErrorFailedToUpdateModularImages = "failed to update modular-architecture images on path"
+	ErrorFailedToUpdateModularImages = "failed to update " + dashboard.ModularArchitectureSourcePath + " images on path"
 )
 
 // LogMessages contains log message templates for test assertions.

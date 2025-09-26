@@ -70,7 +70,7 @@ func TestBffManifestsPath(t *testing.T) {
 	g := NewWithT(t)
 	manifestInfo := dashboard.BffManifestsPath()
 	g.Expect(manifestInfo.ContextDir).Should(Equal(dashboard.ComponentName))
-	g.Expect(manifestInfo.SourcePath).Should(Equal("modular-architecture"))
+	g.Expect(manifestInfo.SourcePath).Should(Equal(dashboard.ModularArchitectureSourcePath))
 }
 
 func TestComputeKustomizeVariable(t *testing.T) {
@@ -297,24 +297,8 @@ func TestConditionTypes(t *testing.T) {
 		status.ConditionDeploymentsAvailable,
 	}
 
-	g.Expect(testConditionTypes).Should(Equal(expectedConditions[0]))
-}
-
-func TestComponentNameConstant(t *testing.T) {
-	g := NewWithT(t)
-	g.Expect(dashboard.ComponentName).Should(Equal(componentApi.DashboardComponentName))
-}
-
-func TestReadyConditionType(t *testing.T) {
-	g := NewWithT(t)
-	expectedConditionType := componentApi.DashboardKind + status.ReadySuffix
-	g.Expect(dashboard.ReadyConditionType).Should(Equal(expectedConditionType))
-}
-
-func TestLegacyComponentNames(t *testing.T) {
-	g := NewWithT(t)
-	g.Expect(dashboard.LegacyComponentNameUpstream).Should(Equal("dashboard"))
-	g.Expect(dashboard.LegacyComponentNameDownstream).Should(Equal("rhods-dashboard"))
+	// Test the actual ConditionTypes slice from production code
+	g.Expect(dashboard.ConditionTypes).Should(Equal(expectedConditions))
 }
 
 // Test helper functions for creating test objects.

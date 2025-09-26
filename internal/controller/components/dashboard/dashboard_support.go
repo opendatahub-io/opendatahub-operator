@@ -27,6 +27,7 @@ const (
 
 	LegacyComponentNameUpstream   = "dashboard"
 	LegacyComponentNameDownstream = "rhods-dashboard"
+	ModularArchitectureSourcePath = "modular-architecture"
 )
 
 var (
@@ -54,7 +55,7 @@ var (
 		"oauth-proxy-image":       "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
 	}
 
-	conditionTypes = []string{
+	ConditionTypes = []string{
 		status.ConditionDeploymentsAvailable,
 	}
 )
@@ -71,7 +72,7 @@ func BffManifestsPath() odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
 		ContextDir: ComponentName,
-		SourcePath: "modular-architecture",
+		SourcePath: ModularArchitectureSourcePath,
 	}
 }
 
