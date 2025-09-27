@@ -32,7 +32,7 @@ func WithTTL(ttl time.Duration) CacheOpt {
 	}
 }
 
-func newCache(opts ...CacheOpt) *Cache {
+func NewCache(opts ...CacheOpt) *Cache {
 	c := Cache{
 		ttl: DefaultCacheTTL,
 	}
@@ -92,6 +92,23 @@ func (r *Cache) Has(original *unstructured.Unstructured, modified *unstructured.
 	_, exists, _ := r.s.GetByKey(key)
 
 	return exists, nil
+}
+
+func (r *Cache) Delete(original *unstructured.Unstructured, modified *unstructured.Unstructured) error {
+	if original == nil || modified == nil {
+		return nil // nothing to delete
+	}
+
+	key, err := r.computeCacheKey(original, modified)
+	if err != nil {
+		return fmt.Errorf("failed to compute cacheKey for deletion: %w", err)
+	}
+
+	if key == "" {
+		return nil
+	}
+
+	return r.s.Delete(key)
 }
 
 func (r *Cache) Sync() {
