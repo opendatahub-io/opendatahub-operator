@@ -57,17 +57,19 @@ type TrustyAISpec struct {
 // TrustyAIEvalSpec defines evaluation configuration for TrustyAI
 type TrustyAIEvalSpec struct {
 	// LMEval configuration for model evaluations
-	LMEval TrustyAILMEvalSpec `json:"lmeval,omitempty"`
+	LMEval TrustyAILMEvalSpec `json:"lmeval"`
 }
 
 // TrustyAILMEvalSpec defines configuration for LMEval evaluations
 type TrustyAILMEvalSpec struct {
 	// PermitCodeExecution controls whether code execution is allowed during evaluations
-	// +kubebuilder:default=false
-	PermitCodeExecution bool `json:"permitCodeExecution,omitempty"`
+	// +kubebuilder:default="deny"
+	// +kubebuilder:validation:Enum=allow;deny
+	PermitCodeExecution string `json:"permitCodeExecution,omitempty"`
 	// PermitOnline controls whether online access is allowed during evaluations
-	// +kubebuilder:default=false
-	PermitOnline bool `json:"permitOnline,omitempty"`
+	// +kubebuilder:default="deny"
+	// +kubebuilder:validation:Enum=allow;deny
+	PermitOnline string `json:"permitOnline,omitempty"`
 }
 
 type TrustyAICommonSpec struct {

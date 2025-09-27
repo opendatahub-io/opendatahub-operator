@@ -22,6 +22,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
+const (
+	// Evaluation permission constants.
+	EvalPermissionAllow = "allow"
+	EvalPermissionDeny  = "deny"
+)
+
 type componentHandler struct{}
 
 func init() { //nolint:gochecknoinits
@@ -33,6 +39,22 @@ func (s *componentHandler) GetName() string {
 }
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
+	// Create a proper deep copy to avoid modifying the original DSC
+	spec := componentApi.TrustyAICommonSpec{
+		DevFlagsSpec: dsc.Spec.Components.TrustyAI.DevFlagsSpec,
+	}
+
+	// Copy eval section exactly as it exists in the DSC
+	spec.Eval = dsc.Spec.Components.TrustyAI.Eval
+
+	// Ensure defaults are applied when strings are empty
+	if spec.Eval.LMEval.PermitCodeExecution == "" {
+		spec.Eval.LMEval.PermitCodeExecution = EvalPermissionDeny
+	}
+	if spec.Eval.LMEval.PermitOnline == "" {
+		spec.Eval.LMEval.PermitOnline = EvalPermissionDeny
+	}
+
 	return &componentApi.TrustyAI{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.TrustyAIKind,
@@ -45,7 +67,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 			},
 		},
 		Spec: componentApi.TrustyAISpec{
-			TrustyAICommonSpec: dsc.Spec.Components.TrustyAI.TrustyAICommonSpec,
+			TrustyAICommonSpec: spec,
 		},
 	}
 }

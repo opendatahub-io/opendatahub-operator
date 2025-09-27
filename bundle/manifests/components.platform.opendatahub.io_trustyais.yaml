@@ -81,16 +81,24 @@ spec:
                     description: LMEval configuration for model evaluations
                     properties:
                       permitCodeExecution:
-                        default: false
+                        default: deny
                         description: PermitCodeExecution controls whether code execution
                           is allowed during evaluations
-                        type: boolean
+                        enum:
+                        - allow
+                        - deny
+                        type: string
                       permitOnline:
-                        default: false
+                        default: deny
                         description: PermitOnline controls whether online access is
                           allowed during evaluations
-                        type: boolean
+                        enum:
+                        - allow
+                        - deny
+                        type: string
                     type: object
+                required:
+                - lmeval
                 type: object
             type: object
           status:
