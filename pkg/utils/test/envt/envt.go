@@ -262,6 +262,7 @@ func (et *EnvT) ReadFile(elem ...string) ([]byte, error) {
 }
 
 // Manager returns the controller-runtime manager for the test environment, if one was created.
+
 func (et *EnvT) Manager() manager.Manager {
 	return et.mgr
 }
