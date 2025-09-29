@@ -82,6 +82,10 @@ func createConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		return fmt.Errorf("resource instance %v is not a componentApi.TrustyAI)", rr.Instance)
 	}
 
+	// Convert to boolean for configmap
+	permitCodeExecution := trustyai.Spec.Eval.LMEval.PermitCodeExecution == EvalPermissionAllow
+	permitOnline := trustyai.Spec.Eval.LMEval.PermitOnline == EvalPermissionAllow
+
 	// Create extra ConfigMap for DSC configuration
 	configMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
@@ -96,10 +100,8 @@ func createConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		Data: make(map[string]string),
 	}
 
-	configMap.Data["eval.lmeval.permitCodeExecution"] =
-		strconv.FormatBool(trustyai.Spec.Eval.LMEval.PermitCodeExecution)
-	configMap.Data["eval.lmeval.permitOnline"] =
-		strconv.FormatBool(trustyai.Spec.Eval.LMEval.PermitOnline)
+	configMap.Data["eval.lmeval.permitCodeExecution"] = strconv.FormatBool(permitCodeExecution)
+	configMap.Data["eval.lmeval.permitOnline"] = strconv.FormatBool(permitOnline)
 
 	return rr.AddResources(configMap)
 }
