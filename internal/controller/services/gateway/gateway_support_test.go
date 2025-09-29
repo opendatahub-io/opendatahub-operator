@@ -36,18 +36,20 @@ const (
 	expectedClusterDomain        = "data-science-gateway.apps.cluster.example.com"
 )
 
-// setupSupportTestClient creates a fake client with required schemes for support function tests.
-func setupSupportTestClient() client.Client {
+// createTestScheme creates a reusable scheme for test clients.
+func createTestScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(serviceApi.AddToScheme(scheme))
-	return fake.NewClientBuilder().WithScheme(scheme).Build()
+	return scheme
+}
+
+// setupSupportTestClient creates a fake client with required schemes for support function tests.
+func setupSupportTestClient() client.Client {
+	return fake.NewClientBuilder().WithScheme(createTestScheme()).Build()
 }
 
 // setupSupportTestClientWithClusterIngress creates a fake client with a mock cluster ingress object.
 func setupSupportTestClientWithClusterIngress(domain string) client.Client {
-	scheme := runtime.NewScheme()
-	utilruntime.Must(serviceApi.AddToScheme(scheme))
-
 	clusterIngress := &unstructured.Unstructured{}
 	clusterIngress.SetGroupVersionKind(gvk.OpenshiftIngress)
 	clusterIngress.SetName("cluster")
@@ -55,7 +57,7 @@ func setupSupportTestClientWithClusterIngress(domain string) client.Client {
 	// Set the spec.domain field
 	_ = unstructured.SetNestedField(clusterIngress.Object, domain, "spec", "domain")
 
-	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(clusterIngress).Build()
+	return fake.NewClientBuilder().WithScheme(createTestScheme()).WithObjects(clusterIngress).Build()
 }
 
 // createTestGatewayConfigSupport creates a GatewayConfig for support function testing.
@@ -74,6 +76,7 @@ func createTestGatewayConfigSupport(domain string, certSpec *infrav1.Certificate
 // TestCreateListeners tests the CreateListeners helper function.
 func TestCreateListeners(t *testing.T) {
 	t.Parallel()
+	g := NewWithT(t) // Create once outside the loop for better performance
 
 	testCases := []struct {
 		name        string
@@ -101,7 +104,6 @@ func TestCreateListeners(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			g := NewWithT(t)
 			listeners := CreateListeners(tc.certSecret, tc.domain)
 
 			g.Expect(listeners).To(HaveLen(tc.expectCount), tc.description)
@@ -129,14 +131,23 @@ func TestGetCertificateType(t *testing.T) {
 	testCases := []struct {
 		name            string
 		certificateSpec *infrav1.CertificateSpec
+		gatewayConfig   *serviceApi.GatewayConfig
 		expectedType    string
 		description     string
 	}{
 		{
 			name:            "returns default when certificate is nil",
 			certificateSpec: nil,
+			gatewayConfig:   nil, // Will use createTestGatewayConfigSupport
 			expectedType:    string(infrav1.OpenshiftDefaultIngress),
 			description:     "should return OpenShift default when no certificate specified",
+		},
+		{
+			name:            "returns default when gatewayConfig is nil",
+			certificateSpec: nil,
+			gatewayConfig:   nil, // Explicitly nil for this test
+			expectedType:    string(infrav1.OpenshiftDefaultIngress),
+			description:     "should return OpenShift default when gatewayConfig is nil",
 		},
 		{
 			name: "returns certificate type when specified",
@@ -160,7 +171,12 @@ func TestGetCertificateType(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			gateway := createTestGatewayConfigSupport(testDomainSupport, tc.certificateSpec)
+			var gateway *serviceApi.GatewayConfig
+			if tc.name == "returns default when gatewayConfig is nil" {
+				gateway = nil // Explicitly test nil case
+			} else {
+				gateway = createTestGatewayConfigSupport(testDomainSupport, tc.certificateSpec)
+			}
 
 			certType := GetCertificateType(gateway)
 			g.Expect(certType).To(Equal(tc.expectedType), tc.description)
@@ -177,7 +193,6 @@ func TestResolveDomain(t *testing.T) {
 		name              string
 		specDomain        string
 		clusterDomain     string
-		gatewayName       string
 		useClusterIngress bool
 		expectedDomain    string
 		expectError       bool
@@ -186,7 +201,6 @@ func TestResolveDomain(t *testing.T) {
 		{
 			name:              "user provided domain",
 			specDomain:        testUserDomain,
-			gatewayName:       DefaultGatewayName,
 			useClusterIngress: false,
 			expectedDomain:    expectedODHDomain,
 			expectError:       false,
@@ -196,7 +210,6 @@ func TestResolveDomain(t *testing.T) {
 			name:              "empty domain falls back to cluster domain",
 			specDomain:        "",
 			clusterDomain:     testClusterDomain,
-			gatewayName:       DefaultGatewayName,
 			useClusterIngress: true,
 			expectedDomain:    expectedClusterDomain,
 			expectError:       false,
@@ -205,7 +218,6 @@ func TestResolveDomain(t *testing.T) {
 		{
 			name:              "cluster domain retrieval fails",
 			specDomain:        "",
-			gatewayName:       DefaultGatewayName,
 			useClusterIngress: false,
 			expectedDomain:    "",
 			expectError:       true,
@@ -229,7 +241,7 @@ func TestResolveDomain(t *testing.T) {
 				client = setupSupportTestClient()
 			}
 
-			domain, err := ResolveDomain(ctx, client, gatewayConfig, tc.gatewayName)
+			domain, err := ResolveDomain(ctx, client, gatewayConfig)
 
 			if tc.expectError {
 				g.Expect(err).To(HaveOccurred(), tc.description)
@@ -245,7 +257,7 @@ func TestResolveDomain(t *testing.T) {
 // TestCreateListenersEdgeCases tests edge cases for the CreateListeners function.
 func TestCreateListenersEdgeCases(t *testing.T) {
 	t.Parallel()
-	g := NewWithT(t)
+	g := NewWithT(t) // Create once outside the loop for better performance
 
 	testCases := []struct {
 		name        string
@@ -291,6 +303,19 @@ func TestCreateListenersEdgeCases(t *testing.T) {
 	}
 }
 
+// TestResolveDomainNilHandling tests nil parameter handling for ResolveDomain.
+func TestResolveDomainNilHandling(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	ctx := t.Context()
+	client := setupSupportTestClient()
+
+	// Test nil gatewayConfig - should fall back to cluster domain (which will fail with our test client)
+	domain, err := ResolveDomain(ctx, client, nil)
+	g.Expect(err).To(HaveOccurred(), "should return error when gatewayConfig is nil and cluster domain fails")
+	g.Expect(domain).To(Equal(""), "domain should be empty on error")
+}
+
 // TestResolveDomainEdgeCases tests additional edge cases for domain resolution.
 func TestResolveDomainEdgeCases(t *testing.T) {
 	t.Parallel()
@@ -304,11 +329,11 @@ func TestResolveDomainEdgeCases(t *testing.T) {
 		description      string
 	}{
 		{
-			name:             "long gateway name with domain",
+			name:             "user domain with default gateway name",
 			specDomain:       testUserDomain,
-			gatewayName:      "very-long-gateway-name-for-testing",
-			expectedContains: "very-long-gateway-name-for-testing",
-			description:      "should handle long gateway names correctly",
+			gatewayName:      DefaultGatewayName,
+			expectedContains: DefaultGatewayName,
+			description:      "should use default gateway name with user domain",
 		},
 		{
 			name:             "domain with subdomain",
@@ -327,7 +352,7 @@ func TestResolveDomainEdgeCases(t *testing.T) {
 			gatewayConfig := createTestGatewayConfigSupport(tc.specDomain, nil)
 			client := setupSupportTestClient()
 
-			domain, err := ResolveDomain(ctx, client, gatewayConfig, tc.gatewayName)
+			domain, err := ResolveDomain(ctx, client, gatewayConfig)
 
 			g.Expect(err).ToNot(HaveOccurred(), tc.description)
 			g.Expect(domain).To(ContainSubstring(tc.expectedContains), tc.description)
