@@ -3,9 +3,6 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-ifeq ($(VERSION), )
-	VERSION = 3.0.0
-endif
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -27,22 +24,66 @@ else
 endif
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-ifeq ($(BUNDLE_IMG), )
-	BUNDLE_IMG = $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
+BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
+
+# default platform type
+ODH_PLATFORM_TYPE ?= OpenDataHub
+
+ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
+	ifeq ($(VERSION), )
+		VERSION = 3.0.0
+	endif
+	OPERATOR_NAMESPACE ?= opendatahub-operator-system
+	CHANNELS ?= fast
+	ROLE_NAME=controller-manager-role
+	BUNDLE_DIR ?= odh-bundle
+	BUNDLE_DOCKERFILE_FILENAME=bundle.Dockerfile
+	OPERATOR_PACKAGE=opendatahub-operator
+	CONTROLLER_GEN_TAGS=--load-build-tags=odh
+	CONFIG_DIR=odh-config
+	GO_RUN_ARGS=-tags=odh
+else
+	ifeq ($(VERSION), )
+		VERSION = 2.24.0
+	endif
+	OPERATOR_NAMESPACE ?= redhat-ods-operator
+	CHANNELS ?= alpha,stable,fast
+	DEFAULT_CHANNEL ?= stable
+	ROLE_NAME=rhods-operator-role
+	BUNDLE_DIR ?= rhoai-bundle
+	BUNDLE_DOCKERFILE_FILENAME=rhoai-bundle.Dockerfile
+	OPERATOR_PACKAGE=rhods-operator
+	CONTROLLER_GEN_TAGS=--load-build-tags=rhoai
+	CONFIG_DIR=rhoai-config
+	GO_RUN_ARGS=-tags=rhoai
 endif
 
 IMAGE_BUILDER ?= podman
-OPERATOR_NAMESPACE ?= opendatahub-operator-system
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
 CGO_ENABLED ?= 1
 USE_LOCAL = false
 
-# BUNDLE_CHANNELS defines the bundle channel used in the bundle
-BUNDLE_CHANNELS := --channels=fast
+# CHANNELS define the bundle channels used in the bundle.
+# Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
+# To re-generate a bundle for other specific channels without changing the standard setup, you can:
+# - use the CHANNELS as arg of the bundle target (e.g make bundle CHANNELS=candidate,fast,stable)
+# - use environment variables to overwrite this value (e.g export CHANNELS="candidate,fast,stable")
+ifneq ($(origin CHANNELS), undefined)
+BUNDLE_CHANNELS := --channels=$(CHANNELS)
+endif
 
+# DEFAULT_CHANNEL defines the default channel used in the bundle.
+# Add a new line here if you would like to change its default config. (E.g DEFAULT_CHANNEL = "stable")
+# To re-generate a bundle for any other default channel without changing the default setup, you can:
+# - use the DEFAULT_CHANNEL as arg of the bundle target (e.g make bundle DEFAULT_CHANNEL=stable)
+# - use environment variables to overwrite this value (e.g export DEFAULT_CHANNEL="stable")
+ifneq ($(origin DEFAULT_CHANNEL), undefined)
+BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
+endif
+
+BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
-BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_CHANNELS)
-
+BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
 # USE_IMAGE_DIGESTS defines if images are resolved via tags or digests
 # You can enable this value if you would like to use SHA Based Digests
 # To enable set flag to true
@@ -104,8 +145,8 @@ IMAGE_BUILD_FLAGS += --build-arg CGO_ENABLED=$(CGO_ENABLED)
 IMAGE_BUILD_FLAGS += --platform $(PLATFORM)
 
 # Prometheus-Unit Tests Parameters
-PROMETHEUS_CONFIG_YAML = ./config/monitoring/prometheus/apps/prometheus-configs.yaml
-PROMETHEUS_CONFIG_DIR = ./config/monitoring/prometheus/apps
+PROMETHEUS_CONFIG_YAML = ./odh-config/monitoring/prometheus/apps/prometheus-configs.yaml
+PROMETHEUS_CONFIG_DIR = ./odh-config/monitoring/prometheus/apps
 PROMETHEUS_TEST_DIR = ./tests/prometheus_unit_tests
 PROMETHEUS_ALERT_TESTS = $(wildcard $(PROMETHEUS_TEST_DIR)/*.unit-tests.yaml)
 
@@ -150,12 +191,12 @@ endef
 define fetch-external-crds
 GOFLAGS="-mod=readonly" $(CONTROLLER_GEN) crd \
 paths=$(shell go env GOPATH)/pkg/mod/$(1)@$(call go-mod-version,$(1))/$(2)/... \
-output:crd:artifacts:config=config/crd/external
+output:crd:artifacts:config=$(CONFIG_DIR)/crd/external
 endef
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CONFIG_DIR)/crd/bases output:rbac:artifacts:config=$(CONFIG_DIR)/rbac output:webhook:artifacts:config=$(CONFIG_DIR)/webhook
 	$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	$(call fetch-external-crds,github.com/openshift/api,user/v1)
 
@@ -186,7 +227,7 @@ lint-fix: golangci-lint ## Run golangci-lint against code.
 
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
-	./get_all_manifests.sh
+	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) VERSION=$(VERSION) ./get_all_manifests.sh
 CLEANFILES += opt/manifests/*
 
 # Default to standard sed command
@@ -252,26 +293,26 @@ prepare: manifests kustomize manager-kustomization
 
 # phony target for the case of changing IMG variable
 .PHONY: manager-kustomization
-manager-kustomization: config/manager/kustomization.yaml.in
-	cd config/manager \
+manager-kustomization: $(CONFIG_DIR)/manager/kustomization.yaml.in
+	cd $(CONFIG_DIR)/manager \
 		&& cp -f kustomization.yaml.in kustomization.yaml \
 		&& $(KUSTOMIZE) edit set image REPLACE_IMAGE=$(IMG)
 
 .PHONY: install
 install: prepare ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/crd | kubectl apply -f -
 
 .PHONY: uninstall
 uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
 undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
@@ -325,21 +366,21 @@ new-component: $(LOCALBIN)/component-codegen
 $(LOCALBIN)/component-codegen: | $(LOCALBIN)
 	cd ./cmd/component-codegen && go mod tidy && go build -o $@
 
-BUNDLE_DIR ?= "bundle"
 WARNINGMSG = "provided API should have an example annotation"
 .PHONY: bundle
 bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
-	$(OPERATOR_SDK) generate kustomize manifests -q
-	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) 2>&1 | grep -v $(WARNINGMSG)
+	$(OPERATOR_SDK) generate kustomize manifests --package $(OPERATOR_PACKAGE) --input-dir $(CONFIG_DIR)/manifests --output-dir $(CONFIG_DIR)/manifests -q
+	$(KUSTOMIZE) build $(CONFIG_DIR)/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) --package $(OPERATOR_PACKAGE) --kustomize-dir $(CONFIG_DIR)/manifests --output-dir $(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	sed -i 's#COPY #COPY --from=builder /workspace/#' bundle.Dockerfile
-	cat Dockerfiles/build-bundle.Dockerfile bundle.Dockerfile > Dockerfiles/bundle.Dockerfile
+	cat Dockerfiles/build-bundle.Dockerfile bundle.Dockerfile > Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME)
 	rm bundle.Dockerfile
-	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
+	rm -f $(BUNDLE_DIR)/manifests/opendatahub-operator-webhook-service_v1_service.yaml
+	rm -f $(BUNDLE_DIR)/manifests/rhods-operator-webhook-service_v1_service.yaml
 
 .PHONY: bundle-build
 bundle-build: bundle
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile --platform $(PLATFORM) -t $(BUNDLE_IMG) \
+	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME) --platform $(PLATFORM) -t $(BUNDLE_IMG) \
 	--build-arg BUNDLE_IMG=$(BUNDLE_IMG) \
 	--build-arg IMAGE_TAG_BASE=$(IMAGE_TAG_BASE) \
 	--build-arg IMG_TAG=$(IMG_TAG) \
@@ -394,7 +435,7 @@ catalog-clean: ## Clean up catalog files and Dockerfile
 .PHONY: catalog-prepare
 catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel. It requires BUNDLE_IMG exists before running the target"
 	mkdir -p catalog
-	cp config/catalog/fbc-basic-template.yaml catalog/fbc-basic-template.yaml
+	cp odh-config/catalog/fbc-basic-template.yaml catalog/fbc-basic-template.yaml
 	./hack/update-catalog-template.sh catalog/fbc-basic-template.yaml $(BUNDLE_IMGS)
 	$(OPM) alpha render-template basic \
 		--migrate-level=bundle-object-to-csv-metadata \
