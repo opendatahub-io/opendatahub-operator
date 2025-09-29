@@ -39,41 +39,66 @@ func init() {
 	sr.Add(&ServiceHandler{})
 }
 
-type ServiceHandler struct {
-}
+// ServiceHandler implements the ServiceHandler interface for Gateway services.
+// It manages the lifecycle of GatewayConfig resources and their associated infrastructure.
+type ServiceHandler struct{}
 
+// Init initializes the ServiceHandler for the given platform.
+// Currently no platform-specific initialization is required.
 func (h *ServiceHandler) Init(platform common.Platform) error {
 	return nil
 }
 
+// GetName returns the service name for this handler.
 func (h *ServiceHandler) GetName() string {
 	return ServiceName
 }
 
+// GetManagementState returns the management state for Gateway services.
+// Gateway services are always managed regardless of platform or DSCI configuration.
 func (h *ServiceHandler) GetManagementState(platform common.Platform, _ *dsciv1.DSCInitialization) operatorv1.ManagementState {
 	return operatorv1.Managed
 }
 
+// NewReconciler creates and configures a new reconciler for GatewayConfig resources.
+// It sets up ownership relationships and action chains for complete gateway lifecycle management.
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{}).
+	// Note: Input validation for mgr == nil is handled by the reconciler.ReconcilerFor method
+	// which will panic as expected by existing tests
+
+	// Build reconciler with optimized chain structure
+	reconcilerBuilder := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{}).
+		// Core Gateway API resources
 		OwnsGVK(gvk.GatewayClass).
 		OwnsGVK(gvk.KubernetesGateway).
+		// Service mesh resources (conditionally owned based on CRD existence)
 		OwnsGVK(gvk.EnvoyFilter,
 			reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
 		OwnsGVK(gvk.DestinationRule,
-			reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
-		WithAction(createGatewayInfrastructure).
-		WithAction(createKubeAuthProxyInfrastructure).
-		WithAction(createEnvoyFilter).
-		WithAction(createDestinationRule).
-		WithAction(template.NewAction()).
-		WithAction(deploy.NewAction(
-			deploy.WithCache(),
-		)).
-		WithAction(syncGatewayConfigStatus).
-		WithAction(gc.NewAction()).
-		Build(ctx)
-	if err != nil {
+			reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule)))
+
+	// Add Kubernetes native resources for auth proxy
+	reconcilerBuilder = reconcilerBuilder.
+		OwnsGVK(gvk.Deployment). // Auth proxy deployment
+		OwnsGVK(gvk.Service).    // Auth proxy service
+		OwnsGVK(gvk.Secret).     // Auth proxy credentials
+		OwnsGVK(gvk.HTTPRoute).  // OAuth callback route only
+		OwnsGVK(gvk.OAuthClient) // OpenShift OAuth integration
+		// Note: Dashboard HTTPRoute and ReferenceGrant are user's responsibility
+
+	// Configure action chain for resource lifecycle
+	reconcilerBuilder = reconcilerBuilder.
+		WithAction(createGatewayInfrastructure).          // Core gateway setup
+		WithAction(createKubeAuthProxyInfrastructure).    // Authentication proxy
+		WithAction(createEnvoyFilter).                    // Service mesh integration
+		WithAction(createDestinationRule).                // Traffic management
+		WithAction(template.NewAction()).                 // Template rendering
+		WithAction(deploy.NewAction(deploy.WithCache())). // Resource deployment with caching
+		WithAction(syncGatewayConfigStatus).              // Status synchronization
+		WithAction(gc.NewAction())                        // Garbage collection
+
+	// Build and validate the reconciler
+	if _, err := reconcilerBuilder.Build(ctx); err != nil {
 		return fmt.Errorf("could not create the Gateway controller: %w", err)
 	}
 

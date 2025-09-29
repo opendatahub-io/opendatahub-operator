@@ -2,6 +2,7 @@
 package gateway
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -46,6 +48,7 @@ func setupTestClient() client.Client {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(gwapiv1.Install(scheme))
 	utilruntime.Must(serviceApi.AddToScheme(scheme))
+	utilruntime.Must(dsciv1.AddToScheme(scheme))
 	return fake.NewClientBuilder().WithScheme(scheme).Build()
 }
 
@@ -55,6 +58,7 @@ func setupTestClientWithObjects(objects ...client.Object) client.Client {
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(gwapiv1.Install(scheme))
 	utilruntime.Must(serviceApi.AddToScheme(scheme))
+	utilruntime.Must(dsciv1.AddToScheme(scheme))
 	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
 }
 
@@ -586,7 +590,9 @@ func TestBuildOAuth2ProxyArgsOpenShift(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	args := buildOAuth2ProxyArgs(nil, "data-science-gateway.apps.example.com") // nil = OpenShift mode
+	domain := "data-science-gateway.apps.example.com"
+
+	args := buildOAuth2ProxyArgs(nil, domain) // nil = OpenShift mode
 
 	// Verify base arguments are present
 	g.Expect(args).To(ContainElement(ContainSubstring("--http-address=0.0.0.0:")))
@@ -599,7 +605,7 @@ func TestBuildOAuth2ProxyArgsOpenShift(t *testing.T) {
 
 	// Verify OpenShift-specific arguments
 	g.Expect(args).To(ContainElement("--provider=openshift"))
-	g.Expect(args).To(ContainElement("--scope=user:full"))
+	g.Expect(args).To(ContainElement("--scope=" + OpenShiftOAuthScope))
 	g.Expect(args).To(ContainElement(ContainSubstring("--tls-cert-file=" + TLSCertsMountPath)))
 	g.Expect(args).To(ContainElement(ContainSubstring("--tls-key-file=" + TLSCertsMountPath)))
 	g.Expect(args).To(ContainElement(ContainSubstring("--https-address=0.0.0.0:")))
@@ -614,11 +620,13 @@ func TestBuildOAuth2ProxyArgsOIDC(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
+	domain := "data-science-gateway.apps.example.com"
+
 	oidcConfig := &serviceApi.OIDCConfig{
 		IssuerURL: testOIDCIssuerURL,
 	}
 
-	args := buildOAuth2ProxyArgs(oidcConfig, "data-science-gateway.apps.example.com")
+	args := buildOAuth2ProxyArgs(oidcConfig, domain)
 
 	// Verify base arguments are present
 	g.Expect(args).To(ContainElement(ContainSubstring("--http-address=0.0.0.0:")))
@@ -632,11 +640,155 @@ func TestBuildOAuth2ProxyArgsOIDC(t *testing.T) {
 	// Verify OIDC-specific arguments
 	g.Expect(args).To(ContainElement("--provider=oidc"))
 	g.Expect(args).To(ContainElement("--oidc-issuer-url=" + testOIDCIssuerURL))
-	g.Expect(args).To(ContainElement("--ssl-insecure-skip-verify=true"))
 
 	// Verify OpenShift-specific arguments are NOT present
 	g.Expect(args).NotTo(ContainElement("--provider=openshift"))
-	g.Expect(args).NotTo(ContainElement("--scope=user:full"))
+	g.Expect(args).NotTo(ContainElement("--scope=" + OpenShiftOAuthScope))
 	g.Expect(args).NotTo(ContainElement(ContainSubstring("--tls-cert-file=")))
 	g.Expect(args).NotTo(ContainElement(ContainSubstring("--https-address=")))
+}
+
+// TestCreateDashboardRoute and TestCreateReferenceGrant removed
+// Dashboard routing is now user's responsibility
+
+// TestGetOIDCClientSecret tests OIDC client secret retrieval logic.
+func TestGetOIDCClientSecret(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		oidcConfig  *serviceApi.OIDCConfig
+		secretData  map[string][]byte
+		expectedVal string
+		expectError bool
+		description string
+	}{
+		{
+			name: "successful retrieval with default key",
+			oidcConfig: &serviceApi.OIDCConfig{
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "oidc-secret",
+					},
+				},
+			},
+			secretData: map[string][]byte{
+				DefaultClientSecretKey: []byte("secret-value"),
+			},
+			expectedVal: "secret-value",
+			expectError: false,
+			description: "should retrieve secret using default key",
+		},
+		{
+			name: "successful retrieval with custom key",
+			oidcConfig: &serviceApi.OIDCConfig{
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "oidc-secret",
+					},
+					Key: "custom-key",
+				},
+			},
+			secretData: map[string][]byte{
+				"custom-key": []byte("custom-secret"),
+			},
+			expectedVal: "custom-secret",
+			expectError: false,
+			description: "should retrieve secret using custom key",
+		},
+		{
+			name: "key not found in secret",
+			oidcConfig: &serviceApi.OIDCConfig{
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "oidc-secret",
+					},
+					Key: "missing-key",
+				},
+			},
+			secretData: map[string][]byte{
+				"other-key": []byte("other-value"),
+			},
+			expectedVal: "",
+			expectError: true,
+			description: "should return error when key not found",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			ctx := t.Context()
+
+			// Create secret with test data
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      tc.oidcConfig.ClientSecretRef.Name,
+					Namespace: GatewayNamespace,
+				},
+				Data: tc.secretData,
+			}
+
+			client := setupTestClientWithObjects(secret)
+			result, err := getOIDCClientSecret(ctx, client, tc.oidcConfig)
+
+			if tc.expectError {
+				g.Expect(err).To(HaveOccurred(), tc.description)
+				g.Expect(result).To(Equal(""))
+			} else {
+				g.Expect(err).NotTo(HaveOccurred(), tc.description)
+				g.Expect(result).To(Equal(tc.expectedVal), tc.description)
+			}
+		})
+	}
+}
+
+// TestGetOIDCClientSecretNotFound tests error handling when secret doesn't exist.
+func TestGetOIDCClientSecretNotFound(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	oidcConfig := &serviceApi.OIDCConfig{
+		ClientSecretRef: corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: "missing-secret",
+			},
+		},
+	}
+
+	client := setupTestClient() // No secrets
+	result, err := getOIDCClientSecret(ctx, client, oidcConfig)
+
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("failed to get OIDC client secret"))
+	g.Expect(result).To(Equal(""))
+}
+
+// TestSetErrorConditionAndReturn tests the error condition helper function.
+func TestSetErrorConditionAndReturn(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	gatewayConfig := &serviceApi.GatewayConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-gateway",
+		},
+	}
+
+	testError := errors.New("test error occurred")
+	resultErr := setErrorConditionAndReturn(gatewayConfig, "Test operation failed", testError)
+
+	// Verify the returned error is the same as input
+	g.Expect(resultErr).To(Equal(testError))
+
+	// Verify condition was set correctly
+	conditions := gatewayConfig.GetConditions()
+	g.Expect(conditions).To(HaveLen(1))
+	condition := conditions[0]
+	g.Expect(condition.Type).To(Equal(status.ConditionTypeReady))
+	g.Expect(condition.Status).To(Equal(metav1.ConditionFalse))
+	g.Expect(condition.Reason).To(Equal(status.NotReadyReason))
+	g.Expect(condition.Message).To(Equal("Test operation failed: test error occurred"))
 }

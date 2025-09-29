@@ -41,16 +41,32 @@ import (
 //go:embed resources
 var gatewayResources embed.FS
 
+// This helper reduces code duplication and improves error handling consistency.
+func validateGatewayConfig(rr *odhtypes.ReconciliationRequest) (*serviceApi.GatewayConfig, error) {
+	if rr == nil {
+		return nil, errors.New("reconciliation request cannot be nil")
+	}
+	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
+	if !ok {
+		return nil, errors.New("instance is not of type *services.GatewayConfig")
+	}
+	if gatewayConfig == nil {
+		return nil, errors.New("gatewayConfig cannot be nil")
+	}
+	return gatewayConfig, nil
+}
+
 func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createGatewayInfrastructure")
 
-	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
-	if !ok {
-		return errors.New("instance is not of type *services.GatewayConfig")
+	// Use helper function for consistent validation
+	gatewayConfig, err := validateGatewayConfig(rr)
+	if err != nil {
+		return err
 	}
 	l.V(1).Info("Creating Gateway infrastructure", "gateway", gatewayConfig.Name)
 
-	domain, err := ResolveDomain(ctx, rr.Client, gatewayConfig, DefaultGatewayName)
+	domain, err := ResolveDomain(ctx, rr.Client, gatewayConfig)
 	if err != nil {
 		return fmt.Errorf("failed to resolve domain: %w", err)
 	}
@@ -91,6 +107,15 @@ func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 }
 
 func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig, domain string) (string, error) {
+	// Input validation
+	if gatewayConfig == nil {
+		return "", errors.New("gatewayConfig cannot be nil")
+	}
+	if domain == "" {
+		return "", errors.New("domain cannot be empty")
+	}
+
+	// Get certificate configuration with default fallback
 	certConfig := gatewayConfig.Spec.Certificate
 	if certConfig == nil {
 		certConfig = &infrav1.CertificateSpec{
@@ -98,6 +123,7 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 		}
 	}
 
+	// Generate secret name with fallback
 	secretName := certConfig.SecretName
 	if secretName == "" {
 		secretName = fmt.Sprintf("%s-tls", gatewayConfig.Name)
@@ -140,8 +166,21 @@ func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.Reconciliatio
 }
 
 func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, gatewayName string) error {
+	// Input validation
+	if rr == nil {
+		return errors.New("reconciliation request cannot be nil")
+	}
+	if gatewayName == "" {
+		return errors.New("gateway name cannot be empty")
+	}
+	if domain == "" {
+		return errors.New("domain cannot be empty")
+	}
+
+	// Create listeners with validation
 	listeners := CreateListeners(certSecretName, domain)
 
+	// Create gateway resource with optimized structure
 	gateway := &gwapiv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gatewayName,
@@ -156,11 +195,17 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 	return rr.AddResources(gateway)
 }
 
+// createDestinationRule creates a DestinationRule for TLS configuration using embedded YAML template.
+// This function uses embedded resources for efficient template management.
 func createDestinationRule(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// Input validation
+	if rr == nil {
+		return errors.New("reconciliation request cannot be nil")
+	}
+
 	l := logf.FromContext(ctx).WithName("createDestinationRule")
 	l.V(1).Info("Creating DestinationRule for TLS configuration")
 
-	// using yaml templates due to complexity of k8s api struct for destination rule
 	yamlContent, err := gatewayResources.ReadFile("resources/destinationrule-tls.yaml")
 	if err != nil {
 		return fmt.Errorf("failed to read DestinationRule template: %w", err)
@@ -180,14 +225,28 @@ func createDestinationRule(ctx context.Context, rr *odhtypes.ReconciliationReque
 	return rr.AddResources(&unstructuredObjects[0])
 }
 
+// This helper function optimizes the condition checking logic.
+func isGatewayReady(gateway *gwapiv1.Gateway) bool {
+	if gateway == nil {
+		return false
+	}
+	for _, condition := range gateway.Status.Conditions {
+		if condition.Type == string(gwapiv1.GatewayConditionAccepted) && condition.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
 func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
-	if !ok {
-		return errors.New("instance is not of type *services.GatewayConfig")
+	// Use helper function for consistent validation
+	gatewayConfig, err := validateGatewayConfig(rr)
+	if err != nil {
+		return err
 	}
 
 	gateway := &gwapiv1.Gateway{}
-	err := rr.Client.Get(ctx, types.NamespacedName{
+	err = rr.Client.Get(ctx, types.NamespacedName{
 		Name:      DefaultGatewayName,
 		Namespace: GatewayNamespace,
 	}, gateway)
@@ -206,19 +265,15 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 		return fmt.Errorf("failed to get Gateway: %w", err)
 	}
 
-	isReady := false
-	for _, condition := range gateway.Status.Conditions {
-		if condition.Type == string(gwapiv1.GatewayConditionAccepted) && condition.Status == metav1.ConditionTrue {
-			isReady = true
-			break
-		}
-	}
+	// Use optimized helper function to check gateway readiness
+	ready := isGatewayReady(gateway)
 
+	// Determine condition values based on readiness
 	conditionStatus := metav1.ConditionFalse
 	reason := status.NotReadyReason
 	message := status.GatewayNotReadyMessage
 
-	if isReady {
+	if ready {
 		conditionStatus = metav1.ConditionTrue
 		reason = status.ReadyReason
 		message = status.GatewayReadyMessage
