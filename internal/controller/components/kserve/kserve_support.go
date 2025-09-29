@@ -54,10 +54,10 @@ var isRequiredOperators = predicate.Funcs{
 		return false
 	},
 	CreateFunc: func(e event.CreateEvent) bool {
-		return strings.HasPrefix(e.Object.GetName(), serverlessOperator) || strings.HasPrefix(e.Object.GetName(), serviceMeshOperator)
+		return strings.HasPrefix(e.Object.GetName(), serverlessOperator) || strings.HasPrefix(e.Object.GetName(), serviceMeshOperator) || strings.HasPrefix(e.Object.GetName(), leaderWorkerSetOperator) //nolint:lll
 	},
 	DeleteFunc: func(e event.DeleteEvent) bool {
-		return strings.HasPrefix(e.Object.GetName(), serverlessOperator) || strings.HasPrefix(e.Object.GetName(), serviceMeshOperator)
+		return strings.HasPrefix(e.Object.GetName(), serverlessOperator) || strings.HasPrefix(e.Object.GetName(), serviceMeshOperator) || strings.HasPrefix(e.Object.GetName(), leaderWorkerSetOperator) //nolint:lll
 	},
 	GenericFunc: func(e event.GenericEvent) bool {
 		return false

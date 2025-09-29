@@ -52,6 +52,7 @@ func dscManagementTestSuite(t *testing.T) {
 	// Define test cases.
 	testCases := []TestCase{
 		{"Ensure required operators are installed", dscTestCtx.ValidateOperatorsInstallation},
+		{"Ensure required operators with custom channels are installed", dscTestCtx.ValidateOperatorsWithCustomChannelsInstallation},
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
 		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
@@ -107,6 +108,33 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 			testFn: func(t *testing.T) {
 				t.Helper()
 				tc.EnsureOperatorInstalled(op.nn, op.skipOperatorGroup)
+			},
+		}
+	}
+
+	RunTestCases(t, testCases, WithParallel())
+}
+
+func (tc *DSCTestCtx) ValidateOperatorsWithCustomChannelsInstallation(t *testing.T) {
+	t.Helper()
+
+	// Define operators to be installed.
+	operators := []struct {
+		nn                types.NamespacedName
+		skipOperatorGroup bool
+		channel           string
+	}{
+		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace}, skipOperatorGroup: true, channel: "stable-v1.0"},
+	}
+
+	// Create and run test cases in parallel.
+	testCases := make([]TestCase, len(operators))
+	for i, op := range operators {
+		testCases[i] = TestCase{
+			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
+			testFn: func(t *testing.T) {
+				t.Helper()
+				tc.EnsureOperatorInstalledWithChannel(op.nn, op.skipOperatorGroup, op.channel)
 			},
 		}
 	}

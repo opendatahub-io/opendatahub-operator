@@ -30,7 +30,7 @@ const (
 	serverlessOperator       = "serverless-operator"
 	kserveConfigMapName      = "inferenceservice-config"
 	kserveManifestSourcePath = "overlays/odh"
-
+	leaderWorkerSetOperator  = "leader-worker-set"
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
@@ -47,11 +47,12 @@ var (
 )
 
 var (
-	ErrServiceMeshNotConfigured        = odherrors.NewStopError(status.ServiceMeshNeedConfiguredMessage)
-	ErrServiceMeshNotReady             = odherrors.NewStopError(status.ServiceMeshNotReadyMessage)
-	ErrServiceMeshOperatorNotInstalled = odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
-	ErrServerlessOperatorNotInstalled  = odherrors.NewStopError(status.ServerlessOperatorNotInstalledMessage)
-	ErrServerlessUnsupportedCertType   = odherrors.NewStopError(status.ServerlessUnsupportedCertMessage)
+	ErrServiceMeshNotConfigured            = odherrors.NewStopError(status.ServiceMeshNeedConfiguredMessage)
+	ErrServiceMeshNotReady                 = odherrors.NewStopError(status.ServiceMeshNotReadyMessage)
+	ErrServiceMeshOperatorNotInstalled     = odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
+	ErrServerlessOperatorNotInstalled      = odherrors.NewStopError(status.ServerlessOperatorNotInstalledMessage)
+	ErrServerlessUnsupportedCertType       = odherrors.NewStopError(status.ServerlessUnsupportedCertMessage)
+	ErrLeaderWorkerSetOperatorNotInstalled = odherrors.NewStopError(status.LeaderWorkerSetOperatorNotInstalledMessage)
 )
 
 type componentHandler struct{}

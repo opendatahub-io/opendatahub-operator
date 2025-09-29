@@ -606,4 +606,10 @@ var (
 		Version: "v1",
 		Kind:    "ValidatingAdmissionPolicyBinding",
 	}
+
+	LeaderWorkerSetOperator = schema.GroupVersionKind{
+		Group:   "operator.openshift.io",
+		Version: "v1",
+		Kind:    "LeaderWorkerSetOperator",
+	}
 )

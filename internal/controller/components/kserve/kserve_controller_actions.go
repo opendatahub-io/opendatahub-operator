@@ -74,6 +74,14 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		operatorsErr = multierror.Append(operatorsErr, ErrServerlessOperatorNotInstalled)
 	}
 
+	if found, err := cluster.OperatorExists(ctx, rr.Client, leaderWorkerSetOperator); err != nil || !found {
+		if err != nil {
+			return odherrors.NewStopErrorW(err)
+		}
+
+		operatorsErr = multierror.Append(operatorsErr, ErrLeaderWorkerSetOperatorNotInstalled)
+	}
+
 	if operatorsErr != nil {
 		rr.Conditions.MarkFalse(
 			status.ConditionServingAvailable,

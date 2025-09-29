@@ -89,6 +89,7 @@ const (
 	ConditionInstrumentationAvailable        = "InstrumentationAvailable"
 	ConditionAlertingAvailable               = "AlertingAvailable"
 	ConditionThanosQuerierAvailable          = "ThanosQuerierAvailable"
+	ConditionLeaderWorkerSetAvailable        = "LeaderWorkerSetAvailable"
 )
 
 const (
@@ -129,6 +130,8 @@ const (
 	ServerlessOperatorNotInstalledMessage = "Serverless operator must be installed for this component's configuration"
 
 	ServerlessUnsupportedCertMessage = "Serverless certificate type is not supported"
+
+	LeaderWorkerSetOperatorNotInstalledMessage = "LeaderWorkerSet operator must be installed for this component's configuration"
 )
 
 const (
