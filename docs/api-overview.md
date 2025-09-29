@@ -2056,8 +2056,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `permitCodeExecution` _boolean_ | PermitCodeExecution controls whether code execution is allowed during evaluations | false |  |
-| `permitOnline` _boolean_ | PermitOnline controls whether online access is allowed during evaluations | false |  |
+| `permitCodeExecution` _string_ | PermitCodeExecution controls whether code execution is allowed during evaluations | deny | Enum: [allow deny] <br /> |
+| `permitOnline` _string_ | PermitOnline controls whether online access is allowed during evaluations | deny | Enum: [allow deny] <br /> |
 
 
 #### TrustyAIList
@@ -3144,7 +3144,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
-| `domain` _string_ | Domain configuration for the GatewayConfig |  |  |
+| `domain` _string_ | Domain configuration for the GatewayConfig<br />Example: apps.example.com |  |  |
 
 
 #### GatewayConfigStatus

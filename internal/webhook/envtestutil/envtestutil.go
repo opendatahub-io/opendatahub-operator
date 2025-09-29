@@ -25,6 +25,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
@@ -435,6 +436,37 @@ func NewInferenceService(name, namespace string, opts ...ObjectOption) client.Ob
 	return inferenceService
 }
 
+// NewLLMInferenceService creates an LLMInferenceService object with the given name and namespace for use in tests.
+//
+// Parameters:
+//   - name: The name of the LLMInferenceService object.
+//   - namespace: The namespace for the object.
+//
+// Returns:
+//   - client.Object: The constructed LLMInferenceService object as an unstructured object.
+func NewLLMInferenceService(name, namespace string, opts ...ObjectOption) client.Object {
+	llmInferenceService := resources.GvkToUnstructured(gvk.LLMInferenceServiceV1Alpha1)
+	llmInferenceService.SetName(name)
+	llmInferenceService.SetNamespace(namespace)
+
+	// Set basic spec structure needed for webhook testing
+	containers := []interface{}{
+		map[string]interface{}{
+			"name":  "llm-container",
+			"image": "opendatahub/llm-model-server:latest",
+		},
+	}
+	// Use the correct path that matches the webhook configuration
+	if err := unstructured.SetNestedSlice(llmInferenceService.Object, containers, "spec", "template", "containers"); err != nil {
+		panic(fmt.Sprintf("failed to set LLMInferenceService containers: %v", err))
+	}
+
+	for _, opt := range opts {
+		opt(llmInferenceService)
+	}
+	return llmInferenceService
+}
+
 // =============================================================================
 // Object Configuration Options
 // =============================================================================
@@ -483,7 +515,7 @@ func WithHardwareProfileNamespace(namespace string) ObjectOption {
 		if annotations == nil {
 			annotations = make(map[string]string)
 		}
-		annotations["opendatahub.io/hardware-profile-namespace"] = namespace
+		annotations[hardwareprofile.HardwareProfileNamespaceAnnotation] = namespace
 		obj.SetAnnotations(annotations)
 	}
 }
