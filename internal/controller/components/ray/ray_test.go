@@ -201,6 +201,40 @@ func TestUpdateDSCStatus(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, ReadyConditionType)),
 		))
 	})
+
+	t.Run("should handle enabled component with CodeFlare CR present", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithRay(operatorv1.Managed)
+		ray := createRayCR(true)
+		ray.Status.Conditions = []common.Condition{{
+			Type:    status.ConditionTypeReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  "Error",
+			Message: status.CodeFlarePresentMessage,
+		}}
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, ray))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.installedComponents."%s" == true`, LegacyComponentName),
+			jq.Match(`.status.components.ray.managementState == "%s"`, operatorv1.Managed),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, "Error"),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("%s")`, ReadyConditionType, status.CodeFlarePresentMessage)),
+		))
+	})
 }
 
 func createDSCWithRay(managementState operatorv1.ManagementState) *dscv1.DataScienceCluster {
