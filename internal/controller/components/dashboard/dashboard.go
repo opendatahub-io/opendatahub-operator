@@ -22,32 +22,37 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
-type componentHandler struct{}
+const (
+	// AnacondaSecretName is the name of the anaconda access secret.
+	AnacondaSecretName = "anaconda-ce-access" //nolint:gosec // This is a Kubernetes secret name, not a credential
+)
+
+type ComponentHandler struct{}
 
 func init() { //nolint:gochecknoinits
-	cr.Add(&componentHandler{})
+	cr.Add(&ComponentHandler{})
 }
 
-func (s *componentHandler) GetName() string {
+func (s *ComponentHandler) GetName() string {
 	return componentApi.DashboardComponentName
 }
 
-func (s *componentHandler) Init(platform common.Platform) error {
-	mi := defaultManifestInfo(platform)
+func (s *ComponentHandler) Init(platform common.Platform) error {
+	mi := DefaultManifestInfo(platform)
 
-	if err := odhdeploy.ApplyParams(mi.String(), "params.env", imagesMap); err != nil {
+	if err := odhdeploy.ApplyParams(mi.String(), "params.env", ImagesMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mi, err)
 	}
 
-	extra := bffManifestsPath()
-	if err := odhdeploy.ApplyParams(extra.String(), "params.env", imagesMap); err != nil {
-		return fmt.Errorf("failed to update modular-architecture images on path %s: %w", extra, err)
+	extra := BffManifestsPath()
+	if err := odhdeploy.ApplyParams(extra.String(), "params.env", ImagesMap); err != nil {
+		return fmt.Errorf("failed to update %s images on path %s: %w", ModularArchitectureSourcePath, extra, err)
 	}
 
 	return nil
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
+func (s *ComponentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
 	return &componentApi.Dashboard{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.DashboardKind,
@@ -65,18 +70,19 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 	}
 }
 
-func (s *componentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool {
+func (s *ComponentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool {
 	return dsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
 }
 
-func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
+func (s *ComponentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
 
-	c := componentApi.Dashboard{}
-	c.Name = componentApi.DashboardInstanceName
+	if rr.Client == nil {
+		return cs, errors.New("client is nil")
+	}
 
-	if err := rr.Client.Get(ctx, client.ObjectKeyFromObject(&c), &c); err != nil && !k8serr.IsNotFound(err) {
-		return cs, nil
+	if rr.DSCI == nil {
+		return cs, errors.New("DSCI is nil")
 	}
 
 	dsc, ok := rr.Instance.(*dscv1.DataScienceCluster)
@@ -84,32 +90,63 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
-	ms := components.NormalizeManagementState(dsc.Spec.Components.Dashboard.ManagementState)
+	dashboardCRExists, c, err := s.getDashboardCR(ctx, rr)
+	if err != nil {
+		return cs, err
+	}
 
-	dsc.Status.InstalledComponents[LegacyComponentNameUpstream] = false
-	dsc.Status.Components.Dashboard.ManagementState = ms
-	dsc.Status.Components.Dashboard.DashboardCommonStatus = nil
+	ms := components.NormalizeManagementState(dsc.Spec.Components.Dashboard.ManagementState)
+	s.updateDSCStatusFields(dsc, ms)
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
-	if s.IsEnabled(dsc) {
-		dsc.Status.InstalledComponents[LegacyComponentNameUpstream] = true
-		dsc.Status.Components.Dashboard.DashboardCommonStatus = c.Status.DashboardCommonStatus.DeepCopy()
-
-		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
-			rr.Conditions.MarkFrom(ReadyConditionType, *rc)
-			cs = rc.Status
-		} else {
-			cs = metav1.ConditionFalse
-		}
-	} else {
-		rr.Conditions.MarkFalse(
-			ReadyConditionType,
-			conditions.WithReason(string(ms)),
-			conditions.WithMessage("Component ManagementState is set to %s", string(ms)),
-			conditions.WithSeverity(common.ConditionSeverityInfo),
-		)
+	if s.IsEnabled(dsc) && dashboardCRExists {
+		return s.handleEnabledDashboard(dsc, c, rr)
 	}
 
-	return cs, nil
+	return s.handleDisabledDashboard(ms, rr)
+}
+
+func (s *ComponentHandler) getDashboardCR(ctx context.Context, rr *types.ReconciliationRequest) (bool, componentApi.Dashboard, error) {
+	c := componentApi.Dashboard{}
+	c.Name = componentApi.DashboardInstanceName
+
+	if err := rr.Client.Get(ctx, client.ObjectKey{Name: c.Name, Namespace: rr.DSCI.Spec.ApplicationsNamespace}, &c); err != nil {
+		if k8serr.IsNotFound(err) {
+			return false, c, nil
+		}
+		return false, c, fmt.Errorf("failed to get Dashboard CR: %w", err)
+	}
+	return true, c, nil
+}
+
+func (s *ComponentHandler) updateDSCStatusFields(dsc *dscv1.DataScienceCluster, ms operatorv1.ManagementState) {
+	dsc.Status.InstalledComponents[LegacyComponentNameUpstream] = false
+	dsc.Status.Components.Dashboard.ManagementState = ms
+	dsc.Status.Components.Dashboard.DashboardCommonStatus = nil
+}
+
+func (s *ComponentHandler) handleEnabledDashboard(dsc *dscv1.DataScienceCluster, c componentApi.Dashboard, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
+	dsc.Status.InstalledComponents[LegacyComponentNameUpstream] = true
+	dsc.Status.Components.Dashboard.DashboardCommonStatus = c.Status.DashboardCommonStatus.DeepCopy()
+
+	if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
+		rr.Conditions.MarkFrom(ReadyConditionType, *rc)
+		return rc.Status, nil
+	}
+	return metav1.ConditionFalse, nil
+}
+
+func (s *ComponentHandler) handleDisabledDashboard(ms operatorv1.ManagementState, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
+	rr.Conditions.MarkFalse(
+		ReadyConditionType,
+		conditions.WithReason(string(ms)),
+		conditions.WithMessage("Component ManagementState is set to %s", string(ms)),
+		conditions.WithSeverity(common.ConditionSeverityInfo),
+	)
+
+	if ms == operatorv1.Managed {
+		return metav1.ConditionFalse, nil
+	}
+	return metav1.ConditionUnknown, nil
 }
