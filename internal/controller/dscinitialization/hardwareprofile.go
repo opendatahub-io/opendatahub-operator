@@ -46,7 +46,7 @@ func (r *DSCInitializationReconciler) CreateVAP(ctx context.Context, dscInit *ds
 }
 
 // deploy hardware profile CR with dsci as owner, but allow user change by annotation set to false.
-func (r *DSCInitializationReconciler) ManageDefaultHWProfileCR(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform common.Platform) error {
+func (r *DSCInitializationReconciler) ManageDefaultAndCustomHWProfileCR(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
 	if platform == "" { // this is for test to skip creation.
@@ -55,13 +55,19 @@ func (r *DSCInitializationReconciler) ManageDefaultHWProfileCR(ctx context.Conte
 	}
 
 	// Check if default HardwareProfile CR already exists
-	_, err := cluster.GetHardwareProfile(ctx, r.Client, "default-profile", dscInit.Spec.ApplicationsNamespace)
-	if err == nil {
-		log.V(1).Info("HardwareProfile CR 'default-profile' already exists")
-		return nil
-	}
+	defaultHWP, err := cluster.GetHardwareProfile(ctx, r.Client, "default-profile", dscInit.Spec.ApplicationsNamespace)
 	if client.IgnoreNotFound(err) != nil {
 		return fmt.Errorf("failed to check default HardwareProfile CR: %w", err)
+	}
+	// Check if custom-serving HardwareProfile CR already exists
+	customHWP, err := cluster.GetHardwareProfile(ctx, r.Client, "custom-serving", dscInit.Spec.ApplicationsNamespace)
+	if client.IgnoreNotFound(err) != nil {
+		return fmt.Errorf("failed to check custom-serving HardwareProfile CR: %w", err)
+	}
+
+	if defaultHWP != nil && customHWP != nil {
+		log.V(1).Info("HardwareProfile CR 'default-profile' and 'custom-serving' already exists")
+		return nil
 	}
 
 	// deploy hardware profile CR with dsci as owner, but allow user change by have annotation in the default.
