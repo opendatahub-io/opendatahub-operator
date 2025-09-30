@@ -182,6 +182,37 @@ func SetupEnvAndClientWithCRDs(
 // CRD Setup Options
 // =============================================================================
 
+// NewWorkloadObject creates a workload object with the given GVK, name and namespace for use in tests.
+// This is a generic function that creates a minimal workload object suitable for webhook testing.
+// The webhook only cares about the GVK and labels, not the detailed spec structure.
+//
+// Parameters:
+//   - gvkType: The GroupVersionKind of the object to create.
+//   - name: The name of the object.
+//   - namespace: The namespace for the object.
+//   - opts: Optional functions to modify the object.
+//
+// Returns:
+//   - client.Object: The constructed workload object as an unstructured object.
+func NewWorkloadObject(gvkType schema.GroupVersionKind, name, namespace string, opts ...ObjectOption) client.Object {
+	workload := resources.GvkToUnstructured(gvkType)
+	workload.SetName(name)
+	workload.SetNamespace(namespace)
+
+	// Set a minimal spec structure that works for webhook testing.
+	// The webhook only checks GVK and labels, not the detailed spec.
+	minimalSpec := map[string]interface{}{
+		"dummy": "value", // Just to ensure spec exists
+	}
+	// If setting spec fails, continue without it - some resources might not need spec
+	_ = unstructured.SetNestedMap(workload.Object, minimalSpec, "spec")
+
+	for _, opt := range opts {
+		opt(workload)
+	}
+	return workload
+}
+
 // WithNotebook enables Notebook CRD registration in the test environment.
 func WithNotebook() CRDSetupOption {
 	return func(ctx context.Context, t *testing.T, env *envt.EnvT) error {

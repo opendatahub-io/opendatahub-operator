@@ -96,7 +96,8 @@ func TestKueueWebhook_DeniesUnexpectedKind(t *testing.T) {
 	}
 
 	// Create a test object with an unexpected kind
-	testObj := envtestutil.NewNotebook("test-unexpected", testNamespace)
+	unexpectedGVK := schema.GroupVersionKind{Group: "unexpected.io", Version: "v1", Kind: "UnexpectedKind"}
+	testObj := envtestutil.NewWorkloadObject(unexpectedGVK, "test-unexpected", testNamespace)
 
 	// Create request with an unexpected kind (using a different Group/Version/Kind)
 	req := envtestutil.NewAdmissionRequest(
@@ -155,7 +156,7 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 				Resource: "notebooks",
 			},
 			objFunc: func() client.Object {
-				return envtestutil.NewNotebook("test-notebook", testNamespace, func(obj client.Object) {
+				return envtestutil.NewWorkloadObject(gvk.Notebook, "test-notebook", testNamespace, func(obj client.Object) {
 					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
 				})
 			},
@@ -169,7 +170,7 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 				Resource: "pytorchjobs",
 			},
 			objFunc: func() client.Object {
-				return envtestutil.NewNotebook("test-pytorchjob", testNamespace, func(obj client.Object) {
+				return envtestutil.NewWorkloadObject(gvk.PyTorchJob, "test-pytorchjob", testNamespace, func(obj client.Object) {
 					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
 				})
 			},
@@ -183,7 +184,7 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 				Resource: "rayjobs",
 			},
 			objFunc: func() client.Object {
-				return envtestutil.NewNotebook("test-rayjob-v1alpha1", testNamespace, func(obj client.Object) {
+				return envtestutil.NewWorkloadObject(gvk.RayJobV1Alpha1, "test-rayjob-v1alpha1", testNamespace, func(obj client.Object) {
 					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
 				})
 			},
@@ -197,7 +198,7 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 				Resource: "rayclusters",
 			},
 			objFunc: func() client.Object {
-				return envtestutil.NewNotebook("test-raycluster-v1alpha1", testNamespace, func(obj client.Object) {
+				return envtestutil.NewWorkloadObject(gvk.RayClusterV1Alpha1, "test-raycluster-v1alpha1", testNamespace, func(obj client.Object) {
 					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
 				})
 			},
@@ -211,7 +212,7 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 				Resource: "rayjobs",
 			},
 			objFunc: func() client.Object {
-				return envtestutil.NewNotebook("test-rayjob-v1", testNamespace, func(obj client.Object) {
+				return envtestutil.NewWorkloadObject(gvk.RayJobV1, "test-rayjob-v1", testNamespace, func(obj client.Object) {
 					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
 				})
 			},
@@ -225,7 +226,7 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 				Resource: "rayclusters",
 			},
 			objFunc: func() client.Object {
-				return envtestutil.NewNotebook("test-raycluster-v1", testNamespace, func(obj client.Object) {
+				return envtestutil.NewWorkloadObject(gvk.RayClusterV1, "test-raycluster-v1", testNamespace, func(obj client.Object) {
 					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
 				})
 			},
@@ -239,7 +240,7 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 				Resource: "inferenceservices",
 			},
 			objFunc: func() client.Object {
-				return envtestutil.NewNotebook("test-inferenceservice", testNamespace, func(obj client.Object) {
+				return envtestutil.NewWorkloadObject(gvk.InferenceServices, "test-inferenceservice", testNamespace, func(obj client.Object) {
 					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
 				})
 			},
@@ -253,7 +254,7 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 				Resource: "llminferenceservices",
 			},
 			objFunc: func() client.Object {
-				return envtestutil.NewNotebook("test-llmisvc", testNamespace, func(obj client.Object) {
+				return envtestutil.NewWorkloadObject(gvk.LLMInferenceServiceV1Alpha1, "test-llmisvc", testNamespace, func(obj client.Object) {
 					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
 				})
 			},

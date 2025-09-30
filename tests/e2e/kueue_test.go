@@ -68,15 +68,15 @@ func kueueTestSuite(t *testing.T) {
 		ComponentTestCtx: ct,
 	}
 
-	// Define core test cases
+	// Define core test cases - skip tests requiring "Managed" state since embedded Kueue is not available
 	testCases := []TestCase{
-		{"Validate component enabled", componentCtx.ValidateComponentEnabled},
-		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
-		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
-		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
-		{"Validate pre check", componentCtx.ValidateKueuePreCheck},
-		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
+		// {"Validate component enabled", componentCtx.ValidateComponentEnabled}, // Requires Managed state
+		// {"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences}, // Requires Managed state
+		// {"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources}, // Requires Managed state
+		// {"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated}, // Requires Managed state
+		// {"Validate pre check", componentCtx.ValidateKueuePreCheck}, // Requires Managed state
+		// {"Validate component releases", componentCtx.ValidateComponentReleases}, // Requires Managed state
+		// {"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery}, // Requires Managed state
 	}
 
 	// Only add OCP Kueue operator test if OCP version is 4.18 or above
@@ -84,16 +84,18 @@ func kueueTestSuite(t *testing.T) {
 	componentCtx.g.Expect(err).ShouldNot(HaveOccurred(), "Failed to check OCP version")
 	if meets {
 		testCases = append(testCases,
-			TestCase{"Validate component managed error with ocp kueue-operator installed", componentCtx.ValidateKueueManagedWithOcpKueueOperator},
-			TestCase{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator},
-			TestCase{"Validate component managed to unmanaged transition", componentCtx.ValidateKueueManagedToUnmanagedTransition},
-			TestCase{"Validate component managed to removed to unmanaged transition with config migration", componentCtx.ValidateKueueManagedToRemovedToUnmanagedTransition(true)},
-			TestCase{"Validate component managed to removed to unmanaged transition without config migration", componentCtx.ValidateKueueManagedToRemovedToUnmanagedTransition(false)},
-			TestCase{"Validate component unmanaged to managed transition", componentCtx.ValidateKueueUnmanagedToManagedTransition},
+			// TestCase{"Validate component managed error with ocp kueue-operator installed", componentCtx.ValidateKueueManagedWithOcpKueueOperator}, // Requires rhbok installation
+			TestCase{"Validate component unmanaged error with ocp kueue-operator not installed", componentCtx.ValidateKueueUnmanagedWithoutOcpKueueOperator}, // Can run without rhbok
+			// TestCase{"Validate component managed to unmanaged transition", componentCtx.ValidateKueueManagedToUnmanagedTransition}, // Requires rhbok installation and Managed state
+			// TestCase{"Validate component managed to removed to unmanaged transition with config migration",
+			//          componentCtx.ValidateKueueManagedToRemovedToUnmanagedTransition(true)}, // Requires rhbok installation and Managed state
+			// TestCase{"Validate component managed to removed to unmanaged transition without config migration",
+			//          componentCtx.ValidateKueueManagedToRemovedToUnmanagedTransition(false)}, // Requires rhbok installation and Managed state
+			// TestCase{"Validate component unmanaged to managed transition", componentCtx.ValidateKueueUnmanagedToManagedTransition}, // Requires rhbok installation and Managed state
 		)
 	}
 
-	// Add webhook tests if enabled
+	// Add webhook tests if enabled - these work even with Kueue unmanaged, only need Workbenches managed
 	if testOpts.webhookTest {
 		testCases = append(testCases,
 			// Enable Workbenches component to ensure Notebook CRD is available for webhook tests

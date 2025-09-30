@@ -56,8 +56,6 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Ensure required operators are installed", dscTestCtx.ValidateOperatorsInstallation},
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
-		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
-		{"Validate Knative resource", dscTestCtx.ValidateKnativeSpecInDSC},
 		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
@@ -93,12 +91,9 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		nn                types.NamespacedName
 		skipOperatorGroup bool
 	}{
-		{nn: types.NamespacedName{Name: serviceMeshOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
-		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: serverlessOperatorNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
 		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: opentelemetryOpName, Namespace: opentelemetryOpNamespace}, skipOperatorGroup: false},
 	}
 
 	// Create and run test cases in parallel.
@@ -152,7 +147,7 @@ func (tc *DSCTestCtx) ValidateServiceMeshSpecInDSCI(t *testing.T) {
 
 	// expected ServiceMeshSpec.
 	expServiceMeshSpec := &infrav1.ServiceMeshSpec{
-		ManagementState: operatorv1.Managed,
+		ManagementState: operatorv1.Removed,
 		ControlPlane: infrav1.ControlPlaneSpec{
 			Name:              serviceMeshControlPlane,
 			Namespace:         serviceMeshNamespace,
