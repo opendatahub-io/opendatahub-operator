@@ -88,8 +88,8 @@ func (ct ConnectionType) String() string {
 	return string(ct)
 }
 
-// CreateServiceAccount creates a ServiceAccount and links the secret.
-func CreateServiceAccount(ctx context.Context, cli client.Client, secretName, namespace string) error {
+// CreateSA creates a ServiceAccount and links the secret.
+func CreateSA(ctx context.Context, cli client.Client, secretName, namespace string) error {
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName + "-sa",
@@ -107,26 +107,6 @@ func CreateServiceAccount(ctx context.Context, cli client.Client, secretName, na
 	if err != nil && !k8serr.IsAlreadyExists(err) {
 		return fmt.Errorf("failed to create ServiceAccount: %w", err)
 	}
-	return nil
-}
-
-// HandleServiceAccountCreation handles ServiceAccount creation for S3 connections with proper logging.
-// Returns an error if ServiceAccount creation fails, nil otherwise.
-func HandleServiceAccountCreation(ctx context.Context, cli client.Client, secretName, connectionType, namespace string, isDryRun bool) error {
-	log := logf.FromContext(ctx)
-
-	switch {
-	case (connectionType == ConnectionTypeProtocolS3.String() || connectionType == ConnectionTypeRefS3.String()) && !isDryRun:
-		if err := CreateServiceAccount(ctx, cli, secretName, namespace); err != nil {
-			log.Error(err, "Failed to create ServiceAccount for new S3 connection")
-			return err
-		}
-	case (connectionType == ConnectionTypeProtocolS3.String() || connectionType == ConnectionTypeRefS3.String()) && isDryRun:
-		log.V(1).Info("Skipping ServiceAccount creation in dry-run mode", "secretName", secretName)
-	default:
-		log.V(1).Info("Skipping ServiceAccount creation for non-S3 connection type", "connectionType", connectionType, "secretName", secretName)
-	}
-
 	return nil
 }
 
@@ -377,28 +357,6 @@ func GetS3Path(obj *unstructured.Unstructured) string {
 	return resources.GetAnnotation(obj, annotations.ConnectionPath)
 }
 
-// CreateSA creates a ServiceAccount and links the secret.
-func CreateSA(ctx context.Context, cli client.Client, secretName, namespace string) error {
-	sa := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName + "-sa",
-			Namespace: namespace,
-		},
-		Secrets: []corev1.ObjectReference{
-			{
-				Name: secretName,
-			},
-		},
-	}
-
-	// only create if not exist, we do not reconcile object, as secret and SA can be both user managed
-	err := cli.Create(ctx, sa)
-	if err != nil && !k8serr.IsAlreadyExists(err) {
-		return fmt.Errorf("failed to create ServiceAccount: %w", err)
-	}
-	return nil
-}
-
 // ServiceAccountCreation handles ServiceAccount creation based on connection type.
 func ServiceAccountCreation(ctx context.Context, cli client.Client, secretName, connectionType, namespace string, isDryRun bool) error {
 	log := logf.FromContext(ctx)
@@ -543,7 +501,11 @@ func (w *BaseServingConnectionWebhook) GetOldConnectionInfo(ctx context.Context,
 		return ConnectionInfo{}, fmt.Errorf("failed to get old secret metadata: %w", err)
 	}
 
-	oldConnectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
+	// First check the connection type protocol annotation, then fall back to the deprecated ref annotation
+	oldConnectionType := resources.GetAnnotation(secretMeta, annotations.ConnectionTypeProtocol)
+	if oldConnectionType == "" {
+		oldConnectionType = resources.GetAnnotation(secretMeta, annotations.ConnectionTypeRef)
+	}
 	oldConnectionPath := resources.GetAnnotation(oldObj, annotations.ConnectionPath)
 
 	return ConnectionInfo{
