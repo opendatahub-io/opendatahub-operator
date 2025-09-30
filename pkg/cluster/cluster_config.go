@@ -90,10 +90,20 @@ func GetRelease() common.Release {
 	return clusterConfig.Release
 }
 
+// GetClusterInfo returns the cached ClusterInfo collected during Init.
 func GetClusterInfo() ClusterInfo {
 	return clusterConfig.ClusterInfo
 }
 
+// SetReleaseForTesting sets the release for testing purposes.
+// SetReleaseForTesting sets the package-level Release to the provided value for use in tests.
+// It avoids race conditions when tests need to override the global release and must not be used concurrently.
+func SetReleaseForTesting(release common.Release) {
+	clusterConfig.Release = release
+}
+
+// GetDomain returns the cluster ingress domain from the cluster-scoped OpenShift Ingress resource named "cluster".
+// It returns an error if the resource cannot be fetched or if spec.domain is not present.
 func GetDomain(ctx context.Context, c client.Client) (string, error) {
 	ingress := &unstructured.Unstructured{}
 	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
