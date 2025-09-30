@@ -22,11 +22,11 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
+// AuthMode represents different authentication modes supported by the gateway.
 type AuthMode string
 
 const (
@@ -34,6 +34,13 @@ const (
 	AuthModeOIDC            AuthMode = "OIDC"
 	AuthModeNone            AuthMode = "None"
 )
+
+// setErrorConditionAndReturn is a helper to set error condition and return error.
+func setErrorConditionAndReturn(gatewayConfig *serviceApi.GatewayConfig, message string, err error) error {
+	condition := CreateErrorCondition(message, err)
+	gatewayConfig.SetConditions([]common.Condition{condition})
+	return err
+}
 
 func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createAuthProxy")
@@ -46,7 +53,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	l.V(1).Info("creating auth proxy for gateway", "gateway", gatewayConfig.Name)
 
 	// Resolve domain consistently with createGatewayInfrastructure
-	domain, err := ResolveDomain(ctx, rr.Client, gatewayConfig, DefaultGatewayName)
+	domain, err := ResolveDomain(ctx, rr.Client, gatewayConfig)
 	if err != nil {
 		return fmt.Errorf("failed to resolve domain: %w", err)
 	}
@@ -76,32 +83,24 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	// get or generate secrets for kube-auth-proxy (handles OAuth and OIDC modes)
 	clientSecret, cookieSecret, err := getOrGenerateSecrets(ctx, rr, authMode)
 	if err != nil {
-		condition := CreateErrorCondition("Failed to get or generate secrets", err)
-		gatewayConfig.SetConditions([]common.Condition{condition})
-		return err
+		return setErrorConditionAndReturn(gatewayConfig, "Failed to get or generate secrets", err)
 	}
 
 	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, clientSecret, cookieSecret, domain); err != nil {
-		condition := CreateErrorCondition("Failed to deploy auth proxy", err)
-		gatewayConfig.SetConditions([]common.Condition{condition})
-		return err
+		return setErrorConditionAndReturn(gatewayConfig, "Failed to deploy auth proxy", err)
 	}
 
 	if authMode == AuthModeIntegratedOAuth {
-		err = createOAuthClient(ctx, rr, clientSecret)
-		if err != nil {
-			condition := CreateErrorCondition("Failed to create OAuth client", err)
-			gatewayConfig.SetConditions([]common.Condition{condition})
-			return err
+		if err := createOAuthClient(ctx, rr, clientSecret); err != nil {
+			return setErrorConditionAndReturn(gatewayConfig, "Failed to create OAuth client", err)
 		}
 	}
 
-	err = createOAuthCallbackRoute(rr)
-	if err != nil {
-		condition := CreateErrorCondition("Failed to create OAuth callback route", err)
-		gatewayConfig.SetConditions([]common.Condition{condition})
-		return err
+	if err := createOAuthCallbackRoute(rr); err != nil {
+		return setErrorConditionAndReturn(gatewayConfig, "Failed to create OAuth callback route", err)
 	}
+
+	// Dashboard routing is now user's responsibility - removed createDashboardRoute and createReferenceGrant
 
 	gatewayConfig.SetConditions([]common.Condition{{
 		Type:    status.ConditionTypeReady,
@@ -113,6 +112,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	return nil
 }
 
+// detectClusterAuthMode determines the authentication mode from cluster configuration.
 func detectClusterAuthMode(ctx context.Context, rr *odhtypes.ReconciliationRequest) (AuthMode, error) {
 	auth := &configv1.Authentication{}
 	err := rr.Client.Get(ctx, types.NamespacedName{Name: "cluster"}, auth)
@@ -157,6 +157,7 @@ func checkAuthModeNone(authMode AuthMode) *common.Condition {
 	return nil
 }
 
+// getOrGenerateSecrets retrieves existing secrets or generates new ones for OAuth2 proxy.
 func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationRequest, authMode AuthMode) (string, string, error) {
 	existingSecret := &corev1.Secret{}
 	secretErr := rr.Client.Get(ctx, types.NamespacedName{
@@ -165,8 +166,8 @@ func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationReques
 	}, existingSecret)
 
 	if secretErr == nil {
-		clientSecretBytes, hasClientSecret := existingSecret.Data["OAUTH2_PROXY_CLIENT_SECRET"]
-		cookieSecretBytes, hasCookieSecret := existingSecret.Data["OAUTH2_PROXY_COOKIE_SECRET"]
+		clientSecretBytes, hasClientSecret := existingSecret.Data[EnvClientSecret]
+		cookieSecretBytes, hasCookieSecret := existingSecret.Data[EnvCookieSecret]
 
 		if !hasClientSecret || !hasCookieSecret {
 			return "", "", errors.New("existing secret missing required keys")
@@ -196,6 +197,19 @@ func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationReques
 	return clientSecretValue, cookieSecretGen.Value, nil
 }
 
+// createSecretKeySelector creates a standard secret key selector for OAuth2 proxy environment variables.
+func createSecretKeySelector(key string) *corev1.EnvVarSource {
+	return &corev1.EnvVarSource{
+		SecretKeyRef: &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{
+				Name: KubeAuthProxySecretsName,
+			},
+			Key: key,
+		},
+	}
+}
+
+// deployKubeAuthProxy deploys the complete OAuth2 proxy infrastructure including secret, service and deployment.
 func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig, clientSecret, cookieSecret string, domain string) error {
 	l := logf.FromContext(ctx).WithName("deployAuthProxy")
 
@@ -228,32 +242,41 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	return nil
 }
 
+// getOIDCClientSecret retrieves the client secret from the referenced secret for OIDC configuration.
+func getOIDCClientSecret(ctx context.Context, client client.Client, oidcConfig *serviceApi.OIDCConfig) (string, error) {
+	secret := &corev1.Secret{}
+	err := client.Get(ctx, types.NamespacedName{
+		Name:      oidcConfig.ClientSecretRef.Name,
+		Namespace: GatewayNamespace,
+	}, secret)
+	if err != nil {
+		return "", fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
+			GatewayNamespace, oidcConfig.ClientSecretRef.Name, err)
+	}
+
+	key := oidcConfig.ClientSecretRef.Key
+	if key == "" {
+		key = DefaultClientSecretKey
+	}
+
+	if secretValue, exists := secret.Data[key]; exists {
+		return string(secretValue), nil
+	}
+
+	return "", fmt.Errorf("key '%s' not found in secret %s/%s",
+		key, GatewayNamespace, oidcConfig.ClientSecretRef.Name)
+}
+
 func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clientSecret, cookieSecret string, oidcConfig *serviceApi.OIDCConfig) error {
 	clientId := AuthClientID
 	clientSecretValue := clientSecret
 
 	if oidcConfig != nil {
 		clientId = oidcConfig.ClientID
-
-		secret := &corev1.Secret{}
-		err := rr.Client.Get(ctx, types.NamespacedName{
-			Name:      oidcConfig.ClientSecretRef.Name,
-			Namespace: GatewayNamespace,
-		}, secret)
+		var err error
+		clientSecretValue, err = getOIDCClientSecret(ctx, rr.Client, oidcConfig)
 		if err != nil {
-			return fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
-				GatewayNamespace, oidcConfig.ClientSecretRef.Name, err)
-		}
-
-		key := oidcConfig.ClientSecretRef.Key
-		if key == "" {
-			key = DefaultClientSecretKey
-		}
-		if secretValue, exists := secret.Data[key]; exists {
-			clientSecretValue = string(secretValue)
-		} else {
-			return fmt.Errorf("key '%s' not found in secret %s/%s",
-				key, GatewayNamespace, oidcConfig.ClientSecretRef.Name)
+			return err
 		}
 	}
 
@@ -269,9 +292,9 @@ func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationR
 		},
 		Type: corev1.SecretTypeOpaque,
 		StringData: map[string]string{
-			"OAUTH2_PROXY_CLIENT_ID":     clientId,
-			"OAUTH2_PROXY_CLIENT_SECRET": clientSecretValue,
-			"OAUTH2_PROXY_COOKIE_SECRET": cookieSecret,
+			EnvClientID:     clientId,
+			EnvClientSecret: clientSecretValue,
+			EnvCookieSecret: cookieSecret,
 		},
 	}
 
@@ -304,8 +327,7 @@ func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfi
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name: KubeAuthProxyName,
-							// TODO: replace with conflux kube auth proxy image
+							Name:  KubeAuthProxyName,
 							Image: KubeAuthProxyImage,
 							Ports: []corev1.ContainerPort{
 								{
@@ -319,39 +341,9 @@ func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfi
 							},
 							Args: buildOAuth2ProxyArgs(oidcConfig, domain),
 							Env: []corev1.EnvVar{
-								{
-									Name: "OAUTH2_PROXY_CLIENT_ID",
-									ValueFrom: &corev1.EnvVarSource{
-										SecretKeyRef: &corev1.SecretKeySelector{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: KubeAuthProxySecretsName,
-											},
-											Key: "OAUTH2_PROXY_CLIENT_ID",
-										},
-									},
-								},
-								{
-									Name: "OAUTH2_PROXY_CLIENT_SECRET",
-									ValueFrom: &corev1.EnvVarSource{
-										SecretKeyRef: &corev1.SecretKeySelector{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: KubeAuthProxySecretsName,
-											},
-											Key: "OAUTH2_PROXY_CLIENT_SECRET",
-										},
-									},
-								},
-								{
-									Name: "OAUTH2_PROXY_COOKIE_SECRET",
-									ValueFrom: &corev1.EnvVarSource{
-										SecretKeyRef: &corev1.SecretKeySelector{
-											LocalObjectReference: corev1.LocalObjectReference{
-												Name: KubeAuthProxySecretsName,
-											},
-											Key: "OAUTH2_PROXY_COOKIE_SECRET",
-										},
-									},
-								},
+								{Name: EnvClientID, ValueFrom: createSecretKeySelector(EnvClientID)},
+								{Name: EnvClientSecret, ValueFrom: createSecretKeySelector(EnvClientSecret)},
+								{Name: EnvCookieSecret, ValueFrom: createSecretKeySelector(EnvCookieSecret)},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -381,31 +373,43 @@ func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfi
 }
 
 func buildOAuth2ProxyArgs(oidcConfig *serviceApi.OIDCConfig, domain string) []string {
-	redirectURL := fmt.Sprintf("https://%s/oauth2/callback", domain)
-	baseArgs := []string{
+	// OAuth2 proxy acts as auth service only - no upstream needed
+	baseArgs := buildBaseOAuth2ProxyArgs(domain)
+
+	if oidcConfig != nil {
+		return append(baseArgs, buildOIDCArgs(oidcConfig)...)
+	}
+
+	return append(baseArgs, buildOpenShiftOAuthArgs()...)
+}
+
+func buildBaseOAuth2ProxyArgs(domain string) []string {
+	return []string{
 		fmt.Sprintf("--http-address=0.0.0.0:%d", AuthProxyHTTPPort),
 		"--email-domain=*",
-		"--upstream=static://200",
+		"--upstream=static://200", // Static response - real routing handled by EnvoyFilter
 		"--skip-provider-button",
 		"--pass-access-token=true",
 		"--set-xauthrequest=true",
-		"--redirect-url=" + redirectURL,
+		fmt.Sprintf("--redirect-url=https://%s/oauth2/callback", domain),
 	}
+}
 
-	if oidcConfig != nil {
-		return append(baseArgs, []string{
-			"--provider=oidc",
-			"--oidc-issuer-url=" + oidcConfig.IssuerURL,
-			"--ssl-insecure-skip-verify=true",
-		}...)
-	} else {
-		return append(baseArgs, []string{
-			"--provider=openshift",
-			"--scope=user:full",
-			"--tls-cert-file=" + TLSCertsMountPath + "/tls.crt",
-			"--tls-key-file=" + TLSCertsMountPath + "/tls.key",
-			fmt.Sprintf("--https-address=0.0.0.0:%d", AuthProxyHTTPSPort),
-		}...)
+func buildOIDCArgs(oidcConfig *serviceApi.OIDCConfig) []string {
+	return []string{
+		"--provider=oidc",
+		"--oidc-issuer-url=" + oidcConfig.IssuerURL,
+	}
+}
+
+func buildOpenShiftOAuthArgs() []string {
+	return []string{
+		"--provider=openshift",
+		"--scope=" + OpenShiftOAuthScope,
+		"--tls-cert-file=" + TLSCertsMountPath + "/tls.crt",
+		"--tls-key-file=" + TLSCertsMountPath + "/tls.key",
+		"--use-system-trust-store=true",
+		fmt.Sprintf("--https-address=0.0.0.0:%d", AuthProxyHTTPSPort),
 	}
 }
 
@@ -454,37 +458,72 @@ func createEnvoyFilter(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	return rr.AddResources(&unstructuredObjects[0])
 }
 
+// createOAuthClient creates an OpenShift OAuth client for integrated authentication.
 func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, clientSecret string) error {
-	clusterDomain, err := cluster.GetDomain(ctx, rr.Client)
-	if err != nil {
-		return fmt.Errorf("failed to get cluster domain: %w", err)
+	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
+	if !ok {
+		return errors.New("instance is not of type *services.GatewayConfig")
 	}
 
-	// Get platform-specific gateway name
-	redirectURL := fmt.Sprintf("https://%s.%s/oauth2/callback", DefaultGatewayName, clusterDomain)
+	// Use consistent domain resolution with the gateway
+	domain, err := ResolveDomain(ctx, rr.Client, gatewayConfig)
+	if err != nil {
+		return fmt.Errorf("failed to resolve domain: %w", err)
+	}
 
 	oauthClient := &oauthv1.OAuthClient{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: AuthClientID,
 		},
 		GrantMethod:  oauthv1.GrantHandlerAuto,
-		RedirectURIs: []string{redirectURL},
+		RedirectURIs: []string{fmt.Sprintf("https://%s/oauth2/callback", domain)},
 		Secret:       clientSecret,
 	}
 
 	return rr.AddResources(oauthClient)
 }
 
-func createOAuthCallbackRoute(rr *odhtypes.ReconciliationRequest) error {
-	// Get platform-specific gateway name
+// createHTTPRoute creates a common HTTPRoute with optional URL rewrite filter.
+func createHTTPRoute(routeName, path, serviceName, serviceNamespace string, port int32, urlRewrite *gwapiv1.HTTPURLRewriteFilter) *gwapiv1.HTTPRoute {
 	pathPrefix := gwapiv1.PathMatchPathPrefix
 	gatewayNS := gwapiv1.Namespace(GatewayNamespace)
-	port := gwapiv1.PortNumber(AuthProxyHTTPSPort)
-	path := AuthProxyOAuth2Path
+	servicePort := gwapiv1.PortNumber(port)
 
-	httpRoute := &gwapiv1.HTTPRoute{
+	rule := gwapiv1.HTTPRouteRule{
+		Matches: []gwapiv1.HTTPRouteMatch{
+			{
+				Path: &gwapiv1.HTTPPathMatch{
+					Type:  &pathPrefix,
+					Value: &path,
+				},
+			},
+		},
+		BackendRefs: []gwapiv1.HTTPBackendRef{
+			{
+				BackendRef: gwapiv1.BackendRef{
+					BackendObjectReference: gwapiv1.BackendObjectReference{
+						Name:      gwapiv1.ObjectName(serviceName),
+						Namespace: (*gwapiv1.Namespace)(&serviceNamespace),
+						Port:      &servicePort,
+					},
+				},
+			},
+		},
+	}
+
+	// Add URL rewrite filter if provided
+	if urlRewrite != nil {
+		rule.Filters = []gwapiv1.HTTPRouteFilter{
+			{
+				Type:       gwapiv1.HTTPRouteFilterURLRewrite,
+				URLRewrite: urlRewrite,
+			},
+		}
+	}
+
+	return &gwapiv1.HTTPRoute{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      OAuthCallbackRouteName,
+			Name:      routeName,
 			Namespace: GatewayNamespace,
 		},
 		Spec: gwapiv1.HTTPRouteSpec{
@@ -496,30 +535,19 @@ func createOAuthCallbackRoute(rr *odhtypes.ReconciliationRequest) error {
 					},
 				},
 			},
-			Rules: []gwapiv1.HTTPRouteRule{
-				{
-					Matches: []gwapiv1.HTTPRouteMatch{
-						{
-							Path: &gwapiv1.HTTPPathMatch{
-								Type:  &pathPrefix,
-								Value: &path,
-							},
-						},
-					},
-					BackendRefs: []gwapiv1.HTTPBackendRef{
-						{
-							BackendRef: gwapiv1.BackendRef{
-								BackendObjectReference: gwapiv1.BackendObjectReference{
-									Name: gwapiv1.ObjectName(KubeAuthProxyName),
-									Port: &port,
-								},
-							},
-						},
-					},
-				},
-			},
+			Rules: []gwapiv1.HTTPRouteRule{rule},
 		},
 	}
+}
 
+func createOAuthCallbackRoute(rr *odhtypes.ReconciliationRequest) error {
+	httpRoute := createHTTPRoute(
+		OAuthCallbackRouteName,
+		AuthProxyOAuth2Path,
+		KubeAuthProxyName,
+		GatewayNamespace,
+		AuthProxyHTTPSPort,
+		nil, // no URL rewrite for OAuth callback
+	)
 	return rr.AddResources(httpRoute)
 }

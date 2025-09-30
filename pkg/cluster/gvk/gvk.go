@@ -376,6 +376,24 @@ var (
 		Kind:    serviceApi.AuthKind,
 	}
 
+	HTTPRoute = schema.GroupVersionKind{
+		Group:   gwapiv1.GroupVersion.Group,
+		Version: gwapiv1.GroupVersion.Version,
+		Kind:    "HTTPRoute",
+	}
+
+	ReferenceGrant = schema.GroupVersionKind{
+		Group:   "gateway.networking.k8s.io",
+		Version: "v1beta1",
+		Kind:    "ReferenceGrant",
+	}
+
+	OAuthClient = schema.GroupVersionKind{
+		Group:   "oauth.openshift.io",
+		Version: "v1",
+		Kind:    "OAuthClient",
+	}
+
 	MultiKueueConfigV1Alpha1 = schema.GroupVersionKind{
 		Group:   "kueue.x-k8s.io",
 		Version: "v1alpha1",
