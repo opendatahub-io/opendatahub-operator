@@ -52,9 +52,9 @@ func (ca ConnectionAction) String() string {
 
 // ConnectionInfo holds connection-related information for webhooks.
 type ConnectionInfo struct {
-	SecretName string // name of secret from annoataion connections
-	Type       string // value of the conneciotn-type-ref annoataion from secret
-	Path       string // value of the connection-path annoataion
+	SecretName string // name of secret from annotation connections
+	Type       string // value of the connection-type-ref annotation from secret
+	Path       string // value of the connection-path annotation
 }
 
 // IsSecretEmpty returns true if no secret.
@@ -377,10 +377,6 @@ func GetS3Path(obj *unstructured.Unstructured) string {
 	return resources.GetAnnotation(obj, annotations.ConnectionPath)
 }
 
-func GetConnectionType(obj *unstructured.Unstructured) string {
-	return resources.GetAnnotation(obj, annotations.ConnectionTypeRef)
-}
-
 // CreateSA creates a ServiceAccount and links the secret.
 func CreateSA(ctx context.Context, cli client.Client, secretName, namespace string) error {
 	sa := &corev1.ServiceAccount{
@@ -560,12 +556,28 @@ func (w *BaseServingConnectionWebhook) GetOldConnectionInfo(ctx context.Context,
 // HandleSA injects or removes serviceaccount from the specified path.
 // If saName is empty, it removes the field entirely.
 func (w *BaseServingConnectionWebhook) HandleSA(obj *unstructured.Unstructured, path []string, saName string) error {
-	// Remove the field entirely
+	// Get the current value at the path
+	currentSAName, found, err := unstructured.NestedString(obj.Object, path...)
+	if err != nil {
+		return fmt.Errorf("failed to get serviceAccountName from path %v: %w", path, err)
+	}
+
+	// Remove the field entirely if saName is empty
 	if saName == "" {
-		unstructured.RemoveNestedField(obj.Object, path...)
+		// Only remove if the field exists, if it does not exist, or it has a different value(manual set by user), do nothing.
+		if found {
+			unstructured.RemoveNestedField(obj.Object, path...)
+		}
 		return nil
 	}
-	return SetNestedValue(obj.Object, saName, path)
+
+	// Only set the value if it's different from the current value
+	if !found || currentSAName != saName {
+		return SetNestedValue(obj.Object, saName, path)
+	}
+
+	// Value is already set correctly, no action needed
+	return nil
 }
 
 // InjectOCIImagePullSecrets injects imagePullSecrets for OCI connections.

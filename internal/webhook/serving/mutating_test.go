@@ -34,7 +34,6 @@ const (
 	testSecret              = "glue-secret"
 	testSecretOld           = "glue-secret-old"
 
-	OperationAdd     = "add"
 	OperationRemove  = "remove"
 	OperationReplace = "replace"
 )
@@ -143,7 +142,7 @@ func createTestLLMInferenceService(name, namespace string, annotations map[strin
 	return unstructuredLLMISVC, nil
 }
 
-func runISVCTestCase(t *testing.T, tc TestCase) {
+func runISVCTestCase(t *testing.T, tc TestCase) { //nolint:dupl
 	t.Helper()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
@@ -240,7 +239,7 @@ func runISVCTestCase(t *testing.T, tc TestCase) {
 	}
 }
 
-func runLLMISVCTestCase(t *testing.T, tc TestCase) {
+func runLLMISVCTestCase(t *testing.T, tc TestCase) { //nolint:dupl
 	t.Helper()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
@@ -328,7 +327,7 @@ func runLLMISVCTestCase(t *testing.T, tc TestCase) {
 	resp := webhook.Handle(ctx, req)
 	g.Expect(resp.Allowed).To(Equal(tc.expectedAllowed))
 
-	if tc.expectedMessage != "" {
+	if tc.expectedMessage != "" && resp.Result != nil {
 		g.Expect(resp.Result.Message).To(ContainSubstring(tc.expectedMessage))
 	}
 

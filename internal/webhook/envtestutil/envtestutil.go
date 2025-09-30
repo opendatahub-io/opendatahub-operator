@@ -452,12 +452,12 @@ func NewLLMInferenceService(name, namespace string, opts ...ObjectOption) client
 	// this is set in case HWprofile require resource changes, it is not necessary for Connection API
 	containers := []interface{}{
 		map[string]interface{}{
-			"name":  "llm-cpu",
-			"image": "kserve/llm-cpu:latest",
+			"name":  "llm-container",
+			"image": "kserve/llm-container:latest",
 		},
 	}
 	if err := unstructured.SetNestedSlice(llmInferenceService.Object, containers, "spec", "template", "containers"); err != nil {
-		panic(fmt.Sprintf("failed to set LLMInference service containers: %v", err))
+		panic(fmt.Sprintf("failed to set LLMInferenceservice containers: %v", err))
 	}
 
 	for _, opt := range opts {
