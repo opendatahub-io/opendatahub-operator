@@ -28,6 +28,7 @@ import (
 // ComponentTestCtx holds the context for component tests.
 type ComponentTestCtx struct {
 	*TestContext
+
 	// Any additional fields specific to component tests
 	GVK            schema.GroupVersionKind
 	NamespacedName types.NamespacedName
