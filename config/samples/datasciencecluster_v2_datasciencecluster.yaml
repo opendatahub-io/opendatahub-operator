@@ -22,15 +22,6 @@ spec:
         managementState: "Managed"
       },
       rawDeploymentServiceConfig: "Headed",
-      serving: {
-        ingressGateway: {
-          certificate: {
-            type: OpenshiftDefaultIngress
-          }
-        },
-        name: "knative-serving",
-        managementState: "Unmanaged"
-      }
     }
     modelmeshserving:
       managementState: "Managed"

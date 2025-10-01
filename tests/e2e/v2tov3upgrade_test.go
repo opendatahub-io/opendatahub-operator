@@ -17,6 +17,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -32,6 +33,7 @@ import (
 
 const (
 	defaultCodeFlareComponentName = "default-codeflare"
+	defaultServiceMeshName        = "default-servicemesh"
 	testDSCV1Name                 = "test-dsc-v1-upgrade"
 	testDSCIV1Name                = "test-dsci-v1-upgrade"
 )
@@ -55,6 +57,7 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"codeflare present in the cluster before upgrade, after upgrade not removed", v2Tov3UpgradeTestCtx.ValidateCodeFlareResourcePreservation},
 		{"ray raise error if codeflare component present in the cluster", v2Tov3UpgradeTestCtx.ValidateRayRaiseErrorIfCodeFlarePresent},
+		{"servicemesh present in the cluster before upgrade, after upgrade not removed", v2Tov3UpgradeTestCtx.ValidateServiceMeshResourcePreservation},
 	}
 
 	// Run the test suite.
@@ -86,6 +89,30 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateCodeFlareResourcePreservation(t *testing
 	t.Helper()
 
 	tc.ValidateComponentResourcePreservation(t, gvk.CodeFlare, defaultCodeFlareComponentName)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) ValidateServiceMeshResourcePreservation(t *testing.T) {
+	t.Helper()
+
+	nn := types.NamespacedName{
+		Name: defaultServiceMeshName,
+	}
+
+	dsci := tc.FetchDSCInitialization()
+
+	tc.createOperatorManagedServiceMesh(defaultServiceMeshName, dsci)
+
+	tc.triggerDSCIReconciliation(t)
+
+	// verify ServiceMesh still exists after reconciliation
+	tc.EnsureResourceExistsConsistently(WithMinimalObject(gvk.ServiceMesh, nn),
+		WithCustomErrorMsg("ServiceMesh service resource '%s' was expected to exist but was not found", defaultServiceMeshName),
+	)
+
+	tc.DeleteResource(
+		WithMinimalObject(gvk.ServiceMesh, nn),
+		WithWaitForDeletion(true),
+	)
 }
 
 func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T) {
@@ -371,5 +398,43 @@ func (tc *V2Tov3UpgradeTestCtx) updateComponentStateInDataScienceCluster(t *test
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(kind), managementState)),
+	)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedServiceMesh(serviceMeshName string, dsci *dsciv2.DSCInitialization) {
+	existingServiceMesh := resources.GvkToUnstructured(gvk.ServiceMesh)
+	existingServiceMesh.SetName(serviceMeshName)
+
+	resources.SetLabels(existingServiceMesh, map[string]string{
+		labels.PlatformPartOf: strings.ToLower(gvk.DSCInitialization.Kind),
+	})
+
+	resources.SetAnnotations(existingServiceMesh, map[string]string{
+		odhAnnotations.ManagedByODHOperator: "true",
+		odhAnnotations.PlatformVersion:      dsci.Status.Release.Version.String(),
+		odhAnnotations.PlatformType:         string(dsci.Status.Release.Name),
+		odhAnnotations.InstanceGeneration:   strconv.Itoa(int(dsci.GetGeneration())),
+		odhAnnotations.InstanceUID:          string(dsci.GetUID()),
+	})
+
+	err := controllerutil.SetOwnerReference(dsci, existingServiceMesh, tc.Scheme())
+	tc.g.Expect(err).NotTo(HaveOccurred(),
+		"Failed to set owner reference from DSCInitialization '%s' to ServiceMesh service '%s'",
+		dsci.GetName(), serviceMeshName)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(existingServiceMesh),
+		WithCustomErrorMsg("Failed to create existing ServiceMesh service for preservation test"),
+	)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) triggerDSCIReconciliation(t *testing.T) {
+	t.Helper()
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.applicationsNamespace = "%s"`, tc.AppsNamespace)),
+		WithCondition(jq.Match(`.metadata.generation == .status.observedGeneration`)),
+		WithCustomErrorMsg("Failed to trigger DSCI reconciliation"),
 	)
 }
