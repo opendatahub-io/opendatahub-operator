@@ -13,6 +13,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+//nolint:unused
 const (
 	gatewayName          = "odh-gateway"
 	gatewayClassName     = "odh-gateway-class"
@@ -47,7 +48,7 @@ var (
 	}
 )
 
-func gatewayTestSuite(t *testing.T) {
+func gatewayTestSuite(t *testing.T) { //nolint:unused
 	t.Helper()
 	ctx, err := NewTestContext(t)
 	if err != nil {
@@ -59,7 +60,7 @@ func gatewayTestSuite(t *testing.T) {
 	})
 }
 
-func validateGatewayCreation(t *testing.T, ctx *TestContext) {
+func validateGatewayCreation(t *testing.T, ctx *TestContext) { //nolint:unused
 	t.Helper()
 
 	t.Log("Validating Gateway service and API resources creation")
