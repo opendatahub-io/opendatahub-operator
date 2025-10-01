@@ -13,7 +13,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -382,8 +382,8 @@ func TestArgoWorkflowsControllersOptions(t *testing.T) {
 				Client:     cli,
 				Instance:   tt.instance,
 				Conditions: conditions.NewManager(tt.instance, "Ready"),
-				DSCI: &dsciv1.DSCInitialization{
-					Spec: dsciv1.DSCInitializationSpec{
+				DSCI: &dsciv2.DSCInitialization{
+					Spec: dsciv2.DSCInitializationSpec{
 						ApplicationsNamespace: "test-namespace",
 					},
 				},

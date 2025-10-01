@@ -10,14 +10,34 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-datasciencecluster
+      path: /mutate-datasciencecluster-v1
   failurePolicy: Fail
-  name: datasciencecluster-defaulter.opendatahub.io
+  name: datasciencecluster-v1-defaulter.opendatahub.io
   rules:
   - apiGroups:
     - datasciencecluster.opendatahub.io
     apiVersions:
     - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - datascienceclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-datasciencecluster-v2
+  failurePolicy: Fail
+  name: datasciencecluster-v2-defaulter.opendatahub.io
+  rules:
+  - apiGroups:
+    - datasciencecluster.opendatahub.io
+    apiVersions:
+    - v2
     operations:
     - CREATE
     - UPDATE
@@ -90,6 +110,26 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /platform-connection-notebook
+  failurePolicy: Fail
+  name: connection-notebook.opendatahub.io
+  rules:
+  - apiGroups:
+    - kubeflow.org
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - notebooks
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /platform-connection-isvc
   failurePolicy: Fail
   name: connection-isvc.opendatahub.io
@@ -110,20 +150,20 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /platform-connection-notebook
+      path: /platform-connection-llmisvc
   failurePolicy: Fail
-  name: connection-notebook.opendatahub.io
+  name: connection-llmisvc.opendatahub.io
   rules:
   - apiGroups:
-    - kubeflow.org
+    - serving.kserve.io
     apiVersions:
-    - v1
+    - v1alpha1
     operations:
     - CREATE
     - UPDATE
     resources:
-    - notebooks
-  sideEffects: None
+    - llminferenceservices
+  sideEffects: NoneOnDryRun
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -136,9 +176,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-datasciencecluster
+      path: /validate-datasciencecluster-v1
   failurePolicy: Fail
-  name: datasciencecluster-validator.opendatahub.io
+  name: datasciencecluster-v1-validator.opendatahub.io
   rules:
   - apiGroups:
     - datasciencecluster.opendatahub.io
@@ -155,14 +195,53 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-dscinitialization
+      path: /validate-datasciencecluster-v2
   failurePolicy: Fail
-  name: dscinitialization-validator.opendatahub.io
+  name: datasciencecluster-v2-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - datasciencecluster.opendatahub.io
+    apiVersions:
+    - v2
+    operations:
+    - CREATE
+    resources:
+    - datascienceclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-dscinitialization-v1
+  failurePolicy: Fail
+  name: dscinitialization-v1-validator.opendatahub.io
   rules:
   - apiGroups:
     - dscinitialization.opendatahub.io
     apiVersions:
     - v1
+    operations:
+    - CREATE
+    - DELETE
+    resources:
+    - dscinitializations
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-dscinitialization-v2
+  failurePolicy: Fail
+  name: dscinitialization-v2-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - dscinitialization.opendatahub.io
+    apiVersions:
+    - v2
     operations:
     - CREATE
     - DELETE
