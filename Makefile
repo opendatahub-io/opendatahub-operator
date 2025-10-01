@@ -20,7 +20,7 @@ IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 IMAGE_BUILDER ?= podman
-OPERATOR_NAMESPACE ?= redhat-ods-operator
+OPERATOR_NAMESPACE ?= opendatahub-operator-system
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
 CGO_ENABLED ?= 1
 CHANNELS="alpha,stable,fast"

@@ -555,7 +555,7 @@ func debugOperatorStatus() {
 	// Check main operator deployment
 	operatorDeploy := &appsv1.Deployment{}
 	err := globalDebugClient.Get(context.TODO(),
-		types.NamespacedName{Name: controllerDeploymentRhoai, Namespace: testOpts.operatorNamespace},
+		types.NamespacedName{Name: controllerDeploymentODH, Namespace: testOpts.operatorNamespace},
 		operatorDeploy)
 
 	if err != nil {
