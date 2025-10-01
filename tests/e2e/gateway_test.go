@@ -15,7 +15,6 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-//nolint:unused
 const (
 	gatewayName          = "odh-gateway"
 	gatewayClassName     = "odh-gateway-class"
