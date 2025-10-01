@@ -298,6 +298,7 @@ func (tc *MonitoringTestCtx) ValidateCELAllowsValidMonitoringConfigs(t *testing.
 				withManagementState(operatorv1.Managed),
 				withEmptyMetrics(),
 				withNoAlerting(),
+				withNoCollectorReplicas(),
 			),
 			description: "Empty metrics should be allowed without alerting",
 		},
