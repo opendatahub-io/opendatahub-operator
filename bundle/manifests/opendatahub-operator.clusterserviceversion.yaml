@@ -113,7 +113,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v2.35.0
-    createdAt: "2025-10-01T11:00:49Z"
+    createdAt: "2025-10-01T13:12:27Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -1472,12 +1472,12 @@ spec:
           - patch
           - update
           - watch
-        serviceAccountName: controller-manager
+        serviceAccountName: opendatahub-operator-controller-manager
       deployments:
       - label:
           control-plane: controller-manager
           name: opendatahub-operator
-        name: controller-manager
+        name: opendatahub-operator-controller-manager
         spec:
           replicas: 3
           selector:
@@ -1568,7 +1568,7 @@ spec:
                   readOnly: true
               securityContext:
                 runAsNonRoot: true
-              serviceAccountName: controller-manager
+              serviceAccountName: opendatahub-operator-controller-manager
               terminationGracePeriodSeconds: 10
               volumes:
               - name: cert
@@ -1621,7 +1621,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: controller-manager
+    deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: connection-isvc.opendatahub.io
     rules:
@@ -1641,7 +1641,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: controller-manager
+    deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: connection-notebook.opendatahub.io
     rules:
@@ -1661,7 +1661,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: controller-manager
+    deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: datasciencecluster-defaulter.opendatahub.io
     rules:
@@ -1681,7 +1681,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: controller-manager
+    deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: datasciencecluster-validator.opendatahub.io
     rules:
@@ -1700,7 +1700,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: controller-manager
+    deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: dscinitialization-validator.opendatahub.io
     rules:
@@ -1720,7 +1720,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: controller-manager
+    deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: hardwareprofile-kserve-injector.opendatahub.io
     rules:
@@ -1740,7 +1740,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: controller-manager
+    deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: hardwareprofile-notebook-injector.opendatahub.io
     rules:
@@ -1760,7 +1760,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: controller-manager
+    deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: kserve-kueuelabels-validator.opendatahub.io
     rules:
@@ -1780,7 +1780,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: controller-manager
+    deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: kubeflow-kueuelabels-validator.opendatahub.io
     rules:
@@ -1801,7 +1801,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: controller-manager
+    deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: ray-kueuelabels-validator.opendatahub.io
     rules:
