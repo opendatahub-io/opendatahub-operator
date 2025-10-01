@@ -99,7 +99,6 @@ const (
 	ConditionServiceMeshAvailable            = "ServiceMeshAvailable"
 	ConditionArgoWorkflowAvailable           = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady             = "ComponentsReady"
-	ConditionServingAvailable                = "ServingAvailable"
 	ConditionMonitoringAvailable             = "MonitoringAvailable"
 	ConditionMonitoringStackAvailable        = "MonitoringStackAvailable"
 	ConditionTempoAvailable                  = "TempoAvailable"
@@ -110,9 +109,7 @@ const (
 )
 
 const (
-	CapabilityServiceMesh              string = "CapabilityServiceMesh"
-	CapabilityServiceMeshAuthorization string = "CapabilityServiceMeshAuthorization"
-	CapabilityDSPv2Argo                string = "CapabilityDSPv2Argo"
+	CapabilityDSPv2Argo string = "CapabilityDSPv2Argo"
 )
 
 const (
@@ -134,22 +131,6 @@ const (
 
 const (
 	ReadySuffix = "Ready"
-)
-
-const (
-	ServiceMeshNotConfiguredReason   = "ServiceMeshNotConfigured"
-	ServiceMeshNotReadyReason        = "ServiceMeshNotReady"
-	ServiceMeshNeedConfiguredMessage = "ServiceMesh needs to be set to 'Managed' in DSCI CR"
-	ServiceMeshNotConfiguredMessage  = "ServiceMesh is not configured in DSCI CR"
-	ServiceMeshNotReadyMessage       = "ServiceMesh is not ready"
-
-	ServiceMeshOperatorNotInstalledReason  = "ServiceMeshOperatorNotInstalled"
-	ServiceMeshOperatorNotInstalledMessage = "ServiceMesh operator must be installed for this component's configuration"
-
-	ServerlessOperatorNotInstalledReason  = "ServerlessOperatorNotInstalled"
-	ServerlessOperatorNotInstalledMessage = "Serverless operator must be installed for this component's configuration"
-
-	ServerlessUnsupportedCertMessage = "Serverless certificate type is not supported"
 )
 
 const (

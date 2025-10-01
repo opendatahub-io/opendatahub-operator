@@ -82,24 +82,6 @@ func TestServiceTypesConformToPlatformObject(t *testing.T) {
 				},
 			},
 		},
-		{
-			name: "ServiceMesh",
-			instance: &ServiceMesh{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "servicemesh",
-				},
-				Spec: ServiceMeshSpec{
-					ControlPlane: ServiceMeshControlPlaneSpec{
-						Namespace: "istio-system",
-					},
-				},
-				Status: ServiceMeshStatus{
-					Status: common.Status{
-						Phase: "Ready",
-					},
-				},
-			},
-		},
 	}
 
 	for _, tt := range tests {
