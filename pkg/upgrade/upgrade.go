@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/yaml"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -40,6 +42,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -50,6 +53,19 @@ type ResourceSpec struct {
 	Path []string
 	// set of values for the field to match object, any one matches
 	Values []string
+}
+
+const (
+	defaultMinMemory       = "1Mi"
+	defaultMinCpu          = "1"
+	odhDashboardConfigPath = "/dashboard/rhoai/shared/odhdashboardconfig/odhdashboardconfig.yaml"
+)
+
+var defaultResourceLimits = map[string]string{
+	"maxMemory": "120Gi",
+	"minMemory": "8Gi",
+	"maxCpu":    "30",
+	"minCpu":    "1",
 }
 
 // CreateDefaultDSC creates a default instance of DSC.
@@ -657,16 +673,20 @@ func cleanupDeprecatedKueueVAPB(ctx context.Context, cli client.Client) error {
 	return nil
 }
 
-const (
-	notebooksProfileType = "notebooks"
-)
+const notebooksProfileType = "notebooks"
 
 func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string) error {
 	var multiErr *multierror.Error
+	log := logf.FromContext(ctx)
 
 	// Get OdhDashboardConfig to extract container sizes
-	odhConfig, err := getOdhDashboardConfig(ctx, cli, applicationNS)
+	odhConfig, err := GetOdhDashboardConfig(ctx, cli, applicationNS)
 	if err != nil {
+		// Check if the error indicates that OdhDashboardConfig was not found anywhere
+		if strings.Contains(err.Error(), "not found in cluster or manifests") {
+			log.Info("OdhDashboardConfig not found, skipping HardwareProfile migration")
+			return nil
+		}
 		return fmt.Errorf("failed to get OdhDashboardConfig: %w", err)
 	}
 
@@ -675,9 +695,6 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 
 	// 2. Create 1 HWP for each container size (notebook and model server sizes)
 	multiErr = multierror.Append(multiErr, MigrateContainerSizesToHardwareProfiles(ctx, cli, applicationNS, odhConfig))
-
-	// 3. Create special HWP for InferenceServices without AP/container size
-	multiErr = multierror.Append(multiErr, CreateSpecialHardwareProfile(ctx, cli, applicationNS))
 
 	return multiErr.ErrorOrNil()
 }
@@ -691,7 +708,7 @@ func MigrateAcceleratorProfilesToHardwareProfiles(ctx context.Context, cli clien
 	if err != nil {
 		return fmt.Errorf("failed to get AcceleratorProfile list: %w", err)
 	}
-	if apList == nil || len(apList.Items) == 0 {
+	if len(apList) == 0 {
 		log.Info("No AcceleratorProfiles found, skipping migration")
 		return nil
 	}
@@ -716,15 +733,15 @@ func MigrateAcceleratorProfilesToHardwareProfiles(ctx context.Context, cli clien
 	var multiErr *multierror.Error
 
 	// Create 2 HWPs for each AcceleratorProfile
-	for _, ap := range apList.Items {
+	for _, ap := range apList {
 		// Create notebooks HWP
-		if err := createHardwareProfileFromAcceleratorProfile(cli, ctx, ap, "notebooks", notebookContainerCounts, notebooksOnlyToleration); err != nil {
+		if err := createHardwareProfileFromAcceleratorProfile(ctx, cli, ap, "notebooks", notebookContainerCounts, notebooksOnlyToleration); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create notebooks HWP for AP %s: %w", ap.GetName(), err))
 			continue
 		}
 
 		// Create serving HWP
-		if err := createHardwareProfileFromAcceleratorProfile(cli, ctx, ap, "serving", servingContainerCounts, nil); err != nil {
+		if err := createHardwareProfileFromAcceleratorProfile(ctx, cli, ap, "serving", servingContainerCounts, nil); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create serving HWP for AP %s: %w", ap.GetName(), err))
 			continue
 		}
@@ -733,12 +750,11 @@ func MigrateAcceleratorProfilesToHardwareProfiles(ctx context.Context, cli clien
 	return multiErr.ErrorOrNil()
 }
 
-func createHardwareProfileFromAcceleratorProfile(cli client.Client, ctx context.Context,
+func createHardwareProfileFromAcceleratorProfile(ctx context.Context, cli client.Client,
 	ap unstructured.Unstructured, profileType string, containerCounts map[string]string,
 	toleration []corev1.Toleration) error {
-	log := logf.FromContext(ctx)
 	apName := ap.GetName()
-	hwp, err := generateHardwareProfileFromAcceleratorProfile(ap, profileType, containerCounts, toleration)
+	hwp, err := generateHardwareProfileFromAcceleratorProfile(ctx, ap, profileType, containerCounts, toleration)
 	if err != nil {
 		return fmt.Errorf("failed to generate %s HardwareProfile for AcceleratorProfile '%s' (profileType: %s): %w", profileType, apName, profileType, err)
 	}
@@ -746,18 +762,12 @@ func createHardwareProfileFromAcceleratorProfile(cli client.Client, ctx context.
 	if err := cli.Create(ctx, hwp); err != nil {
 		if !k8serr.IsAlreadyExists(err) {
 			return fmt.Errorf("failed to create %s HardwareProfile '%s' for AcceleratorProfile '%s' (profileType: %s): %w", profileType, hwp.GetName(), apName, profileType, err)
-		} else {
-			log.Info(fmt.Sprintf("%s HardwareProfile already exists for AcceleratorProfile", profileType),
-				"hardwareProfileName", hwp.GetName(), "acceleratorProfileName", apName, "profileType", profileType)
 		}
-	} else {
-		log.Info(fmt.Sprintf("%s HardwareProfile created for AcceleratorProfile", profileType),
-			"hardwareProfileName", hwp.GetName(), "acceleratorProfileName", apName, "profileType", profileType)
 	}
 	return nil
 }
 
-func getAcceleratorProfiles(ctx context.Context, cli client.Client, applicationNS string) (*unstructured.UnstructuredList, error) {
+func getAcceleratorProfiles(ctx context.Context, cli client.Client, applicationNS string) ([]unstructured.Unstructured, error) {
 	apList := &unstructured.UnstructuredList{}
 	apList.SetGroupVersionKind(gvk.DashboardAcceleratorProfile)
 	err := cli.List(ctx, apList, client.InNamespace(applicationNS))
@@ -765,9 +775,9 @@ func getAcceleratorProfiles(ctx context.Context, cli client.Client, applicationN
 		if meta.IsNoMatchError(err) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("failed to get AcceleratorProfile list: %w", err)
 	}
-	return apList, nil
+	return apList.Items, nil
 }
 
 // MigrateContainerSizesToHardwareProfiles migrates container sizes to HardwareProfiles
@@ -812,233 +822,180 @@ func MigrateContainerSizesToHardwareProfiles(ctx context.Context, cli client.Cli
 
 func createHardwareProfileFromContainerSize(ctx context.Context, cli client.Client, size ContainerSize,
 	sizeType string, notebooksOnlyToleration []corev1.Toleration, applicationNS string) error {
-	log := logf.FromContext(ctx)
-
-	hwp := generateHardwareProfileFromContainerSize(size, sizeType, notebooksOnlyToleration, applicationNS)
+	hwp := generateHardwareProfileFromContainerSize(ctx, size, sizeType, notebooksOnlyToleration, applicationNS)
 
 	if err := cli.Create(ctx, hwp); err != nil {
 		if !k8serr.IsAlreadyExists(err) {
 			return fmt.Errorf("failed to create HardwareProfile resource '%s' for container size '%s' "+
 				"(profileType: %s, namespace: %s): %w", hwp.GetName(), size.Name, sizeType, applicationNS, err)
-		} else {
-			log.Info("HardwareProfile already exists",
-				"hardwareProfileName", hwp.GetName(),
-				"containerSize", size.Name,
-				"profileType", sizeType,
-				"namespace", applicationNS,
-			)
 		}
-	} else {
-		log.Info("Successfully created HardwareProfile",
-			"hardwareProfileName", hwp.GetName(),
-			"containerSize", size.Name,
-			"profileType", sizeType,
-			"namespace", applicationNS,
-		)
 	}
 	return nil
 }
 
-// CreateSpecialHardwareProfile creates the special HWP for InferenceServices
-// without associated AcceleratorProfile or container size as described in RHOAIENG-33158.
-func CreateSpecialHardwareProfile(ctx context.Context, cli client.Client, applicationNS string) error {
+// loadOdhDashboardConfigFromManifests attempts to load OdhDashboardConfig from manifest files.
+// It searches for manifest files in the expected locations and returns the first valid OdhDashboardConfig found.
+func loadOdhDashboardConfigFromManifests(ctx context.Context) (*unstructured.Unstructured, bool, error) {
 	log := logf.FromContext(ctx)
 
-	specialHWP := &infrav1.HardwareProfile{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: infrav1.GroupVersion.String(),
-			Kind:       "HardwareProfile",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "custom-serving",
-			Namespace: applicationNS,
-			Annotations: map[string]string{
-				"opendatahub.io/dashboard-feature-visibility": "model-serving",
-				"opendatahub.io/modified-date":                time.Now().Format(time.RFC3339),
-				"opendatahub.io/display-name":                 "custom-serving",
-				"opendatahub.io/description":                  "",
-				"opendatahub.io/disabled":                     "false",
-			},
-		},
-		Spec: infrav1.HardwareProfileSpec{
-			Identifiers: []infrav1.HardwareIdentifier{
-				{
-					Identifier:   "cpu",
-					DisplayName:  "cpu",
-					ResourceType: "CPU",
-					MinCount:     intstr.FromString("1"),
-					DefaultCount: intstr.FromString("1"),
-				},
-				{
-					Identifier:   "memory",
-					DisplayName:  "memory",
-					ResourceType: "Memory",
-					MinCount:     intstr.FromString("1Gi"),
-					DefaultCount: intstr.FromString("1Gi"),
-				},
-			},
-		},
-	}
+	manifestPath := deploy.DefaultManifestPath + odhDashboardConfigPath
+	_, err := os.Stat(manifestPath)
+	if err == nil {
+		log.Info("Found OdhDashboardConfig manifest", "path", manifestPath)
 
-	if err := cli.Create(ctx, specialHWP); err != nil {
-		if !k8serr.IsAlreadyExists(err) {
-			return fmt.Errorf("failed to create special HWP: %w", err)
+		// Read the manifest file
+		content, err := os.ReadFile(manifestPath)
+		if err != nil {
+			log.Error(err, "Failed to read manifest file", "path", manifestPath)
+			return nil, false, err
 		}
-		log.Info("Special HWP already exists", "name", specialHWP.GetName())
-	} else {
-		log.Info("Created special HWP", "name", specialHWP.GetName())
-	}
 
-	return nil
+		// Parse the YAML content
+		var obj unstructured.Unstructured
+		if err := yaml.Unmarshal(content, &obj); err != nil {
+			log.Error(err, "Failed to parse manifest YAML", "path", manifestPath)
+			return nil, false, err
+		}
+
+		// Verify it's an OdhDashboardConfig
+		if obj.GetKind() == "OdhDashboardConfig" {
+			log.Info("Successfully loaded OdhDashboardConfig from manifest", "path", manifestPath)
+			return &obj, true, nil
+		}
+	}
+	return nil, false, err
 }
 
-// Helper functions for HardwareProfile migration
-
-func getOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS string) (*unstructured.Unstructured, error) {
+func GetOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS string) (*unstructured.Unstructured, error) {
+	log := logf.FromContext(ctx)
 	odhConfig := &unstructured.Unstructured{}
 	odhConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
 
-	// Try to get the OdhDashboardConfig
+	// Try to get the OdhDashboardConfig from cluster first
 	err := cli.Get(ctx, client.ObjectKey{Name: "odh-dashboard-config", Namespace: applicationNS}, odhConfig)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		log.Info("Found OdhDashboardConfig in cluster")
+		return odhConfig, nil
 	}
 
-	return odhConfig, nil
+	// If not found in cluster, check if it's a "not found" error
+	if !k8serr.IsNotFound(err) {
+		return nil, fmt.Errorf("failed to get OdhDashboardConfig from cluster: %w", err)
+	}
+
+	log.Info("OdhDashboardConfig not found in cluster, attempting to load from manifests")
+
+	// Try to load from manifests
+	manifestConfig, found, err := loadOdhDashboardConfigFromManifests(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load OdhDashboardConfig from manifests: %w", err)
+	}
+
+	if !found {
+		return nil, errors.New("OdhDashboardConfig not found in cluster or manifests - skipping migration")
+	}
+
+	log.Info("Successfully loaded OdhDashboardConfig from manifests")
+	return manifestConfig, nil
 }
 
 func CalculateContainerResourceLimits(odhConfig *unstructured.Unstructured, sizeType string) (map[string]string, error) {
 	containerSizes, err := getContainerSizes(odhConfig, sizeType)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get container sizes for %s: %w", sizeType, err)
 	}
 
 	if len(containerSizes) == 0 {
-		return getDefaultResourceLimits(), nil
+		return defaultResourceLimits, nil
 	}
 
-	return calculateResourceLimitsFromSizes(containerSizes), nil
-}
-
-// getDefaultResourceLimits returns default resource limits when no container sizes are found.
-func getDefaultResourceLimits() map[string]string {
-	return map[string]string{
-		"maxMemory": "120Gi",
-		"minMemory": "8Gi",
-		"maxCpu":    "30",
-		"minCpu":    "1",
+	limits, err := CalculateResourceLimitsFromSizes(containerSizes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate resource limits from container sizes: %w", err)
 	}
+
+	return limits, nil
 }
 
 // calculateResourceLimitsFromSizes processes container sizes and calculates min/max resource limits.
-func calculateResourceLimitsFromSizes(containerSizes []ContainerSize) map[string]string {
-	limits := &resourceLimits{}
+func CalculateResourceLimitsFromSizes(containerSizes []ContainerSize) (map[string]string, error) {
+	var maxMemory, minMemory, maxCpu, minCpu resource.Quantity
+
+	var multiErr *multierror.Error
 
 	for _, size := range containerSizes {
-		limits.updateMemoryLimits(size.Resources.Requests.Memory, size.Resources.Limits.Memory)
-		limits.updateCpuLimits(size.Resources.Requests.Cpu, size.Resources.Limits.Cpu)
-	}
-
-	return limits.toMap()
-}
-
-// resourceLimits holds the calculated min/max resource values.
-type resourceLimits struct {
-	maxMemory, minMemory string
-	maxCpu, minCpu       string
-}
-
-// updateMemoryLimits updates memory limits based on request and limit values.
-func (r *resourceLimits) updateMemoryLimits(requestMemory, limitMemory string) {
-	candidateMax := selectMaxResource(requestMemory, limitMemory, CompareMemory)
-	if candidateMax != "" {
-		r.maxMemory = selectMaxFromCandidates(r.maxMemory, candidateMax, CompareMemory)
-	}
-
-	candidateMin := selectMinResource(requestMemory, limitMemory, CompareMemory)
-	if candidateMin != "" {
-		r.minMemory = selectMinFromCandidates(r.minMemory, candidateMin, CompareMemory)
-	}
-}
-
-// updateCpuLimits updates CPU limits based on request and limit values.
-func (r *resourceLimits) updateCpuLimits(requestCpu, limitCpu string) {
-	candidateMax := selectMaxResource(requestCpu, limitCpu, CompareCpu)
-	if candidateMax != "" {
-		r.maxCpu = selectMaxFromCandidates(r.maxCpu, candidateMax, CompareCpu)
-	}
-
-	candidateMin := selectMinResource(requestCpu, limitCpu, CompareCpu)
-	if candidateMin != "" {
-		r.minCpu = selectMinFromCandidates(r.minCpu, candidateMin, CompareCpu)
-	}
-}
-
-// toMap converts resourceLimits to a map, applying defaults for missing values.
-func (r *resourceLimits) toMap() map[string]string {
-	if r.minMemory == "" {
-		r.minMemory = "1Mi"
-	}
-	if r.minCpu == "" {
-		r.minCpu = "1"
-	}
-
-	return map[string]string{
-		"maxMemory": r.maxMemory,
-		"minMemory": r.minMemory,
-		"maxCpu":    r.maxCpu,
-		"minCpu":    r.minCpu,
-	}
-}
-
-// selectMaxResource selects the maximum value between request and limit.
-func selectMaxResource(request, limit string, compareFunc func(string, string) int) string {
-	switch {
-	case request != "" && limit != "":
-		if compareFunc(request, limit) > 0 {
-			return request
+		ReqMem, ReqCpu, LimitMem, LimitCpu, err := parseCpuMemoryResourceQuantity(size)
+		if err != nil {
+			multiErr = multierror.Append(multiErr, err)
+			continue
 		}
-		return limit
-	case request != "":
-		return request
-	case limit != "":
-		return limit
-	default:
-		return ""
-	}
-}
-
-// selectMinResource selects the minimum value between request and limit.
-func selectMinResource(request, limit string, compareFunc func(string, string) int) string {
-	switch {
-	case request != "" && limit != "":
-		if compareFunc(request, limit) < 0 {
-			return request
+		// minMemory is the smallest request memory
+		if minMemory.IsZero() || minMemory.Cmp(ReqMem) > 0 {
+			minMemory = ReqMem
 		}
-		return limit
-	case request != "":
-		return request
-	case limit != "":
-		return limit
-	default:
-		return ""
+		// minCpu is the smallest request cpu
+		if minCpu.IsZero() || minCpu.Cmp(ReqCpu) > 0 {
+			minCpu = ReqCpu
+		}
+		// maxMemory is the largest limit memory
+		if maxMemory.IsZero() || maxMemory.Cmp(LimitMem) < 0 {
+			maxMemory = LimitMem
+		}
+		// maxCpu is the largest limit cpu
+		if maxCpu.IsZero() || maxCpu.Cmp(LimitCpu) < 0 {
+			maxCpu = LimitCpu
+		}
 	}
+
+	if multiErr.ErrorOrNil() != nil {
+		return nil, multiErr.ErrorOrNil()
+	}
+
+	// Apply defaults if no values found
+	result := make(map[string]string)
+
+	if minMemory.IsZero() {
+		minMemory = resource.MustParse(defaultMinMemory)
+	}
+	if minCpu.IsZero() {
+		minCpu = resource.MustParse(defaultMinCpu)
+	}
+
+	result["minMemory"] = minMemory.String()
+	result["minCpu"] = minCpu.String()
+
+	if !maxMemory.IsZero() {
+		result["maxMemory"] = maxMemory.String()
+	}
+	if !maxCpu.IsZero() {
+		result["maxCpu"] = maxCpu.String()
+	}
+
+	return result, nil
 }
 
-// selectMaxFromCandidates selects the maximum between existing and candidate values.
-func selectMaxFromCandidates(existing, candidate string, compareFunc func(string, string) int) string {
-	if existing == "" || compareFunc(candidate, existing) > 0 {
-		return candidate
-	}
-	return existing
-}
+func parseCpuMemoryResourceQuantity(size ContainerSize) (resource.Quantity, resource.Quantity, resource.Quantity, resource.Quantity, *multierror.Error) {
+	var multiErr *multierror.Error
 
-// selectMinFromCandidates selects the minimum between existing and candidate values.
-func selectMinFromCandidates(existing, candidate string, compareFunc func(string, string) int) string {
-	if existing == "" || compareFunc(candidate, existing) < 0 {
-		return candidate
+	ReqMem, err := resource.ParseQuantity(size.Resources.Requests.Memory)
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to parse request memory for size %s: %w", size.Name, err))
 	}
-	return existing
+	ReqCpu, err := resource.ParseQuantity(size.Resources.Requests.Cpu)
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to parse request cpu for size %s: %w", size.Name, err))
+	}
+
+	LimitMem, err := resource.ParseQuantity(size.Resources.Limits.Memory)
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to parse limit memory for size %s: %w", size.Name, err))
+	}
+	LimitCpu, err := resource.ParseQuantity(size.Resources.Limits.Cpu)
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to parse limit cpu for size %s: %w", size.Name, err))
+	}
+
+	return ReqMem, ReqCpu, LimitMem, LimitCpu, multiErr
 }
 
 type ContainerSize struct {
@@ -1154,8 +1111,10 @@ func getNotebooksOnlyToleration(odhConfig *unstructured.Unstructured) ([]corev1.
 	return []corev1.Toleration{toleration}, nil
 }
 
-func generateHardwareProfileFromAcceleratorProfile(ap unstructured.Unstructured, profileType string,
+func generateHardwareProfileFromAcceleratorProfile(ctx context.Context, ap unstructured.Unstructured, profileType string,
 	containerCounts map[string]string, notebooksOnlyToleration []corev1.Toleration) (*infrav1.HardwareProfile, error) {
+	log := logf.FromContext(ctx)
+
 	// Extract AP fields
 	apName := ap.GetName()
 	apNamespace := ap.GetNamespace()
@@ -1263,6 +1222,8 @@ func generateHardwareProfileFromAcceleratorProfile(ap unstructured.Unstructured,
 		}
 	}
 
+	log.Info("successfully generated HardwareProfile from AcceleratorProfile", "name", hwpName, "namespace", apNamespace, "ap", apName)
+
 	return &infrav1.HardwareProfile{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: infrav1.GroupVersion.String(),
@@ -1280,8 +1241,10 @@ func generateHardwareProfileFromAcceleratorProfile(ap unstructured.Unstructured,
 	}, nil
 }
 
-func generateHardwareProfileFromContainerSize(size ContainerSize, profileType string,
+func generateHardwareProfileFromContainerSize(ctx context.Context, size ContainerSize, profileType string,
 	notebooksOnlyToleration []corev1.Toleration, namespace string) *infrav1.HardwareProfile {
+	log := logf.FromContext(ctx)
+
 	// Create HWP name
 	hwpName := fmt.Sprintf("containerSize-%s-%s", size.Name, profileType)
 
@@ -1325,6 +1288,8 @@ func generateHardwareProfileFromContainerSize(size ContainerSize, profileType st
 		}
 	}
 
+	log.Info("successfully generated HardwareProfile from ContainerSize", "name", hwpName, "namespace", namespace, "size", size.Name)
+
 	return &infrav1.HardwareProfile{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: infrav1.GroupVersion.String(),
@@ -1351,23 +1316,4 @@ func GetFeatureVisibility(profileType string) string {
 	default:
 		return "workbench"
 	}
-}
-
-// Helper functions for resource comparison.
-func CompareMemory(mem1, mem2 string) int {
-	q1, err1 := resource.ParseQuantity(mem1)
-	q2, err2 := resource.ParseQuantity(mem2)
-	if err1 != nil || err2 != nil {
-		return strings.Compare(mem1, mem2)
-	}
-	return q1.Cmp(q2) // -1,0,1
-}
-
-func CompareCpu(cpu1, cpu2 string) int {
-	q1, err1 := resource.ParseQuantity(cpu1)
-	q2, err2 := resource.ParseQuantity(cpu2)
-	if err1 != nil || err2 != nil {
-		return strings.Compare(cpu1, cpu2)
-	}
-	return q1.Cmp(q2)
 }
