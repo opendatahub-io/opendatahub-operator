@@ -18,6 +18,7 @@ package gateway
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"fmt"
 
@@ -34,6 +35,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
+
+//go:embed resources/*.yaml
+var gatewayResources embed.FS
 
 const (
 	gatewayNamespace = "openshift-ingress"
