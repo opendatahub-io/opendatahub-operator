@@ -39,6 +39,7 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 	}
 
 	// ModelMeshServing is deprecated and always removed in RHOAI 3.0
+	// But we still need to populate the field for API compatibility and existing resources
 	mState := operatorv1.Removed
 
 	mrState := operatorv1.Removed

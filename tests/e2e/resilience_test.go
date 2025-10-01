@@ -117,7 +117,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.KserveComponentName:               "kserve-controller-manager",
 		componentApi.KueueComponentName:                "kueue-controller-manager",
 		componentApi.LlamaStackOperatorComponentName:   "llama-stack-k8s-operator-controller-manager",
-		componentApi.ModelMeshServingComponentName:     "modelmesh-controller",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
 		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
