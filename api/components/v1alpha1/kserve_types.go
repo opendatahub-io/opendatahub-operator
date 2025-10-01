@@ -21,7 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 )
 
 const (
@@ -54,13 +53,6 @@ var _ common.PlatformObject = (*Kserve)(nil)
 
 // KserveCommonSpec spec defines the shared desired state of Kserve
 type KserveCommonSpec struct {
-	// Serving configures the KNative-Serving stack used for model serving. A Service
-	// Mesh (Istio) is prerequisite, since it is used as networking layer.
-	Serving infrav1.ServingSpec `json:"serving,omitempty"`
-	// Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.
-	// The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.
-	// This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode.
-	DefaultDeploymentMode DefaultDeploymentMode `json:"defaultDeploymentMode,omitempty"`
 	// Configures the type of service that is created for InferenceServices using RawDeployment.
 	// The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".
 	// Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.
@@ -89,10 +81,6 @@ type KserveSpec struct {
 
 // KserveCommonStatus defines the shared observed state of Kserve
 type KserveCommonStatus struct {
-	// DefaultDeploymentMode is the value of the defaultDeploymentMode field
-	// as read from the "deploy" JSON in the inferenceservice-config ConfigMap
-	DefaultDeploymentMode         string                     `json:"defaultDeploymentMode,omitempty"`
-	ServerlessMode                operatorv1.ManagementState `json:"serverlessMode,omitempty"`
 	common.ComponentReleaseStatus `json:",inline"`
 }
 

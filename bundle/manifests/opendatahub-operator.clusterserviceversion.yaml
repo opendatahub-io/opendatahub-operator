@@ -29,16 +29,7 @@ metadata:
                 "nim": {
                   "managementState": "Managed"
                 },
-                "rawDeploymentServiceConfig": "Headed",
-                "serving": {
-                  "ingressGateway": {
-                    "certificate": {
-                      "type": "OpenshiftDefaultIngress"
-                    }
-                  },
-                  "managementState": "Unmanaged",
-                  "name": "knative-serving"
-                }
+                "rawDeploymentServiceConfig": "Headed"
               },
               "kueue": {
                 "managementState": "Removed"
@@ -81,14 +72,6 @@ metadata:
               "metrics": {},
               "namespace": "opendatahub"
             },
-            "serviceMesh": {
-              "controlPlane": {
-                "metricsCollection": "Istio",
-                "name": "data-science-smcp",
-                "namespace": "istio-system"
-              },
-              "managementState": "Unmanaged"
-            },
             "trustedCABundle": {
               "customCABundle": "",
               "managementState": "Managed"
@@ -103,13 +86,12 @@ metadata:
     createdAt: "2025-10-14T08:21:52Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
-      "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
-      "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
-      "kueues.components.platform.opendatahub.io", "modelregistries.components.platform.opendatahub.io",
-      "rays.components.platform.opendatahub.io", "trainingoperators.components.platform.opendatahub.io",
-      "trustyais.components.platform.opendatahub.io", "workbenches.components.platform.opendatahub.io",
-      "gatewayconfigs.services.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
-      "servicemeshes.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
+      "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
+      "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
+      "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
+      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
+      "workbenches.components.platform.opendatahub.io", "gatewayconfigs.services.platform.opendatahub.io",
+      "monitorings.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
       "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/opendatahub-io/opendatahub-operator
@@ -210,11 +192,6 @@ spec:
       displayName: Ray
       kind: Ray
       name: rays.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: ServiceMesh is the Schema for the servicemesh API
-      displayName: Service Mesh
-      kind: ServiceMesh
-      name: servicemeshes.services.platform.opendatahub.io
       version: v1alpha1
     - description: TrainingOperator is the Schema for the trainingoperators API
       displayName: Training Operator
@@ -420,12 +397,6 @@ spec:
           verbs:
           - create
           - get
-        - apiGroups:
-          - authorino.kuadrant.io
-          resources:
-          - authconfigs
-          verbs:
-          - '*'
         - apiGroups:
           - authorization.k8s.io
           resources:
@@ -934,33 +905,6 @@ spec:
           verbs:
           - '*'
         - apiGroups:
-          - maistra.io
-          resources:
-          - servicemeshcontrolplanes
-          - servicemeshmembers
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - use
-          - watch
-        - apiGroups:
-          - maistra.io
-          resources:
-          - servicemeshmemberrolls
-          - servicemeshmembers/finalizers
-          verbs:
-          - create
-          - get
-          - list
-          - patch
-          - update
-          - use
-          - watch
-        - apiGroups:
           - metrics.k8s.io
           resources:
           - nodes
@@ -1082,14 +1026,6 @@ spec:
           resources:
           - destinationrules
           - envoyfilters
-          - gateways
-          - virtualservices
-          verbs:
-          - '*'
-        - apiGroups:
-          - networking.istio.io
-          resources:
-          - virtualservices/finalizers
           verbs:
           - create
           - delete
@@ -1098,15 +1034,6 @@ spec:
           - patch
           - update
           - watch
-        - apiGroups:
-          - networking.istio.io
-          resources:
-          - virtualservices/status
-          verbs:
-          - delete
-          - get
-          - patch
-          - update
         - apiGroups:
           - networking.k8s.io
           resources:
@@ -1169,26 +1096,6 @@ spec:
           resources:
           - instrumentations/status
           - opentelemetrycollectors/status
-          verbs:
-          - get
-          - patch
-          - update
-        - apiGroups:
-          - operator.authorino.kuadrant.io
-          resources:
-          - authorinos
-          verbs:
-          - '*'
-        - apiGroups:
-          - operator.knative.dev
-          resources:
-          - knativeservings
-          verbs:
-          - '*'
-        - apiGroups:
-          - operator.knative.dev
-          resources:
-          - knativeservings/finalizers
           verbs:
           - get
           - patch
@@ -1293,12 +1200,6 @@ spec:
           - update
           - watch
         - apiGroups:
-          - security.istio.io
-          resources:
-          - authorizationpolicies
-          verbs:
-          - '*'
-        - apiGroups:
           - security.openshift.io
           resources:
           - securitycontextconstraints
@@ -1325,7 +1226,6 @@ spec:
           resources:
           - auths
           - monitorings
-          - servicemeshes
           verbs:
           - create
           - delete
@@ -1340,7 +1240,6 @@ spec:
           - auths/finalizers
           - gatewayconfigs/finalizers
           - monitorings/finalizers
-          - servicemeshes/finalizers
           verbs:
           - update
         - apiGroups:
@@ -1349,7 +1248,6 @@ spec:
           - auths/status
           - gatewayconfigs/status
           - monitorings/status
-          - servicemeshes/status
           verbs:
           - get
           - patch
@@ -1365,28 +1263,6 @@ spec:
           - patch
           - update
           - watch
-        - apiGroups:
-          - serving.knative.dev
-          resources:
-          - services
-          - services/finalizers
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - serving.knative.dev
-          resources:
-          - services/status
-          verbs:
-          - delete
-          - get
-          - patch
-          - update
         - apiGroups:
           - serving.kserve.io
           resources:

@@ -22,8 +22,7 @@ package v2
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
-	corev1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -90,11 +89,6 @@ func (in *DSCInitializationList) DeepCopyObject() runtime.Object {
 func (in *DSCInitializationSpec) DeepCopyInto(out *DSCInitializationSpec) {
 	*out = *in
 	in.Monitoring.DeepCopyInto(&out.Monitoring)
-	if in.ServiceMesh != nil {
-		in, out := &in.ServiceMesh, &out.ServiceMesh
-		*out = new(v1.ServiceMeshSpec)
-		(*in).DeepCopyInto(*out)
-	}
 	if in.TrustedCABundle != nil {
 		in, out := &in.TrustedCABundle, &out.TrustedCABundle
 		*out = new(TrustedCABundleSpec)
@@ -129,7 +123,7 @@ func (in *DSCInitializationStatus) DeepCopyInto(out *DSCInitializationStatus) {
 	}
 	if in.RelatedObjects != nil {
 		in, out := &in.RelatedObjects, &out.RelatedObjects
-		*out = make([]corev1.ObjectReference, len(*in))
+		*out = make([]v1.ObjectReference, len(*in))
 		copy(*out, *in)
 	}
 	in.Release.DeepCopyInto(&out.Release)

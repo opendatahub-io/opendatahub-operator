@@ -155,15 +155,6 @@ spec:
                       Kserve component configuration.
                       Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
                     properties:
-                      defaultDeploymentMode:
-                        description: |-
-                          Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.
-                          The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.
-                          This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode.
-                        enum:
-                        - Serverless
-                        - RawDeployment
-                        type: string
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -200,64 +191,6 @@ spec:
                         - Headless
                         - Headed
                         type: string
-                      serving:
-                        description: |-
-                          Serving configures the KNative-Serving stack used for model serving. A Service
-                          Mesh (Istio) is prerequisite, since it is used as networking layer.
-                        properties:
-                          ingressGateway:
-                            description: |-
-                              IngressGateway allows to customize some parameters for the Istio Ingress Gateway
-                              that is bound to KNative-Serving.
-                            properties:
-                              certificate:
-                                description: |-
-                                  Certificate specifies configuration of the TLS certificate securing communication
-                                  for the gateway.
-                                properties:
-                                  secretName:
-                                    description: |-
-                                      SecretName specifies the name of the Kubernetes Secret resource that contains a
-                                      TLS certificate secure HTTP communications for the KNative network.
-                                    type: string
-                                  type:
-                                    default: OpenshiftDefaultIngress
-                                    description: |-
-                                      Type specifies if the TLS certificate should be generated automatically, or if the certificate
-                                      is provided by the user. Allowed values are:
-                                      * SelfSigned: A certificate is going to be generated using an own private key.
-                                      * Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.
-                                      * OpenshiftDefaultIngress: Default ingress certificate configured for OpenShift
-                                    enum:
-                                    - SelfSigned
-                                    - Provided
-                                    - OpenshiftDefaultIngress
-                                    type: string
-                                type: object
-                              domain:
-                                description: |-
-                                  Domain specifies the host name for intercepting incoming requests.
-                                  Most likely, you will want to use a wildcard name, like *.example.com.
-                                  If not set, the domain of the OpenShift Ingress is used.
-                                  If you choose to generate a certificate, this is the domain used for the certificate request.
-                                type: string
-                            type: object
-                          managementState:
-                            default: Managed
-                            enum:
-                            - Managed
-                            - Unmanaged
-                            - Removed
-                            pattern: ^(Managed|Unmanaged|Force|Removed)$
-                            type: string
-                          name:
-                            default: knative-serving
-                            description: |-
-                              Name specifies the name of the KNativeServing resource that is going to be
-                              created to instruct the KNative Operator to deploy KNative serving components.
-                              This resource is created in the "knative-serving" namespace.
-                            type: string
-                        type: object
                     type: object
                   kueue:
                     description: Kueue component configuration.
@@ -606,11 +539,6 @@ spec:
                   kserve:
                     description: Kserve component status.
                     properties:
-                      defaultDeploymentMode:
-                        description: |-
-                          DefaultDeploymentMode is the value of the defaultDeploymentMode field
-                          as read from the "deploy" JSON in the inferenceservice-config ConfigMap
-                        type: string
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -643,9 +571,6 @@ spec:
                         x-kubernetes-list-map-keys:
                         - name
                         x-kubernetes-list-type: map
-                      serverlessMode:
-                        pattern: ^(Managed|Unmanaged|Force|Removed)$
-                        type: string
                     type: object
                   kueue:
                     description: Kueue component status.
@@ -1191,15 +1116,6 @@ spec:
                       Kserve component configuration.
                       Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
                     properties:
-                      defaultDeploymentMode:
-                        description: |-
-                          Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.
-                          The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.
-                          This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode.
-                        enum:
-                        - Serverless
-                        - RawDeployment
-                        type: string
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -1236,64 +1152,6 @@ spec:
                         - Headless
                         - Headed
                         type: string
-                      serving:
-                        description: |-
-                          Serving configures the KNative-Serving stack used for model serving. A Service
-                          Mesh (Istio) is prerequisite, since it is used as networking layer.
-                        properties:
-                          ingressGateway:
-                            description: |-
-                              IngressGateway allows to customize some parameters for the Istio Ingress Gateway
-                              that is bound to KNative-Serving.
-                            properties:
-                              certificate:
-                                description: |-
-                                  Certificate specifies configuration of the TLS certificate securing communication
-                                  for the gateway.
-                                properties:
-                                  secretName:
-                                    description: |-
-                                      SecretName specifies the name of the Kubernetes Secret resource that contains a
-                                      TLS certificate secure HTTP communications for the KNative network.
-                                    type: string
-                                  type:
-                                    default: OpenshiftDefaultIngress
-                                    description: |-
-                                      Type specifies if the TLS certificate should be generated automatically, or if the certificate
-                                      is provided by the user. Allowed values are:
-                                      * SelfSigned: A certificate is going to be generated using an own private key.
-                                      * Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.
-                                      * OpenshiftDefaultIngress: Default ingress certificate configured for OpenShift
-                                    enum:
-                                    - SelfSigned
-                                    - Provided
-                                    - OpenshiftDefaultIngress
-                                    type: string
-                                type: object
-                              domain:
-                                description: |-
-                                  Domain specifies the host name for intercepting incoming requests.
-                                  Most likely, you will want to use a wildcard name, like *.example.com.
-                                  If not set, the domain of the OpenShift Ingress is used.
-                                  If you choose to generate a certificate, this is the domain used for the certificate request.
-                                type: string
-                            type: object
-                          managementState:
-                            default: Managed
-                            enum:
-                            - Managed
-                            - Unmanaged
-                            - Removed
-                            pattern: ^(Managed|Unmanaged|Force|Removed)$
-                            type: string
-                          name:
-                            default: knative-serving
-                            description: |-
-                              Name specifies the name of the KNativeServing resource that is going to be
-                              created to instruct the KNative Operator to deploy KNative serving components.
-                              This resource is created in the "knative-serving" namespace.
-                            type: string
-                        type: object
                     type: object
                   kueue:
                     description: Kueue component configuration.
@@ -1584,11 +1442,6 @@ spec:
                   kserve:
                     description: Kserve component status.
                     properties:
-                      defaultDeploymentMode:
-                        description: |-
-                          DefaultDeploymentMode is the value of the defaultDeploymentMode field
-                          as read from the "deploy" JSON in the inferenceservice-config ConfigMap
-                        type: string
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -1621,9 +1474,6 @@ spec:
                         x-kubernetes-list-map-keys:
                         - name
                         x-kubernetes-list-type: map
-                      serverlessMode:
-                        pattern: ^(Managed|Unmanaged|Force|Removed)$
-                        type: string
                     type: object
                   kueue:
                     description: Kueue component status.

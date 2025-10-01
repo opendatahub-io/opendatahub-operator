@@ -18,7 +18,6 @@ package v2
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -36,13 +35,6 @@ type DSCInitializationSpec struct {
 	// Enable monitoring on specified namespace
 	// +optional
 	Monitoring serviceApi.DSCIMonitoring `json:"monitoring,omitempty"`
-	// Configures Service Mesh as networking layer for Data Science Clusters components.
-	// The Service Mesh is a mandatory prerequisite for single model serving (KServe) and
-	// you should review this configuration if you are planning to use KServe.
-	// For other components, it enhances user experience; e.g. it provides unified
-	// authentication giving a Single Sign On experience.
-	// +optional
-	ServiceMesh *infrav1.ServiceMeshSpec `json:"serviceMesh,omitempty"`
 	// When set to `Managed`, adds odh-trusted-ca-bundle Configmap to all namespaces that includes
 	// cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].
 	// Additionally, this fields allows admins to add custom CA bundles to the configmap using the .CustomCABundle field.

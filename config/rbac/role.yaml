@@ -162,12 +162,6 @@ rules:
   - create
   - get
 - apiGroups:
-  - authorino.kuadrant.io
-  resources:
-  - authconfigs
-  verbs:
-  - '*'
-- apiGroups:
   - authorization.k8s.io
   resources:
   - subjectaccessreviews
@@ -675,33 +669,6 @@ rules:
   verbs:
   - '*'
 - apiGroups:
-  - maistra.io
-  resources:
-  - servicemeshcontrolplanes
-  - servicemeshmembers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - use
-  - watch
-- apiGroups:
-  - maistra.io
-  resources:
-  - servicemeshmemberrolls
-  - servicemeshmembers/finalizers
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - use
-  - watch
-- apiGroups:
   - metrics.k8s.io
   resources:
   - nodes
@@ -823,14 +790,6 @@ rules:
   resources:
   - destinationrules
   - envoyfilters
-  - gateways
-  - virtualservices
-  verbs:
-  - '*'
-- apiGroups:
-  - networking.istio.io
-  resources:
-  - virtualservices/finalizers
   verbs:
   - create
   - delete
@@ -839,15 +798,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - networking.istio.io
-  resources:
-  - virtualservices/status
-  verbs:
-  - delete
-  - get
-  - patch
-  - update
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -910,26 +860,6 @@ rules:
   resources:
   - instrumentations/status
   - opentelemetrycollectors/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - operator.authorino.kuadrant.io
-  resources:
-  - authorinos
-  verbs:
-  - '*'
-- apiGroups:
-  - operator.knative.dev
-  resources:
-  - knativeservings
-  verbs:
-  - '*'
-- apiGroups:
-  - operator.knative.dev
-  resources:
-  - knativeservings/finalizers
   verbs:
   - get
   - patch
@@ -1034,12 +964,6 @@ rules:
   - update
   - watch
 - apiGroups:
-  - security.istio.io
-  resources:
-  - authorizationpolicies
-  verbs:
-  - '*'
-- apiGroups:
   - security.openshift.io
   resources:
   - securitycontextconstraints
@@ -1066,7 +990,6 @@ rules:
   resources:
   - auths
   - monitorings
-  - servicemeshes
   verbs:
   - create
   - delete
@@ -1081,7 +1004,6 @@ rules:
   - auths/finalizers
   - gatewayconfigs/finalizers
   - monitorings/finalizers
-  - servicemeshes/finalizers
   verbs:
   - update
 - apiGroups:
@@ -1090,7 +1012,6 @@ rules:
   - auths/status
   - gatewayconfigs/status
   - monitorings/status
-  - servicemeshes/status
   verbs:
   - get
   - patch
@@ -1106,28 +1027,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - serving.knative.dev
-  resources:
-  - services
-  - services/finalizers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - serving.knative.dev
-  resources:
-  - services/status
-  verbs:
-  - delete
-  - get
-  - patch
-  - update
 - apiGroups:
   - serving.kserve.io
   resources:
