@@ -192,7 +192,7 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 		return nil
 	}
 
-	// In Unmanaged case create HBoK Kueue CR 'default'.
+	// In Unmanaged case create RHBoK Kueue CR 'default'.
 	if kueueCRInstance.Spec.ManagementState == operatorv1.Unmanaged {
 		defaultKueueConfig, err := createKueueCR(ctx, rr)
 		if err != nil {
