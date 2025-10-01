@@ -191,6 +191,10 @@ const (
 	TempoOperatorMissingMessage                  = "Tempo operator must be installed for traces configuration"
 	COOMissingMessage                            = "ClusterObservability operator must be installed for metrics configuration"
 	OpenTelemetryCollectorOperatorMissingMessage = "OpenTelemetryCollector operator must be installed for OpenTelemetry configuration"
+
+	GatewayNotFoundMessage = "Gateway resource not found"
+	GatewayNotReadyMessage = "Gateway is not ready"
+	GatewayReadyMessage    = "Gateway is ready"
 )
 
 // setConditions is a helper function to set multiple conditions at once.

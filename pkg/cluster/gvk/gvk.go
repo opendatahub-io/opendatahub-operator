@@ -11,12 +11,13 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
-	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
 
@@ -70,8 +71,8 @@ var (
 	}
 
 	HardwareProfile = schema.GroupVersionKind{
-		Group:   hwpv1alpha1.GroupVersion.Group,
-		Version: hwpv1alpha1.GroupVersion.Version,
+		Group:   infrav1.GroupVersion.Group,
+		Version: infrav1.GroupVersion.Version,
 		Kind:    "HardwareProfile",
 	}
 
@@ -333,9 +334,27 @@ var (
 		Kind:    "AuthorizationPolicy",
 	}
 
-	Gateway = schema.GroupVersionKind{
+	IstioGateway = schema.GroupVersionKind{
 		Group:   "networking.istio.io",
 		Version: "v1beta1",
+		Kind:    "Gateway",
+	}
+
+	GatewayConfig = schema.GroupVersionKind{
+		Group:   serviceApi.GroupVersion.Group,
+		Version: serviceApi.GroupVersion.Version,
+		Kind:    serviceApi.GatewayKind,
+	}
+
+	GatewayClass = schema.GroupVersionKind{
+		Group:   gwapiv1.GroupVersion.Group,
+		Version: gwapiv1.GroupVersion.Version,
+		Kind:    "GatewayClass",
+	}
+
+	KubernetesGateway = schema.GroupVersionKind{
+		Group:   gwapiv1.GroupVersion.Group,
+		Version: gwapiv1.GroupVersion.Version,
 		Kind:    "Gateway",
 	}
 

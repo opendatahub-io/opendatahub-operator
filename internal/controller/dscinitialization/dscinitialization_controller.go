@@ -46,6 +46,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -282,6 +283,13 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			log.Info("failed to create VAP/VAPB for blocking Dashboard's HWProfile/AcceleratorProfile")
 			return ctrl.Result{}, err
 		}
+
+		// Create default HWProfile CR
+		if err = r.ManageDefaultHWProfileCR(ctx, instance, platform); err != nil {
+			log.Info("failed to create default HardwareProfile CR")
+			return ctrl.Result{}, err
+		}
+
 		// Finish reconciling
 		_, err = status.UpdateWithRetry[*dsciv1.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
@@ -349,6 +357,9 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 		Owns( // ensure always have default one for AcceleratorProfile/HardwareProfile blocking
 			&admissionregistrationv1.ValidatingAdmissionPolicyBinding{},
 		).
+		Owns( // ensure always have one platform's HardwareProfile in the cluster.
+			&infrav1.HardwareProfile{},
+			builder.WithPredicates(rp.Deleted())).
 		Watches(
 			&dscv1.DataScienceCluster{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
@@ -470,17 +481,30 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		},
 	}
 
-	if dsci.Spec.Monitoring.Metrics != nil {
-		// when metrics has values set in resoures or storage. skip replicas since it cannot be 0 from CEL validation
-		if dsci.Spec.Monitoring.Metrics.Storage != nil || dsci.Spec.Monitoring.Metrics.Resources != nil {
-			defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
-		} else { // if metrics is set to metrics:{} to avoid  invalid value "null" to Apply() existing Monitoring CR
-			defaultMonitoring.Spec.Metrics = nil // explictliy set to nil, same as not set but for better readability
-		}
+	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && (dsci.Spec.Monitoring.Metrics.Storage != nil || dsci.Spec.Monitoring.Metrics.Resources != nil)
+	tracesEnabled := dsci.Spec.Monitoring.Traces != nil
+
+	if metricsEnabled {
+		defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
+	} else {
+		defaultMonitoring.Spec.Metrics = nil
 	}
 
-	defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
+	if tracesEnabled {
+		defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
+	} else {
+		defaultMonitoring.Spec.Traces = nil
+	}
+
 	defaultMonitoring.Spec.Alerting = dsci.Spec.Monitoring.Alerting
+
+	if metricsEnabled || tracesEnabled {
+		if dsci.Spec.Monitoring.CollectorReplicas != 0 {
+			defaultMonitoring.Spec.CollectorReplicas = dsci.Spec.Monitoring.CollectorReplicas
+		} else {
+			defaultMonitoring.Spec.CollectorReplicas = 2
+		}
+	}
 
 	if err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme()); err != nil {
 		return err

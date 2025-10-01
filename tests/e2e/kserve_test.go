@@ -38,17 +38,11 @@ var templatedResources = []struct {
 	gvk schema.GroupVersionKind
 	nn  types.NamespacedName
 }{
-	{gvk.KnativeServing, types.NamespacedName{Namespace: "knative-serving", Name: "knative-serving"}},
-	{gvk.ServiceMeshMember, types.NamespacedName{Namespace: "knative-serving", Name: "default"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "activator-host-header"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-after"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-before"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph-host-header"}},
-	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph"}},
-	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-predictor"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: "istio-system", Name: "kserve-local-gateway"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-ingress-gateway"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-local-gateway"}},
+	{gvk.KnativeServing, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-serving"}},
+	{gvk.ServiceMeshMember, types.NamespacedName{Namespace: knativeServingNamespace, Name: "default"}},
+	{gvk.IstioGateway, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "kserve-local-gateway"}},
+	{gvk.IstioGateway, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-ingress-gateway"}},
+	{gvk.IstioGateway, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-local-gateway"}},
 }
 
 func kserveTestSuite(t *testing.T) {
@@ -494,19 +488,14 @@ func (tc *KserveTestCtx) ValidateConnectionWebhookInjection(t *testing.T) {
 func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.Secret, types.NamespacedName{Name: secretName, Namespace: namespace}),
-		WithMutateFunc(func(obj *unstructured.Unstructured) error {
-			obj.SetAnnotations(map[string]string{
-				annotations.ConnectionTypeRef: "oci-v1",
-			})
-
-			if err := unstructured.SetNestedField(obj.Object, string(corev1.SecretTypeOpaque), "type"); err != nil {
-				return err
-			}
-
-			return unstructured.SetNestedStringMap(obj.Object, map[string]string{
-				"credential": "mysecretjson",
-			}, "data")
-		}),
+		WithMutateFunc(testf.TransformPipeline(
+			// Set connection type annotation
+			testf.Transform(`.metadata.annotations."%s" = "%s"`, annotations.ConnectionTypeProtocol, "oci"),
+			// Set secret type
+			testf.Transform(`.type = "%s"`, string(corev1.SecretTypeOpaque)),
+			// Set secret data
+			testf.Transform(`.data = {"credential": "mysecretjson"}`),
+		)),
 		WithCustomErrorMsg("Failed to create connection secret"),
 	)
 }

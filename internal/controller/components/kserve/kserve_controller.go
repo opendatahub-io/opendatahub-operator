@@ -72,16 +72,16 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 
 		// operands - dynamically owned
-		OwnsGVK(gvk.Gateway, reconciler.Dynamic(ifGVKInstalled(gvk.Gateway))).
-		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(ifGVKInstalled(gvk.EnvoyFilter))).
-		OwnsGVK(gvk.KnativeServing, reconciler.Dynamic(ifGVKInstalled(gvk.KnativeServing))).
-		OwnsGVK(gvk.ServiceMeshMember, reconciler.Dynamic(ifGVKInstalled(gvk.ServiceMeshMember))).
-		OwnsGVK(gvk.AuthorizationPolicy, reconciler.Dynamic(ifGVKInstalled(gvk.AuthorizationPolicy))).
-		OwnsGVK(gvk.AuthorizationPolicyv1beta1, reconciler.Dynamic(ifGVKInstalled(gvk.AuthorizationPolicyv1beta1))).
-		OwnsGVK(gvk.InferencePoolV1alpha2, reconciler.Dynamic(ifGVKInstalled(gvk.InferencePoolV1alpha2))).
-		OwnsGVK(gvk.InferenceModelV1alpha2, reconciler.Dynamic(ifGVKInstalled(gvk.InferenceModelV1alpha2))).
-		OwnsGVK(gvk.LLMInferenceServiceConfigV1Alpha1, reconciler.Dynamic(ifGVKInstalled(gvk.LLMInferenceServiceConfigV1Alpha1))).
-		OwnsGVK(gvk.LLMInferenceServiceV1Alpha1, reconciler.Dynamic(ifGVKInstalled(gvk.LLMInferenceServiceV1Alpha1))).
+		OwnsGVK(gvk.IstioGateway, reconciler.Dynamic(reconciler.CrdExists(gvk.IstioGateway))).
+		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
+		OwnsGVK(gvk.KnativeServing, reconciler.Dynamic(reconciler.CrdExists(gvk.KnativeServing))).
+		OwnsGVK(gvk.ServiceMeshMember, reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMeshMember))).
+		OwnsGVK(gvk.AuthorizationPolicy, reconciler.Dynamic(reconciler.CrdExists(gvk.AuthorizationPolicy))).
+		OwnsGVK(gvk.AuthorizationPolicyv1beta1, reconciler.Dynamic(reconciler.CrdExists(gvk.AuthorizationPolicyv1beta1))).
+		OwnsGVK(gvk.InferencePoolV1alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.InferencePoolV1alpha2))).
+		OwnsGVK(gvk.InferenceModelV1alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.InferenceModelV1alpha2))).
+		OwnsGVK(gvk.LLMInferenceServiceConfigV1Alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.LLMInferenceServiceConfigV1Alpha1))).
+		OwnsGVK(gvk.LLMInferenceServiceV1Alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.LLMInferenceServiceV1Alpha1))).
 
 		// operands - watched
 		//

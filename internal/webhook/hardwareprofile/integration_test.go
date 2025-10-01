@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -28,8 +28,10 @@ import (
 type WorkloadType string
 
 const (
-	WorkloadTypeNotebook         WorkloadType = "Notebook"
-	WorkloadTypeInferenceService WorkloadType = "InferenceService"
+	WorkloadTypeNotebook            WorkloadType = "Notebook"
+	WorkloadTypeInferenceService    WorkloadType = "InferenceService"
+	WorkloadTypeLlmInferenceService WorkloadType = "LlmInferenceService"
+	WorkloadLabelKueueQueueName     string       = "kueue.x-k8s.io/queue-name"
 )
 
 // expectResourceRequirementsAtPath is a generic helper that verifies resource requirements at a specific path.
@@ -125,7 +127,7 @@ func expectTolerationsAtPath(g Gomega, scheme *runtime.Scheme, workload client.O
 }
 
 // createResourceHardwareProfile creates a hardware profile with resource identifiers for testing.
-func createResourceHardwareProfile(name, namespace string) *hwpv1alpha1.HardwareProfile {
+func createResourceHardwareProfile(name, namespace string) *infrav1.HardwareProfile {
 	return envtestutil.NewHardwareProfile(name, namespace,
 		envtestutil.WithCPUIdentifier("2", "4", "8"),
 		envtestutil.WithMemoryIdentifier("4Gi", "8Gi", "16Gi"),
@@ -134,14 +136,14 @@ func createResourceHardwareProfile(name, namespace string) *hwpv1alpha1.Hardware
 }
 
 // createKueueHardwareProfile creates a hardware profile with Kueue configuration for testing.
-func createKueueHardwareProfile(name, namespace, queueName string) *hwpv1alpha1.HardwareProfile {
+func createKueueHardwareProfile(name, namespace, queueName string) *infrav1.HardwareProfile {
 	return envtestutil.NewHardwareProfile(name, namespace,
 		envtestutil.WithKueueScheduling(queueName),
 	)
 }
 
 // createNodeSchedulingHardwareProfile creates a hardware profile with node scheduling configuration.
-func createNodeSchedulingHardwareProfile(name, namespace string) *hwpv1alpha1.HardwareProfile {
+func createNodeSchedulingHardwareProfile(name, namespace string) *infrav1.HardwareProfile {
 	return envtestutil.NewHardwareProfile(name, namespace,
 		envtestutil.WithNodeScheduling(
 			map[string]string{
@@ -166,7 +168,7 @@ func createNodeSchedulingHardwareProfile(name, namespace string) *hwpv1alpha1.Ha
 }
 
 // createSimpleHardwareProfile creates a basic hardware profile with minimal configuration.
-func createSimpleHardwareProfile(name, namespace string) *hwpv1alpha1.HardwareProfile {
+func createSimpleHardwareProfile(name, namespace string) *infrav1.HardwareProfile {
 	return envtestutil.NewHardwareProfile(name, namespace,
 		envtestutil.WithCPUIdentifier("0", "2"),
 	)
@@ -310,7 +312,7 @@ func testNonExistentHardwareProfile(g Gomega, ctx context.Context, k8sClient cli
 	// This should fail because the hardware profile doesn't exist
 	err := k8sClient.Create(ctx, notebook)
 	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("failed to get hardware profile 'nonexistent-profile'"))
+	g.Expect(err.Error()).Should(ContainSubstring("hardware profile 'nonexistent-profile' not found"))
 }
 
 // testCrossNamespaceHardwareProfile tests webhook behavior when hardware profile is in a different namespace.
@@ -335,7 +337,7 @@ func testCrossNamespaceHardwareProfile(g Gomega, ctx context.Context, k8sClient 
 	g.Expect(k8sClient.Create(ctx, notebook)).To(Succeed())
 
 	// Verify the hardware profile namespace annotation was set correctly
-	g.Expect(resources.GetAnnotation(notebook, "opendatahub.io/hardware-profile-namespace")).Should(Equal(hwpNs))
+	g.Expect(resources.GetAnnotation(notebook, hardwareprofilewebhook.HardwareProfileNamespaceAnnotation)).Should(Equal(hwpNs))
 }
 
 // testUpdateOperationForWorkload is a generic helper for testing update operations.
@@ -354,7 +356,7 @@ func testUpdateOperationForWorkload(g Gomega, ctx context.Context, k8sClient cli
 	workloadCopy, ok := workload.DeepCopyObject().(client.Object)
 	g.Expect(ok).To(BeTrue(), "workload copy should be client.Object")
 	workloadCopy.SetAnnotations(map[string]string{
-		"opendatahub.io/hardware-profile-name": "update-profile",
+		hardwareprofilewebhook.HardwareProfileNameAnnotation: "update-profile",
 	})
 
 	g.Expect(k8sClient.Update(ctx, workloadCopy)).To(Succeed())
@@ -478,7 +480,88 @@ func TestHardwareProfileWebhook_Notebook(t *testing.T) {
 			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
 
 			// Add HardwareProfile types to scheme for client operations
-			g.Expect(hwpv1alpha1.AddToScheme(env.Scheme())).To(Succeed())
+			g.Expect(infrav1.AddToScheme(env.Scheme())).To(Succeed())
+
+			// Run the specific test case
+			tc.test(g, ctx, env.Client(), ns)
+		})
+	}
+}
+
+// TestHardwareProfileWebhook_LlmInferenceService for the mutating webhook logic for hardware profile injection on LlmInferenceService workloads.
+func TestHardwareProfileWebhook_LlmInferenceService(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		test func(g Gomega, ctx context.Context, k8sClient client.Client, ns string)
+	}{
+		// LLMInferenceService test cases
+		{
+			name: "llminferenceservice - no hardware profile annotation",
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				config, err := hardwareprofilewebhook.GetWorkloadConfig("LLMInferenceService")
+				g.Expect(err).ShouldNot(HaveOccurred())
+				testUpdateOperationForWorkload(g, ctx, k8sClient, ns, "test-llmisvce-no-annotation",
+					func() client.Object { return envtestutil.NewLLMInferenceService("test-llmisvce-no-annotation", ns) },
+					func() *unstructured.Unstructured {
+						u := &unstructured.Unstructured{}
+						u.SetAPIVersion("serving.kserve.io/v1alpha1")
+						u.SetKind("LLMInferenceService")
+						return u
+					},
+					config.ContainersPath, WorkloadTypeLlmInferenceService)
+			},
+		},
+		{
+			name: "llminferenceservice - valid hardwareprofile with resources",
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				config, err := hardwareprofilewebhook.GetWorkloadConfig("LLMInferenceService")
+				g.Expect(err).ShouldNot(HaveOccurred())
+				testValidHardwareProfileWithResourcesForWorkload(g, ctx, k8sClient, ns,
+					func() client.Object {
+						return envtestutil.NewLLMInferenceService("test-llmisvc-resources", ns,
+							envtestutil.WithHardwareProfile("resource-profile"))
+					},
+					config.ContainersPath, WorkloadTypeLlmInferenceService)
+			},
+		},
+		{
+			name: "llminferenceservice - hardware profile with node scheduling",
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				config, err := hardwareprofilewebhook.GetWorkloadConfig("LLMInferenceService")
+				g.Expect(err).ShouldNot(HaveOccurred())
+				testHardwareProfileWithNodeSchedulingForWorkload(g, ctx, k8sClient, ns,
+					func() client.Object {
+						return envtestutil.NewLLMInferenceService("test-llmisvc-node", ns,
+							envtestutil.WithHardwareProfile("node-profile"))
+					},
+					config.NodeSelectorPath, config.TolerationsPath)
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
+			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
+				t,
+				[]envt.RegisterWebhooksFn{envtestutil.RegisterWebhooks},
+				envtestutil.DefaultWebhookTimeout,
+				envtestutil.WithLlmInferenceService(),
+			)
+			defer teardown()
+
+			// Create test namespace
+			ns := fmt.Sprintf("test-ns-%s", xid.New().String())
+			testNamespace := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: ns},
+			}
+			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
+
+			// Add HardwareProfile types to scheme for client operations
+			g.Expect(infrav1.AddToScheme(env.Scheme())).To(Succeed())
 
 			// Run the specific test case
 			tc.test(g, ctx, env.Client(), ns)
@@ -489,13 +572,12 @@ func TestHardwareProfileWebhook_Notebook(t *testing.T) {
 // TestHardwareProfileWebhook_InferenceService for the mutating webhook logic for hardware profile injection on InferenceService workloads.
 func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 	t.Parallel()
-
 	testCases := []struct {
 		name string
 		test func(g Gomega, ctx context.Context, k8sClient client.Client, ns string)
 	}{
 		{
-			name: "inference service - no hardware profile annotation",
+			name: "inferenceservice - no hardware profile annotation",
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
 				config, err := hardwareprofilewebhook.GetWorkloadConfig("InferenceService")
 				g.Expect(err).ShouldNot(HaveOccurred())
@@ -507,7 +589,7 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 			},
 		},
 		{
-			name: "inference service - valid hardware profile with resources",
+			name: "inferenceservice - valid hardware profile with resources",
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
 				config, err := hardwareprofilewebhook.GetWorkloadConfig("InferenceService")
 				g.Expect(err).ShouldNot(HaveOccurred())
@@ -520,7 +602,7 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 			},
 		},
 		{
-			name: "inference service - hardware profile with node scheduling",
+			name: "inferenceservice - hardware profile with node scheduling",
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
 				config, err := hardwareprofilewebhook.GetWorkloadConfig("InferenceService")
 				g.Expect(err).ShouldNot(HaveOccurred())
@@ -533,7 +615,7 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 			},
 		},
 		{
-			name: "inference service - hardware profile with Kueue",
+			name: "inferenceservice - hardware profile with Kueue",
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
 				testHardwareProfileWithKueueForWorkload(g, ctx, k8sClient, ns,
 					func() client.Object {
@@ -544,7 +626,7 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 			},
 		},
 		{
-			name: "inference service - update operation",
+			name: "inferenceservice - update operation",
 			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
 				config, err := hardwareprofilewebhook.GetWorkloadConfig("InferenceService")
 				g.Expect(err).ShouldNot(HaveOccurred())
@@ -560,7 +642,6 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 			},
 		},
 	}
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -582,7 +663,7 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
 
 			// Add HardwareProfile types to scheme for client operations
-			g.Expect(hwpv1alpha1.AddToScheme(env.Scheme())).To(Succeed())
+			g.Expect(infrav1.AddToScheme(env.Scheme())).To(Succeed())
 
 			// Run the specific test case
 			tc.test(g, ctx, env.Client(), ns)
@@ -592,8 +673,6 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 
 // TestHardwareProfile_CRDValidation tests the CRD validation for HardwareProfile resources.
 func TestHardwareProfile_CRDValidation(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		name          string
 		hwpOptions    []envtestutil.ObjectOption
@@ -660,7 +739,6 @@ func TestHardwareProfile_CRDValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			g := NewWithT(t)
 
 			ctx, env, teardown := envtestutil.SetupEnvAndClientWithCRDs(
@@ -680,7 +758,7 @@ func TestHardwareProfile_CRDValidation(t *testing.T) {
 			g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
 
 			// Add HardwareProfile types to scheme for client operations
-			g.Expect(hwpv1alpha1.AddToScheme(env.Scheme())).To(Succeed())
+			g.Expect(infrav1.AddToScheme(env.Scheme())).To(Succeed())
 
 			// Create hardware profile with test case specific options
 			hwp := envtestutil.NewHardwareProfile(fmt.Sprintf("test-hwp-%s", xid.New().String()), ns, tc.hwpOptions...)

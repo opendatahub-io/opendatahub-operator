@@ -4,6 +4,7 @@
 - [components.platform.opendatahub.io/v1alpha1](#componentsplatformopendatahubiov1alpha1)
 - [datasciencecluster.opendatahub.io/v1](#datascienceclusteropendatahubiov1)
 - [dscinitialization.opendatahub.io/v1](#dscinitializationopendatahubiov1)
+- [infrastructure.opendatahub.io/v1](#infrastructureopendatahubiov1)
 - [infrastructure.opendatahub.io/v1alpha1](#infrastructureopendatahubiov1alpha1)
 - [services.platform.opendatahub.io/v1alpha1](#servicesplatformopendatahubiov1alpha1)
 
@@ -2241,63 +2242,11 @@ _Appears in:_
 
 ## datasciencecluster.opendatahub.io/v1
 
+Package v1 contains API Schema definitions for the datasciencecluster v1 API group
 
 ### Resource Types
 - [DataScienceCluster](#datasciencecluster)
 
-
-
-#### AuthSpec
-
-
-
-
-
-
-
-_Appears in:_
-- [ServiceMeshSpec](#servicemeshspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `namespace` _string_ | Namespace where it is deployed. If not provided, the default is to<br />use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI. |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
-| `audiences` _string_ | Audiences is a list of the identifiers that the resource server presented<br />with the token identifies as. Audience-aware token authenticators will verify<br />that the token was intended for at least one of the audiences in this list.<br />If no audiences are provided, the audience will default to the audience of the<br />Kubernetes apiserver (kubernetes.default.svc). | [https://kubernetes.default.svc] |  |
-
-
-#### CertType
-
-_Underlying type:_ _string_
-
-
-
-
-
-_Appears in:_
-- [CertificateSpec](#certificatespec)
-
-| Field | Description |
-| --- | --- |
-| `SelfSigned` |  |
-| `Provided` |  |
-| `OpenshiftDefaultIngress` |  |
-
-
-#### CertificateSpec
-
-
-
-CertificateSpec represents the specification of the certificate securing communications of
-an Istio Gateway.
-
-
-
-_Appears in:_
-- [GatewaySpec](#gatewayspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `secretName` _string_ | SecretName specifies the name of the Kubernetes Secret resource that contains a<br />TLS certificate secure HTTP communications for the KNative network. |  |  |
-| `type` _[CertType](#certtype)_ | Type specifies if the TLS certificate should be generated automatically, or if the certificate<br />is provided by the user. Allowed values are:<br />* SelfSigned: A certificate is going to be generated using an own private key.<br />* Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.<br />* OpenshiftDefaultIngress: Default ingress certificate configured for OpenShift | OpenshiftDefaultIngress | Enum: [SelfSigned Provided OpenshiftDefaultIngress] <br /> |
 
 
 #### Components
@@ -2354,24 +2303,6 @@ _Appears in:_
 | `trainingoperator` _[DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)_ | Training Operator component status. |  |  |
 | `feastoperator` _[DSCFeastOperatorStatus](#dscfeastoperatorstatus)_ | Feast Operator component status. |  |  |
 | `llamastackoperator` _[DSCLlamaStackOperatorStatus](#dscllamastackoperatorstatus)_ | LlamaStack Operator component status. |  |  |
-
-
-#### ControlPlaneSpec
-
-
-
-
-
-
-
-_Appears in:_
-- [ServiceMeshSpec](#servicemeshspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `name` _string_ | Name is a name Service Mesh Control Plane. Defaults to "data-science-smcp". | data-science-smcp |  |
-| `namespace` _string_ | Namespace is a namespace where Service Mesh is deployed. Defaults to "istio-system". | istio-system | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
-| `metricsCollection` _string_ | MetricsCollection specifies if metrics from components on the Mesh namespace<br />should be collected. Setting the value to "Istio" will collect metrics from the<br />control plane and any proxies on the Mesh namespace (like gateway pods). Setting<br />to "None" will disable metrics collection. | Istio | Enum: [Istio None] <br /> |
 
 
 #### DataScienceCluster
@@ -2432,62 +2363,6 @@ _Appears in:_
 | `installedComponents` _object (keys:string, values:boolean)_ | List of components with status if installed or not |  |  |
 | `components` _[ComponentsStatus](#componentsstatus)_ | Expose component's specific status |  |  |
 | `release` _[Release](#release)_ | Version and release type |  |  |
-
-
-#### GatewaySpec
-
-
-
-GatewaySpec represents the configuration of the Ingress Gateways.
-
-
-
-_Appears in:_
-- [ServingSpec](#servingspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the domain of the OpenShift Ingress is used.<br />If you choose to generate a certificate, this is the domain used for the certificate request. |  |  |
-| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication<br />for the gateway. |  |  |
-
-
-#### ServiceMeshSpec
-
-
-
-ServiceMeshSpec configures Service Mesh.
-
-
-
-_Appears in:_
-- [DSCInitializationSpec](#dscinitializationspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Unmanaged Removed] <br /> |
-| `controlPlane` _[ControlPlaneSpec](#controlplanespec)_ | ControlPlane holds configuration of Service Mesh used by Opendatahub. |  |  |
-| `auth` _[AuthSpec](#authspec)_ | Auth holds configuration of authentication and authorization services<br />used by Service Mesh in Opendatahub. |  |  |
-
-
-#### ServingSpec
-
-
-
-ServingSpec specifies the configuration for the KNative Serving components and their
-bindings with the Service Mesh.
-
-
-
-_Appears in:_
-- [DSCKserve](#dsckserve)
-- [KserveCommonSpec](#kservecommonspec)
-- [KserveSpec](#kservespec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Managed | Enum: [Managed Unmanaged Removed] <br /> |
-| `name` _string_ | Name specifies the name of the KNativeServing resource that is going to be<br />created to instruct the KNative Operator to deploy KNative serving components.<br />This resource is created in the "knative-serving" namespace. | knative-serving |  |
-| `ingressGateway` _[GatewaySpec](#gatewayspec)_ | IngressGateway allows to customize some parameters for the Istio Ingress Gateway<br />that is bound to KNative-Serving. |  |  |
 
 
 
@@ -2603,6 +2478,308 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | managementState indicates whether and how the operator should manage customized CA bundle | Removed | Enum: [Managed Removed Unmanaged] <br /> |
 | `customCABundle` _string_ | A custom CA bundle that will be available for  all  components in the<br />Data Science Cluster(DSC). This bundle will be stored in odh-trusted-ca-bundle<br />ConfigMap .data.odh-ca-bundle.crt . |  |  |
+
+
+
+## infrastructure.opendatahub.io/v1
+
+
+### Resource Types
+- [HardwareProfile](#hardwareprofile)
+- [HardwareProfileList](#hardwareprofilelist)
+
+
+
+#### AuthSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [ServiceMeshSpec](#servicemeshspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `namespace` _string_ | Namespace where it is deployed. If not provided, the default is to<br />use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI. |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `audiences` _string_ | Audiences is a list of the identifiers that the resource server presented<br />with the token identifies as. Audience-aware token authenticators will verify<br />that the token was intended for at least one of the audiences in this list.<br />If no audiences are provided, the audience will default to the audience of the<br />Kubernetes apiserver (kubernetes.default.svc). | [https://kubernetes.default.svc] |  |
+
+
+#### CertType
+
+_Underlying type:_ _string_
+
+
+
+
+
+_Appears in:_
+- [CertificateSpec](#certificatespec)
+
+| Field | Description |
+| --- | --- |
+| `SelfSigned` |  |
+| `Provided` |  |
+| `OpenshiftDefaultIngress` |  |
+
+
+#### CertificateSpec
+
+
+
+CertificateSpec represents the specification of the certificate securing communications of
+an Istio Gateway.
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+- [GatewaySpec](#gatewayspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `secretName` _string_ | SecretName specifies the name of the Kubernetes Secret resource that contains a<br />TLS certificate secure HTTP communications for the KNative network. |  |  |
+| `type` _[CertType](#certtype)_ | Type specifies if the TLS certificate should be generated automatically, or if the certificate<br />is provided by the user. Allowed values are:<br />* SelfSigned: A certificate is going to be generated using an own private key.<br />* Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.<br />* OpenshiftDefaultIngress: Default ingress certificate configured for OpenShift | OpenshiftDefaultIngress | Enum: [SelfSigned Provided OpenshiftDefaultIngress] <br /> |
+
+
+#### ControlPlaneSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [ServiceMeshSpec](#servicemeshspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name is a name Service Mesh Control Plane. Defaults to "data-science-smcp". | data-science-smcp |  |
+| `namespace` _string_ | Namespace is a namespace where Service Mesh is deployed. Defaults to "istio-system". | istio-system | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `metricsCollection` _string_ | MetricsCollection specifies if metrics from components on the Mesh namespace<br />should be collected. Setting the value to "Istio" will collect metrics from the<br />control plane and any proxies on the Mesh namespace (like gateway pods). Setting<br />to "None" will disable metrics collection. | Istio | Enum: [Istio None] <br /> |
+
+
+#### GatewaySpec
+
+
+
+GatewaySpec represents the configuration of the Ingress Gateways.
+
+
+
+_Appears in:_
+- [ServingSpec](#servingspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the domain of the OpenShift Ingress is used.<br />If you choose to generate a certificate, this is the domain used for the certificate request. |  |  |
+| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication<br />for the gateway. |  |  |
+
+
+#### HardwareIdentifier
+
+
+
+
+
+
+
+_Appears in:_
+- [HardwareProfileSpec](#hardwareprofilespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `displayName` _string_ | The display name of identifier. |  |  |
+| `identifier` _string_ | The resource identifier of the hardware device. |  |  |
+| `minCount` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#intorstring-intstr-util)_ | The minimum count can be an integer or a string. |  |  |
+| `maxCount` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#intorstring-intstr-util)_ | The maximum count can be an integer or a string. |  |  |
+| `defaultCount` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#intorstring-intstr-util)_ | The default count can be an integer or a string. |  |  |
+| `resourceType` _string_ | The type of identifier. could be "CPU", "Memory", or "Accelerator". Leave it undefined for the other types. |  | Enum: [CPU Memory Accelerator] <br /> |
+
+
+#### HardwareProfile
+
+
+
+HardwareProfile is the Schema for the hardwareprofiles API.
+
+
+
+_Appears in:_
+- [HardwareProfileList](#hardwareprofilelist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `infrastructure.opendatahub.io/v1` | | |
+| `kind` _string_ | `HardwareProfile` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[HardwareProfileSpec](#hardwareprofilespec)_ |  |  |  |
+| `status` _[HardwareProfileStatus](#hardwareprofilestatus)_ |  |  |  |
+
+
+#### HardwareProfileList
+
+
+
+HardwareProfileList contains a list of HardwareProfile.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `infrastructure.opendatahub.io/v1` | | |
+| `kind` _string_ | `HardwareProfileList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[HardwareProfile](#hardwareprofile) array_ |  |  |  |
+
+
+#### HardwareProfileSpec
+
+
+
+HardwareProfileSpec defines the desired state of HardwareProfile.
+
+
+
+_Appears in:_
+- [HardwareProfile](#hardwareprofile)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `identifiers` _[HardwareIdentifier](#hardwareidentifier) array_ | The array of identifiers |  |  |
+| `scheduling` _[SchedulingSpec](#schedulingspec)_ | SchedulingSpec specifies how workloads using this hardware profile should be scheduled. |  |  |
+
+
+#### HardwareProfileStatus
+
+
+
+HardwareProfileStatus defines the observed state of HardwareProfile.
+
+
+
+_Appears in:_
+- [HardwareProfile](#hardwareprofile)
+
+
+
+#### KueueSchedulingSpec
+
+
+
+KueueSchedulingSpec defines queue-based scheduling configuration.
+
+
+
+_Appears in:_
+- [SchedulingSpec](#schedulingspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `localQueueName` _string_ | LocalQueueName specifies the name of the local queue to use for workload scheduling.<br />When specified, workloads using this hardware profile will be submitted to the<br />specified queue and the queue's configuration will determine the actual node<br />placement and tolerations. |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `priorityClass` _string_ | PriorityClass specifies the name of the WorkloadPriorityClass associated with the HardwareProfile. |  |  |
+
+
+#### NodeSchedulingSpec
+
+
+
+NodeSchedulingSpec defines direct node scheduling configuration.
+
+
+
+_Appears in:_
+- [SchedulingSpec](#schedulingspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `nodeSelector` _object (keys:string, values:string)_ | NodeSelector specifies the node selector to use for direct node scheduling.<br />Workloads will be scheduled only on nodes that match all the specified labels. |  |  |
+| `tolerations` _[Toleration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#toleration-v1-core) array_ | Tolerations specifies the tolerations to apply to workloads for direct node scheduling.<br />These tolerations allow workloads to be scheduled on nodes with matching taints. |  |  |
+
+
+#### SchedulingSpec
+
+
+
+SchedulingSpec allows for specifying either kueue-based scheduling or direct node scheduling.
+CEL Rule 1: If schedulingType is "Queue", the 'kueue' field (with a non-empty localQueueName) must be set, and the 'node' field must not be set.
+CEL Rule 2: If schedulingType is "Node", the 'node' field must be set, and the 'kueue' field must not be set.
+
+
+
+_Appears in:_
+- [HardwareProfileSpec](#hardwareprofilespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _[SchedulingType](#schedulingtype)_ | SchedulingType is the scheduling method discriminator.<br />Users must set this value to indicate which scheduling method to use.<br />The value of this field should match exactly one configured scheduling method.<br />Valid values are "Queue" and "Node". |  | Enum: [Queue Node] <br />Required: \{\} <br /> |
+| `kueue` _[KueueSchedulingSpec](#kueueschedulingspec)_ | Kueue specifies queue-based scheduling configuration.<br />This field is only valid when schedulingType is "Queue". |  |  |
+| `node` _[NodeSchedulingSpec](#nodeschedulingspec)_ | node specifies direct node scheduling configuration.<br />This field is only valid when schedulingType is "Node". |  |  |
+
+
+#### SchedulingType
+
+_Underlying type:_ _string_
+
+SchedulingType defines the scheduling method for the hardware profile.
+
+
+
+_Appears in:_
+- [SchedulingSpec](#schedulingspec)
+
+| Field | Description |
+| --- | --- |
+| `Queue` | QueueScheduling indicates that workloads should be scheduled through a queue.<br /> |
+| `Node` | NodeScheduling indicates that workloads should be scheduled directly to nodes.<br /> |
+
+
+#### ServiceMeshSpec
+
+
+
+ServiceMeshSpec configures Service Mesh.
+
+
+
+_Appears in:_
+- [DSCInitializationSpec](#dscinitializationspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Removed | Enum: [Managed Unmanaged Removed] <br /> |
+| `controlPlane` _[ControlPlaneSpec](#controlplanespec)_ | ControlPlane holds configuration of Service Mesh used by Opendatahub. |  |  |
+| `auth` _[AuthSpec](#authspec)_ | Auth holds configuration of authentication and authorization services<br />used by Service Mesh in Opendatahub. |  |  |
+
+
+#### ServingSpec
+
+
+
+ServingSpec specifies the configuration for the KNative Serving components and their
+bindings with the Service Mesh.
+
+
+
+_Appears in:_
+- [DSCKserve](#dsckserve)
+- [KserveCommonSpec](#kservecommonspec)
+- [KserveSpec](#kservespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  | Managed | Enum: [Managed Unmanaged Removed] <br /> |
+| `name` _string_ | Name specifies the name of the KNativeServing resource that is going to be<br />created to instruct the KNative Operator to deploy KNative serving components.<br />This resource is created in the "knative-serving" namespace. | knative-serving |  |
+| `ingressGateway` _[GatewaySpec](#gatewayspec)_ | IngressGateway allows to customize some parameters for the Istio Ingress Gateway<br />that is bound to KNative-Serving. |  |  |
 
 
 
@@ -2788,6 +2965,8 @@ Package v1 contains API Schema definitions for the services v1 API group
 ### Resource Types
 - [Auth](#auth)
 - [AuthList](#authlist)
+- [GatewayConfig](#gatewayconfig)
+- [GatewayConfigList](#gatewayconfiglist)
 - [Monitoring](#monitoring)
 - [MonitoringList](#monitoringlist)
 
@@ -2903,6 +3082,102 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
+
+
+#### GatewayAuthSpec
+
+
+
+GatewayAuthSpec defines authentication configuration for the GatewayConfig
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `mode` _string_ | Authentication mode: "openshift-oauth" \| "oidc" \| "auto" | auto | Enum: [openshift-oauth oidc auto] <br /> |
+| `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (required when mode="oidc") |  |  |
+
+
+#### GatewayConfig
+
+
+
+GatewayConfig is the Schema for the gatewayconfigs API
+
+
+
+_Appears in:_
+- [GatewayConfigList](#gatewayconfiglist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `GatewayConfig` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[GatewayConfigSpec](#gatewayconfigspec)_ |  |  |  |
+| `status` _[GatewayConfigStatus](#gatewayconfigstatus)_ |  |  |  |
+
+
+#### GatewayConfigList
+
+
+
+GatewayConfigList contains a list of GatewayConfig
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
+| `kind` _string_ | `GatewayConfigList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[GatewayConfig](#gatewayconfig) array_ |  |  |  |
+
+
+#### GatewayConfigSpec
+
+
+
+GatewayConfigSpec defines the desired state of GatewayConfig
+
+
+
+_Appears in:_
+- [GatewayConfig](#gatewayconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `auth` _[GatewayAuthSpec](#gatewayauthspec)_ | Authentication configuration |  |  |
+| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
+| `domain` _string_ | Domain configuration for the GatewayConfig |  |  |
+
+
+#### GatewayConfigStatus
+
+
+
+GatewayConfigStatus defines the observed state of GatewayConfig
+
+
+
+_Appears in:_
+- [GatewayConfig](#gatewayconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ |  |  |  |
+| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
+| `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
 #### Metrics
@@ -3002,6 +3277,7 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
 
 
 #### MonitoringList
@@ -3041,6 +3317,7 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
+| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
 
 
 #### MonitoringStatus
@@ -3060,6 +3337,23 @@ _Appears in:_
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `url` _string_ |  |  |  |
+
+
+#### OIDCConfig
+
+
+
+OIDCConfig defines OIDC provider configuration
+
+
+
+_Appears in:_
+- [GatewayAuthSpec](#gatewayauthspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `issuerURL` _string_ | OIDC issuer URL |  | Required: \{\} <br /> |
+| `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing clientID and clientSecret |  | Required: \{\} <br /> |
 
 
 #### Traces
