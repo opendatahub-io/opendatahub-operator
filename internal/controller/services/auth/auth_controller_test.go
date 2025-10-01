@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -55,25 +55,25 @@ func TestServiceHandler_GetManagementState(t *testing.T) {
 	tests := []struct {
 		name          string
 		platform      common.Platform
-		dsci          *dsciv1.DSCInitialization
+		dsci          *dsciv2.DSCInitialization
 		expectedState operatorv1.ManagementState
 	}{
 		{
 			name:          "should return Managed for any platform",
 			platform:      cluster.OpenDataHub,
-			dsci:          &dsciv1.DSCInitialization{},
+			dsci:          &dsciv2.DSCInitialization{},
 			expectedState: operatorv1.Managed,
 		},
 		{
 			name:          "should return Managed for self-managed RHOAI",
 			platform:      cluster.SelfManagedRhoai,
-			dsci:          &dsciv1.DSCInitialization{},
+			dsci:          &dsciv2.DSCInitialization{},
 			expectedState: operatorv1.Managed,
 		},
 		{
 			name:          "should return Managed for managed RHOAI",
 			platform:      cluster.ManagedRhoai,
-			dsci:          &dsciv1.DSCInitialization{},
+			dsci:          &dsciv2.DSCInitialization{},
 			expectedState: operatorv1.Managed,
 		},
 	}

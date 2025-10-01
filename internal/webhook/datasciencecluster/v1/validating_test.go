@@ -1,4 +1,4 @@
-package datasciencecluster_test
+package v1_test
 
 import (
 	"testing"
@@ -6,27 +6,22 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
+	v1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
 )
 
-// TestDataScienceCluster_ValidatingWebhook exercises the validating webhook logic for DataScienceCluster resources.
+// TestDataScienceClusterV1_ValidatingWebhook exercises the validating webhook logic for DataScienceCluster v1 resources.
 // It verifies singleton enforcement and deletion rules using table-driven tests and a fake client.
-func TestDataScienceCluster_ValidatingWebhook(t *testing.T) {
+func TestDataScienceClusterV1_ValidatingWebhook(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
-	sch, err := scheme.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	ns := "test-ns"
 
 	cases := []struct {
 		name         string
@@ -40,11 +35,11 @@ func TestDataScienceCluster_ValidatingWebhook(t *testing.T) {
 			req: envtestutil.NewAdmissionRequest(
 				t,
 				admissionv1.Create,
-				envtestutil.NewDSC("test-create", ns),
+				envtestutil.NewDSCV1("test-create"),
 				gvk.DataScienceCluster,
 				metav1.GroupVersionResource{
-					Group:    gvk.DataScienceCluster.Group,
-					Version:  gvk.DataScienceCluster.Version,
+					Group:    gvk.DataScienceClusterV1.Group,
+					Version:  gvk.DataScienceClusterV1.Version,
 					Resource: "datascienceclusters",
 				},
 			),
@@ -53,16 +48,16 @@ func TestDataScienceCluster_ValidatingWebhook(t *testing.T) {
 		{
 			name: "Denies creation if one already exists",
 			existingObjs: []client.Object{
-				envtestutil.NewDSC("existing", ns),
+				envtestutil.NewDSC("existing"),
 			},
 			req: envtestutil.NewAdmissionRequest(
 				t,
 				admissionv1.Create,
-				envtestutil.NewDSC("test-create", ns),
+				envtestutil.NewDSCV1("test-create"),
 				gvk.DataScienceCluster,
 				metav1.GroupVersionResource{
-					Group:    gvk.DataScienceCluster.Group,
-					Version:  gvk.DataScienceCluster.Version,
+					Group:    gvk.DataScienceClusterV1.Group,
+					Version:  gvk.DataScienceClusterV1.Version,
 					Resource: "datascienceclusters",
 				},
 			),
@@ -74,11 +69,11 @@ func TestDataScienceCluster_ValidatingWebhook(t *testing.T) {
 			req: envtestutil.NewAdmissionRequest(
 				t,
 				admissionv1.Delete,
-				envtestutil.NewDSC("test-delete", ns),
+				envtestutil.NewDSCV1("test-delete"),
 				gvk.DataScienceCluster,
 				metav1.GroupVersionResource{
-					Group:    gvk.DataScienceCluster.Group,
-					Version:  gvk.DataScienceCluster.Version,
+					Group:    gvk.DataScienceClusterV1.Group,
+					Version:  gvk.DataScienceClusterV1.Version,
 					Resource: "datascienceclusters",
 				},
 			),
@@ -90,11 +85,12 @@ func TestDataScienceCluster_ValidatingWebhook(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			objs := append([]client.Object{}, tc.existingObjs...)
-			objs = append(objs, envtestutil.NewDSCI("dsci-for-dsc", ns))
-			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(objs...).Build()
-			validator := &datasciencecluster.Validator{
+			objs = append(objs, envtestutil.NewDSCIV1("dsci-for-dsc"))
+			cli, err := fakeclient.New(fakeclient.WithObjects(objs...))
+			g.Expect(err).ShouldNot(HaveOccurred())
+			validator := &v1webhook.Validator{
 				Client: cli,
-				Name:   "test",
+				Name:   "test-v1",
 			}
 			resp := validator.Handle(ctx, tc.req)
 			t.Logf("Admission response: Allowed=%v, Result=%+v", resp.Allowed, resp.Result)

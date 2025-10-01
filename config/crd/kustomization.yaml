@@ -26,21 +26,39 @@ resources:
 - bases/infrastructure.opendatahub.io_hardwareprofiles.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
-# patches:
+#patches:
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
 # patches here are for enabling the conversion webhook for each CRD
-#- patches/webhook_in_dscinitiatlizations.yaml
-#- patches/webhook_in_dscinitializations.yaml
-#- patches/webhook_in_datascienceclusters.yaml
+#- target:
+#    group: apiextensions.k8s.io
+#    version: v1
+#    kind: CustomResourceDefinition
+#    name: dscinitializations.dscinitialization.opendatahub.io
+#  path: patches/webhook_in_dscinitialization_dscinitializations.yaml
+#- target:
+#    group: apiextensions.k8s.io
+#    version: v1
+#    kind: CustomResourceDefinition
+#    name: datascienceclusters.datasciencecluster.opendatahub.io
+#  path: patches/webhook_in_datasciencecluster_datascienceclusters.yaml
 #- patches/webhook_in_monitorings.yaml
 #- patches/webhook_in_auths.yaml
 #+kubebuilder:scaffold:crdkustomizewebhookpatch
 
 # [CERTMANAGER] To enable cert-manager, uncomment all the sections with [CERTMANAGER] prefix.
 # patches here are for enabling the CA injection for each CRD
-#- patches/cainjection_in_dscinitiatlizations.yaml
-#- patches/cainjection_in_dscinitializations.yaml
-#- patches/cainjection_in_datascienceclusters.yaml
+#- target:
+#    group: apiextensions.k8s.io
+#    version: v1
+#    kind: CustomResourceDefinition
+#    name: dscinitializations.dscinitialization.opendatahub.io
+#  path: patches/cainjection_in_dscinitialization_dscinitializations.yaml
+#- target:
+#    group: apiextensions.k8s.io
+#    version: v1
+#    kind: CustomResourceDefinition
+#    name: datascienceclusters.datasciencecluster.opendatahub.io
+#  path: patches/cainjection_in_datasciencecluster_datascienceclusters.yaml
 #- patches/cainjection_in_monitorings.yaml
 #- patches/cainjection_in_auths.yaml
 #+kubebuilder:scaffold:crdkustomizecainjectionpatch

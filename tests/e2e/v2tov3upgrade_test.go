@@ -7,11 +7,18 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhAnnotations "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -25,6 +32,8 @@ import (
 
 const (
 	defaultCodeFlareComponentName = "default-codeflare"
+	testDSCV1Name                 = "test-dsc-v1-upgrade"
+	testDSCIV1Name                = "test-dsci-v1-upgrade"
 )
 
 type V2Tov3UpgradeTestCtx struct {
@@ -52,10 +61,200 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 	RunTestCases(t, testCases)
 }
 
+func v2Tov3UpgradeDeletingDscDsciTestSuite(t *testing.T) {
+	t.Helper()
+
+	tc, err := NewTestContext(t)
+	require.NoError(t, err)
+
+	// Create an instance of test context.
+	v2Tov3UpgradeTestCtx := V2Tov3UpgradeTestCtx{
+		TestContext: tc,
+	}
+
+	// Define test cases.
+	testCases := []TestCase{
+		{"datasciencecluster v1 creation and read", v2Tov3UpgradeTestCtx.DatascienceclusterV1CreationAndRead},
+		{"dscinitialization v1 creation and read", v2Tov3UpgradeTestCtx.DscinitializationV1CreationAndRead},
+	}
+
+	// Run the test suite.
+	RunTestCases(t, testCases)
+}
+
 func (tc *V2Tov3UpgradeTestCtx) ValidateCodeFlareResourcePreservation(t *testing.T) {
 	t.Helper()
 
 	tc.ValidateComponentResourcePreservation(t, gvk.CodeFlare, defaultCodeFlareComponentName)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T) {
+	t.Helper()
+
+	// Clean up any existing DataScienceCluster and DSCInitialization resources before starting
+	cleanupCoreOperatorResources(t, tc.TestContext)
+
+	// Use a consistent name for this test
+	dscName := testDSCV1Name
+
+	// Create a DataScienceCluster v1 resource
+	dscV1 := &dscv1.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DataScienceCluster",
+			APIVersion: dscv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dscName,
+		},
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Workbenches: componentApi.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				ModelMeshServing: componentApi.DSCModelMeshServing{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				CodeFlare: componentApi.DSCCodeFlare{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Ray: componentApi.DSCRay{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				TrustyAI: componentApi.DSCTrustyAI{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				ModelRegistry: componentApi.DSCModelRegistry{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				TrainingOperator: componentApi.DSCTrainingOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+			},
+		},
+	}
+
+	// Create the v1 DataScienceCluster resource and verify it's created correctly
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(dscV1),
+		WithCustomErrorMsg("Failed to create DataScienceCluster v1 resource %s", dscName),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	// Try to read the resource explicitly as v1 and verify no errors occur
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, dscName),
+			jq.Match(`.apiVersion == "%s"`, dscv1.GroupVersion.String()),
+			jq.Match(`.kind == "DataScienceCluster"`),
+		)),
+		WithCustomErrorMsg("Failed to read DataScienceCluster v1 resource %s", dscName),
+	)
+
+	// Cleanup - delete the test resource
+	tc.DeleteResource(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithWaitForDeletion(true),
+	)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) DscinitializationV1CreationAndRead(t *testing.T) {
+	t.Helper()
+
+	// Clean up any existing DataScienceCluster and DSCInitialization resources before starting
+	cleanupCoreOperatorResources(t, tc.TestContext)
+
+	// Use a consistent name for this test
+	dsciName := testDSCIV1Name
+
+	// Create a DSCInitialization v1 resource
+	dsciV1 := &dsciv1.DSCInitialization{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DSCInitialization",
+			APIVersion: dsciv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dsciName,
+		},
+		Spec: dsciv1.DSCInitializationSpec{
+			ApplicationsNamespace: tc.AppsNamespace,
+			Monitoring: serviceApi.DSCIMonitoring{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+				MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
+					Namespace: tc.MonitoringNamespace,
+				},
+			},
+			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
+				ManagementState: operatorv1.Managed,
+				CustomCABundle:  "",
+			},
+			ServiceMesh: &infrav1.ServiceMeshSpec{
+				ManagementState: operatorv1.Managed,
+				ControlPlane: infrav1.ControlPlaneSpec{
+					Name:              "data-science-smcp",
+					Namespace:         "istio-system",
+					MetricsCollection: "Istio",
+				},
+			},
+		},
+	}
+
+	// Create the v1 DSCInitialization resource and verify it's created correctly
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(dsciV1),
+		WithCustomErrorMsg("Failed to create DSCInitialization v1 resource %s", dsciName),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	// Try to read the resource explicitly as v1 and verify no errors occur
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DSCInitializationV1, types.NamespacedName{Name: dsciName}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, dsciName),
+			jq.Match(`.apiVersion == "%s"`, dsciv1.GroupVersion.String()),
+			jq.Match(`.kind == "DSCInitialization"`),
+		)),
+		WithCustomErrorMsg("Failed to read DSCInitialization v1 resource %s", dsciName),
+	)
+
+	// Cleanup - delete the test resource
+	tc.DeleteResource(
+		WithMinimalObject(gvk.DSCInitializationV1, types.NamespacedName{Name: dsciName}),
+		WithWaitForDeletion(true),
+	)
 }
 
 func (tc *V2Tov3UpgradeTestCtx) ValidateComponentResourcePreservation(t *testing.T, componentGVK schema.GroupVersionKind, componentName string) {
@@ -139,7 +338,7 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 	)
 }
 
-func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedComponent(componentGVK schema.GroupVersionKind, componentName string, dsc *dscv1.DataScienceCluster) {
+func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedComponent(componentGVK schema.GroupVersionKind, componentName string, dsc *dscv2.DataScienceCluster) {
 	existingComponent := resources.GvkToUnstructured(componentGVK)
 	existingComponent.SetName(componentName)
 

@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 
@@ -96,19 +96,19 @@ func TestDSCIServiceMeshCondition(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		oldObj   *dsciv1.DSCInitialization
-		newObj   *dsciv1.DSCInitialization
+		oldObj   *dsciv2.DSCInitialization
+		newObj   *dsciv2.DSCInitialization
 		expected bool
 	}{
 		{
 			name: "when new condition is added (length changed)",
-			oldObj: &dsciv1.DSCInitialization{
-				Status: dsciv1.DSCInitializationStatus{
+			oldObj: &dsciv2.DSCInitialization{
+				Status: dsciv2.DSCInitializationStatus{
 					Conditions: []common.Condition{},
 				},
 			},
-			newObj: &dsciv1.DSCInitialization{
-				Status: dsciv1.DSCInitializationStatus{
+			newObj: &dsciv2.DSCInitialization{
+				Status: dsciv2.DSCInitializationStatus{
 					Conditions: []common.Condition{
 						{
 							Type:   status.CapabilityServiceMesh,
@@ -121,8 +121,8 @@ func TestDSCIServiceMeshCondition(t *testing.T) {
 		},
 		{
 			name: "when old condition is removed(length changed)",
-			oldObj: &dsciv1.DSCInitialization{
-				Status: dsciv1.DSCInitializationStatus{
+			oldObj: &dsciv2.DSCInitialization{
+				Status: dsciv2.DSCInitializationStatus{
 					Conditions: []common.Condition{
 						{
 							Type:   status.CapabilityServiceMesh,
@@ -131,8 +131,8 @@ func TestDSCIServiceMeshCondition(t *testing.T) {
 					},
 				},
 			},
-			newObj: &dsciv1.DSCInitialization{
-				Status: dsciv1.DSCInitializationStatus{
+			newObj: &dsciv2.DSCInitialization{
+				Status: dsciv2.DSCInitializationStatus{
 					Conditions: []common.Condition{},
 				},
 			},
@@ -140,8 +140,8 @@ func TestDSCIServiceMeshCondition(t *testing.T) {
 		},
 		{
 			name: "when condition status changes(SMCP to ready)",
-			oldObj: &dsciv1.DSCInitialization{
-				Status: dsciv1.DSCInitializationStatus{
+			oldObj: &dsciv2.DSCInitialization{
+				Status: dsciv2.DSCInitializationStatus{
 					Conditions: []common.Condition{
 						{
 							Type:   status.CapabilityServiceMesh,
@@ -150,8 +150,8 @@ func TestDSCIServiceMeshCondition(t *testing.T) {
 					},
 				},
 			},
-			newObj: &dsciv1.DSCInitialization{
-				Status: dsciv1.DSCInitializationStatus{
+			newObj: &dsciv2.DSCInitialization{
+				Status: dsciv2.DSCInitializationStatus{
 					Conditions: []common.Condition{
 						{
 							Type:   status.CapabilityServiceMesh,
@@ -164,8 +164,8 @@ func TestDSCIServiceMeshCondition(t *testing.T) {
 		},
 		{
 			name: "when condition status remains the same",
-			oldObj: &dsciv1.DSCInitialization{
-				Status: dsciv1.DSCInitializationStatus{
+			oldObj: &dsciv2.DSCInitialization{
+				Status: dsciv2.DSCInitializationStatus{
 					Conditions: []common.Condition{
 						{
 							Type:   status.CapabilityServiceMesh,
@@ -174,8 +174,8 @@ func TestDSCIServiceMeshCondition(t *testing.T) {
 					},
 				},
 			},
-			newObj: &dsciv1.DSCInitialization{
-				Status: dsciv1.DSCInitializationStatus{
+			newObj: &dsciv2.DSCInitialization{
+				Status: dsciv2.DSCInitializationStatus{
 					Conditions: []common.Condition{
 						{
 							Type:   status.CapabilityServiceMesh,
@@ -188,8 +188,8 @@ func TestDSCIServiceMeshCondition(t *testing.T) {
 		},
 		{
 			name: "when other condition changes",
-			oldObj: &dsciv1.DSCInitialization{
-				Status: dsciv1.DSCInitializationStatus{
+			oldObj: &dsciv2.DSCInitialization{
+				Status: dsciv2.DSCInitializationStatus{
 					Conditions: []common.Condition{
 						{
 							Type:   status.CapabilityServiceMeshAuthorization,
@@ -198,8 +198,8 @@ func TestDSCIServiceMeshCondition(t *testing.T) {
 					},
 				},
 			},
-			newObj: &dsciv1.DSCInitialization{
-				Status: dsciv1.DSCInitializationStatus{
+			newObj: &dsciv2.DSCInitialization{
+				Status: dsciv2.DSCInitializationStatus{
 					Conditions: []common.Condition{
 						{
 							Type:   status.CapabilityServiceMeshAuthorization,

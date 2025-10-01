@@ -1,4 +1,4 @@
-package dscinitialization_test
+package v1_test
 
 import (
 	"testing"
@@ -6,26 +6,23 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	v1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 
 	. "github.com/onsi/gomega"
 )
 
-// TestDSCInitialization_ValidatingWebhook exercises the validating webhook logic for DSCInitialization resources.
+// TestDSCInitializationV1_ValidatingWebhook exercises the validating webhook logic for DSCInitialization v1 resources.
 // It verifies singleton enforcement and deletion restrictions using table-driven tests and a fake client.
-func TestDSCInitialization_ValidatingWebhook(t *testing.T) {
+func TestDSCInitializationV1_ValidatingWebhook(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
-	sch, err := scheme.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
 
 	ns := "test-ns"
 
@@ -41,11 +38,11 @@ func TestDSCInitialization_ValidatingWebhook(t *testing.T) {
 			req: envtestutil.NewAdmissionRequest(
 				t,
 				admissionv1.Create,
-				envtestutil.NewDSCI("test-create", ns),
+				envtestutil.NewDSCIV1("test-create"),
 				gvk.DSCInitialization,
 				metav1.GroupVersionResource{
-					Group:    gvk.DSCInitialization.Group,
-					Version:  gvk.DSCInitialization.Version,
+					Group:    gvk.DSCInitializationV1.Group,
+					Version:  gvk.DSCInitializationV1.Version,
 					Resource: "dscinitializations",
 				},
 			),
@@ -54,16 +51,16 @@ func TestDSCInitialization_ValidatingWebhook(t *testing.T) {
 		{
 			name: "Denies creation if one already exists",
 			existingObjs: []client.Object{
-				envtestutil.NewDSCI("existing", ns),
+				envtestutil.NewDSCI("existing"),
 			},
 			req: envtestutil.NewAdmissionRequest(
 				t,
 				admissionv1.Create,
-				envtestutil.NewDSCI("test-create", ns),
+				envtestutil.NewDSCIV1("test-create"),
 				gvk.DSCInitialization,
 				metav1.GroupVersionResource{
-					Group:    gvk.DSCInitialization.Group,
-					Version:  gvk.DSCInitialization.Version,
+					Group:    gvk.DSCInitializationV1.Group,
+					Version:  gvk.DSCInitializationV1.Version,
 					Resource: "dscinitializations",
 				},
 			),
@@ -72,22 +69,22 @@ func TestDSCInitialization_ValidatingWebhook(t *testing.T) {
 		{
 			name: "Denies deletion if DSC exists",
 			existingObjs: []client.Object{
-				&dscv1.DataScienceCluster{
+				&dscv2.DataScienceCluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "dsc-1",
 						Namespace: ns,
 					},
 				},
-				envtestutil.NewDSCI("dsci-1", ns),
+				envtestutil.NewDSCI("dsci-1"),
 			},
 			req: envtestutil.NewAdmissionRequest(
 				t,
 				admissionv1.Delete,
-				envtestutil.NewDSCI("dsci-1", ns),
+				envtestutil.NewDSCIV1("dsci-1"),
 				gvk.DSCInitialization,
 				metav1.GroupVersionResource{
-					Group:    gvk.DSCInitialization.Group,
-					Version:  gvk.DSCInitialization.Version,
+					Group:    gvk.DSCInitializationV1.Group,
+					Version:  gvk.DSCInitializationV1.Version,
 					Resource: "dscinitializations",
 				},
 			),
@@ -96,16 +93,16 @@ func TestDSCInitialization_ValidatingWebhook(t *testing.T) {
 		{
 			name: "Allows deletion if no DSC exists",
 			existingObjs: []client.Object{
-				envtestutil.NewDSCI("dsci-1", ns),
+				envtestutil.NewDSCI("dsci-1"),
 			},
 			req: envtestutil.NewAdmissionRequest(
 				t,
 				admissionv1.Delete,
-				envtestutil.NewDSCI("dsci-1", ns),
+				envtestutil.NewDSCIV1("dsci-1"),
 				gvk.DSCInitialization,
 				metav1.GroupVersionResource{
-					Group:    gvk.DSCInitialization.Group,
-					Version:  gvk.DSCInitialization.Version,
+					Group:    gvk.DSCInitializationV1.Group,
+					Version:  gvk.DSCInitializationV1.Version,
 					Resource: "dscinitializations",
 				},
 			),
@@ -116,10 +113,11 @@ func TestDSCInitialization_ValidatingWebhook(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(tc.existingObjs...).Build()
-			validator := &dscinitialization.Validator{
+			cli, err := fakeclient.New(fakeclient.WithObjects(tc.existingObjs...))
+			g.Expect(err).ShouldNot(HaveOccurred())
+			validator := &v1webhook.Validator{
 				Client: cli,
-				Name:   "test",
+				Name:   "test-v1",
 			}
 			resp := validator.Handle(ctx, tc.req)
 			g.Expect(resp.Allowed).To(Equal(tc.allowed))

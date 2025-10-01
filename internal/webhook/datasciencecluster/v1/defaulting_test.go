@@ -1,4 +1,4 @@
-package datasciencecluster_test
+package v1_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
+	v1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v1"
 
 	. "github.com/onsi/gomega"
 )
@@ -22,14 +22,8 @@ func ptrString(s string) *string {
 	return &s
 }
 
-// TestDefaulter_DefaultingLogic exercises the defaulting webhook logic for DataScienceCluster resources.
-//
-// It uses a table-driven approach to verify:
-//   - The default RegistriesNamespace is set if empty and ManagementState is Managed.
-//   - A custom RegistriesNamespace is not overwritten if set.
-//   - No defaulting occurs if ManagementState is not Managed.
-//   - No defaulting occurs if ModelRegistry is not set at all (upgrade case).
-func TestDefaulter_DefaultingLogic(t *testing.T) {
+// TestDefaulterV1_DefaultingLogic exercises the defaulting webhook logic for DataScienceCluster v1 resources.
+func TestDefaulterV1_DefaultingLogic(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -80,7 +74,7 @@ func TestDefaulter_DefaultingLogic(t *testing.T) {
 				}
 			}
 
-			defaulter := &datasciencecluster.Defaulter{Name: "test"}
+			defaulter := &v1webhook.Defaulter{Name: "test-v1"}
 			err := defaulter.Default(ctx, dsc)
 			g.Expect(err).ToNot(HaveOccurred())
 			g.Expect(dsc.Spec.Components.ModelRegistry.RegistriesNamespace).To(Equal(tc.expectedNamespace))
