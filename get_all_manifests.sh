@@ -21,7 +21,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:v2.15.1:config"
     ["modelcontroller"]="opendatahub-io:odh-model-controller:odh-v2.35:config"
     ["feastoperator"]="opendatahub-io:feast:v0.54.0:infra/feast-operator/config"
-    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:v0.3.0:config"
+    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh:config"
 )
 
 # PLATFORM_MANIFESTS is a list of manifests that are contained in the operator repository. Please also add them to the
