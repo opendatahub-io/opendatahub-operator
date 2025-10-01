@@ -38,17 +38,11 @@ var templatedResources = []struct {
 	gvk schema.GroupVersionKind
 	nn  types.NamespacedName
 }{
-	{gvk.KnativeServing, types.NamespacedName{Namespace: "knative-serving", Name: "knative-serving"}},
-	{gvk.ServiceMeshMember, types.NamespacedName{Namespace: "knative-serving", Name: "default"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "activator-host-header"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-after"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "envoy-oauth-temp-fix-before"}},
-	// {gvk.EnvoyFilter, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph-host-header"}},
-	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-inferencegraph"}},
-	// {gvk.AuthorizationPolicy, types.NamespacedName{Namespace: "istio-system", Name: "kserve-predictor"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: "istio-system", Name: "kserve-local-gateway"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-ingress-gateway"}},
-	{gvk.Gateway, types.NamespacedName{Namespace: "knative-serving", Name: "knative-local-gateway"}},
+	{gvk.KnativeServing, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-serving"}},
+	{gvk.ServiceMeshMember, types.NamespacedName{Namespace: knativeServingNamespace, Name: "default"}},
+	{gvk.IstioGateway, types.NamespacedName{Namespace: serviceMeshNamespace, Name: "kserve-local-gateway"}},
+	{gvk.IstioGateway, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-ingress-gateway"}},
+	{gvk.IstioGateway, types.NamespacedName{Namespace: knativeServingNamespace, Name: "knative-local-gateway"}},
 }
 
 func kserveTestSuite(t *testing.T) {

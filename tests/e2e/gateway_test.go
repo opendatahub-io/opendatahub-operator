@@ -7,6 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
 	. "github.com/onsi/gomega"
@@ -84,30 +85,21 @@ func validateGatewayCreation(t *testing.T, ctx *TestContext) {
 		)
 	})
 
-	t.Run("Gateway should be created with correct configuration", func(t *testing.T) {
-		ctx.EnsureResourceExists(
-			WithMinimalObject(GatewayGVK, types.NamespacedName{
-				Name:      gatewayName,
-				Namespace: gatewayNamespace,
-			}),
-		)
-
-		// Validate Gateway configuration using the test framework's pattern
-		ctx.EnsureResourceExists(
-			WithMinimalObject(GatewayGVK, types.NamespacedName{
-				Name:      gatewayName,
-				Namespace: gatewayNamespace,
-			}),
-			WithCondition(And(
-				jq.Match(`.spec.gatewayClassName == "%s"`, gatewayClassName),
-				jq.Match(`.spec.listeners | length > 0`),
-				jq.Match(`.spec.listeners[] | select(.name == "https") | .protocol == "%s"`, string(gwapiv1.HTTPSProtocolType)),
-				jq.Match(`.spec.listeners[] | select(.name == "https") | .port == 443`),
-				jq.Match(`.spec.listeners[] | select(.name == "https") | .tls.certificateRefs[0].name == "%s"`, gatewayTLSSecretName),
-			)),
-			WithCustomErrorMsg("Gateway should be created with correct HTTPS configuration"),
-		)
-	})
+	// Validate Gateway API resource with configuration
+	ctx.EnsureResourceExists(
+		WithMinimalObject(gvk.KubernetesGateway, types.NamespacedName{
+			Name:      gatewayName,
+			Namespace: gatewayNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.gatewayClassName == "%s"`, gatewayClassName),
+			jq.Match(`.spec.listeners | length > 0`),
+			jq.Match(`.spec.listeners[] | select(.name == "https") | .protocol == "%s"`, string(gwapiv1.HTTPSProtocolType)),
+			jq.Match(`.spec.listeners[] | select(.name == "https") | .port == 443`),
+			jq.Match(`.spec.listeners[] | select(.name == "https") | .tls.certificateRefs[0].name == "%s"`, gatewayTLSSecretName),
+		)),
+		WithCustomErrorMsg("Gateway should be created with correct HTTPS configuration"),
+	)
 
 	t.Log("Gateway API resources validation completed successfully")
 }

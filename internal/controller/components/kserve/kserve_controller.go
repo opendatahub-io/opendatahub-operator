@@ -72,7 +72,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 
 		// operands - dynamically owned
-		OwnsGVK(gvk.Gateway, reconciler.Dynamic(reconciler.CrdExists(gvk.Gateway))).
+		OwnsGVK(gvk.IstioGateway, reconciler.Dynamic(reconciler.CrdExists(gvk.IstioGateway))).
 		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
 		OwnsGVK(gvk.KnativeServing, reconciler.Dynamic(reconciler.CrdExists(gvk.KnativeServing))).
 		OwnsGVK(gvk.ServiceMeshMember, reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMeshMember))).
