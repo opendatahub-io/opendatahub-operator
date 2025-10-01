@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -57,11 +57,11 @@ func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create DSCI
-			dsci := &dsciv1.DSCInitialization{
+			dsci := &dsciv2.DSCInitialization{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-dsci",
 				},
-				Spec: dsciv1.DSCInitializationSpec{
+				Spec: dsciv2.DSCInitializationSpec{
 					Monitoring: serviceApi.DSCIMonitoring{
 						ManagementSpec: common.ManagementSpec{
 							ManagementState: tt.monitoringState,
@@ -91,7 +91,7 @@ func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 
 			// Create fake client
 			scheme := runtime.NewScheme()
-			require.NoError(t, dsciv1.AddToScheme(scheme))
+			require.NoError(t, dsciv2.AddToScheme(scheme))
 			require.NoError(t, serviceApi.AddToScheme(scheme))
 
 			fakeClient := fake.NewClientBuilder().
@@ -236,7 +236,7 @@ func TestCustomMetricsExporters(t *testing.T) {
 
 			// Create fake client
 			scheme := runtime.NewScheme()
-			require.NoError(t, dsciv1.AddToScheme(scheme))
+			require.NoError(t, dsciv2.AddToScheme(scheme))
 			require.NoError(t, serviceApi.AddToScheme(scheme))
 
 			fakeClient := fake.NewClientBuilder().
@@ -246,8 +246,8 @@ func TestCustomMetricsExporters(t *testing.T) {
 			rr := &odhtypes.ReconciliationRequest{
 				Client:   fakeClient,
 				Instance: mon,
-				DSCI: &dsciv1.DSCInitialization{
-					Spec: dsciv1.DSCInitializationSpec{
+				DSCI: &dsciv2.DSCInitialization{
+					Spec: dsciv2.DSCInitializationSpec{
 						ApplicationsNamespace: "test-app-namespace",
 					},
 				},
@@ -323,11 +323,11 @@ func TestGetTemplateDataAcceleratorMetricsWithMetricsConfiguration(t *testing.T)
 	ctx := t.Context()
 
 	// Test with full metrics configuration
-	dsci := &dsciv1.DSCInitialization{
+	dsci := &dsciv2.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-dsci",
 		},
-		Spec: dsciv1.DSCInitializationSpec{
+		Spec: dsciv2.DSCInitializationSpec{
 			Monitoring: serviceApi.DSCIMonitoring{
 				ManagementSpec: common.ManagementSpec{
 					ManagementState: operatorv1.Managed,
@@ -356,7 +356,7 @@ func TestGetTemplateDataAcceleratorMetricsWithMetricsConfiguration(t *testing.T)
 
 	// Create fake client
 	scheme := runtime.NewScheme()
-	require.NoError(t, dsciv1.AddToScheme(scheme))
+	require.NoError(t, dsciv2.AddToScheme(scheme))
 	require.NoError(t, serviceApi.AddToScheme(scheme))
 
 	fakeClient := fake.NewClientBuilder().

@@ -10,7 +10,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
@@ -134,7 +134,7 @@ func TestRenderResourcesAction(t *testing.T) {
 		rr := types.ReconciliationRequest{
 			Client:    cl,
 			Instance:  &componentApi.Dashboard{},
-			DSCI:      &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+			DSCI:      &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 			Release:   common.Release{Name: cluster.OpenDataHub},
 			Manifests: []types.ManifestInfo{{Path: id}},
 		}
@@ -224,7 +224,7 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 		rr := types.ReconciliationRequest{
 			Client:    cl,
 			Instance:  &d,
-			DSCI:      &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+			DSCI:      &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 			Release:   common.Release{Name: cluster.OpenDataHub},
 			Manifests: []types.ManifestInfo{{Path: id}},
 		}

@@ -9,7 +9,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -35,7 +35,7 @@ func (h *serviceHandler) GetName() string {
 	return ServiceName
 }
 
-func (h *serviceHandler) GetManagementState(_ common.Platform, dsci *dsciv1.DSCInitialization) operatorv1.ManagementState {
+func (h *serviceHandler) GetManagementState(_ common.Platform, dsci *dsciv2.DSCInitialization) operatorv1.ManagementState {
 	if dsci != nil && dsci.Spec.ServiceMesh != nil {
 		return dsci.Spec.ServiceMesh.ManagementState
 	}
