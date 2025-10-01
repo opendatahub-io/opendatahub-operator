@@ -13,8 +13,6 @@ const (
 )
 
 type {{ .Component }}CommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
-
 	// TODO:
 	// new component spec shared with DSC api
 	// ( refer/define here if applicable to the new component )
@@ -53,10 +51,6 @@ type {{ .Component }} struct {
 
 	Spec   {{ .Component }}Spec   `json:"spec,omitempty"`
 	Status {{ .Component }}Status `json:"status,omitempty"`
-}
-
-func (c *{{ .Component }}) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *{{ .Component }}) GetStatus() *common.Status {

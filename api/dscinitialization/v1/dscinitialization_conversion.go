@@ -40,9 +40,7 @@ func (c *DSCInitialization) ConvertTo(dstRaw conversion.Hub) error {
 	}
 	if c.Spec.DevFlags != nil {
 		dst.Spec.DevFlags = &dsciv2.DevFlags{
-			ManifestsUri: c.Spec.DevFlags.ManifestsUri,
-			LogMode:      c.Spec.DevFlags.LogMode,
-			LogLevel:     c.Spec.DevFlags.LogLevel,
+			LogLevel: c.Spec.DevFlags.LogLevel,
 		}
 	}
 
@@ -76,9 +74,7 @@ func (c *DSCInitialization) ConvertFrom(srcRaw conversion.Hub) error {
 	}
 	if src.Spec.DevFlags != nil {
 		c.Spec.DevFlags = &DevFlags{
-			ManifestsUri: src.Spec.DevFlags.ManifestsUri,
-			LogMode:      src.Spec.DevFlags.LogMode,
-			LogLevel:     src.Spec.DevFlags.LogLevel,
+			LogLevel: src.Spec.DevFlags.LogLevel,
 		}
 	}
 

@@ -67,11 +67,9 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		Spec: componentApi.ModelControllerSpec{
 			ModelMeshServing: &componentApi.ModelControllerMMSpec{
 				ManagementState: mState,
-				DevFlagsSpec:    dsc.Spec.Components.ModelMeshServing.DevFlagsSpec,
 			},
 			Kserve: &componentApi.ModelControllerKerveSpec{
 				ManagementState: kState,
-				DevFlagsSpec:    dsc.Spec.Components.Kserve.DevFlagsSpec,
 				NIM:             dsc.Spec.Components.Kserve.NIM,
 			},
 			ModelRegistry: &componentApi.ModelControllerMRSpec{

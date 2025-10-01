@@ -30,7 +30,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -48,31 +47,6 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = append(rr.Manifests, manifestsPath(rr.Release.Name))
-	return nil
-}
-
-func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	trustyai, ok := rr.Instance.(*componentApi.TrustyAI)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.TrustyAI)", rr.Instance)
-	}
-
-	if trustyai.Spec.DevFlags == nil {
-		return nil
-	}
-
-	// Implement devflags support logic
-	// If dev flags are set, update default manifests path
-	if len(trustyai.Spec.DevFlags.Manifests) != 0 {
-		manifestConfig := trustyai.Spec.DevFlags.Manifests[0]
-		if err := odhdeploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
-			return err
-		}
-		if manifestConfig.SourcePath != "" {
-			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
-		}
-	}
-
 	return nil
 }
 

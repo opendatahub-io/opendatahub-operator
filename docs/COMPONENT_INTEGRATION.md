@@ -49,9 +49,6 @@ const (
 )
 
 type ExampleComponentCommonSpec struct {
-	// new component spec exposed to DSC api
-	common.DevFlagsSpec `json:",inline"`
-
 	// new component spec shared with DSC api
   	// ( refer/define here if applicable to the new component )
 }
@@ -91,11 +88,6 @@ type ExampleComponent struct {
 
 	Spec   ExampleComponentSpec   `json:"spec,omitempty"`
 	Status ExampleComponentStatus `json:"status,omitempty"`
-}
-
-// getter for devFlags
-func (c *ExampleComponent) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 // status getter
@@ -279,7 +271,6 @@ As seen in the existing component reconciler implementations, it would be recomm
 
 "Generic"/commonly-implemented actions for each of the currently integrated components include:
 - `initialize()` - to register paths to the component manifests
-- `devFlags()` - to override the component manifest paths according to the Dev Flags configuration 
 
 In addition, proper generic actions, intended to be used across the components, are provided as part of the operator implementation (located in `pkg/controller/actions`).
 These support:

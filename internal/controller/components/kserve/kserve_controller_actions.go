@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -25,7 +24,6 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -105,45 +103,6 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = []odhtypes.ManifestInfo{
 		kserveManifestInfo(kserveManifestSourcePath),
-	}
-
-	return nil
-}
-
-func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	k, ok := rr.Instance.(*componentApi.Kserve)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
-	}
-
-	df := k.GetDevFlags()
-	if df == nil {
-		return nil
-	}
-	if len(df.Manifests) == 0 {
-		return nil
-	}
-
-	kSourcePath := kserveManifestSourcePath
-
-	for _, subcomponent := range df.Manifests {
-		if !strings.Contains(subcomponent.URI, componentName) && !strings.Contains(subcomponent.URI, LegacyComponentName) {
-			continue
-		}
-
-		if err := deploy.DownloadManifests(ctx, componentName, subcomponent); err != nil {
-			return err
-		}
-
-		if subcomponent.SourcePath != "" {
-			kSourcePath = subcomponent.SourcePath
-		}
-
-		break
-	}
-
-	rr.Manifests = []odhtypes.ManifestInfo{
-		kserveManifestInfo(kSourcePath),
 	}
 
 	return nil

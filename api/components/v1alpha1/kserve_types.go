@@ -54,7 +54,6 @@ var _ common.PlatformObject = (*Kserve)(nil)
 
 // KserveCommonSpec spec defines the shared desired state of Kserve
 type KserveCommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
 	// Serving configures the KNative-Serving stack used for model serving. A Service
 	// Mesh (Istio) is prerequisite, since it is used as networking layer.
 	Serving infrav1.ServingSpec `json:"serving,omitempty"`
@@ -117,10 +116,6 @@ type Kserve struct {
 
 	Spec   KserveSpec   `json:"spec,omitempty"`
 	Status KserveStatus `json:"status,omitempty"`
-}
-
-func (c *Kserve) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *Kserve) GetStatus() *common.Status {
