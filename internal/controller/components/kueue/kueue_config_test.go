@@ -10,7 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
@@ -543,8 +543,8 @@ func runKueueCRTest(t *testing.T, configMapYAML string, expectedCRYAML string) {
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client: fakeClient,
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{
 				ApplicationsNamespace: "test-namespace",
 			},
 		},
@@ -602,11 +602,11 @@ invalid: yaml: content: [
 	g.Expect(fakeClient.Create(ctx, cm)).Should(Succeed())
 
 	// Create reconciliation request
-	dsci := &dsciv1.DSCInitialization{
+	dsci := &dsciv2.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-dsci",
 		},
-		Spec: dsciv1.DSCInitializationSpec{
+		Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: "test-namespace",
 		},
 	}

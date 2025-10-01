@@ -25,8 +25,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -45,8 +45,8 @@ func createEnvTest(s *runtime.Scheme) (*envtest.Environment, error) {
 	utilruntime.Must(appsv1.AddToScheme(s))
 	utilruntime.Must(apiextensionsv1.AddToScheme(s))
 	utilruntime.Must(componentApi.AddToScheme(s))
-	utilruntime.Must(dscv1.AddToScheme(s))
-	utilruntime.Must(dsciv1.AddToScheme(s))
+	utilruntime.Must(dscv2.AddToScheme(s))
+	utilruntime.Must(dsciv2.AddToScheme(s))
 
 	projectDir, err := envtestutil.FindProjectRoot()
 	if err != nil {

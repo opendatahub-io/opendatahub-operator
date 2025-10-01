@@ -15,7 +15,9 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -59,12 +61,24 @@ var (
 	}
 
 	DataScienceCluster = schema.GroupVersionKind{
+		Group:   dscv2.GroupVersion.Group,
+		Version: dscv2.GroupVersion.Version,
+		Kind:    "DataScienceCluster",
+	}
+
+	DataScienceClusterV1 = schema.GroupVersionKind{
 		Group:   dscv1.GroupVersion.Group,
 		Version: dscv1.GroupVersion.Version,
 		Kind:    "DataScienceCluster",
 	}
 
 	DSCInitialization = schema.GroupVersionKind{
+		Group:   dsciv2.GroupVersion.Group,
+		Version: dsciv2.GroupVersion.Version,
+		Kind:    "DSCInitialization",
+	}
+
+	DSCInitializationV1 = schema.GroupVersionKind{
 		Group:   dsciv1.GroupVersion.Group,
 		Version: dsciv1.GroupVersion.Version,
 		Kind:    "DSCInitialization",
