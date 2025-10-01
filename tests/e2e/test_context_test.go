@@ -47,6 +47,9 @@ type TestContext struct {
 	// Namespace where application workloads are deployed.
 	AppsNamespace string
 
+	// Namespace where the monitoring components are deployed.
+	MonitoringNamespace string
+
 	// Namespaced name of the DSCInitialization custom resource used for testing.
 	DSCInitializationNamespacedName types.NamespacedName
 
@@ -87,6 +90,7 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		DataScienceClusterNamespacedName: types.NamespacedName{Name: dscInstanceName},
 		OperatorNamespace:                testOpts.operatorNamespace,
 		AppsNamespace:                    testOpts.appsNamespace,
+		MonitoringNamespace:              testOpts.monitoringNamespace,
 		TestTimeouts:                     testOpts.TestTimeouts,
 	}, nil
 }
