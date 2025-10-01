@@ -6,8 +6,8 @@ metadata:
     capabilities: Full Lifecycle
     categories: AI/Machine Learning, Big Data
     certified: "False"
-    containerImage: quay.io/opendatahub/opendatahub-operator:v2.31.0
-    createdAt: "2025-6-10T00:00:00Z"
+    containerImage: quay.io/opendatahub/opendatahub-operator:v2.35.0
+    createdAt: "2025-10-01T00:00:00Z"
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
       "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
@@ -18,7 +18,7 @@ metadata:
       "servicemeshes.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
       "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
-  name: opendatahub-operator.v2.23.0
+  name: opendatahub-operator.v2.35.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}

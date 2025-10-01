@@ -314,11 +314,11 @@ func TestMain(m *testing.M) {
 	viper.SetDefault("defaultConsistentlyPollInterval", "5s") // Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.
 
 	// Flags
-	pflag.String("operator-namespace", "redhat-ods-operator", "Namespace where the odh operator is deployed")
+	pflag.String("operator-namespace", "opendatahub-operator-system", "Namespace where the odh operator is deployed")
 	checkEnvVarBindingError(viper.BindEnv("operator-namespace", viper.GetEnvPrefix()+"_OPERATOR_NAMESPACE"))
-	pflag.String("applications-namespace", "redhat-ods-applications", "Namespace where the odh applications are deployed")
+	pflag.String("applications-namespace", "opendatahub", "Namespace where the odh applications are deployed")
 	checkEnvVarBindingError(viper.BindEnv("applications-namespace", viper.GetEnvPrefix()+"_APPLICATIONS_NAMESPACE"))
-	pflag.String("dsc-monitoring-namespace", "redhat-ods-monitoring", "Namespace where the odh monitoring is deployed")
+	pflag.String("dsc-monitoring-namespace", "opendatahub", "Namespace where the odh monitoring is deployed")
 	checkEnvVarBindingError(viper.BindEnv("dsc-monitoring-namespace", viper.GetEnvPrefix()+"_DSC_MONITORING_NAMESPACE"))
 	pflag.String("deletion-policy", "always",
 		"Specify when to delete DataScienceCluster, DSCInitialization, and controllers. Options: always, on-failure, never.")

@@ -37,8 +37,8 @@ type ModelRegistryCommonSpec struct {
 	// model registry spec exposed to DSC api
 	common.DevFlagsSpec `json:",inline"`
 
-	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "rhoai-model-registries"
-	// +kubebuilder:default="rhoai-model-registries"
+	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries"
+	// +kubebuilder:default="odh-model-registries"
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
 	RegistriesNamespace string `json:"registriesNamespace,omitempty"`

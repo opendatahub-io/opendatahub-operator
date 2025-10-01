@@ -75,9 +75,9 @@ spec:
                     type: array
                 type: object
               registriesNamespace:
-                default: rhoai-model-registries
+                default: odh-model-registries
                 description: Namespace for model registries to be installed, configurable
-                  only once when model registry is enabled, defaults to "rhoai-model-registries"
+                  only once when model registry is enabled, defaults to "odh-model-registries"
                 maxLength: 63
                 pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                 type: string

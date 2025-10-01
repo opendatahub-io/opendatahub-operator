@@ -154,7 +154,7 @@ spec:
                   rule: '!(self.storage == null && self.resources == null) || !has(self.replicas)
                     || self.replicas == 0'
               namespace:
-                default: redhat-ods-monitoring
+                default: opendatahub
                 description: |-
                   monitoring spec exposed to DSCI api
                   Namespace for monitoring if it is enabled

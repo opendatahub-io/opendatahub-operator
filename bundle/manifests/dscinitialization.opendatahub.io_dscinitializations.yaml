@@ -53,9 +53,9 @@ spec:
             description: DSCInitializationSpec defines the desired state of DSCInitialization.
             properties:
               applicationsNamespace:
-                default: redhat-ods-applications
+                default: opendatahub
                 description: Namespace for applications to be installed, non-configurable,
-                  default to "redhat-ods-applications"
+                  default to "opendatahub"
                 maxLength: 63
                 pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                 type: string
@@ -207,7 +207,7 @@ spec:
                       rule: '!(self.storage == null && self.resources == null) ||
                         !has(self.replicas) || self.replicas == 0'
                   namespace:
-                    default: redhat-ods-monitoring
+                    default: opendatahub
                     description: |-
                       monitoring spec exposed to DSCI api
                       Namespace for monitoring if it is enabled
@@ -301,10 +301,11 @@ spec:
                     to be configured
                   rule: 'has(self.alerting) ? has(self.metrics.storage) || has(self.metrics.resources)
                     : true'
-                - message: CollectorReplicas can only be set when metrics or traces
-                    are enabled, and must be > 0
+                - message: CollectorReplicas can only be set when metrics.resources,
+                    metrics.storage or traces are configured, and must be > 0
                   rule: '!has(self.collectorReplicas) || (self.collectorReplicas >
-                    0 && (self.metrics != null || self.traces != null))'
+                    0 && ((self.metrics.resources != null || self.metrics.storage
+                    != null) || self.traces != null))'
               serviceMesh:
                 description: |-
                   Configures Service Mesh as networking layer for Data Science Clusters components.

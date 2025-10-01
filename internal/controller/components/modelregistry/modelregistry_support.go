@@ -14,7 +14,7 @@ const (
 
 	ReadyConditionType = componentApi.ModelRegistryKind + status.ReadySuffix
 
-	DefaultModelRegistriesNamespace = "rhoai-model-registries"
+	DefaultModelRegistriesNamespace = "odh-model-registries"
 	DefaultModelRegistryCert        = "default-modelregistry-cert"
 	BaseManifestsSourcePath         = "overlays/odh"
 	// LegacyComponentName is the name of the component that is assigned to deployments

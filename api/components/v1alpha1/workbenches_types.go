@@ -37,8 +37,8 @@ type WorkbenchesCommonSpec struct {
 	common.DevFlagsSpec `json:",inline"`
 	// workbenches spec exposed only to internal api
 
-	// Namespace for workbenches to be installed, defaults to "rhods-notebooks" configurable once when component is enabled.
-	// +kubebuilder:default="rhods-notebooks"
+	// Namespace for workbenches to be installed, defaults to "opendatahub" configurable once when component is enabled.
+	// +kubebuilder:default="opendatahub"
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="WorkbenchNamespace is immutable"
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63

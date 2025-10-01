@@ -4,16 +4,16 @@ metadata:
   labels:
     app.kubernetes.io/name: dscinitialization
     app.kubernetes.io/instance: default-dsci
-    app.kubernetes.io/part-of: rhods-operator
+    app.kubernetes.io/part-of: opendatahub-operator
     app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: rhods-operator
+    app.kubernetes.io/created-by: opendatahub-operator
   name: default-dsci
 spec:
   monitoring:
     managementState: "Managed"
-    namespace: 'redhat-ods-monitoring'
+    namespace: 'opendatahub'
     metrics: {}
-  applicationsNamespace: 'redhat-ods-applications'
+  applicationsNamespace: 'opendatahub'
   serviceMesh:
     controlPlane:
       metricsCollection: Istio

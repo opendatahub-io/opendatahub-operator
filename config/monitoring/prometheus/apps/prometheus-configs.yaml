@@ -458,10 +458,10 @@ data:
         - role: pod
           namespaces:
             names:
-              - redhat-ods-operator
+              - opendatahub-operator-system
       relabel_configs:
         - source_labels: [__meta_kubernetes_pod_label_name]
-          regex: ^(rhods-operator)$ 
+          regex: ^(opendatahub-operator)$ 
           target_label: kubernetes_name
           action: keep
         - source_labels: [__address__]
