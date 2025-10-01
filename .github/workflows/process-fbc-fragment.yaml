@@ -29,7 +29,12 @@ jobs:
           cd $BRANCH_NAME
           sed -i '/# Ignore catalog related files/d' .gitignore
           sed -i '/catalog\//d' .gitignore
-          CURRENT_VERSION=${BRANCH_NAME#odh-}
+          # TEMPORARY FIX: hardcode version for odh-2.35 branch
+          if [ "$BRANCH_NAME" == "odh-2.35" ]; then
+            CURRENT_VERSION="2.35.0"
+          else
+            CURRENT_VERSION=${BRANCH_NAME#odh-}
+          fi
           MAJOR=$(echo "$CURRENT_VERSION" | cut -d '.' -f 1)
           MINOR=$(echo "$CURRENT_VERSION" | cut -d '.' -f 2)
           PATCH=$(echo "$CURRENT_VERSION" | cut -d '.' -f 3)

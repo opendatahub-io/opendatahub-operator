@@ -368,7 +368,7 @@ ifeq (,$(shell command -v opm 2>/dev/null))
 	set -e ;\
 	mkdir -p $(dir $(OPM)) ;\
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.23.0/$${OS}-$${ARCH}-opm ;\
+	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.55.0/$${OS}-$${ARCH}-opm ;\
 	chmod +x $(OPM) ;\
 	}
 else
@@ -388,14 +388,26 @@ ifneq ($(origin CATALOG_BASE_IMG), undefined)
 FROM_INDEX_OPT := --from-index $(CATALOG_BASE_IMG)
 endif
 
-# Build a catalog image by adding bundle images to an empty catalog using the operator package manager tool, 'opm'.
-# This recipe invokes 'opm' in 'semver' bundle add mode. For more information on add modes, see:
-# https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
-.PHONY: catalog-build
-catalog-build: opm ## Build a catalog image.
-	$(OPM) index add --container-tool $(IMAGE_BUILDER) --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+.PHONY: catalog-clean
+catalog-clean: ## Clean up catalog files and Dockerfile
+	rm -rf catalog
 
-# Push the catalog image.
+.PHONY: catalog-prepare
+catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel. It requires BUNDLE_IMG exists before running the target
+	mkdir -p catalog
+	cp config/catalog/fbc-basic-template.yaml catalog/fbc-basic-template.yaml
+	./hack/update-catalog-template.sh catalog/fbc-basic-template.yaml $(BUNDLE_IMGS)
+	$(OPM) alpha render-template basic \
+		--migrate-level=bundle-object-to-csv-metadata \
+		-o yaml \
+		catalog/fbc-basic-template.yaml > catalog/catalog.yaml
+	$(OPM) validate catalog
+	rm -f catalog/fbc-basic-template.yaml
+
+.PHONY: catalog-build
+catalog-build: catalog-prepare ## Build a catalog image.
+	$(IMAGE_BUILDER) build --no-cache --load -f Dockerfiles/catalog.Dockerfile --platform $(PLATFORM) -t $(CATALOG_IMG) .
+
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) image-push IMG=$(CATALOG_IMG)
