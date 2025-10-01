@@ -290,9 +290,9 @@ e.g `make image-build USE_LOCAL=true"`
 
 There are 2 ways to test your changes with modification:
 
-1. Each component in the `DataScienceCluster` CR has `devFlags.manifests` field, which can be used to pull down the manifests from the remote git repos of the respective components. By using this method, it overwrites manifests and creates customized resources for the respective components.
+1. Using custom manifests in OLM operator. See [custom manifest](hack/component-dev/README.md) for more details.
 
-2. [Under implementation] build operator image with local manifests.
+2. Build operator image with local manifests, running `make image-build USE_LOCAL=true`
 
 ### Update API docs
 

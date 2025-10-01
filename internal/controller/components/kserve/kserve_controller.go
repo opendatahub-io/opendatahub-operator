@@ -113,7 +113,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		// actions
 		WithAction(checkPreConditions).
 		WithAction(initialize).
-		WithAction(devFlags).
 		WithAction(releases.NewAction()).
 		WithAction(addTemplateFiles).
 		WithAction(template.NewAction(

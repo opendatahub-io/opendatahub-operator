@@ -30,13 +30,8 @@ type CodeFlareCommonStatus struct {
 	common.ComponentReleaseStatus `json:",inline"`
 }
 
-type CodeFlareCommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
-}
-
 type DSCCodeFlare struct {
 	common.ManagementSpec `json:",inline"`
-	CodeFlareCommonSpec   `json:",inline"`
 }
 
 // DSCCodeFlareStatus contains the observed state of the CodeFlare exposed in the DSC instance
