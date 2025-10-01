@@ -512,7 +512,12 @@ func (tc *OperatorResilienceTestCtx) deleteZeroPodQuotaForOperator() {
 func updateAllComponentsTransform(components []string, state operatorv1.ManagementState) testf.TransformFn {
 	transformParts := make([]string, len(components))
 	for i, component := range components {
-		transformParts[i] = fmt.Sprintf(`.spec.components.%s.managementState = "%s"`, component, state)
+		// Map datasciencepipelines to aipipelines for v2 API
+		componentFieldName := component
+		if component == dataSciencePipelinesComponentName {
+			componentFieldName = aiPipelinesFieldName
+		}
+		transformParts[i] = fmt.Sprintf(`.spec.components.%s.managementState = "%s"`, componentFieldName, state)
 	}
 
 	return testf.Transform("%s", strings.Join(transformParts, " | "))

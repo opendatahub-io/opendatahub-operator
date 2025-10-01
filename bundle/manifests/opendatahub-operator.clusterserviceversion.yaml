@@ -79,7 +79,7 @@ metadata:
               "dashboard": {
                 "managementState": "Managed"
               },
-              "datasciencepipelines": {
+              "AIPipelines": {
                 "managementState": "Managed"
               },
               "feastoperator": {

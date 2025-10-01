@@ -38,7 +38,7 @@ type Components struct {
 
 	// DataSciencePipeline component configuration.
 	// Requires OpenShift Pipelines Operator to be installed before enable component
-	DataSciencePipelines componentApi.DSCDataSciencePipelines `json:"datasciencepipelines,omitempty"`
+	AIPipelines componentApi.DSCDataSciencePipelines `json:"datasciencepipelines,omitempty"`
 
 	// Kserve component configuration.
 	// Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
@@ -75,7 +75,7 @@ type ComponentsStatus struct {
 	Workbenches componentApi.DSCWorkbenchesStatus `json:"workbenches,omitempty"`
 
 	// DataSciencePipeline component status.
-	DataSciencePipelines componentApi.DSCDataSciencePipelinesStatus `json:"datasciencepipelines,omitempty"`
+	AIPipelines componentApi.DSCDataSciencePipelinesStatus `json:"datasciencepipelines,omitempty"`
 
 	// Kserve component status.
 	Kserve componentApi.DSCKserveStatus `json:"kserve,omitempty"`
