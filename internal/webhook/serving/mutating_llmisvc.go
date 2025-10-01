@@ -223,7 +223,7 @@ func (w *LLMISVCConnectionWebhook) performConnectionInjection(
 
 	case webhookutils.ConnectionTypeProtocolS3.String(), webhookutils.ConnectionTypeRefS3.String():
 		// inject ServiceAccount for S3 connections
-		if err := w.Webhook.HandleSA(decodedObj, LlmisvcConfigs.ServiceAccountNamePath, connInfo.SecretName+"-sa"); err != nil {
+		if err := w.Webhook.InjectServiceAccountName(decodedObj, LlmisvcConfigs.ServiceAccountNamePath, connInfo.SecretName+"-sa"); err != nil {
 			return false, fmt.Errorf("failed to inject .spec.template.serviceAccountName: %w", err)
 		}
 		log.V(1).Info("Successfully injected .spec.template.serviceAccountName", "ServiceAccountName", connInfo.SecretName+"-sa")
@@ -274,14 +274,14 @@ func (w *LLMISVCConnectionWebhook) performConnectionCleanup(
 		}
 
 		// for s3: clean up ServiceAccountName injection
-		if err := w.Webhook.HandleSA(decodedObj, LlmisvcConfigs.ServiceAccountNamePath, ""); err != nil {
+		if err := w.Webhook.RemoveServiceAccountName(decodedObj, LlmisvcConfigs.ServiceAccountNamePath, connInfo.SecretName+"-sa"); err != nil {
 			return false, fmt.Errorf("failed to cleanup .spec.template.serviceAccountName: %w", err)
 		}
 		cleanupPerformed = true
 
 	case webhookutils.ConnectionTypeProtocolS3.String(), webhookutils.ConnectionTypeRefS3.String(): // TODO: we will need handle hf:// from ConnectionTypeURI
-		// remove ServiceAccountName injection, if we need it in replacement, we ill add it back later.
-		if err := w.Webhook.HandleSA(decodedObj, LlmisvcConfigs.ServiceAccountNamePath, ""); err != nil {
+		// remove ServiceAccountName injection, if we need it in replacement, we will add it back later.
+		if err := w.Webhook.RemoveServiceAccountName(decodedObj, LlmisvcConfigs.ServiceAccountNamePath, connInfo.SecretName+"-sa"); err != nil {
 			return false, fmt.Errorf("failed to cleanup .spec.template.serviceAccountName: %w", err)
 		}
 		cleanupPerformed = true

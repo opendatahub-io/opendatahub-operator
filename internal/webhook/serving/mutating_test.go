@@ -402,7 +402,31 @@ func TestServiceAccountNamePatching(t *testing.T) {
 		}
 		runISVCTestCase(t, tc)
 	})
-	t.Run("serviceAccountName is removed on annotation removal", func(t *testing.T) {
+	t.Run("serviceAccountName is not overwritten when user sets different value", func(t *testing.T) {
+		tc := TestCase{
+			name:            "serviceAccountName not overwritten with user value",
+			secretType:      webhookutils.ConnectionTypeProtocolS3.String(),
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{annotations.Connection: testSecret},
+			predictorSpec: map[string]interface{}{
+				"serviceAccountName": "user-custom-sa", // User set a different value from webhook
+				"model":              map[string]interface{}{},
+			},
+			oldAnnotations: map[string]string{}, // no old annotation
+			oldPredictorSpec: map[string]interface{}{
+				"serviceAccountName": "user-custom-sa", // Same user SA was already there
+				"model":              map[string]interface{}{},
+			},
+			operation:       admissionv1.Update,
+			expectedAllowed: true,
+			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
+				// Should not have any serviceAccountName patches since user value should be respected
+				return !hasServiceAccountNamePatch()(patches)
+			},
+		}
+		runISVCTestCase(t, tc)
+	})
+	t.Run("serviceAccountName is removed on annotation removal if they are the same value", func(t *testing.T) {
 		tc := TestCase{
 			name:            "serviceAccountName removed on annotation removal",
 			secretType:      "",
@@ -419,6 +443,28 @@ func TestServiceAccountNamePatching(t *testing.T) {
 			expectedAllowed: true,
 			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
 				return hasServiceAccountNameRemovePatch()(patches)
+			},
+		}
+		runISVCTestCase(t, tc)
+	})
+	t.Run("serviceAccountName is not removed on annotation removal if it has user set value already", func(t *testing.T) {
+		tc := TestCase{
+			name:            "serviceAccountName not removed with different value",
+			secretType:      "",
+			secretNamespace: testNamespace,
+			annotations:     map[string]string{}, // annotation removed
+			predictorSpec: map[string]interface{}{
+				"serviceAccountName": "user-set-saname", // User set SA name
+			},
+			oldAnnotations: map[string]string{annotations.Connection: testSecret},
+			oldPredictorSpec: map[string]interface{}{
+				"serviceAccountName": "user-set-saname", // Same user SA was there before
+			},
+			operation:       admissionv1.Update,
+			expectedAllowed: true,
+			expectedPatchCheck: func(patches []jsonpatch.JsonPatchOperation) bool {
+				// Should not have serviceAccountName removal patch since user value should be preserved
+				return !hasServiceAccountNameRemovePatch()(patches)
 			},
 		}
 		runISVCTestCase(t, tc)

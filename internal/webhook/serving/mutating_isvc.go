@@ -219,7 +219,7 @@ func (w *ISVCConnectionWebhook) performConnectionInjection(
 
 	case webhookutils.ConnectionTypeProtocolS3.String(), webhookutils.ConnectionTypeRefS3.String():
 		// inject ServiceAccount only for S3 connections
-		if err := w.Webhook.HandleSA(decodedObj, IsvcConfigs.ServiceAccountNamePath, connInfo.SecretName+"-sa"); err != nil {
+		if err := w.Webhook.InjectServiceAccountName(decodedObj, IsvcConfigs.ServiceAccountNamePath, connInfo.SecretName+"-sa"); err != nil {
 			return false, fmt.Errorf("failed to inject .spec.predictor.serviceAccountName: %w", err)
 		}
 		log.V(1).Info("Successfully injected .spec.predictor.serviceAccountName", "ServiceAccountName", connInfo.SecretName+"-sa")
@@ -283,7 +283,7 @@ func (w *ISVCConnectionWebhook) performConnectionCleanup(
 		log.V(1).Info("Successfully cleaned up URI .spec.predictor.model.storageUri", "name", req.Name, "namespace", req.Namespace)
 
 		// for s3: clean up ServiceAccountName injection
-		if err := w.Webhook.HandleSA(decodedObj, IsvcConfigs.ServiceAccountNamePath, ""); err != nil {
+		if err := w.Webhook.RemoveServiceAccountName(decodedObj, IsvcConfigs.ServiceAccountNamePath, connInfo.SecretName+"-sa"); err != nil {
 			return false, fmt.Errorf("failed to cleanup .spec.predictor.serviceAccountName: %w", err)
 		}
 		if err := w.cleanupS3StorageKey(decodedObj); err != nil {
@@ -305,7 +305,7 @@ func (w *ISVCConnectionWebhook) performConnectionCleanup(
 
 	case webhookutils.ConnectionTypeProtocolS3.String(), webhookutils.ConnectionTypeRefS3.String():
 		// remove ServiceAccountName injection, if we need it in replacement, we ill add it back later.
-		if err := w.Webhook.HandleSA(decodedObj, IsvcConfigs.ServiceAccountNamePath, ""); err != nil {
+		if err := w.Webhook.RemoveServiceAccountName(decodedObj, IsvcConfigs.ServiceAccountNamePath, connInfo.SecretName+"-sa"); err != nil {
 			return false, fmt.Errorf("failed to cleanup .spec.predictor.serviceAccountName: %w", err)
 		}
 		// for isvc, we do not handle connection-path, as no cleanup or injectoin for .spec.predictor.model.path

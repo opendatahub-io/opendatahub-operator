@@ -515,30 +515,46 @@ func (w *BaseServingConnectionWebhook) GetOldConnectionInfo(ctx context.Context,
 	}, nil
 }
 
-// HandleSA injects or removes serviceaccount from the specified path.
-// If saName is empty, it removes the field entirely.
-func (w *BaseServingConnectionWebhook) HandleSA(obj *unstructured.Unstructured, path []string, saName string) error {
+// InjectServiceAccountName injects a serviceAccountName.
+// Only injects if no serviceAccountName is currently set (respects existing user-set values).
+func (w *BaseServingConnectionWebhook) InjectServiceAccountName(obj *unstructured.Unstructured, path []string, saName string) error {
+	// Get the current value at the path
+	currentSAName, found, err := unstructured.NestedString(obj.Object, path...)
+	if err != nil {
+		return fmt.Errorf("failed to get serviceAccountName from path %v: %w", path, err)
+	}
+	// Only inject if no serviceAccountName is currently set
+	// If there's already a value (user-set or otherwise), respect it
+	if !found || currentSAName == "" {
+		return SetNestedValue(obj.Object, saName, path)
+	}
+	// Value already exists, don't overwrite it
+	return nil
+}
+
+// RemoveServiceAccountName removes a serviceAccountName from the specified path.
+// Only removes if the current SA matches the injected SA name (what we originally set by concat secretName).
+// If it doesn't match, it means the user manually set a different value, so we leave it alone.
+func (w *BaseServingConnectionWebhook) RemoveServiceAccountName(obj *unstructured.Unstructured, path []string, injectedSAName string) error {
 	// Get the current value at the path
 	currentSAName, found, err := unstructured.NestedString(obj.Object, path...)
 	if err != nil {
 		return fmt.Errorf("failed to get serviceAccountName from path %v: %w", path, err)
 	}
 
-	// Remove the field entirely if saName is empty
-	if saName == "" {
-		// Only remove if the field exists, if it does not exist, or it has a different value(manual set by user), do nothing.
-		if found {
-			unstructured.RemoveNestedField(obj.Object, path...)
-		}
+	// Only remove if the field exists and has a value
+	if !found || currentSAName == "" {
 		return nil
 	}
 
-	// Only set the value if it's different from the current value
-	if !found || currentSAName != saName {
-		return SetNestedValue(obj.Object, saName, path)
+	// Only remove if the current serviceAccountName matches what we expect to remove
+	// If it doesn't match, it means the user manually set a different value, so don't remove it
+	if currentSAName != injectedSAName {
+		return nil // respect user manual value.
 	}
 
-	// Value is already set correctly, no action needed
+	// Current SA matches what we expect to remove, safe to remove
+	unstructured.RemoveNestedField(obj.Object, path...)
 	return nil
 }
 

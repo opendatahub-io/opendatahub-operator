@@ -457,7 +457,7 @@ func NewLLMInferenceService(name, namespace string, opts ...ObjectOption) client
 		},
 	}
 	if err := unstructured.SetNestedSlice(llmInferenceService.Object, containers, "spec", "template", "containers"); err != nil {
-		panic(fmt.Sprintf("failed to set LLMInferenceservice containers: %v", err))
+		panic(fmt.Sprintf("failed to set LLMInferenceService containers: %v", err))
 	}
 
 	for _, opt := range opts {
