@@ -1361,7 +1361,7 @@ _Appears in:_
 
 
 
-a mini version of the DSCKserve only keep management and NIM spec
+a mini version of the DSCKserve only keeps management and NIM spec
 
 
 
@@ -1398,7 +1398,7 @@ ModelControllerList contains a list of ModelController
 
 
 
-a mini version of the DSCModelMeshServing only keep management spec
+a mini version of the DSCModelMeshServing only keeps management spec
 
 
 
@@ -2504,7 +2504,6 @@ _Appears in:_
 | `monitoring` _[DSCIMonitoring](#dscimonitoring)_ | Enable monitoring on specified namespace |  |  |
 | `serviceMesh` _[ServiceMeshSpec](#servicemeshspec)_ | Configures Service Mesh as networking layer for Data Science Clusters components.<br />The Service Mesh is a mandatory prerequisite for single model serving (KServe) and<br />you should review this configuration if you are planning to use KServe.<br />For other components, it enhances user experience; e.g. it provides unified<br />authentication giving a Single Sign On experience. |  |  |
 | `trustedCABundle` _[TrustedCABundleSpec](#trustedcabundlespec)_ | When set to `Managed`, adds odh-trusted-ca-bundle Configmap to all namespaces that includes<br />cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].<br />Additionally, this fields allows admins to add custom CA bundles to the configmap using the .CustomCABundle field. |  |  |
-| `devFlags` _[DevFlags](#devflags)_ | Internal development useful field to test customizations.<br />This is not recommended to be used in production environment. |  |  |
 
 
 #### DSCInitializationStatus
@@ -2525,25 +2524,6 @@ _Appears in:_
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `release` _[Release](#release)_ | Version and release type |  |  |
-
-
-#### DevFlags
-
-
-
-DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
-to be used in production environment.
-
-
-
-_Appears in:_
-- [DSCInitializationSpec](#dscinitializationspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `manifestsUri` _string_ | ## DEPRECATED ## : ManifestsUri set on DSCI is not maintained.<br />Custom manifests uri for odh-manifests |  |  |
-| `logmode` _string_ | ## DEPRECATED ##: Ignored, use LogLevel instead | production | Enum: [devel development prod production default] <br /> |
-| `logLevel` _string_ | Override Zap log level. Can be "debug", "info", "error" or a number (more verbose). |  |  |
 
 
 #### TrustedCABundleSpec
@@ -2611,7 +2591,6 @@ _Appears in:_
 | `monitoring` _[DSCIMonitoring](#dscimonitoring)_ | Enable monitoring on specified namespace |  |  |
 | `serviceMesh` _[ServiceMeshSpec](#servicemeshspec)_ | Configures Service Mesh as networking layer for Data Science Clusters components.<br />The Service Mesh is a mandatory prerequisite for single model serving (KServe) and<br />you should review this configuration if you are planning to use KServe.<br />For other components, it enhances user experience; e.g. it provides unified<br />authentication giving a Single Sign On experience. |  |  |
 | `trustedCABundle` _[TrustedCABundleSpec](#trustedcabundlespec)_ | When set to `Managed`, adds odh-trusted-ca-bundle Configmap to all namespaces that includes<br />cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].<br />Additionally, this fields allows admins to add custom CA bundles to the configmap using the .CustomCABundle field. |  |  |
-| `devFlags` _[DevFlags](#devflags)_ | Internal development useful field to test customizations.<br />This is not recommended to be used in production environment. |  |  |
 
 
 #### DSCInitializationStatus
@@ -2632,23 +2611,6 @@ _Appears in:_
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster |  |  |
 | `errorMessage` _string_ |  |  |  |
 | `release` _[Release](#release)_ | Version and release type |  |  |
-
-
-#### DevFlags
-
-
-
-DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
-to be used in production environment.
-
-
-
-_Appears in:_
-- [DSCInitializationSpec](#dscinitializationspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `logLevel` _string_ | Override Zap log level. Can be "debug", "info", "error" or a number (more verbose). |  |  |
 
 
 #### TrustedCABundleSpec

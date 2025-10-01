@@ -72,8 +72,8 @@ spec:
                     type: object
                 type: object
               modelMeshServing:
-                description: a mini version of the DSCModelMeshServing only keep management
-                  spec
+                description: a mini version of the DSCModelMeshServing only keeps
+                  management spec
                 properties:
                   managementState:
                     pattern: ^(Managed|Unmanaged|Force|Removed)$
