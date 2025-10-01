@@ -21,7 +21,7 @@ limitations under the License.
 package v2
 
 import (
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -30,7 +30,7 @@ func (in *Components) DeepCopyInto(out *Components) {
 	*out = *in
 	in.Dashboard.DeepCopyInto(&out.Dashboard)
 	in.Workbenches.DeepCopyInto(&out.Workbenches)
-	in.DataSciencePipelines.DeepCopyInto(&out.DataSciencePipelines)
+	in.AIPipelines.DeepCopyInto(&out.AIPipelines)
 	in.Kserve.DeepCopyInto(&out.Kserve)
 	in.Kueue.DeepCopyInto(&out.Kueue)
 	in.Ray.DeepCopyInto(&out.Ray)
@@ -56,7 +56,7 @@ func (in *ComponentsStatus) DeepCopyInto(out *ComponentsStatus) {
 	*out = *in
 	in.Dashboard.DeepCopyInto(&out.Dashboard)
 	in.Workbenches.DeepCopyInto(&out.Workbenches)
-	in.DataSciencePipelines.DeepCopyInto(&out.DataSciencePipelines)
+	in.AIPipelines.DeepCopyInto(&out.AIPipelines)
 	in.Kserve.DeepCopyInto(&out.Kserve)
 	in.Kueue.DeepCopyInto(&out.Kueue)
 	in.Ray.DeepCopyInto(&out.Ray)

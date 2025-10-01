@@ -16,7 +16,9 @@ const (
 	ArgoWorkflowCRD = "workflows.argoproj.io"
 	ComponentName   = componentApi.DataSciencePipelinesComponentName
 
-	ReadyConditionType = componentApi.DataSciencePipelinesKind + status.ReadySuffix
+	// ReadyConditionType is the condition type for AIPipelines in v2 (storage version).
+	// The conversion webhook will translate this to DataSciencePipelinesReady for v1 users.
+	ReadyConditionType = componentApi.AIPipelinesKind + status.ReadySuffix
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing

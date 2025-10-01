@@ -207,23 +207,29 @@ func (tc *ComponentTestCtx) ValidateComponentReleases(t *testing.T) {
 
 	componentName := strings.ToLower(tc.GVK.Kind)
 
+	// Map DataSciencePipelines to aipipelines for v2 API
+	componentFieldName := componentName
+	if tc.GVK.Kind == dataSciencePipelinesKind {
+		componentFieldName = aiPipelinesFieldName
+	}
+
 	// Ensure the DataScienceCluster exists and the component's conditions are met
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(
 			And(
 				// Ensure the component's management state is "Managed"
-				jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Managed),
+				jq.Match(`.spec.components.%s.managementState == "%s"`, componentFieldName, operatorv1.Managed),
 
 				// Validate that the releases field contains at least one release for the component
-				jq.Match(`.status.components.%s.releases | length > 0`, componentName),
+				jq.Match(`.status.components.%s.releases | length > 0`, componentFieldName),
 
 				// Validate the fields (name, version, repoUrl) for each release
 				// No need to check for length here, the previous check validates if any release exists
 				And(
-					jq.Match(`.status.components.%s.releases[].name != ""`, componentName),
-					jq.Match(`.status.components.%s.releases[].version != ""`, componentName),
-					jq.Match(`.status.components.%s.releases[].repoUrl != ""`, componentName),
+					jq.Match(`.status.components.%s.releases[].name != ""`, componentFieldName),
+					jq.Match(`.status.components.%s.releases[].version != ""`, componentFieldName),
+					jq.Match(`.status.components.%s.releases[].repoUrl != ""`, componentFieldName),
 				),
 			),
 		),
@@ -246,6 +252,15 @@ func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceCluster(state opera
 // UpdateComponentStateInDataScienceClusterWithKind updates the management state of a specified component kind in the DataScienceCluster.
 func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceClusterWithKind(state operatorv1.ManagementState, kind string) {
 	componentName := strings.ToLower(kind)
+
+	// Map DataSciencePipelines to aipipelines for v2 API
+	componentFieldName := componentName
+	conditionKind := kind
+	if kind == dataSciencePipelinesKind {
+		componentFieldName = aiPipelinesFieldName
+		conditionKind = "AIPipelines"
+	}
+
 	readyCondition := metav1.ConditionFalse
 	if state == operatorv1.Managed {
 		readyCondition = metav1.ConditionTrue
@@ -254,10 +269,10 @@ func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceClusterWithKind(sta
 	// Define common conditions to match.
 	conditions := []gTypes.GomegaMatcher{
 		// Validate that the component's management state is updated correctly
-		jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, state),
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentFieldName, state),
 
 		// Validate the "Ready" condition for the component
-		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, kind, readyCondition),
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, conditionKind, readyCondition),
 	}
 
 	// If the state is "Managed", add additional checks for provisioning and components readiness.
@@ -274,7 +289,7 @@ func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceClusterWithKind(sta
 	// Update the management state of the component in the DataScienceCluster.
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, state)),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentFieldName, state)),
 		WithCondition(And(conditions...)),
 	)
 }

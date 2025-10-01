@@ -351,9 +351,15 @@ func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedComponent(componentGVK sche
 func (tc *V2Tov3UpgradeTestCtx) updateComponentStateInDataScienceCluster(t *testing.T, kind string, managementState operatorv1.ManagementState) {
 	t.Helper()
 
+	// Map DataSciencePipelines to aipipelines for v2 API
+	componentFieldName := strings.ToLower(kind)
+	if kind == dataSciencePipelinesKind {
+		componentFieldName = aiPipelinesFieldName
+	}
+
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(kind), managementState)),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentFieldName, managementState)),
 	)
 }
 
