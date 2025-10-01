@@ -90,13 +90,13 @@ metadata:
           },
           "spec": {
             "components": {
+              "aipipelines": {
+                "managementState": "Managed"
+              },
               "codeflare": {
                 "managementState": "Managed"
               },
               "dashboard": {
-                "managementState": "Managed"
-              },
-              "datasciencepipelines": {
                 "managementState": "Managed"
               },
               "feastoperator": {

@@ -70,7 +70,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				ModelMeshServing: componentApi.DSCModelMeshServing{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
+				AIPipelines: componentApi.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				Kserve: componentApi.DSCKserve{
