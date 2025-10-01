@@ -67,9 +67,6 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 				Workbenches: componentApi.DSCWorkbenches{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				ModelMeshServing: componentApi.DSCModelMeshServing{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
 				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},

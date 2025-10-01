@@ -59,21 +59,13 @@ func (tc *ModelControllerTestCtx) ValidateComponentEnabled(t *testing.T) {
 
 	// Define the test cases for checking component states
 	testCases := []TestCase{
-		{"ModelMeshServing enabled", func(t *testing.T) {
-			t.Helper()
-			tc.ValidateComponentDeployed(operatorv1.Managed, operatorv1.Removed, operatorv1.Removed, metav1.ConditionTrue)
-		}},
 		{"Kserve enabled", func(t *testing.T) {
 			t.Helper()
-			tc.ValidateComponentDeployed(operatorv1.Removed, operatorv1.Managed, operatorv1.Removed, metav1.ConditionTrue)
-		}},
-		{"Kserve and ModelMeshServing enabled", func(t *testing.T) {
-			t.Helper()
-			tc.ValidateComponentDeployed(operatorv1.Managed, operatorv1.Managed, operatorv1.Removed, metav1.ConditionTrue)
+			tc.ValidateComponentDeployed(operatorv1.Managed, operatorv1.Removed, metav1.ConditionTrue)
 		}},
 		{"ModelRegistry enabled", func(t *testing.T) {
 			t.Helper()
-			tc.ValidateComponentDeployed(operatorv1.Managed, operatorv1.Managed, operatorv1.Managed, metav1.ConditionTrue)
+			tc.ValidateComponentDeployed(operatorv1.Managed, operatorv1.Managed, metav1.ConditionTrue)
 		}},
 	}
 
@@ -85,15 +77,14 @@ func (tc *ModelControllerTestCtx) ValidateComponentEnabled(t *testing.T) {
 func (tc *ModelControllerTestCtx) ValidateComponentDisabled(t *testing.T) {
 	t.Helper()
 
-	t.Run("Kserve ModelMeshServing and ModelRegistry disabled", func(t *testing.T) {
+	t.Run("Kserve and ModelRegistry disabled", func(t *testing.T) {
 		t.Helper()
-		tc.ValidateComponentDeployed(operatorv1.Removed, operatorv1.Removed, operatorv1.Removed, metav1.ConditionFalse)
+		tc.ValidateComponentDeployed(operatorv1.Removed, operatorv1.Removed, metav1.ConditionFalse)
 	})
 }
 
 // ValidateComponentDeployed validates that the components are deployed with the correct management state.
 func (tc *ModelControllerTestCtx) ValidateComponentDeployed(
-	modelMeshState operatorv1.ManagementState,
 	kserveState operatorv1.ManagementState,
 	modelRegistryState operatorv1.ManagementState,
 	status metav1.ConditionStatus,
@@ -103,7 +94,6 @@ func (tc *ModelControllerTestCtx) ValidateComponentDeployed(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
 			testf.TransformPipeline(
-				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelMeshServingComponentName, modelMeshState),
 				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, kserveState),
 				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelRegistryComponentName, modelRegistryState),
 			),
@@ -154,7 +144,6 @@ func (tc *ModelControllerTestCtx) verifyResourcesDeployed() {
 func (tc *ModelControllerTestCtx) verifyResourcesNotDeployed() {
 	// Ensure that the components are not deployed
 	tc.EnsureResourceGone(WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}))
-	tc.EnsureResourceGone(WithMinimalObject(gvk.ModelMeshServing, types.NamespacedName{Name: componentApi.ModelMeshServingInstanceName}))
 	tc.EnsureResourceGone(WithMinimalObject(gvk.ModelController, types.NamespacedName{Name: componentApi.ModelControllerInstanceName}))
 	tc.EnsureResourcesGone(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),

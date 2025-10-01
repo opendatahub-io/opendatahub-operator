@@ -80,7 +80,6 @@ List of currently integrated ODH components:
 | Feature Store (Feast) | `FeastOperator` |
 | KServe | `Kserve` |
 | Kueue | `Kueue` |
-| ModelMesh Serving | `ModelMeshServing` |
 | Model Registry | `ModelRegistry` |
 | Ray | `Ray` |
 | Training Operator | `TrainingOperator` |

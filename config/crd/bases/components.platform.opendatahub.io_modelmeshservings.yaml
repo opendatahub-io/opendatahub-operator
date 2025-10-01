@@ -26,7 +26,9 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ModelMeshServing is the Schema for the modelmeshservings API
+        description: |-
+          ModelMeshServing is the Schema for the modelmeshservings API
+          Deprecated: ModelMeshServing is deprecated and will be removed in RHOAI 3.0. Use KServe instead.
         properties:
           apiVersion:
             description: |-
