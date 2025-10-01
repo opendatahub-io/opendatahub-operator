@@ -43,7 +43,6 @@ var _ common.PlatformObject = (*Kserve)(nil)
 
 // KserveCommonSpec spec defines the shared desired state of Kserve
 type KserveCommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
 	// Configures the type of service that is created for InferenceServices using RawDeployment.
 	// The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".
 	// Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.
@@ -95,10 +94,6 @@ type Kserve struct {
 
 	Spec   KserveSpec   `json:"spec,omitempty"`
 	Status KserveStatus `json:"status,omitempty"`
-}
-
-func (c *Kserve) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *Kserve) GetStatus() *common.Status {

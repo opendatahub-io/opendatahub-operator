@@ -49,14 +49,6 @@ type DSCInitializationSpec struct {
 // DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
 // to be used in production environment.
 type DevFlags struct {
-	// ## DEPRECATED ## : ManifestsUri set on DSCI is not maintained.
-	// Custom manifests uri for odh-manifests
-	// +optional
-	ManifestsUri string `json:"manifestsUri,omitempty"`
-	// ## DEPRECATED ##: Ignored, use LogLevel instead
-	// +kubebuilder:validation:Enum=devel;development;prod;production;default
-	// +kubebuilder:default="production"
-	LogMode string `json:"logmode,omitempty"`
 	// Override Zap log level. Can be "debug", "info", "error" or a number (more verbose).
 	// +optional
 	LogLevel string `json:"logLevel,omitempty"`
