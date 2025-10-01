@@ -28,7 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -89,13 +89,13 @@ func setupTest(mockDashboard *componentApi.Dashboard) (context.Context, *MockMan
 
 	scheme := runtime.NewScheme()
 	_ = componentApi.AddToScheme(scheme)
-	_ = dsciv1.AddToScheme(scheme)
+	_ = dsciv2.AddToScheme(scheme)
 
-	mockDsci := &dsciv1.DSCInitialization{
+	mockDsci := &dsciv2.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: mockDsciName,
 		},
-		Spec: dsciv1.DSCInitializationSpec{},
+		Spec: dsciv2.DSCInitializationSpec{},
 	}
 
 	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{componentApi.GroupVersion})
