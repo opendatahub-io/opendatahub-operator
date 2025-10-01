@@ -6,8 +6,8 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: dscinitialization-editor-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: rhods-operator
-    app.kubernetes.io/part-of: rhods-operator
+    app.kubernetes.io/created-by: opendatahub-operator
+    app.kubernetes.io/part-of: opendatahub-operator
     app.kubernetes.io/managed-by: kustomize
   name: dscinitialization-editor-role
 rules:

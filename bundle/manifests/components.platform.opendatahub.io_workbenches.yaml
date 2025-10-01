@@ -75,9 +75,9 @@ spec:
                     type: array
                 type: object
               workbenchNamespace:
-                default: rhods-notebooks
+                default: opendatahub
                 description: Namespace for workbenches to be installed, defaults to
-                  "rhods-notebooks" configurable once when component is enabled.
+                  "opendatahub" configurable once when component is enabled.
                 maxLength: 63
                 pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                 type: string

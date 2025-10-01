@@ -37,7 +37,7 @@ spec:
               kubernetes.io/metadata.name: openshift-user-workload-monitoring
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: redhat-ods-operator
+              kubernetes.io/metadata.name: opendatahub-operator-system
         - namespaceSelector:
             matchLabels:
               opendatahub.io/generated-namespace: "true"

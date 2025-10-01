@@ -8,21 +8,24 @@ metadata:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: rhods-operator
+  name: controller-manager
   namespace: system
   labels:
-    name: rhods-operator
+    control-plane: controller-manager
+    name: opendatahub-operator
 spec:
   selector:
     matchLabels:
-      name: rhods-operator
+      control-plane: controller-manager
+      name: opendatahub-operator
   replicas: 3
   template:
     metadata:
       annotations:
-        kubectl.kubernetes.io/default-container: rhods-operator
+        kubectl.kubernetes.io/default-container: manager
       labels:
-        name: rhods-operator
+        control-plane: controller-manager
+        name: opendatahub-operator
     spec:
       affinity:
         podAntiAffinity:
@@ -54,14 +57,17 @@ spec:
         # seccompProfile:
         #   type: RuntimeDefault
       containers:
-      - name: rhods-operator
+      - name: manager
         command:
         - /manager
+        args:
+        - --leader-elect
+        - --operator-name=opendatahub
         env:
           - name: DISABLE_DSC_CONFIG
-            value: 'false'
-          - name: OPERATOR_NAME
-            value: rhods-operator
+            value: 'true'
+          - name: ODH_PLATFORM_TYPE
+            value: OpenDataHub
           - name: OPERATOR_NAMESPACE
             valueFrom:
               fieldRef:
@@ -96,7 +102,7 @@ spec:
             cpu: 500m
             memory: 4Gi
           requests:
-            cpu: 500m
-            memory: 256Mi
-      serviceAccountName: redhat-ods-operator-controller-manager
+            cpu: 100m
+            memory: 780Mi
+      serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10

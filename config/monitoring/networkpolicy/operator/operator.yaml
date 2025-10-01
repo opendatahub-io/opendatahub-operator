@@ -2,8 +2,8 @@
 kind: NetworkPolicy
 apiVersion: networking.k8s.io/v1
 metadata:
-  name: redhat-ods-operator
-  namespace: redhat-ods-operator
+  name: opendatahub-operator-system
+  namespace: opendatahub-operator-system
 spec:
   podSelector:
     matchLabels:

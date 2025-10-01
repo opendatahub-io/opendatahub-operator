@@ -154,7 +154,7 @@ spec:
                   rule: '!(self.storage == null && self.resources == null) || !has(self.replicas)
                     || self.replicas == 0'
               namespace:
-                default: redhat-ods-monitoring
+                default: opendatahub
                 description: |-
                   monitoring spec exposed to DSCI api
                   Namespace for monitoring if it is enabled
@@ -248,10 +248,11 @@ spec:
                 to be configured
               rule: 'has(self.alerting) ? has(self.metrics.storage) || has(self.metrics.resources)
                 : true'
-            - message: CollectorReplicas can only be set when metrics or traces are
-                enabled, and must be > 0
+            - message: CollectorReplicas can only be set when metrics.resources, metrics.storage
+                or traces are configured, and must be > 0
               rule: '!has(self.collectorReplicas) || (self.collectorReplicas > 0 &&
-                (self.metrics != null || self.traces != null))'
+                ((self.metrics.resources != null || self.metrics.storage != null)
+                || self.traces != null))'
           status:
             description: MonitoringStatus defines the observed state of Monitoring
             properties:

@@ -28,8 +28,8 @@ import (
 
 // DSCInitializationSpec defines the desired state of DSCInitialization.
 type DSCInitializationSpec struct {
-	// Namespace for applications to be installed, non-configurable, default to "redhat-ods-applications"
-	// +kubebuilder:default:=redhat-ods-applications
+	// Namespace for applications to be installed, non-configurable, default to "opendatahub"
+	// +kubebuilder:default:=opendatahub
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="ApplicationsNamespace is immutable"
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63

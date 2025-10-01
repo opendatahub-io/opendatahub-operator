@@ -4,7 +4,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-- bases/rhods-operator.clusterserviceversion.yaml
+- bases/opendatahub-operator.clusterserviceversion.yaml
 - ../default
 - ../prometheus
 - ../samples # to generate CSV alm-example
