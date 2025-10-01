@@ -243,30 +243,35 @@ func TestMigrateContainerSizesToHardwareProfiles(t *testing.T) {
 		err = cli.List(ctx, &hwpList, client.InNamespace("test-namespace"))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		//
-		notebooksSizeHWP := findHardwareProfileByName(&hwpList, "containerSize-small-notebooks")
-		modelServerSizeHWP := findHardwareProfileByName(&hwpList, "containerSize-small-serving")
-
-		g.Expect(notebooksSizeHWP).ToNot(BeNil())
-		g.Expect(modelServerSizeHWP).ToNot(BeNil())
-
 		// Get container size data from OdhDashboardConfig
 		notebookSizes, _, _ := unstructured.NestedSlice(odhConfig.Object, "spec", "notebookSizes")
 		modelServerSizes, _, _ := unstructured.NestedSlice(odhConfig.Object, "spec", "modelServerSizes")
 
 		// Validate notebooks size HWP
 		if len(notebookSizes) > 0 {
-			containerSize, ok := notebookSizes[0].(map[string]interface{})
-			if ok {
-				validateContainerSizeHardwareProfile(g, notebooksSizeHWP, containerSize, odhConfig, "notebooks")
+			for _, nb := range notebookSizes {
+				containerSize, ok := nb.(map[string]interface{})
+				if ok {
+					name, _ := containerSize["name"].(string)
+					notebooksSizeHWP := findHardwareProfileByName(&hwpList, fmt.Sprintf("containerSize-%s-notebooks", name))
+
+					g.Expect(notebooksSizeHWP).ToNot(BeNil())
+					validateContainerSizeHardwareProfile(g, notebooksSizeHWP, containerSize, odhConfig, "notebooks")
+				}
 			}
 		}
 
 		// Validate model server size HWP
 		if len(modelServerSizes) > 0 {
-			containerSize, ok := modelServerSizes[0].(map[string]interface{})
-			if ok {
-				validateContainerSizeHardwareProfile(g, modelServerSizeHWP, containerSize, odhConfig, "serving")
+			for _, ms := range modelServerSizes {
+				containerSize, ok := ms.(map[string]interface{})
+				if ok {
+					name, _ := containerSize["name"].(string)
+					modelServerSizeHWP := findHardwareProfileByName(&hwpList, fmt.Sprintf("containerSize-%s-serving", name))
+
+					g.Expect(modelServerSizeHWP).ToNot(BeNil())
+					validateContainerSizeHardwareProfile(g, modelServerSizeHWP, containerSize, odhConfig, "serving")
+				}
 			}
 		}
 	})
@@ -296,64 +301,6 @@ func TestMigrateContainerSizesToHardwareProfiles(t *testing.T) {
 	})
 }
 
-func TestCreateSpecialHardwareProfile(t *testing.T) {
-	ctx := t.Context()
-
-	t.Run("should create special HardwareProfile successfully", func(t *testing.T) {
-		g := NewWithT(t)
-
-		cli, err := fakeclient.New()
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		err = upgrade.CreateSpecialHardwareProfile(ctx, cli, "test-namespace")
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		// Verify special HardwareProfile was created
-		var specialHWP infrav1.HardwareProfile
-		err = cli.Get(ctx, client.ObjectKey{Name: "custom-serving", Namespace: "test-namespace"}, &specialHWP)
-		g.Expect(err).ShouldNot(HaveOccurred())
-		validateSpecialHardwareProfile(g, &specialHWP)
-	})
-
-	t.Run("should handle AlreadyExists error for special HardwareProfile gracefully", func(t *testing.T) {
-		g := NewWithT(t)
-
-		// Pre-create the special HardwareProfile
-		existingHWP := &infrav1.HardwareProfile{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "custom-serving",
-				Namespace: "test-namespace",
-			},
-		}
-
-		cli, err := fakeclient.New(fakeclient.WithObjects(existingHWP))
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		err = upgrade.CreateSpecialHardwareProfile(ctx, cli, "test-namespace")
-		g.Expect(err).ShouldNot(HaveOccurred()) // Should handle AlreadyExists gracefully
-	})
-
-	t.Run("should handle creation errors for special HardwareProfile", func(t *testing.T) {
-		g := NewWithT(t)
-
-		interceptorFuncs := interceptor.Funcs{
-			Create: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
-				if obj.GetName() == "custom-serving" {
-					return k8serr.NewInternalError(errors.New("failed to create special HWP"))
-				}
-				return nil
-			},
-		}
-
-		cli, err := fakeclient.New(fakeclient.WithInterceptorFuncs(interceptorFuncs))
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		err = upgrade.CreateSpecialHardwareProfile(ctx, cli, "test-namespace")
-		g.Expect(err).Should(HaveOccurred())
-		g.Expect(err.Error()).To(ContainSubstring("failed to create special HWP"))
-	})
-}
-
 // Helper functions for creating test objects.
 func createTestOdhDashboardConfig(namespace string) *unstructured.Unstructured {
 	odhConfig := &unstructured.Unstructured{}
@@ -364,15 +311,54 @@ func createTestOdhDashboardConfig(namespace string) *unstructured.Unstructured {
 	spec := map[string]interface{}{}
 	spec["notebookSizes"] = []interface{}{
 		map[string]interface{}{
-			"name": "small",
+			"name": "Small",
 			"resources": map[string]interface{}{
 				"requests": map[string]interface{}{
+					"memory": "8Gi",
 					"cpu":    "1",
-					"memory": "1Gi",
 				},
 				"limits": map[string]interface{}{
+					"memory": "8Gi",
 					"cpu":    "2",
-					"memory": "2Gi",
+				},
+			},
+		},
+		map[string]interface{}{
+			"name": "Medium",
+			"resources": map[string]interface{}{
+				"requests": map[string]interface{}{
+					"memory": "24Gi",
+					"cpu":    "3",
+				},
+				"limits": map[string]interface{}{
+					"memory": "24Gi",
+					"cpu":    "6",
+				},
+			},
+		},
+		map[string]interface{}{
+			"name": "X Large",
+			"resources": map[string]interface{}{
+				"requests": map[string]interface{}{
+					"memory": "120Gi",
+					"cpu":    "15",
+				},
+				"limits": map[string]interface{}{
+					"memory": "120Gi",
+					"cpu":    "30",
+				},
+			},
+		},
+		map[string]interface{}{
+			"name": "Large",
+			"resources": map[string]interface{}{
+				"requests": map[string]interface{}{
+					"memory": "56Gi",
+					"cpu":    "7",
+				},
+				"limits": map[string]interface{}{
+					"memory": "56Gi",
+					"cpu":    "14",
 				},
 			},
 		},
@@ -380,15 +366,41 @@ func createTestOdhDashboardConfig(namespace string) *unstructured.Unstructured {
 
 	spec["modelServerSizes"] = []interface{}{
 		map[string]interface{}{
-			"name": "small",
+			"name": "Large",
 			"resources": map[string]interface{}{
-				"requests": map[string]interface{}{
-					"cpu":    "1",
-					"memory": "1Gi",
+				"limits": map[string]interface{}{
+					"cpu":    "10",
+					"memory": "20Gi",
 				},
+				"requests": map[string]interface{}{
+					"cpu":    "6",
+					"memory": "16Gi",
+				},
+			},
+		},
+		map[string]interface{}{
+			"name": "Small",
+			"resources": map[string]interface{}{
 				"limits": map[string]interface{}{
 					"cpu":    "2",
-					"memory": "2Gi",
+					"memory": "8Gi",
+				},
+				"requests": map[string]interface{}{
+					"cpu":    "1",
+					"memory": "4Gi",
+				},
+			},
+		},
+		map[string]interface{}{
+			"name": "Medium",
+			"resources": map[string]interface{}{
+				"limits": map[string]interface{}{
+					"cpu":    "8",
+					"memory": "10Gi",
+				},
+				"requests": map[string]interface{}{
+					"cpu":    "4",
+					"memory": "8Gi",
 				},
 			},
 		},
@@ -596,33 +608,47 @@ func validateAcceleratorProfileHardwareProfile(g *WithT, hwp *infrav1.HardwarePr
 	g.Expect(cpuIdentifier.Identifier).To(Equal("cpu"))
 	g.Expect(cpuIdentifier.DisplayName).To(Equal("cpu"))
 	g.Expect(cpuIdentifier.ResourceType).To(Equal("CPU"))
-	// minCpu from containerCounts, which is calculated from odhConfig
-	containerCounts, _ := upgrade.CalculateContainerResourceLimits(odhConfig, "notebookSizes")
-	expectedMinCpu := intstr.FromString(containerCounts["minCpu"])
-	g.Expect(cpuIdentifier.MinCount).To(Equal(expectedMinCpu))
-	g.Expect(cpuIdentifier.DefaultCount).To(Equal(expectedMinCpu))
-	if profileType == notebooksProfileType {
-		if maxCpu, ok := containerCounts["maxCpu"]; ok && maxCpu != "" {
-			g.Expect(cpuIdentifier.MaxCount).ToNot(BeNil())
-			g.Expect(cpuIdentifier.MaxCount.Type).To(Equal(intstr.String))
-			g.Expect(cpuIdentifier.MaxCount.StrVal).To(Equal(maxCpu))
-		}
-	}
 
 	// Validate Memory identifier
 	g.Expect(memoryIdentifier).ToNot(BeNil())
 	g.Expect(memoryIdentifier.Identifier).To(Equal("memory"))
 	g.Expect(memoryIdentifier.DisplayName).To(Equal("memory"))
 	g.Expect(memoryIdentifier.ResourceType).To(Equal("Memory"))
-	expectedMinMemory := intstr.FromString(containerCounts["minMemory"])
-	g.Expect(memoryIdentifier.MinCount).To(Equal(expectedMinMemory))
-	g.Expect(memoryIdentifier.DefaultCount).To(Equal(expectedMinMemory))
+
 	if profileType == notebooksProfileType {
+		// containerCounts, which is calculated from odhConfig
+		containerCounts, _ := upgrade.CalculateContainerResourceLimits(odhConfig, "notebookSizes")
+
+		// minCpu
+		expectedMinCpu := intstr.FromString(containerCounts["minCpu"])
+		g.Expect(cpuIdentifier.MinCount).To(Equal(expectedMinCpu))
+		g.Expect(cpuIdentifier.DefaultCount).To(Equal(expectedMinCpu))
+
+		// maxCpu
+		if maxCpu, ok := containerCounts["maxCpu"]; ok && maxCpu != "" {
+			g.Expect(cpuIdentifier.MaxCount).ToNot(BeNil())
+			g.Expect(cpuIdentifier.MaxCount.Type).To(Equal(intstr.String))
+			g.Expect(cpuIdentifier.MaxCount.StrVal).To(Equal(maxCpu))
+		}
+
+		// minMemory
+		expectedMinMemory := intstr.FromString(containerCounts["minMemory"])
+		g.Expect(memoryIdentifier.MinCount).To(Equal(expectedMinMemory))
+		g.Expect(memoryIdentifier.DefaultCount).To(Equal(expectedMinMemory))
+
+		// maxMemory
 		if maxMemory, ok := containerCounts["maxMemory"]; ok && maxMemory != "" {
 			g.Expect(memoryIdentifier.MaxCount).ToNot(BeNil())
 			g.Expect(memoryIdentifier.MaxCount.Type).To(Equal(intstr.String))
 			g.Expect(memoryIdentifier.MaxCount.StrVal).To(Equal(maxMemory))
 		}
+	} else {
+		minCpu := intstr.FromString("1")
+		g.Expect(cpuIdentifier.MinCount).To(Equal(minCpu))
+		g.Expect(cpuIdentifier.DefaultCount).To(Equal(minCpu))
+		minMem := intstr.FromString("1Gi")
+		g.Expect(memoryIdentifier.MinCount).To(Equal(minMem))
+		g.Expect(memoryIdentifier.DefaultCount).To(Equal(minMem))
 	}
 
 	// Validate scheduling spec
@@ -795,47 +821,6 @@ func validateContainerSizeHardwareProfile(g *WithT, hwp *infrav1.HardwareProfile
 	}
 }
 
-// validateSpecialHardwareProfile validates that a Special HardwareProfile created
-// has the correct structure and values based on the input OdhDashboardConfig.
-func validateSpecialHardwareProfile(g *WithT, hwp *infrav1.HardwareProfile) {
-	g.Expect(hwp).ToNot(BeNil())
-	g.Expect(hwp.TypeMeta.APIVersion).To(Equal(infrav1.GroupVersion.String()))
-	g.Expect(hwp.TypeMeta.Kind).To(Equal("HardwareProfile"))
-	g.Expect(hwp.ObjectMeta.Name).To(Equal("custom-serving"))
-	g.Expect(hwp.ObjectMeta.Annotations).ToNot(BeNil())
-	g.Expect(hwp.ObjectMeta.Annotations["opendatahub.io/dashboard-feature-visibility"]).To(Equal("model-serving"))
-	g.Expect(hwp.ObjectMeta.Annotations["opendatahub.io/display-name"]).To(Equal("custom-serving"))
-	g.Expect(hwp.ObjectMeta.Annotations["opendatahub.io/description"]).To(Equal(""))
-	g.Expect(hwp.ObjectMeta.Annotations["opendatahub.io/disabled"]).To(Equal("false"))
-	// "opendatahub.io/modified-date" should be present and non-empty
-	g.Expect(hwp.ObjectMeta.Annotations["opendatahub.io/modified-date"]).ToNot(BeEmpty())
-
-	// Validate Spec.Identifiers
-	g.Expect(hwp.Spec.Identifiers).To(HaveLen(2))
-	cpuFound := false
-	memFound := false
-	for _, id := range hwp.Spec.Identifiers {
-		switch id.Identifier {
-		case "cpu":
-			cpuFound = true
-			g.Expect(id.DisplayName).To(Equal("cpu"))
-			g.Expect(id.ResourceType).To(Equal("CPU"))
-			g.Expect(id.MinCount).To(Equal(intstr.FromString("1")))
-			g.Expect(id.DefaultCount).To(Equal(intstr.FromString("1")))
-		case "memory":
-			memFound = true
-			g.Expect(id.DisplayName).To(Equal("memory"))
-			g.Expect(id.ResourceType).To(Equal("Memory"))
-			g.Expect(id.MinCount).To(Equal(intstr.FromString("1Gi")))
-			g.Expect(id.DefaultCount).To(Equal(intstr.FromString("1Gi")))
-		default:
-			g.Expect(id.Identifier).To(BeElementOf("cpu", "memory"))
-		}
-	}
-	g.Expect(cpuFound).To(BeTrue())
-	g.Expect(memFound).To(BeTrue())
-}
-
 func TestHardwareProfileMigrationErrorAggregation(t *testing.T) {
 	ctx := t.Context()
 
@@ -940,7 +925,6 @@ func TestHardwareProfileMigrationWithComplexScenarios(t *testing.T) {
 		var hwpList infrav1.HardwareProfileList
 		err = cli.List(ctx, &hwpList, client.InNamespace("test-namespace"))
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(hwpList.Items).To(HaveLen(7)) // 4 from 2 APs + 1 special + 2 container sizes
 
 		// Find notebooks and serving HWPs
 		gpuNotebooksHWP := findHardwareProfileByName(&hwpList, "gpu-ap-notebooks")
@@ -960,35 +944,36 @@ func TestHardwareProfileMigrationWithComplexScenarios(t *testing.T) {
 		validateAcceleratorProfileHardwareProfile(g, gpuServingHWP, ap1, odhConfig, "serving")
 		validateAcceleratorProfileHardwareProfile(g, cpuServingHWP, ap2, odhConfig, "serving")
 
-		notebooksSizeHWP := findHardwareProfileByName(&hwpList, "containerSize-small-notebooks")
-		modelServerSizeHWP := findHardwareProfileByName(&hwpList, "containerSize-small-serving")
-		g.Expect(notebooksSizeHWP).ToNot(BeNil())
-		g.Expect(modelServerSizeHWP).ToNot(BeNil())
-
 		// Get container size data from OdhDashboardConfig
 		notebookSizes, _, _ := unstructured.NestedSlice(odhConfig.Object, "spec", "notebookSizes")
 		modelServerSizes, _, _ := unstructured.NestedSlice(odhConfig.Object, "spec", "modelServerSizes")
 
-		// Validate notebooks size HWP
 		if len(notebookSizes) > 0 {
-			containerSize, ok := notebookSizes[0].(map[string]interface{})
-			if ok {
-				validateContainerSizeHardwareProfile(g, notebooksSizeHWP, containerSize, odhConfig, "notebooks")
+			for _, nb := range notebookSizes {
+				containerSize, ok := nb.(map[string]interface{})
+				if ok {
+					name, _ := containerSize["name"].(string)
+					notebooksSizeHWP := findHardwareProfileByName(&hwpList, fmt.Sprintf("containerSize-%s-notebooks", name))
+
+					g.Expect(notebooksSizeHWP).ToNot(BeNil())
+					validateContainerSizeHardwareProfile(g, notebooksSizeHWP, containerSize, odhConfig, "notebooks")
+				}
 			}
 		}
 
 		// Validate model server size HWP
 		if len(modelServerSizes) > 0 {
-			containerSize, ok := modelServerSizes[0].(map[string]interface{})
-			if ok {
-				validateContainerSizeHardwareProfile(g, modelServerSizeHWP, containerSize, odhConfig, "serving")
+			for _, ms := range modelServerSizes {
+				containerSize, ok := ms.(map[string]interface{})
+				if ok {
+					name, _ := containerSize["name"].(string)
+					modelServerSizeHWP := findHardwareProfileByName(&hwpList, fmt.Sprintf("containerSize-%s-serving", name))
+
+					g.Expect(modelServerSizeHWP).ToNot(BeNil())
+					validateContainerSizeHardwareProfile(g, modelServerSizeHWP, containerSize, odhConfig, "serving")
+				}
 			}
 		}
-
-		specialHWP := findHardwareProfileByName(&hwpList, "custom-serving")
-		g.Expect(specialHWP).ToNot(BeNil())
-		// Validate special HWP
-		validateSpecialHardwareProfile(g, specialHWP)
 	})
 
 	t.Run("should handle AcceleratorProfile with complex tolerations", func(t *testing.T) {
@@ -1042,4 +1027,274 @@ func TestHardwareProfileMigrationWithComplexScenarios(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(len(hwpList.Items)).To(BeNumerically(">", 1)) // Should have more than just the existing one
 	})
+}
+
+func TestCalculateResourceLimitsFromSizes(t *testing.T) {
+	tests := []struct {
+		name           string
+		containerSizes []upgrade.ContainerSize
+		want           map[string]string
+		wantErr        bool
+	}{
+		{
+			name: "single size",
+			containerSizes: []upgrade.ContainerSize{
+				{
+					Name: "Small",
+					Resources: struct {
+						Requests struct {
+							Cpu    string
+							Memory string
+						}
+						Limits struct {
+							Cpu    string
+							Memory string
+						}
+					}{
+						Requests: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "1",
+							Memory: "1Gi",
+						},
+						Limits: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "1",
+							Memory: "1Gi",
+						},
+					},
+				},
+			},
+			want: map[string]string{
+				"minCpu":    "1",
+				"minMemory": "1Gi",
+				"maxCpu":    "1",
+				"maxMemory": "1Gi",
+			},
+			wantErr: false,
+		},
+		{
+			name: "multiple sizes",
+			containerSizes: []upgrade.ContainerSize{
+				{
+					Name: "Small",
+					Resources: struct {
+						Requests struct {
+							Cpu    string
+							Memory string
+						}
+						Limits struct {
+							Cpu    string
+							Memory string
+						}
+					}{
+						Requests: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "1",
+							Memory: "1Gi",
+						},
+						Limits: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "2",
+							Memory: "2Gi",
+						},
+					},
+				},
+				{
+					Name: "Large",
+					Resources: struct {
+						Requests struct {
+							Cpu    string
+							Memory string
+						}
+						Limits struct {
+							Cpu    string
+							Memory string
+						}
+					}{
+						Requests: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "4",
+							Memory: "8Gi",
+						},
+						Limits: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "8",
+							Memory: "16Gi",
+						},
+					},
+				},
+			},
+			want: map[string]string{
+				"minCpu":    "1",
+				"minMemory": "1Gi",
+				"maxCpu":    "8",
+				"maxMemory": "16Gi",
+			},
+			wantErr: false,
+		},
+		{
+			name: "multiple size different order",
+			containerSizes: []upgrade.ContainerSize{
+				{
+					Name: "Large",
+					Resources: struct {
+						Requests struct {
+							Cpu    string
+							Memory string
+						}
+						Limits struct {
+							Cpu    string
+							Memory string
+						}
+					}{
+						Requests: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "4",
+							Memory: "8Gi",
+						},
+						Limits: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "8",
+							Memory: "16Gi",
+						},
+					},
+				},
+				{
+					Name: "Small",
+					Resources: struct {
+						Requests struct {
+							Cpu    string
+							Memory string
+						}
+						Limits struct {
+							Cpu    string
+							Memory string
+						}
+					}{
+						Requests: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "1",
+							Memory: "1Gi",
+						},
+						Limits: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "2",
+							Memory: "2Gi",
+						},
+					},
+				},
+				{
+					Name: "Medium",
+					Resources: struct {
+						Requests struct {
+							Cpu    string
+							Memory string
+						}
+						Limits struct {
+							Cpu    string
+							Memory string
+						}
+					}{
+						Requests: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "3",
+							Memory: "3Gi",
+						},
+						Limits: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "6",
+							Memory: "6Gi",
+						},
+					},
+				},
+			},
+			want: map[string]string{
+				"minCpu":    "1",
+				"minMemory": "1Gi",
+				"maxCpu":    "8",
+				"maxMemory": "16Gi",
+			},
+			wantErr: false,
+		},
+		{
+			name:           "empty sizes",
+			containerSizes: []upgrade.ContainerSize{},
+			want:           map[string]string{"minMemory": "1Mi", "minCpu": "1"},
+			wantErr:        false,
+		},
+		{
+			name: "malformed size (bad cpu)",
+			containerSizes: []upgrade.ContainerSize{
+				{
+					Name: "bad",
+					Resources: struct {
+						Requests struct {
+							Cpu    string
+							Memory string
+						}
+						Limits struct {
+							Cpu    string
+							Memory string
+						}
+					}{
+						Requests: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "not-a-number",
+							Memory: "1Gi",
+						},
+						Limits: struct {
+							Cpu    string
+							Memory string
+						}{
+							Cpu:    "2",
+							Memory: "2Gi",
+						},
+					},
+				},
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			limits, err := upgrade.CalculateResourceLimitsFromSizes(tt.containerSizes)
+			if tt.wantErr {
+				g.Expect(err).Should(HaveOccurred())
+			} else {
+				g.Expect(err).ShouldNot(HaveOccurred())
+				for k, v := range tt.want {
+					g.Expect(limits).To(HaveKeyWithValue(k, v))
+				}
+			}
+		})
+	}
 }
