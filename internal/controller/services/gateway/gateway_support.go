@@ -64,7 +64,7 @@ var (
 // For ODH deployments, this comes from config/manager/manager.yaml.
 // Falls back to a default image for local development/testing only.
 func getKubeAuthProxyImage() string {
-	if image := os.Getenv("RELATED_IMAGE_KUBE_AUTH_PROXY_IMAGE"); image != "" {
+	if image := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); image != "" {
 		return image
 	}
 	// Fallback for local development only
