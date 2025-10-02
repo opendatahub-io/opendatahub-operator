@@ -13,7 +13,9 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -50,7 +52,7 @@ func dscManagementTestSuite(t *testing.T) {
 	// Define test cases.
 	testCases := []TestCase{
 		{"Ensure required operators are installed", dscTestCtx.ValidateOperatorsInstallation},
-		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
+		{"Validate creation of DSCInitialization instance and GatewayConfig", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
 		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
@@ -109,7 +111,7 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	RunTestCases(t, testCases, WithParallel())
 }
 
-// ValidateDSCICreation validates the creation of a DSCInitialization.
+// ValidateDSCICreation validates the creation of a DSCInitialization and GatewayConfig.
 func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 	t.Helper()
 
@@ -121,6 +123,20 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 		// Increase time required to get DSCI created
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	// Validate that GatewayConfig was created by DSCI with proper default value.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: serviceApi.GatewayConfigName}),
+		WithCondition(And(
+			jq.Match(`.metadata.ownerReferences[0].kind == "DSCInitialization"`),
+			jq.Match(`.metadata.ownerReferences[0].name == "%s"`, tc.DSCInitializationNamespacedName.Name),
+			jq.Match(`.spec.cookie.expire == "24h0m0s"`),
+			jq.Match(`.spec.cookie.refresh == "1h0m0s"`),
+			jq.Match(`.spec.certificate.type == "OpenshiftDefaultIngress"`),
+			jq.Match(`.spec.certificate.secretName == "%s"`, gateway.DefaultGatewayTLSSecretName),
+		)),
+		WithCustomErrorMsg("GatewayConfig should be created by DSCI with correct default values"),
 	)
 }
 
