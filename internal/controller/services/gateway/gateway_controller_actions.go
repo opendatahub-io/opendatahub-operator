@@ -18,10 +18,12 @@ package gateway
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -33,30 +35,40 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-const (
-	gatewayNamespace = "openshift-ingress"
-	gatewayName      = "odh-gateway"
-	gatewayClassName = "odh-gateway-class"
-)
+//go:embed resources
+var gatewayResources embed.FS
+
+// This helper reduces code duplication and improves error handling consistency.
+func validateGatewayConfig(rr *odhtypes.ReconciliationRequest) (*serviceApi.GatewayConfig, error) {
+	if rr == nil {
+		return nil, errors.New("reconciliation request cannot be nil")
+	}
+	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
+	if !ok {
+		return nil, errors.New("instance is not of type *services.GatewayConfig")
+	}
+	if gatewayConfig == nil {
+		return nil, errors.New("gatewayConfig cannot be nil")
+	}
+	return gatewayConfig, nil
+}
 
 func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createGatewayInfrastructure")
 
-	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
-	if !ok {
-		return errors.New("instance is not of type *services.GatewayConfig")
+	// Use helper function for consistent validation
+	gatewayConfig, err := validateGatewayConfig(rr)
+	if err != nil {
+		return err
 	}
 	l.V(1).Info("Creating Gateway infrastructure", "gateway", gatewayConfig.Name)
 
-	domain := gatewayConfig.Spec.Domain
-	if domain == "" {
-		clusterDomain, err := cluster.GetDomain(ctx, rr.Client)
-		if err != nil {
-			return fmt.Errorf("failed to get cluster domain: %w", err)
-		}
-		domain = fmt.Sprintf("%s.%s", gatewayName, clusterDomain)
+	domain, err := ResolveDomain(ctx, rr.Client, gatewayConfig)
+	if err != nil {
+		return fmt.Errorf("failed to resolve domain: %w", err)
 	}
 
 	if err := createGatewayClass(rr); err != nil {
@@ -68,15 +80,15 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		return fmt.Errorf("failed to handle certificates: %w", err)
 	}
 
-	if err := createGateway(rr, certSecretName, domain); err != nil {
+	if err := createGateway(rr, certSecretName, domain, DefaultGatewayName); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 
 	l.V(1).Info("Successfully created Gateway infrastructure",
-		"gateway", gatewayName,
-		"namespace", gatewayNamespace,
+		"gateway", DefaultGatewayName,
+		"namespace", GatewayNamespace,
 		"domain", domain,
-		"certificateType", getCertificateType(gatewayConfig))
+		"certificateType", GetCertificateType(gatewayConfig))
 
 	return nil
 }
@@ -84,10 +96,10 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 	gatewayClass := &gwapiv1.GatewayClass{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: gatewayClassName,
+			Name: GatewayClassName,
 		},
 		Spec: gwapiv1.GatewayClassSpec{
-			ControllerName: "openshift.io/gateway-controller/v1",
+			ControllerName: gwapiv1.GatewayController(GatewayControllerName),
 		},
 	}
 
@@ -95,6 +107,15 @@ func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 }
 
 func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig, domain string) (string, error) {
+	// Input validation
+	if gatewayConfig == nil {
+		return "", errors.New("gatewayConfig cannot be nil")
+	}
+	if domain == "" {
+		return "", errors.New("domain cannot be empty")
+	}
+
+	// Get certificate configuration with default fallback
 	certConfig := gatewayConfig.Spec.Certificate
 	if certConfig == nil {
 		certConfig = &infrav1.CertificateSpec{
@@ -102,6 +123,7 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 		}
 	}
 
+	// Generate secret name with fallback
 	secretName := certConfig.SecretName
 	if secretName == "" {
 		secretName = fmt.Sprintf("%s-tls", gatewayConfig.Name)
@@ -120,7 +142,7 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 }
 
 func handleOpenshiftDefaultCertificate(ctx context.Context, rr *odhtypes.ReconciliationRequest, secretName string) (string, error) {
-	err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, gatewayNamespace)
+	err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, GatewayNamespace)
 	if err != nil {
 		return "", fmt.Errorf("failed to propagate default ingress certificate: %w", err)
 	}
@@ -129,14 +151,12 @@ func handleOpenshiftDefaultCertificate(ctx context.Context, rr *odhtypes.Reconci
 }
 
 func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.ReconciliationRequest, secretName string, domain string) (string, error) {
-	hostname := fmt.Sprintf("%s.%s", gatewayName, domain)
-
 	err := cluster.CreateSelfSignedCertificate(
 		ctx,
 		rr.Client,
 		secretName,
-		hostname,
-		gatewayNamespace,
+		domain,
+		GatewayNamespace,
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create self-signed certificate: %w", err)
@@ -145,23 +165,29 @@ func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.Reconciliatio
 	return secretName, nil
 }
 
-func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
-	if gatewayConfig.Spec.Certificate == nil {
-		return string(infrav1.OpenshiftDefaultIngress)
+func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, gatewayName string) error {
+	// Input validation
+	if rr == nil {
+		return errors.New("reconciliation request cannot be nil")
 	}
-	return string(gatewayConfig.Spec.Certificate.Type)
-}
+	if gatewayName == "" {
+		return errors.New("gateway name cannot be empty")
+	}
+	if domain == "" {
+		return errors.New("domain cannot be empty")
+	}
 
-func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string) error {
-	listeners := createListeners(certSecretName, domain)
+	// Create listeners with validation
+	listeners := CreateListeners(certSecretName, domain)
 
+	// Create gateway resource with optimized structure
 	gateway := &gwapiv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gatewayName,
-			Namespace: gatewayNamespace,
+			Namespace: GatewayNamespace,
 		},
 		Spec: gwapiv1.GatewaySpec{
-			GatewayClassName: gatewayClassName,
+			GatewayClassName: gwapiv1.ObjectName(GatewayClassName),
 			Listeners:        listeners,
 		},
 	}
@@ -169,48 +195,60 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 	return rr.AddResources(gateway)
 }
 
-func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
-	listeners := []gwapiv1.Listener{}
-
-	if certSecretName != "" {
-		from := gwapiv1.NamespacesFromAll
-		httpsMode := gwapiv1.TLSModeTerminate
-		hostname := gwapiv1.Hostname(domain)
-		httpsListener := gwapiv1.Listener{
-			Name:     "https",
-			Protocol: gwapiv1.HTTPSProtocolType,
-			Port:     443,
-			Hostname: &hostname,
-			TLS: &gwapiv1.GatewayTLSConfig{
-				Mode: &httpsMode,
-				CertificateRefs: []gwapiv1.SecretObjectReference{
-					{
-						Name: gwapiv1.ObjectName(certSecretName),
-					},
-				},
-			},
-			AllowedRoutes: &gwapiv1.AllowedRoutes{
-				Namespaces: &gwapiv1.RouteNamespaces{
-					From: &from,
-				},
-			},
-		}
-		listeners = append(listeners, httpsListener)
+// createDestinationRule creates a DestinationRule for TLS configuration using embedded YAML template.
+// This function uses embedded resources for efficient template management.
+func createDestinationRule(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// Input validation
+	if rr == nil {
+		return errors.New("reconciliation request cannot be nil")
 	}
 
-	return listeners
+	l := logf.FromContext(ctx).WithName("createDestinationRule")
+	l.V(1).Info("Creating DestinationRule for TLS configuration")
+
+	yamlContent, err := gatewayResources.ReadFile("resources/destinationrule-tls.yaml")
+	if err != nil {
+		return fmt.Errorf("failed to read DestinationRule template: %w", err)
+	}
+
+	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
+	unstructuredObjects, err := resources.Decode(decoder, yamlContent)
+	if err != nil {
+		return fmt.Errorf("failed to decode DestinationRule YAML: %w", err)
+	}
+
+	if len(unstructuredObjects) != 1 {
+		return fmt.Errorf("expected exactly 1 DestinationRule object, got %d", len(unstructuredObjects))
+	}
+
+	l.V(1).Info("Successfully created DestinationRule configuration")
+	return rr.AddResources(&unstructuredObjects[0])
+}
+
+// This helper function optimizes the condition checking logic.
+func isGatewayReady(gateway *gwapiv1.Gateway) bool {
+	if gateway == nil {
+		return false
+	}
+	for _, condition := range gateway.Status.Conditions {
+		if condition.Type == string(gwapiv1.GatewayConditionAccepted) && condition.Status == metav1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
-	if !ok {
-		return errors.New("instance is not of type *services.GatewayConfig")
+	// Use helper function for consistent validation
+	gatewayConfig, err := validateGatewayConfig(rr)
+	if err != nil {
+		return err
 	}
 
 	gateway := &gwapiv1.Gateway{}
-	err := rr.Client.Get(ctx, types.NamespacedName{
-		Name:      gatewayName,
-		Namespace: gatewayNamespace,
+	err = rr.Client.Get(ctx, types.NamespacedName{
+		Name:      DefaultGatewayName,
+		Namespace: GatewayNamespace,
 	}, gateway)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
@@ -227,19 +265,15 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 		return fmt.Errorf("failed to get Gateway: %w", err)
 	}
 
-	isReady := false
-	for _, condition := range gateway.Status.Conditions {
-		if condition.Type == string(gwapiv1.GatewayConditionAccepted) && condition.Status == metav1.ConditionTrue {
-			isReady = true
-			break
-		}
-	}
+	// Use optimized helper function to check gateway readiness
+	ready := isGatewayReady(gateway)
 
+	// Determine condition values based on readiness
 	conditionStatus := metav1.ConditionFalse
 	reason := status.NotReadyReason
 	message := status.GatewayNotReadyMessage
 
-	if isReady {
+	if ready {
 		conditionStatus = metav1.ConditionTrue
 		reason = status.ReadyReason
 		message = status.GatewayReadyMessage
