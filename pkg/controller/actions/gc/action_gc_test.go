@@ -57,7 +57,7 @@ func TestGcAction(t *testing.T) {
 		_ = envTest.Stop()
 	})
 
-	ctx := context.Background() //nolint:usetesting
+	ctx := context.Background()
 	cli := envTest.Client()
 
 	tests := []struct {
@@ -356,7 +356,7 @@ func TestGcActionOwn(t *testing.T) {
 		_ = envTest.Stop()
 	})
 
-	ctx := context.Background() //nolint:usetesting
+	ctx := context.Background()
 	cli := envTest.Client()
 
 	tests := []struct {
@@ -500,7 +500,7 @@ func TestGcActionCluster(t *testing.T) {
 		_ = envTest.Stop()
 	})
 
-	ctx := context.Background() //nolint:usetesting
+	ctx := context.Background()
 	cli := envTest.Client()
 	nsn := xid.New().String()
 
@@ -640,7 +640,7 @@ func TestGcActionOnce(t *testing.T) {
 		_ = envTest.Stop()
 	})
 
-	ctx := context.Background() //nolint:usetesting
+	ctx := context.Background()
 	cli := envTest.Client()
 	nsn := xid.New().String()
 
