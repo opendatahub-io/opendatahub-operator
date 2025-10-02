@@ -26,6 +26,7 @@ const (
 	componentName            = componentApi.KserveComponentName
 	kserveConfigMapName      = "inferenceservice-config"
 	kserveManifestSourcePath = "overlays/odh"
+	serviceMeshV2Operator    = "servicemeshoperator.v2"
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing

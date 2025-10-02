@@ -16,12 +16,27 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
+
+func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// from 3.0 onwards, OSSMv2 is not supported anymore by KServe, ensure it is not present before proceeding
+	// having OSSMv3 present is ok, this check is specifically for OSSMv2
+	if found, err := cluster.OperatorExists(ctx, rr.Client, serviceMeshV2Operator); err != nil || found {
+		if err != nil {
+			return odherrors.NewStopErrorW(err)
+		}
+
+		return odherrors.NewStopError(`OpenShift ServiceMesh v2 operator is present in the cluster, ensure it is removed before proceeding`)
+	}
+
+	return nil
+}
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = []odhtypes.ManifestInfo{
