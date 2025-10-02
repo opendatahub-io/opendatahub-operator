@@ -62,13 +62,7 @@ type CodeFlareSpec struct {
 	CodeFlareCommonSpec `json:",inline"`
 }
 
-type CodeFlareCommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
-}
-
-func (c *CodeFlare) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
-}
+type CodeFlareCommonSpec struct{}
 
 func (c *CodeFlare) GetStatus() *common.Status {
 	return &c.Status.Status

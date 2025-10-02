@@ -38,13 +38,6 @@ func (c *DSCInitialization) ConvertTo(dstRaw conversion.Hub) error {
 			CustomCABundle:  c.Spec.TrustedCABundle.CustomCABundle,
 		}
 	}
-	if c.Spec.DevFlags != nil {
-		dst.Spec.DevFlags = &dsciv2.DevFlags{
-			ManifestsUri: c.Spec.DevFlags.ManifestsUri,
-			LogMode:      c.Spec.DevFlags.LogMode,
-			LogLevel:     c.Spec.DevFlags.LogLevel,
-		}
-	}
 
 	dst.Status = dsciv2.DSCInitializationStatus{
 		Phase:          c.Status.Phase,
@@ -72,13 +65,6 @@ func (c *DSCInitialization) ConvertFrom(srcRaw conversion.Hub) error {
 		c.Spec.TrustedCABundle = &TrustedCABundleSpec{
 			ManagementState: src.Spec.TrustedCABundle.ManagementState,
 			CustomCABundle:  src.Spec.TrustedCABundle.CustomCABundle,
-		}
-	}
-	if src.Spec.DevFlags != nil {
-		c.Spec.DevFlags = &DevFlags{
-			ManifestsUri: src.Spec.DevFlags.ManifestsUri,
-			LogMode:      src.Spec.DevFlags.LogMode,
-			LogLevel:     src.Spec.DevFlags.LogLevel,
 		}
 	}
 

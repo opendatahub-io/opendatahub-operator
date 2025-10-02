@@ -53,7 +53,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	rp "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 )
@@ -92,14 +91,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		r.Recorder.Eventf(ref, corev1.EventTypeWarning, "DSCInitializationReconcileError", "Failed to retrieve DSCInitialization instance")
 
 		return ctrl.Result{}, err
-	}
-
-	if instance.Spec.DevFlags != nil {
-		level := instance.Spec.DevFlags.LogLevel
-		log.V(1).Info("Setting log level", "level", level)
-		if err := logger.SetLevel(level); err != nil {
-			log.Error(err, "Failed to set log level", "level", level)
-		}
 	}
 
 	if instance.DeletionTimestamp.IsZero() {

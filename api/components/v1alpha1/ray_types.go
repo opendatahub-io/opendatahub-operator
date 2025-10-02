@@ -54,9 +54,7 @@ type RaySpec struct {
 	RayCommonSpec `json:",inline"`
 }
 
-type RayCommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
-}
+type RayCommonSpec struct{}
 
 // RayCommonStatus defines the shared observed state of Ray
 type RayCommonStatus struct {
@@ -79,10 +77,6 @@ type RayList struct {
 
 func init() {
 	SchemeBuilder.Register(&Ray{}, &RayList{})
-}
-
-func (c *Ray) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *Ray) GetStatus() *common.Status {

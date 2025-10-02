@@ -60,25 +60,15 @@ type ModelControllerSpec struct {
 	ModelRegistry    *ModelControllerMRSpec    `json:"modelRegistry,omitempty"`
 }
 
-// a mini version of the DSCKserve only keep devflags and management spec
+// a mini version of the DSCKserve only keeps management and NIM spec
 type ModelControllerKerveSpec struct {
-	ManagementState     operatorv1.ManagementState `json:"managementState,omitempty"`
-	NIM                 NimSpec                    `json:"nim,omitempty"`
-	common.DevFlagsSpec `json:",inline"`
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+	NIM             NimSpec                    `json:"nim,omitempty"`
 }
 
-func (s *ModelControllerKerveSpec) GetDevFlags() *common.DevFlags {
-	return s.DevFlags
-}
-
-// a mini version of the DSCModelMeshServing only keep devflags and management spec
+// a mini version of the DSCModelMeshServing only keeps management spec
 type ModelControllerMMSpec struct {
-	ManagementState     operatorv1.ManagementState `json:"managementState,omitempty"`
-	common.DevFlagsSpec `json:",inline"`
-}
-
-func (s *ModelControllerMMSpec) GetDevFlags() *common.DevFlags {
-	return s.DevFlags
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
 type ModelControllerMRSpec struct {
@@ -101,8 +91,6 @@ type ModelControllerList struct {
 func init() {
 	SchemeBuilder.Register(&ModelController{}, &ModelControllerList{})
 }
-
-func (c *ModelController) GetDevFlags() *common.DevFlags { return nil }
 
 func (c *ModelController) GetStatus() *common.Status {
 	return &c.Status.Status

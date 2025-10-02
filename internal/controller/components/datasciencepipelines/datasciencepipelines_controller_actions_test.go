@@ -324,9 +324,7 @@ func TestArgoWorkflowsControllersOptions(t *testing.T) {
 					Name: "test-dsp",
 				},
 				Spec: componentApi.DataSciencePipelinesSpec{
-					DataSciencePipelinesCommonSpec: componentApi.DataSciencePipelinesCommonSpec{
-						DevFlagsSpec: common.DevFlagsSpec{},
-					},
+					DataSciencePipelinesCommonSpec: componentApi.DataSciencePipelinesCommonSpec{},
 				},
 			},
 			expectedError:                          false,

@@ -31,7 +31,6 @@ func TestFetchReleasesStatusAction(t *testing.T) {
 		metadataContent  string
 		expectedReleases int
 		expectedError    bool
-		devFlagsEnabled  bool
 		providedStatus   []common.ComponentRelease // Provided ReleaseStatus for testing cache behavior
 	}{
 		{
@@ -94,26 +93,6 @@ releases:
 				},
 			},
 		},
-		{
-			name:             "should re-render releases if DevFlags are enabled",
-			metadataFilePath: filepath.Join(tempDir, "dev_flags_enabled_file.yaml"),
-			metadataContent: `
-releases:
-  - name: Kubeflow Pipelines
-    version: 2.2.0
-    repoUrl: https://github.com/kubeflow/kfp-tekton
-`,
-			expectedReleases: 1,
-			expectedError:    false,
-			devFlagsEnabled:  true,
-			providedStatus: []common.ComponentRelease{
-				{ // Simulating cached status
-					Name:    "Kubeflow Pipelines",
-					Version: "0.0.0",
-					RepoURL: "https://github.com/kubeflow/kfp-tekton",
-				},
-			},
-		},
 	}
 
 	// Iterate through all test cases
@@ -134,14 +113,6 @@ releases:
 				}
 			}
 
-			// Mocking DevFlags if enabled (if DevFlagsEnabled is true, simulate dev flags)
-			devFlagsSpec := common.DevFlagsSpec{}
-			if tt.devFlagsEnabled {
-				devFlagsSpec.DevFlags = &common.DevFlags{
-					Manifests: []common.ManifestsConfig{{URI: "github.com/kubeflow/kfp-tekton"}},
-				}
-			}
-
 			// Create the ReconciliationRequest and set a dummy resource instance
 			rr := types.ReconciliationRequest{
 				Instance: &componentApi.DataSciencePipelines{
@@ -149,11 +120,8 @@ releases:
 						Name: "mock-instance",
 					},
 
-					// Mocking DevFlags if enabled (if DevFlagsEnabled is true, simulate dev flags)
 					Spec: componentApi.DataSciencePipelinesSpec{
-						DataSciencePipelinesCommonSpec: componentApi.DataSciencePipelinesCommonSpec{
-							DevFlagsSpec: devFlagsSpec,
-						},
+						DataSciencePipelinesCommonSpec: componentApi.DataSciencePipelinesCommonSpec{},
 					},
 				},
 			}
@@ -183,15 +151,10 @@ releases:
 			// Get release status after action
 			finalReleases := withReleasesInstance.GetReleaseStatus()
 
-			// Verify that the status is updated based on the caching and DevFlags
+			// Verify that the status is updated based on the caching
 			if tt.providedStatus != nil {
-				if tt.devFlagsEnabled {
-					// DevFlags are enabled, expect re-render (new version)
-					g.Expect(*finalReleases).NotTo(Equal(tt.providedStatus))
-				} else {
-					// Cache is available, no DevFlags, expect no re-render (cached version)
-					g.Expect(*finalReleases).To(Equal(tt.providedStatus))
-				}
+				// Cache is available, expect no re-render (cached version)
+				g.Expect(*finalReleases).To(Equal(tt.providedStatus))
 			}
 
 			// Validate the expected release count after action

@@ -25,7 +25,6 @@ and configure these applications.
     - [Deployment](#deployment)
   - [Test with customized manifests](#test-with-customized-manifests)
   - [Update API docs](#update-api-docs)
-  - [Change logging level at runtime](#change-logging-level-at-runtime)
   - [Example DSCInitialization](#example-dscinitialization)
   - [Example DataScienceCluster](#example-datasciencecluster)
   - [Run functional Tests](#run-functional-tests)
@@ -290,9 +289,9 @@ e.g `make image-build USE_LOCAL=true"`
 
 There are 2 ways to test your changes with modification:
 
-1. Each component in the `DataScienceCluster` CR has `devFlags.manifests` field, which can be used to pull down the manifests from the remote git repos of the respective components. By using this method, it overwrites manifests and creates customized resources for the respective components.
+1. Using custom manifests in OLM operator. See [custom manifest](hack/component-dev/README.md) for more details.
 
-2. [Under implementation] build operator image with local manifests.
+2. Build operator image with local manifests, running `make image-build USE_LOCAL=true`
 
 ### Update API docs
 
@@ -301,22 +300,6 @@ Whenever a new api is added or a new field is added to the CRD, please make sure
   make api-docs
   ```
 This will ensure that the doc for the apis are updated accordingly.
-
-### Change logging level at runtime
-
-Log level can be changed at runtime by DSCI devFlags by setting
-`.spec.devFlags.logLevel`. It accepts the same values as `--zap-log-level` flag or `ZAP_LOG_LEVEL` env variable. See example :
-
-```console
-apiVersion: dscinitialization.opendatahub.io/v1
-kind: DSCInitialization
-metadata:
-  name: default-dsci
-spec:
-  devFlags:
-    logLevel: debug
-  ...
-```
 
 ### Example DSCInitialization
 

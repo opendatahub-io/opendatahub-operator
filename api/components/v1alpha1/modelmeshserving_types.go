@@ -54,9 +54,7 @@ type ModelMeshServingSpec struct {
 	ModelMeshServingCommonSpec `json:",inline"`
 }
 
-type ModelMeshServingCommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
-}
+type ModelMeshServingCommonSpec struct{}
 
 // ModelMeshServingCommonStatus defines the shared observed state of ModelMeshServing
 type ModelMeshServingCommonStatus struct {
@@ -79,10 +77,6 @@ type ModelMeshServingList struct {
 
 func init() {
 	SchemeBuilder.Register(&ModelMeshServing{}, &ModelMeshServingList{})
-}
-
-func (c *ModelMeshServing) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *ModelMeshServing) GetStatus() *common.Status {

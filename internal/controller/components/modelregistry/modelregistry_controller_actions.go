@@ -14,37 +14,9 @@ import (
 )
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	mr, ok := rr.Instance.(*componentApi.ModelRegistry)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.ModelRegistry)", rr.Instance)
-	}
-
 	rr.Manifests = []odhtypes.ManifestInfo{
 		baseManifestInfo(BaseManifestsSourcePath),
 		extraManifestInfo(BaseManifestsSourcePath),
-	}
-
-	df := mr.GetDevFlags()
-
-	if df == nil {
-		return nil
-	}
-	if len(df.Manifests) == 0 {
-		return nil
-	}
-	if len(df.Manifests) > 1 {
-		return fmt.Errorf("unexpected number of manifests found: %d, expected 1)", len(df.Manifests))
-	}
-
-	if err := odhdeploy.DownloadManifests(ctx, ComponentName, df.Manifests[0]); err != nil {
-		return err
-	}
-
-	if df.Manifests[0].SourcePath != "" {
-		rr.Manifests = []odhtypes.ManifestInfo{
-			baseManifestInfo(df.Manifests[0].SourcePath),
-			extraManifestInfo(df.Manifests[0].SourcePath),
-		}
 	}
 
 	return nil

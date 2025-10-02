@@ -9,5 +9,4 @@ import (
 // +kubebuilder:object:generate=true
 type Component struct {
 	common.ManagementSpec `json:",inline"`
-	common.DevFlagsSpec   `json:",inline"`
 }

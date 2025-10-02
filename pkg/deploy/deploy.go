@@ -18,15 +18,11 @@ limitations under the License.
 package deploy
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"maps"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +40,6 @@ import (
 	"sigs.k8s.io/kustomize/api/resource"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/conversion"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -52,137 +47,8 @@ import (
 )
 
 var (
-	DefaultManifestPath     = os.Getenv("DEFAULT_MANIFESTS_PATH")
-	errPathResolutionFailed = errors.New("path resolution failed")
-	errPathIrrelevant       = errors.New("path is irrelevant")
+	DefaultManifestPath = os.Getenv("DEFAULT_MANIFESTS_PATH")
 )
-
-// DownloadManifests function performs following tasks:
-// 1. It takes component URI and only downloads folder specified by component.ContextDir field
-// 2. It saves the manifests in the odh-manifests/component-name/ folder.
-func DownloadManifests(ctx context.Context, componentName string, manifestConfig common.ManifestsConfig) error {
-	// Download and validate the manifest archive from the given url, e.g.  https://github.com/example/tarball/master
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, manifestConfig.URI, nil)
-	if err != nil {
-		return err
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("error downloading manifests: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error downloading manifests: %v HTTP status", resp.StatusCode)
-	}
-
-	// Initialize a gzip reader for the response body
-	gzipReader, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return fmt.Errorf("error creating gzip reader: %w", err)
-	}
-	defer gzipReader.Close()
-
-	// Ensure manifest directory exists
-	if err := createDirectory(DefaultManifestPath); err != nil {
-		return err
-	}
-
-	// Extract TAR contents
-	return unpackTarFromReader(gzipReader, DefaultManifestPath, componentName, manifestConfig.ContextDir)
-}
-
-// createDirectory ensures the specified directory exists, creating it if necessary.
-func createDirectory(path string) error {
-	err := os.MkdirAll(path, os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("error creating directory %s: %w", path, err)
-	}
-	return nil
-}
-
-// unpackTarFromReader extracts files from a TAR reader into the target base path.
-func unpackTarFromReader(reader io.Reader, basePath, componentName, contextDir string) error {
-	tarReader := tar.NewReader(reader)
-
-	for {
-		header, err := tarReader.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("error reading tar header: %w", err)
-		}
-
-		targetPath, err := resolveTargetPath(header.Name, basePath, componentName, contextDir)
-		if errors.Is(err, errPathIrrelevant) {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-
-		err = extractFileOrDirectory(header, tarReader, targetPath)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// resolveTargetPath computes the target file path based on the tar header and context directory.
-func resolveTargetPath(headerName, basePath, componentName, contextDir string) (string, error) {
-	componentFiles := strings.Split(headerName, "/")
-	componentManifestPath := filepath.Join(componentFiles[0], contextDir)
-
-	if !strings.Contains(headerName, componentManifestPath) {
-		return "", errPathIrrelevant
-	}
-
-	componentFoldersList := strings.Split(headerName, "/")
-	if len(componentFoldersList) < len(strings.Split(componentManifestPath, "/")) {
-		return "", errPathResolutionFailed // Path resolution failed
-	}
-
-	relativePath := strings.Join(componentFoldersList[len(strings.Split(componentManifestPath, "/")):], "/")
-
-	return filepath.Join(basePath, componentName, relativePath), nil
-}
-
-// processTarHeader processes a TAR header, creating files or directories as needed.
-func extractFileOrDirectory(header *tar.Header, tarReader *tar.Reader, targetPath string) error {
-	switch header.Typeflag {
-	case tar.TypeDir:
-		// Create a directory for the current header
-		return createDirectory(targetPath)
-
-	case tar.TypeReg:
-		// Create a file and copy its contents from the TAR reader
-		return writeFileFromTar(targetPath, tarReader)
-
-	default:
-		// Handle unsupported header types if needed
-		return nil
-	}
-}
-
-// writeFileFromTar writes a file from the tar reader to the target path.
-func writeFileFromTar(targetPath string, tarReader *tar.Reader) error {
-	file, err := os.Create(targetPath)
-	if err != nil {
-		return fmt.Errorf("error creating file %s: %w", targetPath, err)
-	}
-	defer file.Close()
-
-	_, err = io.Copy(file, tarReader)
-	if err != nil {
-		return fmt.Errorf("error writing to file %s: %w", targetPath, err)
-	}
-
-	return nil
-}
 
 func DeployManifestsFromPath(
 	ctx context.Context,
