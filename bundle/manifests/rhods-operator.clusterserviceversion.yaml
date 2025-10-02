@@ -1765,7 +1765,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: opendatahub-operator-controller-manager
+    deploymentName: rhods-operator
     failurePolicy: Fail
     generateName: connection-notebook.opendatahub.io
     rules:
