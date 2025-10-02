@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.KubeAuthProxyServiceName}}
+  namespace: {{.GatewayNamespace}}
+  labels:
+    app: {{.KubeAuthProxyServiceName}}
+spec:
+  selector:
+    matchLabels:
+      app: {{.KubeAuthProxyServiceName}}
+  template:
+    metadata:
+      labels:
+        app: {{.KubeAuthProxyServiceName}}
+      annotations:
+        opendatahub.io/secret-hash: "{{.AuthConfigHash}}"
+    spec:
+      volumes:
+        - name: {{.TLSCertsVolumeName}}
+          secret:
+            secretName: {{.KubeAuthProxyTLSName}}
+      containers:
+        - name: {{.KubeAuthProxyServiceName}}
+          image: {{.KubeAuthProxyImage}}
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{.KubeAuthProxySecretsName}}
+                  key: OAUTH2_PROXY_CLIENT_ID
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{.KubeAuthProxySecretsName}}
+                  key: OAUTH2_PROXY_CLIENT_SECRET
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{.KubeAuthProxySecretsName}}
+                  key: OAUTH2_PROXY_COOKIE_SECRET
+            - name: PROXY_MODE
+              value: auth
+          ports:
+            - name: http
+              containerPort: {{.AuthProxyHTTPPort}}
+            - name: https
+              containerPort: {{.GatewayHTTPSPort}}
+            - name: metrics
+              containerPort: {{.AuthProxyMetricsPort}}
+          volumeMounts:
+            - name: {{.TLSCertsVolumeName}}
+              readOnly: true
+              mountPath: {{.TLSCertsMountPath}}
+          args:
+            - "--http-address=0.0.0.0:{{.AuthProxyHTTPPort}}"
+            - "--https-address=0.0.0.0:{{.GatewayHTTPSPort}}"
+            - "--metrics-address=0.0.0.0:{{.AuthProxyMetricsPort}}"
+            - "--email-domain=*"
+            - "--upstream=static://200"
+            - "--skip-provider-button"
+            - "--skip-jwt-bearer-tokens=true"
+            - "--pass-access-token=true"
+            - "--set-xauthrequest=true"
+            - "--redirect-url={{.RedirectURL}}"
+            - "--tls-cert-file={{.TLSCertsMountPath}}/tls.crt"
+            - "--tls-key-file={{.TLSCertsMountPath}}/tls.key"
+            - "--use-system-trust-store=true"
+            - "--cookie-expire={{.CookieExpire}}"
+            - "--cookie-refresh={{.CookieRefresh}}"
+            - "--cookie-secure=true"
+            - "--cookie-httponly=true"
+            - "--cookie-samesite=lax"
+            - "--cookie-name=_oauth2_proxy"
+            - "--cookie-domain={{.GatewayHostname}}"
+            - "--provider=oidc"
+            - "--oidc-issuer-url={{.OIDCIssuerURL}}"
+            - "--skip-oidc-discovery=false"
+            - "--ssl-insecure-skip-verify=false" # TODO: need to check if this is correct to hardcode skip verify.

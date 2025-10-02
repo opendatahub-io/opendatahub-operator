@@ -18,6 +18,7 @@ const (
 	ServiceName = serviceApi.AuthServiceName
 )
 
+// TODO: deprecated this function by IsIntegratedOAuth()
 // IsDefaultAuthMethod returns true if the default authentication method is IntegratedOAuth or empty.
 // This will give indication that Operator should create userGroups or not in the cluster.
 func IsDefaultAuthMethod(ctx context.Context, cli client.Client) (bool, error) {
