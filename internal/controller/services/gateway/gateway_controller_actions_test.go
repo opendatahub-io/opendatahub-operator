@@ -644,8 +644,11 @@ func TestBuildOAuth2ProxyArgsOIDC(t *testing.T) {
 	// Verify OpenShift-specific arguments are NOT present
 	g.Expect(args).NotTo(ContainElement("--provider=openshift"))
 	g.Expect(args).NotTo(ContainElement("--scope=" + OpenShiftOAuthScope))
-	g.Expect(args).NotTo(ContainElement(ContainSubstring("--tls-cert-file=")))
-	g.Expect(args).NotTo(ContainElement(ContainSubstring("--https-address=")))
+
+	// Verify OIDC-specific HTTPS arguments ARE present (required for EnvoyFilter integration)
+	g.Expect(args).To(ContainElement(ContainSubstring("--tls-cert-file=")))
+	g.Expect(args).To(ContainElement(ContainSubstring("--https-address=")))
+	g.Expect(args).To(ContainElement("--use-system-trust-store=true"))
 }
 
 // TestCreateDashboardRoute and TestCreateReferenceGrant removed
