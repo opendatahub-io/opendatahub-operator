@@ -16,6 +16,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	removedservices "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/removedServices"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
@@ -525,7 +526,7 @@ var (
 	ServiceMesh = schema.GroupVersionKind{
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,
-		Kind:    serviceApi.ServiceMeshKind,
+		Kind:    removedservices.ServiceMeshKind,
 	}
 
 	ThanosQuerier = schema.GroupVersionKind{

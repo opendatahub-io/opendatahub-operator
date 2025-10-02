@@ -16,6 +16,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	removedservices "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/removedServices"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -33,7 +34,7 @@ import (
 
 const (
 	defaultCodeFlareComponentName = "default-codeflare"
-	defaultServiceMeshName        = "default-servicemesh"
+	defaultServiceMeshName        = removedservices.ServiceMeshInstanceName
 	testDSCV1Name                 = "test-dsc-v1-upgrade"
 	testDSCIV1Name                = "test-dsci-v1-upgrade"
 )
@@ -57,7 +58,7 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"codeflare present in the cluster before upgrade, after upgrade not removed", v2Tov3UpgradeTestCtx.ValidateCodeFlareResourcePreservation},
 		{"ray raise error if codeflare component present in the cluster", v2Tov3UpgradeTestCtx.ValidateRayRaiseErrorIfCodeFlarePresent},
-		{"servicemesh present in the cluster before upgrade, after upgrade not removed", v2Tov3UpgradeTestCtx.ValidateServiceMeshResourcePreservation},
+		{" present in the cluster before upgrade, after upgrade not removed", v2Tov3UpgradeTestCtx.ValidateServiceMeshResourcePreservation},
 	}
 
 	// Run the test suite.

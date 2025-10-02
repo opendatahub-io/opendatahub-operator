@@ -36,7 +36,16 @@ metadata:
                 "nim": {
                   "managementState": "Managed"
                 },
-                "rawDeploymentServiceConfig": "Headed"
+                "rawDeploymentServiceConfig": "Headed",
+                "serving": {
+                  "ingressGateway": {
+                    "certificate": {
+                      "type": "OpenshiftDefaultIngress"
+                    }
+                  },
+                  "managementState": "Unmanaged",
+                  "name": "knative-serving"
+                }
               },
               "kueue": {
                 "managementState": "Managed"
@@ -98,16 +107,7 @@ metadata:
                 "nim": {
                   "managementState": "Managed"
                 },
-                "rawDeploymentServiceConfig": "Headed",
-                "serving": {
-                  "ingressGateway": {
-                    "certificate": {
-                      "type": "OpenshiftDefaultIngress"
-                    }
-                  },
-                  "managementState": "Unmanaged",
-                  "name": "knative-serving"
-                }
+                "rawDeploymentServiceConfig": "Headed"
               },
               "kueue": {
                 "managementState": "Managed"
@@ -157,6 +157,14 @@ metadata:
               "metrics": {},
               "namespace": "opendatahub"
             },
+            "serviceMesh": {
+              "controlPlane": {
+                "metricsCollection": "Istio",
+                "name": "data-science-smcp",
+                "namespace": "istio-system"
+              },
+              "managementState": "Unmanaged"
+            },
             "trustedCABundle": {
               "customCABundle": "",
               "managementState": "Managed"
@@ -183,14 +191,6 @@ metadata:
               "metrics": {},
               "namespace": "opendatahub"
             },
-            "serviceMesh": {
-              "controlPlane": {
-                "metricsCollection": "Istio",
-                "name": "data-science-smcp",
-                "namespace": "istio-system"
-              },
-              "managementState": "Unmanaged"
-            },
             "trustedCABundle": {
               "customCABundle": "",
               "managementState": "Managed"
@@ -202,7 +202,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.0.0
-    createdAt: "2025-10-01T14:58:27Z"
+    createdAt: "2025-10-02T13:53:28Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -211,9 +211,8 @@ metadata:
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
       "workbenches.components.platform.opendatahub.io", "gatewayconfigs.services.platform.opendatahub.io",
-      "monitorings.services.platform.opendatahub.io", "servicemeshes.services.platform.opendatahub.io",
-      "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
-      "llamastackoperators.components.platform.opendatahub.io"]'
+      "monitorings.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
+      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v3.0.0
@@ -321,11 +320,6 @@ spec:
       displayName: Ray
       kind: Ray
       name: rays.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: ServiceMesh is the Schema for the servicemesh API
-      displayName: Service Mesh
-      kind: ServiceMesh
-      name: servicemeshes.services.platform.opendatahub.io
       version: v1alpha1
     - description: TrainingOperator is the Schema for the trainingoperators API
       displayName: Training Operator
