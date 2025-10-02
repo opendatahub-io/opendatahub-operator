@@ -1,0 +1,17 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{.GatewayName}}
+  namespace: {{.GatewayNamespace}}
+spec:
+  host: {{.GatewayHostname}}
+  port:
+    targetPort: https
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: passthrough
+  to:
+    kind: Service
+    name: "{{.GatewayName}}-{{.GatewayClassName}}"
+    weight: 100
+  wildcardPolicy: None

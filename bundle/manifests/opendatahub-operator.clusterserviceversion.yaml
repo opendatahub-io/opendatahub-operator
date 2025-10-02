@@ -199,7 +199,7 @@ metadata:
       "kueues.components.platform.opendatahub.io", "modelregistries.components.platform.opendatahub.io",
       "rays.components.platform.opendatahub.io", "trainingoperators.components.platform.opendatahub.io",
       "trustyais.components.platform.opendatahub.io", "workbenches.components.platform.opendatahub.io",
-      "gatewayconfigs.services.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
+      "services.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
       "servicemeshes.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
       "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
@@ -1173,13 +1173,6 @@ spec:
           resources:
           - destinationrules
           - envoyfilters
-          - gateways
-          - virtualservices
-          verbs:
-          - '*'
-        - apiGroups:
-          - networking.istio.io
-          resources:
           - virtualservices/finalizers
           verbs:
           - create
@@ -1189,6 +1182,13 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - networking.istio.io
+          resources:
+          - gateways
+          - virtualservices
+          verbs:
+          - '*'
         - apiGroups:
           - networking.istio.io
           resources:
@@ -1288,12 +1288,19 @@ spec:
           - operator.openshift.io
           resources:
           - consoles
-          - ingresscontrollers
           verbs:
           - delete
           - get
           - list
           - patch
+          - watch
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - ingresscontrollers
+          verbs:
+          - get
+          - list
           - watch
         - apiGroups:
           - operators.coreos.com
