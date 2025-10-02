@@ -10,11 +10,17 @@ package dscinitialization
 /* Auth */
 // +kubebuilder:rbac:groups="config.openshift.io",resources=authentications;infrastructures,verbs=get;watch;list
 
+// Auth
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths/finalizers,verbs=update
+
 // TODO: move to monitoring own file
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routers/metrics,verbs=get
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routers/federate,verbs=get
 // +kubebuilder:rbac:groups="image.openshift.io",resources=registry/metrics,verbs=get
 
+/* Observability */
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=servicemonitors,verbs=get;create;delete;update;watch;list;patch;deletecollection
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=podmonitors,verbs=get;create;delete;update;watch;list;patch
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=prometheusrules,verbs=get;create;patch;delete;deletecollection
@@ -34,24 +40,6 @@ package dscinitialization
 //+kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=monitorings/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=monitorings/finalizers,verbs=update
 
-// Auth
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths/finalizers,verbs=update
-
-// Gateway
-// CR management
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs/finalizers,verbs=update
-
-// Gateway API resources (what the controller actually creates)
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;gatewayclasses;httproutes,verbs=get;list;watch;create;update;patch;delete
-// Gateway controller creates and manages the following Istio resources
-// +kubebuilder:rbac:groups=networking.istio.io,resources=destinationrules,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=networking.istio.io,resources=envoyfilters,verbs=get;list;watch;create;update;patch;delete
-
-/* Observability */
 // +kubebuilder:rbac:groups=tempo.grafana.com,resources=tempostacks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=tempo.grafana.com,resources=tempomonolithics,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=monitoring.rhobs,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete

@@ -32,15 +32,16 @@ import (
 
 // Gateway TLS and EnvoyFilter configuration constants.
 const (
-	gatewayTLSSecretName   = "default-gateway-tls"
-	envoyFilterName        = "authn-filter"
+	gatewayTLSSecretName   = "data-science-gatewayconfig-tls"
+	envoyFilterName        = "data-science-authn-filter"
 	expectedSecretDataKeys = 3
+	SecretHashAnnotation   = "opendatahub.io/secret-hash" //nolint:gosec
 )
 
 // Gateway infrastructure and OAuth proxy configuration constants.
 // These match the values defined in internal/controller/services/gateway package.
 const (
-	gatewayConfigName        = serviceApi.GatewayInstanceName
+	gatewayConfigName        = serviceApi.GatewayConfigName
 	gatewayName              = gateway.DefaultGatewayName
 	gatewayClassName         = gateway.GatewayClassName
 	gatewayNamespace         = gateway.GatewayNamespace
@@ -51,7 +52,7 @@ const (
 	oauthCallbackRouteName   = gateway.OAuthCallbackRouteName
 	authProxyOAuth2Path      = gateway.AuthProxyOAuth2Path
 	kubeAuthProxyHTTPPort    = gateway.AuthProxyHTTPPort
-	kubeAuthProxyHTTPSPort   = gateway.AuthProxyHTTPSPort
+	kubeAuthProxyHTTPSPort   = gateway.GatewayHTTPSPort
 	kubeAuthProxyMetricsPort = gateway.AuthProxyMetricsPort
 )
 
@@ -272,8 +273,8 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-httponly=true")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-samesite=lax")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-name=_oauth2_proxy")`),
-			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-expire=24h")`),
-			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-refresh=1h")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-expire=24h0m0s")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-refresh=1h0m0s")`),
 
 			// auth proxy behavior flags
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--skip-provider-button")`),
@@ -295,7 +296,7 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	)
 
 	// wait for deployment readiness using TestContext helper
-	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: gatewayNamespace}, 1)
+	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: gatewayNamespace}, 2)
 
 	// kube-auth-proxy service
 	tc.EnsureResourceExists(

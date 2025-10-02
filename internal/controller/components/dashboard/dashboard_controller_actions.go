@@ -62,7 +62,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name)
 	if err != nil {
-		return errors.New("failed to set variable for url, section-title etc")
+		return fmt.Errorf("failed to set variable for url, section-title etc: %w", err)
 	}
 
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, extraParamsMap); err != nil {

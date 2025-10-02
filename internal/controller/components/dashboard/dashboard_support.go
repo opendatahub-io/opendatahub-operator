@@ -8,6 +8,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -26,9 +27,6 @@ const (
 
 	LegacyComponentNameUpstream   = "dashboard"
 	LegacyComponentNameDownstream = "rhods-dashboard"
-
-	// Dashboard path on the gateway.
-	dashboardPath = "/"
 )
 
 var (
@@ -73,13 +71,20 @@ func bffManifestsPath() odhtypes.ManifestInfo {
 }
 
 func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform) (map[string]string, error) {
-	gatewayDomain, err := gateway.GetGatewayDomain(ctx, cli)
+	// Get the GatewayConfig from the cluster
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GatewayConfig: %w", err)
+	}
+
+	consoleLinkDomain, err := gateway.GetFQDN(ctx, cli, gatewayConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error getting gateway domain: %w", err)
 	}
 
 	return map[string]string{
-		"dashboard-url": fmt.Sprintf("https://%s%s", gatewayDomain, dashboardPath),
+		"dashboard-url": fmt.Sprintf("https://%s/", consoleLinkDomain),
 		"section-title": sectionTitle[platform],
 	}, nil
 }
