@@ -2,6 +2,7 @@ package gvk
 
 import (
 	configv1 "github.com/openshift/api/config/v1"
+	oauthv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -336,16 +337,16 @@ var (
 		Kind:    "Lease",
 	}
 
-	EnvoyFilter = schema.GroupVersionKind{
-		Group:   "networking.istio.io",
-		Version: "v1alpha3",
-		Kind:    "EnvoyFilter",
-	}
-
 	DestinationRule = schema.GroupVersionKind{
 		Group:   "networking.istio.io",
 		Version: "v1",
 		Kind:    "DestinationRule",
+	}
+
+	EnvoyFilter = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1alpha3",
+		Kind:    "EnvoyFilter",
 	}
 
 	AuthorizationPolicy = schema.GroupVersionKind{
@@ -369,7 +370,7 @@ var (
 	GatewayConfig = schema.GroupVersionKind{
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,
-		Kind:    serviceApi.GatewayKind,
+		Kind:    serviceApi.GatewayConfigKind,
 	}
 
 	GatewayClass = schema.GroupVersionKind{
@@ -384,12 +385,6 @@ var (
 		Kind:    "Gateway",
 	}
 
-	Auth = schema.GroupVersionKind{
-		Group:   serviceApi.GroupVersion.Group,
-		Version: serviceApi.GroupVersion.Version,
-		Kind:    serviceApi.AuthKind,
-	}
-
 	HTTPRoute = schema.GroupVersionKind{
 		Group:   gwapiv1.GroupVersion.Group,
 		Version: gwapiv1.GroupVersion.Version,
@@ -397,9 +392,15 @@ var (
 	}
 
 	OAuthClient = schema.GroupVersionKind{
-		Group:   "oauth.openshift.io",
-		Version: "v1",
+		Group:   oauthv1.GroupVersion.Group,
+		Version: oauthv1.GroupVersion.Version,
 		Kind:    "OAuthClient",
+	}
+
+	Auth = schema.GroupVersionKind{
+		Group:   serviceApi.GroupVersion.Group,
+		Version: serviceApi.GroupVersion.Version,
+		Kind:    serviceApi.AuthKind,
 	}
 
 	MultiKueueConfigV1Alpha1 = schema.GroupVersionKind{
