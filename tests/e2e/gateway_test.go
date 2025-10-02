@@ -32,18 +32,21 @@ import (
 
 // Gateway TLS and EnvoyFilter configuration constants.
 const (
-	gatewayTLSSecretName   = "default-gateway-tls"
-	envoyFilterName        = "authn-filter"
+	gatewayTLSSecretName   = "data-science-gatewayconfig-tls"
+	envoyFilterName        = "data-science-authn-filter"
 	expectedSecretDataKeys = 3
+	SecretHashAnnotation   = "opendatahub.io/secret-hash" //nolint:gosec
 )
 
 // Gateway infrastructure and OAuth proxy configuration constants.
 // These match the values defined in internal/controller/services/gateway package.
 const (
-	gatewayConfigName        = serviceApi.GatewayInstanceName
+	gatewayConfigName        = serviceApi.GatewayConfigName
 	gatewayName              = gateway.DefaultGatewayName
 	gatewayClassName         = gateway.GatewayClassName
+	gatewayControllerName    = gateway.GatewayControllerName
 	gatewayNamespace         = gateway.GatewayNamespace
+	standardHTTPSPort        = gateway.StandardHTTPSPort
 	oauthClientName          = gateway.AuthClientID
 	kubeAuthProxyName        = gateway.KubeAuthProxyName
 	kubeAuthProxyTLSName     = gateway.KubeAuthProxyTLSName
@@ -51,7 +54,7 @@ const (
 	oauthCallbackRouteName   = gateway.OAuthCallbackRouteName
 	authProxyOAuth2Path      = gateway.AuthProxyOAuth2Path
 	kubeAuthProxyHTTPPort    = gateway.AuthProxyHTTPPort
-	kubeAuthProxyHTTPSPort   = gateway.AuthProxyHTTPSPort
+	kubeAuthProxyHTTPSPort   = gateway.GatewayHTTPSPort
 	kubeAuthProxyMetricsPort = gateway.AuthProxyMetricsPort
 )
 
@@ -111,8 +114,10 @@ func (tc *GatewayTestCtx) ValidateGatewayConfig(t *testing.T) {
 			jq.Match(`.spec.certificate.secretName == "%s"`, gatewayTLSSecretName),
 			jq.Match(`.spec.certificate.type == "%s"`, string(infrav1.OpenshiftDefaultIngress)),
 			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
+			jq.Match(`.metadata.ownerReferences[0].kind == "DSCInitialization"`),
+			jq.Match(`.metadata.ownerReferences[0].name == "%s"`, tc.DSCInitializationNamespacedName.Name),
 		)),
-		WithCustomErrorMsg("GatewayConfig should have correct certificate configuration and Ready status"),
+		WithCustomErrorMsg("GatewayConfig should have correct certificate configuration, Ready status, and be owned by %s DSCInitialization", tc.DSCInitializationNamespacedName.Name),
 	)
 
 	t.Log("GatewayConfig validation completed")
@@ -126,7 +131,7 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 	t.Log("Validating GatewayClass resource")
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.GatewayClass, types.NamespacedName{Name: gatewayClassName}),
-		WithCondition(jq.Match(`.spec.controllerName == "%s"`, gateway.GatewayControllerName)),
+		WithCondition(jq.Match(`.spec.controllerName == "%s"`, gatewayControllerName)),
 		WithCustomErrorMsg("GatewayClass should exist with OpenShift Gateway controller"),
 	)
 
@@ -151,7 +156,7 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 			jq.Match(`.spec.gatewayClassName == "%s"`, gatewayClassName),
 			jq.Match(`.spec.listeners | length > 0`),
 			jq.Match(`.spec.listeners[] | select(.name == "https") | .protocol == "%s"`, string(gwapiv1.HTTPSProtocolType)),
-			jq.Match(`.spec.listeners[] | select(.name == "https") | .port == 443`),
+			jq.Match(`.spec.listeners[] | select(.name == "https") | .port == %d`, standardHTTPSPort),
 			jq.Match(`.spec.listeners[] | select(.name == "https") | .hostname == "%s"`, expectedGatewayHostname),
 			jq.Match(`.spec.listeners[] | select(.name == "https") | .tls.certificateRefs[0].name == "%s"`, gatewayTLSSecretName),
 		)),
@@ -192,14 +197,14 @@ func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 		}),
 		WithCondition(And(
 			jq.Match(`.type == "%s"`, string(corev1.SecretTypeOpaque)),
-			jq.Match(`.metadata.labels.app == "%s"`, kubeAuthProxyName),
+			jq.Match(`.metadata.labels["platform.opendatahub.io/part-of"] == "gatewayconfig"`),
 			jq.Match(`.data | has("OAUTH2_PROXY_CLIENT_ID")`),
 			jq.Match(`.data | has("OAUTH2_PROXY_CLIENT_SECRET")`),
 			jq.Match(`.data | has("OAUTH2_PROXY_COOKIE_SECRET")`),
 			jq.Match(`.data.OAUTH2_PROXY_CLIENT_SECRET | length > 0`),
 			jq.Match(`.data.OAUTH2_PROXY_COOKIE_SECRET | length > 0`),
 		)),
-		WithCustomErrorMsg("OAuth proxy credentials secret should be Opaque type with app label, "+
+		WithCustomErrorMsg("OAuth proxy credentials secret should be Opaque type with platform.opendatahub.io/part-of=gatewayconfig label, "+
 			"exactly %d non-empty keys, and CLIENT_ID matching OAuthClient name", expectedSecretDataKeys),
 	)
 
@@ -234,10 +239,23 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 			Namespace: gatewayNamespace,
 		}),
 		WithCondition(And(
+			// replica count
+			jq.Match(`.spec.replicas == 2`),
+
 			// basic pod template checks
 			jq.Match(`.spec.selector.matchLabels.app == "%s"`, kubeAuthProxyName),
 			jq.Match(`.spec.template.spec.containers | length > 0`),
 			jq.Match(`.spec.template.spec.containers[0].name == "%s"`, kubeAuthProxyName),
+
+			// pod security context checks
+			jq.Match(`.spec.template.spec.securityContext.runAsNonRoot == true`),
+			jq.Match(`.spec.template.spec.securityContext.seccompProfile.type == "RuntimeDefault"`),
+
+			// container security context checks
+			jq.Match(`.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem == true`),
+			jq.Match(`.spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation == false`),
+			jq.Match(`.spec.template.spec.containers[0].securityContext.capabilities.drop | length > 0`),
+			jq.Match(`.spec.template.spec.containers[0].securityContext.capabilities.drop[] | . == "ALL"`),
 
 			// ports
 			jq.Match(`.spec.template.spec.containers[0].ports | length == 3`),
@@ -257,6 +275,11 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "tls-certs") | .readOnly == true`),
 			jq.Match(`.spec.template.spec.volumes[] | select(.name == "tls-certs") | .secret.secretName == "%s"`, kubeAuthProxyTLSName),
 
+			// /tmp volume mount (required for read-only root filesystem)
+			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "tmp") | .mountPath == "/tmp"`),
+			jq.Match(`.spec.template.spec.volumes[] | select(.name == "tmp") | .emptyDir.medium == "Memory"`),
+			jq.Match(`.spec.template.spec.volumes[] | select(.name == "tmp") | .emptyDir.sizeLimit == "10Mi"`),
+
 			// critical args and behavior
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--provider=openshift")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--scope=user:full")`),
@@ -272,8 +295,8 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-httponly=true")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-samesite=lax")`),
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-name=_oauth2_proxy")`),
-			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-expire=24h")`),
-			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-refresh=1h")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-expire=24h0m0s")`),
+			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--cookie-refresh=1h0m0s")`),
 
 			// auth proxy behavior flags
 			jq.Match(`.spec.template.spec.containers[0].args | any(. == "--skip-provider-button")`),
@@ -295,7 +318,7 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 	)
 
 	// wait for deployment readiness using TestContext helper
-	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: gatewayNamespace}, 1)
+	tc.EnsureDeploymentReady(types.NamespacedName{Name: kubeAuthProxyName, Namespace: gatewayNamespace}, 2)
 
 	// kube-auth-proxy service
 	tc.EnsureResourceExists(

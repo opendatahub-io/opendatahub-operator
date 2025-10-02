@@ -1,0 +1,17 @@
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: {{.DestinationRuleName}}
+  namespace: {{.GatewayNamespace}}
+  labels:
+    app: {{.KubeAuthProxyServiceName}}
+spec:
+  host: "*"  # todo:
+  trafficPolicy:
+    portLevelSettings:
+    - port: # only on 8443 no need 443 as no service is open on that port
+        number: {{.GatewayHTTPSPort}}
+      tls:
+        mode: SIMPLE
+        insecureSkipVerify: true
+

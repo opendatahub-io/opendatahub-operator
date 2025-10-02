@@ -293,9 +293,15 @@ func TestOdhOperator(t *testing.T) {
 	// Run DSCI/DSC test suites
 	mustRun(t, "DSCInitialization and DataScienceCluster management E2E Tests", dscManagementTestSuite)
 
-	// Run components and services test suites
-	mustRun(t, Components.String(), Components.Run)
-	mustRun(t, Services.String(), Services.Run)
+	// Run services test suites before components because GW need to be up and running.
+	if Services.enabled {
+		mustRun(t, Services.String(), Services.Run)
+	}
+
+	// Run components test suites
+	if Components.enabled {
+		mustRun(t, Components.String(), Components.Run)
+	}
 
 	// Run operator resilience test suites after functional tests
 	if testOpts.operatorResilienceTest {

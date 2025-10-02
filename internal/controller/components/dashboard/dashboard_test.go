@@ -218,13 +218,13 @@ func TestComputeKustomizeVariable(t *testing.T) {
 	var (
 		customGatewayConfig = func() *serviceApi.GatewayConfig {
 			gc := &serviceApi.GatewayConfig{}
-			gc.SetName(serviceApi.GatewayInstanceName)
+			gc.SetName(serviceApi.GatewayConfigName)
 			gc.Spec.Domain = customDomain
 			return gc
 		}
 		defaultGatewayConfig = func() *serviceApi.GatewayConfig {
 			gc := &serviceApi.GatewayConfig{}
-			gc.SetName(serviceApi.GatewayInstanceName)
+			gc.SetName(serviceApi.GatewayConfigName)
 			// No custom domain, should use cluster domain
 			return gc
 		}
@@ -244,7 +244,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 			platform:          cluster.OpenDataHub,
 			expectedURL:       "https://data-science-gateway." + defaultDomain + "/",
 			expectedTitle:     "OpenShift Open Data Hub",
-			gatewayConfigFunc: func() *serviceApi.GatewayConfig { return nil }, // No GatewayConfig
+			gatewayConfigFunc: defaultGatewayConfig, // Use default GatewayConfig with no custom domain
 			clusterDomain:     defaultDomain,
 		},
 		{
@@ -313,8 +313,8 @@ func TestComputeKustomizeVariableError(t *testing.T) {
 
 	// Test error handling with better error message validation
 	_, err = computeKustomizeVariable(ctx, cli, cluster.OpenDataHub)
-	g.Expect(err).Should(HaveOccurred(), "Should fail when no gateway domain can be resolved")
-	g.Expect(err.Error()).Should(ContainSubstring("error getting gateway domain"), "Error should contain expected message")
+	g.Expect(err).Should(HaveOccurred(), "Should fail when no GatewayConfig can be found")
+	g.Expect(err.Error()).Should(ContainSubstring("failed to get GatewayConfig"), "Error should contain expected message")
 }
 
 func createDSCWithDashboard(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {
@@ -351,28 +351,17 @@ func createDashboardCR(ready bool) *componentApi.Dashboard {
 	return &c
 }
 
-// createMockOpenShiftIngress creates an optimized mock OpenShift Ingress object
-// for testing cluster domain resolution.
+// createMockOpenShiftIngress creates a mini OpenShift Ingress object for testing cluster domain.
 func createMockOpenShiftIngress(domain string) client.Object {
-	// Input validation for better error handling
-	if domain == "" {
-		domain = "default.example.com" // Fallback domain
+	ingress := &unstructured.Unstructured{}
+	ingress.SetGroupVersionKind(gvk.OpenshiftIngress)
+	ingress.SetName("cluster")
+
+	// Set the spec.domain field that GetDomain expects
+	err := unstructured.SetNestedField(ingress.Object, domain, "spec", "domain")
+	if err != nil {
+		panic(err) // This should never happen in tests
 	}
 
-	// Create OpenShift Ingress object (config.openshift.io/v1/Ingress)
-	// that cluster.GetDomain() looks for
-	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "config.openshift.io/v1",
-			"kind":       "Ingress",
-			"metadata": map[string]interface{}{
-				"name": "cluster",
-			},
-			"spec": map[string]interface{}{
-				"domain": domain,
-			},
-		},
-	}
-
-	return obj
+	return ingress
 }

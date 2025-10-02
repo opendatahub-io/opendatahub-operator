@@ -9,13 +9,14 @@ metadata:
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.2.0
     createdAt: "2025-6-10T00:00:00Z"
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
-      "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
-      "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
-      "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
-      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
-      "workbenches.components.platform.opendatahub.io", "gatewayconfigs.services.platform.opendatahub.io",
-      "monitorings.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
-      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
+      "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
+      "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
+      "kueues.components.platform.opendatahub.io", "modelregistries.components.platform.opendatahub.io",
+      "rays.components.platform.opendatahub.io", "trainingoperators.components.platform.opendatahub.io",
+      "trustyais.components.platform.opendatahub.io", "workbenches.components.platform.opendatahub.io",
+      "monitorings.services.platform.opendatahub.io", "servicemeshes.services.platform.opendatahub.io",
+      "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
+      "llamastackoperators.components.platform.opendatahub.io"]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v3.2.0
   namespace: placeholder
