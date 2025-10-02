@@ -3142,7 +3142,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
-| `domain` _string_ | Domain configuration for the GatewayConfig |  |  |
+| `domain` _string_ | Domain configuration for the GatewayConfig<br />Example: apps.example.com |  |  |
 
 
 #### GatewayConfigStatus

@@ -322,6 +322,12 @@ var (
 		Kind:    "EnvoyFilter",
 	}
 
+	DestinationRule = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1",
+		Kind:    "DestinationRule",
+	}
+
 	AuthorizationPolicy = schema.GroupVersionKind{
 		Group:   "security.istio.io",
 		Version: "v1",
@@ -362,6 +368,18 @@ var (
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,
 		Kind:    serviceApi.AuthKind,
+	}
+
+	HTTPRoute = schema.GroupVersionKind{
+		Group:   gwapiv1.GroupVersion.Group,
+		Version: gwapiv1.GroupVersion.Version,
+		Kind:    "HTTPRoute",
+	}
+
+	OAuthClient = schema.GroupVersionKind{
+		Group:   "oauth.openshift.io",
+		Version: "v1",
+		Kind:    "OAuthClient",
 	}
 
 	MultiKueueConfigV1Alpha1 = schema.GroupVersionKind{

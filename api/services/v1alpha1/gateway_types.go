@@ -45,6 +45,7 @@ type GatewayConfigSpec struct {
 	Certificate *infrav1.CertificateSpec `json:"certificate,omitempty"`
 
 	// Domain configuration for the GatewayConfig
+	// Example: apps.example.com
 	// +optional
 	Domain string `json:"domain,omitempty"`
 }
