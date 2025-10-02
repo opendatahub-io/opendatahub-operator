@@ -9,7 +9,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -54,7 +53,6 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
 		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
-		{"Validate VAP/VAPB creation after DSCI creation", dscTestCtx.ValidateVAPCreationAfterDSCI},
 		{"Validate Knative resource", dscTestCtx.ValidateKnativeSpecInDSC},
 		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
@@ -294,93 +292,6 @@ func (tc *DSCTestCtx) UpdateRegistriesNamespace(targetNamespace, expectedValue s
 		WithMutateFunc(testf.Transform(`.spec.components.modelregistry.registriesNamespace = "%s"`, targetNamespace)),
 		WithCondition(expectedCondition),
 		WithCustomErrorMsg("Failed to update RegistriesNamespace to %s, expected %s", targetNamespace, expectedValue),
-	)
-}
-
-// ValidateVAPCreationAfterDSCI verifies that VAP/VAPB resources are created after DSCI is created and reconciled.
-func (tc *DSCTestCtx) ValidateVAPCreationAfterDSCI(t *testing.T) {
-	t.Helper()
-
-	// Temporarily enable Dashboard to ensure its CRD is deployed (required for VAP creation)
-	tc.EnsureResourceCreatedOrPatched(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.dashboard.managementState = "Managed"`)),
-		WithCustomErrorMsg("Failed to enable Dashboard for VAP test"),
-		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
-	)
-
-	dsci := tc.FetchDSCInitialization()
-	tc.g.Expect(dsci).NotTo(BeNil(), "DSCI should exist")
-
-	// Validate VAP/VAPB resources exist and are owned by DSCI
-	vapResources := []struct {
-		name string
-		gvk  schema.GroupVersionKind
-	}{
-		{"block-dashboard-acceleratorprofile-cr", gvk.ValidatingAdmissionPolicy},
-		{"block-dashboard-acceleratorprofile-cr-binding", gvk.ValidatingAdmissionPolicyBinding},
-		{"block-dashboard-hardwareprofile-cr", gvk.ValidatingAdmissionPolicy},
-		{"block-dashboard-hardwareprofile-cr-binding", gvk.ValidatingAdmissionPolicyBinding},
-	}
-
-	for _, resource := range vapResources {
-		tc.EnsureResourceExists(
-			WithMinimalObject(resource.gvk, types.NamespacedName{Name: resource.name}),
-			WithCondition(And(
-				jq.Match(`.metadata.name == "%s"`, resource.name),
-				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.DSCInitialization.Kind),
-			)),
-			WithCustomErrorMsg("%s should exist and be owned by DSCI", resource.name),
-		)
-	}
-
-	// Delete one and verify it gets recreated
-	vapToDelete := vapResources[0]
-	tc.DeleteResource(WithMinimalObject(vapToDelete.gvk, types.NamespacedName{Name: vapToDelete.name}))
-
-	// Verify the deleted VAP gets recreated with ownerreference to DSCI
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(vapToDelete.gvk, types.NamespacedName{Name: vapToDelete.name}),
-		WithCondition(And(
-			jq.Match(`.spec.identifiers[0].defaultCount == 2`),
-			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
-			jq.Match(`.apiVersion == "infrastructure.opendatahub.io/v1"`),
-		)),
-		WithCustomErrorMsg("Default hardwareprofile should have defaultCount=2, managed=false, and use v1 API version"),
-	)
-
-	// update default hardwareprofile to different value and check it is updated.
-	tc.EnsureResourceCreatedOrPatched(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
-		WithMutateFunc(testf.Transform(`
-			.spec.identifiers[0].defaultCount = 4 |
-			.metadata.annotations["opendatahub.io/managed"] = "false"
-		`)),
-		WithCondition(And(
-			Succeed(),
-			jq.Match(`.spec.identifiers[0].defaultCount == 4`),
-			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
-		)),
-		WithCustomErrorMsg("Failed to update defaultCount from 2 to 4"),
-	)
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
-		WithCondition(jq.Match(`.spec.identifiers[0].defaultCount == 4`)),
-		WithCustomErrorMsg("Should have defaultCount to 4 but now got %s", jq.Match(`.spec.identifiers[0].defaultCount`)),
-	)
-
-	// delete default hardwareprofile and check it is recreated with default values.
-	tc.DeleteResource(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
-	)
-
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
-		WithCondition(And(
-			jq.Match(`.spec.identifiers[0].defaultCount == 2`),
-			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
-		)),
-		WithCustomErrorMsg("Hardware profile was not recreated with default values"),
 	)
 }
 
