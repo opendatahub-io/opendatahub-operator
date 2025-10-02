@@ -21,6 +21,7 @@ package dscinitialization
 // +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices,verbs=*
 // +kubebuilder:rbac:groups="networking.istio.io",resources=gateways,verbs=*
 // +kubebuilder:rbac:groups="networking.istio.io",resources=envoyfilters,verbs=*
+// +kubebuilder:rbac:groups="networking.istio.io",resources=destinationrules,verbs=*
 // +kubebuilder:rbac:groups="security.istio.io",resources=authorizationpolicies,verbs=*
 // +kubebuilder:rbac:groups="authorino.kuadrant.io",resources=authconfigs,verbs=*
 // +kubebuilder:rbac:groups="operator.authorino.kuadrant.io",resources=authorinos,verbs=*

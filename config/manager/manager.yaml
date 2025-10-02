@@ -70,6 +70,12 @@ spec:
             value: /opt/manifests
           # - name: ODH_PLATFORM_TYPE
           #   value: SelfManagedRHOAI
+          # Kube-auth-proxy image configuration
+          # For RHOAI: This is overridden by the CSV (from RHOAI-Build-Config/bundle/additional-images-patch.yaml)
+          # For ODH: Uses "latest" tag to track upstream continuously
+          # Renovate automatically updates the SHA digest when new builds are pushed
+          - name: RELATED_IMAGE_KUBE_AUTH_PROXY_IMAGE
+            value: "quay.io/jtanner/kube-auth-proxy:latest@sha256:434580fd42d73727d62566ff6d8336219a31b322798b48096ed167daaec42f07"
         image: controller:latest
         imagePullPolicy: Always
         securityContext:

@@ -443,9 +443,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 				Name: serviceApi.GatewayInstanceName,
 			},
 			Spec: serviceApi.GatewayConfigSpec{
-				Auth: serviceApi.GatewayAuthSpec{
-					Mode: "auto",
-				},
 				Certificate: &infrav1.CertificateSpec{
 					Type:       infrav1.OpenshiftDefaultIngress,
 					SecretName: "default-gateway-tls",
@@ -570,6 +567,7 @@ func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platfor
 
 	namespaceConfigs["istio-system"] = cache.Config{}        // for serivcemonitor: data-science-smcp-pilot-monitor
 	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
+	namespaceConfigs["openshift-ingress"] = cache.Config{}   // for gateway auth proxy resources
 
 	return namespaceConfigs, nil
 }

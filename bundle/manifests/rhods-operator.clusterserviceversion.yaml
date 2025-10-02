@@ -113,7 +113,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-09-30T08:47:38Z"
+    createdAt: "2025-10-01T20:26:43Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -878,6 +878,7 @@ spec:
           resources:
           - gatewayclasses
           - gateways
+          - httproutes
           verbs:
           - create
           - delete
@@ -1155,6 +1156,7 @@ spec:
         - apiGroups:
           - networking.istio.io
           resources:
+          - destinationrules
           - envoyfilters
           - gateways
           - virtualservices
@@ -1411,6 +1413,7 @@ spec:
           - services.platform.opendatahub.io
           resources:
           - auths/finalizers
+          - gatewayconfigs/finalizers
           - monitorings/finalizers
           verbs:
           - update

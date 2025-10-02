@@ -1,0 +1,94 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: authn-filter
+  namespace: openshift-ingress
+spec:
+  workloadSelector:
+    labels:
+      gateway.networking.k8s.io/gateway-name: data-science-gateway
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: "envoy.filters.network.http_connection_manager"
+            subFilter:
+              name: "envoy.filters.http.router"
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.ext_authz
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+          transport_api_version: V3
+          http_service:
+            server_uri:
+              uri: https://kube-auth-proxy.openshift-ingress.svc.cluster.local:8443/oauth2/auth
+              cluster: kube-auth-proxy
+              timeout: 0.5s
+            authorization_request:
+              allowed_headers:
+                patterns:
+                - exact: cookie
+            authorization_response:
+              allowed_upstream_headers:
+                patterns:
+                - exact: x-auth-request-user
+                - exact: x-auth-request-email
+                - exact: x-auth-request-access-token
+              allowed_client_headers:
+                patterns:
+                - exact: set-cookie
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: "envoy.filters.network.http_connection_manager"
+            subFilter:
+              name: "envoy.filters.http.router"
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.lua
+        typed_config:
+          "@type": "type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua"
+          inline_code: |
+            function envoy_on_request(request_handle)
+              local access_token = request_handle:headers():get("x-auth-request-access-token")
+              if access_token then
+                request_handle:headers():add("x-forwarded-access-token", access_token)
+                request_handle:headers():add("authorization", "Bearer " .. access_token)
+              end
+            end
+  - applyTo: CLUSTER
+    match:
+      context: GATEWAY
+    patch:
+      operation: ADD
+      value:
+        name: kube-auth-proxy
+        type: STRICT_DNS
+        connect_timeout: 0.5s
+        transport_socket:
+          name: envoy.transport_sockets.tls
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+            common_tls_context:
+              validation_context:
+                trusted_ca:
+                  filename: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+            sni: kube-auth-proxy.openshift-ingress.svc.cluster.local
+        load_assignment:
+          cluster_name: kube-auth-proxy
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: kube-auth-proxy.openshift-ingress.svc.cluster.local
+                    port_value: 8443
