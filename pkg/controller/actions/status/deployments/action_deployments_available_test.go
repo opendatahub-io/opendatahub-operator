@@ -11,7 +11,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
@@ -69,7 +69,7 @@ func TestDeploymentsAvailableActionNotReady(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
-		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSCI:     &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
@@ -144,7 +144,7 @@ func TestDeploymentsAvailableActionReady(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
-		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSCI:     &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
@@ -216,7 +216,7 @@ func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
-		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSCI:     &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
@@ -288,7 +288,7 @@ func TestDeploymentsAvailableActionNotReadyNotFound(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
-		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSCI:     &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 

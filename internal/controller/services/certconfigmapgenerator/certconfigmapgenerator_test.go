@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
 	annotation "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -64,7 +64,7 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 	err = certconfigmapgenerator.NewWithManager(gctx, env.Manager())
 	g.Expect(err).ToNot(HaveOccurred())
 
-	dsci := dsciv1.DSCInitialization{}
+	dsci := dsciv2.DSCInitialization{}
 	dsci.Name = id
 
 	env.Manager().GetCache().WaitForCacheSync(gctx)
@@ -100,7 +100,7 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		_, err = ctrl.CreateOrUpdate(ctx, env.Client(), &dsci, func() error {
-			dsci.Spec.TrustedCABundle = &dsciv1.TrustedCABundleSpec{
+			dsci.Spec.TrustedCABundle = &dsciv2.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
 			}
 			return nil
@@ -154,7 +154,7 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 		g := G(t)
 
 		_, err = ctrl.CreateOrUpdate(ctx, env.Client(), &dsci, func() error {
-			dsci.Spec.TrustedCABundle = &dsciv1.TrustedCABundleSpec{
+			dsci.Spec.TrustedCABundle = &dsciv2.TrustedCABundleSpec{
 				ManagementState: operatorv1.Unmanaged,
 			}
 			return nil
@@ -172,7 +172,7 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 		g := G(t)
 
 		_, err = ctrl.CreateOrUpdate(ctx, env.Client(), &dsci, func() error {
-			dsci.Spec.TrustedCABundle = &dsciv1.TrustedCABundleSpec{
+			dsci.Spec.TrustedCABundle = &dsciv2.TrustedCABundleSpec{
 				ManagementState: operatorv1.Removed,
 			}
 			return nil
@@ -189,7 +189,7 @@ func TestCertConfigmapGeneratorReconciler(t *testing.T) {
 		g := G(t)
 
 		_, err = ctrl.CreateOrUpdate(ctx, env.Client(), &dsci, func() error {
-			dsci.Spec.TrustedCABundle = &dsciv1.TrustedCABundleSpec{
+			dsci.Spec.TrustedCABundle = &dsciv2.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
 			}
 			return nil

@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -42,6 +42,7 @@ var (
 		"kserve-llm-d-inference-scheduler": "RELATED_IMAGE_ODH_LLM_D_INFERENCE_SCHEDULER_IMAGE",
 		"kserve-llm-d-routing-sidecar":     "RELATED_IMAGE_ODH_LLM_D_ROUTING_SIDECAR_IMAGE",
 		"oauth-proxy":                      "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
+		"kube-rbac-proxy":                  "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
 )
 
@@ -71,7 +72,7 @@ func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	}
 }
 
-func createServingCertResource(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec, kserve *componentApi.Kserve) error {
+func createServingCertResource(ctx context.Context, cli client.Client, dscispec *dsciv2.DSCInitializationSpec, kserve *componentApi.Kserve) error {
 	domain := getKnativeDomain(ctx, cli, kserve)
 	secretName := getKnativeCertSecretName(kserve)
 
@@ -130,7 +131,7 @@ func getKnativeCertSecretName(k *componentApi.Kserve) string {
 	return name
 }
 
-func getDefaultDeploymentMode(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) (string, error) {
+func getDefaultDeploymentMode(ctx context.Context, cli client.Client, dscispec *dsciv2.DSCInitializationSpec) (string, error) {
 	kserveConfigMap := corev1.ConfigMap{}
 	err := cli.Get(ctx, client.ObjectKey{Name: kserveConfigMapName, Namespace: dscispec.ApplicationsNamespace}, &kserveConfigMap)
 	if errors.IsNotFound(err) {

@@ -16,8 +16,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
@@ -148,16 +148,16 @@ func ExtractAndExpectValue[T any](g Gomega, in any, expression string, matchers 
 }
 
 // CreateDSCI creates a DSCInitialization CR.
-func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv1.DSCInitialization {
-	return &dsciv1.DSCInitialization{
+func CreateDSCI(name, groupVersion string, appNamespace, monitoringNamespace string) *dsciv2.DSCInitialization {
+	return &dsciv2.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
-			APIVersion: dsciv1.GroupVersion.String(),
+			APIVersion: groupVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: dsciv1.DSCInitializationSpec{
+		Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: appNamespace,
 			Monitoring: serviceApi.DSCIMonitoring{
 				ManagementSpec: common.ManagementSpec{
@@ -167,7 +167,7 @@ func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv1.DSCIniti
 					Namespace: monitoringNamespace,
 				},
 			},
-			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
+			TrustedCABundle: &dsciv2.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
 				CustomCABundle:  "",
 			},
@@ -184,17 +184,17 @@ func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv1.DSCIniti
 }
 
 // CreateDSC creates a DataScienceCluster CR.
-func CreateDSC(name string) *dscv1.DataScienceCluster {
-	return &dscv1.DataScienceCluster{
+func CreateDSC(name string, groupVersion string) *dscv2.DataScienceCluster {
+	return &dscv2.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
-			APIVersion: dscv1.GroupVersion.String(),
+			APIVersion: groupVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: dscv1.DataScienceClusterSpec{
-			Components: dscv1.Components{
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
 				// keep dashboard as enabled, because other test is rely on this
 				Dashboard: componentApi.DSCDashboard{
 					ManagementSpec: common.ManagementSpec{

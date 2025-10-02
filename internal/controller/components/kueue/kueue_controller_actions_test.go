@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -316,7 +316,7 @@ func TestInitializeAction_Managed(t *testing.T) {
 
 	err = initialize(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(rr.Manifests).Should(ConsistOf(manifestsPath(), kueueConfigManifestsPath()))
+	g.Expect(rr.Manifests).Should(ConsistOf(manifestsPath()))
 }
 
 func TestInitializeAction_Unmanaged(t *testing.T) {
@@ -342,7 +342,7 @@ func TestInitializeAction_Unmanaged(t *testing.T) {
 
 	err = initialize(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(rr.Manifests).Should(ConsistOf(kueueConfigManifestsPath()))
+	g.Expect(rr.Manifests).Should(BeEmpty())
 }
 
 func TestManageKueueAdminRoleBinding_AuthCRNotFound(t *testing.T) {
@@ -656,8 +656,8 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 
 			rr := &types.ReconciliationRequest{
 				Instance: kueue,
-				DSCI: &dsciv1.DSCInitialization{
-					Spec: dsciv1.DSCInitializationSpec{
+				DSCI: &dsciv2.DSCInitialization{
+					Spec: dsciv2.DSCInitializationSpec{
 						ApplicationsNamespace: xid.New().String(),
 					},
 				},
