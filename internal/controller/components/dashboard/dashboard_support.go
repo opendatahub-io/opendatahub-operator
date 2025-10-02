@@ -8,7 +8,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -26,6 +26,9 @@ const (
 
 	LegacyComponentNameUpstream   = "dashboard"
 	LegacyComponentNameDownstream = "rhods-dashboard"
+
+	// Dashboard path on the gateway.
+	dashboardPath = "/"
 )
 
 var (
@@ -33,12 +36,6 @@ var (
 		cluster.SelfManagedRhoai: "OpenShift Self Managed Services",
 		cluster.ManagedRhoai:     "OpenShift Managed Services",
 		cluster.OpenDataHub:      "OpenShift Open Data Hub",
-	}
-
-	baseConsoleURL = map[common.Platform]string{
-		cluster.SelfManagedRhoai: "https://rhods-dashboard-",
-		cluster.ManagedRhoai:     "https://rhods-dashboard-",
-		cluster.OpenDataHub:      "https://odh-dashboard-",
 	}
 
 	overlaysSourcePaths = map[common.Platform]string{
@@ -51,6 +48,7 @@ var (
 		"odh-dashboard-image":     "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 		"model-registry-ui-image": "RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE",
 		"oauth-proxy-image":       "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
+		"kube-rbac-proxy":         "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
 
 	conditionTypes = []string{
@@ -74,14 +72,14 @@ func bffManifestsPath() odhtypes.ManifestInfo {
 	}
 }
 
-func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform, dscispec *dsciv1.DSCInitializationSpec) (map[string]string, error) {
-	consoleLinkDomain, err := cluster.GetDomain(ctx, cli)
+func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform) (map[string]string, error) {
+	gatewayDomain, err := gateway.GetGatewayDomain(ctx, cli)
 	if err != nil {
-		return nil, fmt.Errorf("error getting console route URL %s : %w", consoleLinkDomain, err)
+		return nil, fmt.Errorf("error getting gateway domain: %w", err)
 	}
 
 	return map[string]string{
-		"dashboard-url": baseConsoleURL[platform] + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
+		"dashboard-url": fmt.Sprintf("https://%s%s", gatewayDomain, dashboardPath),
 		"section-title": sectionTitle[platform],
 	}, nil
 }
