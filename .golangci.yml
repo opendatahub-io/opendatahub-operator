@@ -21,7 +21,10 @@ linters:
     - varnamelen
     - wrapcheck
     - wsl
+    - wsl_v5
     - funcorder
+    - godoclint
+    - noinlineerr
   settings:
     errcheck:
       check-type-assertions: true

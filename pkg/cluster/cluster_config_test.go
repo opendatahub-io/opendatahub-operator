@@ -20,6 +20,7 @@ import (
 // erroringClient is a wrapper around a client.Client that allows us to inject errors.
 type erroringClient struct {
 	client.Client
+
 	err error
 }
 
