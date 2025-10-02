@@ -118,7 +118,7 @@ func SetupEnvAndClient(
 	}()
 
 	t.Log("Waiting for webhook server to be ready...")
-	if err := env.WaitForWebhookServer(timeout); err != nil {
+	if err := env.WaitForWebhookServer(ctx, timeout); err != nil {
 		t.Fatalf("webhook server not ready: %v", err)
 	}
 
