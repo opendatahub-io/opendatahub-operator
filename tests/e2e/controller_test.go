@@ -13,6 +13,7 @@ import (
 	"github.com/onsi/gomega/format"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	userv1 "github.com/openshift/api/user/v1"
 	ofapiv1 "github.com/operator-framework/api/pkg/operators/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -416,6 +417,7 @@ func registerSchemes() {
 	schemes := []func(*runtime.Scheme) error{
 		clientgoscheme.AddToScheme,
 		routev1.AddToScheme,
+		userv1.AddToScheme,
 		apiextv1.AddToScheme,
 		autoscalingv1.AddToScheme,
 		dsciv2.AddToScheme,
