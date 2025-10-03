@@ -120,8 +120,6 @@ metadata:
   name: example
 spec:
   components:
-    codeflare:
-      managementState: Managed
     dashboard:
       managementState: Managed
     datasciencepipelines:
