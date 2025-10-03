@@ -25,6 +25,11 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: HardwareProfile is the Schema for the hardwareprofiles API.
+      displayName: Hardware Profile
+      kind: HardwareProfile
+      name: hardwareprofiles.infrastructure.opendatahub.io
+      version: v1alpha1
     - description: Auth is the Schema for the auths API
       displayName: Auth
       kind: Auth
@@ -80,7 +85,7 @@ spec:
       displayName: Hardware Profile
       kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
-      version: v1alpha1
+      version: v1
     - description: Kserve is the Schema for the kserves API
       displayName: Kserve
       kind: Kserve

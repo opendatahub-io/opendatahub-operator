@@ -12,6 +12,7 @@ webhooks:
       namespace: system
       path: /mutate-datasciencecluster-v1
   failurePolicy: Fail
+  matchPolicy: Exact
   name: datasciencecluster-v1-defaulter.opendatahub.io
   rules:
   - apiGroups:
@@ -32,6 +33,7 @@ webhooks:
       namespace: system
       path: /mutate-datasciencecluster-v2
   failurePolicy: Fail
+  matchPolicy: Exact
   name: datasciencecluster-v2-defaulter.opendatahub.io
   rules:
   - apiGroups:
@@ -178,6 +180,7 @@ webhooks:
       namespace: system
       path: /validate-datasciencecluster-v1
   failurePolicy: Fail
+  matchPolicy: Exact
   name: datasciencecluster-v1-validator.opendatahub.io
   rules:
   - apiGroups:
@@ -186,6 +189,7 @@ webhooks:
     - v1
     operations:
     - CREATE
+    - UPDATE
     resources:
     - datascienceclusters
   sideEffects: None
@@ -197,6 +201,7 @@ webhooks:
       namespace: system
       path: /validate-datasciencecluster-v2
   failurePolicy: Fail
+  matchPolicy: Exact
   name: datasciencecluster-v2-validator.opendatahub.io
   rules:
   - apiGroups:
@@ -216,6 +221,7 @@ webhooks:
       namespace: system
       path: /validate-dscinitialization-v1
   failurePolicy: Fail
+  matchPolicy: Exact
   name: dscinitialization-v1-validator.opendatahub.io
   rules:
   - apiGroups:
@@ -236,6 +242,7 @@ webhooks:
       namespace: system
       path: /validate-dscinitialization-v2
   failurePolicy: Fail
+  matchPolicy: Exact
   name: dscinitialization-v2-validator.opendatahub.io
   rules:
   - apiGroups:

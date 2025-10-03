@@ -76,6 +76,11 @@ func v2Tov3UpgradeDeletingDscDsciTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"datasciencecluster v1 creation and read", v2Tov3UpgradeTestCtx.DatascienceclusterV1CreationAndRead},
 		{"dscinitialization v1 creation and read", v2Tov3UpgradeTestCtx.DscinitializationV1CreationAndRead},
+		{"validate denies DSC v1 with Kueue Managed", v2Tov3UpgradeTestCtx.ValidateDeniesKueueManaged},
+		{"validate denies DSC v1 update with Kueue Managed", v2Tov3UpgradeTestCtx.ValidateDeniesKueueManagedUpdate},
+		{"validate allows DSC v1 with Kueue Unmanaged", v2Tov3UpgradeTestCtx.ValidateAllowsKueueUnmanaged},
+		{"validate allows DSC v1 with Kueue Removed", v2Tov3UpgradeTestCtx.ValidateAllowsKueueRemoved},
+		{"validate allows DSC v1 without Kueue", v2Tov3UpgradeTestCtx.ValidateAllowsWithoutKueue},
 	}
 
 	// Run the test suite.
@@ -371,5 +376,322 @@ func (tc *V2Tov3UpgradeTestCtx) updateComponentStateInDataScienceCluster(t *test
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(kind), managementState)),
+	)
+}
+
+// ValidateDeniesKueueManaged tests that the Validating webhook denies creation of
+// DataScienceCluster v1 resources with Kueue managementState set to "Managed".
+func (tc *V2Tov3UpgradeTestCtx) ValidateDeniesKueueManaged(t *testing.T) {
+	t.Helper()
+
+	// Clean up any existing DataScienceCluster resources before starting
+	cleanupCoreOperatorResources(t, tc.TestContext)
+
+	// Create a DataScienceCluster v1 resource with Kueue managementState set to "Managed"
+	dscV1 := &dscv1.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DataScienceCluster",
+			APIVersion: dscv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsc-v1-kueue-managed-denied",
+		},
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
+				Kueue: componentApi.DSCKueue{
+					KueueManagementSpec: componentApi.KueueManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+				},
+				// Set other components to Removed to minimize test complexity
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Workbenches: componentApi.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+			},
+		},
+	}
+
+	// Expect the Validating webhook to deny the creation
+	tc.EnsureWebhookBlocksResourceCreation(
+		WithObjectToCreate(dscV1),
+		WithInvalidValue("Managed"),
+		WithFieldName("managementState"),
+		WithCustomErrorMsg("Expected validation webhook to deny DataScienceCluster v1 with Kueue managementState set to Managed"),
+	)
+}
+
+// ValidateDeniesKueueManagedUpdate tests that the Validating webhook denies updates to
+// DataScienceCluster v1 resources when changing Kueue managementState to "Managed".
+func (tc *V2Tov3UpgradeTestCtx) ValidateDeniesKueueManagedUpdate(t *testing.T) {
+	t.Helper()
+
+	// Clean up any existing DataScienceCluster resources before starting
+	cleanupCoreOperatorResources(t, tc.TestContext)
+
+	dscName := "test-dsc-v1-kueue-update-denied"
+
+	// First, create a DataScienceCluster v1 resource with Kueue managementState set to "Removed"
+	dscV1 := &dscv1.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DataScienceCluster",
+			APIVersion: dscv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dscName,
+		},
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
+				Kueue: componentApi.DSCKueue{
+					KueueManagementSpec: componentApi.KueueManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				// Set other components to Removed to minimize test complexity
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Workbenches: componentApi.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+			},
+		},
+	}
+
+	// Create the initial resource with Kueue set to Removed
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(dscV1),
+		WithCustomErrorMsg("Failed to create initial DataScienceCluster v1 with Kueue Removed"),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	// Verify the resource was created successfully
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, dscName),
+			jq.Match(`.spec.components.kueue.managementState == "Removed"`),
+		)),
+		WithCustomErrorMsg("Failed to verify initial DataScienceCluster v1 resource was created"),
+	)
+
+	// Now attempt to update the resource to set Kueue managementState to "Managed"
+	// This should be denied by the validation webhook
+	tc.EnsureWebhookBlocksResourceUpdate(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithMutateFunc(testf.Transform(`.spec.components.kueue.managementState = "Managed"`)),
+		WithInvalidValue("Managed"),
+		WithFieldName("managementState"),
+		WithCustomErrorMsg("Expected validation webhook to deny DataScienceCluster v1 update with Kueue managementState set to Managed"),
+	)
+
+	// Verify the resource still has the original state (Removed)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, dscName),
+			jq.Match(`.spec.components.kueue.managementState == "Removed"`),
+		)),
+		WithCustomErrorMsg("DataScienceCluster v1 resource should still have Kueue managementState as Removed after blocked update"),
+	)
+
+	// Cleanup - delete the test resource
+	tc.DeleteResource(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithWaitForDeletion(true),
+	)
+}
+
+// ValidateAllowsKueueUnmanaged tests that the Validating webhook allows creation of
+// DataScienceCluster v1 resources with Kueue managementState set to "Unmanaged".
+func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsKueueUnmanaged(t *testing.T) {
+	t.Helper()
+
+	// Clean up any existing DataScienceCluster resources before starting
+	cleanupCoreOperatorResources(t, tc.TestContext)
+
+	dscName := "test-dsc-v1-kueue-unmanaged-allowed"
+
+	// Create a DataScienceCluster v1 resource with Kueue managementState set to "Unmanaged"
+	dscV1 := &dscv1.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DataScienceCluster",
+			APIVersion: dscv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dscName,
+		},
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
+				Kueue: componentApi.DSCKueue{
+					KueueManagementSpec: componentApi.KueueManagementSpec{
+						ManagementState: operatorv1.Unmanaged,
+					},
+				},
+				// Set other components to Removed to minimize test complexity
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Workbenches: componentApi.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+			},
+		},
+	}
+
+	// Expect the Validating webhook to allow the creation
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(dscV1),
+		WithCustomErrorMsg("Expected validation webhook to allow DataScienceCluster v1 with Kueue managementState set to Unmanaged"),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	// Verify the resource was created successfully
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, dscName),
+			jq.Match(`.spec.components.kueue.managementState == "Unmanaged"`),
+		)),
+		WithCustomErrorMsg("Failed to verify DataScienceCluster v1 resource with Kueue Unmanaged was created"),
+	)
+
+	// Cleanup - delete the test resource
+	tc.DeleteResource(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithWaitForDeletion(true),
+	)
+}
+
+// ValidateAllowsKueueRemoved tests that the Validating webhook allows creation of
+// DataScienceCluster v1 resources with Kueue managementState set to "Removed".
+func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsKueueRemoved(t *testing.T) {
+	t.Helper()
+
+	// Clean up any existing DataScienceCluster resources before starting
+	cleanupCoreOperatorResources(t, tc.TestContext)
+
+	dscName := "test-dsc-v1-kueue-removed-allowed"
+
+	// Create a DataScienceCluster v1 resource with Kueue managementState set to "Removed"
+	dscV1 := &dscv1.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DataScienceCluster",
+			APIVersion: dscv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dscName,
+		},
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
+				Kueue: componentApi.DSCKueue{
+					KueueManagementSpec: componentApi.KueueManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				// Set other components to Removed to minimize test complexity
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Workbenches: componentApi.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+			},
+		},
+	}
+
+	// Expect the Validating webhook to allow the creation
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(dscV1),
+		WithCustomErrorMsg("Expected validation webhook to allow DataScienceCluster v1 with Kueue managementState set to Removed"),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	// Verify the resource was created successfully
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, dscName),
+			jq.Match(`.spec.components.kueue.managementState == "Removed"`),
+		)),
+		WithCustomErrorMsg("Failed to verify DataScienceCluster v1 resource with Kueue Removed was created"),
+	)
+
+	// Cleanup - delete the test resource
+	tc.DeleteResource(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithWaitForDeletion(true),
+	)
+}
+
+// ValidateAllowsWithoutKueue tests that the Validating webhook allows creation of
+// DataScienceCluster v1 resources that don't specify the Kueue component at all.
+func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsWithoutKueue(t *testing.T) {
+	t.Helper()
+
+	// Clean up any existing DataScienceCluster resources before starting
+	cleanupCoreOperatorResources(t, tc.TestContext)
+
+	dscName := "test-dsc-v1-no-kueue-allowed"
+
+	// Create a DataScienceCluster v1 resource without specifying Kueue component
+	dscV1 := &dscv1.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DataScienceCluster",
+			APIVersion: dscv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: dscName,
+		},
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
+				// Only specify Dashboard, no Kueue component
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Workbenches: componentApi.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+			},
+		},
+	}
+
+	// Expect the Validating webhook to allow the creation
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(dscV1),
+		WithCustomErrorMsg("Expected validation webhook to allow DataScienceCluster v1 without Kueue component"),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	// Cleanup - delete the test resource
+	tc.DeleteResource(
+		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
+		WithWaitForDeletion(true),
 	)
 }

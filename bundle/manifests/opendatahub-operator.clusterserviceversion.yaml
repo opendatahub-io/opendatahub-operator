@@ -219,7 +219,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.0.0
-    createdAt: "2025-10-01T08:57:33Z"
+    createdAt: "2025-10-03T15:35:23Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -293,7 +293,9 @@ spec:
       kind: GatewayConfig
       name: gatewayconfigs.services.platform.opendatahub.io
       version: v1alpha1
-    - kind: HardwareProfile
+    - description: HardwareProfile is the Schema for the hardwareprofiles API.
+      displayName: Hardware Profile
+      kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
       version: v1
     - description: HardwareProfile is the Schema for the hardwareprofiles API.
@@ -1852,6 +1854,7 @@ spec:
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: datasciencecluster-v1-defaulter.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -1872,6 +1875,7 @@ spec:
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: datasciencecluster-v1-validator.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -1879,6 +1883,7 @@ spec:
       - v1
       operations:
       - CREATE
+      - UPDATE
       resources:
       - datascienceclusters
     sideEffects: None
@@ -1891,6 +1896,7 @@ spec:
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: datasciencecluster-v2-defaulter.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -1911,6 +1917,7 @@ spec:
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: datasciencecluster-v2-validator.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -1930,6 +1937,7 @@ spec:
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: dscinitialization-v1-validator.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - dscinitialization.opendatahub.io
@@ -1950,6 +1958,7 @@ spec:
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: dscinitialization-v2-validator.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - dscinitialization.opendatahub.io
