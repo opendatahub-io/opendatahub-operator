@@ -157,14 +157,6 @@ metadata:
               "metrics": {},
               "namespace": "opendatahub"
             },
-            "serviceMesh": {
-              "controlPlane": {
-                "metricsCollection": "Istio",
-                "name": "data-science-smcp",
-                "namespace": "istio-system"
-              },
-              "managementState": "Unmanaged"
-            },
             "trustedCABundle": {
               "customCABundle": "",
               "managementState": "Managed"
@@ -202,7 +194,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.0.0
-    createdAt: "2025-10-02T13:53:28Z"
+    createdAt: "2025-10-03T10:53:25Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -275,7 +267,9 @@ spec:
       kind: GatewayConfig
       name: gatewayconfigs.services.platform.opendatahub.io
       version: v1alpha1
-    - kind: HardwareProfile
+    - description: HardwareProfile is the Schema for the hardwareprofiles API.
+      displayName: Hardware Profile
+      kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
       version: v1
     - description: HardwareProfile is the Schema for the hardwareprofiles API.
