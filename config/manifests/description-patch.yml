@@ -23,7 +23,7 @@ spec:
     * Model Serving using ModelMesh and Kserve.
     * Ability to use other runtimes for serving
     * Model Monitoring
-    * Distributed workloads (KubeRay, CodeFlare, Kueue, Training Operator)
+    * Distributed workloads (KubeRay, Kueue, Training Operator)
     * XAI explanations of predictive models (TrustyAI)
     * Index and manage models, versions, and artifacts metadata (Model Registry)
     * Feast - Feature Store is the fastest path to manage existing infrastructure to productionize analytic data for model training and online inference.

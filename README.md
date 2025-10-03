@@ -347,8 +347,6 @@ metadata:
   name: default-dsc
 spec:
   components:
-    codeflare:
-      managementState: Managed
     dashboard:
       managementState: Managed
     datasciencepipelines:
