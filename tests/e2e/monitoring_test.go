@@ -297,6 +297,7 @@ func (tc *MonitoringTestCtx) ValidateCELAllowsValidMonitoringConfigs(t *testing.
 			transforms: testf.TransformPipeline(
 				withManagementState(operatorv1.Managed),
 				withEmptyMetrics(),
+				withNoCollectorReplicas(),
 				withNoAlerting(),
 			),
 			description: "Empty metrics should be allowed without alerting",

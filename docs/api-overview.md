@@ -32,8 +32,6 @@ Package v1 contains API Schema definitions for the components v1 API group
 - [LlamaStackOperatorList](#llamastackoperatorlist)
 - [ModelController](#modelcontroller)
 - [ModelControllerList](#modelcontrollerlist)
-- [ModelMeshServing](#modelmeshserving)
-- [ModelMeshServingList](#modelmeshservinglist)
 - [ModelRegistry](#modelregistry)
 - [ModelRegistryList](#modelregistrylist)
 - [Ray](#ray)
@@ -416,41 +414,6 @@ _Appears in:_
 
 
 DSCLlamaStackOperatorStatus struct holds the status for the LlamaStackOperator component exposed in the DSC
-
-
-
-_Appears in:_
-- [ComponentsStatus](#componentsstatus)
-- [ComponentsStatus](#componentsstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-
-
-#### DSCModelMeshServing
-
-
-
-DSCModelMeshServing contains all the configuration exposed in DSC instance for ModelMeshServing component
-
-
-
-_Appears in:_
-- [Components](#components)
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### DSCModelMeshServingStatus
-
-
-
-DSCModelMeshServingStatus contains the observed state of the ModelMeshServing exposed in the DSC instance
 
 
 
@@ -1384,7 +1347,7 @@ _Appears in:_
 
 
 
-ModelController is the Schema for the modelcontroller API, it is a shared component between kserve and modelmeshserving
+ModelController is the Schema for the modelcontroller API
 
 
 
@@ -1440,23 +1403,6 @@ ModelControllerList contains a list of ModelController
 | `items` _[ModelController](#modelcontroller) array_ |  |  |  |
 
 
-#### ModelControllerMMSpec
-
-
-
-a mini version of the DSCModelMeshServing only keep devflags and management spec
-
-
-
-_Appears in:_
-- [ModelControllerSpec](#modelcontrollerspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  |  |  |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
 #### ModelControllerMRSpec
 
 
@@ -1486,8 +1432,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `kserve` _[ModelControllerKerveSpec](#modelcontrollerkervespec)_ | ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"` |  |  |
-| `modelMeshServing` _[ModelControllerMMSpec](#modelcontrollermmspec)_ |  |  |  |
+| `kserve` _[ModelControllerKerveSpec](#modelcontrollerkervespec)_ |  |  |  |
 | `modelRegistry` _[ModelControllerMRSpec](#modelcontrollermrspec)_ |  |  |  |
 
 
@@ -1507,117 +1452,6 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
-
-
-#### ModelMeshServing
-
-
-
-ModelMeshServing is the Schema for the modelmeshservings API
-
-
-
-_Appears in:_
-- [ModelMeshServingList](#modelmeshservinglist)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `ModelMeshServing` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[ModelMeshServingSpec](#modelmeshservingspec)_ |  |  |  |
-| `status` _[ModelMeshServingStatus](#modelmeshservingstatus)_ |  |  |  |
-
-
-#### ModelMeshServingCommonSpec
-
-
-
-
-
-
-
-_Appears in:_
-- [DSCModelMeshServing](#dscmodelmeshserving)
-- [ModelMeshServingSpec](#modelmeshservingspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### ModelMeshServingCommonStatus
-
-
-
-ModelMeshServingCommonStatus defines the shared observed state of ModelMeshServing
-
-
-
-_Appears in:_
-- [DSCModelMeshServingStatus](#dscmodelmeshservingstatus)
-- [ModelMeshServingStatus](#modelmeshservingstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### ModelMeshServingList
-
-
-
-ModelMeshServingList contains a list of ModelMeshServing
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `ModelMeshServingList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[ModelMeshServing](#modelmeshserving) array_ |  |  |  |
-
-
-#### ModelMeshServingSpec
-
-
-
-ModelMeshServingSpec defines the desired state of ModelMeshServing
-
-
-
-_Appears in:_
-- [ModelMeshServing](#modelmeshserving)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### ModelMeshServingStatus
-
-
-
-ModelMeshServingStatus defines the observed state of ModelMeshServing
-
-
-
-_Appears in:_
-- [ModelMeshServing](#modelmeshserving)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### ModelRegistry
@@ -2292,9 +2126,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
-| `modelmeshserving` _[DSCModelMeshServing](#dscmodelmeshserving)_ | ModelMeshServing component configuration. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
-| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
+| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component |  |  |
 | `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
 | `codeflare` _[DSCCodeFlare](#dsccodeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
@@ -2320,7 +2153,6 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboardStatus](#dscdashboardstatus)_ | Dashboard component status. |  |  |
 | `workbenches` _[DSCWorkbenchesStatus](#dscworkbenchesstatus)_ | Workbenches component status. |  |  |
-| `modelmeshserving` _[DSCModelMeshServingStatus](#dscmodelmeshservingstatus)_ | ModelMeshServing component status. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | DataSciencePipeline component status. |  |  |
 | `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |
 | `kueue` _[DSCKueueStatus](#dsckueuestatus)_ | Kueue component status. |  |  |
@@ -2418,9 +2250,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
-| `modelmeshserving` _[DSCModelMeshServing](#dscmodelmeshserving)_ | ModelMeshServing component configuration. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
-| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
+| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component |  |  |
 | `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
 | `codeflare` _[DSCCodeFlare](#dsccodeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
@@ -2446,7 +2277,6 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboardStatus](#dscdashboardstatus)_ | Dashboard component status. |  |  |
 | `workbenches` _[DSCWorkbenchesStatus](#dscworkbenchesstatus)_ | Workbenches component status. |  |  |
-| `modelmeshserving` _[DSCModelMeshServingStatus](#dscmodelmeshservingstatus)_ | ModelMeshServing component status. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | DataSciencePipeline component status. |  |  |
 | `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |
 | `kueue` _[DSCKueueStatus](#dsckueuestatus)_ | Kueue component status. |  |  |

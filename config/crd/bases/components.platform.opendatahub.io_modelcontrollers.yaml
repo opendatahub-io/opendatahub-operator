@@ -30,8 +30,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ModelController is the Schema for the modelcontroller API, it
-          is a shared component between kserve and modelmeshserving
+        description: ModelController is the Schema for the modelcontroller API
         properties:
           apiVersion:
             description: |-
@@ -54,7 +53,8 @@ spec:
             description: ModelControllerSpec defines the desired state of ModelController
             properties:
               kserve:
-                description: ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"`
+                description: a mini version of the DSCKserve only keep devflags and
+                  management spec
                 properties:
                   devFlags:
                     description: Add developer fields
@@ -98,42 +98,6 @@ spec:
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                     type: object
-                type: object
-              modelMeshServing:
-                description: a mini version of the DSCModelMeshServing only keep devflags
-                  and management spec
-                properties:
-                  devFlags:
-                    description: Add developer fields
-                    properties:
-                      manifests:
-                        description: List of custom manifests for the given component
-                        items:
-                          properties:
-                            contextDir:
-                              default: manifests
-                              description: contextDir is the relative path to the
-                                folder containing manifests in a repository, default
-                                value "manifests"
-                              type: string
-                            sourcePath:
-                              default: ""
-                              description: 'sourcePath is the subpath within contextDir
-                                where kustomize builds start. Examples include any
-                                sub-folder or path: `base`, `overlays/dev`, `default`,
-                                `odh` etc.'
-                              type: string
-                            uri:
-                              default: ""
-                              description: uri is the URI point to a git repo with
-                                tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                              type: string
-                          type: object
-                        type: array
-                    type: object
-                  managementState:
-                    pattern: ^(Managed|Unmanaged|Force|Removed)$
-                    type: string
                 type: object
               modelRegistry:
                 properties:

@@ -125,7 +125,6 @@ var (
 			componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
 			componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 			componentApi.KserveComponentName:               kserveTestSuite,
-			componentApi.ModelMeshServingComponentName:     modelMeshServingTestSuite,
 			componentApi.ModelControllerComponentName:      modelControllerTestSuite,
 			componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
 			componentApi.LlamaStackOperatorComponentName:   llamastackOperatorTestSuite,
