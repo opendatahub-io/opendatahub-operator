@@ -571,7 +571,7 @@ func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease co
 // When upgrading from version 2.16 to 2.17, the odh-model-controller
 // fails to be provisioned due to the immutability of the deployment's
 // label selectors. In RHOAI ≤ 2.16, the model controller was deployed
-// independently by both kserve and modelmesh, leading to variations
+// independently by both kserve and modelmesh components, leading to variations
 // in label assignments depending on the deployment order. During a
 // redeployment or upgrade, this error was ignored, and the model
 // controller would eventually be reconciled by the appropriate component.

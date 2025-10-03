@@ -9,11 +9,7 @@ metadata:
           "kind": "DataScienceCluster",
           "metadata": {
             "labels": {
-              "app.kubernetes.io/created-by": "opendatahub-operator",
-              "app.kubernetes.io/instance": "default",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "datasciencecluster",
-              "app.kubernetes.io/part-of": "opendatahub-operator"
+              "app.kubernetes.io/name": "datasciencecluster"
             },
             "name": "default-dsc"
           },
@@ -49,9 +45,6 @@ metadata:
               },
               "llamastackoperator": {
                 "managementState": "Removed"
-              },
-              "modelmeshserving": {
-                "managementState": "Managed"
               },
               "modelregistry": {
                 "managementState": "Managed",
@@ -118,9 +111,6 @@ metadata:
               "llamastackoperator": {
                 "managementState": "Removed"
               },
-              "modelmeshserving": {
-                "managementState": "Managed"
-              },
               "modelregistry": {
                 "managementState": "Managed",
                 "registriesNamespace": "odh-model-registries"
@@ -145,11 +135,7 @@ metadata:
           "kind": "DSCInitialization",
           "metadata": {
             "labels": {
-              "app.kubernetes.io/created-by": "opendatahub-operator",
-              "app.kubernetes.io/instance": "default",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "dscinitialization",
-              "app.kubernetes.io/part-of": "opendatahub-operator"
+              "app.kubernetes.io/name": "dscinitialization"
             },
             "name": "default-dsci"
           },
@@ -217,8 +203,7 @@ metadata:
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
-      "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
-      "modelmeshservings.components.platform.opendatahub.io", "modelregistries.components.platform.opendatahub.io",
+      "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io", "modelregistries.components.platform.opendatahub.io",
       "rays.components.platform.opendatahub.io", "trainingoperators.components.platform.opendatahub.io",
       "trustyais.components.platform.opendatahub.io", "workbenches.components.platform.opendatahub.io",
       "gatewayconfigs.services.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
@@ -308,11 +293,6 @@ spec:
       version: v1alpha1
     - kind: ModelController
       name: modelcontrollers.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: ModelMeshServing is the Schema for the modelmeshservings API
-      displayName: Model Mesh Serving
-      kind: ModelMeshServing
-      name: modelmeshservings.components.platform.opendatahub.io
       version: v1alpha1
     - description: ModelRegistry is the Schema for the modelregistries API
       displayName: Model Registry
@@ -1735,7 +1715,6 @@ spec:
   - serving
   - training
   - pipelines
-  - modelmesh
   - workbenches
   - dashboard
   - kserve

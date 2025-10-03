@@ -33,10 +33,10 @@ import (
 )
 
 const (
-	defaultCodeFlareComponentName = "default-codeflare"
+	defaultCodeFlareComponentName        = "default-codeflare"
 	defaultModelMeshServingComponentName = "default-modelmeshserving"
-	testDSCV1Name                 = "test-dsc-v1-upgrade"
-	testDSCIV1Name                = "test-dsci-v1-upgrade"
+	testDSCV1Name                        = "test-dsc-v1-upgrade"
+	testDSCIV1Name                       = "test-dsci-v1-upgrade"
 )
 
 type V2Tov3UpgradeTestCtx struct {
@@ -678,9 +678,15 @@ func (tc *V2Tov3UpgradeTestCtx) createRemovedComponentCRD(t *testing.T) {
 	t.Helper()
 
 	codeFlareCRD := mocks.NewMockCRD(gvk.CodeFlare.Group, gvk.CodeFlare.Version, gvk.CodeFlare.Kind, gvk.CodeFlare.Kind)
+	modelMeshServingCRD := mocks.NewMockCRD(gvk.ModelMeshServing.Group, gvk.ModelMeshServing.Version, gvk.ModelMeshServing.Kind, gvk.ModelMeshServing.Kind)
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(codeFlareCRD),
 		WithCustomErrorMsg("Failed to create removed component CRD"),
+	)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(modelMeshServingCRD),
+		WithCustomErrorMsg("Failed to create ModelMeshServing CRD"),
 	)
 }

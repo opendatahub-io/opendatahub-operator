@@ -38,10 +38,6 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		kState = operatorv1.Managed
 	}
 
-	// ModelMeshServing is deprecated and always removed in RHOAI 3.0
-	// But we still need to populate the field for API compatibility and existing resources
-	mState := operatorv1.Removed
-
 	mrState := operatorv1.Removed
 	if dsc.Spec.Components.ModelRegistry.ManagementState == operatorv1.Managed {
 		mrState = operatorv1.Managed
@@ -62,10 +58,6 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 			},
 		},
 		Spec: componentApi.ModelControllerSpec{
-			ModelMeshServing: &componentApi.ModelControllerMMSpec{
-				ManagementState: mState,
-				DevFlagsSpec:    dsc.Spec.Components.ModelMeshServing.DevFlagsSpec,
-			},
 			Kserve: &componentApi.ModelControllerKerveSpec{
 				ManagementState: kState,
 				DevFlagsSpec:    dsc.Spec.Components.Kserve.DevFlagsSpec,
@@ -90,7 +82,6 @@ func (s *componentHandler) Init(_ common.Platform) error {
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 	// ModelController is enabled only by KServe in RHOAI 3.0
-	// ModelMeshServing no longer enables ModelController
 	return cr.IsComponentEnabled(componentApi.KserveComponentName, dsc)
 }
 
