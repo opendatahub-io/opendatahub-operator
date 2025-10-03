@@ -438,10 +438,10 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRCollectorReplicas(t *testing.T)
 		WithCustomErrorMsg("CollectorReplicas should be updated to %d by DSCInitialization controller", testReplicas),
 	)
 
-	// Cleanup: Reset collectorReplicas to default to prevent test contamination
+	// Cleanup: Remove collectorReplicas to prevent test contamination
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.monitoring.collectorReplicas = %d`, defaultReplicas)),
+		WithMutateFunc(withNoCollectorReplicas()),
 	)
 }
 
