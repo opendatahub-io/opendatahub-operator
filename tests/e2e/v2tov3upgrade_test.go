@@ -58,7 +58,7 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"codeflare present in the cluster before upgrade, after upgrade not removed", v2Tov3UpgradeTestCtx.ValidateCodeFlareResourcePreservation},
 		{"ray raise error if codeflare component present in the cluster", v2Tov3UpgradeTestCtx.ValidateRayRaiseErrorIfCodeFlarePresent},
-		{" present in the cluster before upgrade, after upgrade not removed", v2Tov3UpgradeTestCtx.ValidateServiceMeshResourcePreservation},
+		{"servicemesh present in the cluster before upgrade, after upgrade not removed", v2Tov3UpgradeTestCtx.ValidateServiceMeshResourcePreservation},
 	}
 
 	// Run the test suite.
