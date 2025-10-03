@@ -20,6 +20,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	roleBindingKind        = "RoleBinding"
+	clusterRoleBindingKind = "ClusterRoleBinding"
+)
+
 // - AdminGroupClusterRoleTemplate: ClusterRole for admin groups (cluster-wide access).
 func TestInitialize(t *testing.T) {
 	g := NewWithT(t)
@@ -34,10 +39,11 @@ func TestInitialize(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Verify templates were added
-	g.Expect(rr.Templates).To(HaveLen(3))
+	g.Expect(rr.Templates).To(HaveLen(4))
 	g.Expect(rr.Templates[0].Path).To(Equal(AdminGroupRoleTemplate))
 	g.Expect(rr.Templates[1].Path).To(Equal(AdminGroupClusterRoleTemplate))
 	g.Expect(rr.Templates[2].Path).To(Equal(AllowedGroupClusterRoleTemplate))
+	g.Expect(rr.Templates[3].Path).To(Equal(DataScienceMetricsAdminClusterRoleTemplate))
 }
 
 // TestBindRoleValidation validates the security filtering logic in the bindRole function.
@@ -181,9 +187,9 @@ func TestManagePermissionsBasic(t *testing.T) {
 
 	for _, resource := range rr.Resources {
 		switch resource.GetKind() {
-		case "RoleBinding":
+		case roleBindingKind:
 			roleBindings++
-		case "ClusterRoleBinding":
+		case clusterRoleBindingKind:
 			clusterRoleBindings++
 		}
 	}
@@ -272,4 +278,155 @@ func TestCreateDefaultGroupBasic(t *testing.T) {
 
 	err := createDefaultGroup(ctx, rr)
 	g.Expect(err).ToNot(HaveOccurred(), "Should handle group creation without error")
+}
+
+// TestManagePermissionsWithMetricsGroups validates that the controller creates the correct RBAC
+// resources when metrics groups are configured. This test ensures:
+//
+//  1. Standard admin and allowed groups work as before
+//  2. Metrics admin groups get the data-science-metrics-admin role
+//  3. Metrics allowed groups get the data-science-metrics-allowed role
+//  4. All role bindings are created correctly
+func TestManagePermissionsWithMetricsGroups(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	// Create a fake client with proper scheme
+	scheme := runtime.NewScheme()
+	_ = rbacv1.AddToScheme(scheme)
+	_ = serviceApi.AddToScheme(scheme)
+	_ = configv1.AddToScheme(scheme)
+	_ = userv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	auth := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "auth",
+		},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups:        []string{"admin1", "admin2"},
+			AllowedGroups:      []string{"user1", "system:authenticated"},
+			MetricsAdminGroups: []string{"metrics-admin1", "metrics-admin2"},
+		},
+	}
+
+	// Create reconciliation request
+	rr := &odhtypes.ReconciliationRequest{
+		Client:   fakeClient,
+		Instance: auth,
+		DSCI: &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{
+				ApplicationsNamespace: "test-namespace",
+			},
+		},
+		Resources: []unstructured.Unstructured{},
+	}
+
+	err := managePermissions(ctx, rr)
+	g.Expect(err).ToNot(HaveOccurred(), "Should create all required RBAC resources")
+
+	// Verify resources were created (4 total: 1 RoleBinding + 3 ClusterRoleBindings)
+	g.Expect(rr.Resources).To(HaveLen(4), "Should create 4 RBAC resources")
+
+	// Count different resource types and verify role names
+	roleBindings := 0
+	clusterRoleBindings := 0
+	roleNames := []string{}
+	clusterRoleNames := []string{}
+
+	for _, resource := range rr.Resources {
+		switch resource.GetKind() {
+		case roleBindingKind:
+			roleBindings++
+			// Extract role name from RoleBinding
+			if roleRef, found, err := unstructured.NestedMap(resource.Object, "roleRef"); found && err == nil {
+				if roleName, ok := roleRef["name"].(string); ok {
+					roleNames = append(roleNames, roleName)
+				}
+			}
+		case clusterRoleBindingKind:
+			clusterRoleBindings++
+			// Extract role name from ClusterRoleBinding
+			if roleRef, found, err := unstructured.NestedMap(resource.Object, "roleRef"); found && err == nil {
+				if roleName, ok := roleRef["name"].(string); ok {
+					clusterRoleNames = append(clusterRoleNames, roleName)
+				}
+			}
+		}
+	}
+
+	g.Expect(roleBindings).To(Equal(1), "Should create 1 RoleBinding")
+	g.Expect(clusterRoleBindings).To(Equal(3), "Should create 3 ClusterRoleBindings")
+
+	// Verify that cluster-scoped roles are created
+	g.Expect(clusterRoleNames).To(ContainElement("data-science-metrics-admin"), "Should create metrics admin cluster role")
+	g.Expect(clusterRoleNames).To(ContainElement("admingroupcluster-role"), "Should create admin group cluster role")
+	g.Expect(clusterRoleNames).To(ContainElement("allowedgroupcluster-role"), "Should create allowed group cluster role")
+
+	// Verify that namespace-scoped roles are created
+	g.Expect(roleNames).To(ContainElement("admingroup-role"), "Should create admin group role")
+}
+
+// TestManagePermissionsWithEmptyMetricsGroups validates that the controller works correctly
+// when metrics groups are not specified (empty arrays). This test ensures:
+//
+//  1. Standard behavior is maintained when metrics groups are empty
+//  2. No metrics-specific roles are created
+//  3. Only the original 3 RBAC resources are created
+func TestManagePermissionsWithEmptyMetricsGroups(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	// Create a fake client with proper scheme
+	scheme := runtime.NewScheme()
+	_ = rbacv1.AddToScheme(scheme)
+	_ = serviceApi.AddToScheme(scheme)
+	_ = configv1.AddToScheme(scheme)
+	_ = userv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	auth := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "auth",
+		},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups:        []string{"admin1", "admin2"},
+			AllowedGroups:      []string{"user1", "system:authenticated"},
+			MetricsAdminGroups: []string{}, // Empty
+		},
+	}
+
+	// Create reconciliation request
+	rr := &odhtypes.ReconciliationRequest{
+		Client:   fakeClient,
+		Instance: auth,
+		DSCI: &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{
+				ApplicationsNamespace: "test-namespace",
+			},
+		},
+		Resources: []unstructured.Unstructured{},
+	}
+
+	err := managePermissions(ctx, rr)
+	g.Expect(err).ToNot(HaveOccurred(), "Should create all required RBAC resources")
+
+	// Verify resources were created (3 total: 1 RoleBinding + 2 ClusterRoleBindings)
+	g.Expect(rr.Resources).To(HaveLen(3), "Should create 3 RBAC resources (no metrics roles)")
+
+	// Count different resource types
+	roleBindings := 0
+	clusterRoleBindings := 0
+
+	for _, resource := range rr.Resources {
+		switch resource.GetKind() {
+		case roleBindingKind:
+			roleBindings++
+		case clusterRoleBindingKind:
+			clusterRoleBindings++
+		}
+	}
+
+	g.Expect(roleBindings).To(Equal(1), "Should create 1 RoleBinding")
+	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBindings")
 }
