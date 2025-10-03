@@ -82,3 +82,37 @@ func fetchResources(ro *ResourceOptions) ([]unstructured.Unstructured, error) {
 
 	return resourcesList, fetchErr
 }
+
+// fetchResourceSync attempts to retrieve a single Kubernetes resource synchronously without Eventually wrapper.
+//
+// This is the synchronous version of fetchResource that should be used inside Eventually blocks
+// to avoid nested Eventually calls and timeout compounding.
+//
+// Parameters:
+//   - ro (*ResourceOptions): Contains details about the resource, including GVK, NamespacedName (NN),
+//     expected error conditions, and custom assertion messages.
+//
+// Returns:
+//   - *unstructured.Unstructured: The retrieved resource if found; otherwise, nil.
+//   - error: The error encountered during retrieval, if any.
+func fetchResourceSync(ro *ResourceOptions) (*unstructured.Unstructured, error) {
+	// Direct client call without Eventually wrapper - let caller handle errors and assertions
+	return ro.tc.g.Get(ro.GVK, ro.NN).Get()
+}
+
+// fetchResourcesSync retrieves a list of Kubernetes resources synchronously without Eventually wrapper.
+//
+// This is the synchronous version of fetchResources that should be used inside Eventually blocks
+// to avoid nested Eventually calls and timeout compounding.
+//
+// Parameters:
+//   - ro (*ResourceOptions): Contains details about the resources, including GVK, NamespacedName (NN),
+//     list filtering options, and custom assertion messages.
+//
+// Returns:
+//   - []unstructured.Unstructured: A list of retrieved resources, which may be empty if none exist.
+//   - error: The error encountered during retrieval, if any.
+func fetchResourcesSync(ro *ResourceOptions) ([]unstructured.Unstructured, error) {
+	// Direct client call without Eventually wrapper - let caller handle errors and assertions
+	return ro.tc.g.List(ro.GVK, ro.ListOptions).Get()
+}
