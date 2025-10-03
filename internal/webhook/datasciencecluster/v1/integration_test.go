@@ -270,6 +270,71 @@ func TestDataScienceClusterV1V2_ConversionWebhook(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "InstalledComponents conversion: data-science-pipelines-operator <-> aipipelines",
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				// Create a v2 DSC with aipipelines in InstalledComponents
+				dscV2 := envtestutil.NewDSC("dsc-installed-convert")
+				dscV2.Spec.Components.AIPipelines.ManagementState = operatorv1.Managed
+				g.Expect(k8sClient.Create(ctx, dscV2)).To(Succeed(), "should create v2 DSC")
+
+				// Update status with aipipelines
+				dscV2.Status.InstalledComponents = map[string]bool{
+					"aipipelines": true,
+					"dashboard":   true,
+				}
+				g.Expect(k8sClient.Status().Update(ctx, dscV2)).To(Succeed())
+
+				// Fetch as v1 and verify InstalledComponents is converted
+				dscV1 := &dscv1.DataScienceCluster{}
+				g.Eventually(func() bool {
+					if err := k8sClient.Get(ctx, types.NamespacedName{Name: "dsc-installed-convert", Namespace: ns}, dscV1); err != nil {
+						return false
+					}
+					// Check if aipipelines was converted to data-science-pipelines-operator
+					return dscV1.Status.InstalledComponents["data-science-pipelines-operator"] == true
+				}, "10s", "1s").Should(BeTrue(), "aipipelines should be converted to data-science-pipelines-operator when fetched as v1")
+
+				// Verify no aipipelines exists in v1 view
+				g.Expect(dscV1.Status.InstalledComponents).NotTo(HaveKey("aipipelines"), "v1 should not have aipipelines")
+				// Verify other components are preserved
+				g.Expect(dscV1.Status.InstalledComponents["dashboard"]).To(BeTrue(), "other components should be preserved")
+
+				// Delete the first DSC before creating the second one (only one DSC allowed)
+				g.Expect(k8sClient.Delete(ctx, dscV2)).To(Succeed(), "should delete first DSC")
+				g.Eventually(func() bool {
+					err := k8sClient.Get(ctx, types.NamespacedName{Name: "dsc-installed-convert", Namespace: ns}, dscV2)
+					return err != nil
+				}, "10s", "1s").Should(BeTrue(), "first DSC should be deleted")
+
+				// Now test v1 -> v2 conversion
+				dscV1Another := envtestutil.NewDSCV1("dsc-installed-v1-to-v2")
+				dscV1Another.Spec.Components.DataSciencePipelines.ManagementState = operatorv1.Managed
+				g.Expect(k8sClient.Create(ctx, dscV1Another)).To(Succeed(), "should create v1 DSC")
+
+				// Update status with data-science-pipelines-operator
+				dscV1Another.Status.InstalledComponents = map[string]bool{
+					"data-science-pipelines-operator": true,
+					"workbenches":                     true,
+				}
+				g.Expect(k8sClient.Status().Update(ctx, dscV1Another)).To(Succeed())
+
+				// Fetch as v2 and verify InstalledComponents is converted
+				dscV2Another := &dscv2.DataScienceCluster{}
+				g.Eventually(func() bool {
+					if err := k8sClient.Get(ctx, types.NamespacedName{Name: "dsc-installed-v1-to-v2", Namespace: ns}, dscV2Another); err != nil {
+						return false
+					}
+					// Check if data-science-pipelines-operator was converted to aipipelines
+					return dscV2Another.Status.InstalledComponents["aipipelines"] == true
+				}, "10s", "1s").Should(BeTrue(), "data-science-pipelines-operator should be converted to aipipelines when fetched as v2")
+
+				// Verify no data-science-pipelines-operator exists in v2 view
+				g.Expect(dscV2Another.Status.InstalledComponents).NotTo(HaveKey("data-science-pipelines-operator"), "v2 should not have data-science-pipelines-operator")
+				// Verify other components are preserved
+				g.Expect(dscV2Another.Status.InstalledComponents["workbenches"]).To(BeTrue(), "other components should be preserved")
+			},
+		},
 	}
 
 	for _, tc := range testCases {

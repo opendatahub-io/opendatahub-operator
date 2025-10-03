@@ -211,7 +211,7 @@ func CreateDSC(name string) *dscv2.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
+				AIPipelines: componentApi.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
@@ -302,7 +302,7 @@ func CreateDSCv1(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				AIPipelines: componentApi.DSCDataSciencePipelines{
+				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},

@@ -15,10 +15,10 @@ metadata:
           },
           "spec": {
             "components": {
-              "dashboard": {
+              "aipipelines": {
                 "managementState": "Managed"
               },
-              "AIPipelines": {
+              "dashboard": {
                 "managementState": "Managed"
               },
               "feastoperator": {
