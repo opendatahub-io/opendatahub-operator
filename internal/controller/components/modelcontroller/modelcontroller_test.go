@@ -40,59 +40,41 @@ func TestNewCRObject(t *testing.T) {
 	tests := []struct {
 		name                    string
 		kserveState             operatorv1.ManagementState
-		modelmeshservingState   operatorv1.ManagementState
 		modelregistryState      operatorv1.ManagementState
 		expectedManagementState operatorv1.ManagementState
 		expectedKserveState     operatorv1.ManagementState
-		expectedModelmeshState  operatorv1.ManagementState
 		expectedModelregState   operatorv1.ManagementState
 	}{
 		{
 			name:                    "should create ModelController CR when KServe is Managed",
 			kserveState:             operatorv1.Managed,
-			modelmeshservingState:   operatorv1.Removed,
 			modelregistryState:      operatorv1.Removed,
 			expectedManagementState: operatorv1.Managed,
 			expectedKserveState:     operatorv1.Managed,
-			expectedModelmeshState:  operatorv1.Removed,
 			expectedModelregState:   operatorv1.Removed,
 		},
 		{
-			name:                    "should create ModelController CR as Removed when only ModelMeshServing is Managed (RHOAI 3.0 behavior)",
+			name:                    "should create ModelController CR as Removed when KServe is Removed",
 			kserveState:             operatorv1.Removed,
-			modelmeshservingState:   operatorv1.Managed,
 			modelregistryState:      operatorv1.Removed,
 			expectedManagementState: operatorv1.Removed,
 			expectedKserveState:     operatorv1.Removed,
-			expectedModelmeshState:  operatorv1.Removed, // Always removed in RHOAI 3.0
 			expectedModelregState:   operatorv1.Removed,
 		},
 		{
-			name:                    "should create ModelController CR when KServe is Managed (ModelMeshServing ignored in RHOAI 3.0)",
+			name:                    "should create ModelController CR when both KServe and ModelRegistry are Managed",
 			kserveState:             operatorv1.Managed,
-			modelmeshservingState:   operatorv1.Managed,
 			modelregistryState:      operatorv1.Managed,
 			expectedManagementState: operatorv1.Managed,
 			expectedKserveState:     operatorv1.Managed,
-			expectedModelmeshState:  operatorv1.Removed, // Always removed in RHOAI 3.0
 			expectedModelregState:   operatorv1.Managed,
-		},
-		{
-			name:                    "should create ModelController CR as Removed when no dependencies are Managed",
-			kserveState:             operatorv1.Removed,
-			modelmeshservingState:   operatorv1.Removed,
-			modelregistryState:      operatorv1.Removed,
-			expectedManagementState: operatorv1.Removed,
-			expectedKserveState:     operatorv1.Removed,
-			expectedModelmeshState:  operatorv1.Removed,
-			expectedModelregState:   operatorv1.Removed,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			dsc := createDSCWithModelController(tt.kserveState, tt.modelmeshservingState, tt.modelregistryState)
+			dsc := createDSCWithModelController(tt.kserveState, tt.modelregistryState)
 
 			cr := handler.NewCRObject(dsc)
 			g.Expect(cr).ShouldNot(BeNil())
@@ -104,7 +86,6 @@ func TestNewCRObject(t *testing.T) {
 				jq.Match(`.apiVersion == "%s"`, componentApi.GroupVersion),
 				jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.ManagementStateAnnotation, tt.expectedManagementState),
 				jq.Match(`.spec.kserve.managementState == "%s"`, tt.expectedKserveState),
-				jq.Match(`.spec.modelMeshServing.managementState == "%s"`, tt.expectedModelmeshState),
 				jq.Match(`.spec.modelRegistry.managementState == "%s"`, tt.expectedModelregState),
 			)))
 		})
@@ -115,53 +96,31 @@ func TestIsEnabled(t *testing.T) {
 	handler := &componentHandler{}
 
 	tests := []struct {
-		name                  string
-		kserveState           operatorv1.ManagementState
-		modelmeshservingState operatorv1.ManagementState
-		matcher               gt.GomegaMatcher
+		name        string
+		kserveState operatorv1.ManagementState
+		matcher     gt.GomegaMatcher
 	}{
 		{
-			name:                  "should return true when KServe is Managed",
-			kserveState:           operatorv1.Managed,
-			modelmeshservingState: operatorv1.Removed,
-			matcher:               BeTrue(),
+			name:        "should return true when KServe is Managed",
+			kserveState: operatorv1.Managed,
+			matcher:     BeTrue(),
 		},
 		{
-			name:                  "should return false when only ModelMeshServing is Managed (RHOAI 3.0 behavior)",
-			kserveState:           operatorv1.Removed,
-			modelmeshservingState: operatorv1.Managed,
-			matcher:               BeFalse(),
+			name:        "should return false when KServe is Removed",
+			kserveState: operatorv1.Removed,
+			matcher:     BeFalse(),
 		},
 		{
-			name:                  "should return true when KServe is Managed (ModelMeshServing ignored in RHOAI 3.0)",
-			kserveState:           operatorv1.Managed,
-			modelmeshservingState: operatorv1.Managed,
-			matcher:               BeTrue(),
-		},
-		{
-			name:                  "should return false when both KServe and ModelMeshServing are Removed",
-			kserveState:           operatorv1.Removed,
-			modelmeshservingState: operatorv1.Removed,
-			matcher:               BeFalse(),
-		},
-		{
-			name:                  "should return false when KServe is Unmanaged and ModelMeshServing is Removed",
-			kserveState:           operatorv1.Unmanaged,
-			modelmeshservingState: operatorv1.Removed,
-			matcher:               BeFalse(),
-		},
-		{
-			name:                  "should return false when KServe is Removed and ModelMeshServing is Unmanaged",
-			kserveState:           operatorv1.Removed,
-			modelmeshservingState: operatorv1.Unmanaged,
-			matcher:               BeFalse(),
+			name:        "should return false when KServe is Unmanaged",
+			kserveState: operatorv1.Unmanaged,
+			matcher:     BeFalse(),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			dsc := createDSCWithModelController(tt.kserveState, tt.modelmeshservingState, operatorv1.Removed)
+			dsc := createDSCWithModelController(tt.kserveState, operatorv1.Removed)
 
 			g.Expect(
 				handler.IsEnabled(dsc),
@@ -179,7 +138,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		dsc := createDSCWithModelController(operatorv1.Managed, operatorv1.Removed, operatorv1.Removed)
+		dsc := createDSCWithModelController(operatorv1.Managed, operatorv1.Removed)
 		modelcontroller := createModelControllerCR(true)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, modelcontroller))
@@ -205,7 +164,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		dsc := createDSCWithModelController(operatorv1.Managed, operatorv1.Removed, operatorv1.Removed)
+		dsc := createDSCWithModelController(operatorv1.Managed, operatorv1.Removed)
 		modelcontroller := createModelControllerCR(false)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, modelcontroller))
@@ -231,7 +190,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		dsc := createDSCWithModelController(operatorv1.Removed, operatorv1.Removed, operatorv1.Removed)
+		dsc := createDSCWithModelController(operatorv1.Removed, operatorv1.Removed)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -253,13 +212,12 @@ func TestUpdateDSCStatus(t *testing.T) {
 	})
 }
 
-func createDSCWithModelController(kserveState, modelmeshservingState, modelregistryState operatorv1.ManagementState) *dscv2.DataScienceCluster {
+func createDSCWithModelController(kserveState, modelregistryState operatorv1.ManagementState) *dscv2.DataScienceCluster {
 	dsc := dscv2.DataScienceCluster{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 	dsc.SetName("test-dsc")
 
 	dsc.Spec.Components.Kserve.ManagementState = kserveState
-	dsc.Spec.Components.ModelMeshServing.ManagementState = modelmeshservingState
 	dsc.Spec.Components.ModelRegistry.ManagementState = modelregistryState
 	dsc.Status.InstalledComponents = make(map[string]bool)
 

@@ -8,7 +8,6 @@ resources:
 - bases/components.platform.opendatahub.io_dashboards.yaml
 - bases/components.platform.opendatahub.io_workbenches.yaml
 - bases/components.platform.opendatahub.io_modelcontrollers.yaml
-- bases/components.platform.opendatahub.io_modelmeshservings.yaml
 - bases/components.platform.opendatahub.io_datasciencepipelines.yaml
 - bases/components.platform.opendatahub.io_kserves.yaml
 - bases/components.platform.opendatahub.io_kueues.yaml

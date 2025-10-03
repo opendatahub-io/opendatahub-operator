@@ -155,8 +155,6 @@ spec:
             type: OpenshiftDefaultIngress
         managementState: Managed
         name: knative-serving
-    modelmeshserving:
-      managementState: Managed
     modelregistry:
       managementState: Managed
       registriesNamespace: "odh-model-registries"

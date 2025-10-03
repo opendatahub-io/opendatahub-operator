@@ -31,10 +31,10 @@ import (
 )
 
 const (
-	defaultCodeFlareComponentName = "default-codeflare"
+	defaultCodeFlareComponentName        = "default-codeflare"
 	defaultModelMeshServingComponentName = "default-modelmeshserving"
-	testDSCV1Name                 = "test-dsc-v1-upgrade"
-	testDSCIV1Name                = "test-dsci-v1-upgrade"
+	testDSCV1Name                        = "test-dsc-v1-upgrade"
+	testDSCIV1Name                       = "test-dsci-v1-upgrade"
 )
 
 type V2Tov3UpgradeTestCtx struct {
