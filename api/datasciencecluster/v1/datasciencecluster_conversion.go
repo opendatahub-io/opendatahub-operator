@@ -28,6 +28,10 @@ var componentNameMapping = map[string]string{
 	"DataSciencePipelines": "AIPipelines",
 }
 
+var installedComponentsMapping = map[string]string{
+	"data-science-pipelines-operator": "aipipelines",
+}
+
 // convertConditions converts condition types by replacing component names.
 // If v1ToV2 is true, replaces v1 names with v2 names, otherwise replaces v2 names with v1 names.
 func convertConditions(conditions []common.Condition, v1ToV2 bool) []common.Condition {
@@ -47,6 +51,35 @@ func convertConditions(conditions []common.Condition, v1ToV2 bool) []common.Cond
 			}
 		}
 		converted[i].Type = condType
+	}
+	return converted
+}
+
+// convertInstalledComponents converts the InstalledComponents map by replacing component names.
+// If v1ToV2 is true, uses the map as-is (v1->v2), otherwise reverses it (v2->v1).
+func convertInstalledComponents(installedComponents map[string]bool, v1ToV2 bool) map[string]bool {
+	if installedComponents == nil {
+		return nil
+	}
+	converted := make(map[string]bool, len(installedComponents))
+	for oldName, installed := range installedComponents {
+		newName := oldName
+		// Check if this component needs conversion
+		if v1ToV2 {
+			// v1 -> v2: use map directly (key is v1, value is v2)
+			if v2Name, exists := installedComponentsMapping[oldName]; exists {
+				newName = v2Name
+			}
+		} else {
+			// v2 -> v1: reverse lookup (find key where value matches)
+			for v1Name, v2Name := range installedComponentsMapping {
+				if v2Name == oldName {
+					newName = v1Name
+					break
+				}
+			}
+		}
+		converted[newName] = installed
 	}
 	return converted
 }
@@ -76,6 +109,7 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 
 	// Convert status with field renaming: DataSciencePipelines -> AIPipelines
 	// and condition type renaming: DataSciencePipelinesReady -> AIPipelinesReady
+	// and installed component name renaming: data-science-pipelines-operator -> aipipelines
 	dst.Status = dscv2.DataScienceClusterStatus{
 		Status: common.Status{
 			Phase:              c.Status.Phase,
@@ -84,7 +118,7 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 		},
 		RelatedObjects:      c.Status.RelatedObjects,
 		ErrorMessage:        c.Status.ErrorMessage,
-		InstalledComponents: c.Status.InstalledComponents,
+		InstalledComponents: convertInstalledComponents(c.Status.InstalledComponents, true),
 		Components: dscv2.ComponentsStatus{
 			Dashboard:          c.Status.Components.Dashboard,
 			Workbenches:        c.Status.Components.Workbenches,
@@ -131,6 +165,7 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 
 	// Convert status with field renaming: AIPipelines -> DataSciencePipelines
 	// and condition type renaming: AIPipelinesReady -> DataSciencePipelinesReady
+	// and installed component name renaming: aipipelines -> data-science-pipelines-operator
 	c.Status = DataScienceClusterStatus{
 		Status: common.Status{
 			Phase:              src.Status.Phase,
@@ -139,7 +174,7 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 		},
 		RelatedObjects:      src.Status.RelatedObjects,
 		ErrorMessage:        src.Status.ErrorMessage,
-		InstalledComponents: src.Status.InstalledComponents,
+		InstalledComponents: convertInstalledComponents(src.Status.InstalledComponents, false),
 		Components: ComponentsStatus{
 			Dashboard:            src.Status.Components.Dashboard,
 			Workbenches:          src.Status.Components.Workbenches,
