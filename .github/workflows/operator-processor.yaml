@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - 'rhoai-2.1[6-9]+'
-      - 'rhoai-2.2[0-9]+'  # Trigger the workflow on pushes to any rhoai-2.20 branch and above
-      - 'rhoai-3.[0-9]+' # Trigger the workflow on pushes to any rhoai-3.x branch
+      - 'rhoai-[23].[0-9]' # Matches branches like 'rhoai-2.0', 'rhoai-3.1', etc.
+      - 'rhoai-[23].[0-9][0-9]' # Matches branches like 'rhoai-2.10', 'rhoai-3.12', etc.
     paths:
       - build/operator-nudging.yaml
 

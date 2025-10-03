@@ -5,8 +5,8 @@ on:
 
   push:
     branches:
-      - 'rhoai-2.1[6-9]+'  # Trigger the workflow on pushes to any rhoai-* branch
-      - 'rhoai-2.2[0-9]+'  # Trigger the workflow on pushes to any rhoai-2.20 branch and above
+      - 'rhoai-[23].[0-9]' # Matches branches like 'rhoai-2.0', 'rhoai-3.1', etc.
+      - 'rhoai-[23].[0-9][0-9]' # Matches branches like 'rhoai-2.10', 'rhoai-3.12', etc.
     paths:
       - 'bundle/**'  # Trigger the workflow for changes to any file in the bundle directory
       - 'Dockerfiles/bundle.Dockerfile'  # Trigger the workflow for changes to the Dockerfile
