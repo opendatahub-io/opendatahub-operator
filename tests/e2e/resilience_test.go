@@ -168,8 +168,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	expectedComponentCount := reflect.TypeOf(dscv2.Components{}).NumField()
 	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
-	// TODO: Remove CodeFlare when DSC v2
-	excludedComponents := 2 // TrustyAI and CodeFlare
+	excludedComponents := 1 // TrustyAI
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
