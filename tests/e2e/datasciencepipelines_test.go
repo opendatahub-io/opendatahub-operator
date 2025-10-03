@@ -36,7 +36,6 @@ func dataSciencePipelinesTestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate argoWorkflowsControllers options v1", componentCtx.ValidateArgoWorkflowsControllersOptionsV1},
 		{"Validate argoWorkflowsControllers options v2", componentCtx.ValidateArgoWorkflowsControllersOptionsV2},
 		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
