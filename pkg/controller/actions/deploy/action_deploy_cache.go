@@ -124,11 +124,10 @@ func (r *Cache) computeCacheKey(
 		return "", err
 	}
 
-	return fmt.Sprintf("%s.%s.%s.%s.%s",
+	return fmt.Sprintf("%s.%s.%s.%s",
 		original.GroupVersionKind().GroupVersion(),
 		original.GroupVersionKind().Kind,
 		klog.KObj(original),
-		original.GetResourceVersion(),
 		base64.RawURLEncoding.EncodeToString(modifiedObjectHash),
 	), nil
 }
