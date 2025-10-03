@@ -490,6 +490,7 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		Spec: serviceApi.MonitoringSpec{
 			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 				Namespace: dsci.Spec.Monitoring.Namespace,
+				Resources: dsci.Spec.Monitoring.Resources,
 			},
 		},
 	}
