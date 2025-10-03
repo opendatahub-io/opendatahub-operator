@@ -40,6 +40,7 @@ const (
 
 type AuthControllerTestCtx struct {
 	*TestContext
+
 	AuthNamespacedName types.NamespacedName
 }
 
