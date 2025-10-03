@@ -15,8 +15,8 @@ spec:
     * Jupyter Notebooks - JupyterLab notebook that provide Python support for GPU workloads
     * Data Science Pipelines - Pipeline solution for end to end MLOps workflows that support the Kubeflow Pipelines SDK and Argo Workflows
     * Model Mesh - ModelMesh Serving is the Controller for managing ModelMesh, a general-purpose model serving management/routing layer
-    * Distributed Workloads(Incubation) - Stack built to make managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists. This stack consists of three components 
-                                          Codeflare , KubeRay and Kueue.
+    * Distributed Workloads(Incubation) - Stack built to make managing distributed compute infrastructure in the cloud easy and intuitive for Data Scientists. This stack consists of two components
+                                          KubeRay and Kueue.
     * Kserve - Kserve is the Controller for for serving machine learning (ML) models on arbitrary frameworks
     * Feast - Feature Store is the fastest path to manage existing infrastructure to productionize analytic data for model training and online inference.
     * Llama Stack – unified open‑source APIs for inference, RAG, agents, safety, evals & telemetry

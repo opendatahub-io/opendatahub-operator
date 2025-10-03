@@ -85,28 +85,6 @@ data:
       - target_label: __address__
         replacement: blackbox-exporter.<odh_monitoring_project>.svc.cluster.local:9114
 
-    - job_name: 'user_facing_endpoints_status_codeflare'
-      scrape_interval: 10s
-      metrics_path: /probe
-      scheme: https
-      tls_config:
-        insecure_skip_verify: true
-      params:
-        module: [http_2xx]
-      authorization:
-        credentials_file: /run/secrets/kubernetes.io/serviceaccount/token
-      static_configs:
-      - targets: [codeflare-operator-manager-metrics.<odh_application_namespace>.svc:8080/metrics]
-        labels:
-          name: codeflare-operator
-      relabel_configs:
-      - source_labels: [__address__]
-        target_label: __param_target
-      - source_labels: [__param_target]
-        target_label: instance
-      - target_label: __address__
-        replacement: blackbox-exporter.<odh_monitoring_project>.svc.cluster.local:9114
-
     - job_name: 'user_facing_endpoints_status_dsp'
       scrape_interval: 10s
       metrics_path: /probe
@@ -283,25 +261,6 @@ data:
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
           regex: ^(kuberay-operator)$
-          target_label: kubernetes_name
-          action: keep
-        - source_labels: [__address__]
-          regex: (.+):(\d+)
-          target_label: __address__
-          replacement: ${1}:8080
-
-    - job_name: 'CodeFlare Operator'
-      honor_labels: true
-      metrics_path: /metrics
-      scheme: http
-      kubernetes_sd_configs:
-        - role: endpoints
-          namespaces:
-            names:
-              - <odh_application_namespace>
-      relabel_configs:
-        - source_labels: [__meta_kubernetes_service_name]
-          regex: ^(codeflare-operator-manager-metrics)$
           target_label: kubernetes_name
           action: keep
         - source_labels: [__address__]
