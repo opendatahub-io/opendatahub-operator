@@ -149,9 +149,9 @@ func checkAuthModeNone(authMode AuthMode) *common.Condition {
 	if authMode == AuthModeNone {
 		return &common.Condition{
 			Type:    status.ConditionTypeReady,
-			Status:  metav1.ConditionFalse,
-			Reason:  status.NotReadyReason,
-			Message: "Cluster uses external authentication, no gateway auth proxy deployed",
+			Status:  metav1.ConditionTrue,
+			Reason:  status.ReadyReason,
+			Message: "Cluster uses external authentication, no gateway auth proxy needed",
 		}
 	}
 	return nil
@@ -245,13 +245,19 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 // getOIDCClientSecret retrieves the client secret from the referenced secret for OIDC configuration.
 func getOIDCClientSecret(ctx context.Context, client client.Client, oidcConfig *serviceApi.OIDCConfig) (string, error) {
 	secret := &corev1.Secret{}
+	// Determine which namespace for the secret
+	secretNamespace := oidcConfig.SecretNamespace
+	if secretNamespace == "" {
+		secretNamespace = GatewayNamespace // to openshift-ingress if not specified
+	}
+
 	err := client.Get(ctx, types.NamespacedName{
 		Name:      oidcConfig.ClientSecretRef.Name,
-		Namespace: GatewayNamespace,
+		Namespace: secretNamespace,
 	}, secret)
 	if err != nil {
 		return "", fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
-			GatewayNamespace, oidcConfig.ClientSecretRef.Name, err)
+			secretNamespace, oidcConfig.ClientSecretRef.Name, err)
 	}
 
 	key := oidcConfig.ClientSecretRef.Key

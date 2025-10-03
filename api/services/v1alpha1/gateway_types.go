@@ -63,6 +63,11 @@ type OIDCConfig struct {
 	// Reference to secret containing client secret
 	// +kubebuilder:validation:Required
 	ClientSecretRef corev1.SecretKeySelector `json:"clientSecretRef"`
+
+	// Namespace where the ClientSecretRef is located
+	// If not specified, defaults to openshift-ingress
+	// +optional
+	SecretNamespace string `json:"secretNamespace,omitempty"`
 }
 
 // GatewayConfigStatus defines the observed state of GatewayConfig

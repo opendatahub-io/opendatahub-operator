@@ -260,7 +260,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// get old release version before we create default DSCI CR
-	oldReleaseVersion, _ := upgrade.GetDeployedRelease(ctx, setupClient)
+	oldReleaseVersion, err := upgrade.GetDeployedRelease(ctx, setupClient)
+	if err != nil {
+		setupLog.Error(err, "unable to get deployed release version, proceeding with empty release information")
+		oldReleaseVersion = common.Release{}
+	}
 
 	secretCache, err := createSecretCacheConfig(ctx, setupClient, platform)
 	if err != nil {
