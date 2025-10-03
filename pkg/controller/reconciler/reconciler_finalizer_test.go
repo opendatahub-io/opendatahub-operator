@@ -51,15 +51,12 @@ type MockManager struct {
 func (f *MockManager) GetClient() client.Client   { return f.client }
 func (f *MockManager) GetScheme() *runtime.Scheme { return f.scheme }
 
-//nolint:ireturn
-func (f *MockManager) GetRESTMapper() meta.RESTMapper { return f.mapper }
+func (f *MockManager) GetRESTMapper() meta.RESTMapper { return f.mapper } //nolint:ireturn
 func (f *MockManager) GetConfig() *rest.Config        { return &rest.Config{} }
 
-//nolint:ireturn
-func (f *MockManager) GetFieldIndexer() client.FieldIndexer { return nil }
+func (f *MockManager) GetFieldIndexer() client.FieldIndexer { return nil } //nolint:ireturn
 
-//nolint:ireturn
-func (f *MockManager) GetEventRecorderFor(name string) record.EventRecorder { return nil }
+func (f *MockManager) GetEventRecorderFor(name string) record.EventRecorder { return nil } //nolint:ireturn
 
 //nolint:ireturn
 func (f *MockManager) GetCache() cache.Cache                                    { return nil }

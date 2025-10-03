@@ -16,7 +16,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -25,11 +24,9 @@ import (
 
 const (
 	componentName            = componentApi.KserveComponentName
-	authorinoOperator        = "authorino-operator"
-	serviceMeshOperator      = "servicemeshoperator"
-	serverlessOperator       = "serverless-operator"
 	kserveConfigMapName      = "inferenceservice-config"
 	kserveManifestSourcePath = "overlays/odh"
+	serviceMeshV2Operator    = "servicemeshoperator.v2"
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
@@ -41,17 +38,8 @@ const (
 
 var (
 	conditionTypes = []string{
-		status.ConditionServingAvailable,
 		status.ConditionDeploymentsAvailable,
 	}
-)
-
-var (
-	ErrServiceMeshNotConfigured        = odherrors.NewStopError(status.ServiceMeshNeedConfiguredMessage)
-	ErrServiceMeshNotReady             = odherrors.NewStopError(status.ServiceMeshNotReadyMessage)
-	ErrServiceMeshOperatorNotInstalled = odherrors.NewStopError(status.ServiceMeshOperatorNotInstalledMessage)
-	ErrServerlessOperatorNotInstalled  = odherrors.NewStopError(status.ServerlessOperatorNotInstalledMessage)
-	ErrServerlessUnsupportedCertType   = odherrors.NewStopError(status.ServerlessUnsupportedCertMessage)
 )
 
 type componentHandler struct{}

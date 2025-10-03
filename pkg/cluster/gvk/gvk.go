@@ -16,6 +16,7 @@ import (
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	removedservices "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/removedServices"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
@@ -174,22 +175,10 @@ var (
 		Kind:    "Route",
 	}
 
-	KnativeServing = schema.GroupVersionKind{
-		Group:   "operator.knative.dev",
-		Version: "v1beta1",
-		Kind:    "KnativeServing",
-	}
-
 	OpenshiftIngress = schema.GroupVersionKind{
 		Group:   "config.openshift.io",
 		Version: "v1",
 		Kind:    "Ingress",
-	}
-
-	ServiceMeshControlPlane = schema.GroupVersionKind{
-		Group:   "maistra.io",
-		Version: "v2",
-		Kind:    "ServiceMeshControlPlane",
 	}
 
 	OdhApplication = schema.GroupVersionKind{
@@ -324,12 +313,6 @@ var (
 		Kind:    "CustomResourceDefinition",
 	}
 
-	ServiceMeshMember = schema.GroupVersionKind{
-		Group:   "maistra.io",
-		Version: "v1",
-		Kind:    "ServiceMeshMember",
-	}
-
 	Lease = schema.GroupVersionKind{
 		Group:   coordinationv1.SchemeGroupVersion.Group,
 		Version: coordinationv1.SchemeGroupVersion.Version,
@@ -346,24 +329,6 @@ var (
 		Group:   "networking.istio.io",
 		Version: "v1",
 		Kind:    "DestinationRule",
-	}
-
-	AuthorizationPolicy = schema.GroupVersionKind{
-		Group:   "security.istio.io",
-		Version: "v1",
-		Kind:    "AuthorizationPolicy",
-	}
-
-	AuthorizationPolicyv1beta1 = schema.GroupVersionKind{
-		Group:   "security.istio.io",
-		Version: "v1beta1",
-		Kind:    "AuthorizationPolicy",
-	}
-
-	IstioGateway = schema.GroupVersionKind{
-		Group:   "networking.istio.io",
-		Version: "v1beta1",
-		Kind:    "Gateway",
 	}
 
 	GatewayConfig = schema.GroupVersionKind{
@@ -558,34 +523,16 @@ var (
 		Kind:    "PrometheusRule",
 	}
 
+	ServiceMesh = schema.GroupVersionKind{
+		Group:   serviceApi.GroupVersion.Group,
+		Version: serviceApi.GroupVersion.Version,
+		Kind:    removedservices.ServiceMeshKind,
+	}
+
 	ThanosQuerier = schema.GroupVersionKind{
 		Group:   "monitoring.rhobs",
 		Version: "v1alpha1",
 		Kind:    "ThanosQuerier",
-	}
-
-	ServiceMesh = schema.GroupVersionKind{
-		Group:   serviceApi.GroupVersion.Group,
-		Version: serviceApi.GroupVersion.Version,
-		Kind:    serviceApi.ServiceMeshKind,
-	}
-
-	PodMonitorServiceMesh = schema.GroupVersionKind{
-		Group:   "monitoring.coreos.com",
-		Version: "v1",
-		Kind:    "PodMonitor",
-	}
-
-	ServiceMonitorServiceMesh = schema.GroupVersionKind{
-		Group:   "monitoring.coreos.com",
-		Version: "v1",
-		Kind:    "ServiceMonitor",
-	}
-
-	Authorino = schema.GroupVersionKind{
-		Group:   "operator.authorino.kuadrant.io",
-		Version: "v1beta1",
-		Kind:    "Authorino",
 	}
 
 	ValidatingAdmissionPolicy = schema.GroupVersionKind{

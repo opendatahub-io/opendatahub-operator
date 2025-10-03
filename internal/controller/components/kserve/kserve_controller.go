@@ -32,17 +32,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/kustomize"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/deployments"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/status/releases"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/generation"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/hash"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
@@ -72,12 +69,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 
 		// operands - dynamically owned
-		OwnsGVK(gvk.IstioGateway, reconciler.Dynamic(reconciler.CrdExists(gvk.IstioGateway))).
-		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
-		OwnsGVK(gvk.KnativeServing, reconciler.Dynamic(reconciler.CrdExists(gvk.KnativeServing))).
-		OwnsGVK(gvk.ServiceMeshMember, reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMeshMember))).
-		OwnsGVK(gvk.AuthorizationPolicy, reconciler.Dynamic(reconciler.CrdExists(gvk.AuthorizationPolicy))).
-		OwnsGVK(gvk.AuthorizationPolicyv1beta1, reconciler.Dynamic(reconciler.CrdExists(gvk.AuthorizationPolicyv1beta1))).
 		OwnsGVK(gvk.InferencePoolV1alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.InferencePoolV1alpha2))).
 		OwnsGVK(gvk.InferenceModelV1alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.InferenceModelV1alpha2))).
 		OwnsGVK(gvk.LLMInferenceServiceConfigV1Alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.LLMInferenceServiceConfigV1Alpha1))).
@@ -113,32 +104,12 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				},
 			)),
 		).
-		// resource
-		Watches(
-			&dsciv2.DSCInitialization{},
-			reconciler.WithEventHandler(handlers.ToNamed(componentApi.KserveInstanceName)),
-			reconciler.WithPredicates(predicate.Or(generation.New(), resources.DSCIReadiness, resources.DSCIServiceMeshCondition)),
-		).
-		WatchesGVK(
-			gvk.OperatorCondition,
-			reconciler.WithEventHandler(handlers.ToNamed(componentApi.KserveInstanceName)),
-			reconciler.WithPredicates(isRequiredOperators),
-		).
 
 		// actions
 		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(devFlags).
 		WithAction(releases.NewAction()).
-		WithAction(addTemplateFiles).
-		WithAction(template.NewAction(
-			template.WithDataFn(getTemplateData),
-		)).
-
-		// these actions deal with the Kserve serving config and DSCI
-		// service mesh config, and the transitions between different
-		// management states of those.
-		WithAction(addServingCertResourceIfManaged).
 		WithAction(removeOwnershipFromUnmanagedResources).
 		WithAction(cleanUpTemplatedResources).
 		WithAction(kustomize.NewAction(
@@ -158,7 +129,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			deploy.WithCache(),
 		)).
 		WithAction(deployments.NewAction()).
-		WithAction(setStatusFields).
 		// TODO: can be removed after RHOAI 2.26 (next EUS)
 		WithAction(deleteFeatureTrackers).
 		// must be the final action

@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright 2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package removedservices
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -29,9 +29,6 @@ const (
 	ServiceMeshInstanceName = "default-servicemesh"
 	ServiceMeshKind         = "ServiceMesh"
 )
-
-// Check that the component implements common.PlatformObject.
-var _ common.PlatformObject = (*ServiceMesh)(nil)
 
 type ServiceMeshSpec struct {
 	// +kubebuilder:validation:Enum=Managed;Unmanaged;Removed
@@ -83,13 +80,6 @@ type ServiceMeshStatus struct {
 	common.Status `json:",inline"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-servicemesh'",message="ServiceMesh name must be default-servicemesh"
-// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
-// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
-
 // ServiceMesh is the Schema for the servicemesh API
 type ServiceMesh struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -98,8 +88,6 @@ type ServiceMesh struct {
 	Spec   ServiceMeshSpec   `json:"spec,omitempty"`
 	Status ServiceMeshStatus `json:"status,omitempty"`
 }
-
-//+kubebuilder:object:root=true
 
 // ServiceMeshList contains a list of ServiceMesh
 type ServiceMeshList struct {
@@ -118,8 +106,4 @@ func (c *ServiceMesh) GetConditions() []common.Condition {
 
 func (c *ServiceMesh) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
-}
-
-func init() {
-	SchemeBuilder.Register(&ServiceMesh{}, &ServiceMeshList{})
 }
