@@ -1,6 +1,7 @@
 package deploy_test
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -125,7 +126,7 @@ func testResourceNotReDeployed(t *testing.T, cli client.Client, obj client.Objec
 	t.Helper()
 
 	g := NewWithT(t)
-	ctx := t.Context()
+	ctx := context.Background()
 
 	in, err := resources.ToUnstructured(obj)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -206,7 +207,7 @@ func testCacheTTL(t *testing.T, cli client.Client, obj client.Object) {
 	t.Helper()
 
 	g := NewWithT(t)
-	ctx := t.Context()
+	ctx := context.Background()
 
 	in, err := resources.ToUnstructured(obj)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -271,7 +272,7 @@ func testDeletionTimestampHandling(t *testing.T, cli client.Client, obj client.O
 	t.Helper()
 
 	g := NewWithT(t)
-	ctx := t.Context()
+	ctx := context.Background()
 
 	in, err := resources.ToUnstructured(obj)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -361,4 +362,46 @@ func testDeletionTimestampHandling(t *testing.T, cli client.Client, obj client.O
 
 	// Note: Cache cleanup is verified implicitly through the skip behavior
 	// If cache wasn't cleaned up, subsequent deployments would still be skipped incorrectly
+}
+
+func TestCacheKeyStability(t *testing.T) {
+	t.Helper()
+
+	g := NewWithT(t)
+
+	// Create two identical ServiceAccounts with different resourceVersions
+	sa1 := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "test-serviceaccount",
+			Namespace:       "test-namespace",
+			ResourceVersion: "100",
+			UID:             "uid-1",
+		},
+	}
+
+	sa2 := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "test-serviceaccount",
+			Namespace:       "test-namespace",
+			ResourceVersion: "200",   // Different resourceVersion
+			UID:             "uid-2", // Different UID
+		},
+	}
+
+	// Convert to unstructured
+	obj1, err := resources.ToUnstructured(sa1)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	obj2, err := resources.ToUnstructured(sa2)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Compute hashes - these should be identical since resources.Hash excludes resourceVersion and UID
+	hash1, err := resources.Hash(obj1)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	hash2, err := resources.Hash(obj2)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Hashes should be identical despite different resourceVersions and UIDs
+	g.Expect(hash1).To(Equal(hash2), "Resource hashes should be identical for same content regardless of resourceVersion and UID")
 }
