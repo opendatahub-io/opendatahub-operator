@@ -462,7 +462,7 @@ func TestCheckAuthModeNone(t *testing.T) {
 			name:        "None auth mode",
 			authMode:    AuthModeNone,
 			expectError: true,
-			description: "should return condition when auth mode is None",
+			description: "should return ready condition when auth mode is None",
 		},
 		{
 			name:        "IntegratedOAuth auth mode",
@@ -488,8 +488,8 @@ func TestCheckAuthModeNone(t *testing.T) {
 			if tc.expectError {
 				g.Expect(condition).NotTo(BeNil(), tc.description)
 				g.Expect(condition.Type).To(Equal(status.ConditionTypeReady))
-				g.Expect(condition.Status).To(Equal(metav1.ConditionFalse))
-				g.Expect(condition.Reason).To(Equal(status.NotReadyReason))
+				g.Expect(condition.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(condition.Reason).To(Equal(status.ReadyReason))
 				g.Expect(condition.Message).To(ContainSubstring("external authentication"))
 			} else {
 				g.Expect(condition).To(BeNil(), tc.description)
