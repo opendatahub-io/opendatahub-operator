@@ -277,13 +277,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return ctrl.Result{}, err
 		}
 
-		// Create HardwareProfile related resources
-		// VAP/VAPB for blocking Dashboard's HWProfile/AcceleratorProfile
-		if err = r.CreateVAP(ctx, instance); err != nil {
-			log.Info("failed to create VAP/VAPB for blocking Dashboard's HWProfile/AcceleratorProfile")
-			return ctrl.Result{}, err
-		}
-
 		// Create default HWProfile CR
 		if err = r.ManageDefaultHWProfileCR(ctx, instance, platform); err != nil {
 			log.Info("failed to create default HardwareProfile CR")

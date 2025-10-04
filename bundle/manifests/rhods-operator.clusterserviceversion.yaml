@@ -1905,6 +1905,46 @@ spec:
     containerPort: 443
     deploymentName: rhods-operator
     failurePolicy: Fail
+    generateName: dashboard-acceleratorprofile-validator.opendatahub.io
+    rules:
+    - apiGroups:
+      - dashboard.opendatahub.io
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - acceleratorprofiles
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-dashboard-acceleratorprofile
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: dashboard-hardwareprofile-validator.opendatahub.io
+    rules:
+    - apiGroups:
+      - dashboard.opendatahub.io
+      apiVersions:
+      - v1alpha1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - hardwareprofiles
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-dashboard-hardwareprofile
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
     generateName: datasciencecluster-v1-defaulter.opendatahub.io
     rules:
     - apiGroups:
