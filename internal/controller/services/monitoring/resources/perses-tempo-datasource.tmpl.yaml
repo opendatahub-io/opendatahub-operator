@@ -1,0 +1,18 @@
+apiVersion: perses.dev/v1alpha1
+kind: PersesDatasource
+metadata:
+  name: tempo-datasource
+  namespace: {{.Namespace}}
+spec:
+  config:
+    display:
+      name: "RHOAI Tempo Datasource"
+      description: "Tempo datasource for distributed tracing in RHOAI"
+      default: false
+    plugin:
+      kind: "TempoDatasource"
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            url: {{.TempoQueryEndpoint}}

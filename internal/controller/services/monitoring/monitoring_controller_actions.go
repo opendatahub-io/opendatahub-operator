@@ -33,6 +33,7 @@ const (
 	InstrumentationTemplate          = "resources/instrumentation.tmpl.yaml"
 	ThanosQuerierTemplate            = "resources/thanos-querier-cr.tmpl.yaml"
 	ThanosQuerierRouteTemplate       = "resources/thanos-querier-route.tmpl.yaml"
+	PersesTempoDatasourceTemplate    = "resources/perses-tempo-datasource.tmpl.yaml"
 )
 
 var componentRules = map[string]string{
@@ -459,6 +460,50 @@ func deployThanosQuerier(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		},
 	}
 
+	rr.Templates = append(rr.Templates, template...)
+
+	return nil
+}
+
+// deployPersesDatasource creates Perses datasource resources for Tempo when traces are configured.
+func deployPersesDatasource(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	// Only create Perses datasource if traces are configured
+	if monitoring.Spec.Traces == nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionPersesDatasourceAvailable,
+			conditions.WithReason(status.TracesNotConfiguredReason),
+			conditions.WithMessage(status.TracesNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	// Check if PersesDatasource CRD exists
+	persesExists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDatasource)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD PersesDatasource exists: %w", err)
+	}
+	if !persesExists {
+		rr.Conditions.MarkFalse(
+			status.ConditionPersesDatasourceAvailable,
+			conditions.WithReason(gvk.PersesDatasource.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage("PersesDatasource CRD Not Found"),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesDatasourceAvailable)
+
+	template := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesTempoDatasourceTemplate,
+		},
+	}
 	rr.Templates = append(rr.Templates, template...)
 
 	return nil
