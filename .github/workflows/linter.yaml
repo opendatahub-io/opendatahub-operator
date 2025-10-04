@@ -23,3 +23,15 @@ jobs:
       - name: lint
         run:
           make lint
+  kube-linter:
+    name: kube-linter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go env
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: kube-lint
+        run:
+          make kube-lint
