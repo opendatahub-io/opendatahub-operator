@@ -18,6 +18,7 @@ import (
 type Renderer func(ctx context.Context, rr *types.ReconciliationRequest) (resources.UnstructuredList, error)
 type ResourceCacher struct {
 	cacher.Cacher[resources.UnstructuredList]
+
 	name string
 }
 

@@ -129,6 +129,7 @@ func createAdmissionRequest(t *testing.T, operation admissionv1.Operation, obj *
 // Helper struct to mock SubjectAccessReview behavior.
 type mockClient struct {
 	client.Client
+
 	allowPermissions map[string]bool
 }
 
