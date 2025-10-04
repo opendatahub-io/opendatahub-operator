@@ -198,6 +198,25 @@ func CreatedOrUpdatedOrDeletedNamePrefixed(namePrefix string) predicate.Predicat
 	}
 }
 
+// CreateOrDeleteWithLabel creates a predicate that only responds to Create and Delete events.
+// for objects with the specified label.
+func CreateOrDeleteWithLabel(name, value string) predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return resources.HasLabel(e.Object, name, value)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return resources.HasLabel(e.Object, name, value)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return false // Ignore update events
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return false
+		},
+	}
+}
+
 var DSCIServiceMeshCondition = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
 		oldObj, ok := e.ObjectOld.(*dsciv2.DSCInitialization)

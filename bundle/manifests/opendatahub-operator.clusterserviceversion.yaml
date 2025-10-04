@@ -219,7 +219,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.0.0
-    createdAt: "2025-10-03T15:35:23Z"
+    createdAt: "2025-10-04T07:24:54Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -1213,13 +1213,6 @@ spec:
           resources:
           - destinationrules
           - envoyfilters
-          - gateways
-          - virtualservices
-          verbs:
-          - '*'
-        - apiGroups:
-          - networking.istio.io
-          resources:
           - virtualservices/finalizers
           verbs:
           - create
@@ -1229,6 +1222,13 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - networking.istio.io
+          resources:
+          - gateways
+          - virtualservices
+          verbs:
+          - '*'
         - apiGroups:
           - networking.istio.io
           resources:
@@ -1328,12 +1328,19 @@ spec:
           - operator.openshift.io
           resources:
           - consoles
-          - ingresscontrollers
           verbs:
           - delete
           - get
           - list
           - patch
+          - watch
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - ingresscontrollers
+          verbs:
+          - get
+          - list
           - watch
         - apiGroups:
           - operators.coreos.com
