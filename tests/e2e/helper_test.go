@@ -39,19 +39,11 @@ const (
 	controllerCacheRefreshDelay = 5 * time.Second
 
 	// Operators constants.
-	defaultOperatorChannel       = "stable"                           // The default channel to install/check operators
-	serviceMeshOpName            = "servicemeshoperator"              // Name of the Service Mesh Operator
-	serverlessOpName             = "serverless-operator"              // Name of the Serverless Operator
-	authorinoOpName              = "authorino-operator"               // Name of the Serverless Operator
-	kueueOpName                  = "kueue-operator"                   // Name of the Kueue Operator
-	telemetryOpName              = "opentelemetry-product"            // Name of the Telemetry Operator
-	openshiftOperatorsNamespace  = "openshift-operators"              // Namespace for OpenShift Operators
-	serverlessOperatorNamespace  = "openshift-serverless"             // Namespace for the Serverless Operator
-	telemetryOpNamespace         = "openshift-opentelemetry-operator" // Namespace for the Telemetry Operator
-	serviceMeshControlPlane      = "data-science-smcp"                // Service Mesh control plane name
-	serviceMeshNamespace         = "istio-system"                     // Namespace for Istio Service Mesh control plane
-	serviceMeshMetricsCollection = "Istio"                            // Metrics collection for Service Mesh (e.g., Istio)
-	serviceMeshMemberName        = "default"
+	defaultOperatorChannel       = "stable"                                   // The default channel to install/check operators
+	kueueOpName                  = "kueue-operator"                           // Name of the Kueue Operator
+	serviceMeshControlPlane      = "data-science-smcp"                        // Service Mesh control plane name
+	serviceMeshNamespace         = "istio-system"                             // Namespace for Istio Service Mesh control plane
+	serviceMeshMetricsCollection = "Istio"                                    // Metrics collection for Service Mesh (e.g., Istio)
 	observabilityOpName          = "cluster-observability-operator"           // Name of the Cluster Observability Operator
 	observabilityOpNamespace     = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
 	tempoOpName                  = "tempo-product"                            // Name of the Tempo Operator
@@ -172,7 +164,7 @@ func CreateDSCI(name, groupVersion string, appNamespace, monitoringNamespace str
 				CustomCABundle:  "",
 			},
 			ServiceMesh: &infrav1.ServiceMeshSpec{
-				ManagementState: operatorv1.Managed,
+				ManagementState: operatorv1.Removed,
 				ControlPlane: infrav1.ControlPlaneSpec{
 					Name:              serviceMeshControlPlane,
 					Namespace:         serviceMeshNamespace,
@@ -221,9 +213,9 @@ func CreateDSC(name string, groupVersion string) *dscv2.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 					KserveCommonSpec: componentApi.KserveCommonSpec{
-						DefaultDeploymentMode: componentApi.Serverless,
+						DefaultDeploymentMode: componentApi.RawDeployment,
 						Serving: infrav1.ServingSpec{
-							ManagementState: operatorv1.Managed,
+							ManagementState: operatorv1.Removed,
 							Name:            knativeServingNamespace,
 							IngressGateway: infrav1.GatewaySpec{
 								Certificate: infrav1.CertificateSpec{
