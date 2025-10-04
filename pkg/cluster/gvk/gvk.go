@@ -94,6 +94,12 @@ var (
 		Kind:    "Deployment",
 	}
 
+	ResourceQuota = schema.GroupVersionKind{
+		Group:   corev1.SchemeGroupVersion.Group,
+		Version: corev1.SchemeGroupVersion.Version,
+		Kind:    "ResourceQuota",
+	}
+
 	Group = schema.GroupVersionKind{
 		Group:   rbacv1.SchemeGroupVersion.Group,
 		Version: rbacv1.SchemeGroupVersion.Version,

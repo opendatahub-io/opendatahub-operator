@@ -5,6 +5,7 @@ import (
 
 	"github.com/onsi/gomega/matchers"
 	gTypes "github.com/onsi/gomega/types"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -204,8 +205,9 @@ func eventuallyResourceApplied(
 	return u
 }
 
-// eventuallyResourceApplied is a common function for handling create/patch and create/update operations.
-// It applies a given resource and ensures it consistently meets the expected condition.
+// consistentlyResourceApplied is a common function for handling create/patch and create/update operations.
+// If a mutation function is provided, it applies the mutation once using Eventually, then verifies
+// the resource consistently meets the expected condition over time using Consistently.
 //
 // Parameters:
 //   - ro: The ResourceOptions object that contains all the configuration for the resource, condition, and mutation function.
@@ -220,9 +222,18 @@ func consistentlyResourceApplied(
 	// Wrap condition if it's not already wrapped correctly
 	wrapConditionIfNeeded(&ro.Condition)
 
-	// Use Eventually to retry getting the resource until it appears
 	var u *unstructured.Unstructured
 
+	// If a mutation function is provided, apply it ONCE first using Eventually
+	if ro.MutateFunc != nil {
+		// Apply the mutation once and wait for it to succeed
+		ro.tc.g.Eventually(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed())
+
+		// Clear the mutation function to avoid re-applying it during consistency checks
+		ro.MutateFunc = nil
+	}
+
+	// Use Consistently to verify the resource condition remains stable over time (read-only)
 	ro.tc.g.Consistently(ensureResourceAppliedGomegaFunction(ro, &u, applyResourceFn)).Should(Succeed())
 
 	return u
@@ -237,10 +248,23 @@ func ensureResourceAppliedGomegaFunction(
 		var err error
 		*u, err = applyResourceFn(ro.Obj, ro.MutateFunc).Get()
 
+		// Handle IgnoreNotFound flag for graceful error handling
+		if ro.IgnoreNotFound && err != nil && errors.IsNotFound(err) {
+			// Resource not found, but we're ignoring it - set to nil and continue
+			*u = nil
+			return
+		}
+
+		// Error handling based on failure expectation and WithAcceptableErr
+		if ro.AcceptableErrMatcher != nil && err != nil {
+			// WithAcceptableErr was specified - validate specific error type and return
+			innerG.Expect(err).To(ro.AcceptableErrMatcher, "Expected specific error type but got: %v", err)
+			return
+		}
+
 		// Evaluate the condition to check if failure is expected
 		expectingFailure := isFailureExpected(ro.Condition)
 
-		// Error handling based on failure expectation
 		if !expectingFailure {
 			// Expect no error if success is expected
 			innerG.Expect(err).NotTo(

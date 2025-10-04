@@ -334,7 +334,6 @@ If the component is planned to be released for downstream, Prometheus rules and 
 
 Currently integrated components are:
 
-- [Codeflare](https://github.com/opendatahub-io/codeflare-operator)
 - [Dashboard](https://github.com/opendatahub-io/odh-dashboard)
 - [Data Science Pipelines](https://github.com/opendatahub-io/data-science-pipelines)
 - [KServe](https://github.com/opendatahub-io/kserve)

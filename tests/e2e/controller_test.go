@@ -81,6 +81,7 @@ type TestContextConfig struct {
 	operatorControllerTest bool
 	operatorResilienceTest bool
 	webhookTest            bool
+	v2tov3upgradeTest      bool
 	TestTimeouts           TestTimeouts
 }
 
@@ -94,6 +95,7 @@ type TestGroup struct {
 
 type TestTimeouts struct {
 	defaultEventuallyTimeout        time.Duration
+	shortEventuallyTimeout          time.Duration
 	mediumEventuallyTimeout         time.Duration
 	longEventuallyTimeout           time.Duration
 	defaultEventuallyPollInterval   time.Duration
@@ -121,7 +123,6 @@ var (
 			componentApi.KueueComponentName:                kueueTestSuite,
 			componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
 			componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
-			componentApi.CodeFlareComponentName:            codeflareTestSuite,
 			componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 			componentApi.KserveComponentName:               kserveTestSuite,
 			componentApi.ModelMeshServingComponentName:     modelMeshServingTestSuite,
@@ -229,36 +230,44 @@ func handleCleanup(t *testing.T) {
 	t.Cleanup(func() {
 		if t.Failed() {
 			fmt.Println("Test failed, running cleanup...")
-			CleanupAllResources(t)
+			CleanupPreviousTestResources(t)
 		}
 	})
 }
 
-// TestOdhOperator sets up the testing suite for ODH Operator.
+// TestOdhOperator sets up the testing suite for the Operator.
 func TestOdhOperator(t *testing.T) {
+	// Set up global panic handler for comprehensive debugging
+	defer HandleGlobalPanic()
+
 	registerSchemes()
 
 	log.SetLogger(zap.New(zap.UseDevMode(true)))
 
-	// Removing any existing default DSC, DSCI, and Auth CRs before starting the tests.
-	CleanupDefaultResources(t)
+	// Remove any leftover resources from previous test runs before starting
+	CleanupPreviousTestResources(t)
 
 	if testOpts.operatorControllerTest {
 		// individual test suites after the operator is running
-		mustRun(t, "ODH Manager E2E Tests", odhOperatorTestSuite)
+		mustRun(t, "Operator Manager E2E Tests", odhOperatorTestSuite)
 	}
 
 	// Run DSCI/DSC test suites
 	mustRun(t, "DSCInitialization and DataScienceCluster management E2E Tests", dscManagementTestSuite)
 
-	// Run operator resilience test suites
-	if testOpts.operatorResilienceTest {
-		mustRun(t, "Operator Resilience E2E Tests", operatorResilienceTestSuite)
-	}
-
 	// Run components and services test suites
 	mustRun(t, Components.String(), Components.Run)
 	mustRun(t, Services.String(), Services.Run)
+
+	// Run V2 to V3 upgrade test suites
+	if testOpts.v2tov3upgradeTest {
+		mustRun(t, "V2 to V3 upgrade E2E Tests", v2Tov3UpgradeTestSuite)
+	}
+
+	// Run operator resilience test suites after functional tests
+	if testOpts.operatorResilienceTest {
+		mustRun(t, "Operator Resilience E2E Tests", operatorResilienceTestSuite)
+	}
 
 	// Deletion logic based on deletionPolicy
 	switch testOpts.deletionPolicy {
@@ -284,8 +293,7 @@ func TestOdhOperator(t *testing.T) {
 		fmt.Println("Deletion Policy: Never. Skipping deletion tests.")
 
 	default:
-		fmt.Printf("Unknown deletion-policy: %s", testOpts.deletionPolicy)
-		os.Exit(1)
+		t.Fatalf("Unknown deletion-policy: %s", testOpts.deletionPolicy)
 	}
 }
 
@@ -303,11 +311,12 @@ func TestMain(m *testing.M) {
 	// Gomega default values for Eventually/Consistently can be found here:
 	// https://onsi.github.io/gomega/#making-asynchronous-assertions
 	viper.SetDefault("defaultEventuallyTimeout", "5m")        // Timeout used for Eventually; overrides Gomega's default of 1 second.
+	viper.SetDefault("shortEventuallyTimeout", "10s")         // Timeout used for Eventually; overrides Gomega's default of 1 second.
 	viper.SetDefault("mediumEventuallyTimeout", "7m")         // Medium timeout: for readiness checks (e.g., ClusterServiceVersion, DataScienceCluster).
 	viper.SetDefault("longEventuallyTimeout", "10m")          // Long timeout: for more complex readiness (e.g., DSCInitialization, KServe).
-	viper.SetDefault("defaultEventuallyPollInterval", "2s")   // Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.
+	viper.SetDefault("defaultEventuallyPollInterval", "5s")   // Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.
 	viper.SetDefault("defaultConsistentlyTimeout", "20s")     // Duration used for Consistently; overrides Gomega's default of 2 seconds.
-	viper.SetDefault("defaultConsistentlyPollInterval", "2s") // Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.
+	viper.SetDefault("defaultConsistentlyPollInterval", "5s") // Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.
 
 	// Flags
 	pflag.String("operator-namespace", "redhat-ods-operator", "Namespace where the odh operator is deployed")
@@ -324,6 +333,8 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-operator-controller", viper.GetEnvPrefix()+"_OPERATOR_CONTROLLER"))
 	pflag.Bool("test-operator-resilience", true, "run operator resilience tests")
 	checkEnvVarBindingError(viper.BindEnv("test-operator-resilience", viper.GetEnvPrefix()+"_OPERATOR_RESILIENCE"))
+	pflag.Bool("test-operator-v2tov3upgrade", true, "run V2 to V3 upgrade tests")
+	checkEnvVarBindingError(viper.BindEnv("test-operator-v2tov3upgrade", viper.GetEnvPrefix()+"_OPERATOR_V2TOV3UPGRADE"))
 	pflag.Bool("test-webhook", true, "run webhook tests")
 	checkEnvVarBindingError(viper.BindEnv("test-webhook", viper.GetEnvPrefix()+"_WEBHOOK"))
 
@@ -357,6 +368,7 @@ func TestMain(m *testing.M) {
 
 	testOpts.TestTimeouts = TestTimeouts{
 		defaultEventuallyTimeout:        viper.GetDuration("defaultEventuallyTimeout"),
+		shortEventuallyTimeout:          viper.GetDuration("shortEventuallyTimeout"),
 		mediumEventuallyTimeout:         viper.GetDuration("mediumEventuallyTimeout"),
 		longEventuallyTimeout:           viper.GetDuration("longEventuallyTimeout"),
 		defaultEventuallyPollInterval:   viper.GetDuration("defaultEventuallyPollInterval"),
@@ -373,6 +385,7 @@ func TestMain(m *testing.M) {
 	}
 	testOpts.operatorControllerTest = viper.GetBool("test-operator-controller")
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
+	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
 	testOpts.webhookTest = viper.GetBool("test-webhook")
 	Components.enabled = viper.GetBool("test-components")
 	Components.flags = viper.GetStringSlice("test-component")
@@ -426,7 +439,13 @@ func mustRun(t *testing.T, name string, testFunc func(t *testing.T)) {
 		return
 	}
 
-	if !t.Run(name, testFunc) {
+	if !t.Run(name, func(t *testing.T) {
+		// Set up panic handler for each test group
+		defer HandleGlobalPanic()
+		testFunc(t)
+	}) {
+		// Run diagnostics on test failure
+		HandleTestFailure(name)
 		t.Logf("Stopping: %s test failed.", name)
 		t.Fail()
 	}

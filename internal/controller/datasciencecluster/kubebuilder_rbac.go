@@ -197,8 +197,8 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="kueue.openshift.io",resources=kueues/status,verbs=get;update;patch
 
 // CFO
-//+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=codeflares,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=codeflares/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=codeflares,verbs=get;list;watch
+//+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=codeflares/status,verbs=get
 //+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=codeflares/finalizers,verbs=update
 
 // Kserve

@@ -75,7 +75,6 @@ List of currently integrated ODH components:
 
 | **ODH Component** | **CR Kind** |
 | --- | --- |
-| CodeFlare | `CodeFlare` |
 | ODH Dashboard | `Dashboard` |
 | Data Science Pipelines | `DataSciencePipelines` |
 | Feature Store (Feast) | `FeastOperator` |

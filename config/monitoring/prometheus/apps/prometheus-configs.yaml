@@ -84,7 +84,7 @@ data:
         target_label: instance
       - target_label: __address__
         replacement: blackbox-exporter.<odh_monitoring_project>.svc.cluster.local:9114
-    
+
     - job_name: 'user_facing_endpoints_status_codeflare'
       scrape_interval: 10s
       metrics_path: /probe
@@ -166,7 +166,7 @@ data:
           regex: (.+):(\d+)
           target_label: __address__
           replacement: ${1}:8080
-    
+
     - job_name: 'ODH Model Controller'
       honor_labels: true
       metrics_path: /metrics
@@ -214,8 +214,8 @@ data:
           namespaces:
             names:
               - <odh_application_namespace>
-          selectors: 
-          - role: pod 
+          selectors:
+          - role: pod
             label: 'app.kubernetes.io/part-of=kserve'
       relabel_configs:
         - source_labels: [__meta_kubernetes_pod_label_control_plane]
@@ -308,7 +308,7 @@ data:
           regex: (.+):(\d+)
           target_label: __address__
           replacement: ${1}:8080
-    
+
     - job_name: 'KubeFlow Training Operator'
       honor_labels: true
       metrics_path: /metrics
@@ -400,7 +400,7 @@ data:
           regex: (.+):(\d+)
           target_label: __address__
           replacement: ${1}:8443
-          
+
     - job_name: 'Feast Operator'
       honor_labels: true
       metrics_path: /metrics
@@ -425,7 +425,7 @@ data:
           regex: (.+):(\d+)
           target_label: __address__
           replacement: ${1}:8443
-          
+
     - job_name: 'Llama Stack K8s Operator'
       honor_labels: true
       metrics_path: /metrics
@@ -461,7 +461,7 @@ data:
               - redhat-ods-operator
       relabel_configs:
         - source_labels: [__meta_kubernetes_pod_label_name]
-          regex: ^(rhods-operator)$ 
+          regex: ^(rhods-operator)$
           target_label: kubernetes_name
           action: keep
         - source_labels: [__address__]
@@ -506,150 +506,6 @@ data:
           annotations:
             description: This is a DeadManSnitch to ensure RHODS monitoring and alerting pipeline is online.
             summary: Alerting DeadManSnitch
-
-  codeflare-recording.rules: |
-    groups:
-      - name: SLOs - MCAD Controller
-        rules:
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[1d])
-          labels:
-            instance: mcad-controller
-          record: probe_success:burnrate1d
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[1h])
-          labels:
-            instance: mcad-controller
-          record: probe_success:burnrate1h
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[2h])
-          labels:
-            instance: mcad-controller
-          record: probe_success:burnrate2h
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[30m])
-          labels:
-            instance: mcad-controller
-          record: probe_success:burnrate30m
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[3d])
-          labels:
-            instance: mcad-controller
-          record: probe_success:burnrate3d
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[5m])
-          labels:
-            instance: mcad-controller
-          record: probe_success:burnrate5m
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"mcad-controller-.*", job="user_facing_endpoints_status_codeflare"}[6h])
-          labels:
-            instance: mcad-controller
-          record: probe_success:burnrate6h
-
-      - name: SLOs - CodeFlare Operator
-        rules:
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[1d])
-          labels:
-            instance: codeflare-operator
-          record: probe_success:burnrate1d
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[1h])
-          labels:
-            instance: codeflare-operator
-          record: probe_success:burnrate1h
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[2h])
-          labels:
-            instance: codeflare-operator
-          record: probe_success:burnrate2h
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[30m])
-          labels:
-            instance: codeflare-operator
-          record: probe_success:burnrate30m
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[3d])
-          labels:
-            instance: codeflare-operator
-          record: probe_success:burnrate3d
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[5m])
-          labels:
-            instance: codeflare-operator
-          record: probe_success:burnrate5m
-        - expr: |
-            1 - avg_over_time(probe_success{instance=~"codeflare-operator-.*", job="user_facing_endpoints_status_codeflare"}[6h])
-          labels:
-            instance: codeflare-operator
-          record: probe_success:burnrate6h
-
-  codeflare-alerting.rules: |
-    groups:
-      - name: SLOs-probe_success_codeflare
-        rules:
-        - alert: CodeFlare Operator Probe Success 5m and 1h Burn Rate high
-          annotations:
-            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
-            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-probe-success-burn-rate.md'
-            summary: CodeFlare Operator Probe Success 5m and 1h Burn Rate high
-          expr: |
-            sum(probe_success:burnrate5m{instance=~"codeflare-operator"}) by (instance) > (14.40 * (1-0.99950))
-            and
-            sum(probe_success:burnrate1h{instance=~"codeflare-operator"}) by (instance) > (14.40 * (1-0.99950))
-          for: 2m
-          labels:
-            severity: info
-            namespace: redhat-ods-applications
-        - alert: CodeFlare Operator Probe Success 30m and 6h Burn Rate high
-          annotations:
-            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
-            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-probe-success-burn-rate.md'
-            summary: CodeFlare Operator Probe Success 30m and 6h Burn Rate high
-          expr: |
-            sum(probe_success:burnrate30m{instance=~"codeflare-operator"}) by (instance) > (6.00 * (1-0.99950))
-            and
-            sum(probe_success:burnrate6h{instance=~"codeflare-operator"}) by (instance) > (6.00 * (1-0.99950))
-          for: 15m
-          labels:
-            severity: info
-            namespace: redhat-ods-applications
-        - alert: CodeFlare Operator Probe Success 2h and 1d Burn Rate high
-          annotations:
-            message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
-            triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-probe-success-burn-rate.md'
-            summary: CodeFlare Operator Probe Success 2h and 1d Burn Rate high
-          expr: |
-            sum(probe_success:burnrate2h{instance=~"codeflare-operator"}) by (instance) > (3.00 * (1-0.99950))
-            and
-            sum(probe_success:burnrate1d{instance=~"codeflare-operator"}) by (instance) > (3.00 * (1-0.99950))
-          for: 1h
-          labels:
-            severity: info
-            namespace: redhat-ods-applications
-
-      - name: Distributed Workloads CodeFlare
-        interval: 1m
-        rules:
-          - alert: CodeFlare Operator is not running
-            expr: absent(up{job=~'CodeFlare Operator'}) or up{job=~'CodeFlare Operator'} != 1
-            labels:
-              severity: info
-              namespace: redhat-ods-applications
-            annotations:
-              description: This alert fires when the CodeFlare Operator is not running.
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-availability.md'
-              summary: Alerting for CodeFlare Operator
-          - alert: CodeFlare Operator taking too long to be up
-            expr: absent_over_time(up{job="CodeFlare Operator"}[2m]) == 1
-            labels:
-              severity: info
-              namespace: redhat-ods-applications
-            annotations:
-              description: This alert fires when the CodeFlare Operator takes over 2 min. to come back online. Either CodeFlare Operator is not running and failing to become ready, is misconfigured, or the metrics endpoint is not responding.
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/codeflare-operator-absent-over-time.md'
-              summary: Alerting for CodeFlare Operator
 
   trainingoperator-alerting.rules: |
     groups:
@@ -1459,7 +1315,6 @@ data:
           expr: sum(kube_pod_container_resource_limits{namespace="rhods-notebooks",resource="cpu", container=~"jupyter-nb-.*"} * on(pod) kube_pod_status_phase{phase="Running", namespace="rhods-notebooks"})
           labels:
             instance: jupyter-notebooks
-    
       - name: Availability Metrics
         rules:
         - expr: ((min(probe_success{name=~"rhods-dashboard|notebook-spawner"}) by (name) or on() vector(0)) or label_replace(min(probe_success{name=~"rhods-dashboard|notebook-spawner"}), "name", "combined", "name", ".*"))
@@ -1756,43 +1611,43 @@ data:
           labels:
             instance: feast-operator-controller-manager
           record: probe_success
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="feast-operator-controller-manager"}[1d]))
           labels:
             instance: feast-operator-controller-manager
           record: probe_success:burnrate1d
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="feast-operator-controller-manager"}[1h]))
           labels:
             instance: feast-operator-controller-manager
           record: probe_success:burnrate1h
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="feast-operator-controller-manager"}[2h]))
           labels:
             instance: feast-operator-controller-manager
           record: probe_success:burnrate2h
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="feast-operator-controller-manager"}[30m]))
           labels:
             instance: feast-operator-controller-manager
           record: probe_success:burnrate30m
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="feast-operator-controller-manager"}[3d]))
           labels:
             instance: feast-operator-controller-manager
           record: probe_success:burnrate3d
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="feast-operator-controller-manager"}[5m]))
           labels:
             instance: feast-operator-controller-manager
           record: probe_success:burnrate5m
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="feast-operator-controller-manager"}[6h]))
           labels:
@@ -1816,7 +1671,7 @@ data:
             labels:
               severity: critical
               instance: feast-operator-controller-manager
-    
+
           - alert: Feast Operator Probe Success Burn Rate
             annotations:
               message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
@@ -1830,7 +1685,7 @@ data:
             labels:
               severity: critical
               instance: feast-operator-controller-manager
-    
+
           - alert: Feast Operator Probe Success Burn Rate
             annotations:
               message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
@@ -1853,43 +1708,43 @@ data:
           labels:
             instance: llama-stack-k8s-operator-controller-manager
           record: probe_success
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[1d]))
           labels:
             instance: llama-stack-k8s-operator-controller-manager
           record: probe_success:burnrate1d
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[1h]))
           labels:
             instance: llama-stack-k8s-operator-controller-manager
           record: probe_success:burnrate1h
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[2h]))
           labels:
             instance: llama-stack-k8s-operator-controller-manager
           record: probe_success:burnrate2h
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[30m]))
           labels:
             instance: llama-stack-k8s-operator-controller-manager
           record: probe_success:burnrate30m
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[3d]))
           labels:
             instance: llama-stack-k8s-operator-controller-manager
           record: probe_success:burnrate3d
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[5m]))
           labels:
             instance: llama-stack-k8s-operator-controller-manager
           record: probe_success:burnrate5m
-    
+
         - expr: |
             1 - min(avg_over_time(probe_success{instance="llama-stack-k8s-operator-controller-manager"}[6h]))
           labels:
@@ -1913,7 +1768,7 @@ data:
             labels:
               severity: warning
               instance: llama-stack-k8s-operator-controller-manager
-    
+
           - alert: Llama Stack K8s Operator Probe Success Burn Rate
             annotations:
               message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
@@ -1927,7 +1782,7 @@ data:
             labels:
               severity: warning
               instance: llama-stack-k8s-operator-controller-manager
-    
+
           - alert: Llama Stack K8s Operator Probe Success Burn Rate
             annotations:
               message: 'High error budget burn for {{ $labels.instance }} (current value: {{ $value }}).'
