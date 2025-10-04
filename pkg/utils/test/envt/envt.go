@@ -1,6 +1,7 @@
 package envt
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -270,24 +271,31 @@ func (et *EnvT) Manager() manager.Manager {
 // WaitForWebhookServer waits until the webhook server managed by this EnvT is ready by dialing the port using TLS.
 //
 // Parameters:
+//   - ctx: A non-nil context passed to the underlying Dialer
 //   - timeout: The maximum duration to wait for the server to become ready.
 //
 // Returns:
 //   - error: If the server is not ready within the timeout or a connection error occurs.
-func (et *EnvT) WaitForWebhookServer(timeout time.Duration) error {
+func (et *EnvT) WaitForWebhookServer(ctx context.Context, timeout time.Duration) error {
 	host := et.Env.WebhookInstallOptions.LocalServingHost
 	port := et.Env.WebhookInstallOptions.LocalServingPort
 	if host == "" || port == 0 {
 		return fmt.Errorf("webhook server host/port not set (host=%q, port=%d)", host, port)
 	}
+
 	addrPort := fmt.Sprintf("%s:%d", host, port)
-	dialer := &net.Dialer{Timeout: time.Second}
 	deadline := time.Now().Add(timeout)
+
 	for time.Now().Before(deadline) {
-		conn, err := tls.DialWithDialer(dialer, "tcp", addrPort, &tls.Config{
-			InsecureSkipVerify: true, // #nosec G402
-			MinVersion:         tls.VersionTLS12,
-		})
+		tlsDialer := &tls.Dialer{
+			Config: &tls.Config{
+				InsecureSkipVerify: true, // #nosec G402
+				MinVersion:         tls.VersionTLS12,
+			},
+			NetDialer: &net.Dialer{Timeout: time.Second},
+		}
+
+		conn, err := tlsDialer.DialContext(ctx, "tcp", addrPort)
 		if err == nil {
 			return conn.Close()
 		}
