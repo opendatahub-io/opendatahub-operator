@@ -250,7 +250,7 @@ func testHardwareProfileWithKueueForWorkload(g Gomega, ctx context.Context, k8sC
 		g.Expect(resources.HasLabel(workload, expectedLabelKey, queueName)).Should(BeTrue())
 	} else {
 		// This branch should no longer be used since all workloads use labels
-		actualQueueName := resources.GetAnnotation(workload, "kueue.x-k8s.io/queue-name")
+		actualQueueName := resources.GetAnnotation(workload, WorkloadLabelKueueQueueName)
 		g.Expect(actualQueueName).Should(Equal(queueName))
 	}
 }
@@ -421,7 +421,7 @@ func TestHardwareProfileWebhook_Notebook(t *testing.T) {
 						return envtestutil.NewNotebook("test-notebook-kueue", ns,
 							envtestutil.WithHardwareProfile("kueue-profile"))
 					},
-					"gpu-queue", "kueue.x-k8s.io/queue-name")
+					"gpu-queue", WorkloadLabelKueueQueueName)
 			},
 		},
 		{
@@ -539,6 +539,17 @@ func TestHardwareProfileWebhook_LlmInferenceService(t *testing.T) {
 					config.NodeSelectorPath, config.TolerationsPath)
 			},
 		},
+		{
+			name: "llminferenceservice - hardware profile with kueue scheduling",
+			test: func(g Gomega, ctx context.Context, k8sClient client.Client, ns string) {
+				testHardwareProfileWithKueueForWorkload(g, ctx, k8sClient, ns,
+					func() client.Object {
+						return envtestutil.NewLLMInferenceService("test-llmisvc-kueue", ns,
+							envtestutil.WithHardwareProfile("kueue-profile"))
+					},
+					"test-queue", WorkloadLabelKueueQueueName)
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -622,7 +633,7 @@ func TestHardwareProfileWebhook_InferenceService(t *testing.T) {
 						return envtestutil.NewInferenceService("test-inference-service-kueue", ns,
 							envtestutil.WithHardwareProfile("kueue-profile"))
 					},
-					"test-queue", "kueue.x-k8s.io/queue-name")
+					"test-queue", WorkloadLabelKueueQueueName)
 			},
 		},
 		{
