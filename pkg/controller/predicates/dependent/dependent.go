@@ -50,11 +50,11 @@ func New(opts ...PredicateOption) *Predicate {
 }
 
 type Predicate struct {
+	predicate.Funcs
+
 	WatchDelete bool
 	WatchUpdate bool
 	WatchStatus bool
-
-	predicate.Funcs
 }
 
 func (p Predicate) Create(event.CreateEvent) bool {

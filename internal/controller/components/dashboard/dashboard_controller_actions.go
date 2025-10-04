@@ -33,7 +33,8 @@ import (
 type DashboardHardwareProfile struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              DashboardHardwareProfileSpec `json:"spec"`
+
+	Spec DashboardHardwareProfileSpec `json:"spec"`
 }
 
 type DashboardHardwareProfileSpec struct {
@@ -48,7 +49,8 @@ type DashboardHardwareProfileSpec struct {
 type DashboardHardwareProfileList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []DashboardHardwareProfile `json:"items"`
+
+	Items []DashboardHardwareProfile `json:"items"`
 }
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {

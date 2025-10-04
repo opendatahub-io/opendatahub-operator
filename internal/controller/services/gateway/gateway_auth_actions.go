@@ -392,6 +392,10 @@ func buildBaseOAuth2ProxyArgs(domain string) []string {
 		"--pass-access-token=true",
 		"--set-xauthrequest=true",
 		fmt.Sprintf("--redirect-url=https://%s/oauth2/callback", domain),
+		"--tls-cert-file=" + TLSCertsMountPath + "/tls.crt",
+		"--tls-key-file=" + TLSCertsMountPath + "/tls.key",
+		"--use-system-trust-store=true",
+		fmt.Sprintf("--https-address=0.0.0.0:%d", AuthProxyHTTPSPort),
 	}
 }
 
@@ -406,10 +410,6 @@ func buildOpenShiftOAuthArgs() []string {
 	return []string{
 		"--provider=openshift",
 		"--scope=" + OpenShiftOAuthScope,
-		"--tls-cert-file=" + TLSCertsMountPath + "/tls.crt",
-		"--tls-key-file=" + TLSCertsMountPath + "/tls.key",
-		"--use-system-trust-store=true",
-		fmt.Sprintf("--https-address=0.0.0.0:%d", AuthProxyHTTPSPort),
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 // CfgMapDeletionTestCtx holds the context for the config map deletion tests.
 type CfgMapDeletionTestCtx struct {
 	*TestContext
+
 	ConfigMapNamespacedName types.NamespacedName
 }
 

@@ -396,12 +396,6 @@ var (
 		Kind:    "HTTPRoute",
 	}
 
-	ReferenceGrant = schema.GroupVersionKind{
-		Group:   "gateway.networking.k8s.io",
-		Version: "v1beta1",
-		Kind:    "ReferenceGrant",
-	}
-
 	OAuthClient = schema.GroupVersionKind{
 		Group:   "oauth.openshift.io",
 		Version: "v1",

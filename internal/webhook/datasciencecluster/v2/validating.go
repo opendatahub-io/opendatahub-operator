@@ -17,7 +17,7 @@ import (
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
-//+kubebuilder:webhook:path=/validate-datasciencecluster-v2,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create,versions=v2,name=datasciencecluster-v2-validator.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-datasciencecluster-v2,matchPolicy=Exact,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create,versions=v2,name=datasciencecluster-v2-validator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
 // Validator implements webhook.AdmissionHandler for DataScienceCluster v2 validation webhooks.

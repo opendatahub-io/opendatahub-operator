@@ -54,7 +54,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 	releaseDataScienceCluster := &dscv2.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
-			APIVersion: "datasciencecluster.opendatahub.io/v1",
+			APIVersion: "datasciencecluster.opendatahub.io/v2",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default-dsc",
@@ -139,7 +139,7 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform
 	defaultDsci := &dsciv2.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
-			APIVersion: "dscinitialization.opendatahub.io/v1",
+			APIVersion: "dscinitialization.opendatahub.io/v2",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default-dsci",

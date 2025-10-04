@@ -19,10 +19,10 @@ import (
 // WithT encapsulates the test context and the Kubernetes client, along with gomega's assertion methods.
 // It provides utility methods to interact with resources in a Kubernetes cluster and perform assertions on them.
 type WithT struct {
+	*gomega.WithT
+
 	ctx    context.Context
 	client client.Client
-
-	*gomega.WithT
 }
 
 // WithTOpts is a function type used to configure options for the WithT object.

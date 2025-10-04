@@ -118,7 +118,7 @@ func SetupEnvAndClient(
 	}()
 
 	t.Log("Waiting for webhook server to be ready...")
-	if err := env.WaitForWebhookServer(timeout); err != nil {
+	if err := env.WaitForWebhookServer(ctx, timeout); err != nil {
 		t.Fatalf("webhook server not ready: %v", err)
 	}
 
@@ -499,14 +499,13 @@ func NewLLMInferenceService(name, namespace string, opts ...ObjectOption) client
 	llmInferenceService.SetName(name)
 	llmInferenceService.SetNamespace(namespace)
 
-	// Set basic spec structure needed for webhook testing
+	// this is set in case HWprofile require resource changes, it is not necessary for Connection API
 	containers := []interface{}{
 		map[string]interface{}{
 			"name":  "llm-container",
-			"image": "opendatahub/llm-model-server:latest",
+			"image": "kserve/llm-container:latest",
 		},
 	}
-	// Use the correct path that matches the webhook configuration
 	if err := unstructured.SetNestedSlice(llmInferenceService.Object, containers, "spec", "template", "containers"); err != nil {
 		panic(fmt.Sprintf("failed to set LLMInferenceService containers: %v", err))
 	}

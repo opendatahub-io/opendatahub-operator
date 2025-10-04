@@ -12,6 +12,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 
 	. "github.com/onsi/gomega"
 )
@@ -36,7 +37,7 @@ func TestDataScienceClusterV1_ValidatingWebhook(t *testing.T) {
 				t,
 				admissionv1.Create,
 				envtestutil.NewDSCV1("test-create"),
-				gvk.DataScienceCluster,
+				gvk.DataScienceClusterV1,
 				metav1.GroupVersionResource{
 					Group:    gvk.DataScienceClusterV1.Group,
 					Version:  gvk.DataScienceClusterV1.Version,
@@ -54,7 +55,7 @@ func TestDataScienceClusterV1_ValidatingWebhook(t *testing.T) {
 				t,
 				admissionv1.Create,
 				envtestutil.NewDSCV1("test-create"),
-				gvk.DataScienceCluster,
+				gvk.DataScienceClusterV1,
 				metav1.GroupVersionResource{
 					Group:    gvk.DataScienceClusterV1.Group,
 					Version:  gvk.DataScienceClusterV1.Version,
@@ -70,7 +71,7 @@ func TestDataScienceClusterV1_ValidatingWebhook(t *testing.T) {
 				t,
 				admissionv1.Delete,
 				envtestutil.NewDSCV1("test-delete"),
-				gvk.DataScienceCluster,
+				gvk.DataScienceClusterV1,
 				metav1.GroupVersionResource{
 					Group:    gvk.DataScienceClusterV1.Group,
 					Version:  gvk.DataScienceClusterV1.Version,
@@ -86,11 +87,14 @@ func TestDataScienceClusterV1_ValidatingWebhook(t *testing.T) {
 			t.Parallel()
 			objs := append([]client.Object{}, tc.existingObjs...)
 			objs = append(objs, envtestutil.NewDSCIV1("dsci-for-dsc"))
-			cli, err := fakeclient.New(fakeclient.WithObjects(objs...))
+			sch, err := scheme.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+			cli, err := fakeclient.New(fakeclient.WithObjects(objs...), fakeclient.WithScheme(sch))
 			g.Expect(err).ShouldNot(HaveOccurred())
 			validator := &v1webhook.Validator{
-				Client: cli,
-				Name:   "test-v1",
+				Client:  cli,
+				Name:    "test-v1",
+				Decoder: admission.NewDecoder(sch),
 			}
 			resp := validator.Handle(ctx, tc.req)
 			t.Logf("Admission response: Allowed=%v, Result=%+v", resp.Allowed, resp.Result)
