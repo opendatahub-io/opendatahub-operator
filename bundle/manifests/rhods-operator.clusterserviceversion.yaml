@@ -1747,6 +1747,26 @@ spec:
     containerPort: 443
     deploymentName: rhods-operator
     failurePolicy: Fail
+    generateName: connection-llmisvc.opendatahub.io
+    rules:
+    - apiGroups:
+      - serving.kserve.io
+      apiVersions:
+      - v1alpha1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - llminferenceservices
+    sideEffects: NoneOnDryRun
+    targetPort: 9443
+    type: MutatingAdmissionWebhook
+    webhookPath: /platform-connection-llmisvc
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: rhods-operator
+    failurePolicy: Fail
     generateName: connection-notebook.opendatahub.io
     rules:
     - apiGroups:
