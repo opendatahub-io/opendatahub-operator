@@ -17,9 +17,9 @@ spec:
   resourceSelector: {}
   resources:
     limits:
-      cpu: {{.CPULimit}}
-      memory: {{.MemoryLimit}}
+      cpu: {{.MonitoringStackCPULimit}}
+      memory: {{.MonitoringStackMemoryLimit}}
     requests:
-      cpu: {{.CPURequest}}
-      memory: {{.MemoryRequest}}
+      cpu: {{.MonitoringStackCPURequest}}
+      memory: {{.MonitoringStackMemoryRequest}}
   retention: {{.StorageRetention}}
