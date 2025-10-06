@@ -16,7 +16,6 @@
 Package v1 contains API Schema definitions for the components v1 API group
 
 ### Resource Types
-- [CodeFlare](#codeflare)
 - [Dashboard](#dashboard)
 - [DataSciencePipelines](#datasciencepipelines)
 - [FeastOperator](#feastoperator)
@@ -49,131 +48,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the bundled Argo Workflows controllers.<br />              It will only upgrade the Argo Workflows controllers if it is safe to do so. This is the default<br />              behavior.<br />- "Removed" : the operator is not managing the bundled Argo Workflows controllers and will not install it.<br />              If it is installed, the operator will remove it but will not remove other Argo Workflows<br />              installations. | Managed | Enum: [Managed Removed] <br /> |
-
-
-#### CodeFlare
-
-
-
-CodeFlare is the Schema for the codeflares API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `CodeFlare` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[CodeFlareSpec](#codeflarespec)_ |  |  |  |
-| `status` _[CodeFlareStatus](#codeflarestatus)_ |  |  |  |
-
-
-#### CodeFlareCommonSpec
-
-
-
-
-
-
-
-_Appears in:_
-- [CodeFlareSpec](#codeflarespec)
-- [DSCCodeFlare](#dsccodeflare)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### CodeFlareCommonStatus
-
-
-
-CodeFlareCommonStatus defines the shared observed state of CodeFlare
-
-
-
-_Appears in:_
-- [CodeFlareStatus](#codeflarestatus)
-- [DSCCodeFlareStatus](#dsccodeflarestatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### CodeFlareSpec
-
-
-
-
-
-
-
-_Appears in:_
-- [CodeFlare](#codeflare)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### CodeFlareStatus
-
-
-
-CodeFlareStatus defines the observed state of CodeFlare
-
-
-
-_Appears in:_
-- [CodeFlare](#codeflare)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### DSCCodeFlare
-
-
-
-
-
-
-
-_Appears in:_
-- [Components](#components)
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### DSCCodeFlareStatus
-
-
-
-DSCCodeFlareStatus contains the observed state of the CodeFlare exposed in the DSC instance
-
-
-
-_Appears in:_
-- [ComponentsStatus](#componentsstatus)
-- [ComponentsStatus](#componentsstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCDashboard
@@ -1988,7 +1862,6 @@ _Appears in:_
 | `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
 | `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
 | `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
-| `codeflare` _[DSCCodeFlare](#dsccodeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
@@ -2016,7 +1889,6 @@ _Appears in:_
 | `datasciencepipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | DataSciencePipeline component status. |  |  |
 | `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |
 | `kueue` _[DSCKueueStatus](#dsckueuestatus)_ | Kueue component status. |  |  |
-| `codeflare` _[DSCCodeFlareStatus](#dsccodeflarestatus)_ | CodeFlare component status. |  |  |
 | `ray` _[DSCRayStatus](#dscraystatus)_ | Ray component status. |  |  |
 | `trustyai` _[DSCTrustyAIStatus](#dsctrustyaistatus)_ | TrustyAI component status. |  |  |
 | `modelregistry` _[DSCModelRegistryStatus](#dscmodelregistrystatus)_ | ModelRegistry component status. |  |  |
@@ -2114,7 +1986,6 @@ _Appears in:_
 | `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
 | `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
 | `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
-| `codeflare` _[DSCCodeFlare](#dsccodeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
@@ -2142,7 +2013,6 @@ _Appears in:_
 | `datasciencepipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | DataSciencePipeline component status. |  |  |
 | `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |
 | `kueue` _[DSCKueueStatus](#dsckueuestatus)_ | Kueue component status. |  |  |
-| `codeflare` _[DSCCodeFlareStatus](#dsccodeflarestatus)_ | CodeFlare component status. |  |  |
 | `ray` _[DSCRayStatus](#dscraystatus)_ | Ray component status. |  |  |
 | `trustyai` _[DSCTrustyAIStatus](#dsctrustyaistatus)_ | TrustyAI component status. |  |  |
 | `modelregistry` _[DSCModelRegistryStatus](#dscmodelregistrystatus)_ | ModelRegistry component status. |  |  |

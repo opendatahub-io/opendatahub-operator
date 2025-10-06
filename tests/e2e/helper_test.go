@@ -16,6 +16,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -184,11 +185,11 @@ func CreateDSCI(name, groupVersion string, appNamespace, monitoringNamespace str
 }
 
 // CreateDSC creates a DataScienceCluster CR.
-func CreateDSC(name string, groupVersion string) *dscv2.DataScienceCluster {
+func CreateDSC(name string) *dscv2.DataScienceCluster {
 	return &dscv2.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
-			APIVersion: groupVersion,
+			APIVersion: dscv2.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -196,6 +197,97 @@ func CreateDSC(name string, groupVersion string) *dscv2.DataScienceCluster {
 		Spec: dscv2.DataScienceClusterSpec{
 			Components: dscv2.Components{
 				// keep dashboard as enabled, because other test is rely on this
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Workbenches: componentApi.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				ModelMeshServing: componentApi.DSCModelMeshServing{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						DefaultDeploymentMode: componentApi.Serverless,
+						Serving: infrav1.ServingSpec{
+							ManagementState: operatorv1.Managed,
+							Name:            knativeServingNamespace,
+							IngressGateway: infrav1.GatewaySpec{
+								Certificate: infrav1.CertificateSpec{
+									Type: infrav1.OpenshiftDefaultIngress,
+								},
+							},
+						},
+					},
+				},
+				Ray: componentApi.DSCRay{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Kueue: componentApi.DSCKueue{
+					KueueManagementSpec: componentApi.KueueManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				TrustyAI: componentApi.DSCTrustyAI{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				ModelRegistry: componentApi.DSCModelRegistry{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
+						RegistriesNamespace: modelregistryctrl.DefaultModelRegistriesNamespace,
+					},
+				},
+				TrainingOperator: componentApi.DSCTrainingOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				FeastOperator: componentApi.DSCFeastOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+			},
+		},
+	}
+}
+
+func CreateDSCv1(name string) *dscv1.DataScienceCluster {
+	return &dscv1.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DataScienceCluster",
+			APIVersion: dscv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
 				Dashboard: componentApi.DSCDashboard{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
@@ -243,11 +335,6 @@ func CreateDSC(name string, groupVersion string) *dscv2.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				Kueue: componentApi.DSCKueue{
-					KueueManagementSpec: componentApi.KueueManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
 				TrustyAI: componentApi.DSCTrustyAI{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
@@ -266,13 +353,18 @@ func CreateDSC(name string, groupVersion string) *dscv2.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
+				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
 				FeastOperator: componentApi.DSCFeastOperator{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
-					ManagementSpec: common.ManagementSpec{
+				Kueue: componentApi.DSCKueue{
+					KueueManagementSpec: componentApi.KueueManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},

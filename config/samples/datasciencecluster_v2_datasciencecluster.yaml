@@ -10,8 +10,6 @@ metadata:
     app.kubernetes.io/created-by: opendatahub-operator
 spec:
   components:
-    codeflare:
-      managementState: "Managed"
     dashboard:
       managementState: "Managed"
     datasciencepipelines:
