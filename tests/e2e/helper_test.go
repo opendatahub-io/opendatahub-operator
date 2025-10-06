@@ -12,7 +12,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -410,19 +409,6 @@ func ParseTestFlags() error {
 		}
 	}
 	return flag.CommandLine.Parse(testFlags)
-}
-
-// getOperatorSelector returns selector based on platform.
-func (tc *TestContext) getOperatorPodSelector() labels.Selector {
-	platform := tc.FetchPlatformRelease()
-	switch platform {
-	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
-		return labels.SelectorFromSet(labels.Set{"name": "rhods-operator"})
-	case cluster.OpenDataHub:
-		return labels.SelectorFromSet(labels.Set{"control-plane": "controller-manager"})
-	default:
-		return labels.SelectorFromSet(labels.Set{"control-plane": "controller-manager"})
-	}
 }
 
 // getControllerDeploymentName returns deployment name based on platform.

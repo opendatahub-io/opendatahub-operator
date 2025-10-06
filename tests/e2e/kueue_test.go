@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -25,7 +24,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/mocks"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -76,7 +74,6 @@ func kueueTestSuite(t *testing.T) {
 		{"Validate CRDs reinstated", componentCtx.ValidateCRDReinstated},
 		{"Validate pre check", componentCtx.ValidateKueuePreCheck},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 	}
 
 	// Only add OCP Kueue operator test if OCP version is 4.18 or above
@@ -96,25 +93,15 @@ func kueueTestSuite(t *testing.T) {
 	// Add webhook tests if enabled
 	if testOpts.webhookTest {
 		testCases = append(testCases,
-			// Enable Workbenches component to ensure Notebook CRD is available for webhook tests
-			// This is required because webhook tests use Notebook objects which need the Notebook CRD
-			// installed by the Workbenches component
-			TestCase{"Enable Workbenches component", func(t *testing.T) {
-				t.Helper()
-				componentCtx.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, "Workbenches")
-			}},
-			TestCase{"Validate Kueue webhook validation", componentCtx.ValidateKueueWebhookValidation},
-			TestCase{"Validate hardware profile webhook validation", componentCtx.ValidateHardwareProfileWebhookValidation},
-			// Cleanup Workbenches immediately after webhook tests
-			TestCase{"Disable Workbenches component", func(t *testing.T) {
-				t.Helper()
-				componentCtx.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, "Workbenches")
-			}},
+			TestCase{"Validate webhook validations", componentCtx.ValidateWebhookValidations},
 		)
 	}
 
-	// Always run component disable test last
-	testCases = append(testCases, TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled})
+	// Always run deletion recovery and component disable tests last
+	testCases = append(testCases,
+		TestCase{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
+		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled})
+
 	// Run the test suite.
 	RunTestCases(t, testCases)
 }
@@ -154,7 +141,7 @@ func (tc *KueueTestCtx) ValidateKueuePreCheck(t *testing.T) {
 	tc.createMockCRD(gvk.MultiKueueConfigV1Alpha1, "kueue")
 
 	// Update DataScienceCluster to Managed state and check readiness condition
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed)),
 		WithCondition(
@@ -166,20 +153,13 @@ func (tc *KueueTestCtx) ValidateKueuePreCheck(t *testing.T) {
 	)
 
 	// Delete the CRDs.
-	propagationPolicy := metav1.DeletePropagationForeground
 	tc.DeleteResource(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: mkCluster}),
-		WithClientDeleteOptions(
-			&client.DeleteOptions{
-				PropagationPolicy: &propagationPolicy,
-			}),
+		WithForegroundDeletion(),
 	)
 	tc.DeleteResource(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: mkConfig}),
-		WithClientDeleteOptions(
-			&client.DeleteOptions{
-				PropagationPolicy: &propagationPolicy,
-			}),
+		WithForegroundDeletion(),
 	)
 
 	// Verify the DataScienceCluster become "Ready"
@@ -292,7 +272,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToUnmanagedTransition(t *testing.T) 
 	}
 
 	// Update the management state of the component in the DataScienceCluster.
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateManaged)),
 		WithCondition(And(conditionsManagedReady...)),
@@ -329,7 +309,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToUnmanagedTransition(t *testing.T) 
 	}
 
 	// Update the management state of the component in the DataScienceCluster.
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged)),
 		WithCondition(And(conditionsUnmanagedNotReady...)),
@@ -374,7 +354,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToUnmanagedTransition(t *testing.T) 
 		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
 	}
 
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(And(conditionsUnmanagedReady...)),
 	)
@@ -415,7 +395,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 		}
 
 		// Update the management state of the component in the DataScienceCluster to Managed.
-		tc.EventuallyResourceCreatedOrUpdated(
+		tc.EventuallyResourcePatched(
 			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 			WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateManaged)),
 			WithCondition(And(conditionsManaged...)),
@@ -445,7 +425,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 		}
 
 		// Update the management state of the component in the DataScienceCluster to Removed.
-		tc.EventuallyResourceCreatedOrUpdated(
+		tc.EventuallyResourcePatched(
 			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 			WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateRemoved)),
 			WithCondition(And(conditionsRemoved...)),
@@ -456,17 +436,13 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 
 		if migrateConfig {
 			// Validate that Kueue's ConfigMap still exists
-			tc.g.Get(
-				gvk.ConfigMap, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace},
-			).Eventually().ShouldNot(
-				BeNil(),
+			tc.EnsureResourcesExist(
+				WithMinimalObject(gvk.ConfigMap, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace}),
 			)
 		} else {
 			// Validate that Kueue's ConfigMap is gone
-			tc.g.Get(
-				gvk.ConfigMap, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace},
-			).Eventually().Should(
-				BeNil(),
+			tc.EnsureResourceGone(
+				WithMinimalObject(gvk.ConfigMap, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace}),
 			)
 		}
 
@@ -482,7 +458,7 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 		}
 
 		// Update the management state of the component in the DataScienceCluster.
-		tc.EventuallyResourceCreatedOrUpdated(
+		tc.EventuallyResourcePatched(
 			WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 			WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged)),
 			WithCondition(And(conditionsUnmanaged...)),
@@ -507,6 +483,27 @@ func (tc *KueueTestCtx) ValidateKueueManagedToRemovedToUnmanagedTransition(migra
 		// Validate that Kueue configuration is created
 		tc.EnsureResourceExists(opts...)
 	}
+}
+
+// ValidateWebhookValidations runs both Kueue and hardware profile webhook validation tests
+// with proper Workbenches component setup/teardown.
+func (tc *KueueTestCtx) ValidateWebhookValidations(t *testing.T) {
+	t.Helper()
+
+	// Enable Workbenches component to ensure Notebook CRD is available for webhook tests
+	// This is required because webhook tests use Notebook objects which need the Notebook CRD
+	// installed by the Workbenches component
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, "Workbenches")
+
+	// Run webhook validation tests as subtests
+	t.Run("Kueue webhook validation", tc.ValidateKueueWebhookValidation)
+	t.Run("Hardware profile webhook validation", tc.ValidateHardwareProfileWebhookValidation)
+
+	// Ensure Workbenches is disabled after tests, even if they fail
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, "Workbenches")
+
+	// Remove Kueue test resources
+	cleanupKueueTestResources(t, tc.TestContext)
 }
 
 // ValidateKueueWebhookValidation validates the Kueue validating webhook behavior using table-driven tests.
@@ -602,9 +599,6 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 
 	// Run the test cases
 	RunTestCases(t, testCases)
-
-	// Remove Kueue test resources
-	cleanupKueueTestResources(t, tc.TestContext)
 }
 
 // ValidateHardwareProfileWebhookValidation validates the hardware profile webhook behavior using table-driven tests.
@@ -818,9 +812,6 @@ func (tc *KueueTestCtx) ValidateHardwareProfileWebhookValidation(t *testing.T) {
 
 	// Run the test cases
 	RunTestCases(t, testCases)
-
-	// Remove Kueue test resources
-	cleanupKueueTestResources(t, tc.TestContext)
 }
 
 // ValidateKueueUnmanagedToManagedTransition ensures the transition from Unmanaged to Managed state happens as expected.
@@ -851,7 +842,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 	}
 
 	// Update the management state of the component in the DataScienceCluster.
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateUnmanaged)),
 		WithCondition(And(conditionsUnmanaged...)),
@@ -880,7 +871,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 	}
 
 	// Update the management state of the component in the DataScienceCluster to Managed.
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, stateManaged)),
 		WithCondition(And(conditionsManagedNotReady...)),
@@ -896,7 +887,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionTrue),
 	}
 
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(And(conditionsManagedReady...)),
 	)
@@ -917,33 +908,27 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToManagedTransition(t *testing.T) 
 }
 
 // ensureClusterAndLocalQueueExist validates that both the default ClusterQueue
-// and LocalQueue resources exist in the cluster.
+// and LocalQueue resources exist in the cluster with proper configuration.
 //
 // Parameters:
 //   - localQueueNamespaceName: The LocalQueue namespaced name
 func (tc *KueueTestCtx) ensureClusterAndLocalQueueExist(localQueueNamespaceName string) {
-	// Validate that ClusterQueue still exists
-	clusterQueue := tc.EnsureResourceExists(
+	// Validate that ClusterQueue exists with proper namespace selector and resource groups
+	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ClusterQueue, types.NamespacedName{Name: kueueDefaultClusterQueueName, Namespace: metav1.NamespaceAll}),
+		WithCondition(And(
+			// Validate namespace selector is properly configured for Kueue-managed namespaces
+			jq.Match(`.spec.namespaceSelector.matchLabels."%s" == "true"`, cluster.KueueManagedLabelKey),
+			// Validate at least one resource group exists
+			jq.Match(`.spec.resourceGroups | length >= 1`),
+		)),
+		WithCustomErrorMsg("ClusterQueue should exist with proper namespace selector and resource groups"),
 	)
 
-	namespaceSelector, ok, err := unstructured.NestedMap(clusterQueue.Object, "spec", "namespaceSelector")
-	tc.g.Expect(err).ShouldNot(HaveOccurred())
-	tc.g.Expect(ok).Should(BeTrue())
-	tc.g.Expect(namespaceSelector).Should(Equal(map[string]any{
-		"matchLabels": map[string]any{
-			cluster.KueueManagedLabelKey: "true",
-		},
-	}))
-
-	resourceGroups, ok, err := unstructured.NestedSlice(clusterQueue.Object, "spec", "resourceGroups")
-	tc.g.Expect(err).ShouldNot(HaveOccurred())
-	tc.g.Expect(ok).Should(BeTrue())
-	tc.g.Expect(len(resourceGroups)).Should(BeNumerically(">=", 1))
-
-	// Validate that LocalQueue still exists for the managed namespace
+	// Validate that LocalQueue exists for the managed namespace
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.LocalQueue, types.NamespacedName{Name: kueueDefaultLocalQueueName, Namespace: localQueueNamespaceName}),
+		WithCustomErrorMsg("LocalQueue should exist in namespace '%s'", localQueueNamespaceName),
 	)
 }
 
@@ -954,13 +939,9 @@ func (tc *KueueTestCtx) ensureClusterAndLocalQueueExist(localQueueNamespaceName 
 //   - crdName: The name of the Custom Resource Definition to delete
 func (tc *KueueTestCtx) deleteAndValidateCRD(crdName string) {
 	// Delete the CRD
-	propagationPolicy := metav1.DeletePropagationForeground
 	tc.DeleteResource(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdName}),
-		WithClientDeleteOptions(
-			&client.DeleteOptions{
-				PropagationPolicy: &propagationPolicy,
-			}),
+		WithForegroundDeletion(),
 	)
 }
 
@@ -992,19 +973,14 @@ func (tc *KueueTestCtx) setManagedAnnotation(gvk schema.GroupVersionKind, name t
 		ownerReferencesCount = 1
 	}
 
-	_, err := tc.g.Update(gvk, name,
-		func(obj *unstructured.Unstructured) error {
-			resources.SetAnnotation(obj, annotations.ManagedByODHOperator, strconv.FormatBool(managed))
-			return nil
-		},
-	).Get()
-
-	tc.g.Expect(err).ShouldNot(HaveOccurred())
-
-	tc.g.Get(gvk, name).Eventually().Should(And(
-		jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.ManagedByODHOperator, strconv.FormatBool(managed)),
-		jq.Match(`.metadata.ownerReferences | length == %d`, ownerReferencesCount),
-	))
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk, name),
+		WithMutateFunc(testf.Transform(`.metadata.annotations."%s" = "%s"`, annotations.ManagedByODHOperator, strconv.FormatBool(managed))),
+		WithCondition(And(
+			jq.Match(`.metadata.annotations."%s" == "%s"`, annotations.ManagedByODHOperator, strconv.FormatBool(managed)),
+			jq.Match(`.metadata.ownerReferences | length == %d`, ownerReferencesCount),
+		)),
+	)
 }
 
 // setupNamespace creates a test namespace with the provided labels.
