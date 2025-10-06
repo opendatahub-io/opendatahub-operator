@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - incubation
       - rhoai
   pull_request:
 permissions:
