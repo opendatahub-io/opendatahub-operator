@@ -1,0 +1,18 @@
+checks:
+  # if doNotAutoAddDefaults is true, default checks are not automatically added.
+  doNotAutoAddDefaults: true
+
+  # addAllBuiltIn, if set, adds all built-in checks. This allows users to
+  # explicitly opt-out of checks that are not relevant using Exclude.
+  # Takes precedence over doNotAutoAddDefaults, if both are set.
+  addAllBuiltIn: false
+
+  include:
+    - "privileged-container"
+    - "privileged-ports"
+    - "run-as-non-root"
+    - "cluster-admin-role-binding"
+    - "no-liveness-probe"
+    - "no-readiness-probe"
+    - "unset-cpu-requirements"
+    - "unset-memory-requirements"
