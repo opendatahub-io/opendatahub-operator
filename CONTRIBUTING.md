@@ -39,9 +39,9 @@ Issues are tracked using [Jira](https://issues.redhat.com/secure/RapidBoard.jspa
 
 To ensure the contributed code adheres to the project goals, we have set up some automated quality gates:
 
-1. [linters](https://github.com/opendatahub-io/opendatahub-operator/blob/main/.github/workflows/linter.yaml): Ensure the check for linters is successful. If it fails, run `make lint` to resolve errors
-2. [api-docs](https://github.com/opendatahub-io/opendatahub-operator/blob/main/.github/workflows/check-file-updates.yaml): Ensure the api-docs are updated when making changes to operator apis. If it fails, run `make generate manifests api-docs` to resolve errors
-3. [unit-tests](https://github.com/opendatahub-io/opendatahub-operator/blob/main/.github/workflows/unit-tests.yaml): Ensure unit tests pass. Run `make unit-tests`
+1. [linters](https://github.com/opendatahub-io/opendatahub-operator/blob/main/.github/workflows/test-linter.yaml): Ensure the check for linters is successful. If it fails, run `make lint` to resolve errors
+2. [api-docs](https://github.com/opendatahub-io/opendatahub-operator/blob/main/.github/workflows/test-required-files-updated.yaml): Ensure the api-docs are updated when making changes to operator apis. If it fails, run `make generate manifests api-docs` to resolve errors
+3. [unit-tests](https://github.com/opendatahub-io/opendatahub-operator/blob/main/.github/workflows/test-unit.yaml): Ensure unit tests pass. Run `make unit-tests`
 4. [e2e-tests](https://prow.ci.openshift.org/job-history/gs/test-platform-results/pr-logs/directory/pull-ci-opendatahub-io-opendatahub-operator-main-opendatahub-operator-e2e): Ensure CI job for [e2e tests](https://github.com/opendatahub-io/opendatahub-operator/tree/main/tests/e2e) pass. Refer run e2e locally to debug. CI test logs can also be found under `Artifacts` directory under Job details.
 
 ### Code Style Guidelines

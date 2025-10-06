@@ -1764,7 +1764,7 @@ spec:
   - name: Open Data Hub Community
     url: https://github.com/opendatahub-io/opendatahub-community
   maintainers:
-  - email: opendatahub@redhat.com
+  - email: ai-core-platform@redhat.com
     name: Open Data Hub Maintainers
   maturity: stable
   minKubeVersion: 1.25.0
