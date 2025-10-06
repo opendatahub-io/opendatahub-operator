@@ -53,7 +53,7 @@ spec:
             description: ModelControllerSpec defines the desired state of ModelController
             properties:
               kserve:
-                description: a mini version of the DSCKserve only keep management
+                description: a mini version of the DSCKserve only keeps management
                   and NIM spec
                 properties:
                   managementState:

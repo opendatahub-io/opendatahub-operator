@@ -1015,7 +1015,7 @@ ModelController is the Schema for the modelcontroller API
 
 
 
-a mini version of the DSCKserve only keep management and NIM spec
+a mini version of the DSCKserve only keeps management and NIM spec
 
 
 
