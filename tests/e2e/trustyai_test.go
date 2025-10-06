@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -17,10 +16,14 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// TrustyAITestCtx extends ComponentTestCtx with TrustyAI-specific test functionality.
+// TrustyAI has unique dependency requirements (KServe CRDs) that need special handling.
 type TrustyAITestCtx struct {
 	*ComponentTestCtx
 }
 
+// trustyAITestSuite runs the complete TrustyAI component test suite.
+// This includes dependency validation tests specific to TrustyAI's KServe requirements.
 func trustyAITestSuite(t *testing.T) {
 	t.Helper()
 
@@ -30,9 +33,6 @@ func trustyAITestSuite(t *testing.T) {
 	componentCtx := TrustyAITestCtx{
 		ComponentTestCtx: ct,
 	}
-
-	// TrustyAI requires some CRDs that are shipped by Kserve
-	t.Run("Enable Kserve", componentCtx.EnableKserve)
 
 	// Define test cases.
 	testCases := []TestCase{
@@ -49,71 +49,66 @@ func trustyAITestSuite(t *testing.T) {
 	RunTestCases(t, testCases)
 }
 
-// ValidateTrustyAIPreCheck validates the dependency checking logic of TrustyAI.
-// Test Scenario: TrustyAI should fail when KServe dependencies are missing and recover when restored.
-// Steps:
-//  1. Disable KServe → TrustyAI should detect missing dependency
-//  2. Delete InferenceServices CRD → Trigger validation error
-//  3. Validate Error State → TrustyAI conditions should be False
-//  4. Enable KServe → Restore dependency
-//  5. Validate Recovery → TrustyAI conditions should be True
-//  6. Cleanup → Disable KServe for next test
+// ValidateComponentEnabled validates TrustyAI component with required KServe dependency.
+// Unlike other components, TrustyAI requires KServe CRDs to be present before it can start.
+// This method ensures the dependency is satisfied before running standard component validation.
+func (tc *TrustyAITestCtx) ValidateComponentEnabled(t *testing.T) {
+	t.Helper()
+
+	// TrustyAI requires Kserve CRDs, so enable Kserve first
+	tc.setKserveState(operatorv1.Managed, true)
+
+	// Call the parent component validation
+	tc.ComponentTestCtx.ValidateComponentEnabled(t)
+}
+
+// ValidateComponentDisabled validates TrustyAI component removal and cleans up dependencies.
+// Unlike other components, TrustyAI requires explicit KServe cleanup to prevent interference
+// with other test suites that might not expect KServe to be enabled.
+func (tc *TrustyAITestCtx) ValidateComponentDisabled(t *testing.T) {
+	t.Helper()
+
+	// Then clean up KServe dependency to avoid interference with other tests
+	tc.setKserveState(operatorv1.Removed, false)
+
+	// First disable TrustyAI using standard component validation
+	tc.ComponentTestCtx.ValidateComponentDisabled(t)
+}
+
+// ValidateTrustyAIPreCheck validates TrustyAI's dependency validation and recovery mechanisms.
+// This test verifies that TrustyAI properly detects missing KServe dependencies and automatically
+// recovers when dependencies are restored. The test simulates real-world scenarios where
+// dependencies might be removed or unavailable during cluster operations.
 func (tc *TrustyAITestCtx) ValidateTrustyAIPreCheck(t *testing.T) {
 	t.Helper()
 
-	// Define test cases.
-	testCases := []TestCase{
-		// Force TrustyAI into error state
-		{"Disable Kserve for Error Test", tc.DisableKserve},
-		// Remove required CRD to trigger validation error
-		{"Delete InferenceServices", tc.DeleteInferenceServices},
-		// Verify TrustyAI detects missing dependency
-		{"Validate Error", func(t *testing.T) {
-			t.Helper()
-			tc.ValidateTrustyAICondition(metav1.ConditionFalse)
-		}},
-		// Restore Kserve to fix dependency
-		{"Enable Kserve", tc.EnableKserve},
-		// Verify TrustyAI recovers automatically
-		{"Validate Recovery", func(t *testing.T) {
-			t.Helper()
-			tc.ValidateTrustyAICondition(metav1.ConditionTrue)
-		}},
-		// Clean up for next test
-		{"Disable Kserve for Cleanup", tc.DisableKserve},
-	}
+	// Step 1: Disable KServe → TrustyAI should detect missing dependency
+	tc.setKserveState(operatorv1.Removed, false)
 
-	// Run the test suite.
-	RunTestCases(t, testCases)
+	// Step 2: Delete InferenceServices CRD → Trigger validation error
+	tc.deleteInferenceServicesCRD()
+
+	// Step 3: Validate Error State → TrustyAI conditions should be False
+	tc.validateTrustyAICondition(metav1.ConditionFalse)
+
+	// Step 4: Enable KServe → Restore dependency
+	tc.setKserveState(operatorv1.Managed, true)
+
+	// Step 5: Validate Recovery → TrustyAI conditions should be True
+	tc.validateTrustyAICondition(metav1.ConditionTrue)
 }
 
-// EnableKserve enables the Kserve component for the TrustyAI test context.
-func (tc *TrustyAITestCtx) EnableKserve(t *testing.T) {
-	t.Helper()
-	tc.SetKserveState(operatorv1.Managed, true)
-}
-
-// DisableKserve disables the Kserve component for the TrustyAI test context.
-func (tc *TrustyAITestCtx) DisableKserve(t *testing.T) {
-	t.Helper()
-	tc.SetKserveState(operatorv1.Removed, false)
-}
-
-// SetKserveState updates the Kserve component state and verifies its existence.
-func (tc *TrustyAITestCtx) SetKserveState(state operatorv1.ManagementState, shouldExist bool) {
-	// Temporarily change timeout for this test since it takes lots of time because of FeatureGates
-	// TODO: remove it once we understood why it's taking lots of time for kserve to become Ready/NotReady
+// setKserveState manages KServe component lifecycle for TrustyAI dependency testing.
+// Uses extended timeouts because KServe initialization involves complex CRD installation
+// and feature gate configuration that can be slow in CI environments.
+func (tc *TrustyAITestCtx) setKserveState(state operatorv1.ManagementState, shouldExist bool) {
+	// TODO: remove timeout override once we understand why Kserve takes so long in CI
 	reset := tc.OverrideEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout, tc.TestTimeouts.defaultEventuallyPollInterval)
-	defer reset() // Ensure reset happens after test completes
+	defer reset()
 
-	nn := types.NamespacedName{Name: componentApi.KserveInstanceName}
-
-	// Update the Kserve component state in DataScienceCluster.
 	tc.UpdateComponentStateInDataScienceClusterWithKind(state, gvk.Kserve.Kind)
 
-	// Verify if Kserve should exist or be removed.
 	if shouldExist {
-		// KServe can take longer to become ready, especially in CI environments
 		tc.ValidateComponentCondition(
 			gvk.Kserve,
 			componentApi.KserveInstanceName,
@@ -121,31 +116,30 @@ func (tc *TrustyAITestCtx) SetKserveState(state operatorv1.ManagementState, shou
 		)
 	} else {
 		tc.DeleteResource(
-			WithMinimalObject(gvk.Kserve, nn),
+			WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}),
 			WithIgnoreNotFound(true),
 			WithRemoveFinalizersOnDelete(true),
+			WithWaitForDeletion(true),
 		)
 	}
 }
 
-// DeleteInferenceServices deletes the InferenceServices CustomResourceDefinition.
-func (tc *TrustyAITestCtx) DeleteInferenceServices(t *testing.T) {
-	t.Helper()
-
-	propagationPolicy := metav1.DeletePropagationForeground
+// deleteInferenceServicesCRD removes the InferenceServices CRD to simulate dependency failure.
+// Uses foreground deletion to ensure all InferenceService instances are cleaned up
+// before the CRD is removed, preventing orphaned resources.
+func (tc *TrustyAITestCtx) deleteInferenceServicesCRD() {
 	tc.DeleteResource(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: "inferenceservices.serving.kserve.io"}),
-		WithClientDeleteOptions(
-			&client.DeleteOptions{
-				PropagationPolicy: &propagationPolicy,
-			}),
+		WithForegroundDeletion(),
 		WithWaitForDeletion(true),
 		WithIgnoreNotFound(true),
 	)
 }
 
-// ValidateTrustyAICondition validates the readiness condition of TrustyAI and DataScienceCluster.
-func (tc *TrustyAITestCtx) ValidateTrustyAICondition(expectedStatus metav1.ConditionStatus) {
+// ValidateTrustyAICondition verifies TrustyAI condition status in both component and cluster resources.
+// Checks both TrustyAI component conditions and the corresponding DataScienceCluster status
+// to ensure consistency between component state and cluster-wide reporting.
+func (tc *TrustyAITestCtx) validateTrustyAICondition(expectedStatus metav1.ConditionStatus) {
 	// Validate TrustyAI readiness.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.TrustyAI, types.NamespacedName{Name: componentApi.TrustyAIInstanceName}),
