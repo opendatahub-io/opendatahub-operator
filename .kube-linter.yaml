@@ -16,3 +16,18 @@ checks:
     - "no-readiness-probe"
     - "unset-cpu-requirements"
     - "unset-memory-requirements"
+    - "no-system-group-binding"
+
+customChecks:
+  - name: "no-system-group-binding"
+    description: "Ensure ClusterRoleBindings do not target system groups"
+    remediation: "Remove references to system groups (e.g., system:authenticated, system:unauthenticated) from ClusterRoleBinding subjects"
+    template: "cel-expression"
+    scope:
+      objectKinds:
+        - ClusterRoleBinding
+    params:
+      check: |
+        has(object.subjects) && dyn(object.subjects).exists(s, s.kind == "Group" && s.name.startsWith("system:")) 
+          ? "ClusterRoleBinding references system group" 
+          : ""
