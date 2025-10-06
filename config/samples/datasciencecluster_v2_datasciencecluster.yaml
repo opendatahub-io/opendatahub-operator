@@ -14,7 +14,7 @@ spec:
       managementState: "Managed"
     dashboard:
       managementState: "Managed"
-    datasciencepipelines:
+    aipipelines:
       managementState: "Managed"
     kserve: {
       managementState: "Managed",

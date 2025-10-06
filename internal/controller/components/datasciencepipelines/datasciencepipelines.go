@@ -57,17 +57,17 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		ObjectMeta: metav1.ObjectMeta{
 			Name: componentApi.DataSciencePipelinesInstanceName,
 			Annotations: map[string]string{
-				annotations.ManagementStateAnnotation: string(dsc.Spec.Components.DataSciencePipelines.ManagementState),
+				annotations.ManagementStateAnnotation: string(dsc.Spec.Components.AIPipelines.ManagementState),
 			},
 		},
 		Spec: componentApi.DataSciencePipelinesSpec{
-			DataSciencePipelinesCommonSpec: dsc.Spec.Components.DataSciencePipelines.DataSciencePipelinesCommonSpec,
+			DataSciencePipelinesCommonSpec: dsc.Spec.Components.AIPipelines.DataSciencePipelinesCommonSpec,
 		},
 	}
 }
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
-	return dsc.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed
+	return dsc.Spec.Components.AIPipelines.ManagementState == operatorv1.Managed
 }
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
@@ -85,17 +85,17 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
-	ms := components.NormalizeManagementState(dsc.Spec.Components.DataSciencePipelines.ManagementState)
+	ms := components.NormalizeManagementState(dsc.Spec.Components.AIPipelines.ManagementState)
 
-	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.DataSciencePipelines.ManagementState = ms
-	dsc.Status.Components.DataSciencePipelines.DataSciencePipelinesCommonStatus = nil
+	dsc.Status.InstalledComponents[InstalledComponentName] = false
+	dsc.Status.Components.AIPipelines.ManagementState = ms
+	dsc.Status.Components.AIPipelines.DataSciencePipelinesCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	if s.IsEnabled(dsc) {
-		dsc.Status.InstalledComponents[LegacyComponentName] = true
-		dsc.Status.Components.DataSciencePipelines.DataSciencePipelinesCommonStatus = c.Status.DataSciencePipelinesCommonStatus.DeepCopy()
+		dsc.Status.InstalledComponents[InstalledComponentName] = true
+		dsc.Status.Components.AIPipelines.DataSciencePipelinesCommonStatus = c.Status.DataSciencePipelinesCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
 			rr.Conditions.MarkFrom(ReadyConditionType, *rc)

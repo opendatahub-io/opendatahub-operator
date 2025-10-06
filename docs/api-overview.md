@@ -2111,7 +2111,7 @@ _Appears in:_
 | `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
 | `modelmeshserving` _[DSCModelMeshServing](#dscmodelmeshserving)_ | ModelMeshServing component configuration. |  |  |
-| `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
+| `aipipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | AIPipelines component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
 | `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
 | `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
 | `codeflare` _[DSCCodeFlare](#dsccodeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component. |  |  |
@@ -2139,7 +2139,7 @@ _Appears in:_
 | `dashboard` _[DSCDashboardStatus](#dscdashboardstatus)_ | Dashboard component status. |  |  |
 | `workbenches` _[DSCWorkbenchesStatus](#dscworkbenchesstatus)_ | Workbenches component status. |  |  |
 | `modelmeshserving` _[DSCModelMeshServingStatus](#dscmodelmeshservingstatus)_ | ModelMeshServing component status. |  |  |
-| `datasciencepipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | DataSciencePipeline component status. |  |  |
+| `aipipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | AIPipelines component status. |  |  |
 | `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |
 | `kueue` _[DSCKueueStatus](#dsckueuestatus)_ | Kueue component status. |  |  |
 | `codeflare` _[DSCCodeFlareStatus](#dsccodeflarestatus)_ | CodeFlare component status. |  |  |

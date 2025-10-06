@@ -39,9 +39,9 @@ type Components struct {
 	// ModelMeshServing component configuration.
 	ModelMeshServing componentApi.DSCModelMeshServing `json:"modelmeshserving,omitempty"`
 
-	// DataSciencePipeline component configuration.
+	// AIPipelines component configuration.
 	// Requires OpenShift Pipelines Operator to be installed before enable component
-	DataSciencePipelines componentApi.DSCDataSciencePipelines `json:"datasciencepipelines,omitempty"`
+	AIPipelines componentApi.DSCDataSciencePipelines `json:"aipipelines,omitempty"`
 
 	// Kserve component configuration.
 	// Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
@@ -85,8 +85,8 @@ type ComponentsStatus struct {
 	// ModelMeshServing component status.
 	ModelMeshServing componentApi.DSCModelMeshServingStatus `json:"modelmeshserving,omitempty"`
 
-	// DataSciencePipeline component status.
-	DataSciencePipelines componentApi.DSCDataSciencePipelinesStatus `json:"datasciencepipelines,omitempty"`
+	// AIPipelines component status.
+	AIPipelines componentApi.DSCDataSciencePipelinesStatus `json:"aipipelines,omitempty"`
 
 	// Kserve component status.
 	Kserve componentApi.DSCKserveStatus `json:"kserve,omitempty"`
