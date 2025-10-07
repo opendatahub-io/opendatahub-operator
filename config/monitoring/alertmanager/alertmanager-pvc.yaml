@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: alertmanager-data
+  name: data-science-alertmanager-data
 spec:
   accessModes:
     - ReadWriteOnce

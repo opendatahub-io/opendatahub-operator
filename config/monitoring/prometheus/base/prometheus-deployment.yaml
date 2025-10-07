@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   labels:
     app: prometheus
-  name: prometheus
+  name: data-science-prometheus
   namespace: redhat-ods-monitoring
 spec:
   replicas: 1
@@ -18,7 +18,7 @@ spec:
         alertmanager: <alertmanager_config_hash>
         prometheus: <prometheus_config_hash>
     spec:
-      serviceAccountName: prometheus
+      serviceAccountName: data-science-prometheus
       containers:
       - name: oauth-proxy
         args:
@@ -27,7 +27,7 @@ spec:
         - -http-address=
         - -email-domain=*
         - -upstream=http://localhost:9090
-        - -openshift-service-account=prometheus
+        - -openshift-service-account=data-science-prometheus
         - '-openshift-sar={"resource": "namespaces", "verb": "get", "name": "redhat-ods-monitoring",
           "namespace": "redhat-ods-monitoring"}'
         - '-openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get",
@@ -38,7 +38,7 @@ spec:
         - -cookie-secret-file=/etc/proxy/secrets/session_secret
         - -openshift-ca=/etc/pki/tls/cert.pem
         - -openshift-ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        - -client-id=system:serviceaccount:redhat-ods-monitoring:prometheus
+        - -client-id=system:serviceaccount:redhat-ods-monitoring:data-science-prometheus
         - -skip-auth-regex=^/metrics
         image: registry.redhat.io/openshift4/ose-oauth-proxy@sha256:ab112105ac37352a2a4916a39d6736f5db6ab4c29bad4467de8d613e80e9bb33
         ports:
@@ -143,7 +143,7 @@ spec:
         - -http-address=
         - -email-domain=*
         - -upstream=http://localhost:9093
-        - -openshift-service-account=prometheus
+        - -openshift-service-account=data-science-prometheus
         - '-openshift-sar={"resource": "namespaces", "verb": "get", "name": "redhat-ods-monitoring",
           "namespace": "redhat-ods-monitoring"}'
         - '-openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get",
@@ -154,7 +154,7 @@ spec:
         - -cookie-secret-file=/etc/proxy/secrets/session_secret
         - -openshift-ca=/etc/pki/tls/cert.pem
         - -openshift-ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        - -client-id=system:serviceaccount:redhat-ods-monitoring:prometheus
+        - -client-id=system:serviceaccount:redhat-ods-monitoring:data-science-prometheus
         - -skip-auth-regex=^/metrics
         image: registry.redhat.io/openshift4/ose-oauth-proxy@sha256:4bef31eb993feb6f1096b51b4876c65a6fb1f4401fee97fa4f4542b6b7c9bc46
         imagePullPolicy: Always
@@ -254,11 +254,11 @@ spec:
       # for prometheus container
       - name: prometheus-data
         persistentVolumeClaim:
-          claimName: prometheus-data
+          claimName: data-science-prometheus-data
       - name: prometheus-config
         configMap:
           defaultMode: 420
-          name: prometheus
+          name: data-science-prometheus-config
       - name: prometheus-service-ca
         configMap:
           name: prometheus-service-ca
@@ -270,11 +270,11 @@ spec:
       # for alertmanager container
       - name: alertmanager-data
         persistentVolumeClaim:
-          claimName: "alertmanager-data"
+          claimName: "data-science-alertmanager-data"
       - name: alertmanager-config
         configMap:
           defaultMode: 420
-          name: alertmanager
+          name: data-science-alertmanager-config
 
       # for oauth-proxy container
       - name: prometheus-tls

@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: prometheus
+  name: data-science-prometheus-config
   namespace: <odh_monitoring_project>
 data:
   prometheus.yml: |
@@ -61,7 +61,7 @@ data:
       - source_labels: [__param_target]
         target_label: instance
       - target_label: __address__
-        replacement: blackbox-exporter.<odh_monitoring_project>.svc.cluster.local:9114
+        replacement: data-science-blackbox-exporter.<odh_monitoring_project>.svc.cluster.local:9114
 
     - job_name: 'user_facing_endpoints_status_rhods_dashboard'
       scrape_interval: 10s
@@ -83,7 +83,7 @@ data:
       - source_labels: [__param_target]
         target_label: instance
       - target_label: __address__
-        replacement: blackbox-exporter.<odh_monitoring_project>.svc.cluster.local:9114
+        replacement: data-science-blackbox-exporter.<odh_monitoring_project>.svc.cluster.local:9114
 
     - job_name: 'user_facing_endpoints_status_dsp'
       scrape_interval: 10s
@@ -105,7 +105,7 @@ data:
       - source_labels: [__param_target]
         target_label: instance
       - target_label: __address__
-        replacement: blackbox-exporter.<odh_monitoring_project>.svc.cluster.local:9114
+        replacement: data-science-blackbox-exporter.<odh_monitoring_project>.svc.cluster.local:9114
 
     - job_name: 'Kubeflow Notebook Controller Service Metrics'
       honor_labels: true

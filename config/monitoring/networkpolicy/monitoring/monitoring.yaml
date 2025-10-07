@@ -8,7 +8,7 @@
 kind: NetworkPolicy
 apiVersion: networking.k8s.io/v1
 metadata:
-  name: redhat-ods-monitoring
+  name: data-science-monitoring
   namespace: redhat-ods-monitoring
 spec:
   podSelector: {}

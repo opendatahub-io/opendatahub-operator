@@ -5,7 +5,7 @@ metadata:
     service.alpha.openshift.io/serving-cert-secret-name: alertmanager-tls
   labels:
     name: alertmanager
-  name: alertmanager
+  name: data-science-alertmanager
   namespace: redhat-ods-monitoring
 spec:
   ports:

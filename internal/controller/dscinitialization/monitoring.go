@@ -240,7 +240,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv2.DSCInitialization
 	prometheusConfigMap := &corev1.ConfigMap{}
 	err = r.Client.Get(ctx, client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
-		Name:      "prometheus",
+		Name:      "data-science-prometheus-config",
 	}, prometheusConfigMap)
 	if err != nil {
 		log.Error(err, "error to get configmap 'prometheus'")
@@ -260,7 +260,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv2.DSCInitialization
 	alertmanagerRoute := &routev1.Route{}
 	err = r.Client.Get(ctx, client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
-		Name:      "alertmanager",
+		Name:      "data-science-alertmanager",
 	}, alertmanagerRoute)
 	if err != nil {
 		log.Error(err, "error to get alertmanager route")
@@ -272,7 +272,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv2.DSCInitialization
 	alertManagerConfigMap := &corev1.ConfigMap{}
 	err = r.Client.Get(ctx, client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
-		Name:      "alertmanager",
+		Name:      "data-science-alertmanager-config",
 	}, alertManagerConfigMap)
 	if err != nil {
 		log.Error(err, "error to get configmap 'alertmanager'")
@@ -314,7 +314,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv2.DSCInitialization
 	existingPromDep := &appsv1.Deployment{}
 	err = r.Client.Get(ctx, client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
-		Name:      "prometheus",
+		Name:      "data-science-prometheus",
 	}, existingPromDep)
 	if err != nil {
 		if !k8serr.IsNotFound(err) {
@@ -358,7 +358,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsciv2.DSCInitiali
 	existingBlackboxExp := &appsv1.Deployment{}
 	err = r.Client.Get(ctx, client.ObjectKey{
 		Namespace: dsciInit.Spec.Monitoring.Namespace,
-		Name:      "blackbox-exporter",
+		Name:      "data-science-blackbox-exporter",
 	}, existingBlackboxExp)
 	if err != nil {
 		if !k8serr.IsNotFound(err) {

@@ -3,14 +3,14 @@ kind: Route
 metadata:
   annotations:
     kubernetes.io/tls-acme: 'true'
-  name: alertmanager
+  name: data-science-alertmanager
   namespace: redhat-ods-monitoring
 spec:
   port:
     targetPort: alertmanager
   to:
     kind: Service
-    name: alertmanager
+    name: data-science-alertmanager
   tls:
     termination: Reencrypt
     insecureEdgeTerminationPolicy: Redirect
