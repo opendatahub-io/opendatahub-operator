@@ -1,0 +1,20 @@
+apiVersion: monitoring.rhobs/v1alpha1
+kind: ThanosQuerier
+metadata:
+  name: data-science-thanos-querier
+  namespace: {{.Namespace}}
+  labels:
+    app: thanos-querier
+    app.kubernetes.io/name: thanos-querier
+    app.kubernetes.io/component: querier
+    app.kubernetes.io/part-of: data-science-monitoring
+spec:
+  selector:
+    matchLabels:
+      platform.opendatahub.io/part-of: monitoring
+  namespaceSelector:
+    matchNames:
+      - {{.Namespace}}
+  replicaLabels:
+    - prometheus_replica
+    - rule_replica
