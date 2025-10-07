@@ -720,7 +720,7 @@ func MigrateAcceleratorProfilesToHardwareProfiles(ctx context.Context, cli clien
 	}
 
 	// Calculate container resource limits
-	notebookContainerCounts, err := CalculateContainerResourceLimits(odhConfig, "notebookSizes")
+	notebookContainerCounts, err := FindContainerCpuMemoryMinMaxCount(odhConfig, "notebookSizes")
 	if err != nil {
 		return fmt.Errorf("failed to calculate notebook container limits: %w", err)
 	}
@@ -899,7 +899,7 @@ func GetOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS
 	return manifestConfig, nil
 }
 
-func CalculateContainerResourceLimits(odhConfig *unstructured.Unstructured, sizeType string) (map[string]string, error) {
+func FindContainerCpuMemoryMinMaxCount(odhConfig *unstructured.Unstructured, sizeType string) (map[string]string, error) {
 	containerSizes, err := getContainerSizes(odhConfig, sizeType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container sizes for %s: %w", sizeType, err)
@@ -909,7 +909,7 @@ func CalculateContainerResourceLimits(odhConfig *unstructured.Unstructured, size
 		return defaultResourceLimits, nil
 	}
 
-	limits, err := CalculateResourceLimitsFromSizes(containerSizes)
+	limits, err := FindCpuMemoryMinMaxCountFromContainerSizes(containerSizes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate resource limits from container sizes: %w", err)
 	}
@@ -917,8 +917,8 @@ func CalculateContainerResourceLimits(odhConfig *unstructured.Unstructured, size
 	return limits, nil
 }
 
-// calculateResourceLimitsFromSizes processes container sizes and calculates min/max resource limits.
-func CalculateResourceLimitsFromSizes(containerSizes []ContainerSize) (map[string]string, error) {
+// FindCpuMemoryMinMaxCountFromContainerSizes finds minimum and maximum cpu, memory counts available across all container sizes.
+func FindCpuMemoryMinMaxCountFromContainerSizes(containerSizes []ContainerSize) (map[string]string, error) {
 	var maxMemory, minMemory, maxCpu, minCpu resource.Quantity
 
 	var multiErr *multierror.Error
@@ -929,11 +929,11 @@ func CalculateResourceLimitsFromSizes(containerSizes []ContainerSize) (map[strin
 			multiErr = multierror.Append(multiErr, err)
 			continue
 		}
-		// minMemory is the smallest request memory
+		// minMemory is the smallest request memory across all container sizes
 		if minMemory.IsZero() || minMemory.Cmp(ReqMem) > 0 {
 			minMemory = ReqMem
 		}
-		// minCpu is the smallest request cpu
+		// minCpu is the smallest request cpu across all container sizes
 		if minCpu.IsZero() || minCpu.Cmp(ReqCpu) > 0 {
 			minCpu = ReqCpu
 		}
