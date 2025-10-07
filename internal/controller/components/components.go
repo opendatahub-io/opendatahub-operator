@@ -10,7 +10,6 @@ import (
 //go:embed trainingoperator/monitoring
 //go:embed trustyai/monitoring
 //go:embed workbenches/monitoring
-//go:embed codeflare/monitoring
 //go:embed dashboard/monitoring
 //go:embed datasciencepipelines/monitoring
 //go:embed feastoperator/monitoring

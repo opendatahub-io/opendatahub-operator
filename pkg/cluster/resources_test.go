@@ -243,3 +243,57 @@ func TestHasCRDWithVersion(t *testing.T) {
 		g.Expect(hasCRD).Should(BeFalse())
 	})
 }
+
+func TestListConfigMapUsingGVK(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("should return empty list when no ConfigMap exists", func(t *testing.T) {
+		g := NewWithT(t)
+		cli, err := fakeclient.New()
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		res, err := cluster.ListGVK(ctx, cli, gvk.ConfigMap)
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(res).Should(BeEmpty())
+	})
+
+	t.Run("should retrieve ConfigMap list successfully", func(t *testing.T) {
+		g := NewWithT(t)
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(
+				&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "configmap1"}},
+				&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "configmap2"}},
+			),
+		)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		res, err := cluster.ListGVK(ctx, cli, gvk.ConfigMap)
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(res).ShouldNot(BeEmpty())
+		g.Expect(res).Should(HaveLen(2))
+	})
+
+	t.Run("should retrieve ConfigMap list successfully in specific namespace", func(t *testing.T) {
+		g := NewWithT(t)
+		ns := "test-namespace"
+
+		cli, err := fakeclient.New(
+			fakeclient.WithObjects(
+				&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "configmap1"}},
+				&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "configmap2", Namespace: ns}},
+			),
+		)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		res, err := cluster.ListGVK(ctx, cli, gvk.ConfigMap, client.InNamespace(ns))
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(res).ShouldNot(BeEmpty())
+		g.Expect(res).Should(HaveLen(1))
+		g.Expect(res[0].GetName()).Should(Equal("configmap2"))
+		g.Expect(res[0].GetNamespace()).Should(Equal(ns))
+	})
+}

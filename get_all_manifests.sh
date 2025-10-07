@@ -13,7 +13,6 @@ declare -A COMPONENT_MANIFESTS=(
     ["modelmeshserving"]="red-hat-data-services:modelmesh-serving:rhoai-3.0:config"
     ["kserve"]="red-hat-data-services:kserve:rhoai-3.0:config"
     ["kueue"]="red-hat-data-services:kueue:rhoai-3.0:config"
-    ["codeflare"]="red-hat-data-services:codeflare-operator:rhoai-3.0:config"
     ["ray"]="red-hat-data-services:kuberay:rhoai-3.0:ray-operator/config"
     ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.0:config"
     ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.0:config"
