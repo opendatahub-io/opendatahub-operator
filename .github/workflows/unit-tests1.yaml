@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - rhoai
-      - incubation
+      - stable-2.x
       - main
   pull_request:
 jobs:
