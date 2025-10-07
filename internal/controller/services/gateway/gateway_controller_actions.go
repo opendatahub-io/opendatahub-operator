@@ -17,6 +17,7 @@ limitations under the License.
 package gateway
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"errors"
@@ -34,6 +35,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -206,10 +208,19 @@ func createDestinationRule(ctx context.Context, rr *odhtypes.ReconciliationReque
 	l := logf.FromContext(ctx).WithName("createDestinationRule")
 	l.V(1).Info("Creating DestinationRule for TLS configuration")
 
+	// TODO: ass a workaround for now
+	appNamespace, err := actions.ApplicationNamespace(ctx, rr)
+	if err != nil {
+		return fmt.Errorf("failed to get application namespace: %w", err)
+	}
+
 	yamlContent, err := gatewayResources.ReadFile("resources/destinationrule-tls.yaml")
 	if err != nil {
 		return fmt.Errorf("failed to read DestinationRule template: %w", err)
 	}
+
+	// Replace the APPLICATION_NAMESPACE placeholder with the actual application namespace
+	yamlContent = bytes.ReplaceAll(yamlContent, []byte("APPLICATION_NAMESPACE"), []byte(appNamespace))
 
 	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
 	unstructuredObjects, err := resources.Decode(decoder, yamlContent)
@@ -217,12 +228,17 @@ func createDestinationRule(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return fmt.Errorf("failed to decode DestinationRule YAML: %w", err)
 	}
 
-	if len(unstructuredObjects) != 1 {
-		return fmt.Errorf("expected exactly 1 DestinationRule object, got %d", len(unstructuredObjects))
+	if len(unstructuredObjects) != 2 {
+		return fmt.Errorf("expected 2 DestinationRule objects, got %d", len(unstructuredObjects))
 	}
 
 	l.V(1).Info("Successfully created DestinationRule configuration")
-	return rr.AddResources(&unstructuredObjects[0])
+	for i := range unstructuredObjects {
+		if err := rr.AddResources(&unstructuredObjects[i]); err != nil {
+			return fmt.Errorf("failed to add DestinationRule %d: %w", i, err)
+		}
+	}
+	return nil
 }
 
 // This helper function optimizes the condition checking logic.

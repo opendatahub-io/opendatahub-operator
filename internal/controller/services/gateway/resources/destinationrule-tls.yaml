@@ -14,8 +14,26 @@ spec:
       tls:
         mode: SIMPLE
         insecureSkipVerify: true
-    - port:
+    - port:  # do we really need 443 as well?
         number: 443
+      tls:
+        mode: SIMPLE
+        insecureSkipVerify: true
+
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: data-science-components
+  namespace: APPLICATION_NAMESPACE
+  labels:
+    app.kubernetes.io/part-of: data-science-gateway
+spec:
+  host: '*.APPLICATION_NAMESPACE.svc.cluster.local'
+  trafficPolicy:
+    portLevelSettings:
+    - port:
+        number: 8443
       tls:
         mode: SIMPLE
         insecureSkipVerify: true
