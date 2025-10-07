@@ -617,7 +617,7 @@ func validateAcceleratorProfileHardwareProfile(g *WithT, hwp *infrav1.HardwarePr
 
 	if profileType == notebooksProfileType {
 		// containerCounts, which is calculated from odhConfig
-		containerCounts, _ := upgrade.CalculateContainerResourceLimits(odhConfig, "notebookSizes")
+		containerCounts, _ := upgrade.FindContainerCpuMemoryMinMaxCount(odhConfig, "notebookSizes")
 
 		// minCpu
 		expectedMinCpu := intstr.FromString(containerCounts["minCpu"])
@@ -1029,7 +1029,7 @@ func TestHardwareProfileMigrationWithComplexScenarios(t *testing.T) {
 	})
 }
 
-func TestCalculateResourceLimitsFromSizes(t *testing.T) {
+func TestFindCpuMemoryMinMaxCountFromContainerSizes(t *testing.T) {
 	tests := []struct {
 		name           string
 		containerSizes []upgrade.ContainerSize
@@ -1286,13 +1286,13 @@ func TestCalculateResourceLimitsFromSizes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			limits, err := upgrade.CalculateResourceLimitsFromSizes(tt.containerSizes)
+			counts, err := upgrade.FindCpuMemoryMinMaxCountFromContainerSizes(tt.containerSizes)
 			if tt.wantErr {
 				g.Expect(err).Should(HaveOccurred())
 			} else {
 				g.Expect(err).ShouldNot(HaveOccurred())
 				for k, v := range tt.want {
-					g.Expect(limits).To(HaveKeyWithValue(k, v))
+					g.Expect(counts).To(HaveKeyWithValue(k, v))
 				}
 			}
 		})
