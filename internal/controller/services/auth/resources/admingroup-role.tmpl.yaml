@@ -24,6 +24,17 @@ rules:
   - dashboard.opendatahub.io
   resources:
   - acceleratorprofiles
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - patch
+  - update
+  - delete
+- apiGroups:
+  - infrastructure.opendatahub.io
+  resources:
   - hardwareprofiles
   verbs:
   - create
