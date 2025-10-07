@@ -32,7 +32,7 @@ jobs:
       IMAGE_BUILDER: podman
     steps:
       - name: Checkout PR head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         if: needs.get-merge-commit.outputs.mergedSha
         with:
           ref: ${{ needs.get-merge-commit.outputs.mergedSha }}
@@ -97,5 +97,5 @@ jobs:
           BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ env.VERSION_TAG }}
         run: |
           echo "version tag: ${{ env.VERSION_TAG }}"
-          make catalog-build 
+          make catalog-build
           make catalog-push
