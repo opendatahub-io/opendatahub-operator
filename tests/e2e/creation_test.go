@@ -372,7 +372,7 @@ func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
 	)
 
 	// update custom-serving hardwareprofile to different value and check it is updated.
-	tc.EnsureResourceCreatedOrPatched(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "custom-serving", Namespace: tc.AppsNamespace}),
 		WithMutateFunc(testf.Transform(`
 				.spec.identifiers[0].defaultCount = 4 |
