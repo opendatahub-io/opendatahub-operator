@@ -206,11 +206,6 @@ func CreateDSC(name string) *dscv2.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				ModelMeshServing: componentApi.DSCModelMeshServing{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
 				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,

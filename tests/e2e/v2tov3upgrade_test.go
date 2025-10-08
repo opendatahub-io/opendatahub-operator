@@ -33,9 +33,10 @@ import (
 )
 
 const (
-	defaultCodeFlareComponentName = "default-codeflare"
-	testDSCV1Name                 = "test-dsc-v1-upgrade"
-	testDSCIV1Name                = "test-dsci-v1-upgrade"
+	defaultCodeFlareComponentName        = "default-codeflare"
+	defaultModelMeshServingComponentName = "default-modelmeshserving"
+	testDSCV1Name                        = "test-dsc-v1-upgrade"
+	testDSCIV1Name                       = "test-dsci-v1-upgrade"
 )
 
 type V2Tov3UpgradeTestCtx struct {
@@ -58,7 +59,8 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 
 	// Define test cases.
 	testCases := []TestCase{
-		{"codeflare present in the cluster before upgrade, after upgrade not removed", v2Tov3UpgradeTestCtx.ValidateCodeFlareResourcePreservation},
+		{"codeflare resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateCodeFlareResourcePreservation},
+		{"modelmeshserving resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateModelMeshServingResourcePreservation},
 		{"ray raise error if codeflare component present in the cluster", v2Tov3UpgradeTestCtx.ValidateRayRaiseErrorIfCodeFlarePresent},
 	}
 
@@ -100,6 +102,12 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateCodeFlareResourcePreservation(t *testing
 	t.Helper()
 
 	tc.ValidateComponentResourcePreservation(t, gvk.CodeFlare, defaultCodeFlareComponentName)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) ValidateModelMeshServingResourcePreservation(t *testing.T) {
+	t.Helper()
+
+	tc.ValidateComponentResourcePreservation(t, gvk.ModelMeshServing, defaultModelMeshServingComponentName)
 }
 
 func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T) {
@@ -670,9 +678,15 @@ func (tc *V2Tov3UpgradeTestCtx) createRemovedComponentCRD(t *testing.T) {
 	t.Helper()
 
 	codeFlareCRD := mocks.NewMockCRD(gvk.CodeFlare.Group, gvk.CodeFlare.Version, gvk.CodeFlare.Kind, gvk.CodeFlare.Kind)
+	modelMeshServingCRD := mocks.NewMockCRD(gvk.ModelMeshServing.Group, gvk.ModelMeshServing.Version, gvk.ModelMeshServing.Kind, gvk.ModelMeshServing.Kind)
 
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithObjectToCreate(codeFlareCRD),
 		WithCustomErrorMsg("Failed to create removed component CRD"),
+	)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(modelMeshServingCRD),
+		WithCustomErrorMsg("Failed to create ModelMeshServing CRD"),
 	)
 }

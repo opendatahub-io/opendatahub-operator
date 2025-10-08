@@ -30,8 +30,6 @@ spec:
         managementState: "Unmanaged"
       }
     }
-    modelmeshserving:
-      managementState: "Managed"
     kueue:
       managementState: "Managed"
     trainingoperator:

@@ -4,10 +4,6 @@ metadata:
   name: default-dsc
   labels:
     app.kubernetes.io/name: datasciencecluster
-    app.kubernetes.io/instance: default
-    app.kubernetes.io/part-of: opendatahub-operator
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: opendatahub-operator
 spec:
   components:
     dashboard:
@@ -30,8 +26,6 @@ spec:
         managementState: "Unmanaged"
       }
     }
-    modelmeshserving:
-      managementState: "Managed"
     kueue:
       managementState: "Managed"
     trainingoperator:
