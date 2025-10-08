@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
@@ -28,7 +28,7 @@ import (
 var _ = Describe("Service Mesh setup", func() {
 
 	var (
-		dsci          *dsciv1.DSCInitialization
+		dsci          *dsciv2.DSCInitialization
 		objectCleaner *envtestutil.Cleaner
 	)
 
@@ -219,7 +219,7 @@ var _ = Describe("Service Mesh setup", func() {
 
 				var (
 					objectCleaner   *envtestutil.Cleaner
-					dsci            *dsciv1.DSCInitialization
+					dsci            *dsciv2.DSCInitialization
 					serviceMeshSpec *infrav1.ServiceMeshSpec
 					smcpCrdObj      *apiextensionsv1.CustomResourceDefinition
 					namespace       = "test-ns"

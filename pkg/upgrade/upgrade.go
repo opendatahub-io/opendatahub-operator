@@ -28,8 +28,8 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -51,7 +51,7 @@ type ResourceSpec struct {
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
 func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 	// Set the default DSC name depending on the platform
-	releaseDataScienceCluster := &dscv1.DataScienceCluster{
+	releaseDataScienceCluster := &dscv2.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
 			APIVersion: "datasciencecluster.opendatahub.io/v1",
@@ -59,8 +59,8 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default-dsc",
 		},
-		Spec: dscv1.DataScienceClusterSpec{
-			Components: dscv1.Components{
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
 				Dashboard: componentApi.DSCDashboard{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
@@ -115,7 +115,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 // Note: DSCI CR modifcations are not supported, as it is the initial prereq setting for the components.
 func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform, monNamespace string) error {
 	log := logf.FromContext(ctx)
-	defaultDsciSpec := &dsciv1.DSCInitializationSpec{
+	defaultDsciSpec := &dsciv2.DSCInitializationSpec{
 		Monitoring: serviceApi.DSCIMonitoring{
 			ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
@@ -131,12 +131,12 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform
 				MetricsCollection: "Istio",
 			},
 		},
-		TrustedCABundle: &dsciv1.TrustedCABundleSpec{
+		TrustedCABundle: &dsciv2.TrustedCABundleSpec{
 			ManagementState: "Managed",
 		},
 	}
 
-	defaultDsci := &dsciv1.DSCInitialization{
+	defaultDsci := &dsciv2.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
 			APIVersion: "dscinitialization.opendatahub.io/v1",
@@ -147,7 +147,7 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform
 		Spec: *defaultDsciSpec,
 	}
 
-	instances := &dsciv1.DSCInitializationList{}
+	instances := &dsciv2.DSCInitializationList{}
 	if err := cli.List(ctx, instances); err != nil {
 		return err
 	}
@@ -217,7 +217,7 @@ func CleanupExistingResource(ctx context.Context,
 ) error {
 	var multiErr *multierror.Error
 	// get DSCI CR to get application namespace
-	dsciList := &dsciv1.DSCInitializationList{}
+	dsciList := &dsciv2.DSCInitializationList{}
 	if err := cli.List(ctx, dsciList); err != nil {
 		return err
 	}

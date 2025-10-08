@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlruntime "sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
@@ -23,7 +23,7 @@ var _ = Describe("Feature tracking capability", func() {
 
 	var (
 		appNamespace string
-		dsci         *dsciv1.DSCInitialization
+		dsci         *dsciv2.DSCInitialization
 	)
 
 	BeforeEach(func(ctx context.Context) {

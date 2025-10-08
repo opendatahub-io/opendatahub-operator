@@ -12,7 +12,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
@@ -20,7 +20,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/servicemesh"
 )
 
-func (r *DSCInitializationReconciler) configureServiceMesh(ctx context.Context, instance *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) configureServiceMesh(ctx context.Context, instance *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 	serviceMeshManagementState := operatorv1.Removed
 	if instance.Spec.ServiceMesh != nil {
@@ -32,7 +32,7 @@ func (r *DSCInitializationReconciler) configureServiceMesh(ctx context.Context, 
 	switch serviceMeshManagementState {
 	case operatorv1.Managed:
 
-		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
+		capabilities := []*feature.HandlerWithReporter[*dsciv2.DSCInitialization]{
 			r.serviceMeshCapability(instance, serviceMeshCondition(status.ConfiguredReason, "Service Mesh configured")),
 		}
 
@@ -63,14 +63,14 @@ func (r *DSCInitializationReconciler) configureServiceMesh(ctx context.Context, 
 	return nil
 }
 
-func (r *DSCInitializationReconciler) removeServiceMesh(ctx context.Context, instance *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) removeServiceMesh(ctx context.Context, instance *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 	// on condition of Managed, do not handle Removed when set to Removed it trigger DSCI reconcile to clean up
 	if instance.Spec.ServiceMesh == nil {
 		return nil
 	}
 	if instance.Spec.ServiceMesh.ManagementState == operatorv1.Managed {
-		capabilities := []*feature.HandlerWithReporter[*dsciv1.DSCInitialization]{
+		capabilities := []*feature.HandlerWithReporter[*dsciv2.DSCInitialization]{
 			r.serviceMeshCapability(instance, serviceMeshCondition(status.RemovedReason, "Service Mesh removed")),
 		}
 
@@ -94,14 +94,14 @@ func (r *DSCInitializationReconciler) removeServiceMesh(ctx context.Context, ins
 	return nil
 }
 
-func (r *DSCInitializationReconciler) serviceMeshCapability(instance *dsciv1.DSCInitialization, initialCondition *common.Condition) *feature.HandlerWithReporter[*dsciv1.DSCInitialization] { //nolint:lll // Reason: generics are long
+func (r *DSCInitializationReconciler) serviceMeshCapability(instance *dsciv2.DSCInitialization, initialCondition *common.Condition) *feature.HandlerWithReporter[*dsciv2.DSCInitialization] { //nolint:lll // Reason: generics are long
 	return feature.NewHandlerWithReporter(
 		feature.ClusterFeaturesHandler(instance, r.serviceMeshCapabilityFeatures(instance)),
 		createCapabilityReporter(r.Client, instance, initialCondition),
 	)
 }
 
-func (r *DSCInitializationReconciler) authorizationCapability(ctx context.Context, instance *dsciv1.DSCInitialization, condition *common.Condition) (*feature.HandlerWithReporter[*dsciv1.DSCInitialization], error) { //nolint:lll // Reason: generics are long
+func (r *DSCInitializationReconciler) authorizationCapability(ctx context.Context, instance *dsciv2.DSCInitialization, condition *common.Condition) (*feature.HandlerWithReporter[*dsciv2.DSCInitialization], error) { //nolint:lll // Reason: generics are long
 	authorinoInstalled, err := cluster.SubscriptionExists(ctx, r.Client, "authorino-operator")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list subscriptions %w", err)
@@ -129,7 +129,7 @@ func (r *DSCInitializationReconciler) authorizationCapability(ctx context.Contex
 	), nil
 }
 
-func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
+func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *dsciv2.DSCInitialization) feature.FeaturesProvider {
 	return func(registry feature.FeaturesRegistry) error {
 		controlPlaneSpec := instance.Spec.ServiceMesh.ControlPlane
 
@@ -179,7 +179,7 @@ func (r *DSCInitializationReconciler) serviceMeshCapabilityFeatures(instance *ds
 	}
 }
 
-func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv1.DSCInitialization) feature.FeaturesProvider {
+func (r *DSCInitializationReconciler) authorizationFeatures(instance *dsciv2.DSCInitialization) feature.FeaturesProvider {
 	return func(registry feature.FeaturesRegistry) error {
 		serviceMeshSpec := instance.Spec.ServiceMesh
 

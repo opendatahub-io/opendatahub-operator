@@ -8,7 +8,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
 
@@ -20,12 +20,12 @@ type ComponentHandler interface {
 	// NewCRObject constructs components specific Custom Resource
 	// e.g. Dashboard in datasciencecluster.opendatahub.io group
 	// It returns interface, but it simplifies DSC reconciler code a lot
-	NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject
+	NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject
 	NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error
 	// UpdateDSCStatus updates the component specific status part of the DSC
 	UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error)
 	// IsEnabled returns whether the component should be deployed/is active
-	IsEnabled(dsc *dscv1.DataScienceCluster) bool
+	IsEnabled(dsc *dscv2.DataScienceCluster) bool
 }
 
 // Registry is a struct that maintains a list of registered ComponentHandlers.
@@ -55,7 +55,7 @@ func (r *Registry) ForEach(f func(ch ComponentHandler) error) error {
 
 // IsComponentEnabled checks if a component with the given name is enabled in the DataScienceCluster.
 // Returns false if the component is not found.
-func (r *Registry) IsComponentEnabled(componentName string, dsc *dscv1.DataScienceCluster) bool {
+func (r *Registry) IsComponentEnabled(componentName string, dsc *dscv2.DataScienceCluster) bool {
 	for _, ch := range r.handlers {
 		if ch.GetName() == componentName {
 			return ch.IsEnabled(dsc)
@@ -78,6 +78,6 @@ func DefaultRegistry() *Registry {
 
 // IsComponentEnabled checks if a component with the given name is enabled in the DataScienceCluster
 // using the default registry. Returns false if the component is not found.
-func IsComponentEnabled(componentName string, dsc *dscv1.DataScienceCluster) bool {
+func IsComponentEnabled(componentName string, dsc *dscv2.DataScienceCluster) bool {
 	return r.IsComponentEnabled(componentName, dsc)
 }

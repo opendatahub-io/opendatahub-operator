@@ -10,8 +10,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -90,11 +90,11 @@ var DSCDeletionPredicate = predicate.Funcs{
 
 var DSCComponentUpdatePredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldDSC, ok := e.ObjectOld.(*dscv1.DataScienceCluster)
+		oldDSC, ok := e.ObjectOld.(*dscv2.DataScienceCluster)
 		if !ok {
 			return false
 		}
-		newDSC, ok := e.ObjectNew.(*dscv1.DataScienceCluster)
+		newDSC, ok := e.ObjectNew.(*dscv2.DataScienceCluster)
 		if !ok {
 			return false
 		}
@@ -126,11 +126,11 @@ var DSCComponentUpdatePredicate = predicate.Funcs{
 
 var DSCIReadiness = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldObj, ok := e.ObjectOld.(*dsciv1.DSCInitialization)
+		oldObj, ok := e.ObjectOld.(*dsciv2.DSCInitialization)
 		if !ok {
 			return false
 		}
-		newObj, ok := e.ObjectNew.(*dsciv1.DSCInitialization)
+		newObj, ok := e.ObjectNew.(*dsciv2.DSCInitialization)
 		if !ok {
 			return false
 		}
@@ -199,11 +199,11 @@ func CreatedOrUpdatedOrDeletedNamePrefixed(namePrefix string) predicate.Predicat
 
 var DSCIServiceMeshCondition = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldObj, ok := e.ObjectOld.(*dsciv1.DSCInitialization)
+		oldObj, ok := e.ObjectOld.(*dsciv2.DSCInitialization)
 		if !ok {
 			return false
 		}
-		newObj, ok := e.ObjectNew.(*dsciv1.DSCInitialization)
+		newObj, ok := e.ObjectNew.(*dsciv2.DSCInitialization)
 		if !ok {
 			return false
 		}
