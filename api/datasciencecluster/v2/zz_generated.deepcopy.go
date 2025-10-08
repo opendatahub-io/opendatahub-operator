@@ -30,7 +30,6 @@ func (in *Components) DeepCopyInto(out *Components) {
 	*out = *in
 	in.Dashboard.DeepCopyInto(&out.Dashboard)
 	in.Workbenches.DeepCopyInto(&out.Workbenches)
-	in.ModelMeshServing.DeepCopyInto(&out.ModelMeshServing)
 	in.DataSciencePipelines.DeepCopyInto(&out.DataSciencePipelines)
 	in.Kserve.DeepCopyInto(&out.Kserve)
 	in.Kueue.DeepCopyInto(&out.Kueue)
@@ -57,7 +56,6 @@ func (in *ComponentsStatus) DeepCopyInto(out *ComponentsStatus) {
 	*out = *in
 	in.Dashboard.DeepCopyInto(&out.Dashboard)
 	in.Workbenches.DeepCopyInto(&out.Workbenches)
-	in.ModelMeshServing.DeepCopyInto(&out.ModelMeshServing)
 	in.DataSciencePipelines.DeepCopyInto(&out.DataSciencePipelines)
 	in.Kserve.DeepCopyInto(&out.Kserve)
 	in.Kueue.DeepCopyInto(&out.Kueue)

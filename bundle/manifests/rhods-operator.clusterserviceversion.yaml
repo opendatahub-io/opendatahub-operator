@@ -9,11 +9,7 @@ metadata:
           "kind": "DataScienceCluster",
           "metadata": {
             "labels": {
-              "app.kubernetes.io/created-by": "rhods-operator",
-              "app.kubernetes.io/instance": "default-dsc",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "datasciencecluster",
-              "app.kubernetes.io/part-of": "rhods-operator"
+              "app.kubernetes.io/name": "datasciencecluster"
             },
             "name": "default-dsc"
           },
@@ -48,9 +44,6 @@ metadata:
               },
               "llamastackoperator": {
                 "managementState": "Removed"
-              },
-              "modelmeshserving": {
-                "managementState": "Managed"
               },
               "modelregistry": {
                 "managementState": "Managed",
@@ -76,11 +69,7 @@ metadata:
           "kind": "DataScienceCluster",
           "metadata": {
             "labels": {
-              "app.kubernetes.io/created-by": "rhods-operator",
-              "app.kubernetes.io/instance": "default-dsc",
-              "app.kubernetes.io/managed-by": "kustomize",
               "app.kubernetes.io/name": "datasciencecluster",
-              "app.kubernetes.io/part-of": "rhods-operator"
             },
             "name": "default-dsc"
           },
@@ -116,9 +105,6 @@ metadata:
               "llamastackoperator": {
                 "managementState": "Removed"
               },
-              "modelmeshserving": {
-                "managementState": "Managed"
-              },
               "modelregistry": {
                 "managementState": "Managed",
                 "registriesNamespace": "rhoai-model-registries"
@@ -143,11 +129,7 @@ metadata:
           "kind": "DSCInitialization",
           "metadata": {
             "labels": {
-              "app.kubernetes.io/created-by": "rhods-operator",
-              "app.kubernetes.io/instance": "default-dsci",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "dscinitialization",
-              "app.kubernetes.io/part-of": "rhods-operator"
+              "app.kubernetes.io/name": "dscinitialization"
             },
             "name": "default-dsci"
           },
@@ -177,11 +159,7 @@ metadata:
           "kind": "DSCInitialization",
           "metadata": {
             "labels": {
-              "app.kubernetes.io/created-by": "rhods-operator",
-              "app.kubernetes.io/instance": "default-dsci",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "dscinitialization",
-              "app.kubernetes.io/part-of": "rhods-operator"
+              "app.kubernetes.io/name": "dscinitialization"
             },
             "name": "default-dsci"
           },
@@ -211,7 +189,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-10-10T08:56:33Z"
+    createdAt: "2025-10-10T10:20:23Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -232,10 +210,6 @@ metadata:
           "name": "default-dsc",
           "labels": {
             "app.kubernetes.io/name": "datasciencecluster",
-            "app.kubernetes.io/instance": "default-dsc",
-            "app.kubernetes.io/part-of": "rhods-operator",
-            "app.kubernetes.io/managed-by": "kustomize",
-            "app.kubernetes.io/created-by": "rhods-operator"
           }
         },
         "spec": {
@@ -267,9 +241,6 @@ metadata:
             "kueue": {
               "managementState": "Managed"
             },
-            "modelmeshserving": {
-              "managementState": "Managed"
-            },
             "modelregistry": {
               "managementState": "Managed",
               "registriesNamespace": "rhoai-model-registries"
@@ -292,15 +263,13 @@ metadata:
     operatorframework.io/suggested-namespace: redhat-ods-operator
     operators.openshift.io/infrastructure-features: '["disconnected"]'
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
-    operators.operatorframework.io/internal-objects: |-
-      ["featuretrackers.features.opendatahub.io",
-      "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
-      "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
-      "modelmeshservings.components.platform.opendatahub.io", "modelregistries.components.platform.opendatahub.io",
-      "rays.components.platform.opendatahub.io", "trainingoperators.components.platform.opendatahub.io",
-      "trustyais.components.platform.opendatahub.io", "workbenches.components.platform.opendatahub.io",
-      "monitorings.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
-      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]
+    operators.operatorframework.io/internal-objects: "[\"featuretrackers.features.opendatahub.io\",\n\"dashboards.components.platform.opendatahub.io\",
+      \"datasciencepipelines.components.platform.opendatahub.io\",\n\"kserves.components.platform.opendatahub.io\",
+      \"kueues.components.platform.opendatahub.io\",\n\"modelregistries.components.platform.opendatahub.io\",
+      \"rays.components.platform.opendatahub.io\", \n\"trainingoperators.components.platform.opendatahub.io\",
+      \"trustyais.components.platform.opendatahub.io\", \n\"workbenches.components.platform.opendatahub.io\",
+      \"monitorings.services.platform.opendatahub.io\", \n\"modelcontrollers.components.platform.opendatahub.io\",
+      \"feastoperators.components.platform.opendatahub.io\", \n\"llamastackoperators.components.platform.opendatahub.io\"]"
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
@@ -386,11 +355,6 @@ spec:
       version: v1alpha1
     - kind: ModelController
       name: modelcontrollers.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: ModelMeshServing is the Schema for the modelmeshservings API
-      displayName: Model Mesh Serving
-      kind: ModelMeshServing
-      name: modelmeshservings.components.platform.opendatahub.io
       version: v1alpha1
     - description: ModelRegistry is the Schema for the modelregistries API
       displayName: Model Registry

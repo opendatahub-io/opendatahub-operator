@@ -80,7 +80,6 @@ List of currently integrated ODH components:
 | Feature Store (Feast) | `FeastOperator` |
 | KServe | `Kserve` |
 | Kueue | `Kueue` |
-| ModelMesh Serving | `ModelMeshServing` |
 | Model Registry | `ModelRegistry` |
 | Ray | `Ray` |
 | Training Operator | `TrainingOperator` |
@@ -154,8 +153,6 @@ spec:
             type: OpenshiftDefaultIngress
         managementState: Managed
         name: knative-serving
-    modelmeshserving:
-      managementState: Managed
     modelregistry:
       managementState: Managed
       registriesNamespace: "odh-model-registries"

@@ -28,10 +28,6 @@ metadata:
           "name": "default-dsc",
           "labels": {
             "app.kubernetes.io/name": "datasciencecluster",
-            "app.kubernetes.io/instance": "default-dsc",
-            "app.kubernetes.io/part-of": "rhods-operator",
-            "app.kubernetes.io/managed-by": "kustomize",
-            "app.kubernetes.io/created-by": "rhods-operator"
           }
         },
         "spec": {
@@ -63,9 +59,6 @@ metadata:
             "kueue": {
               "managementState": "Managed"
             },
-            "modelmeshserving": {
-              "managementState": "Managed"
-            },
             "modelregistry": {
               "managementState": "Managed",
               "registriesNamespace": "rhoai-model-registries"
@@ -91,11 +84,11 @@ metadata:
       ["featuretrackers.features.opendatahub.io",
       "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
       "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
-      "modelmeshservings.components.platform.opendatahub.io", "modelregistries.components.platform.opendatahub.io",
-      "rays.components.platform.opendatahub.io", "trainingoperators.components.platform.opendatahub.io",
-      "trustyais.components.platform.opendatahub.io", "workbenches.components.platform.opendatahub.io",
-      "monitorings.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
-      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]
+      "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
+      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
+      "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
+      "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
+      "llamastackoperators.components.platform.opendatahub.io"]
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
@@ -108,11 +101,6 @@ spec:
       displayName: Hardware Profile
       kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
-      version: v1alpha1
-    - description: CodeFlare is the Schema for the codeflares API
-      displayName: Code Flare
-      kind: CodeFlare
-      name: codeflares.components.platform.opendatahub.io
       version: v1alpha1
     - description: Auth is the Schema for the auths API
       displayName: Auth
@@ -179,11 +167,6 @@ spec:
       displayName: Llama Stack Operator
       kind: LlamaStackOperator
       name: llamastackoperators.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: ModelMeshServing is the Schema for the modelmeshservings API
-      displayName: Model Mesh Serving
-      kind: ModelMeshServing
-      name: modelmeshservings.components.platform.opendatahub.io
       version: v1alpha1
     - description: ModelRegistry is the Schema for the modelregistries API
       displayName: Model Registry
