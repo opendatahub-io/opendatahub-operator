@@ -11,8 +11,8 @@ spec:
     webhook:
       clientConfig:
         service:
-          name: opendatahub-operator-webhook-service
-          namespace: opendatahub-operator-system
+          name: rhods-operator-webhook-service
+          namespace: redhat-ods-operator
           path: /convert
       conversionReviewVersions:
       - v1
@@ -2035,10 +2035,10 @@ spec:
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                       registriesNamespace:
-                        default: odh-model-registries
+                        default: rhoai-model-registries
                         description: Namespace for model registries to be installed,
                           configurable only once when model registry is enabled, defaults
-                          to "odh-model-registries"
+                          to "rhoai-model-registries"
                         maxLength: 63
                         pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                         type: string
@@ -2259,9 +2259,10 @@ spec:
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
                         type: string
                       workbenchNamespace:
-                        default: opendatahub
-                        description: Namespace for workbenches to be installed, configurable
-                          only once when workbenches are enabled, defaults to "opendatahub"
+                        default: rhods-notebooks
+                        description: Namespace for workbenches to be installed, defaults
+                          to "rhods-notebooks" configurable once when component is
+                          enabled.
                         maxLength: 63
                         pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                         type: string
