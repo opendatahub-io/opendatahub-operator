@@ -313,6 +313,27 @@ func Hash(in *unstructured.Unstructured) ([]byte, error) {
 	return hasher.Sum(nil), nil
 }
 
+// StripServerMetadata removes server-managed metadata fields from a resource,
+// returning a clean copy suitable for operations like creation, comparison, or backup.
+func StripServerMetadata(obj *unstructured.Unstructured) *unstructured.Unstructured {
+	if obj == nil {
+		return nil
+	}
+	clean := obj.DeepCopy()
+
+	// Remove server-managed metadata fields (same pattern as Hash function)
+	unstructured.RemoveNestedField(clean.Object, "metadata", "uid")
+	unstructured.RemoveNestedField(clean.Object, "metadata", "resourceVersion")
+	unstructured.RemoveNestedField(clean.Object, "metadata", "generation")
+	unstructured.RemoveNestedField(clean.Object, "metadata", "managedFields")
+	unstructured.RemoveNestedField(clean.Object, "metadata", "creationTimestamp")
+	unstructured.RemoveNestedField(clean.Object, "metadata", "deletionTimestamp")
+	unstructured.RemoveNestedField(clean.Object, "metadata", "ownerReferences")
+	unstructured.RemoveNestedField(clean.Object, "status")
+
+	return clean
+}
+
 func EncodeToString(in []byte) string {
 	return "v" + base64.RawURLEncoding.EncodeToString(in)
 }
