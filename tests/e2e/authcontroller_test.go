@@ -123,7 +123,7 @@ func (tc *AuthControllerTestCtx) ValidateAddingGroups(t *testing.T) {
 	testAllowedGroup := "aTestAllowedGroup"
 
 	// Update the Auth CR with new admin and allowed groups.
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 		WithMutateFunc(
 			testf.Transform(
@@ -149,7 +149,7 @@ func (tc *AuthControllerTestCtx) ValidateRemovingGroups(t *testing.T) {
 	expectedGroup := tc.getExpectedAdminGroupForPlatform()
 
 	// Update the Auth CR to set only the expected admin group.
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.adminGroups = ["%s"]`, expectedGroup)),
 		WithCustomErrorMsg("Failed to create or update Auth resource '%s' with admin group '%s'", serviceApi.AuthInstanceName, expectedGroup),
@@ -205,7 +205,7 @@ func (tc *AuthControllerTestCtx) ValidateCELBlocksInvalidGroupsViaUpdate(t *test
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			tc.EventuallyResourceCreatedOrUpdated(
+			tc.EventuallyResourcePatched(
 				WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 				WithMutateFunc(testCase.transforms),
 				WithAcceptableErr(k8serr.IsInvalid, "IsInvalid"),
@@ -248,7 +248,7 @@ func (tc *AuthControllerTestCtx) ValidateCELAllowsValidGroups(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			tc.EventuallyResourceCreatedOrUpdated(
+			tc.EventuallyResourcePatched(
 				WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 				WithMutateFunc(testCase.transforms),
 				WithCustomErrorMsg(testCase.description),
@@ -268,7 +268,7 @@ func (tc *AuthControllerTestCtx) resetAuthToDefaults(t *testing.T) {
 	expectedAdminGroup := tc.getExpectedAdminGroupForPlatform()
 
 	// Reset Auth to default values (within-suite cleanup)
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.adminGroups = ["%s"] | .spec.allowedGroups = ["%s"]`, expectedAdminGroup, systemAuthenticatedGroup)),
 		WithCustomErrorMsg("Failed to reset Auth CR to default state after CEL tests"),
