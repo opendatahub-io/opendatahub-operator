@@ -1923,7 +1923,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: opendatahub-operator-controller-manager
+    deploymentName: rhods-operator
     failurePolicy: Fail
     generateName: dashboard-hardwareprofile-validator.opendatahub.io
     rules:
@@ -1943,7 +1943,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: opendatahub-operator-controller-manager
+    deploymentName: rhods-operator
     failurePolicy: Fail
     generateName: datasciencecluster-v1-defaulter.opendatahub.io
     rules:
