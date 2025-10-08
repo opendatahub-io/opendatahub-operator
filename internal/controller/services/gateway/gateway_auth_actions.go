@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -101,6 +102,25 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	}
 
 	// Dashboard routing is now user's responsibility - removed createDashboardRoute and createReferenceGrant
+
+	// Create OpenShift Route for the gateway
+	yamlContent, err := gatewayResources.ReadFile("resources/route.yaml")
+	if err != nil {
+		return setErrorConditionAndReturn(gatewayConfig, "Failed to read Route template", err)
+	}
+
+	// Replace the GATEWAY_DOMAIN placeholder with the actual resolved domain
+	yamlContent = bytes.ReplaceAll(yamlContent, []byte("GATEWAY_DOMAIN"), []byte(domain))
+
+	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
+	unstructuredObjects, err := resources.Decode(decoder, yamlContent)
+	if err != nil {
+		return setErrorConditionAndReturn(gatewayConfig, "Failed to decode Route YAML", err)
+	}
+
+	if err := rr.AddResources(&unstructuredObjects[0]); err != nil {
+		return setErrorConditionAndReturn(gatewayConfig, "Failed to add Route resource", err)
+	}
 
 	gatewayConfig.SetConditions([]common.Condition{{
 		Type:    status.ConditionTypeReady,
