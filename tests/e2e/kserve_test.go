@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,7 +35,7 @@ type KserveTestCtx struct {
 	*ComponentTestCtx
 }
 
-var templatedResources = []struct {
+var kserveTemplatedResources = []struct {
 	gvk schema.GroupVersionKind
 	nn  types.NamespacedName
 }{
@@ -72,6 +73,7 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate KnativeServing resource exists and is recreated upon deletion", componentCtx.ValidateKnativeServing},
 		{"Validate model controller", componentCtx.ValidateModelControllerInstance},
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
+		{"Validate no FeatureTracker OwnerReferences", componentCtx.ValidateNoKServeFeatureTrackerOwnerReferences},
 		{"Validate no Kserve FeatureTrackers", componentCtx.ValidateNoKserveFeatureTrackers},
 		{"Validate default certs", componentCtx.ValidateDefaultCertsAvailable},
 		{"Validate custom certificate created for OpenshiftDefaultIngress", componentCtx.ValidateCustomCertificateCreation},
@@ -80,7 +82,6 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate serving transition to Unmanaged", componentCtx.ValidateServingTransitionToUnmanaged},
 		{"Validate serving transition to Removed", componentCtx.ValidateServingTransitionToRemoved},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 	}
 
 	// Add webhook tests if enabled
@@ -90,9 +91,9 @@ func kserveTestSuite(t *testing.T) {
 		)
 	}
 
-	// Always run component disable test last
+	// Always run deletion recovery and component disable tests last
 	testCases = append(testCases,
-		// Always run component disable test last
+		TestCase{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	)
 	// Run the test suite.
@@ -116,7 +117,7 @@ func (tc *KserveTestCtx) ValidateServingEnabled(t *testing.T) {
 	t.Helper()
 
 	// Ensure the DataScienceCluster exists and the component's conditions are met
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed)),
 		WithCondition(jq.Match(`.spec.components.%s.serving.managementState == "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed)),
@@ -172,10 +173,10 @@ func (tc *KserveTestCtx) ValidateKnativeServing(t *testing.T) {
 }
 
 // ValidateNoFeatureTrackerOwnerReferences ensures no FeatureTrackers are owned by Kserve.
-func (tc *KserveTestCtx) ValidateNoFeatureTrackerOwnerReferences(t *testing.T) {
+func (tc *KserveTestCtx) ValidateNoKServeFeatureTrackerOwnerReferences(t *testing.T) {
 	t.Helper()
 
-	for _, child := range templatedResources {
+	for _, child := range kserveTemplatedResources {
 		tc.EnsureResourceExists(
 			WithMinimalObject(child.gvk, child.nn),
 			WithCondition(
@@ -193,20 +194,17 @@ func (tc *KserveTestCtx) ValidateNoFeatureTrackerOwnerReferences(t *testing.T) {
 func (tc *KserveTestCtx) ValidateNoKserveFeatureTrackers(t *testing.T) {
 	t.Helper()
 
-	tc.EnsureResourcesExist(
+	tc.EnsureResourcesDoNotExist(
 		WithMinimalObject(gvk.FeatureTracker, tc.NamespacedName),
-		WithCondition(
-			HaveEach(And(
-				jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-kserve-external-authz"),
-				jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-serverless-serving-gateways"),
-				jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-serverless-serving-deployment"),
-				jq.Match(`.metadata.name != "%s"`, tc.AppsNamespace+"-serverless-net-istio-secret-filtering"),
-
-				// there should be no FeatureTrackers owned by a Kserve
-				jq.Match(`.metadata.ownerReferences | all(.kind != "%s")`, tc.GVK.Kind),
-			)),
-		),
-		WithCustomErrorMsg(`Ensuring there are no Kserve FeatureTrackers`),
+		WithListOptions(&client.ListOptions{
+			Namespace: tc.AppsNamespace,
+			LabelSelector: k8slabels.SelectorFromSet(
+				k8slabels.Set{
+					labels.PlatformPartOf: strings.ToLower(tc.GVK.Kind),
+				},
+			),
+		}),
+		WithCustomErrorMsg("Expected no KServe-related FeatureTracker resources to be present"),
 	)
 }
 
@@ -268,7 +266,7 @@ func (tc *KserveTestCtx) ValidateServingTransitionToRemoved(t *testing.T) {
 	tc.updateKserveDeploymentAndServingState(componentApi.RawDeployment, operatorv1.Removed)
 
 	// Ensure that the associated resources are removed from the cluster.
-	for _, child := range templatedResources {
+	for _, child := range kserveTemplatedResources {
 		tc.EnsureResourceGone(
 			WithMinimalObject(child.gvk, child.nn),
 			WithCustomErrorMsg(`Ensuring %s/%s in %s no longer exists`, child.gvk, child.nn.Name, child.nn.Namespace))
@@ -346,7 +344,7 @@ func (tc *KserveTestCtx) cleanExistingKnativeServing(t *testing.T) {
 
 // updateKserveDeploymentAndServingState updates the Kserve deployment mode and serving state.
 func (tc *KserveTestCtx) updateKserveDeploymentAndServingState(mode componentApi.DefaultDeploymentMode, state operatorv1.ManagementState) {
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
 			testf.TransformPipeline(
@@ -362,7 +360,7 @@ func (tc *KserveTestCtx) updateKserveDeploymentAndServingState(mode componentApi
 
 // updateKserveServingState updates the state of the serving component in Kserve.
 func (tc *KserveTestCtx) updateKserveServingState(state operatorv1.ManagementState) {
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), state)),
 		WithCustomErrorMsg("Updating serving managementState"),
@@ -398,7 +396,7 @@ func (tc *KserveTestCtx) validateTemplatedResourceOwnerRefsAndLabels(expectOwned
 		msg = `Ensuring %s/%s in %s still exists but is de-owned`
 	}
 
-	for _, child := range templatedResources {
+	for _, child := range kserveTemplatedResources {
 		tc.EnsureResourceExists(
 			WithMinimalObject(child.gvk, child.nn),
 			WithCondition(condition),
@@ -484,7 +482,7 @@ func (tc *KserveTestCtx) ValidateCustomCertificateCreation(t *testing.T) {
 	secretNN := types.NamespacedName{Namespace: serviceMeshNamespace, Name: customSecretName}
 
 	t.Log("Configuring Kserve with OpenshiftDefaultIngress and custom secret")
-	tc.EnsureResourceCreatedOrPatched(
+	tc.EventuallyResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, customSecretName)),
 	)
@@ -498,7 +496,7 @@ func (tc *KserveTestCtx) ValidateCustomCertificateCreation(t *testing.T) {
 	)
 
 	t.Log("Deleting secretName from DSC and verifying Kserve readiness")
-	tc.EnsureResourceCreatedOrPatched(
+	tc.EventuallyResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate |= del(.secretName)`)),
 	)
@@ -519,7 +517,7 @@ func (tc *KserveTestCtx) ValidateInvalidCustomCertificateCreation(t *testing.T) 
 	secretNN := types.NamespacedName{Namespace: serviceMeshNamespace, Name: invalidCustomSecretName}
 
 	t.Log("Configuring Kserve with OpenshiftDefaultIngress and invalid secret")
-	tc.EnsureResourceCreatedOrPatched(
+	tc.EventuallyResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, invalidCustomSecretName)),
 	)
@@ -533,7 +531,7 @@ func (tc *KserveTestCtx) ValidateInvalidCustomCertificateCreation(t *testing.T) 
 	)
 
 	t.Log("Deleting invalid secretName from DSC and verifying Kserve readiness")
-	tc.EnsureResourceCreatedOrPatched(
+	tc.EventuallyResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate |= del(.secretName)`)),
 	)

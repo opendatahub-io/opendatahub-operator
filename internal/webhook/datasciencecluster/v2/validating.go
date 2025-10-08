@@ -1,6 +1,6 @@
 //go:build !nowebhook
 
-package dscinitialization
+package v2
 
 import (
 	"context"
@@ -17,11 +17,11 @@ import (
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
-//+kubebuilder:webhook:path=/validate-dscinitialization,mutating=false,failurePolicy=fail,sideEffects=None,groups=dscinitialization.opendatahub.io,resources=dscinitializations,verbs=create;delete,versions=v1,name=dscinitialization-validator.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-datasciencecluster-v2,mutating=false,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create,versions=v2,name=datasciencecluster-v2-validator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
-// Validator implements webhook.AdmissionHandler for DSCInitialization validation webhooks.
-// It enforces singleton creation and deletion rules for DSCInitialization resources.
+// Validator implements webhook.AdmissionHandler for DataScienceCluster v2 validation webhooks.
+// It enforces singleton creation rules for DataScienceCluster resources and always allows their deletion.
 type Validator struct {
 	Client client.Reader
 	Name   string
@@ -39,15 +39,15 @@ var _ admission.Handler = &Validator{}
 //   - error: Always nil (for future extensibility).
 func (v *Validator) SetupWithManager(mgr ctrl.Manager) error {
 	hookServer := mgr.GetWebhookServer()
-	hookServer.Register("/validate-dscinitialization", &webhook.Admission{
+	hookServer.Register("/validate-datasciencecluster-v2", &webhook.Admission{
 		Handler:        v,
 		LogConstructor: webhookutils.NewWebhookLogConstructor(v.Name),
 	})
 	return nil
 }
 
-// Handle processes admission requests for create and delete operations on DSCInitialization resources.
-// It enforces singleton and deletion rules, allowing other operations by default.
+// Handle processes admission requests for create operations on DataScienceCluster v2 resources.
+// It enforces singleton rules, allowing other operations by default.
 //
 // Parameters:
 //   - ctx: Context for the admission request (logger is extracted from here).
@@ -63,17 +63,14 @@ func (v *Validator) Handle(ctx context.Context, req admission.Request) admission
 
 	switch req.Operation {
 	case admissionv1.Create:
-		resp = webhookutils.ValidateSingletonCreation(ctx, v.Client, &req, gvk.DSCInitialization.Kind)
-	case admissionv1.Delete:
-		resp = webhookutils.DenyCountGtZero(ctx, v.Client, gvk.DataScienceCluster,
-			"Cannot delete DSCInitialization object when DataScienceCluster object still exists")
+		resp = webhookutils.ValidateSingletonCreation(ctx, v.Client, &req, gvk.DataScienceCluster)
 	default:
-		resp.Allowed = true
+		resp.Allowed = true // initialize Allowed to be true in case Operation falls into "default" case
 	}
 
 	if !resp.Allowed {
 		return resp
 	}
 
-	return admission.Allowed(fmt.Sprintf("Operation %s on %s allowed", req.Operation, req.Kind.Kind))
+	return admission.Allowed(fmt.Sprintf("Operation %s on %s v2 allowed", req.Operation, req.Kind.Kind))
 }

@@ -281,11 +281,11 @@ uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/c
 
 .PHONY: deploy
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
 undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
@@ -342,12 +342,13 @@ new-component: $(LOCALBIN)/component-codegen
 $(LOCALBIN)/component-codegen: | $(LOCALBIN)
 	cd ./cmd/component-codegen && go mod tidy && go build -o $@
 
+# TODO: change kustomize layout to remove --load-restrictor LoadRestrictionsNone option in each kustomize invocation in this makefile
 BUNDLE_DIR ?= "bundle"
 WARNINGMSG = "provided API should have an example annotation"
 .PHONY: bundle
 bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
-	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) 2>&1 | grep -v $(WARNINGMSG)
+	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	mv bundle.Dockerfile Dockerfiles/
 	rm -f bundle/manifests/rhods-operator-webhook-service_v1_service.yaml

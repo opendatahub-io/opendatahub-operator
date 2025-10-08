@@ -10,14 +10,34 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-datasciencecluster
+      path: /mutate-datasciencecluster-v1
   failurePolicy: Fail
-  name: datasciencecluster-defaulter.opendatahub.io
+  name: datasciencecluster-v1-defaulter.opendatahub.io
   rules:
   - apiGroups:
     - datasciencecluster.opendatahub.io
     apiVersions:
     - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - datascienceclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-datasciencecluster-v2
+  failurePolicy: Fail
+  name: datasciencecluster-v2-defaulter.opendatahub.io
+  rules:
+  - apiGroups:
+    - datasciencecluster.opendatahub.io
+    apiVersions:
+    - v2
     operations:
     - CREATE
     - UPDATE
@@ -156,9 +176,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-datasciencecluster
+      path: /validate-datasciencecluster-v1
   failurePolicy: Fail
-  name: datasciencecluster-validator.opendatahub.io
+  name: datasciencecluster-v1-validator.opendatahub.io
   rules:
   - apiGroups:
     - datasciencecluster.opendatahub.io
@@ -175,14 +195,53 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-dscinitialization
+      path: /validate-datasciencecluster-v2
   failurePolicy: Fail
-  name: dscinitialization-validator.opendatahub.io
+  name: datasciencecluster-v2-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - datasciencecluster.opendatahub.io
+    apiVersions:
+    - v2
+    operations:
+    - CREATE
+    resources:
+    - datascienceclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-dscinitialization-v1
+  failurePolicy: Fail
+  name: dscinitialization-v1-validator.opendatahub.io
   rules:
   - apiGroups:
     - dscinitialization.opendatahub.io
     apiVersions:
     - v1
+    operations:
+    - CREATE
+    - DELETE
+    resources:
+    - dscinitializations
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-dscinitialization-v2
+  failurePolicy: Fail
+  name: dscinitialization-v2-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - dscinitialization.opendatahub.io
+    apiVersions:
+    - v2
     operations:
     - CREATE
     - DELETE

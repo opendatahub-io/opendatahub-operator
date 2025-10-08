@@ -15,7 +15,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 
@@ -52,7 +52,7 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(featurev1.AddToScheme(testScheme))
 	utilruntime.Must(apiextensionsv1.AddToScheme(testScheme))
 	utilruntime.Must(ofapiv1alpha1.AddToScheme(testScheme))
-	utilruntime.Must(dsciv1.AddToScheme(testScheme))
+	utilruntime.Must(dsciv2.AddToScheme(testScheme))
 
 	envTest = &envtest.Environment{
 		CRDInstallOptions: envtest.CRDInstallOptions{

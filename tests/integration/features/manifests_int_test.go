@@ -7,7 +7,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature/manifest"
@@ -23,7 +23,7 @@ var _ = Describe("Applying resources", func() {
 
 	var (
 		objectCleaner *envtestutil.Cleaner
-		dsci          *dsciv1.DSCInitialization
+		dsci          *dsciv2.DSCInitialization
 		namespace     *corev1.Namespace
 	)
 

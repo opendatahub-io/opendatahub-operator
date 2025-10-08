@@ -75,7 +75,99 @@ metadata:
           }
         },
         {
+          "apiVersion": "datasciencecluster.opendatahub.io/v2",
+          "kind": "DataScienceCluster",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "rhods-operator",
+              "app.kubernetes.io/instance": "default-dsc",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "datasciencecluster",
+              "app.kubernetes.io/part-of": "rhods-operator"
+            },
+            "name": "default-dsc"
+          },
+          "spec": {
+            "components": {
+              "codeflare": {
+                "managementState": "Managed"
+              },
+              "dashboard": {
+                "managementState": "Managed"
+              },
+              "datasciencepipelines": {
+                "managementState": "Managed"
+              },
+              "feastoperator": {
+                "managementState": "Removed"
+              },
+              "kserve": {
+                "managementState": "Managed",
+                "nim": {
+                  "managementState": "Managed"
+                },
+                "rawDeploymentServiceConfig": "Headed",
+                "serving": {
+                  "ingressGateway": {
+                    "certificate": {
+                      "type": "OpenshiftDefaultIngress"
+                    }
+                  },
+                  "managementState": "Managed",
+                  "name": "knative-serving"
+                }
+              },
+              "ray": {
+                "managementState": "Managed"
+              },
+              "trainingoperator": {
+                "managementState": "Managed"
+              },
+              "trustyai": {
+                "managementState": "Managed"
+              },
+              "workbenches": {
+                "managementState": "Managed"
+              }
+            }
+          }
+        },
+        {
           "apiVersion": "dscinitialization.opendatahub.io/v1",
+          "kind": "DSCInitialization",
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/created-by": "rhods-operator",
+              "app.kubernetes.io/instance": "default-dsci",
+              "app.kubernetes.io/managed-by": "kustomize",
+              "app.kubernetes.io/name": "dscinitialization",
+              "app.kubernetes.io/part-of": "rhods-operator"
+            },
+            "name": "default-dsci"
+          },
+          "spec": {
+            "applicationsNamespace": "redhat-ods-applications",
+            "monitoring": {
+              "managementState": "Managed",
+              "metrics": {},
+              "namespace": "redhat-ods-monitoring"
+            },
+            "serviceMesh": {
+              "controlPlane": {
+                "metricsCollection": "Istio",
+                "name": "data-science-smcp",
+                "namespace": "istio-system"
+              },
+              "managementState": "Managed"
+            },
+            "trustedCABundle": {
+              "customCABundle": "",
+              "managementState": "Managed"
+            }
+          }
+        },
+        {
+          "apiVersion": "dscinitialization.opendatahub.io/v2",
           "kind": "DSCInitialization",
           "metadata": {
             "labels": {
@@ -113,7 +205,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-10-01T20:26:43Z"
+    createdAt: "2025-10-01T08:57:33Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -235,6 +327,11 @@ spec:
       kind: DataScienceCluster
       name: datascienceclusters.datasciencecluster.opendatahub.io
       version: v1
+    - description: DataScienceCluster is the Schema for the datascienceclusters API.
+      displayName: Data Science Cluster
+      kind: DataScienceCluster
+      name: datascienceclusters.datasciencecluster.opendatahub.io
+      version: v2
     - description: DataSciencePipelines is the Schema for the datasciencepipelines
         API
       displayName: Data Science Pipelines
@@ -246,6 +343,11 @@ spec:
       kind: DSCInitialization
       name: dscinitializations.dscinitialization.opendatahub.io
       version: v1
+    - description: DSCInitialization is the Schema for the dscinitializations API.
+      displayName: DSCInitialization
+      kind: DSCInitialization
+      name: dscinitializations.dscinitialization.opendatahub.io
+      version: v2
     - description: FeastOperator is the Schema for the FeastOperator API
       displayName: Feast Operator
       kind: FeastOperator
@@ -1727,6 +1829,19 @@ spec:
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
+    - v2
+    containerPort: 443
+    conversionCRDs:
+    - datascienceclusters.datasciencecluster.opendatahub.io
+    - dscinitializations.dscinitialization.opendatahub.io
+    deploymentName: rhods-operator
+    generateName: cdatascienceclustersdscinitializations.kb.io
+    sideEffects: None
+    targetPort: 9443
+    type: ConversionWebhook
+    webhookPath: /convert
+  - admissionReviewVersions:
+    - v1
     containerPort: 443
     deploymentName: rhods-operator
     failurePolicy: Fail
@@ -1790,7 +1905,7 @@ spec:
     containerPort: 443
     deploymentName: rhods-operator
     failurePolicy: Fail
-    generateName: datasciencecluster-defaulter.opendatahub.io
+    generateName: datasciencecluster-v1-defaulter.opendatahub.io
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -1804,13 +1919,13 @@ spec:
     sideEffects: None
     targetPort: 9443
     type: MutatingAdmissionWebhook
-    webhookPath: /mutate-datasciencecluster
+    webhookPath: /mutate-datasciencecluster-v1
   - admissionReviewVersions:
     - v1
     containerPort: 443
     deploymentName: rhods-operator
     failurePolicy: Fail
-    generateName: datasciencecluster-validator.opendatahub.io
+    generateName: datasciencecluster-v1-validator.opendatahub.io
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -1823,13 +1938,52 @@ spec:
     sideEffects: None
     targetPort: 9443
     type: ValidatingAdmissionWebhook
-    webhookPath: /validate-datasciencecluster
+    webhookPath: /validate-datasciencecluster-v1
   - admissionReviewVersions:
     - v1
     containerPort: 443
     deploymentName: rhods-operator
     failurePolicy: Fail
-    generateName: dscinitialization-validator.opendatahub.io
+    generateName: datasciencecluster-v2-defaulter.opendatahub.io
+    rules:
+    - apiGroups:
+      - datasciencecluster.opendatahub.io
+      apiVersions:
+      - v2
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - datascienceclusters
+    sideEffects: None
+    targetPort: 9443
+    type: MutatingAdmissionWebhook
+    webhookPath: /mutate-datasciencecluster-v2
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: rhods-operator
+    failurePolicy: Fail
+    generateName: datasciencecluster-v2-validator.opendatahub.io
+    rules:
+    - apiGroups:
+      - datasciencecluster.opendatahub.io
+      apiVersions:
+      - v2
+      operations:
+      - CREATE
+      resources:
+      - datascienceclusters
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-datasciencecluster-v2
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: rhods-operator
+    failurePolicy: Fail
+    generateName: dscinitialization-v1-validator.opendatahub.io
     rules:
     - apiGroups:
       - dscinitialization.opendatahub.io
@@ -1843,7 +1997,27 @@ spec:
     sideEffects: None
     targetPort: 9443
     type: ValidatingAdmissionWebhook
-    webhookPath: /validate-dscinitialization
+    webhookPath: /validate-dscinitialization-v1
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: rhods-operator
+    failurePolicy: Fail
+    generateName: dscinitialization-v2-validator.opendatahub.io
+    rules:
+    - apiGroups:
+      - dscinitialization.opendatahub.io
+      apiVersions:
+      - v2
+      operations:
+      - CREATE
+      - DELETE
+      resources:
+      - dscinitializations
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-dscinitialization-v2
   - admissionReviewVersions:
     - v1
     containerPort: 443

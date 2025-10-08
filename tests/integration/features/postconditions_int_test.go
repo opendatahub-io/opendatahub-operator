@@ -5,7 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/integration/features/fixtures"
@@ -19,7 +19,7 @@ var _ = Describe("feature postconditions", func() {
 		var (
 			objectCleaner *envtestutil.Cleaner
 			namespace     string
-			dsci          *dsciv1.DSCInitialization
+			dsci          *dsciv2.DSCInitialization
 		)
 
 		BeforeEach(func(ctx context.Context) {

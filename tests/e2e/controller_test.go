@@ -27,8 +27,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -259,14 +259,14 @@ func TestOdhOperator(t *testing.T) {
 	mustRun(t, Components.String(), Components.Run)
 	mustRun(t, Services.String(), Services.Run)
 
-	// Run V2 to V3 upgrade test suites
-	if testOpts.v2tov3upgradeTest {
-		mustRun(t, "V2 to V3 upgrade E2E Tests", v2Tov3UpgradeTestSuite)
-	}
-
 	// Run operator resilience test suites after functional tests
 	if testOpts.operatorResilienceTest {
 		mustRun(t, "Operator Resilience E2E Tests", operatorResilienceTestSuite)
+	}
+
+	// Run V2 to V3 upgrade test suites
+	if testOpts.v2tov3upgradeTest {
+		mustRun(t, "V2 to V3 upgrade E2E Tests", v2Tov3UpgradeTestSuite)
 	}
 
 	// Deletion logic based on deletionPolicy
@@ -279,6 +279,11 @@ func TestOdhOperator(t *testing.T) {
 			mustRun(t, "Deletion ConfigMap E2E Tests", cfgMapDeletionTestSuite)
 		}
 		mustRun(t, "DataScienceCluster/DSCInitialization Deletion E2E Tests", deletionTestSuite)
+
+		// Run V2 to V3 upgrade test suites that needs to delete DSC and DSCI
+		if testOpts.v2tov3upgradeTest {
+			mustRun(t, "V2 to V3 upgrade E2E Tests", v2Tov3UpgradeDeletingDscDsciTestSuite)
+		}
 
 		// Always perform cleanup after failure
 		handleCleanup(t)
@@ -314,7 +319,7 @@ func TestMain(m *testing.M) {
 	viper.SetDefault("shortEventuallyTimeout", "10s")         // Timeout used for Eventually; overrides Gomega's default of 1 second.
 	viper.SetDefault("mediumEventuallyTimeout", "7m")         // Medium timeout: for readiness checks (e.g., ClusterServiceVersion, DataScienceCluster).
 	viper.SetDefault("longEventuallyTimeout", "10m")          // Long timeout: for more complex readiness (e.g., DSCInitialization, KServe).
-	viper.SetDefault("defaultEventuallyPollInterval", "5s")   // Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.
+	viper.SetDefault("defaultEventuallyPollInterval", "10s")  // Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.
 	viper.SetDefault("defaultConsistentlyTimeout", "20s")     // Duration used for Consistently; overrides Gomega's default of 2 seconds.
 	viper.SetDefault("defaultConsistentlyPollInterval", "5s") // Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.
 
@@ -413,8 +418,8 @@ func registerSchemes() {
 		routev1.AddToScheme,
 		apiextv1.AddToScheme,
 		autoscalingv1.AddToScheme,
-		dsciv1.AddToScheme,
-		dscv1.AddToScheme,
+		dsciv2.AddToScheme,
+		dscv2.AddToScheme,
 		featurev1.AddToScheme,
 		monitoringv1.AddToScheme,
 		ofapi.AddToScheme,
