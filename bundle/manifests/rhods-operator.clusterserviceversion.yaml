@@ -1126,6 +1126,7 @@ spec:
           - monitoringstacks
           - prometheusrules
           - servicemonitors
+          - thanosqueriers
           verbs:
           - create
           - delete
@@ -1140,6 +1141,7 @@ spec:
           - monitoringstacks/finalizers
           - prometheusrules/finalizers
           - servicemonitors/finalizers
+          - thanosqueriers/finalizers
           verbs:
           - update
         - apiGroups:
@@ -1148,6 +1150,7 @@ spec:
           - monitoringstacks/status
           - prometheusrules/status
           - servicemonitors/status
+          - thanosqueriers/status
           verbs:
           - get
           - patch
