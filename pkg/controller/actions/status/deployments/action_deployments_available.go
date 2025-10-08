@@ -18,7 +18,7 @@ import (
 
 type Action struct {
 	labels      map[string]string
-	namespaceFn actions.StringGetter
+	namespaceFn actions.Getter[string]
 }
 
 type ActionOpts func(*Action)
@@ -45,7 +45,7 @@ func InNamespace(ns string) ActionOpts {
 	}
 }
 
-func InNamespaceFn(fn actions.StringGetter) ActionOpts {
+func InNamespaceFn(fn actions.Getter[string]) ActionOpts {
 	return func(action *Action) {
 		if fn == nil {
 			return
