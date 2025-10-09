@@ -338,7 +338,6 @@ Currently integrated components are:
 - [Data Science Pipelines](https://github.com/opendatahub-io/data-science-pipelines)
 - [KServe](https://github.com/opendatahub-io/kserve)
 - [Kueue](https://github.com/opendatahub-io/kueue)
-- [ModelMesh Serving](https://github.com/opendatahub-io/modelmesh-serving)
 - [Model Controller](https://github.com/opendatahub-io/odh-model-controller)
 - [ModelRegistry](https://github.com/opendatahub-io/model-registry)
 - [Ray](https://github.com/opendatahub-io/kuberay)

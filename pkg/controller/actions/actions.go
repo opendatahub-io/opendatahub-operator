@@ -18,8 +18,7 @@ const (
 
 type Fn func(ctx context.Context, rr *types.ReconciliationRequest) error
 
-// TODO replace with type alias in GO 1.24.
-type StringGetter func(context.Context, *types.ReconciliationRequest) (string, error)
+type Getter[T any] func(context.Context, *types.ReconciliationRequest) (T, error)
 
 func (f Fn) String() string {
 	fn := runtime.FuncForPC(reflect.ValueOf(f).Pointer())

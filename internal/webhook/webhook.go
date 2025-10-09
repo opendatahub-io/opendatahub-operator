@@ -5,6 +5,7 @@ package webhook
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dashboard"
 	dscv1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v1"
 	dscv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	dsciv1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v1"
@@ -27,6 +28,7 @@ func RegisterAllWebhooks(mgr ctrl.Manager) error {
 		kueuewebhook.RegisterWebhooks,
 		serving.RegisterWebhooks,
 		notebookwebhook.RegisterWebhooks,
+		dashboard.RegisterWebhooks,
 	}
 	for _, reg := range webhookRegistrations {
 		if err := reg(mgr); err != nil {

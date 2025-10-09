@@ -28,7 +28,19 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 	dst.ObjectMeta = c.ObjectMeta
 
 	dst.Spec = dscv2.DataScienceClusterSpec{
-		Components: dscv2.Components(c.Spec.Components),
+		Components: dscv2.Components{
+			Dashboard:            c.Spec.Components.Dashboard,
+			Workbenches:          c.Spec.Components.Workbenches,
+			DataSciencePipelines: c.Spec.Components.DataSciencePipelines,
+			Kserve:               c.Spec.Components.Kserve,
+			Kueue:                c.Spec.Components.Kueue,
+			Ray:                  c.Spec.Components.Ray,
+			TrustyAI:             c.Spec.Components.TrustyAI,
+			ModelRegistry:        c.Spec.Components.ModelRegistry,
+			TrainingOperator:     c.Spec.Components.TrainingOperator,
+			FeastOperator:        c.Spec.Components.FeastOperator,
+			LlamaStackOperator:   c.Spec.Components.LlamaStackOperator,
+		},
 	}
 
 	dst.Status = dscv2.DataScienceClusterStatus{
@@ -36,8 +48,20 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 		RelatedObjects:      c.Status.RelatedObjects,
 		ErrorMessage:        c.Status.ErrorMessage,
 		InstalledComponents: c.Status.InstalledComponents,
-		Components:          dscv2.ComponentsStatus(c.Status.Components),
-		Release:             c.Status.Release,
+		Components: dscv2.ComponentsStatus{
+			Dashboard:            c.Status.Components.Dashboard,
+			Workbenches:          c.Status.Components.Workbenches,
+			DataSciencePipelines: c.Status.Components.DataSciencePipelines,
+			Kserve:               c.Status.Components.Kserve,
+			Kueue:                c.Status.Components.Kueue,
+			Ray:                  c.Status.Components.Ray,
+			TrustyAI:             c.Status.Components.TrustyAI,
+			ModelRegistry:        c.Status.Components.ModelRegistry,
+			TrainingOperator:     c.Status.Components.TrainingOperator,
+			FeastOperator:        c.Status.Components.FeastOperator,
+			LlamaStackOperator:   c.Status.Components.LlamaStackOperator,
+		},
+		Release: c.Status.Release,
 	}
 
 	return nil
@@ -50,7 +74,19 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 	c.ObjectMeta = src.ObjectMeta
 
 	c.Spec = DataScienceClusterSpec{
-		Components: Components(src.Spec.Components),
+		Components: Components{
+			Dashboard:            src.Spec.Components.Dashboard,
+			Workbenches:          src.Spec.Components.Workbenches,
+			DataSciencePipelines: src.Spec.Components.DataSciencePipelines,
+			Kserve:               src.Spec.Components.Kserve,
+			Kueue:                src.Spec.Components.Kueue,
+			Ray:                  src.Spec.Components.Ray,
+			TrustyAI:             src.Spec.Components.TrustyAI,
+			ModelRegistry:        src.Spec.Components.ModelRegistry,
+			TrainingOperator:     src.Spec.Components.TrainingOperator,
+			FeastOperator:        src.Spec.Components.FeastOperator,
+			LlamaStackOperator:   src.Spec.Components.LlamaStackOperator,
+		},
 	}
 
 	c.Status = DataScienceClusterStatus{
@@ -58,8 +94,20 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 		RelatedObjects:      src.Status.RelatedObjects,
 		ErrorMessage:        src.Status.ErrorMessage,
 		InstalledComponents: src.Status.InstalledComponents,
-		Components:          ComponentsStatus(src.Status.Components),
-		Release:             src.Status.Release,
+		Components: ComponentsStatus{
+			Dashboard:            src.Status.Components.Dashboard,
+			Workbenches:          src.Status.Components.Workbenches,
+			DataSciencePipelines: src.Status.Components.DataSciencePipelines,
+			Kserve:               src.Status.Components.Kserve,
+			Kueue:                src.Status.Components.Kueue,
+			Ray:                  src.Status.Components.Ray,
+			TrustyAI:             src.Status.Components.TrustyAI,
+			ModelRegistry:        src.Status.Components.ModelRegistry,
+			TrainingOperator:     src.Status.Components.TrainingOperator,
+			FeastOperator:        src.Status.Components.FeastOperator,
+			LlamaStackOperator:   src.Status.Components.LlamaStackOperator,
+		},
+		Release: src.Status.Release,
 	}
 
 	return nil

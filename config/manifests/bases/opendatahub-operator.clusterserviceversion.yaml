@@ -11,13 +11,12 @@ metadata:
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
       "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
-      "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
-      "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
-      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
-      "workbenches.components.platform.opendatahub.io", "gatewayconfigs.services.platform.opendatahub.io",
-      "monitorings.services.platform.opendatahub.io", "servicemeshes.services.platform.opendatahub.io",
-      "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
-      "llamastackoperators.components.platform.opendatahub.io"]'
+      "kueues.components.platform.opendatahub.io", "modelregistries.components.platform.opendatahub.io",
+      "rays.components.platform.opendatahub.io", "trainingoperators.components.platform.opendatahub.io",
+      "trustyais.components.platform.opendatahub.io", "workbenches.components.platform.opendatahub.io",
+      "gatewayconfigs.services.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
+      "servicemeshes.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
+      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v3.0.0
   namespace: placeholder
@@ -25,15 +24,15 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: HardwareProfile is the Schema for the hardwareprofiles API.
+      displayName: Hardware Profile
+      kind: HardwareProfile
+      name: hardwareprofiles.infrastructure.opendatahub.io
+      version: v1alpha1
     - description: Auth is the Schema for the auths API
       displayName: Auth
       kind: Auth
       name: auths.services.platform.opendatahub.io
-      version: v1alpha1
-    - description: CodeFlare is the Schema for the codeflares API
-      displayName: Code Flare
-      kind: CodeFlare
-      name: codeflares.components.platform.opendatahub.io
       version: v1alpha1
     - description: Dashboard is the Schema for the dashboards API
       displayName: Dashboard
@@ -80,7 +79,7 @@ spec:
       displayName: Hardware Profile
       kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
-      version: v1alpha1
+      version: v1
     - description: Kserve is the Schema for the kserves API
       displayName: Kserve
       kind: Kserve
@@ -95,11 +94,6 @@ spec:
       displayName: Llama Stack Operator
       kind: LlamaStackOperator
       name: llamastackoperators.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: ModelMeshServing is the Schema for the modelmeshservings API
-      displayName: Model Mesh Serving
-      kind: ModelMeshServing
-      name: modelmeshservings.components.platform.opendatahub.io
       version: v1alpha1
     - description: ModelRegistry is the Schema for the modelregistries API
       displayName: Model Registry
@@ -160,7 +154,6 @@ spec:
   - serving
   - training
   - pipelines
-  - modelmesh
   - workbenches
   - dashboard
   - kserve
@@ -176,7 +169,7 @@ spec:
   - name: Open Data Hub Community
     url: https://github.com/opendatahub-io/opendatahub-community
   maintainers:
-  - email: opendatahub@redhat.com
+  - email: ai-core-platform@redhat.com
     name: Open Data Hub Maintainers
   maturity: stable
   minKubeVersion: 1.25.0

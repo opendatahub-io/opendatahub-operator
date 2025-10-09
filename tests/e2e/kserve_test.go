@@ -82,7 +82,6 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate serving transition to Unmanaged", componentCtx.ValidateServingTransitionToUnmanaged},
 		{"Validate serving transition to Removed", componentCtx.ValidateServingTransitionToRemoved},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 	}
 
 	// Add webhook tests if enabled
@@ -92,8 +91,9 @@ func kserveTestSuite(t *testing.T) {
 		)
 	}
 
-	// Always run component disable test last
+	// Always run deletion recovery and component disable tests last
 	testCases = append(testCases,
+		TestCase{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		TestCase{"Validate component disabled", componentCtx.ValidateComponentDisabled},
 	)
 	// Run the test suite.
@@ -117,7 +117,7 @@ func (tc *KserveTestCtx) ValidateServingEnabled(t *testing.T) {
 	t.Helper()
 
 	// Ensure the DataScienceCluster exists and the component's conditions are met
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed)),
 		WithCondition(jq.Match(`.spec.components.%s.serving.managementState == "%s"`, strings.ToLower(tc.GVK.Kind), operatorv1.Managed)),
@@ -344,7 +344,7 @@ func (tc *KserveTestCtx) cleanExistingKnativeServing(t *testing.T) {
 
 // updateKserveDeploymentAndServingState updates the Kserve deployment mode and serving state.
 func (tc *KserveTestCtx) updateKserveDeploymentAndServingState(mode componentApi.DefaultDeploymentMode, state operatorv1.ManagementState) {
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
 			testf.TransformPipeline(
@@ -360,7 +360,7 @@ func (tc *KserveTestCtx) updateKserveDeploymentAndServingState(mode componentApi
 
 // updateKserveServingState updates the state of the serving component in Kserve.
 func (tc *KserveTestCtx) updateKserveServingState(state operatorv1.ManagementState) {
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.serving.managementState = "%s"`, strings.ToLower(tc.GVK.Kind), state)),
 		WithCustomErrorMsg("Updating serving managementState"),
@@ -482,7 +482,7 @@ func (tc *KserveTestCtx) ValidateCustomCertificateCreation(t *testing.T) {
 	secretNN := types.NamespacedName{Namespace: serviceMeshNamespace, Name: customSecretName}
 
 	t.Log("Configuring Kserve with OpenshiftDefaultIngress and custom secret")
-	tc.EnsureResourceCreatedOrPatched(
+	tc.EventuallyResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, customSecretName)),
 	)
@@ -496,7 +496,7 @@ func (tc *KserveTestCtx) ValidateCustomCertificateCreation(t *testing.T) {
 	)
 
 	t.Log("Deleting secretName from DSC and verifying Kserve readiness")
-	tc.EnsureResourceCreatedOrPatched(
+	tc.EventuallyResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate |= del(.secretName)`)),
 	)
@@ -517,7 +517,7 @@ func (tc *KserveTestCtx) ValidateInvalidCustomCertificateCreation(t *testing.T) 
 	secretNN := types.NamespacedName{Namespace: serviceMeshNamespace, Name: invalidCustomSecretName}
 
 	t.Log("Configuring Kserve with OpenshiftDefaultIngress and invalid secret")
-	tc.EnsureResourceCreatedOrPatched(
+	tc.EventuallyResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate.secretName = "%s"`, invalidCustomSecretName)),
 	)
@@ -531,7 +531,7 @@ func (tc *KserveTestCtx) ValidateInvalidCustomCertificateCreation(t *testing.T) 
 	)
 
 	t.Log("Deleting invalid secretName from DSC and verifying Kserve readiness")
-	tc.EnsureResourceCreatedOrPatched(
+	tc.EventuallyResourceCreatedOrPatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.kserve.serving.ingressGateway.certificate |= del(.secretName)`)),
 	)

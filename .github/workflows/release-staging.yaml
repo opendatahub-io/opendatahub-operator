@@ -20,7 +20,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Validate tracker URL
       run: |
@@ -111,7 +111,7 @@ jobs:
         body: ${{ steps.release-notes.outputs.release-notes-body }}
         tag_name: v${{ env.VERSION }}
         prerelease: true
-        
+
     - name: Trigger ODH Konflux Release Onboarder
       uses: lasith-kg/dispatch-workflow@v2.0.0
       with:

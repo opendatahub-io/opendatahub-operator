@@ -12,8 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
@@ -136,7 +134,7 @@ func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 	t.Helper()
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name, dscv2.GroupVersion.String())),
+		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DataScienceCluster resource %s", tc.DataScienceClusterNamespacedName.Name),
 
@@ -252,11 +250,11 @@ func (tc *DSCTestCtx) ValidateDSCIDuplication(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCDuplication(t *testing.T) {
 	t.Helper()
 
-	dup := CreateDSC(dscInstanceNameDuplicate, dscv2.GroupVersion.String())
-	tc.EnsureResourceIsUnique(dup, "Error validating DataScienceCluster duplication")
+	dsc := CreateDSC(dscInstanceNameDuplicate)
+	tc.EnsureResourceIsUnique(dsc, "Error validating DataScienceCluster duplication")
 
-	dup = CreateDSC(dscInstanceNameDuplicate, dscv1.GroupVersion.String())
-	tc.EnsureResourceIsUnique(dup, "Error validating DataScienceCluster duplication v1")
+	dsv1 := CreateDSCv1(dscInstanceNameDuplicate)
+	tc.EnsureResourceIsUnique(dsv1, "Error validating DataScienceCluster duplication v1")
 }
 
 // ValidateModelRegistryConfig validates the ModelRegistry configuration changes based on ManagementState.
@@ -296,7 +294,7 @@ func (tc *DSCTestCtx) UpdateRegistriesNamespace(targetNamespace, expectedValue s
 	}
 
 	// Update the registriesNamespace field.
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.modelregistry.registriesNamespace = "%s"`, targetNamespace)),
 		WithCondition(expectedCondition),
@@ -319,7 +317,7 @@ func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
 	)
 
 	// update default hardwareprofile to different value and check it is updated.
-	tc.EnsureResourceCreatedOrPatched(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
 		WithMutateFunc(testf.Transform(`
 			.spec.identifiers[0].defaultCount = 4 |

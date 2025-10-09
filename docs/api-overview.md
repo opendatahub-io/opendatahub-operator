@@ -16,34 +16,18 @@
 Package v1 contains API Schema definitions for the components v1 API group
 
 ### Resource Types
-- [CodeFlare](#codeflare)
-- [CodeFlareList](#codeflarelist)
 - [Dashboard](#dashboard)
-- [DashboardList](#dashboardlist)
 - [DataSciencePipelines](#datasciencepipelines)
-- [DataSciencePipelinesList](#datasciencepipelineslist)
 - [FeastOperator](#feastoperator)
-- [FeastOperatorList](#feastoperatorlist)
 - [Kserve](#kserve)
-- [KserveList](#kservelist)
 - [Kueue](#kueue)
-- [KueueList](#kueuelist)
 - [LlamaStackOperator](#llamastackoperator)
-- [LlamaStackOperatorList](#llamastackoperatorlist)
 - [ModelController](#modelcontroller)
-- [ModelControllerList](#modelcontrollerlist)
-- [ModelMeshServing](#modelmeshserving)
-- [ModelMeshServingList](#modelmeshservinglist)
 - [ModelRegistry](#modelregistry)
-- [ModelRegistryList](#modelregistrylist)
 - [Ray](#ray)
-- [RayList](#raylist)
 - [TrainingOperator](#trainingoperator)
-- [TrainingOperatorList](#trainingoperatorlist)
 - [TrustyAI](#trustyai)
-- [TrustyAIList](#trustyailist)
 - [Workbenches](#workbenches)
-- [WorkbenchesList](#workbencheslist)
 
 
 
@@ -63,152 +47,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the bundled Argo Workflows controllers.<br />              It will only upgrade the Argo Workflows controllers if it is safe to do so. This is the default<br />              behavior.<br />- "Removed" : the operator is not managing the bundled Argo Workflows controllers and will not install it.<br />              If it is installed, the operator will remove it but will not remove other Argo Workflows<br />              installations. | Managed | Enum: [Managed Removed] <br /> |
-
-
-#### CodeFlare
-
-
-
-CodeFlare is the Schema for the codeflares API
-
-
-
-_Appears in:_
-- [CodeFlareList](#codeflarelist)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `CodeFlare` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[CodeFlareSpec](#codeflarespec)_ |  |  |  |
-| `status` _[CodeFlareStatus](#codeflarestatus)_ |  |  |  |
-
-
-#### CodeFlareCommonSpec
-
-
-
-
-
-
-
-_Appears in:_
-- [CodeFlareSpec](#codeflarespec)
-- [DSCCodeFlare](#dsccodeflare)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### CodeFlareCommonStatus
-
-
-
-CodeFlareCommonStatus defines the shared observed state of CodeFlare
-
-
-
-_Appears in:_
-- [CodeFlareStatus](#codeflarestatus)
-- [DSCCodeFlareStatus](#dsccodeflarestatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### CodeFlareList
-
-
-
-CodeFlareList contains a list of CodeFlare
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `CodeFlareList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[CodeFlare](#codeflare) array_ |  |  |  |
-
-
-#### CodeFlareSpec
-
-
-
-
-
-
-
-_Appears in:_
-- [CodeFlare](#codeflare)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### CodeFlareStatus
-
-
-
-CodeFlareStatus defines the observed state of CodeFlare
-
-
-
-_Appears in:_
-- [CodeFlare](#codeflare)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### DSCCodeFlare
-
-
-
-
-
-
-
-_Appears in:_
-- [Components](#components)
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### DSCCodeFlareStatus
-
-
-
-DSCCodeFlareStatus contains the observed state of the CodeFlare exposed in the DSC instance
-
-
-
-_Appears in:_
-- [ComponentsStatus](#componentsstatus)
-- [ComponentsStatus](#componentsstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
 #### DSCDashboard
@@ -428,41 +266,6 @@ _Appears in:_
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
 
 
-#### DSCModelMeshServing
-
-
-
-DSCModelMeshServing contains all the configuration exposed in DSC instance for ModelMeshServing component
-
-
-
-_Appears in:_
-- [Components](#components)
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### DSCModelMeshServingStatus
-
-
-
-DSCModelMeshServingStatus contains the observed state of the ModelMeshServing exposed in the DSC instance
-
-
-
-_Appears in:_
-- [ComponentsStatus](#componentsstatus)
-- [ComponentsStatus](#componentsstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-
-
 #### DSCModelRegistry
 
 
@@ -649,8 +452,7 @@ Dashboard is the Schema for the dashboards API
 
 
 
-_Appears in:_
-- [DashboardList](#dashboardlist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -697,26 +499,6 @@ _Appears in:_
 | `url` _string_ |  |  |  |
 
 
-#### DashboardList
-
-
-
-DashboardList contains a list of Dashboard
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `DashboardList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[Dashboard](#dashboard) array_ |  |  |  |
-
-
 #### DashboardSpec
 
 
@@ -760,8 +542,7 @@ DataSciencePipelines is the Schema for the datasciencepipelines API
 
 
 
-_Appears in:_
-- [DataSciencePipelinesList](#datasciencepipelineslist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -807,26 +588,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### DataSciencePipelinesList
-
-
-
-DataSciencePipelinesList contains a list of DataSciencePipelines
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `DataSciencePipelinesList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[DataSciencePipelines](#datasciencepipelines) array_ |  |  |  |
 
 
 #### DataSciencePipelinesSpec
@@ -893,8 +654,7 @@ FeastOperator is the Schema for the FeastOperator API
 
 
 
-_Appears in:_
-- [FeastOperatorList](#feastoperatorlist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -941,26 +701,6 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
-#### FeastOperatorList
-
-
-
-FeastOperatorList contains a list of FeastOperator objects
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `FeastOperatorList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[FeastOperator](#feastoperator) array_ |  |  |  |
-
-
 #### FeastOperatorSpec
 
 
@@ -1004,8 +744,7 @@ Kserve is the Schema for the kserves API
 
 
 
-_Appears in:_
-- [KserveList](#kservelist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1058,26 +797,6 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
-#### KserveList
-
-
-
-KserveList contains a list of Kserve
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `KserveList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[Kserve](#kserve) array_ |  |  |  |
-
-
 #### KserveSpec
 
 
@@ -1127,8 +846,7 @@ Kueue is the Schema for the kueues API
 
 
 
-_Appears in:_
-- [KueueList](#kueuelist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1191,26 +909,6 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
 | `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
-
-
-#### KueueList
-
-
-
-KueueList contains a list of Kueue
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `KueueList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[Kueue](#kueue) array_ |  |  |  |
 
 
 #### KueueManagementSpec
@@ -1277,8 +975,7 @@ LlamaStackOperator is the Schema for the LlamaStackOperator API
 
 
 
-_Appears in:_
-- [LlamaStackOperatorList](#llamastackoperatorlist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1325,26 +1022,6 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
-#### LlamaStackOperatorList
-
-
-
-LlamaStackOperatorList contains a list of LlamaStackOperator
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `LlamaStackOperatorList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[LlamaStackOperator](#llamastackoperator) array_ |  |  |  |
-
-
 #### LlamaStackOperatorSpec
 
 
@@ -1384,12 +1061,11 @@ _Appears in:_
 
 
 
-ModelController is the Schema for the modelcontroller API, it is a shared component between kserve and modelmeshserving
+ModelController is the Schema for the modelcontroller API
 
 
 
-_Appears in:_
-- [ModelControllerList](#modelcontrollerlist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1417,43 +1093,6 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  |  |  |
 | `nim` _[NimSpec](#nimspec)_ |  |  |  |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### ModelControllerList
-
-
-
-ModelControllerList contains a list of ModelController
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `ModelControllerList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[ModelController](#modelcontroller) array_ |  |  |  |
-
-
-#### ModelControllerMMSpec
-
-
-
-a mini version of the DSCModelMeshServing only keep devflags and management spec
-
-
-
-_Appears in:_
-- [ModelControllerSpec](#modelcontrollerspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  |  |  |
 | `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
@@ -1486,8 +1125,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `kserve` _[ModelControllerKerveSpec](#modelcontrollerkervespec)_ | ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"` |  |  |
-| `modelMeshServing` _[ModelControllerMMSpec](#modelcontrollermmspec)_ |  |  |  |
+| `kserve` _[ModelControllerKerveSpec](#modelcontrollerkervespec)_ |  |  |  |
 | `modelRegistry` _[ModelControllerMRSpec](#modelcontrollermrspec)_ |  |  |  |
 
 
@@ -1509,117 +1147,6 @@ _Appears in:_
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
-#### ModelMeshServing
-
-
-
-ModelMeshServing is the Schema for the modelmeshservings API
-
-
-
-_Appears in:_
-- [ModelMeshServingList](#modelmeshservinglist)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `ModelMeshServing` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[ModelMeshServingSpec](#modelmeshservingspec)_ |  |  |  |
-| `status` _[ModelMeshServingStatus](#modelmeshservingstatus)_ |  |  |  |
-
-
-#### ModelMeshServingCommonSpec
-
-
-
-
-
-
-
-_Appears in:_
-- [DSCModelMeshServing](#dscmodelmeshserving)
-- [ModelMeshServingSpec](#modelmeshservingspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### ModelMeshServingCommonStatus
-
-
-
-ModelMeshServingCommonStatus defines the shared observed state of ModelMeshServing
-
-
-
-_Appears in:_
-- [DSCModelMeshServingStatus](#dscmodelmeshservingstatus)
-- [ModelMeshServingStatus](#modelmeshservingstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### ModelMeshServingList
-
-
-
-ModelMeshServingList contains a list of ModelMeshServing
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `ModelMeshServingList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[ModelMeshServing](#modelmeshserving) array_ |  |  |  |
-
-
-#### ModelMeshServingSpec
-
-
-
-ModelMeshServingSpec defines the desired state of ModelMeshServing
-
-
-
-_Appears in:_
-- [ModelMeshServing](#modelmeshserving)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### ModelMeshServingStatus
-
-
-
-ModelMeshServingStatus defines the observed state of ModelMeshServing
-
-
-
-_Appears in:_
-- [ModelMeshServing](#modelmeshserving)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
 #### ModelRegistry
 
 
@@ -1628,8 +1155,7 @@ ModelRegistry is the Schema for the modelregistries API
 
 
 
-_Appears in:_
-- [ModelRegistryList](#modelregistrylist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1676,26 +1202,6 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `registriesNamespace` _string_ |  |  |  |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### ModelRegistryList
-
-
-
-ModelRegistryList contains a list of ModelRegistry
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `ModelRegistryList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[ModelRegistry](#modelregistry) array_ |  |  |  |
 
 
 #### ModelRegistrySpec
@@ -1782,8 +1288,7 @@ Ray is the Schema for the rays API
 
 
 
-_Appears in:_
-- [RayList](#raylist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1830,26 +1335,6 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
-#### RayList
-
-
-
-RayList contains a list of Ray
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `RayList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[Ray](#ray) array_ |  |  |  |
-
-
 #### RaySpec
 
 
@@ -1893,8 +1378,7 @@ TrainingOperator is the Schema for the trainingoperators API
 
 
 
-_Appears in:_
-- [TrainingOperatorList](#trainingoperatorlist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1941,26 +1425,6 @@ _Appears in:_
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
-#### TrainingOperatorList
-
-
-
-TrainingOperatorList contains a list of TrainingOperator
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `TrainingOperatorList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[TrainingOperator](#trainingoperator) array_ |  |  |  |
-
-
 #### TrainingOperatorSpec
 
 
@@ -2004,8 +1468,7 @@ TrustyAI is the Schema for the trustyais API
 
 
 
-_Appears in:_
-- [TrustyAIList](#trustyailist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -2088,26 +1551,6 @@ _Appears in:_
 | `permitOnline` _string_ | PermitOnline controls whether online access is allowed during evaluations | deny | Enum: [allow deny] <br /> |
 
 
-#### TrustyAIList
-
-
-
-TrustyAIList contains a list of TrustyAI
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `TrustyAIList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[TrustyAI](#trustyai) array_ |  |  |  |
-
-
 #### TrustyAISpec
 
 
@@ -2152,8 +1595,7 @@ Workbenches is the Schema for the workbenches API
 
 
 
-_Appears in:_
-- [WorkbenchesList](#workbencheslist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -2200,26 +1642,6 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 | `workbenchNamespace` _string_ |  |  |  |
-
-
-#### WorkbenchesList
-
-
-
-WorkbenchesList contains a list of Workbenches
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `WorkbenchesList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[Workbenches](#workbenches) array_ |  |  |  |
 
 
 #### WorkbenchesSpec
@@ -2292,11 +1714,9 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
-| `modelmeshserving` _[DSCModelMeshServing](#dscmodelmeshserving)_ | ModelMeshServing component configuration. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
-| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
+| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component |  |  |
 | `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
-| `codeflare` _[DSCCodeFlare](#dsccodeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
@@ -2320,11 +1740,9 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboardStatus](#dscdashboardstatus)_ | Dashboard component status. |  |  |
 | `workbenches` _[DSCWorkbenchesStatus](#dscworkbenchesstatus)_ | Workbenches component status. |  |  |
-| `modelmeshserving` _[DSCModelMeshServingStatus](#dscmodelmeshservingstatus)_ | ModelMeshServing component status. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | DataSciencePipeline component status. |  |  |
 | `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |
 | `kueue` _[DSCKueueStatus](#dsckueuestatus)_ | Kueue component status. |  |  |
-| `codeflare` _[DSCCodeFlareStatus](#dsccodeflarestatus)_ | CodeFlare component status. |  |  |
 | `ray` _[DSCRayStatus](#dscraystatus)_ | Ray component status. |  |  |
 | `trustyai` _[DSCTrustyAIStatus](#dsctrustyaistatus)_ | TrustyAI component status. |  |  |
 | `modelregistry` _[DSCModelRegistryStatus](#dscmodelregistrystatus)_ | ModelRegistry component status. |  |  |
@@ -2418,11 +1836,9 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
-| `modelmeshserving` _[DSCModelMeshServing](#dscmodelmeshserving)_ | ModelMeshServing component configuration. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
-| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
+| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component |  |  |
 | `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
-| `codeflare` _[DSCCodeFlare](#dsccodeflare)_ | CodeFlare component configuration.<br />If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
@@ -2446,11 +1862,9 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboardStatus](#dscdashboardstatus)_ | Dashboard component status. |  |  |
 | `workbenches` _[DSCWorkbenchesStatus](#dscworkbenchesstatus)_ | Workbenches component status. |  |  |
-| `modelmeshserving` _[DSCModelMeshServingStatus](#dscmodelmeshservingstatus)_ | ModelMeshServing component status. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | DataSciencePipeline component status. |  |  |
 | `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |
 | `kueue` _[DSCKueueStatus](#dsckueuestatus)_ | Kueue component status. |  |  |
-| `codeflare` _[DSCCodeFlareStatus](#dsccodeflarestatus)_ | CodeFlare component status. |  |  |
 | `ray` _[DSCRayStatus](#dscraystatus)_ | Ray component status. |  |  |
 | `trustyai` _[DSCTrustyAIStatus](#dsctrustyaistatus)_ | TrustyAI component status. |  |  |
 | `modelregistry` _[DSCModelRegistryStatus](#dscmodelregistrystatus)_ | ModelRegistry component status. |  |  |
@@ -2747,7 +2161,6 @@ _Appears in:_
 
 ### Resource Types
 - [HardwareProfile](#hardwareprofile)
-- [HardwareProfileList](#hardwareprofilelist)
 
 
 
@@ -2869,8 +2282,7 @@ HardwareProfile is the Schema for the hardwareprofiles API.
 
 
 
-_Appears in:_
-- [HardwareProfileList](#hardwareprofilelist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -2881,26 +2293,6 @@ _Appears in:_
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[HardwareProfileSpec](#hardwareprofilespec)_ |  |  |  |
 | `status` _[HardwareProfileStatus](#hardwareprofilestatus)_ |  |  |  |
-
-
-#### HardwareProfileList
-
-
-
-HardwareProfileList contains a list of HardwareProfile.
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `infrastructure.opendatahub.io/v1` | | |
-| `kind` _string_ | `HardwareProfileList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[HardwareProfile](#hardwareprofile) array_ |  |  |  |
 
 
 #### HardwareProfileSpec
@@ -3051,7 +2443,6 @@ Package v1alpha1 contains API Schema definitions for the infrastructure v1alpha1
 
 ### Resource Types
 - [HardwareProfile](#hardwareprofile)
-- [HardwareProfileList](#hardwareprofilelist)
 
 
 
@@ -3084,8 +2475,7 @@ HardwareProfile is the Schema for the hardwareprofiles API.
 
 
 
-_Appears in:_
-- [HardwareProfileList](#hardwareprofilelist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -3096,26 +2486,6 @@ _Appears in:_
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[HardwareProfileSpec](#hardwareprofilespec)_ |  |  |  |
 | `status` _[HardwareProfileStatus](#hardwareprofilestatus)_ |  |  |  |
-
-
-#### HardwareProfileList
-
-
-
-HardwareProfileList contains a list of HardwareProfile.
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `infrastructure.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `HardwareProfileList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[HardwareProfile](#hardwareprofile) array_ |  |  |  |
 
 
 #### HardwareProfileSpec
@@ -3226,13 +2596,9 @@ Package v1 contains API Schema definitions for the services v1 API group
 
 ### Resource Types
 - [Auth](#auth)
-- [AuthList](#authlist)
 - [GatewayConfig](#gatewayconfig)
-- [GatewayConfigList](#gatewayconfiglist)
 - [Monitoring](#monitoring)
-- [MonitoringList](#monitoringlist)
 - [ServiceMesh](#servicemesh)
-- [ServiceMeshList](#servicemeshlist)
 
 
 
@@ -3259,8 +2625,7 @@ Auth is the Schema for the auths API
 
 
 
-_Appears in:_
-- [AuthList](#authlist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -3271,26 +2636,6 @@ _Appears in:_
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[AuthSpec](#authspec)_ |  |  |  |
 | `status` _[AuthStatus](#authstatus)_ |  |  |  |
-
-
-#### AuthList
-
-
-
-AuthList contains a list of Auth
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `AuthList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[Auth](#auth) array_ |  |  |  |
 
 
 #### AuthSpec
@@ -3358,8 +2703,7 @@ GatewayConfig is the Schema for the gatewayconfigs API
 
 
 
-_Appears in:_
-- [GatewayConfigList](#gatewayconfiglist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -3370,26 +2714,6 @@ _Appears in:_
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[GatewayConfigSpec](#gatewayconfigspec)_ |  |  |  |
 | `status` _[GatewayConfigStatus](#gatewayconfigstatus)_ |  |  |  |
-
-
-#### GatewayConfigList
-
-
-
-GatewayConfigList contains a list of GatewayConfig
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `GatewayConfigList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[GatewayConfig](#gatewayconfig) array_ |  |  |  |
 
 
 #### GatewayConfigSpec
@@ -3493,8 +2817,7 @@ Monitoring is the Schema for the monitorings API
 
 
 
-_Appears in:_
-- [MonitoringList](#monitoringlist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -3526,26 +2849,6 @@ _Appears in:_
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
 | `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
-
-
-#### MonitoringList
-
-
-
-MonitoringList contains a list of Monitoring
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `MonitoringList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[Monitoring](#monitoring) array_ |  |  |  |
 
 
 #### MonitoringSpec
@@ -3613,8 +2916,7 @@ ServiceMesh is the Schema for the servicemesh API
 
 
 
-_Appears in:_
-- [ServiceMeshList](#servicemeshlist)
+
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -3660,26 +2962,6 @@ _Appears in:_
 | `name` _string_ | Name is a name Service Mesh Control Plane. Defaults to "data-science-smcp". | data-science-smcp |  |
 | `namespace` _string_ | Namespace is a namespace where Service Mesh is deployed. Defaults to "istio-system". | istio-system | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metricsCollection` _string_ | MetricsCollection specifies if metrics from components on the Mesh namespace<br />should be collected. Setting the value to "Istio" will collect metrics from the<br />control plane and any proxies on the Mesh namespace (like gateway pods). Setting<br />to "None" will disable metrics collection. | Istio | Enum: [Istio None] <br /> |
-
-
-#### ServiceMeshList
-
-
-
-ServiceMeshList contains a list of ServiceMesh
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `services.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `ServiceMeshList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `items` _[ServiceMesh](#servicemesh) array_ |  |  |  |
 
 
 #### ServiceMeshSpec

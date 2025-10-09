@@ -46,7 +46,6 @@ type Components struct {
 
 	// Kserve component configuration.
 	// Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
-	// Does not support enabled ModelMeshServing at the same time
 	Kserve componentApi.DSCKserve `json:"kserve,omitempty"`
 
 	// Kueue component configuration.

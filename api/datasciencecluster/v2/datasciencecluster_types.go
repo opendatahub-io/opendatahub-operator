@@ -36,24 +36,16 @@ type Components struct {
 	// Workbenches component configuration.
 	Workbenches componentApi.DSCWorkbenches `json:"workbenches,omitempty"`
 
-	// ModelMeshServing component configuration.
-	ModelMeshServing componentApi.DSCModelMeshServing `json:"modelmeshserving,omitempty"`
-
 	// DataSciencePipeline component configuration.
 	// Requires OpenShift Pipelines Operator to be installed before enable component
 	DataSciencePipelines componentApi.DSCDataSciencePipelines `json:"datasciencepipelines,omitempty"`
 
 	// Kserve component configuration.
 	// Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
-	// Does not support enabled ModelMeshServing at the same time
 	Kserve componentApi.DSCKserve `json:"kserve,omitempty"`
 
 	// Kueue component configuration.
 	Kueue componentApi.DSCKueue `json:"kueue,omitempty"`
-
-	// CodeFlare component configuration.
-	// If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component.
-	CodeFlare componentApi.DSCCodeFlare `json:"codeflare,omitempty"`
 
 	// Ray component configuration.
 	Ray componentApi.DSCRay `json:"ray,omitempty"`
@@ -82,9 +74,6 @@ type ComponentsStatus struct {
 	// Workbenches component status.
 	Workbenches componentApi.DSCWorkbenchesStatus `json:"workbenches,omitempty"`
 
-	// ModelMeshServing component status.
-	ModelMeshServing componentApi.DSCModelMeshServingStatus `json:"modelmeshserving,omitempty"`
-
 	// DataSciencePipeline component status.
 	DataSciencePipelines componentApi.DSCDataSciencePipelinesStatus `json:"datasciencepipelines,omitempty"`
 
@@ -93,9 +82,6 @@ type ComponentsStatus struct {
 
 	// Kueue component status.
 	Kueue componentApi.DSCKueueStatus `json:"kueue,omitempty"`
-
-	// CodeFlare component status.
-	CodeFlare componentApi.DSCCodeFlareStatus `json:"codeflare,omitempty"`
 
 	// Ray component status.
 	Ray componentApi.DSCRayStatus `json:"ray,omitempty"`
