@@ -34,6 +34,7 @@ const (
 	InstrumentationTemplate                 = "resources/instrumentation.tmpl.yaml"
 	ThanosQuerierTemplate                   = "resources/thanos-querier-cr.tmpl.yaml"
 	ThanosQuerierRouteTemplate              = "resources/thanos-querier-route.tmpl.yaml"
+	PersesTemplate                   = "resources/perses.tmpl.yaml"
 )
 
 // CRDRequirement defines a required CRD and its associated condition for monitoring components.
@@ -410,6 +411,36 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 	if len(addErrors) > 0 || len(cleanupErrors) > 0 {
 		return errors.New("errors occurred while adding or cleaning up prometheus rules for components")
 	}
+
+	return nil
+}
+
+func deployPerses(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	_, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	persesExists, err := cluster.HasCRD(ctx, rr.Client, gvk.Perses)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD Perses exists: %w", err)
+	}
+	if !persesExists {
+		setConditionFalse(rr, status.ConditionPersesAvailable,
+			gvk.Perses.Kind+"CRDNotFoundReason",
+			fmt.Sprintf("%s CRD Not Found", gvk.Perses.Kind))
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesAvailable)
+
+	template := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesTemplate,
+		},
+	}
+	rr.Templates = append(rr.Templates, template...)
 
 	return nil
 }
