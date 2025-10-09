@@ -239,6 +239,44 @@ func WithLlmInferenceService() CRDSetupOption {
 	}
 }
 
+// WithDashboardAcceleratorProfile enables AcceleratorProfile CRD registration in the test environment.
+func WithDashboardAcceleratorProfile() CRDSetupOption {
+	return func(ctx context.Context, t *testing.T, env *envt.EnvT) error {
+		t.Helper()
+
+		// Register AcceleratorProfile types
+		env.Scheme().AddKnownTypeWithName(gvk.DashboardAcceleratorProfile, &unstructured.Unstructured{})
+		env.Scheme().AddKnownTypeWithName(gvk.DashboardAcceleratorProfile.GroupVersion().WithKind("AcceleratorProfileList"), &unstructured.UnstructuredList{})
+
+		// Create AcceleratorProfile CRD
+		crd := MockAcceleratorProfileCRD()
+		if err := createAndWaitForCRD(ctx, env, crd); err != nil {
+			return fmt.Errorf("failed to create and wait for AcceleratorProfile CRD: %w", err)
+		}
+
+		return nil
+	}
+}
+
+// WithDashboardHardwareProfile enables Dashboard HardwareProfile CRD registration in the test environment.
+func WithDashboardHardwareProfile() CRDSetupOption {
+	return func(ctx context.Context, t *testing.T, env *envt.EnvT) error {
+		t.Helper()
+
+		// Register Dashboard HardwareProfile types
+		env.Scheme().AddKnownTypeWithName(gvk.DashboardHardwareProfile, &unstructured.Unstructured{})
+		env.Scheme().AddKnownTypeWithName(gvk.DashboardHardwareProfile.GroupVersion().WithKind("HardwareProfileList"), &unstructured.UnstructuredList{})
+
+		// Create Dashboard HardwareProfile CRD
+		crd := MockDashboardHardwareProfileCRD()
+		if err := createAndWaitForCRD(ctx, env, crd); err != nil {
+			return fmt.Errorf("failed to create and wait for Dashboard HardwareProfile CRD: %w", err)
+		}
+
+		return nil
+	}
+}
+
 // =============================================================================
 // Object Creation Functions
 // =============================================================================
@@ -920,6 +958,68 @@ func MockLlmInferenceServiceCRD() *apiextensionsv1.CustomResourceDefinition {
 					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 						Type: "object",
 						// This allows any structure
+						XPreserveUnknownFields: &preserveUnknownFields,
+					},
+				},
+			}},
+		},
+	}
+}
+
+// MockAcceleratorProfileCRD creates a mock AcceleratorProfile CRD for testing.
+func MockAcceleratorProfileCRD() *apiextensionsv1.CustomResourceDefinition {
+	preserveUnknownFields := true
+
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "acceleratorprofiles.dashboard.opendatahub.io",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: gvk.DashboardAcceleratorProfile.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Plural:   "acceleratorprofiles",
+				Singular: "acceleratorprofile",
+				Kind:     gvk.DashboardAcceleratorProfile.Kind,
+			},
+			Scope: "Namespaced",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    "v1",
+				Served:  true,
+				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+						Type:                   "object",
+						XPreserveUnknownFields: &preserveUnknownFields,
+					},
+				},
+			}},
+		},
+	}
+}
+
+// MockDashboardHardwareProfileCRD creates a mock Dashboard HardwareProfile CRD for testing.
+func MockDashboardHardwareProfileCRD() *apiextensionsv1.CustomResourceDefinition {
+	preserveUnknownFields := true
+
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hardwareprofiles.dashboard.opendatahub.io",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: gvk.DashboardHardwareProfile.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Plural:   "hardwareprofiles",
+				Singular: "hardwareprofile",
+				Kind:     gvk.DashboardHardwareProfile.Kind,
+			},
+			Scope: "Namespaced",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    "v1alpha1",
+				Served:  true,
+				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+						Type:                   "object",
 						XPreserveUnknownFields: &preserveUnknownFields,
 					},
 				},

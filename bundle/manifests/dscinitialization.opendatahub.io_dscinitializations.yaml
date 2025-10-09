@@ -11,8 +11,8 @@ spec:
     webhook:
       clientConfig:
         service:
-          name: opendatahub-operator-webhook-service
-          namespace: opendatahub-operator-system
+          name: rhods-operator-webhook-service
+          namespace: redhat-ods-operator
           path: /convert
       conversionReviewVersions:
       - v1
@@ -736,7 +736,7 @@ spec:
                       rule: '!(self.storage == null && self.resources == null) ||
                         !has(self.replicas) || self.replicas == 0'
                   namespace:
-                    default: opendatahub
+                    default: redhat-ods-monitoring
                     description: |-
                       monitoring spec exposed to DSCI api
                       Namespace for monitoring if it is enabled
