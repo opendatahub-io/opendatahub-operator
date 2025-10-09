@@ -27,7 +27,7 @@ spec:
       }
     }
     kueue:
-      managementState: "Managed"
+      managementState: "Removed"
     trainingoperator:
       managementState: "Managed"
     ray:

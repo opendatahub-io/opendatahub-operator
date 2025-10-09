@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/types"
-
 	"gotest.tools/gotestsum/testjson"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/types"
 )
 
 type ParseConfig struct {

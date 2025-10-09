@@ -90,13 +90,15 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	operators := []struct {
 		nn                types.NamespacedName
 		skipOperatorGroup bool
+		channel           string
 	}{
-		{nn: types.NamespacedName{Name: serviceMeshOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
-		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: serverlessOperatorNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
-		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, channel: certManagerOpChannel},
+		{nn: types.NamespacedName{Name: serviceMeshOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: serverlessOperatorNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
 	}
 
 	// Create and run test cases in parallel.
@@ -106,7 +108,7 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
 			testFn: func(t *testing.T) {
 				t.Helper()
-				tc.EnsureOperatorInstalled(op.nn, op.skipOperatorGroup)
+				tc.EnsureOperatorInstalledWithChannel(op.nn, op.skipOperatorGroup, op.channel)
 			},
 		}
 	}

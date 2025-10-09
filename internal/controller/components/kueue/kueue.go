@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	ErrKueueOperatorAlreadyInstalled = odherrors.NewStopError(status.KueueOperatorAlreadyInstalledMessage)
+	ErrKueueStateManagedNotSupported = odherrors.NewStopError(status.KueueStateManagedNotSupportedMessage)
 	ErrKueueOperatorNotInstalled     = odherrors.NewStopError(status.KueueOperatorNotInstalledMessage)
 )
 
