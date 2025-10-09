@@ -1836,9 +1836,6 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  relatedImages:
-  - image: quay.io/jtanner/kube-auth-proxy:latest@sha256:434580fd42d73727d62566ff6d8336219a31b322798b48096ed167daaec42f07
-    name: kube-auth-proxy-image
   version: 3.0.0
   webhookdefinitions:
   - admissionReviewVersions:
