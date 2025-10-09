@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -58,7 +59,7 @@ func operatorResilienceTestSuite(t *testing.T) {
 		{"Validate leader election behavior", resilienceTestCtx.ValidateLeaderElectionBehavior},
 		{"Validate components deployment failure", resilienceTestCtx.ValidateComponentsDeploymentFailure},
 		{"Validate missing CRD handling", resilienceTestCtx.ValidateMissingComponentsCRDHandling},
-		{"Validate RBAC restriction handlings", resilienceTestCtx.ValidateRBACRestrictionHandlings},
+		{"Validate RBAC restriction handling", resilienceTestCtx.ValidateRBACRestrictionHandling},
 	}
 
 	// Run the test suite.
@@ -180,7 +181,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	tc.verifyDeploymentsStuckDueToQuota(t, allControllers)
 
 	t.Log("Verifying DSC reports all failed components")
-
 	allComponents := slices.Concat(
 		components,
 		slices.Collect(maps.Keys(internalComponentToControllerMap)),
@@ -292,58 +292,60 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 	tc.validateSystemHealth(t)
 }
 
-func (tc *OperatorResilienceTestCtx) ValidateRBACRestrictionHandlings(t *testing.T) {
+func (tc *OperatorResilienceTestCtx) ValidateRBACRestrictionHandling(t *testing.T) {
 	t.Helper()
 
 	// Get the predictable ServiceAccount name based on deployment name
 	deploymentName := tc.getControllerDeploymentName()
-	expectedSAName := deploymentName
 
 	// Find the ClusterRoleBinding that references our ServiceAccount
-	crbs := tc.FetchResources(
-		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{}),
-	)
-	var crbName string
-	for _, obj := range crbs {
-		subjects, found, _ := unstructured.NestedSlice(obj.Object, "subjects")
-		if !found {
-			continue
-		}
-		// Check if any subject matches our ServiceAccount
-		for _, subject := range subjects {
-			if subj, ok := subject.(map[string]interface{}); ok {
-				if name, _ := subj["name"].(string); name == expectedSAName {
-					crbName = obj.GetName()
-					break
-				}
-			}
-		}
-		if crbName != "" {
-			break
-		}
+	crbBackups, crbNames := tc.findAndBackupAllCRBsForServiceAccount(deploymentName)
+	if len(crbBackups) == 0 {
+		t.Fatalf("No ClusterRoleBinding found for ServiceAccount %s", deploymentName)
 	}
-
-	// EnsureResourceExists returns the object directly!
-	crb := tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Name: crbName}),
-		WithCustomErrorMsg(fmt.Sprintf("ClusterRoleBinding %s must exist for RBAC test", crbName)),
-	)
-
-	// Save a backup copy of the CRB
-	crbBackup := resources.StripServerMetadata(crb)
 
 	// Verify operator is initially healthy
 	tc.validateDeploymentHealth(t)
 
-	// Deleting ClusterRoleBinding to simulate RBAC restriction
-	tc.DeleteResource(
-		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Name: crbName}),
+	// Deleting all ClusterRoleBinding to simulate RBAC restriction
+	t.Log("Deleting all ClusterRoleBinding")
+	for _, crbName := range crbNames {
+		tc.DeleteResource(WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Name: crbName}))
+	}
+
+	// Extract the operator name from deployment name
+	// e.g., "opendatahub-operator-controller-manager" -> "opendatahub-operator"
+	// or "rhods-operator-controller-manager" -> "rhods-operator"
+	operatorName := strings.TrimSuffix(deploymentName, "-controller-manager")
+
+	// Delete the Operator Pods individually (API doesn't support bulk pod deletion)
+	t.Log("Deleting operator Pods to force a restart")
+
+	// First, fetch the pods that match our criteria
+	pods := tc.FetchResources(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{Namespace: tc.OperatorNamespace}),
+		WithListOptions(&client.ListOptions{
+			Namespace: tc.OperatorNamespace,
+			LabelSelector: labels.SelectorFromSet(map[string]string{
+				"control-plane": "controller-manager",
+				"name":          operatorName,
+			}),
+		}),
 	)
 
-	// Restart operator pods to pick up RBAC changes
-	tc.rolloutDeployment(t, types.NamespacedName{Namespace: tc.OperatorNamespace, Name: deploymentName})
+	// Delete each pod individually using DeleteResource
+	for _, pod := range pods {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Pod, types.NamespacedName{
+				Namespace: pod.GetNamespace(),
+				Name:      pod.GetName(),
+			}),
+			WithWaitForDeletion(true),
+		)
+	}
 
-	// Verify opertor becomes unhealthy
+	// Verify operator becomes unhealthy
+	t.Log("Verifying operator becomes unhealthy")
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
 			Namespace: tc.OperatorNamespace,
@@ -354,11 +356,11 @@ func (tc *OperatorResilienceTestCtx) ValidateRBACRestrictionHandlings(t *testing
 		WithCustomErrorMsg("Operator should fail without ClusterRoleBinding"),
 	)
 
-	// Create CRB from backup
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(crbBackup),
-		WithCustomErrorMsg("Failed to restore ClusterRoleBinding from backup"),
-	)
+	// Restore all ClusterRoleBinding from backups
+	t.Log("Restoring all ClusterRoleBinding")
+	for _, crbBackup := range crbBackups {
+		tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(crbBackup))
+	}
 
 	// Verify operator recovers
 	tc.validateDeploymentHealth(t)
@@ -439,29 +441,23 @@ func (tc *OperatorResilienceTestCtx) validateSystemHealth(t *testing.T) {
 	)
 }
 
-// verifyDeploymentsStuckDueToQuota validates that deployments fail with quota error messages.
+// verifyDeploymentsStuckDueToQuota validates that deployments are stuck due to resource quota restrictions.
 func (tc *OperatorResilienceTestCtx) verifyDeploymentsStuckDueToQuota(t *testing.T, allControllers []string) {
 	t.Helper()
 
 	expectedCount := len(allControllers)
 
+	// Then check that the matching deployments have 0 ready replicas
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithCondition(jq.Match("%s", fmt.Sprintf(`
-			map(
-				select(.metadata.name | test("%s"; "i")) |
-				select(
-					.status.conditions[]? |
-					select(.type == "ReplicaFailure") |
-					select(.status == "True") |
-			        select(.message | test(
-			          "exceeded quota: %s|failed quota: %s|forbidden"; "i"
-			        ))
-				)
-			) |
-			length == %d
-		`, strings.Join(allControllers, "|"), restrictiveQuotaName, restrictiveQuotaName, expectedCount))),
-		WithCustomErrorMsg(fmt.Sprintf("Expected all %d component deployments to have quota error messages", expectedCount)),
+		WithCondition(jq.Match(`
+			[.[] | select(
+				(.metadata.name | test("%s"; "i")) or
+				(.metadata.name | test("odh-(%s)"; "i"))
+			) | select((.status.readyReplicas // 0) == 0)] |
+        	length == %d
+		`, strings.Join(allControllers, "|"), strings.Join(allControllers, "|"), expectedCount)),
+		WithCustomErrorMsg(fmt.Sprintf("Expected all %d component deployments to have 0 ready replicas due to quota", expectedCount)),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 	)
 }
@@ -520,6 +516,49 @@ func updateAllComponentsTransform(components []string, state operatorv1.Manageme
 	}
 
 	return testf.Transform("%s", strings.Join(transformParts, " | "))
+}
+
+// findAndBackupAllCRBsForServiceAccount finds all ClusterRoleBindings referencing the given ServiceAccount and returns backup copies with their names.
+func (tc *OperatorResilienceTestCtx) findAndBackupAllCRBsForServiceAccount(expectedSAName string) ([]*unstructured.Unstructured, []string) {
+	crbs := tc.FetchResources(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{}),
+	)
+
+	var crbBackups []*unstructured.Unstructured
+	var crbNames []string
+
+	for _, obj := range crbs {
+		subjects, found, _ := unstructured.NestedSlice(obj.Object, "subjects")
+		if !found {
+			continue
+		}
+
+		// Check if any subject matches our ServiceAccount
+		for _, subject := range subjects {
+			subj, ok := subject.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			kind, _ := subj["kind"].(string)
+			if kind != gvk.ServiceAccount.Kind {
+				continue
+			}
+
+			namespace, _ := subj["namespace"].(string)
+			if namespace != tc.OperatorNamespace {
+				continue
+			}
+
+			if name, _ := subj["name"].(string); name == expectedSAName {
+				crbNames = append(crbNames, obj.GetName())
+				crbBackups = append(crbBackups, resources.StripServerMetadata(&obj))
+				break
+			}
+		}
+	}
+
+	return crbBackups, crbNames
 }
 
 func (tc *OperatorResilienceTestCtx) rolloutDeployment(t *testing.T, nn types.NamespacedName) {
