@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -43,6 +44,22 @@ const (
 )
 
 var componentIDRE = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z0-9][A-Za-z0-9_-]*)?$`)
+
+// getPersesImage returns the Perses image from environment variable.
+// For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
+// For ODH deployments, this comes from config/manager/manager.yaml.
+// Falls back to a default image for local development/testing only.
+//
+// Note: This image version must stay compatible with the Cluster Observability Operator (COO) version
+// that we depend on. When upgrading COO, verify Perses image compatibility and update accordingly.
+// The current image is compatible with COO 1.2.2.
+func getPersesImage() string {
+	if image := os.Getenv("RELATED_IMAGE_PERSES"); image != "" {
+		return image
+	}
+
+	return "registry.redhat.io/cluster-observability-operator/perses-0-50-rhel9:1.2.2-1752686994"
+}
 
 // isLocalServiceEndpoint checks if an endpoint URL is for a local/in-cluster service.
 // Returns true for localhost, loopback IPs, cluster-local services, and single-label service names.
@@ -236,6 +253,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"ApplicationNamespace": appNamespace,
 		"MetricsExporters":     make(map[string]string),
 		"MetricsExporterNames": []string{},
+		"PersesImage":          getPersesImage(),
 	}
 
 	// Add metrics-related data if metrics are configured
