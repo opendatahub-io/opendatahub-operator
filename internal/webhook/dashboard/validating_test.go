@@ -132,41 +132,6 @@ func TestValidator_Unit(t *testing.T) {
 	}
 }
 
-// bypassHandler wraps a handler and allows bypassing validation based on a custom function.
-type bypassHandler struct {
-	delegate   admission.Handler
-	bypassFunc func(req admission.Request) bool
-}
-
-func (h *bypassHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	if h.bypassFunc != nil && h.bypassFunc(req) {
-		return admission.Allowed("Bypass allowed for test resource")
-	}
-	return h.delegate.Handle(ctx, req)
-}
-
-// registerWebhookWithBypass registers a webhook with a bypass function for testing.
-func registerWebhookWithBypass(
-	mgr ctrl.Manager,
-	validator *deprecation.TypeValidator,
-	bypassFunc func(req admission.Request) bool,
-) error {
-	handler := &bypassHandler{
-		delegate:   validator,
-		bypassFunc: bypassFunc,
-	}
-
-	mgr.GetWebhookServer().Register(
-		validator.WebhookPath,
-		&webhook.Admission{
-			Handler:        handler,
-			LogConstructor: webhookutils.NewWebhookLogConstructor(validator.Name),
-		},
-	)
-
-	return nil
-}
-
 func TestValidator_Integration(t *testing.T) {
 	g := NewWithT(t)
 
@@ -178,7 +143,7 @@ func TestValidator_Integration(t *testing.T) {
 					return req.Operation == admissionv1.Create && strings.HasPrefix(req.Name, "test-bypass")
 				}
 
-				if err := registerWebhookWithBypass(
+				if err := registerWebhookTypeValidatorWithBypass(
 					mgr,
 					dashboard.NewAcceleratorProfileWebhook(mgr.GetScheme()),
 					bypassFunc,
@@ -186,7 +151,7 @@ func TestValidator_Integration(t *testing.T) {
 					return err
 				}
 
-				if err := registerWebhookWithBypass(
+				if err := registerWebhookTypeValidatorWithBypass(
 					mgr,
 					dashboard.NewHardwareProfileWebhook(mgr.GetScheme()),
 					bypassFunc,
@@ -197,6 +162,7 @@ func TestValidator_Integration(t *testing.T) {
 				return nil
 			},
 		},
+		[]envt.RegisterControllersFn{},
 		30*time.Second,
 		envtestutil.WithDashboardHardwareProfile(),
 		envtestutil.WithDashboardAcceleratorProfile(),
@@ -274,4 +240,26 @@ func TestValidator_Integration(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 		})
 	}
+}
+
+// registerWebhookTypeValidatorWithBypass registers a webhook with a bypass function for testing.
+func registerWebhookTypeValidatorWithBypass(
+	mgr ctrl.Manager,
+	validator *deprecation.TypeValidator,
+	bypassFunc func(req admission.Request) bool,
+) error {
+	handler := &envt.BypassHandler{
+		Delegate:   validator,
+		BypassFunc: bypassFunc,
+	}
+
+	mgr.GetWebhookServer().Register(
+		validator.WebhookPath,
+		&webhook.Admission{
+			Handler:        handler,
+			LogConstructor: webhookutils.NewWebhookLogConstructor(validator.Name),
+		},
+	)
+
+	return nil
 }
