@@ -19,9 +19,6 @@ metadata:
           },
           "spec": {
             "components": {
-              "codeflare": {
-                "managementState": "Managed"
-              },
               "dashboard": {
                 "managementState": "Managed"
               },
@@ -89,9 +86,6 @@ metadata:
           },
           "spec": {
             "components": {
-              "codeflare": {
-                "managementState": "Managed"
-              },
               "dashboard": {
                 "managementState": "Managed"
               },
@@ -217,7 +211,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-10-08T12:59:41Z"
+    createdAt: "2025-10-09T08:00:07Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -232,7 +226,7 @@ metadata:
     olm.skipRange: '>=1.0.0 <2.0.0'
     operatorframework.io/initialization-resource: |-
       {
-        "apiVersion": "datasciencecluster.opendatahub.io/v1",
+        "apiVersion": "datasciencecluster.opendatahub.io/v2",
         "kind": "DataScienceCluster",
         "metadata": {
           "name": "default-dsc",
@@ -246,9 +240,6 @@ metadata:
         },
         "spec": {
           "components": {
-            "codeflare": {
-              "managementState": "Managed"
-            },
             "dashboard": {
               "managementState": "Managed"
             },
@@ -303,13 +294,13 @@ metadata:
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: |-
       ["featuretrackers.features.opendatahub.io",
-      "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
-      "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
-      "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
-      "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
-      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",  "workbenches.components.platform.opendatahub.io",
-      "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
-      "llamastackoperators.components.platform.opendatahub.io"]
+      "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
+      "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
+      "modelmeshservings.components.platform.opendatahub.io", "modelregistries.components.platform.opendatahub.io",
+      "rays.components.platform.opendatahub.io", "trainingoperators.components.platform.opendatahub.io",
+      "trustyais.components.platform.opendatahub.io", "workbenches.components.platform.opendatahub.io",
+      "monitorings.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
+      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
@@ -323,11 +314,6 @@ spec:
       displayName: Auth
       kind: Auth
       name: auths.services.platform.opendatahub.io
-      version: v1alpha1
-    - description: CodeFlare is the Schema for the codeflares API
-      displayName: Code Flare
-      kind: CodeFlare
-      name: codeflares.components.platform.opendatahub.io
       version: v1alpha1
     - description: Dashboard is the Schema for the dashboards API
       displayName: Dashboard
@@ -456,7 +442,7 @@ spec:
     * Model Serving using ModelMesh and Kserve.
     * Ability to use other runtimes for serving
     * Model Monitoring
-    * Distributed workloads (KubeRay, CodeFlare, Kueue, Training Operator)
+    * Distributed workloads (KubeRay, Kueue, Training Operator)
     * XAI explanations of predictive models (TrustyAI)
     * Index and manage models, versions, and artifacts metadata (Model Registry)
     * Feast - Feature Store is the fastest path to manage existing infrastructure to productionize analytic data for model training and online inference.
@@ -724,24 +710,6 @@ spec:
         - apiGroups:
           - components.platform.opendatahub.io
           resources:
-          - codeflares/finalizers
-          - datasciencepipelines/finalizers
-          - feastoperators/finalizers
-          - kserves/finalizers
-          - kueues/finalizers
-          - llamastackoperators/finalizers
-          - modelcontrollers/finalizers
-          - modelmeshservings/finalizers
-          - modelregistries/finalizers
-          - rays/finalizers
-          - trainingoperators/finalizers
-          - trustyais/finalizers
-          - workbenches/finalizers
-          verbs:
-          - update
-        - apiGroups:
-          - components.platform.opendatahub.io
-          resources:
           - codeflares/status
           verbs:
           - get
@@ -800,6 +768,23 @@ spec:
           verbs:
           - get
           - patch
+          - update
+        - apiGroups:
+          - components.platform.opendatahub.io
+          resources:
+          - datasciencepipelines/finalizers
+          - feastoperators/finalizers
+          - kserves/finalizers
+          - kueues/finalizers
+          - llamastackoperators/finalizers
+          - modelcontrollers/finalizers
+          - modelmeshservings/finalizers
+          - modelregistries/finalizers
+          - rays/finalizers
+          - trainingoperators/finalizers
+          - trustyais/finalizers
+          - workbenches/finalizers
+          verbs:
           - update
         - apiGroups:
           - config.openshift.io

@@ -22,7 +22,7 @@ metadata:
     olm.skipRange: '>=1.0.0 <2.0.0'
     operatorframework.io/initialization-resource: |-
       {
-        "apiVersion": "datasciencecluster.opendatahub.io/v1",
+        "apiVersion": "datasciencecluster.opendatahub.io/v2",
         "kind": "DataScienceCluster",
         "metadata": {
           "name": "default-dsc",
@@ -36,9 +36,6 @@ metadata:
         },
         "spec": {
           "components": {
-            "codeflare": {
-              "managementState": "Managed"
-            },
             "dashboard": {
               "managementState": "Managed"
             },
@@ -92,13 +89,13 @@ metadata:
     operators.openshift.io/infrastructure-features: '["disconnected"]'
     operators.operatorframework.io/internal-objects: |-
       ["featuretrackers.features.opendatahub.io",
-      "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
-      "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
-      "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
-      "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
-      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",  "workbenches.components.platform.opendatahub.io",
-      "monitorings.services.platform.opendatahub.io","modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
-      "llamastackoperators.components.platform.opendatahub.io"]
+      "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
+      "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
+      "modelmeshservings.components.platform.opendatahub.io", "modelregistries.components.platform.opendatahub.io",
+      "rays.components.platform.opendatahub.io", "trainingoperators.components.platform.opendatahub.io",
+      "trustyais.components.platform.opendatahub.io", "workbenches.components.platform.opendatahub.io",
+      "monitorings.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
+      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
@@ -112,15 +109,15 @@ spec:
       kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
       version: v1alpha1
-    - description: Auth is the Schema for the auths API
-      displayName: Auth
-      kind: Auth
-      name: auths.services.platform.opendatahub.io
-      version: v1alpha1
     - description: CodeFlare is the Schema for the codeflares API
       displayName: Code Flare
       kind: CodeFlare
       name: codeflares.components.platform.opendatahub.io
+      version: v1alpha1
+    - description: Auth is the Schema for the auths API
+      displayName: Auth
+      kind: Auth
+      name: auths.services.platform.opendatahub.io
       version: v1alpha1
     - description: Dashboard is the Schema for the dashboards API
       displayName: Dashboard
