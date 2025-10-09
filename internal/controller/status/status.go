@@ -88,6 +88,7 @@ const (
 	ConditionInstrumentationAvailable        = "InstrumentationAvailable"
 	ConditionAlertingAvailable               = "AlertingAvailable"
 	ConditionThanosQuerierAvailable          = "ThanosQuerierAvailable"
+	ConditionPersesAvailable                 = "PersesAvailable"
 )
 
 const (
