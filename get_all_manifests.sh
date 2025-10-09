@@ -3,6 +3,34 @@ set -e
 
 GITHUB_URL="https://github.com"
 
+if [ "${ODH_PLATFORM_TYPE:-OpenDataHub}" = "OpenDataHub" ]; then
+    GITHUB_ORG=opendatahub-io
+    DEFAULT_REF=main
+    KSERVE_REF=release-v0.15
+    KUEUE_REF=dev
+    RAY_REF=dev
+    TRUSTYAI_REF=incubation
+    TRAINING_REF=dev
+    MODELCONTROLLER_REF=incubating
+    FEAST_REF=stable
+    LLAMASTACK_REF=odh
+
+    echo "Cloning manifests for ODH"
+else
+    GITHUB_ORG=red-hat-data-services
+    DEFAULT_REF="rhoai-$(echo $VERSION | sed 's/\([0-9]\+\).\([0-9]\+\).*/\1.\2/')"
+    KSERVE_REF=$DEFAULT_REF
+    KUEUE_REF=$DEFAULT_REF
+    RAY_REF=$DEFAULT_REF
+    TRUSTYAI_REF=$DEFAULT_REF
+    TRAINING_REF=$DEFAULT_REF
+    MODELCONTROLLER_REF=$DEFAULT_REF
+    FEAST_REF=$DEFAULT_REF
+    LLAMASTACK_REF=$DEFAULT_REF
+
+    echo "Cloning manifests for RHOAI using ref $DEFAULT_REF"
+fi
+
 # COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
 # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
 # ref-name can be a branch name, tag name, or a commit SHA (7-40 hex characters)
@@ -11,20 +39,20 @@ GITHUB_URL="https://github.com"
 # 2. "tag" - immutable reference (e.g., v1.0.0)
 # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
 declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@e01705acdf73e34da2f511c2fa8d339562e55e33:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@4e2488eef2f96cc496c6a5a8479ad67c7185ef08:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@4e2488eef2f96cc496c6a5a8479ad67c7185ef08:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@350ef046998aea5a38bf542720741d74566fcf19:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15@4c0d059f091784c1b709cfe1a43cb3ac49f88839:config"
-    ["kueue"]="opendatahub-io:kueue:dev@c7e5105e597d92831decdd9e972dc9fdf940edf3:config"
-    ["ray"]="opendatahub-io:kuberay:dev@d751b14faddf13b141d0d26f6ced640ec23030b3:ray-operator/config"
-    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@7f21761643ea756480f0a43f55ff8817458559a4:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main@d8fe80cda405061282b091a00730f35a78ef63e4:config"
-    ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
-    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@1aec8b555de9213ffb6db52ff5ec8ad84d5cf23a:config"
-    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@2f8a0b02041227758471a5f1ab8f677390a3ddd2:config"
-    ["feastoperator"]="opendatahub-io:feast:stable@e11d2d585f0aebfa7ddedcd845382a3dbdb5ec61:infra/feast-operator/config"
-    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@c99ed0472cfd4e709e8722dcc38e0a52f0e37141:config"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main:manifests"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.15:config"
+    ["kueue"]="opendatahub-io:kueue:dev:config"
+    ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config"
+    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation:config"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main:config"
+    ["trainingoperator"]="opendatahub-io:training-operator:dev:manifests"
+    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main:config"
+    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating:config"
+    ["feastoperator"]="opendatahub-io:feast:stable:infra/feast-operator/config"
+    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh:config"
 )
 
 # PLATFORM_MANIFESTS is a list of manifests that are contained in the operator repository. Please also add them to the

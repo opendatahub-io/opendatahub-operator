@@ -4,8 +4,10 @@ on:
     # action steps require 'run-integration-tests' label to be present, otherwise it's skipped
     types: [ synchronize, reopened ]
     paths:
-      - 'bundle/**'
-      - 'config/**'
+      - 'odh-bundle/**'
+      - 'rhoai-bundle/**'
+      - 'odh-config/**'
+      - 'rhoai-config/**'
       - 'Dockerfiles/**'
       - 'internal/**'
       - 'pkg/**'
