@@ -54,9 +54,6 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 		TestContext: tc,
 	}
 
-	// Create a mock CRD for the removed components, to correctly test upgrades.
-	v2Tov3UpgradeTestCtx.createRemovedComponentCRD(t)
-
 	// Define test cases.
 	testCases := []TestCase{
 		{"codeflare resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateCodeFlareResourcePreservation},
@@ -243,9 +240,8 @@ func (tc *V2Tov3UpgradeTestCtx) DscinitializationV1CreationAndRead(t *testing.T)
 func (tc *V2Tov3UpgradeTestCtx) ValidateComponentResourcePreservation(t *testing.T, componentGVK schema.GroupVersionKind, componentName string) {
 	t.Helper()
 
-	nn := types.NamespacedName{
-		Name: componentName,
-	}
+	// Create the specific CRD needed for this component (if not exists)
+	tc.createCRD(componentGVK, componentName)
 
 	dsc := tc.FetchDataScienceCluster()
 
@@ -254,13 +250,14 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateComponentResourcePreservation(t *testing
 	tc.triggerDSCReconciliation(t)
 
 	// Verify component still exists after reconciliation (was not removed)
-	tc.EnsureResourceExistsConsistently(WithMinimalObject(gvk.CodeFlare, nn),
-		WithCustomErrorMsg("CodeFlare component resource '%s' was expected to exist but was not found", defaultCodeFlareComponentName),
+	tc.EnsureResourceExistsConsistently(
+		WithMinimalObject(componentGVK, types.NamespacedName{Name: componentName}),
+		WithCustomErrorMsg("%s component resource '%s' was expected to exist but was not found", componentGVK.Kind, componentName),
 	)
 
 	// Cleanup
 	tc.DeleteResource(
-		WithMinimalObject(componentGVK, nn),
+		WithMinimalObject(componentGVK, types.NamespacedName{Name: componentName}),
 		WithWaitForDeletion(true),
 	)
 }
@@ -354,23 +351,6 @@ func (tc *V2Tov3UpgradeTestCtx) updateComponentStateInDataScienceCluster(t *test
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, strings.ToLower(kind), managementState)),
-	)
-}
-
-func (tc *V2Tov3UpgradeTestCtx) createRemovedComponentCRD(t *testing.T) {
-	t.Helper()
-
-	codeFlareCRD := mocks.NewMockCRD(gvk.CodeFlare.Group, gvk.CodeFlare.Version, gvk.CodeFlare.Kind, gvk.CodeFlare.Kind)
-	modelMeshServingCRD := mocks.NewMockCRD(gvk.ModelMeshServing.Group, gvk.ModelMeshServing.Version, gvk.ModelMeshServing.Kind, gvk.ModelMeshServing.Kind)
-
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(codeFlareCRD),
-		WithCustomErrorMsg("Failed to create removed component CRD"),
-	)
-
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(modelMeshServingCRD),
-		WithCustomErrorMsg("Failed to create ModelMeshServing CRD"),
 	)
 }
 
@@ -688,5 +668,16 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsWithoutKueue(t *testing.T) {
 	tc.DeleteResource(
 		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
 		WithWaitForDeletion(true),
+	)
+}
+
+// createCRD creates a mock CRD for the given component GVK if it doesn't already exist in the cluster.
+func (tc *V2Tov3UpgradeTestCtx) createCRD(componentGVK schema.GroupVersionKind, componentName string) {
+	// Create mock CRD for the component
+	mockCRD := mocks.NewMockCRD(componentGVK.Group, componentGVK.Version, componentGVK.Kind, componentName)
+
+	tc.EventuallyResourceCreated(
+		WithObjectToCreate(mockCRD),
+		WithCustomErrorMsg("Failed to create CRD for %s component", componentGVK.Kind),
 	)
 }
