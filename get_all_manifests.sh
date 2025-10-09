@@ -16,7 +16,6 @@ declare -A COMPONENT_MANIFESTS=(
     ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.0:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.0:manifests"
     ["kserve"]="red-hat-data-services:kserve:rhoai-3.0:config"
-    ["kueue"]="red-hat-data-services:kueue:rhoai-3.0:config"
     ["ray"]="red-hat-data-services:kuberay:rhoai-3.0:ray-operator/config"
     ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.0:config"
     ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.0:config"

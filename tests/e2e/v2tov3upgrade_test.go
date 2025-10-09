@@ -522,8 +522,8 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateDeniesKueueManaged(t *testing.T) {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				Kueue: componentApi.DSCKueue{
-					KueueManagementSpec: componentApi.KueueManagementSpec{
+				Kueue: dscv1.DSCKueueV1{
+					KueueManagementSpecV1: dscv1.KueueManagementSpecV1{
 						ManagementState: operatorv1.Managed,
 					},
 				},
@@ -572,8 +572,8 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateDeniesKueueManagedUpdate(t *testing.T) {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				Kueue: componentApi.DSCKueue{
-					KueueManagementSpec: componentApi.KueueManagementSpec{
+				Kueue: dscv1.DSCKueueV1{
+					KueueManagementSpecV1: dscv1.KueueManagementSpecV1{
 						ManagementState: operatorv1.Removed,
 					},
 				},
@@ -658,8 +658,8 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsKueueUnmanaged(t *testing.T) {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				Kueue: componentApi.DSCKueue{
-					KueueManagementSpec: componentApi.KueueManagementSpec{
+				Kueue: dscv1.DSCKueueV1{
+					KueueManagementSpecV1: dscv1.KueueManagementSpecV1{
 						ManagementState: operatorv1.Unmanaged,
 					},
 				},
@@ -724,8 +724,8 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsKueueRemoved(t *testing.T) {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				Kueue: componentApi.DSCKueue{
-					KueueManagementSpec: componentApi.KueueManagementSpec{
+				Kueue: dscv1.DSCKueueV1{
+					KueueManagementSpecV1: dscv1.KueueManagementSpecV1{
 						ManagementState: operatorv1.Removed,
 					},
 				},

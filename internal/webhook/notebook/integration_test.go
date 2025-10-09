@@ -103,6 +103,7 @@ func TestNotebookWebhook_Integration(t *testing.T) {
 				[]envt.RegisterWebhooksFn{
 					envtestutil.RegisterWebhooks,
 				},
+				[]envt.RegisterControllersFn{},
 				envtestutil.DefaultWebhookTimeout,
 				envtestutil.WithNotebook(),
 			)

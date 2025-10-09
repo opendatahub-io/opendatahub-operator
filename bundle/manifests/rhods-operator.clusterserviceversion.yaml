@@ -32,7 +32,7 @@ metadata:
                 "rawDeploymentServiceConfig": "Headed"
               },
               "kueue": {
-                "managementState": "Managed"
+                "managementState": "Removed"
               },
               "llamastackoperator": {
                 "managementState": "Removed"
@@ -1857,7 +1857,7 @@ spec:
   - admissionReviewVersions:
     - v1
     containerPort: 443
-    deploymentName: rhods-operator
+    deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
     generateName: hardwareprofile-llmisvc-injector.opendatahub.io
     rules:

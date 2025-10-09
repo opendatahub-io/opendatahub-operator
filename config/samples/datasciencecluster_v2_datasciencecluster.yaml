@@ -18,7 +18,7 @@ spec:
       rawDeploymentServiceConfig: "Headed",
     }
     kueue:
-      managementState: "Managed"
+      managementState: "Removed"
     trainingoperator:
       managementState: "Managed"
     ray:
