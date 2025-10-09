@@ -106,7 +106,6 @@ metadata:
                 "nim": {
                   "managementState": "Managed"
                 },
-                "rawDeploymentServiceConfig": "Headed",
                 "serving": {
                   "ingressGateway": {
                     "certificate": {
@@ -116,6 +115,19 @@ metadata:
                   "managementState": "Managed",
                   "name": "knative-serving"
                 }
+              },
+              "kueue": {
+                "managementState": "Managed"
+              },
+              "llamastackoperator": {
+                "managementState": "Removed"
+              },
+              "modelmeshserving": {
+                "managementState": "Managed"
+              },
+              "modelregistry": {
+                "managementState": "Managed",
+                "registriesNamespace": "rhoai-model-registries"
               },
               "ray": {
                 "managementState": "Managed"
@@ -205,7 +217,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-10-01T08:57:33Z"
+    createdAt: "2025-10-08T12:59:41Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -361,7 +373,9 @@ spec:
       kind: GatewayConfig
       name: gatewayconfigs.services.platform.opendatahub.io
       version: v1alpha1
-    - kind: HardwareProfile
+    - description: HardwareProfile is the Schema for the hardwareprofiles API.
+      displayName: Hardware Profile
+      kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
       version: v1
     - description: HardwareProfile is the Schema for the hardwareprofiles API.
@@ -703,6 +717,37 @@ spec:
           - components.platform.opendatahub.io
           resources:
           - codeflares
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - components.platform.opendatahub.io
+          resources:
+          - codeflares/finalizers
+          - datasciencepipelines/finalizers
+          - feastoperators/finalizers
+          - kserves/finalizers
+          - kueues/finalizers
+          - llamastackoperators/finalizers
+          - modelcontrollers/finalizers
+          - modelmeshservings/finalizers
+          - modelregistries/finalizers
+          - rays/finalizers
+          - trainingoperators/finalizers
+          - trustyais/finalizers
+          - workbenches/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - components.platform.opendatahub.io
+          resources:
+          - codeflares/status
+          verbs:
+          - get
+        - apiGroups:
+          - components.platform.opendatahub.io
+          resources:
           - dashboards
           - datasciencepipelines
           - feastoperators
@@ -727,25 +772,18 @@ spec:
         - apiGroups:
           - components.platform.opendatahub.io
           resources:
-          - codeflares/finalizers
-          - datasciencepipelines/finalizers
-          - feastoperators/finalizers
-          - kserves/finalizers
-          - kueues/finalizers
-          - llamastackoperators/finalizers
-          - modelcontrollers/finalizers
-          - modelmeshservings/finalizers
-          - modelregistries/finalizers
-          - rays/finalizers
-          - trainingoperators/finalizers
-          - trustyais/finalizers
-          - workbenches/finalizers
+          - dashboards/finalizers
           verbs:
+          - create
+          - get
+          - list
+          - patch
           - update
+          - use
+          - watch
         - apiGroups:
           - components.platform.opendatahub.io
           resources:
-          - codeflares/status
           - dashboards/status
           - datasciencepipelines/status
           - feastoperators/status
@@ -763,18 +801,6 @@ spec:
           - get
           - patch
           - update
-        - apiGroups:
-          - components.platform.opendatahub.io
-          resources:
-          - dashboards/finalizers
-          verbs:
-          - create
-          - get
-          - list
-          - patch
-          - update
-          - use
-          - watch
         - apiGroups:
           - config.openshift.io
           resources:
@@ -1900,6 +1926,46 @@ spec:
     targetPort: 9443
     type: MutatingAdmissionWebhook
     webhookPath: /platform-connection-notebook
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: rhods-operator
+    failurePolicy: Fail
+    generateName: dashboard-acceleratorprofile-validator.opendatahub.io
+    rules:
+    - apiGroups:
+      - dashboard.opendatahub.io
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - acceleratorprofiles
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-dashboard-acceleratorprofile
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: rhods-operator
+    failurePolicy: Fail
+    generateName: dashboard-hardwareprofile-validator.opendatahub.io
+    rules:
+    - apiGroups:
+      - dashboard.opendatahub.io
+      apiVersions:
+      - v1alpha1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - hardwareprofiles
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-dashboard-hardwareprofile
   - admissionReviewVersions:
     - v1
     containerPort: 443

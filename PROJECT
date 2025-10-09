@@ -182,8 +182,8 @@ resources:
   domain: opendatahub.io
   group: infrastructure
   kind: HardwareProfile
-  path: github.com/opendatahub-io/opendatahub-operator/api/infrastructure/v1alpha1
-  version: v1alpha1
+  path: github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1
+  version: v1
 - api:
     crdVersion: v1alpha1
   controller: true
