@@ -40,6 +40,8 @@ const (
 	defaultMemoryRequest = "256Mi"
 	defaultStorageSize   = "5Gi"
 	defaultRetention     = "90d"
+
+	persesImage = "registry.redhat.io/cluster-observability-operator/perses-0-50-rhel9:1.2.2-1752686994"
 )
 
 var componentIDRE = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z0-9][A-Za-z0-9_-]*)?$`)
@@ -236,6 +238,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"ApplicationNamespace": appNamespace,
 		"MetricsExporters":     make(map[string]string),
 		"MetricsExporterNames": []string{},
+		"PersesImage":          persesImage,
 	}
 
 	// Add metrics-related data if metrics are configured
