@@ -19,10 +19,8 @@ endif
 ifeq ($(IMG_TAG), )
 	IMG_TAG = latest
 endif
-# Set image to REPLACE_IMAGE:latest unless IMAGE_TAG_BASE is provided
-ifeq ($(origin IMAGE_TAG_BASE), file)
-	IMG ?= REPLACE_IMAGE:latest
-else
+# Update IMG to a variable, to keep it consistent across versions for OpenShift CI
+ifeq ($(IMG), )
 	IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
 endif
 # BUNDLE_IMG defines the image:tag used for the bundle.
@@ -263,7 +261,7 @@ prepare: manifests kustomize manager-kustomization
 manager-kustomization: config/manager/kustomization.yaml.in
 	cd config/manager \
 		&& cp -f kustomization.yaml.in kustomization.yaml \
-		&& $(KUSTOMIZE) edit set image REPLACE_IMAGE=$(IMG)
+		&& $(KUSTOMIZE) edit set image controller=$(IMG)
 
 .PHONY: install
 install: prepare ## Install CRDs into the K8s cluster specified in ~/.kube/config.
@@ -341,11 +339,13 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
-	sed -i 's#COPY #COPY --from=builder /workspace/#' bundle.Dockerfile
+	$(SED_COMMAND) -i 's#COPY #COPY --from=builder /workspace/#' bundle.Dockerfile
 	cat Dockerfiles/build-bundle.Dockerfile bundle.Dockerfile > Dockerfiles/bundle.Dockerfile
 	rm bundle.Dockerfile
 	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
 
+# The bundle image is multi-stage to preserve the ability to build without invoking make
+# We use build args to ensure the variables are passed to the underlying internal make invocation
 .PHONY: bundle-build
 bundle-build: bundle
 	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile --platform $(PLATFORM) -t $(BUNDLE_IMG) \

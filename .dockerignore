@@ -2,6 +2,8 @@
 # Add .dockerignore improvements
 **/.git
 **/coverage
+# below commented out; surprisingly some tests packages are actually needing during bundle build
+# tests
 **/*.md
 **/docs
 **/bin
