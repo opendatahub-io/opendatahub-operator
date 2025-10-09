@@ -1,0 +1,13 @@
+apiVersion: perses.dev/v1alpha1
+kind: Perses
+metadata:
+  name: data-science-perses
+  namespace: {{.Namespace}}
+spec:
+  containerPort: 8080
+  image: {{.PersesImage}}
+  config:
+    database:
+      file:
+        extension: "yaml"
+        folder: "/var/lib/perses"

@@ -82,7 +82,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-11-25T14:57:09Z"
+    createdAt: "2025-11-26T15:04:20Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -1243,6 +1243,32 @@ spec:
           - list
           - watch
         - apiGroups:
+          - perses.dev
+          resources:
+          - perses
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - perses.dev
+          resources:
+          - perses/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - perses.dev
+          resources:
+          - perses/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
           - ray.io
           resources:
           - rayclusters
@@ -1511,7 +1537,7 @@ spec:
                       fieldPath: metadata.namespace
                 - name: DEFAULT_MANIFESTS_PATH
                   value: /opt/manifests
-                image: REPLACE_IMAGE:latest
+                image: quay.io/opendatahub/opendatahub-operator:latest
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
