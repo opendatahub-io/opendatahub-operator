@@ -475,11 +475,11 @@ endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
 endif
-# e2e-test: ## Run e2e tests for the controller
-# 	go test ./tests/e2e/ -run ^TestOdhOperator -v ${E2E_TEST_FLAGS}
 e2e-test:
 	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
 
+unit-test-cli:
+	go -C ./cmd/test-retry/ test ./...
 
 .PHONY: clean
 clean: $(GOLANGCI_LINT)

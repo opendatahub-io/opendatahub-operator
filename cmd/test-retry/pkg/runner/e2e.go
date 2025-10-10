@@ -57,6 +57,7 @@ func (r *E2ETestRunner) Run() error {
 	}
 
 	hasFirstRunFailedTests := len(testResult.FailedTest) > 0
+	lastTestResult := testResult
 
 	// Retry tests, skipping the ones that already passed
 	for attempt := 1; attempt <= r.opts.MaxRetries && hasFirstRunFailedTests; attempt++ {
@@ -65,7 +66,7 @@ func (r *E2ETestRunner) Run() error {
 		}
 
 		// Run tests again, skipping the ones that passed
-		retrySummary, err := r.runE2ETests(r.buildSkipFilter(testResult))
+		retrySummary, err := r.runE2ETests(r.buildSkipFilter(aggregateResult))
 		if err != nil {
 			if r.opts.Config.Verbose {
 				fmt.Printf("Error in retry attempt %d: %v\n", attempt, err)
@@ -77,7 +78,7 @@ func (r *E2ETestRunner) Run() error {
 		aggregateResult.FailedTest = append(aggregateResult.FailedTest, retrySummary.FailedTest...)
 		aggregateResult.PassedTest = append(aggregateResult.PassedTest, retrySummary.PassedTest...)
 
-		testResult = retrySummary
+		lastTestResult = retrySummary
 
 		if r.opts.Config.Verbose {
 			fmt.Printf("Retry %d: %d passed, %d failed, %d skipped\n",
@@ -100,15 +101,15 @@ func (r *E2ETestRunner) Run() error {
 	}
 
 	// Final summary
-	if len(testResult.FailedTest) > 0 {
+	if len(lastTestResult.FailedTest) > 0 {
 		fmt.Printf("❌ Final result: %d tests still failing after %d retries\n",
-			len(testResult.FailedTest), r.opts.MaxRetries)
+			len(lastTestResult.FailedTest), r.opts.MaxRetries)
 		// Show which tests are still failing
-		for _, failedTest := range testResult.FailedTest {
+		for _, failedTest := range lastTestResult.FailedTest {
 			fmt.Printf("  - %s\n", failedTest.Name)
 		}
 
-		return fmt.Errorf("%d tests failed after retries", len(testResult.FailedTest))
+		return fmt.Errorf("%d tests failed after retries", len(lastTestResult.FailedTest))
 	}
 
 	if hasFirstRunFailedTests {
