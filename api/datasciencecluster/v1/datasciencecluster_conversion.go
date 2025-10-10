@@ -31,7 +31,6 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 		Components: dscv2.Components{
 			Dashboard:            c.Spec.Components.Dashboard,
 			Workbenches:          c.Spec.Components.Workbenches,
-			ModelMeshServing:     c.Spec.Components.ModelMeshServing,
 			DataSciencePipelines: c.Spec.Components.DataSciencePipelines,
 			Kserve:               c.Spec.Components.Kserve,
 			Kueue:                c.Spec.Components.Kueue,
@@ -52,7 +51,6 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 		Components: dscv2.ComponentsStatus{
 			Dashboard:            c.Status.Components.Dashboard,
 			Workbenches:          c.Status.Components.Workbenches,
-			ModelMeshServing:     c.Status.Components.ModelMeshServing,
 			DataSciencePipelines: c.Status.Components.DataSciencePipelines,
 			Kserve:               c.Status.Components.Kserve,
 			Kueue:                c.Status.Components.Kueue,
@@ -79,7 +77,6 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 		Components: Components{
 			Dashboard:            src.Spec.Components.Dashboard,
 			Workbenches:          src.Spec.Components.Workbenches,
-			ModelMeshServing:     src.Spec.Components.ModelMeshServing,
 			DataSciencePipelines: src.Spec.Components.DataSciencePipelines,
 			Kserve:               src.Spec.Components.Kserve,
 			Kueue:                src.Spec.Components.Kueue,
@@ -100,7 +97,6 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 		Components: ComponentsStatus{
 			Dashboard:            src.Status.Components.Dashboard,
 			Workbenches:          src.Status.Components.Workbenches,
-			ModelMeshServing:     src.Status.Components.ModelMeshServing,
 			DataSciencePipelines: src.Status.Components.DataSciencePipelines,
 			Kserve:               src.Status.Components.Kserve,
 			Kueue:                src.Status.Components.Kueue,
