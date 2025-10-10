@@ -52,10 +52,6 @@ type Components struct {
 	// Kueue component configuration.
 	Kueue componentApi.DSCKueue `json:"kueue,omitempty"`
 
-	// CodeFlare component configuration.
-	// If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component.
-	CodeFlare componentApi.DSCCodeFlare `json:"codeflare,omitempty"`
-
 	// Ray component configuration.
 	Ray componentApi.DSCRay `json:"ray,omitempty"`
 
@@ -94,9 +90,6 @@ type ComponentsStatus struct {
 
 	// Kueue component status.
 	Kueue componentApi.DSCKueueStatus `json:"kueue,omitempty"`
-
-	// CodeFlare component status.
-	CodeFlare componentApi.DSCCodeFlareStatus `json:"codeflare,omitempty"`
 
 	// Ray component status.
 	Ray componentApi.DSCRayStatus `json:"ray,omitempty"`
