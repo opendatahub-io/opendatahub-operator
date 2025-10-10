@@ -12,20 +12,150 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAllTestsPassFirstAttempt(t *testing.T) {
-	testPath := "./testdata/passing"
-	opts := types.E2ETestOptions{
-		MaxRetries:        3,
-		TestPath:          testPath,
-		Config:            &config.Config{Verbose: false},
-		NeverSkipPrefixes: []string{},
-		SkipAtPrefixes:    []string{},
+type testResult struct {
+	Failures  int
+	TestCases []testCaseOutput
+}
+
+type testCaseOutput struct {
+	Name       string
+	HasFailure bool
+}
+
+func TestRunnerIntegration(t *testing.T) {
+	testCases := []struct {
+		name           string
+		testPath       string
+		skipAtPrefixes []string
+
+		expectedError       string
+		expectedResults     []testCaseOutput
+		resultFileNotExists bool
+	}{
+		{
+			name:     "passes at first attempt",
+			testPath: "./testdata/passing",
+			expectedResults: []testCaseOutput{
+				{Name: "TestAlwaysPass1", HasFailure: false},
+				{Name: "TestAlwaysPass2", HasFailure: false},
+				{Name: "TestAlwaysPass3", HasFailure: false},
+			},
+		},
+		{
+			name:          "fails after max retries",
+			testPath:      "./testdata/failing",
+			expectedError: "2 tests failed after retries",
+			expectedResults: []testCaseOutput{
+				{Name: "TestAlwaysFail1", HasFailure: true},
+				{Name: "TestAlwaysFail2", HasFailure: true},
+				{Name: "TestPass", HasFailure: false},
+				{Name: "TestAlwaysFail1", HasFailure: true},
+				{Name: "TestAlwaysFail2", HasFailure: true},
+				{Name: "TestPass", HasFailure: false},
+				{Name: "TestAlwaysFail1", HasFailure: true},
+				{Name: "TestAlwaysFail2", HasFailure: true},
+				{Name: "TestPass", HasFailure: false},
+			},
+		},
+		{
+			name:           "flaky tests pass after retry - with skip at prefix set",
+			testPath:       "./testdata/flaky",
+			skipAtPrefixes: []string{"TestNonFlaky"},
+			expectedResults: []testCaseOutput{
+				{Name: "TestFlaky1", HasFailure: true},
+				{Name: "TestFlaky2", HasFailure: true},
+				{Name: "TestNonFlaky", HasFailure: false},
+				{Name: "TestFlaky1", HasFailure: false},
+				{Name: "TestFlaky2", HasFailure: false},
+			},
+		},
+		{
+			name:     "flaky tests pass after retry - with skip at prefix NOT set",
+			testPath: "./testdata/flaky",
+			expectedResults: []testCaseOutput{
+				{Name: "TestFlaky1", HasFailure: true},
+				{Name: "TestFlaky2", HasFailure: true},
+				{Name: "TestNonFlaky", HasFailure: false},
+				{Name: "TestFlaky1", HasFailure: false},
+				{Name: "TestFlaky2", HasFailure: false},
+				{Name: "TestNonFlaky", HasFailure: false},
+			},
+		},
+		{
+			name:           "skip filter root level",
+			testPath:       "./testdata/skipfilter",
+			skipAtPrefixes: []string{"TestSkipFilter_Pass2", "TestSkipFilter_Pass1"},
+			expectedResults: []testCaseOutput{
+				{Name: "TestSkipFilter_Pass1", HasFailure: false},
+				{Name: "TestSkipFilter_Pass2", HasFailure: false},
+				{Name: "TestSkipFilter_Flaky", HasFailure: true},
+				{Name: "TestSkipFilter_Flaky", HasFailure: false},
+			},
+		},
+		{
+			name:           "skip filter sibling level",
+			testPath:       "./testdata/siblings",
+			skipAtPrefixes: []string{"TestSiblings/"},
+			expectedError:  "3 tests failed after retries",
+			expectedResults: []testCaseOutput{
+				{Name: "TestSiblings", HasFailure: true},
+				{Name: "TestSiblings/nested", HasFailure: true},
+				{Name: "TestSiblings/nested/sibling_1", HasFailure: true},
+				{Name: "TestSiblings/nested/sibling_2", HasFailure: false},
+				{Name: "TestSiblings/pass_1", HasFailure: false},
+				{Name: "TestSiblings", HasFailure: true},
+				{Name: "TestSiblings/nested", HasFailure: true},
+				{Name: "TestSiblings/nested/sibling_1", HasFailure: true},
+				{Name: "TestSiblings/nested/sibling_2", HasFailure: false},
+				{Name: "TestSiblings", HasFailure: true},
+				{Name: "TestSiblings/nested", HasFailure: true},
+				{Name: "TestSiblings/nested/sibling_1", HasFailure: true},
+				{Name: "TestSiblings/nested/sibling_2", HasFailure: false},
+			},
+		},
 	}
 
-	runner := NewE2ETestRunner(opts)
-	err := runner.Run()
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			options := types.E2ETestOptions{
+				MaxRetries:        2,
+				TestPath:          testCase.testPath,
+				Config:            &config.Config{Verbose: false},
+				NeverSkipPrefixes: []string{},
+				SkipAtPrefixes:    testCase.skipAtPrefixes,
+				JUnitOutputPath:   filepath.Join(t.TempDir(), "junit.xml"),
+			}
 
-	require.NoError(t, err, "Expected all tests to pass on first attempt")
+			runner := NewE2ETestRunner(options)
+			err := runner.Run()
+
+			if testCase.expectedError != "" {
+				require.EqualError(t, err, testCase.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+
+			suite := readJUnitFile(t, runner.opts.JUnitOutputPath)
+
+			testCases := make([]testCaseOutput, 0)
+			for _, testCase := range suite.TestCases {
+				testCases = append(testCases, testCaseOutput{
+					Name:       testCase.Name,
+					HasFailure: testCase.Failure != nil,
+				})
+			}
+			require.Equal(t, testCase.expectedResults, testCases)
+			require.Equal(t, len(testCase.expectedResults), suite.Tests)
+
+			expectedFailures := 0
+			for _, testCase := range testCase.expectedResults {
+				if testCase.HasFailure {
+					expectedFailures++
+				}
+			}
+			require.Equal(t, expectedFailures, suite.Failures)
+		})
+	}
 }
 
 func TestNotExistsFolderShouldFail(t *testing.T) {
@@ -42,74 +172,6 @@ func TestNotExistsFolderShouldFail(t *testing.T) {
 	err := runner.Run()
 
 	require.Error(t, err)
-}
-
-func TestRunFlakyTestsPassAfterRetry(t *testing.T) {
-	testPath := "./testdata/flaky"
-	opts := types.E2ETestOptions{
-		MaxRetries:        3,
-		TestPath:          testPath,
-		Config:            &config.Config{Verbose: false},
-		NeverSkipPrefixes: []string{},
-		SkipAtPrefixes:    []string{},
-	}
-
-	runner := NewE2ETestRunner(opts)
-
-	// The flaky tests will fail on first run, but pass on retry
-	err := runner.Run()
-
-	// After retries, all tests should pass
-	require.NoError(t, err, "Expected flaky tests to pass after retry")
-}
-
-func TestFailAfterMaxRetries(t *testing.T) {
-	testPath := "./testdata/failing"
-	opts := types.E2ETestOptions{
-		MaxRetries:        2,
-		TestPath:          testPath,
-		Config:            &config.Config{Verbose: false},
-		NeverSkipPrefixes: []string{},
-		SkipAtPrefixes:    []string{},
-	}
-
-	runner := NewE2ETestRunner(opts)
-	err := runner.Run()
-
-	require.Error(t, err, "Expected tests to fail after max retries")
-	require.Contains(t, err.Error(), "tests failed after retries")
-}
-
-func TestRunSkipFilterApplication(t *testing.T) {
-	testPath := "./testdata/skipfilter"
-	opts := types.E2ETestOptions{
-		MaxRetries:        2,
-		TestPath:          testPath,
-		Config:            &config.Config{Verbose: false},
-		NeverSkipPrefixes: []string{},
-		SkipAtPrefixes:    []string{"TestSkipFilter_Pass2", "TestSkipFilter_Pass1"},
-	}
-
-	runner := NewE2ETestRunner(opts)
-	err := runner.Run()
-
-	require.NoError(t, err, "Expected all tests to eventually pass")
-}
-
-func TestRunSkipFilterSiblingApplication(t *testing.T) {
-	testPath := "./testdata/siblings"
-	opts := types.E2ETestOptions{
-		MaxRetries:        2,
-		TestPath:          testPath,
-		Config:            &config.Config{Verbose: false},
-		NeverSkipPrefixes: []string{},
-		SkipAtPrefixes:    []string{"TestSiblings/"},
-	}
-
-	runner := NewE2ETestRunner(opts)
-	err := runner.Run()
-
-	require.EqualError(t, err, "3 tests failed after retries")
 }
 
 func TestGitHubNotificationOnFlakyTests(t *testing.T) {
@@ -208,51 +270,10 @@ func TestGitHubNotificationNotCalledOnFailure(t *testing.T) {
 	require.False(t, mockClient.addCommentCalled, "Expected AddComment NOT to be called on success")
 }
 
-func TestJUnitExport_FlakyTests(t *testing.T) {
-	testPath := "./testdata/flaky"
-	tempDir := t.TempDir()
-	junitPath := filepath.Join(tempDir, "junit.xml")
-
-	opts := types.E2ETestOptions{
-		MaxRetries:        3,
-		TestPath:          testPath,
-		Config:            &config.Config{Verbose: false},
-		NeverSkipPrefixes: []string{},
-		SkipAtPrefixes:    []string{"TestNonFlaky"},
-		JUnitOutputPath:   junitPath,
-	}
-
-	runner := NewE2ETestRunner(opts)
-
-	err := runner.Run()
-	require.NoError(t, err)
-
-	suite := readJUnitFile(t, junitPath)
-
-	require.Equal(t, 5, suite.Tests, "Should have multiple test case entries (failed + passed)")
-	require.Equal(t, 2, suite.Failures, "Should have failures from initial attempts")
-
-	require.Equal(t, "TestFlaky1", suite.TestCases[0].Name)
-	require.NotNil(t, suite.TestCases[0].Failure)
-
-	require.Equal(t, "TestFlaky2", suite.TestCases[1].Name)
-	require.NotNil(t, suite.TestCases[1].Failure)
-
-	require.Equal(t, "TestNonFlaky", suite.TestCases[2].Name)
-	require.Nil(t, suite.TestCases[2].Failure)
-
-	require.Equal(t, "TestFlaky1", suite.TestCases[3].Name)
-	require.Nil(t, suite.TestCases[3].Failure)
-
-	require.Equal(t, "TestFlaky2", suite.TestCases[4].Name)
-	require.Nil(t, suite.TestCases[4].Failure)
-}
-
 func readJUnitFile(t *testing.T, path string) formatter.TestSuite {
 	t.Helper()
 
-	_, err := os.Stat(path)
-	require.NoError(t, err)
+	require.FileExists(t, path)
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
