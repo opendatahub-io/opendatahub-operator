@@ -354,7 +354,7 @@ func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfi
 					Containers: []corev1.Container{
 						{
 							Name:  KubeAuthProxyName,
-							Image: KubeAuthProxyImage,
+							Image: getKubeAuthProxyImage(),
 							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: AuthProxyHTTPPort,
