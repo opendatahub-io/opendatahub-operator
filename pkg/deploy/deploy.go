@@ -311,7 +311,7 @@ func getResource(ctx context.Context, cli client.Client, obj *resource.Resource)
 	found.SetGroupVersionKind(gvk)
 
 	err := cli.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, found)
-	if errors.Is(err, &meta.NoKindMatchError{}) {
+	if meta.IsNoMatchError(err) {
 		// convert the error to NotFound to handle both the same way in the caller
 		return nil, k8serr.NewNotFound(schema.GroupResource{Group: gvk.Group}, obj.GetName())
 	}

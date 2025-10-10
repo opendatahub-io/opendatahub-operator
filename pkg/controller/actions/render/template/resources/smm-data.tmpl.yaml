@@ -1,5 +1,5 @@
-apiVersion: maistra.io/v1
-kind: ServiceMeshMember
+apiVersion: v1
+kind: ConfigMap
 metadata:
   name: {{.SMM.Name}}
   namespace: {{.DSCI.Spec.ApplicationsNamespace}}
@@ -8,7 +8,5 @@ metadata:
     instance-id: {{.ID}}
     instance-uid: {{.UID}}
     instance-foo: {{.Foo}}
-spec:
-  controlPlaneRef:
-    namespace: {{ .DSCI.Spec.ServiceMesh.ControlPlane.Namespace }}
-    name: {{ .DSCI.Spec.ServiceMesh.ControlPlane.Name }}
+data:
+  app-namespace: {{.DSCI.Spec.ApplicationsNamespace}}
