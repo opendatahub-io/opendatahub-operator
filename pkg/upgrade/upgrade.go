@@ -59,6 +59,8 @@ const (
 	defaultMinMemory       = "1Mi"
 	defaultMinCpu          = "1"
 	odhDashboardConfigPath = "/dashboard/rhoai/shared/odhdashboardconfig/odhdashboardconfig.yaml"
+	serving                = "serving"
+	notebooks              = "notebooks"
 )
 
 var defaultResourceLimits = map[string]string{
@@ -286,7 +288,7 @@ func CleanupExistingResource(ctx context.Context,
 	multiErr = multierror.Append(multiErr, cleanupDeprecatedKueueVAPB(ctx, cli))
 
 	// HardwareProfile migration as described in RHOAIENG-33158
-	if cluster.GetRelease().Version.Major == 3 && oldReleaseVersion.Version.Major <= 2 {
+	if cluster.GetRelease().Version.Major == 3 && oldReleaseVersion.Version.Major == 2 {
 		multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, d.Spec.ApplicationsNamespace))
 	}
 
@@ -673,11 +675,16 @@ func cleanupDeprecatedKueueVAPB(ctx context.Context, cli client.Client) error {
 	return nil
 }
 
-const notebooksProfileType = "notebooks"
-
 func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string) error {
 	var multiErr *multierror.Error
 	log := logf.FromContext(ctx)
+
+	// If application namespace is empty, it means dsci is not available or not initialized properly with application namespace.
+	// In this case, we skip the HardwareProfile migration.
+	if applicationNS == "" {
+		log.Info("Application namespace is empty, skipping HardwareProfile migration")
+		return nil
+	}
 
 	// Get OdhDashboardConfig to extract container sizes
 	odhConfig, err := GetOdhDashboardConfig(ctx, cli, applicationNS)
@@ -704,7 +711,7 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 func MigrateAcceleratorProfilesToHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string, odhConfig *unstructured.Unstructured) error {
 	log := logf.FromContext(ctx)
 
-	apList, err := getAcceleratorProfiles(ctx, cli, applicationNS)
+	apList, err := getAcceleratorProfiles(ctx, cli)
 	if err != nil {
 		return fmt.Errorf("failed to get AcceleratorProfile list: %w", err)
 	}
@@ -735,13 +742,13 @@ func MigrateAcceleratorProfilesToHardwareProfiles(ctx context.Context, cli clien
 	// Create 2 HWPs for each AcceleratorProfile
 	for _, ap := range apList {
 		// Create notebooks HWP
-		if err := createHardwareProfileFromAcceleratorProfile(ctx, cli, ap, "notebooks", notebookContainerCounts, notebooksOnlyToleration); err != nil {
+		if err := createHardwareProfileFromAcceleratorProfile(ctx, cli, ap, notebooks, notebookContainerCounts, notebooksOnlyToleration); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create notebooks HWP for AP %s: %w", ap.GetName(), err))
 			continue
 		}
 
 		// Create serving HWP
-		if err := createHardwareProfileFromAcceleratorProfile(ctx, cli, ap, "serving", servingContainerCounts, nil); err != nil {
+		if err := createHardwareProfileFromAcceleratorProfile(ctx, cli, ap, serving, servingContainerCounts, nil); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create serving HWP for AP %s: %w", ap.GetName(), err))
 			continue
 		}
@@ -767,10 +774,10 @@ func createHardwareProfileFromAcceleratorProfile(ctx context.Context, cli client
 	return nil
 }
 
-func getAcceleratorProfiles(ctx context.Context, cli client.Client, applicationNS string) ([]unstructured.Unstructured, error) {
+func getAcceleratorProfiles(ctx context.Context, cli client.Client) ([]unstructured.Unstructured, error) {
 	apList := &unstructured.UnstructuredList{}
 	apList.SetGroupVersionKind(gvk.DashboardAcceleratorProfile)
-	err := cli.List(ctx, apList, client.InNamespace(applicationNS))
+	err := cli.List(ctx, apList)
 	if err != nil {
 		if meta.IsNoMatchError(err) {
 			return nil, nil
@@ -797,7 +804,7 @@ func MigrateContainerSizesToHardwareProfiles(ctx context.Context, cli client.Cli
 		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to get notebook sizes: %w", err))
 	} else {
 		for _, size := range notebookSizes {
-			if err := createHardwareProfileFromContainerSize(ctx, cli, size, "notebooks", notebooksOnlyToleration, applicationNS); err != nil {
+			if err := createHardwareProfileFromContainerSize(ctx, cli, size, notebooks, notebooksOnlyToleration, applicationNS); err != nil {
 				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create HWP for notebook size %s: %w", size.Name, err))
 				continue
 			}
@@ -810,7 +817,7 @@ func MigrateContainerSizesToHardwareProfiles(ctx context.Context, cli client.Cli
 		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to get model server sizes: %w", err))
 	} else {
 		for _, size := range modelServerSizes {
-			if err := createHardwareProfileFromContainerSize(ctx, cli, size, "serving", nil, applicationNS); err != nil {
+			if err := createHardwareProfileFromContainerSize(ctx, cli, size, serving, nil, applicationNS); err != nil {
 				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create HWP for model server size %s: %w", size.Name, err))
 				continue
 			}
@@ -1174,7 +1181,7 @@ func generateHardwareProfileFromAcceleratorProfile(ctx context.Context, ap unstr
 	}
 
 	// Add max counts for notebooks profile
-	if profileType == notebooksProfileType {
+	if profileType == notebooks {
 		if maxCpu, ok := containerCounts["maxCpu"]; ok && maxCpu != "" {
 			identifiers[1].MaxCount = &intstr.IntOrString{Type: intstr.String, StrVal: maxCpu}
 		}
@@ -1207,7 +1214,7 @@ func generateHardwareProfileFromAcceleratorProfile(ctx context.Context, ap unstr
 	}
 
 	// Add notebooks-only toleration for notebooks profile
-	if profileType == notebooksProfileType && len(notebooksOnlyToleration) > 0 {
+	if profileType == notebooks && len(notebooksOnlyToleration) > 0 {
 		tolerations = append(tolerations, notebooksOnlyToleration...)
 	}
 
@@ -1247,7 +1254,8 @@ func generateHardwareProfileFromContainerSize(ctx context.Context, size Containe
 
 	// Create HWP name
 	hwpName := fmt.Sprintf("containerSize-%s-%s", size.Name, profileType)
-
+	// Convert to lowercase and replace spaces with dashes to comply with the hardwareprofile CRD validation
+	hwpName = strings.ReplaceAll(strings.ToLower(hwpName), " ", "-")
 	// Create annotations
 	annotations := map[string]string{
 		"opendatahub.io/dashboard-feature-visibility": GetFeatureVisibility(profileType),
@@ -1309,9 +1317,9 @@ func generateHardwareProfileFromContainerSize(ctx context.Context, size Containe
 
 func GetFeatureVisibility(profileType string) string {
 	switch profileType {
-	case "notebooks":
+	case notebooks:
 		return "workbench"
-	case "serving":
+	case serving:
 		return "model-serving"
 	default:
 		return "workbench"

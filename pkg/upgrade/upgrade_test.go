@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -253,7 +254,8 @@ func TestMigrateContainerSizesToHardwareProfiles(t *testing.T) {
 				containerSize, ok := nb.(map[string]interface{})
 				if ok {
 					name, _ := containerSize["name"].(string)
-					notebooksSizeHWP := findHardwareProfileByName(&hwpList, fmt.Sprintf("containerSize-%s-notebooks", name))
+					hwpName := strings.ReplaceAll(strings.ToLower(fmt.Sprintf("containerSize-%s-notebooks", name)), " ", "-")
+					notebooksSizeHWP := findHardwareProfileByName(&hwpList, hwpName)
 
 					g.Expect(notebooksSizeHWP).ToNot(BeNil())
 					validateContainerSizeHardwareProfile(g, notebooksSizeHWP, containerSize, odhConfig, "notebooks")
@@ -267,7 +269,8 @@ func TestMigrateContainerSizesToHardwareProfiles(t *testing.T) {
 				containerSize, ok := ms.(map[string]interface{})
 				if ok {
 					name, _ := containerSize["name"].(string)
-					modelServerSizeHWP := findHardwareProfileByName(&hwpList, fmt.Sprintf("containerSize-%s-serving", name))
+					hwpName := strings.ReplaceAll(strings.ToLower(fmt.Sprintf("containerSize-%s-serving", name)), " ", "-")
+					modelServerSizeHWP := findHardwareProfileByName(&hwpList, hwpName)
 
 					g.Expect(modelServerSizeHWP).ToNot(BeNil())
 					validateContainerSizeHardwareProfile(g, modelServerSizeHWP, containerSize, odhConfig, "serving")
@@ -737,6 +740,7 @@ func validateContainerSizeHardwareProfile(g *WithT, hwp *infrav1.HardwareProfile
 
 	// Validate ObjectMeta
 	expectedName := fmt.Sprintf("containerSize-%s-%s", sizeName, sizeType)
+	expectedName = strings.ReplaceAll(strings.ToLower(expectedName), " ", "-")
 	g.Expect(hwp.GetName()).To(Equal(expectedName))
 	g.Expect(hwp.GetNamespace()).ToNot(BeEmpty()) // Should be set to application namespace
 
@@ -953,7 +957,8 @@ func TestHardwareProfileMigrationWithComplexScenarios(t *testing.T) {
 				containerSize, ok := nb.(map[string]interface{})
 				if ok {
 					name, _ := containerSize["name"].(string)
-					notebooksSizeHWP := findHardwareProfileByName(&hwpList, fmt.Sprintf("containerSize-%s-notebooks", name))
+					hwpName := strings.ReplaceAll(strings.ToLower(fmt.Sprintf("containerSize-%s-notebooks", name)), " ", "-")
+					notebooksSizeHWP := findHardwareProfileByName(&hwpList, hwpName)
 
 					g.Expect(notebooksSizeHWP).ToNot(BeNil())
 					validateContainerSizeHardwareProfile(g, notebooksSizeHWP, containerSize, odhConfig, "notebooks")
@@ -967,7 +972,8 @@ func TestHardwareProfileMigrationWithComplexScenarios(t *testing.T) {
 				containerSize, ok := ms.(map[string]interface{})
 				if ok {
 					name, _ := containerSize["name"].(string)
-					modelServerSizeHWP := findHardwareProfileByName(&hwpList, fmt.Sprintf("containerSize-%s-serving", name))
+					hwpName := strings.ReplaceAll(strings.ToLower(fmt.Sprintf("containerSize-%s-serving", name)), " ", "-")
+					modelServerSizeHWP := findHardwareProfileByName(&hwpList, hwpName)
 
 					g.Expect(modelServerSizeHWP).ToNot(BeNil())
 					validateContainerSizeHardwareProfile(g, modelServerSizeHWP, containerSize, odhConfig, "serving")
@@ -1026,6 +1032,24 @@ func TestHardwareProfileMigrationWithComplexScenarios(t *testing.T) {
 		err = cli.List(ctx, &hwpList, client.InNamespace("test-namespace"))
 		g.Expect(err).ShouldNot(HaveOccurred())
 		g.Expect(len(hwpList.Items)).To(BeNumerically(">", 1)) // Should have more than just the existing one
+	})
+	t.Run("should skip migration if application namespace is empty", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig("test-namespace")
+		ap := createTestAcceleratorProfile("test-namespace")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.MigrateToInfraHardwareProfiles(ctx, cli, "")
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify no HardwareProfiles were created
+		var hwpList infrav1.HardwareProfileList
+		err = cli.List(ctx, &hwpList, client.InNamespace("test-namespace"))
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(hwpList.Items).To(BeEmpty())
 	})
 }
 
