@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -335,4 +336,46 @@ func setManagedMonitoringNamespace(ctx context.Context, cli client.Client) error
 		viper.SetDefault("dsc-monitoring-namespace", DefaultMonitoringNamespaceODH)
 	}
 	return nil
+}
+
+// AuthenticationMode represents the cluster authentication mode.
+type AuthenticationMode string
+
+const (
+	AuthModeIntegratedOAuth AuthenticationMode = "IntegratedOAuth"
+	AuthModeOIDC            AuthenticationMode = "OIDC"
+	AuthModeNone            AuthenticationMode = "None"
+)
+
+// GetClusterAuthenticationMode retrieves and returns the cluster authentication mode.
+func GetClusterAuthenticationMode(ctx context.Context, cli client.Client) (AuthenticationMode, error) {
+	auth := &configv1.Authentication{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: ClusterAuthenticationObj}, auth); err != nil {
+		if errors.Is(err, &meta.NoKindMatchError{}) { // when CRD is missing, convert error type
+			return "", k8serr.NewNotFound(schema.GroupResource{Group: gvk.Auth.Group}, ClusterAuthenticationObj)
+		}
+		return "", fmt.Errorf("failed to get cluster authentication config: %w", err)
+	}
+
+	switch auth.Spec.Type {
+	case "OIDC":
+		return AuthModeOIDC, nil
+	case configv1.AuthenticationTypeNone:
+		return AuthModeNone, nil
+	case "", configv1.AuthenticationTypeIntegratedOAuth:
+		// IntegratedOAuth is the default for empty string and explicit IntegratedOAuth
+		return AuthModeIntegratedOAuth, nil
+	default:
+		// Custom/unknown auth types are not IntegratedOAuth
+		return AuthModeNone, nil
+	}
+}
+
+// IsIntegratedOAuth returns true if the cluster uses IntegratedOAuth authentication mode which is the default in OCP.
+func IsIntegratedOAuth(ctx context.Context, cli client.Client) (bool, error) {
+	authMode, err := GetClusterAuthenticationMode(ctx, cli)
+	if err != nil {
+		return false, err
+	}
+	return authMode == AuthModeIntegratedOAuth, nil
 }

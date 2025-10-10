@@ -823,13 +823,6 @@ rules:
   resources:
   - destinationrules
   - envoyfilters
-  - gateways
-  - virtualservices
-  verbs:
-  - '*'
-- apiGroups:
-  - networking.istio.io
-  resources:
   - virtualservices/finalizers
   verbs:
   - create
@@ -839,6 +832,13 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - networking.istio.io
+  resources:
+  - gateways
+  - virtualservices
+  verbs:
+  - '*'
 - apiGroups:
   - networking.istio.io
   resources:
@@ -938,12 +938,19 @@ rules:
   - operator.openshift.io
   resources:
   - consoles
-  - ingresscontrollers
   verbs:
   - delete
   - get
   - list
   - patch
+  - watch
+- apiGroups:
+  - operator.openshift.io
+  resources:
+  - ingresscontrollers
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - operators.coreos.com

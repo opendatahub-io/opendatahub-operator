@@ -34,9 +34,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="apiregistration.k8s.io",resources=apiservices,verbs=create;delete;list;watch;update;patch;get
 
 // +kubebuilder:rbac:groups="operator.openshift.io",resources=consoles,verbs=get;list;watch;patch;delete
-// +kubebuilder:rbac:groups="operator.openshift.io",resources=ingresscontrollers,verbs=get;list;watch;patch;delete
-
-// +kubebuilder:rbac:groups="oauth.openshift.io",resources=oauthclients,verbs=create;delete;list;watch;update;patch;get
 
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=networkpolicies,verbs=get;create;list;watch;delete;update;patch
 // +kubebuilder:rbac:groups="networking.k8s.io",resources=ingresses,verbs=create;delete;list;update;watch;patch;get
@@ -280,19 +277,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelcontrollers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelcontrollers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelcontrollers/finalizers,verbs=update
-
-// Auth
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths/finalizers,verbs=update
-
-// Gateway
-// CR management
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs,verbs=get;list;watch;create;update;patch
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs/finalizers,verbs=update
-// Gateway API resources (what the controller actually creates)
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;gatewayclasses;httproutes,verbs=get;list;watch;create;update;patch;delete
 
 // FeastOperator
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=feastoperators,verbs=get;list;watch;create;update;patch;delete

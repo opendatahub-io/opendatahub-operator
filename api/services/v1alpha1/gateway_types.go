@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright 2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,10 +25,8 @@ import (
 
 const (
 	GatewayServiceName = "gateway"
-	// GatewayInstanceName the name of the GatewayConfig instance singleton.
-	// value should match whats set in the XValidation below
-	GatewayInstanceName = "default-gateway"
-	GatewayKind         = "GatewayConfig"
+	GatewayConfigName  = "data-science-gatewayconfig"
+	GatewayConfigKind  = "GatewayConfig"
 )
 
 // Check that the component implements common.PlatformObject.
@@ -40,29 +38,36 @@ type GatewayConfigSpec struct {
 	// +optional
 	OIDC *OIDCConfig `json:"oidc,omitempty"`
 
-	// Certificate management
-	// +optional
-	Certificate *infrav1.CertificateSpec `json:"certificate,omitempty"`
-
-	// Domain configuration for the GatewayConfig
-	// Example: apps.example.com
-	// +optional
-	Domain string `json:"domain,omitempty"`
+	IngressGateway GatewaySpec `json:"ingressGateway,omitempty"`
 }
 
 // OIDCConfig defines OIDC provider configuration
 type OIDCConfig struct {
 	// OIDC issuer URL
-	// +kubebuilder:validation:Required
 	IssuerURL string `json:"issuerURL"`
 
 	// OIDC client ID
-	// +kubebuilder:validation:Required
 	ClientID string `json:"clientID"`
 
 	// Reference to secret containing client secret
-	// +kubebuilder:validation:Required
 	ClientSecretRef corev1.SecretKeySelector `json:"clientSecretRef"`
+
+	// Namespace where the client secret is located
+	// If not specified, defaults to openshift-ingress
+	// +optional
+	SecretNamespace string `json:"secretNamespace,omitempty"`
+}
+
+// GatewaySpec represents the configuration of the Ingress Gateways.
+type GatewaySpec struct {
+	// Domain specifies the host name for intercepting incoming requests.
+	// Most likely, you will want to use a wildcard name, like *.example.com.
+	// If not set, the domain of the OpenShift Ingress is used.
+	// If you choose to generate a certificate, this is the domain used for the certificate request.
+	Domain string `json:"domain,omitempty"`
+	// Certificate specifies configuration of the TLS certificate securing communication
+	// for the gateway.
+	Certificate infrav1.CertificateSpec `json:"certificate,omitempty"`
 }
 
 // GatewayConfigStatus defines the observed state of GatewayConfig
@@ -73,7 +78,7 @@ type GatewayConfigStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
-// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-gateway'",message="GatewayConfig name must be default-gateway"
+// +kubebuilder:validation:XValidation:rule="self.metadata.name == 'data-science-gatewayconfig'",message="GatewayConfig name must be data-science-gatewayconfig"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 

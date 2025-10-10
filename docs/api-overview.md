@@ -2209,7 +2209,7 @@ an Istio Gateway.
 
 
 _Appears in:_
-- [GatewayConfigSpec](#gatewayconfigspec)
+- [GatewaySpec](#gatewayspec)
 - [GatewaySpec](#gatewayspec)
 
 | Field | Description | Default | Validation |
@@ -2730,8 +2730,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
-| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
-| `domain` _string_ | Domain configuration for the GatewayConfig<br />Example: apps.example.com |  |  |
+| `ingressGateway` _[GatewaySpec](#gatewayspec)_ |  |  |  |
 
 
 #### GatewayConfigStatus
@@ -2750,6 +2749,23 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
+
+
+#### GatewaySpec
+
+
+
+GatewaySpec represents the configuration of the Ingress Gateways.
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the domain of the OpenShift Ingress is used.<br />If you choose to generate a certificate, this is the domain used for the certificate request. |  |  |
+| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication<br />for the gateway. |  |  |
 
 
 #### Metrics
@@ -2903,9 +2919,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `issuerURL` _string_ | OIDC issuer URL |  | Required: \{\} <br /> |
-| `clientID` _string_ | OIDC client ID |  | Required: \{\} <br /> |
-| `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing client secret |  | Required: \{\} <br /> |
+| `issuerURL` _string_ | OIDC issuer URL |  |  |
+| `clientID` _string_ | OIDC client ID |  |  |
+| `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing client secret |  |  |
+| `secretNamespace` _string_ | Namespace where the client secret is located<br />If not specified, defaults to openshift-ingress |  |  |
 
 
 #### ServiceMesh
