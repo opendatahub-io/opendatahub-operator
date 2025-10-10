@@ -17,7 +17,7 @@ import (
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
-//+kubebuilder:webhook:path=/validate-dscinitialization-v2,mutating=false,failurePolicy=fail,sideEffects=None,groups=dscinitialization.opendatahub.io,resources=dscinitializations,verbs=create;delete,versions=v2,name=dscinitialization-v2-validator.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-dscinitialization-v2,matchPolicy=Exact,mutating=false,failurePolicy=fail,sideEffects=None,groups=dscinitialization.opendatahub.io,resources=dscinitializations,verbs=create;delete,versions=v2,name=dscinitialization-v2-validator.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
 // Validator implements webhook.AdmissionHandler for DSCInitialization v2 validation webhooks.
