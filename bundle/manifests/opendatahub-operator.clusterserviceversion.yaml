@@ -191,7 +191,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.0.0
-    createdAt: "2025-10-10T09:35:28Z"
+    createdAt: "2025-10-10T11:54:34Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -1332,6 +1332,32 @@ spec:
           - get
           - list
           - watch
+        - apiGroups:
+          - perses.dev
+          resources:
+          - perses
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - perses.dev
+          resources:
+          - perses/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - perses.dev
+          resources:
+          - perses/status
+          verbs:
+          - get
+          - patch
+          - update
         - apiGroups:
           - ray.io
           resources:

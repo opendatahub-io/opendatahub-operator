@@ -108,6 +108,12 @@ var (
 		Kind:    "Deployment",
 	}
 
+	StatefulSet = schema.GroupVersionKind{
+		Group:   appsv1.SchemeGroupVersion.Group,
+		Version: appsv1.SchemeGroupVersion.Version,
+		Kind:    "StatefulSet",
+	}
+
 	ResourceQuota = schema.GroupVersionKind{
 		Group:   corev1.SchemeGroupVersion.Group,
 		Version: corev1.SchemeGroupVersion.Version,
@@ -562,6 +568,12 @@ var (
 		Group:   "monitoring.rhobs",
 		Version: "v1alpha1",
 		Kind:    "ThanosQuerier",
+	}
+
+	Perses = schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha1",
+		Kind:    "Perses",
 	}
 
 	ServiceMesh = schema.GroupVersionKind{
