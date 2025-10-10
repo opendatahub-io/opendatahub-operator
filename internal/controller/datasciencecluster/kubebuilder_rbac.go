@@ -199,7 +199,6 @@ package datasciencecluster
 // CFO
 //+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=codeflares,verbs=get;list;watch
 //+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=codeflares/status,verbs=get
-//+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=codeflares/finalizers,verbs=update
 
 // Kserve
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=kserves,verbs=get;list;watch;create;update;patch;delete
