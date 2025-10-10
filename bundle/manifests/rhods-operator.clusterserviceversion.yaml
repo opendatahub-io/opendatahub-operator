@@ -211,7 +211,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-10-09T08:00:07Z"
+    createdAt: "2025-10-10T08:56:33Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -1740,6 +1740,8 @@ spec:
                       fieldPath: metadata.namespace
                 - name: DEFAULT_MANIFESTS_PATH
                   value: /opt/manifests
+                - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
+                  value: quay.io/rhoai/odh-kube-auth-proxy-rhel9:latest
                 image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
@@ -1836,6 +1838,9 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
+  relatedImages:
+  - image: quay.io/rhoai/odh-kube-auth-proxy-rhel9:latest
+    name: odh-kube-auth-proxy-image
   version: 3.0.0
   webhookdefinitions:
   - admissionReviewVersions:
