@@ -2906,6 +2906,7 @@ _Appears in:_
 | `issuerURL` _string_ | OIDC issuer URL |  | Required: \{\} <br /> |
 | `clientID` _string_ | OIDC client ID |  | Required: \{\} <br /> |
 | `clientSecretRef` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#secretkeyselector-v1-core)_ | Reference to secret containing client secret |  | Required: \{\} <br /> |
+| `secretNamespace` _string_ | Namespace where the ClientSecretRef is located<br />If not specified, defaults to openshift-ingress |  |  |
 
 
 #### ServiceMesh
