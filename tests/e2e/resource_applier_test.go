@@ -275,8 +275,10 @@ func ensureResourceAppliedGomegaFunction(
 				err,
 			)
 
-			// Ensure that the resource object is not nil
-			innerG.Expect(*u).NotTo(BeNil(), resourceNotFoundErrorMsg, ro.ResourceID, ro.GVK.Kind)
+			// Only check for nil resource if we're NOT ignoring not found
+			if !ro.IgnoreNotFound {
+				innerG.Expect(*u).NotTo(BeNil(), resourceNotFoundErrorMsg, ro.ResourceID, ro.GVK.Kind)
+			}
 		} else {
 			// Expect error if failure is expected
 			innerG.Expect(err).To(HaveOccurred(), "Expected applyResourceFn to fail but it succeeded")
