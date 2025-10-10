@@ -70,11 +70,7 @@ metadata:
           "kind": "DataScienceCluster",
           "metadata": {
             "labels": {
-              "app.kubernetes.io/created-by": "opendatahub-operator",
-              "app.kubernetes.io/instance": "default",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "datasciencecluster",
-              "app.kubernetes.io/part-of": "opendatahub-operator"
+              "app.kubernetes.io/name": "datasciencecluster"
             },
             "name": "default-dsc"
           },
@@ -165,11 +161,7 @@ metadata:
           "kind": "DSCInitialization",
           "metadata": {
             "labels": {
-              "app.kubernetes.io/created-by": "opendatahub-operator",
-              "app.kubernetes.io/instance": "default",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "dscinitialization",
-              "app.kubernetes.io/part-of": "opendatahub-operator"
+              "app.kubernetes.io/name": "dscinitialization"
             },
             "name": "default-dsci"
           },
@@ -199,7 +191,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.0.0
-    createdAt: "2025-10-09T09:50:07Z"
+    createdAt: "2025-10-10T09:35:28Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
