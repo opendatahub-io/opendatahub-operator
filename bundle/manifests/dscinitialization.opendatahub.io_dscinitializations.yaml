@@ -582,9 +582,9 @@ spec:
             description: DSCInitializationSpec defines the desired state of DSCInitialization.
             properties:
               applicationsNamespace:
-                default: opendatahub
+                default: redhat-ods-applications
                 description: Namespace for applications to be installed, non-configurable,
-                  default to "opendatahub"
+                  default to "redhat-ods-applications"
                 maxLength: 63
                 pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
                 type: string
