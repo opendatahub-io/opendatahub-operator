@@ -105,7 +105,7 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateCodeFlareResourcePreservation(t *testing
 func (tc *V2Tov3UpgradeTestCtx) ValidateModelMeshServingResourcePreservation(t *testing.T) {
 	t.Helper()
 
-	tc.ValidateComponentResourcePreservation(t, gvk.ModelMeshServing, defaultModelMeshServingComponentName)
+	tc.validateComponentResourcePreservation(t, gvk.ModelMeshServing, defaultModelMeshServingComponentName)
 }
 
 func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T) {
