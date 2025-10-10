@@ -1645,6 +1645,8 @@ spec:
                   value: /opt/manifests
                 - name: ODH_PLATFORM_TYPE
                   value: OpenDataHub
+                - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
+                  value: quay.io/jtanner/kube-auth-proxy:latest
                 image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
@@ -1729,6 +1731,9 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: ODH
+  relatedImages:
+  - image: quay.io/jtanner/kube-auth-proxy:latest
+    name: odh-kube-auth-proxy-image
   selector:
     matchLabels:
       component: opendatahub-operator
