@@ -199,7 +199,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.0.0
-    createdAt: "2025-10-09T09:50:07Z"
+    createdAt: "2025-10-10T08:53:51Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
@@ -1653,6 +1653,8 @@ spec:
                   value: /opt/manifests
                 - name: ODH_PLATFORM_TYPE
                   value: OpenDataHub
+                - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
+                  value: quay.io/jtanner/kube-auth-proxy:latest
                 image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
@@ -1737,6 +1739,9 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: ODH
+  relatedImages:
+  - image: quay.io/jtanner/kube-auth-proxy:latest
+    name: odh-kube-auth-proxy-image
   selector:
     matchLabels:
       component: opendatahub-operator
