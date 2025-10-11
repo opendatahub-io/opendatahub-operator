@@ -58,8 +58,6 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 
 	// Define test cases.
 	testCases := []TestCase{
-		{"hardwareprofile v1alpha1 to v1 version upgrade", v2Tov3UpgradeTestCtx.HardwareProfileV1Alpha1ToV1VersionUpgrade},
-		{"hardwareprofile v1 to v1alpha1 version conversion", v2Tov3UpgradeTestCtx.HardwareProfileV1ToV1Alpha1VersionConversion},
 		{"codeflare resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateCodeFlareResourcePreservation},
 		{"modelmeshserving resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateModelMeshServingResourcePreservation},
 		{"ray raise error if codeflare component present in the cluster", v2Tov3UpgradeTestCtx.ValidateRayRaiseErrorIfCodeFlarePresent},
@@ -71,6 +69,27 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 	tc.DeleteResource(
 		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: strings.ToLower(gvk.CodeFlare.Kind) + "s." + gvk.CodeFlare.Group}),
 	)
+}
+
+func hardwareProfileTestSuite(t *testing.T) {
+	t.Helper()
+
+	tc, err := NewTestContext(t)
+	require.NoError(t, err)
+
+	// Create an instance of test context.
+	v2Tov3UpgradeTestCtx := V2Tov3UpgradeTestCtx{
+		TestContext: tc,
+	}
+
+	// Define hardware profile test cases.
+	testCases := []TestCase{
+		{"hardwareprofile v1alpha1 to v1 version upgrade", v2Tov3UpgradeTestCtx.HardwareProfileV1Alpha1ToV1VersionUpgrade},
+		{"hardwareprofile v1 to v1alpha1 version conversion", v2Tov3UpgradeTestCtx.HardwareProfileV1ToV1Alpha1VersionConversion},
+	}
+
+	// Run the hardware profile test suite.
+	RunTestCases(t, testCases)
 }
 
 func v2Tov3UpgradeDeletingDscDsciTestSuite(t *testing.T) {
@@ -430,6 +449,8 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard = {}`)),
 		WithCondition(jq.Match(`.metadata.generation == .status.observedGeneration`)),
 		WithCustomErrorMsg("Failed to trigger DSC reconciliation"),
+		WithEventuallyTimeout(2*time.Minute),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
 }
 
