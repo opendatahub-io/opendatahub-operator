@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: alertmanager
+  name: data-science-alertmanager-config
   namespace: redhat-ods-monitoring
 data:
   default.tmpl: |

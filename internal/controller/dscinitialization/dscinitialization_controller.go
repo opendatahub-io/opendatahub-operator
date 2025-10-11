@@ -186,7 +186,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	switch req.Name {
-	case "prometheus": // prometheus configmap
+	case "data-science-prometheus-config": // prometheus configmap
 		if instance.Spec.Monitoring.ManagementState == operatorv1.Managed && platform == cluster.ManagedRhoai {
 			log.Info("Monitoring enabled to restart deployment", "cluster", "Managed Service Mode")
 			if err := r.configureManagedMonitoring(ctx, instance, "updates"); err != nil {
@@ -400,10 +400,10 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 
 func (r *DSCInitializationReconciler) watchMonitoringConfigMapResource(ctx context.Context, a client.Object) []reconcile.Request {
 	log := logf.FromContext(ctx)
-	if a.GetName() == "prometheus" && a.GetNamespace() == "redhat-ods-monitoring" {
+	if a.GetName() == "data-science-prometheus-config" && a.GetNamespace() == "redhat-ods-monitoring" {
 		log.Info("Found monitoring configmap has updated, start reconcile")
 
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "prometheus", Namespace: "redhat-ods-monitoring"}}}
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "data-science-prometheus-config", Namespace: "redhat-ods-monitoring"}}}
 	}
 	return nil
 }
