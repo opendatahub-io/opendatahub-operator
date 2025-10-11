@@ -20,6 +20,7 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 )
 
@@ -87,6 +88,12 @@ var (
 	HardwareProfile = schema.GroupVersionKind{
 		Group:   infrav1.GroupVersion.Group,
 		Version: infrav1.GroupVersion.Version,
+		Kind:    "HardwareProfile",
+	}
+
+	HardwareProfileV1Alpha1 = schema.GroupVersionKind{
+		Group:   infrav1alpha1.GroupVersion.Group,
+		Version: infrav1alpha1.GroupVersion.Version,
 		Kind:    "HardwareProfile",
 	}
 

@@ -12,6 +12,8 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -365,6 +367,53 @@ func CreateDSCv1(name string) *dscv1.DataScienceCluster {
 			},
 		},
 	}
+}
+
+func CreateHardwareProfile(name, namespace, apiVersion string) *unstructured.Unstructured {
+	minCount := intstr.FromInt32(1)
+	maxCount := intstr.FromInt32(4)
+	defaultCount := intstr.FromInt32(2)
+
+	hwProfile := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": apiVersion,
+			"kind":       "HardwareProfile",
+			"metadata": map[string]interface{}{
+				"name":      name,
+				"namespace": namespace,
+			},
+			"spec": map[string]interface{}{
+				"identifiers": []map[string]interface{}{
+					{
+						"displayName":  "GPU",
+						"identifier":   "nvidia.com/gpu",
+						"minCount":     minCount.IntVal,
+						"maxCount":     maxCount.IntVal,
+						"defaultCount": defaultCount.IntVal,
+						"resourceType": "Accelerator",
+					},
+				},
+				"scheduling": map[string]interface{}{
+					"type": "Node",
+					"node": map[string]interface{}{
+						"nodeSelector": map[string]interface{}{
+							"kubernetes.io/arch":             "amd64",
+							"node-role.kubernetes.io/worker": "",
+						},
+						"tolerations": []map[string]interface{}{
+							{
+								"key":      "nvidia.com/gpu",
+								"operator": "Exists",
+								"effect":   "NoSchedule",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return hwProfile
 }
 
 // CreateNamespaceWithLabels creates a namespace manifest with optional labels for use with WithObjectToCreate.
