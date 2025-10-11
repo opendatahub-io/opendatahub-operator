@@ -34,6 +34,7 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -252,13 +253,11 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 	}, gateway)
 	if err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			gatewayConfig.SetConditions([]common.Condition{
-				{
-					Type:    status.ConditionTypeReady,
-					Status:  metav1.ConditionFalse,
-					Reason:  status.NotReadyReason,
-					Message: status.GatewayNotFoundMessage,
-				},
+			cond.SetStatusCondition(gatewayConfig, common.Condition{
+				Type:    status.ConditionTypeReady,
+				Status:  metav1.ConditionFalse,
+				Reason:  status.NotReadyReason,
+				Message: status.GatewayNotFoundMessage,
 			})
 			return nil
 		}
@@ -279,13 +278,11 @@ func syncGatewayConfigStatus(ctx context.Context, rr *odhtypes.ReconciliationReq
 		message = status.GatewayReadyMessage
 	}
 
-	gatewayConfig.SetConditions([]common.Condition{
-		{
-			Type:    status.ConditionTypeReady,
-			Status:  conditionStatus,
-			Reason:  reason,
-			Message: message,
-		},
+	cond.SetStatusCondition(gatewayConfig, common.Condition{
+		Type:    status.ConditionTypeReady,
+		Status:  conditionStatus,
+		Reason:  reason,
+		Message: message,
 	})
 
 	return nil
