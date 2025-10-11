@@ -40,9 +40,7 @@ func (s *componentHandler) GetName() string {
 
 func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
 	// Create a proper deep copy to avoid modifying the original DSC
-	spec := componentApi.TrustyAICommonSpec{
-		DevFlagsSpec: dsc.Spec.Components.TrustyAI.DevFlagsSpec,
-	}
+	spec := componentApi.TrustyAICommonSpec{}
 
 	// Copy eval section exactly as it exists in the DSC
 	spec.Eval = dsc.Spec.Components.TrustyAI.Eval

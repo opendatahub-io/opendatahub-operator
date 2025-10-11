@@ -600,21 +600,6 @@ spec:
                     description: Override Zap log level. Can be "debug", "info", "error"
                       or a number (more verbose).
                     type: string
-                  logmode:
-                    default: production
-                    description: '## DEPRECATED ##: Ignored, use LogLevel instead'
-                    enum:
-                    - devel
-                    - development
-                    - prod
-                    - production
-                    - default
-                    type: string
-                  manifestsUri:
-                    description: |-
-                      ## DEPRECATED ## : ManifestsUri set on DSCI is not maintained.
-                      Custom manifests uri for odh-manifests
-                    type: string
                 type: object
               monitoring:
                 description: Enable monitoring on specified namespace

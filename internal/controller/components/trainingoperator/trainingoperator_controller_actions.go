@@ -18,38 +18,11 @@ package trainingoperator
 
 import (
 	"context"
-	"fmt"
 
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = append(rr.Manifests, manifestPath())
-	return nil
-}
-
-func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	trainingoperator, ok := rr.Instance.(*componentApi.TrainingOperator)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.TrainingOperator)", rr.Instance)
-	}
-
-	if trainingoperator.Spec.DevFlags == nil {
-		return nil
-	}
-	if len(trainingoperator.Spec.DevFlags.Manifests) != 0 {
-		manifestConfig := trainingoperator.Spec.DevFlags.Manifests[0]
-		if err := odhdeploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
-			return err
-		}
-		if manifestConfig.SourcePath != "" {
-			rr.Manifests[0].Path = odhdeploy.DefaultManifestPath
-			rr.Manifests[0].ContextDir = ComponentName
-			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
-		}
-	}
-	// TODO: Implement devflags logmode logic
 	return nil
 }
