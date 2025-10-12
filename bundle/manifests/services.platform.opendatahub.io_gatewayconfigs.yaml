@@ -109,6 +109,11 @@ spec:
                   issuerURL:
                     description: OIDC issuer URL
                     type: string
+                  secretNamespace:
+                    description: |-
+                      Namespace where the ClientSecretRef is located
+                      If not specified, defaults to openshift-ingress
+                    type: string
                 required:
                 - clientID
                 - clientSecretRef

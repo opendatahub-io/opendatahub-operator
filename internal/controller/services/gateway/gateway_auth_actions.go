@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -102,6 +103,25 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 
 	// Dashboard routing is now user's responsibility - removed createDashboardRoute and createReferenceGrant
 
+	// Create OpenShift Route for the gateway
+	yamlContent, err := gatewayResources.ReadFile("resources/route.yaml")
+	if err != nil {
+		return setErrorConditionAndReturn(gatewayConfig, "Failed to read Route template", err)
+	}
+
+	// Replace the GATEWAY_DOMAIN placeholder with the actual resolved domain
+	yamlContent = bytes.ReplaceAll(yamlContent, []byte("GATEWAY_DOMAIN"), []byte(domain))
+
+	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
+	unstructuredObjects, err := resources.Decode(decoder, yamlContent)
+	if err != nil {
+		return setErrorConditionAndReturn(gatewayConfig, "Failed to decode Route YAML", err)
+	}
+
+	if err := rr.AddResources(&unstructuredObjects[0]); err != nil {
+		return setErrorConditionAndReturn(gatewayConfig, "Failed to add Route resource", err)
+	}
+
 	gatewayConfig.SetConditions([]common.Condition{{
 		Type:    status.ConditionTypeReady,
 		Status:  metav1.ConditionTrue,
@@ -149,9 +169,9 @@ func checkAuthModeNone(authMode AuthMode) *common.Condition {
 	if authMode == AuthModeNone {
 		return &common.Condition{
 			Type:    status.ConditionTypeReady,
-			Status:  metav1.ConditionFalse,
-			Reason:  status.NotReadyReason,
-			Message: "Cluster uses external authentication, no gateway auth proxy deployed",
+			Status:  metav1.ConditionTrue,
+			Reason:  status.ReadyReason,
+			Message: "Cluster uses external authentication, no gateway auth proxy needed",
 		}
 	}
 	return nil
@@ -245,13 +265,19 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 // getOIDCClientSecret retrieves the client secret from the referenced secret for OIDC configuration.
 func getOIDCClientSecret(ctx context.Context, client client.Client, oidcConfig *serviceApi.OIDCConfig) (string, error) {
 	secret := &corev1.Secret{}
+	// Determine which namespace for the secret
+	secretNamespace := oidcConfig.SecretNamespace
+	if secretNamespace == "" {
+		secretNamespace = GatewayNamespace // to openshift-ingress if not specified
+	}
+
 	err := client.Get(ctx, types.NamespacedName{
 		Name:      oidcConfig.ClientSecretRef.Name,
-		Namespace: GatewayNamespace,
+		Namespace: secretNamespace,
 	}, secret)
 	if err != nil {
 		return "", fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
-			GatewayNamespace, oidcConfig.ClientSecretRef.Name, err)
+			secretNamespace, oidcConfig.ClientSecretRef.Name, err)
 	}
 
 	key := oidcConfig.ClientSecretRef.Key
