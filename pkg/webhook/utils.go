@@ -176,7 +176,7 @@ func CountObjects(ctx context.Context, cli client.Reader, gvk schema.GroupVersio
 //
 // Returns:
 //   - admission.Response: Denied if objects exist, Allowed otherwise, or Errored on failure.
-func DenyCountGtZero(ctx context.Context, cli client.Reader, gvk schema.GroupVersionKind, msg string) admission.Response {
+func DenyCountGtZero(ctx context.Context, cli client.Reader, gvk schema.GroupVersionKind, denyMessage string) admission.Response {
 	count, err := CountObjects(ctx, cli, gvk)
 	if err != nil {
 		logf.FromContext(ctx).Error(err, "error listing objects")
@@ -184,7 +184,7 @@ func DenyCountGtZero(ctx context.Context, cli client.Reader, gvk schema.GroupVer
 	}
 
 	if count > 0 {
-		return admission.Denied(msg)
+		return admission.Denied(denyMessage)
 	}
 
 	return admission.Allowed("")

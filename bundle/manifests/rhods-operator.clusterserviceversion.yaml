@@ -100,7 +100,7 @@ metadata:
                 }
               },
               "kueue": {
-                "managementState": "Managed"
+                "managementState": "Removed"
               },
               "llamastackoperator": {
                 "managementState": "Removed"
@@ -1926,6 +1926,7 @@ spec:
     deploymentName: rhods-operator
     failurePolicy: Fail
     generateName: datasciencecluster-v1-defaulter.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -1946,6 +1947,7 @@ spec:
     deploymentName: rhods-operator
     failurePolicy: Fail
     generateName: datasciencecluster-v1-validator.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -1953,6 +1955,7 @@ spec:
       - v1
       operations:
       - CREATE
+      - UPDATE
       resources:
       - datascienceclusters
     sideEffects: None
@@ -1965,6 +1968,7 @@ spec:
     deploymentName: rhods-operator
     failurePolicy: Fail
     generateName: datasciencecluster-v2-defaulter.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -1985,6 +1989,7 @@ spec:
     deploymentName: rhods-operator
     failurePolicy: Fail
     generateName: datasciencecluster-v2-validator.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -2004,6 +2009,7 @@ spec:
     deploymentName: rhods-operator
     failurePolicy: Fail
     generateName: dscinitialization-v1-validator.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - dscinitialization.opendatahub.io
@@ -2024,6 +2030,7 @@ spec:
     deploymentName: rhods-operator
     failurePolicy: Fail
     generateName: dscinitialization-v2-validator.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - dscinitialization.opendatahub.io
