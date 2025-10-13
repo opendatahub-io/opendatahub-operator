@@ -137,7 +137,7 @@ const (
 	DataSciencePipelinesArgoWorkflowsCRDMissingReason = "DataSciencePipelinesArgoWorkflowsCRDMissing"
 
 	DataSciencePipelinesDoesntOwnArgoCRDMessage = "Failed upgrade: workflows.argoproj.io CRD already exists but not deployed by this operator " +
-		"remove existing Argo workflows or set `spec.components.datasciencepipelines.managementState` to Removed to proceed"
+		"remove existing Argo workflows or set `spec.components.aipipelines.managementState` to Removed to proceed"
 	DataSciencePipelinesArgoWorkflowsNotManagedMessage = "Argo Workflows controllers are not managed by this operator"
 	DataSciencePipelinesArgoWorkflowsCRDMissingMessage = "Argo Workflows controllers are not managed by this operator, but the CRD is missing"
 )
