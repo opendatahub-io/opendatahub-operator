@@ -369,6 +369,7 @@ func buildBaseOAuth2ProxyArgs(domain string) []string {
 		"--email-domain=*",
 		"--upstream=static://200", // Static response - real routing handled by EnvoyFilter
 		"--skip-provider-button",
+		"--skip-jwt-bearer-tokens=true", // Allow bearer tokens to bypass OAuth login flow
 		"--pass-access-token=true",
 		"--set-xauthrequest=true",
 		fmt.Sprintf("--redirect-url=https://%s/oauth2/callback", domain),
