@@ -4,6 +4,7 @@ package v1
 
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 )
@@ -17,8 +18,9 @@ func RegisterWebhooks(mgr ctrl.Manager) error {
 
 	// Register the validating webhook
 	if err := (&Validator{
-		Client: mgr.GetAPIReader(),
-		Name:   "datasciencecluster-v1-validating",
+		Client:  mgr.GetAPIReader(),
+		Name:    "datasciencecluster-v1-validating",
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}).SetupWithManager(mgr); err != nil {
 		return err
 	}
