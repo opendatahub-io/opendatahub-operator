@@ -449,8 +449,6 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard = {}`)),
 		WithCondition(jq.Match(`.metadata.generation == .status.observedGeneration`)),
 		WithCustomErrorMsg("Failed to trigger DSC reconciliation"),
-		WithEventuallyTimeout(2*time.Minute),
-		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
 	)
 }
 
