@@ -4,7 +4,7 @@ metadata:
   name: custom-serving
   namespace: opendatahub
   annotations:
-    opendatahub.io/dashboard-feature-visibility: model-serving
+    opendatahub.io/dashboard-feature-visibility: '["model-serving"]'
     opendatahub.io/modified-date: ""
     opendatahub.io/display-name: custom-serving
     opendatahub.io/description: ""

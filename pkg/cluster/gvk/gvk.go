@@ -451,6 +451,18 @@ var (
 		Kind:    "InferenceService",
 	}
 
+	ServingRuntime = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha1",
+		Kind:    "ServingRuntime",
+	}
+
+	ClusterServingRuntime = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha1",
+		Kind:    "ClusterServingRuntime",
+	}
+
 	Notebook = schema.GroupVersionKind{
 		Group:   "kubeflow.org",
 		Version: "v1",
