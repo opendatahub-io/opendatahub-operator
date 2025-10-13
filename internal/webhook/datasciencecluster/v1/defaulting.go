@@ -20,7 +20,7 @@ import (
 	webhookutils "github.com/opendatahub-io/opendatahub-operator/v2/pkg/webhook"
 )
 
-//+kubebuilder:webhook:path=/mutate-datasciencecluster-v1,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=datasciencecluster-v1-defaulter.opendatahub.io,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/mutate-datasciencecluster-v1,matchPolicy=Exact,mutating=true,failurePolicy=fail,sideEffects=None,groups=datasciencecluster.opendatahub.io,resources=datascienceclusters,verbs=create;update,versions=v1,name=datasciencecluster-v1-defaulter.opendatahub.io,admissionReviewVersions=v1
 //nolint:lll
 
 // Defaulter implements webhook.CustomDefaulter for DataScienceCluster v1 resources.
