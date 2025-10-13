@@ -30,16 +30,6 @@ const (
 	KserveKind         = "Kserve"
 )
 
-// +kubebuilder:validation:Enum=Serverless;RawDeployment
-type DefaultDeploymentMode string
-
-const (
-	// Serverless will be used as the default deployment mode for Kserve. This requires Serverless and ServiceMesh operators configured as dependencies.
-	Serverless DefaultDeploymentMode = "Serverless"
-	// RawDeployment will be used as the default deployment mode for Kserve.
-	RawDeployment DefaultDeploymentMode = "RawDeployment"
-)
-
 // +kubebuilder:validation:Enum=Headless;Headed
 type RawServiceConfig string
 
