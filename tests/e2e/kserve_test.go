@@ -50,12 +50,11 @@ func kserveTestSuite(t *testing.T) {
 	}
 
 	// Add webhook tests if enabled
-	// TODO: check if this is still needed/needs to be changed for 3.0 and OSSMv2 removal
-	// if testOpts.webhookTest {
-	// 	testCases = append(testCases,
-	// 		TestCase{"Validate connection webhook injection", componentCtx.ValidateConnectionWebhookInjection},
-	// 	)
-	// }
+	if testOpts.webhookTest {
+		testCases = append(testCases,
+			TestCase{"Validate connection webhook injection", componentCtx.ValidateConnectionWebhookInjection},
+		)
+	}
 
 	// Always run deletion recovery and component disable tests last
 	testCases = append(testCases,
