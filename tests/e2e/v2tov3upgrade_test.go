@@ -192,7 +192,7 @@ func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T
 			jq.Match(`.kind == "DataScienceCluster"`),
 			jq.Match(`.spec.components | has("codeflare") | not`),
 			jq.Match(`.spec.components | has("modelmeshserving") | not`),
-			jq.Match(`([.spec.components.dashboard, .spec.components.workbenches, .spec.components.datasciencepipelines,
+			jq.Match(`([.spec.components.dashboard, .spec.components.workbenches, .spec.components.aipipelines,
 				.spec.components.kserve, .spec.components.kueue, .spec.components.ray, .spec.components.trustyai,
 				.spec.components.modelregistry, .spec.components.trainingoperator, .spec.components.feastoperator,
 				.spec.components.llamastackoperator] | map(.managementState) | all(. == "Removed"))`),
@@ -462,6 +462,7 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard = {}`)),
 		WithCondition(jq.Match(`.metadata.generation == .status.observedGeneration`)),
+		WithEventuallyTimeout(tc.TestTimeouts.defaultEventuallyTimeout),
 		WithCustomErrorMsg("Failed to trigger DSC reconciliation"),
 	)
 }
