@@ -548,14 +548,31 @@ func retrievePodLogs(namespace, podName, containerName string, previous bool) (s
 	return buf.String(), nil
 }
 
+// getDebugControllerDeploymentName returns the platform-aware deployment name for debug purposes.
+func getDebugControllerDeploymentName() string {
+	// Try to create a minimal test context to get platform detection
+	tc, err := NewTestContext(nil)
+	if err != nil {
+		// Fallback to ODH deployment name if we can't detect platform
+		log.Printf("Warning: Could not create test context for platform detection: %v", err)
+		return controllerDeploymentODH
+	}
+
+	return tc.getControllerDeploymentName()
+}
+
 // debugOperatorStatus checks the OpenDataHub operator deployment and pods.
 func debugOperatorStatus() {
 	log.Printf("=== OPERATOR STATUS ===")
 
+	// Get platform-aware deployment name instead of hardcoded ODH name
+	deploymentName := getDebugControllerDeploymentName()
+	log.Printf("Looking for operator deployment: %s", deploymentName)
+
 	// Check main operator deployment
 	operatorDeploy := &appsv1.Deployment{}
 	err := globalDebugClient.Get(context.TODO(),
-		types.NamespacedName{Name: controllerDeploymentODH, Namespace: testOpts.operatorNamespace},
+		types.NamespacedName{Name: deploymentName, Namespace: testOpts.operatorNamespace},
 		operatorDeploy)
 
 	if err != nil {
