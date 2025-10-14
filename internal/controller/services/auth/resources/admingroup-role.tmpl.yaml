@@ -21,7 +21,6 @@ rules:
   verbs:
   - get
 - apiGroups:
-- apiGroups:
   - infrastructure.opendatahub.io
   resources:
   - hardwareprofiles
