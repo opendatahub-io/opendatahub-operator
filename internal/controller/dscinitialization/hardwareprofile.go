@@ -15,7 +15,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-// deploy hardware profile CR with dsci as owner, but allow user change by annotation set to false.
+// deploy default hardware profile CR with dsci as owner, but allow user change by annotation set to false.
 func (r *DSCInitializationReconciler) ManageDefaultAndCustomHWProfileCR(ctx context.Context, dscInit *dsciv2.DSCInitialization, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
@@ -26,22 +26,18 @@ func (r *DSCInitializationReconciler) ManageDefaultAndCustomHWProfileCR(ctx cont
 
 	// Check if default HardwareProfile CR already exists.
 	_, defaultProfileError := cluster.GetHardwareProfile(ctx, r.Client, "default-profile", dscInit.Spec.ApplicationsNamespace)
-	// Check if custom-serving HardwareProfile CR already exists
-	_, customServingError := cluster.GetHardwareProfile(ctx, r.Client, "custom-serving", dscInit.Spec.ApplicationsNamespace)
 
-	if client.IgnoreNotFound(defaultProfileError) != nil || client.IgnoreNotFound(customServingError) != nil {
-		return fmt.Errorf("failed to check HardwareProfile CR: default-profile %w, custom-serving %w", defaultProfileError, customServingError)
+	if client.IgnoreNotFound(defaultProfileError) != nil {
+		return fmt.Errorf("failed to check HardwareProfile CR: default-profile %w", defaultProfileError)
 	}
 
-	if k8serr.IsNotFound(defaultProfileError) || k8serr.IsNotFound(customServingError) {
-		// deploy hardware profile CRs with dsci as owner, but allow user change by have annotation in the default.
-		// default and custom hardwareprofile CRs are stored in the config/hardwareprofiles directory.
-		// so by deploying the path, Kustomize will deploy either or both depending on the CRs present.
-		hwProfilePath := filepath.Join(deploy.DefaultManifestPath, "hardwareprofiles")
-		if err := deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, hwProfilePath, dscInit.Spec.ApplicationsNamespace, "hardwareprofile", true); err != nil {
-			return fmt.Errorf("failed to deploy HardwareProfile CR from path %s: %w", hwProfilePath, err)
+	if k8serr.IsNotFound(defaultProfileError) {
+		// deploy default hardware profile CR with dsci as owner, but allow user change by have annotation in the default.
+		defaultProfilePath := filepath.Join(deploy.DefaultManifestPath, "hardwareprofiles")
+		if err := deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, defaultProfilePath, dscInit.Spec.ApplicationsNamespace, "hardwareprofile", true); err != nil {
+			return fmt.Errorf("failed to deploy default-profile HardwareProfile CR from path %s: %w", defaultProfilePath, err)
 		}
-		log.V(1).Info("Successfully deployed HardwareProfile CRs")
+		log.V(1).Info("Successfully deployed default-profile HardwareProfile CR")
 	}
 	return nil
 }
