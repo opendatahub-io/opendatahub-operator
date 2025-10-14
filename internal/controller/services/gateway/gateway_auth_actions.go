@@ -324,6 +324,7 @@ func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfi
 								{Name: EnvClientID, ValueFrom: createSecretKeySelector(EnvClientID)},
 								{Name: EnvClientSecret, ValueFrom: createSecretKeySelector(EnvClientSecret)},
 								{Name: EnvCookieSecret, ValueFrom: createSecretKeySelector(EnvCookieSecret)},
+								{Name: "PROXY_MODE", Value: "auth"},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
