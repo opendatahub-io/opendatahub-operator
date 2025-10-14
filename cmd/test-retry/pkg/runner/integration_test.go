@@ -114,6 +114,21 @@ func TestRunnerIntegration(t *testing.T) {
 				{Name: "TestSiblings/nested_with_same_prefix/sibling_2", HasFailure: false},
 			},
 		},
+		{
+			name:           "skip filter duplicated name",
+			testPath:       "./testdata/duplicatedname",
+			skipAtPrefixes: []string{"TestDuplicated/"},
+			expectedError:  "2 tests failed after retries",
+			expectedResults: []testCaseOutput{
+				{Name: "TestDuplicated", HasFailure: true},
+				{Name: "TestDuplicated/two_of_me", HasFailure: false},
+				{Name: "TestDuplicated/two_of_me#01", HasFailure: true},
+				{Name: "TestDuplicated", HasFailure: true},
+				{Name: "TestDuplicated/two_of_me#01", HasFailure: true},
+				{Name: "TestDuplicated", HasFailure: true},
+				{Name: "TestDuplicated/two_of_me#01", HasFailure: true},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
