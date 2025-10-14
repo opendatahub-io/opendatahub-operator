@@ -46,6 +46,7 @@ const (
 	serverlessOpName             = "serverless-operator"              // Name of the Serverless Operator
 	authorinoOpName              = "authorino-operator"               // Name of the Serverless Operator
 	leaderWorkerSetOpName        = "leader-worker-set"                // Name of the Leader Worker Set Operator
+	kuadrantOperator             = "kuadrant-operator"                // Name of the Red Hat Connectivity Link Operator
 	kueueOpName                  = "kueue-operator"                   // Name of the Kueue Operator
 	telemetryOpName              = "opentelemetry-product"            // Name of the Telemetry Operator
 	openshiftOperatorsNamespace  = "openshift-operators"              // Namespace for OpenShift Operators

@@ -612,4 +612,10 @@ var (
 		Version: "v1",
 		Kind:    "LeaderWorkerSetOperator",
 	}
+
+	ConnectivityLinkOperator = schema.GroupVersionKind{
+		Group:   "kuadrant.io",
+		Version: "v1beta1",
+		Kind:    "Kuadrant",
+	}
 )

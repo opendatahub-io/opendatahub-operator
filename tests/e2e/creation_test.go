@@ -98,6 +98,7 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: kuadrantOperator, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
 	}
 
 	// Create and run test cases in parallel.
@@ -139,7 +140,7 @@ func (tc *DSCTestCtx) ValidateOperatorsWithCustomChannelsInstallation(t *testing
 		}
 	}
 
-	RunTestCases(t, testCases, WithParallel())
+	RunTestCases(t, testCases)
 }
 
 // ValidateDSCICreation validates the creation of a DSCInitialization.

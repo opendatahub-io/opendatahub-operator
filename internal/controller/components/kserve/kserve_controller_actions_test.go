@@ -217,6 +217,9 @@ func TestCheckPreConditions_ServiceMeshManaged_AllOperator(t *testing.T) {
 			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
 				Name: leaderWorkerSetOperator,
 			}},
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: kuadrantOperator,
+			}},
 		),
 	)
 
@@ -268,6 +271,9 @@ func TestCheckPreConditions_ServiceMeshConditionNotTrue(t *testing.T) {
 			}},
 			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
 				Name: leaderWorkerSetOperator,
+			}},
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: kuadrantOperator,
 			}},
 		),
 	)
@@ -509,6 +515,35 @@ func TestCheckPreConditions_Managed_NoLWSOperator(t *testing.T) { //nolint:dupl
 	err = checkPreConditions(ctx, &rr)
 	g.Expect(err).Should(
 		MatchError(ContainSubstring(status.LeaderWorkerSetOperatorNotInstalledMessage)),
+	)
+	g.Expect(&ks).Should(
+		WithTransform(resources.ToUnstructured,
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionServingAvailable, metav1.ConditionFalse)))
+}
+
+func TestCheckPreConditions_Managed_NoRHCLOperator(t *testing.T) { //nolint:dupl
+	ctx := t.Context()
+	g := NewWithT(t)
+	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ks := componentApi.Kserve{}
+	ks.Spec.Serving.ManagementState = operatorv1.Managed
+
+	dsci := dsciv2.DSCInitialization{}
+	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
+		ManagementState: operatorv1.Managed,
+	}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &ks,
+		DSCI:       &dsci,
+		Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+	}
+	err = checkPreConditions(ctx, &rr)
+	g.Expect(err).Should(
+		MatchError(ContainSubstring(status.ConnectivityLinkOperatorNotInstalledMessage)),
 	)
 	g.Expect(&ks).Should(
 		WithTransform(resources.ToUnstructured,

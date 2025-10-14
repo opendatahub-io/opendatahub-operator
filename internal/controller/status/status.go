@@ -131,7 +131,8 @@ const (
 
 	ServerlessUnsupportedCertMessage = "Serverless certificate type is not supported"
 
-	LeaderWorkerSetOperatorNotInstalledMessage = "LeaderWorkerSet operator must be installed for this component's configuration"
+	LeaderWorkerSetOperatorNotInstalledMessage  = "LeaderWorkerSet operator must be installed for this component's configuration"
+	ConnectivityLinkOperatorNotInstalledMessage = "Red Hat Connectivity Link operator must be installed for this component's configuration"
 )
 
 const (

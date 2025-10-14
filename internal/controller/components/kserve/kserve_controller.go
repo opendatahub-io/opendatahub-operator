@@ -111,6 +111,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		WatchesGVK(gvk.LeaderWorkerSetOperator,
 			reconciler.Dynamic(reconciler.CrdExists(gvk.LeaderWorkerSetOperator))).
+		WatchesGVK(gvk.ConnectivityLinkOperator,
+			reconciler.Dynamic(reconciler.CrdExists(gvk.ConnectivityLinkOperator))).
 		// actions
 		WithAction(checkPreConditions).
 		WithAction(initialize).
