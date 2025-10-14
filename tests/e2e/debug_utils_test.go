@@ -22,6 +22,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlcfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
@@ -134,12 +137,17 @@ func runAllDiagnostics() {
 }
 
 // getOperatorPods returns operator pods by trying both OpenDataHub and RHODS label selectors.
-// This platform-agnostic approach avoids complex platform detection in debug context.
+// Uses dynamic namespace discovery to find pods in the correct namespace.
 func getOperatorPods() (*corev1.PodList, error) {
+	// Discover platform and deployment info
+	platform := fetchPlatformFromDSCI()
+	deploymentName := getControllerDeploymentName(platform)
+	operatorNamespace := discoverOperatorNamespace(deploymentName)
+
 	// Try OpenDataHub selector first
 	odhPods := &corev1.PodList{}
 	err := globalDebugClient.List(context.TODO(), odhPods,
-		client.InNamespace(testOpts.operatorNamespace),
+		client.InNamespace(operatorNamespace),
 		client.MatchingLabels{"control-plane": "controller-manager"})
 
 	if err != nil {
@@ -149,7 +157,7 @@ func getOperatorPods() (*corev1.PodList, error) {
 	// Try RHODS selector
 	rhoadsPods := &corev1.PodList{}
 	err = globalDebugClient.List(context.TODO(), rhoadsPods,
-		client.InNamespace(testOpts.operatorNamespace),
+		client.InNamespace(operatorNamespace),
 		client.MatchingLabels{"name": "rhods-operator"})
 
 	if err != nil {
@@ -548,42 +556,80 @@ func retrievePodLogs(namespace, podName, containerName string, previous bool) (s
 	return buf.String(), nil
 }
 
-// getDebugControllerDeploymentName returns the platform-aware deployment name for debug purposes.
-func getDebugControllerDeploymentName() string {
-	var result string
-
-	// Defensive guard: never let platform detection crash diagnostics
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("Warning: platform detection panicked: %v", r)
-			result = controllerDeploymentODH
-		}
-	}()
-
-	// Try to create a minimal test context to get platform detection
-	tc, err := NewTestContext(nil)
+// fetchPlatformFromDSCI fetches platform directly from DSCInitialization resource.
+func fetchPlatformFromDSCI() common.Platform {
+	// Fetch DSCI to get platform info
+	dsci := &dsciv2.DSCInitialization{}
+	err := globalDebugClient.Get(context.TODO(), types.NamespacedName{Name: dsciInstanceName}, dsci)
 	if err != nil {
-		// Fallback to ODH deployment name if we can't detect platform
-		log.Printf("Warning: Could not create test context for platform detection: %v", err)
-		return controllerDeploymentODH
+		log.Printf("Warning: Could not fetch DSCI for platform detection: %v", err)
+		return cluster.OpenDataHub // fallback to ODH
 	}
 
-	result = tc.getControllerDeploymentName()
-	return result
+	// Get platform from DSCI status
+	if dsci.Status.Release.Name != "" {
+		return dsci.Status.Release.Name
+	}
+
+	log.Printf("Warning: DSCI release name is empty, falling back to OpenDataHub")
+	return cluster.OpenDataHub
+}
+
+// discoverOperatorNamespace dynamically finds the actual namespace containing the operator deployment.
+func discoverOperatorNamespace(deploymentName string) string {
+	// Candidate namespaces in order of likelihood
+	candidateNamespaces := []string{
+		"openshift-operators",         // Most common for OLM operators
+		"redhat-ods-operator",         // RHOAI fallback from cluster config
+		"opendatahub-operator-system", // ODH default from test config
+		testOpts.operatorNamespace,    // Current test configuration
+	}
+
+	for _, namespace := range candidateNamespaces {
+		deployment := &appsv1.Deployment{}
+		err := globalDebugClient.Get(context.TODO(),
+			types.NamespacedName{Name: deploymentName, Namespace: namespace},
+			deployment)
+
+		if err == nil {
+			log.Printf("Found operator deployment '%s' in namespace '%s'", deploymentName, namespace)
+			return namespace
+		}
+	}
+
+	log.Printf("Warning: Could not find deployment '%s' in any candidate namespace, using fallback", deploymentName)
+	return testOpts.operatorNamespace // fallback to test configuration
+}
+
+// getControllerDeploymentName returns deployment name based on platform.
+func getControllerDeploymentName(platform common.Platform) string {
+	switch platform {
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+		return controllerDeploymentRhoai
+	case cluster.OpenDataHub:
+		return controllerDeploymentODH
+	default:
+		return controllerDeploymentODH
+	}
 }
 
 // debugOperatorStatus checks the OpenDataHub operator deployment and pods.
 func debugOperatorStatus() {
 	log.Printf("=== OPERATOR STATUS ===")
 
-	// Get platform-aware deployment name instead of hardcoded ODH name
-	deploymentName := getDebugControllerDeploymentName()
-	log.Printf("Looking for operator deployment: %s", deploymentName)
+	// Fetch platform directly from DSCI to get deployment name
+	platform := fetchPlatformFromDSCI()
+	deploymentName := getControllerDeploymentName(platform)
+	log.Printf("Detected platform: %s, using deployment: %s", platform, deploymentName)
+
+	// Dynamically discover the actual namespace containing the deployment
+	operatorNamespace := discoverOperatorNamespace(deploymentName)
+	log.Printf("Using namespace: %s", operatorNamespace)
 
 	// Check main operator deployment
 	operatorDeploy := &appsv1.Deployment{}
 	err := globalDebugClient.Get(context.TODO(),
-		types.NamespacedName{Name: deploymentName, Namespace: testOpts.operatorNamespace},
+		types.NamespacedName{Name: deploymentName, Namespace: operatorNamespace},
 		operatorDeploy)
 
 	if err != nil {
