@@ -5,67 +5,6 @@ metadata:
     alm-examples: |-
       [
         {
-          "apiVersion": "datasciencecluster.opendatahub.io/v1",
-          "kind": "DataScienceCluster",
-          "metadata": {
-            "labels": {
-              "app.kubernetes.io/name": "datasciencecluster"
-            },
-            "name": "default-dsc"
-          },
-          "spec": {
-            "components": {
-              "dashboard": {
-                "managementState": "Managed"
-              },
-              "datasciencepipelines": {
-                "managementState": "Managed"
-              },
-              "feastoperator": {
-                "managementState": "Managed"
-              },
-              "kserve": {
-                "managementState": "Managed",
-                "nim": {
-                  "managementState": "Managed"
-                },
-                "rawDeploymentServiceConfig": "Headed",
-                "serving": {
-                  "ingressGateway": {
-                    "certificate": {
-                      "type": "OpenshiftDefaultIngress"
-                    }
-                  },
-                  "managementState": "Unmanaged",
-                  "name": "knative-serving"
-                }
-              },
-              "kueue": {
-                "managementState": "Managed"
-              },
-              "llamastackoperator": {
-                "managementState": "Removed"
-              },
-              "modelregistry": {
-                "managementState": "Managed",
-                "registriesNamespace": "odh-model-registries"
-              },
-              "ray": {
-                "managementState": "Managed"
-              },
-              "trainingoperator": {
-                "managementState": "Managed"
-              },
-              "trustyai": {
-                "managementState": "Managed"
-              },
-              "workbenches": {
-                "managementState": "Managed"
-              }
-            }
-          }
-        },
-        {
           "apiVersion": "datasciencecluster.opendatahub.io/v2",
           "kind": "DataScienceCluster",
           "metadata": {
@@ -127,36 +66,6 @@ metadata:
           }
         },
         {
-          "apiVersion": "dscinitialization.opendatahub.io/v1",
-          "kind": "DSCInitialization",
-          "metadata": {
-            "labels": {
-              "app.kubernetes.io/name": "dscinitialization"
-            },
-            "name": "default-dsci"
-          },
-          "spec": {
-            "applicationsNamespace": "opendatahub",
-            "monitoring": {
-              "managementState": "Managed",
-              "metrics": {},
-              "namespace": "opendatahub"
-            },
-            "serviceMesh": {
-              "controlPlane": {
-                "metricsCollection": "Istio",
-                "name": "data-science-smcp",
-                "namespace": "istio-system"
-              },
-              "managementState": "Unmanaged"
-            },
-            "trustedCABundle": {
-              "customCABundle": "",
-              "managementState": "Managed"
-            }
-          }
-        },
-        {
           "apiVersion": "dscinitialization.opendatahub.io/v2",
           "kind": "DSCInitialization",
           "metadata": {
@@ -191,7 +100,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.0.0
-    createdAt: "2025-10-13T11:31:07Z"
+    createdAt: "2025-10-14T05:43:57Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
