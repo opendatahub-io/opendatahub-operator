@@ -1,0 +1,131 @@
+{
+  "PassedTest": [
+    {
+      "ID": 4,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Ensure_required_operators_are_installed/Ensure_servicemeshoperator_is_installed",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 560000000,
+      "Time": "2025-09-24T10:19:08.888979+02:00"
+    },
+    {
+      "ID": 6,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Ensure_required_operators_are_installed/Ensure_authorino-operator_is_installed",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 560000000,
+      "Time": "2025-09-24T10:19:08.88906+02:00"
+    },
+    {
+      "ID": 10,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Ensure_required_operators_are_installed/Ensure_opentelemetry-product_is_installed#01",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 650000000,
+      "Time": "2025-09-24T10:19:08.889191+02:00"
+    },
+    {
+      "ID": 9,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Ensure_required_operators_are_installed/Ensure_tempo-product_is_installed",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 650000000,
+      "Time": "2025-09-24T10:19:08.889149+02:00"
+    },
+    {
+      "ID": 8,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Ensure_required_operators_are_installed/Ensure_opentelemetry-product_is_installed",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 650000000,
+      "Time": "2025-09-24T10:19:08.889127+02:00"
+    },
+    {
+      "ID": 5,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Ensure_required_operators_are_installed/Ensure_serverless-operator_is_installed",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 750000000,
+      "Time": "2025-09-24T10:19:08.889033+02:00"
+    },
+    {
+      "ID": 7,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Ensure_required_operators_are_installed/Ensure_cluster-observability-operator_is_installed",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 770000000,
+      "Time": "2025-09-24T10:19:08.889094+02:00"
+    },
+    {
+      "ID": 3,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Ensure_required_operators_are_installed",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 0,
+      "Time": "2025-09-24T10:19:08.888923+02:00"
+    },
+    {
+      "ID": 11,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Validate_creation_of_DSCInitialization_instance",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 10430000000,
+      "Time": "2025-09-24T10:19:09.655465+02:00"
+    },
+    {
+      "ID": 12,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Validate_creation_of_DataScienceCluster_instance",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 5330000000,
+      "Time": "2025-09-24T10:19:20.087036+02:00"
+    },
+    {
+      "ID": 13,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Validate_ServiceMeshSpec_in_DSCInitialization_instance",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 210000000,
+      "Time": "2025-09-24T10:19:25.418144+02:00"
+    },
+    {
+      "ID": 14,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Validate_Knative_resource",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 110000000,
+      "Time": "2025-09-24T10:19:25.627384+02:00"
+    },
+    {
+      "ID": 15,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Validate_owned_namespaces_exist",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 110000000,
+      "Time": "2025-09-24T10:19:25.737733+02:00"
+    },
+    {
+      "ID": 16,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/Validate_default_NetworkPolicy_exist",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 210000000,
+      "Time": "2025-09-24T10:19:25.843344+02:00"
+    },
+    {
+      "ID": 2,
+      "Name": "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 17170000000,
+      "Time": "2025-09-24T10:19:08.884218+02:00"
+    },
+    {
+      "ID": 20,
+      "Name": "TestOdhOperator/V2_to_V3_upgrade_E2E_Tests/codeflare_resources_preserved_after_support_removal",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 26190000000,
+      "Time": "2025-09-24T10:19:26.05971+02:00"
+    },
+    {
+      "ID": 19,
+      "Name": "TestOdhOperator/V2_to_V3_upgrade_E2E_Tests",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 26190000000,
+      "Time": "2025-09-24T10:19:26.056904+02:00"
+    },
+    {
+      "ID": 1,
+      "Name": "TestOdhOperator",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/tests/e2e",
+      "Duration": 50870000000,
+      "Time": "2025-09-24T10:19:01.378657+02:00"
+    }
+  ],
+  "FailedTest": []
+}
