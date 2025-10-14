@@ -82,6 +82,7 @@ type TestContextConfig struct {
 	operatorResilienceTest bool
 	webhookTest            bool
 	v2tov3upgradeTest      bool
+	hardwareProfileTest    bool
 	TestTimeouts           TestTimeouts
 }
 
@@ -125,7 +126,6 @@ var (
 			componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
 			componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 			componentApi.KserveComponentName:               kserveTestSuite,
-			componentApi.ModelMeshServingComponentName:     modelMeshServingTestSuite,
 			componentApi.ModelControllerComponentName:      modelControllerTestSuite,
 			componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
 			componentApi.LlamaStackOperatorComponentName:   llamastackOperatorTestSuite,
@@ -269,6 +269,10 @@ func TestOdhOperator(t *testing.T) {
 		mustRun(t, "V2 to V3 upgrade E2E Tests", v2Tov3UpgradeTestSuite)
 	}
 
+	// Run hardware profile test suites
+	if testOpts.hardwareProfileTest {
+		mustRun(t, "Hardware Profile E2E Tests", hardwareProfileTestSuite)
+	}
 	// Deletion logic based on deletionPolicy
 	switch testOpts.deletionPolicy {
 	case DeletionPolicyAlways:
@@ -340,6 +344,8 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-operator-resilience", viper.GetEnvPrefix()+"_OPERATOR_RESILIENCE"))
 	pflag.Bool("test-operator-v2tov3upgrade", true, "run V2 to V3 upgrade tests")
 	checkEnvVarBindingError(viper.BindEnv("test-operator-v2tov3upgrade", viper.GetEnvPrefix()+"_OPERATOR_V2TOV3UPGRADE"))
+	pflag.Bool("test-hardware-profile", true, "run hardware profile tests")
+	checkEnvVarBindingError(viper.BindEnv("test-hardware-profile", viper.GetEnvPrefix()+"_HARDWARE_PROFILE"))
 	pflag.Bool("test-webhook", true, "run webhook tests")
 	checkEnvVarBindingError(viper.BindEnv("test-webhook", viper.GetEnvPrefix()+"_WEBHOOK"))
 
@@ -391,6 +397,7 @@ func TestMain(m *testing.M) {
 	testOpts.operatorControllerTest = viper.GetBool("test-operator-controller")
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
 	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
+	testOpts.hardwareProfileTest = viper.GetBool("test-hardware-profile")
 	testOpts.webhookTest = viper.GetBool("test-webhook")
 	Components.enabled = viper.GetBool("test-components")
 	Components.flags = viper.GetStringSlice("test-component")

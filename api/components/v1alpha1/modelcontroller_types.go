@@ -24,7 +24,6 @@ import (
 
 const (
 	ModelControllerComponentName = "modelcontroller"
-	// shared by kserve and modelmeshserving
 	// value should match whats set in the XValidation below
 	ModelControllerInstanceName = "default-" + ModelControllerComponentName
 	ModelControllerKind         = "ModelController"
@@ -43,7 +42,7 @@ var _ common.PlatformObject = (*ModelController)(nil)
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 // +kubebuilder:printcolumn:name="URI",type=string,JSONPath=`.status.URI`,description="devFlag's URI used to download"
 
-// ModelController is the Schema for the modelcontroller API, it is a shared component between kserve and modelmeshserving
+// ModelController is the Schema for the modelcontroller API
 type ModelController struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -54,31 +53,19 @@ type ModelController struct {
 
 // ModelControllerSpec defines the desired state of ModelController
 type ModelControllerSpec struct {
-	// ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"`
-	Kserve           *ModelControllerKerveSpec `json:"kserve,omitempty"`
-	ModelMeshServing *ModelControllerMMSpec    `json:"modelMeshServing,omitempty"`
-	ModelRegistry    *ModelControllerMRSpec    `json:"modelRegistry,omitempty"`
+	Kserve        *ModelControllerKerveSpec `json:"kserve,omitempty"`
+	ModelRegistry *ModelControllerMRSpec    `json:"modelRegistry,omitempty"`
 }
 
-// a mini version of the DSCKserve only keep devflags and management spec
+// a mini version of the DSCKserve only keeps management and NIM spec
 type ModelControllerKerveSpec struct {
-	ManagementState     operatorv1.ManagementState `json:"managementState,omitempty"`
-	NIM                 NimSpec                    `json:"nim,omitempty"`
-	common.DevFlagsSpec `json:",inline"`
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+	NIM             NimSpec                    `json:"nim,omitempty"`
 }
 
-func (s *ModelControllerKerveSpec) GetDevFlags() *common.DevFlags {
-	return s.DevFlags
-}
-
-// a mini version of the DSCModelMeshServing only keep devflags and management spec
+// a mini version of the DSCModelMeshServing only keeps management spec
 type ModelControllerMMSpec struct {
-	ManagementState     operatorv1.ManagementState `json:"managementState,omitempty"`
-	common.DevFlagsSpec `json:",inline"`
-}
-
-func (s *ModelControllerMMSpec) GetDevFlags() *common.DevFlags {
-	return s.DevFlags
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
 type ModelControllerMRSpec struct {
@@ -101,8 +88,6 @@ type ModelControllerList struct {
 func init() {
 	SchemeBuilder.Register(&ModelController{}, &ModelControllerList{})
 }
-
-func (c *ModelController) GetDevFlags() *common.DevFlags { return nil }
 
 func (c *ModelController) GetStatus() *common.Status {
 	return &c.Status.Status

@@ -28,7 +28,7 @@ const (
 	// GatewayInstanceName the name of the GatewayConfig instance singleton.
 	// value should match whats set in the XValidation below
 	GatewayInstanceName = "default-gateway"
-	GatewayKind         = "GatewayConfig"
+	GatewayConfigKind   = "GatewayConfig"
 )
 
 // Check that the component implements common.PlatformObject.

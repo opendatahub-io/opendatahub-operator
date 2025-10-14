@@ -10,7 +10,6 @@ The current ODH operator design adheres to the following general goals:
 - Create an opinionated deployment of ODH components.
 - Provide the ability to enable/disable individual components.
 - Provide users and cluster administrators with the ability to customize components.
-  - include support for configuring target ODH component manifests via DevFlags.
 - Provide the ability to reconcile individual ODH components using dedicated component controllers, instead of relying on a single controller/reconcile loop for everything.
   - improve scalability, separation of concerns/modularity, and error handling/failure isolation.
 - Improve operator performance.
@@ -80,7 +79,6 @@ List of currently integrated ODH components:
 | Feature Store (Feast) | `FeastOperator` |
 | KServe | `Kserve` |
 | Kueue | `Kueue` |
-| ModelMesh Serving | `ModelMeshServing` |
 | Model Registry | `ModelRegistry` |
 | Ray | `Ray` |
 | Training Operator | `TrainingOperator` |
@@ -154,8 +152,6 @@ spec:
             type: OpenshiftDefaultIngress
         managementState: Managed
         name: knative-serving
-    modelmeshserving:
-      managementState: Managed
     modelregistry:
       managementState: Managed
       registriesNamespace: "odh-model-registries"

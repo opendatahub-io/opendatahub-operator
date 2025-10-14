@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -23,6 +24,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
@@ -56,6 +58,8 @@ func operatorResilienceTestSuite(t *testing.T) {
 		{"Validate operator deployment health", resilienceTestCtx.ValidateOperatorDeployment},
 		{"Validate leader election behavior", resilienceTestCtx.ValidateLeaderElectionBehavior},
 		{"Validate components deployment failure", resilienceTestCtx.ValidateComponentsDeploymentFailure},
+		{"Validate missing CRD handling", resilienceTestCtx.ValidateMissingComponentsCRDHandling},
+		{"Validate RBAC restriction handling", resilienceTestCtx.ValidateRBACRestrictionHandling},
 	}
 
 	// Run the test suite.
@@ -115,9 +119,7 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
 		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
 		componentApi.KserveComponentName:               "kserve-controller-manager",
-		componentApi.KueueComponentName:                "kueue-controller-manager",
 		componentApi.LlamaStackOperatorComponentName:   "llama-stack-k8s-operator-controller-manager",
-		componentApi.ModelMeshServingComponentName:     "modelmesh-controller",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
 		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
@@ -137,12 +139,13 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	expectedComponentCount := reflect.TypeOf(dscv2.Components{}).NumField()
 	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
-	excludedComponents := 1 // TrustyAI
+	// Kueue is excluded because it does not have any deployment to manage anymore
+	excludedComponents := 2 // TrustyAI and Kueue
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
 			"Expected %d testable components but found %d. "+
-			"(Total DSC components: %d, Excluded: %d - TrustyAI due to InferenceServices CRD dependency)",
+			"(Total DSC components: %d, Excluded: %d - TrustyAI due to InferenceServices CRD dependency and Kueue because dose not manage any deployment)",
 		expectedTestableComponents, componentsLength, expectedComponentCount, excludedComponents)
 
 	// Ensure clean initial state by disabling all components first
@@ -178,7 +181,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 	tc.verifyDeploymentsStuckDueToQuota(t, allControllers)
 
 	t.Log("Verifying DSC reports all failed components")
-
 	allComponents := slices.Concat(
 		components,
 		slices.Collect(maps.Keys(internalComponentToControllerMap)),
@@ -216,6 +218,153 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	t.Log("Cleaning up restrictive quota")
 	tc.deleteZeroPodQuotaForOperator()
+}
+
+func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *testing.T) {
+	t.Helper()
+
+	crdTestingName := "dashboards.components.platform.opendatahub.io"
+	crd := tc.FetchResource(
+		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: crdTestingName}),
+	)
+
+	if crd == nil {
+		t.Skipf("CRD %s not found, skipping test", crdTestingName)
+		return
+	}
+
+	// Save a backup copy of the CRD
+	crdBackup := resources.StripServerMetadata(crd)
+
+	// Delete the CRD
+	tc.DeleteResource(
+		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{
+			Name: crd.GetName(),
+		}),
+		WithWaitForDeletion(true),
+	)
+
+	// Validate pod health and system health
+	componentKind, _, _ := unstructured.NestedString(crd.Object, "spec", "names", "kind")
+	componentName := strings.ToLower(componentKind)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(
+			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, operatorv1.Managed),
+		),
+		WithCondition(jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Managed)),
+	)
+
+	// Verify the system is unhealthy
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] 
+			| select(.type == "%s") 
+			| .status == "%s"`, "Ready", metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] 
+			| select(.type == "%s") 
+			| .status == "%s"`, "ProvisioningSucceeded", metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] 
+			| select(.type == "%s") 
+			| .status == "%s"`, "ComponentsReady", metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] 
+			| select(.type == "%s") 
+			| .status == "%s"`, componentKind+"Ready", metav1.ConditionFalse),
+		)),
+		WithCustomErrorMsg("DSC should be unhealthy due to missing CRD"),
+	)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(
+			testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, operatorv1.Removed),
+		),
+		WithCondition(jq.Match(`.spec.components.%s.managementState == "%s"`, componentName, operatorv1.Removed)),
+	)
+
+	// Manually restore the CRD from backup
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(crdBackup),
+		WithCustomErrorMsg("Failed to restore CRD from backup"),
+	)
+	tc.validateSystemHealth(t)
+}
+
+func (tc *OperatorResilienceTestCtx) ValidateRBACRestrictionHandling(t *testing.T) {
+	t.Helper()
+
+	// Get the predictable ServiceAccount name based on deployment name
+	deploymentName := tc.getControllerDeploymentName()
+
+	// Find the ClusterRoleBinding that references our ServiceAccount
+	crbBackups, crbNames := tc.findAndBackupAllCRBsForServiceAccount(deploymentName)
+	if len(crbBackups) == 0 {
+		t.Fatalf("No ClusterRoleBinding found for ServiceAccount %s", deploymentName)
+	}
+
+	// Verify operator is initially healthy
+	tc.validateDeploymentHealth(t)
+
+	// Deleting all ClusterRoleBinding to simulate RBAC restriction
+	t.Log("Deleting all ClusterRoleBinding")
+	for _, crbName := range crbNames {
+		tc.DeleteResource(WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Name: crbName}))
+	}
+
+	// Extract the operator name from deployment name
+	// e.g., "opendatahub-operator-controller-manager" -> "opendatahub-operator"
+	// or "rhods-operator-controller-manager" -> "rhods-operator"
+	operatorName := strings.TrimSuffix(deploymentName, "-controller-manager")
+
+	// Delete the Operator Pods individually (API doesn't support bulk pod deletion)
+	t.Log("Deleting operator Pods to force a restart")
+
+	// First, fetch the pods that match our criteria
+	pods := tc.FetchResources(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{Namespace: tc.OperatorNamespace}),
+		WithListOptions(&client.ListOptions{
+			Namespace: tc.OperatorNamespace,
+			LabelSelector: labels.SelectorFromSet(map[string]string{
+				"control-plane": "controller-manager",
+				"name":          operatorName,
+			}),
+		}),
+	)
+
+	// Delete each pod individually using DeleteResource
+	for _, pod := range pods {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Pod, types.NamespacedName{
+				Namespace: pod.GetNamespace(),
+				Name:      pod.GetName(),
+			}),
+			WithWaitForDeletion(true),
+		)
+	}
+
+	// Verify operator becomes unhealthy
+	t.Log("Verifying operator becomes unhealthy")
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Namespace: tc.OperatorNamespace,
+			Name:      deploymentName,
+		}),
+		WithCondition(jq.Match(`.status.readyReplicas != %d`, expectedReplicas)),
+		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
+		WithCustomErrorMsg("Operator should fail without ClusterRoleBinding"),
+	)
+
+	// Restore all ClusterRoleBinding from backups
+	t.Log("Restoring all ClusterRoleBinding")
+	for _, crbBackup := range crbBackups {
+		tc.EventuallyResourceCreatedOrUpdated(WithObjectToCreate(crbBackup))
+	}
+
+	// Verify operator recovers
+	tc.validateDeploymentHealth(t)
+	tc.validateSystemHealth(t)
 }
 
 // findLeaderPodFromLeases finds current leader pod name from lease resources.
@@ -292,29 +441,23 @@ func (tc *OperatorResilienceTestCtx) validateSystemHealth(t *testing.T) {
 	)
 }
 
-// verifyDeploymentsStuckDueToQuota validates that deployments fail with quota error messages.
+// verifyDeploymentsStuckDueToQuota validates that deployments are stuck due to resource quota restrictions.
 func (tc *OperatorResilienceTestCtx) verifyDeploymentsStuckDueToQuota(t *testing.T, allControllers []string) {
 	t.Helper()
 
 	expectedCount := len(allControllers)
 
+	// Then check that the matching deployments have 0 ready replicas
 	tc.EnsureResourcesExist(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithCondition(jq.Match("%s", fmt.Sprintf(`
-			map(
-				select(.metadata.name | test("%s"; "i")) |
-				select(
-					.status.conditions[]? |
-					select(.type == "ReplicaFailure") |
-					select(.status == "True") |
-			        select(.message | test(
-			          "exceeded quota: %s|failed quota: %s|forbidden"; "i"
-			        ))
-				)
-			) |
-			length == %d
-		`, strings.Join(allControllers, "|"), restrictiveQuotaName, restrictiveQuotaName, expectedCount))),
-		WithCustomErrorMsg(fmt.Sprintf("Expected all %d component deployments to have quota error messages", expectedCount)),
+		WithCondition(jq.Match(`
+			[.[] | select(
+				(.metadata.name | test("%s"; "i")) or
+				(.metadata.name | test("odh-(%s)"; "i"))
+			) | select((.status.readyReplicas // 0) == 0)] |
+        	length == %d
+		`, strings.Join(allControllers, "|"), strings.Join(allControllers, "|"), expectedCount)),
+		WithCustomErrorMsg(fmt.Sprintf("Expected all %d component deployments to have 0 ready replicas due to quota", expectedCount)),
 		WithEventuallyTimeout(tc.TestTimeouts.longEventuallyTimeout),
 	)
 }
@@ -369,32 +512,75 @@ func (tc *OperatorResilienceTestCtx) deleteZeroPodQuotaForOperator() {
 func updateAllComponentsTransform(components []string, state operatorv1.ManagementState) testf.TransformFn {
 	transformParts := make([]string, len(components))
 	for i, component := range components {
-		transformParts[i] = fmt.Sprintf(`.spec.components.%s.managementState = "%s"`, component, state)
+		// Map datasciencepipelines to aipipelines for v2 API
+		componentFieldName := component
+		if component == dataSciencePipelinesComponentName {
+			componentFieldName = aiPipelinesFieldName
+		}
+		transformParts[i] = fmt.Sprintf(`.spec.components.%s.managementState = "%s"`, componentFieldName, state)
 	}
 
 	return testf.Transform("%s", strings.Join(transformParts, " | "))
 }
 
+// findAndBackupAllCRBsForServiceAccount finds all ClusterRoleBindings referencing the given ServiceAccount and returns backup copies with their names.
+func (tc *OperatorResilienceTestCtx) findAndBackupAllCRBsForServiceAccount(expectedSAName string) ([]*unstructured.Unstructured, []string) {
+	crbs := tc.FetchResources(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{}),
+	)
+
+	var crbBackups []*unstructured.Unstructured
+	var crbNames []string
+
+	for _, obj := range crbs {
+		subjects, found, _ := unstructured.NestedSlice(obj.Object, "subjects")
+		if !found {
+			continue
+		}
+
+		// Check if any subject matches our ServiceAccount
+		for _, subject := range subjects {
+			subj, ok := subject.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			kind, _ := subj["kind"].(string)
+			if kind != gvk.ServiceAccount.Kind {
+				continue
+			}
+
+			namespace, _ := subj["namespace"].(string)
+			if namespace != tc.OperatorNamespace {
+				continue
+			}
+
+			if name, _ := subj["name"].(string); name == expectedSAName {
+				crbNames = append(crbNames, obj.GetName())
+				crbBackups = append(crbBackups, resources.StripServerMetadata(&obj))
+				break
+			}
+		}
+	}
+
+	return crbBackups, crbNames
+}
+
+func (tc *OperatorResilienceTestCtx) rolloutDeployment(t *testing.T, nn types.NamespacedName) {
+	t.Helper()
+
+	t.Logf("Triggering rollout restart for deployment: %s", nn.Name)
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.Deployment, nn),
+		WithMutateFunc(testf.Transform(`.spec.template.metadata.annotations["kubectl.kubernetes.io/restartedAt"] = "%s"`, time.Now().Format(time.RFC3339))),
+		WithIgnoreNotFound(true),
+	)
+}
+
 func (tc *OperatorResilienceTestCtx) rolloutDeployments(t *testing.T, allControllers []string) {
 	t.Helper()
 
-	existingDeployments := tc.FetchResources(
-		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),
-		WithListOptions(&client.ListOptions{Namespace: tc.AppsNamespace}),
-	)
-
-	deploymentExists := make(map[string]bool)
-	for _, dep := range existingDeployments {
-		deploymentExists[dep.GetName()] = true
-	}
-
 	for _, deployment := range allControllers {
-		if deploymentExists[deployment] {
-			t.Logf("Triggering rollout restart for deployment: %s", deployment)
-			tc.EventuallyResourceCreatedOrUpdated(
-				WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace, Name: deployment}),
-				WithMutateFunc(testf.Transform(`.spec.template.metadata.annotations["kubectl.kubernetes.io/restartedAt"] = "%s"`, time.Now().Format(time.RFC3339))),
-			)
-		}
+		tc.rolloutDeployment(t, types.NamespacedName{Namespace: tc.AppsNamespace, Name: deployment})
 	}
 }

@@ -23,7 +23,6 @@ Package v1 contains API Schema definitions for the components v1 API group
 - [Kueue](#kueue)
 - [LlamaStackOperator](#llamastackoperator)
 - [ModelController](#modelcontroller)
-- [ModelMeshServing](#modelmeshserving)
 - [ModelRegistry](#modelregistry)
 - [Ray](#ray)
 - [TrainingOperator](#trainingoperator)
@@ -65,7 +64,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### DSCDashboardStatus
@@ -100,7 +98,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `argoWorkflowsControllers` _[ArgoWorkflowsControllersSpec](#argoworkflowscontrollersspec)_ |  |  |  |
 
 
@@ -136,7 +133,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### DSCFeastOperatorStatus
@@ -171,7 +167,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `serving` _[ServingSpec](#servingspec)_ | Serving configures the KNative-Serving stack used for model serving. A Service<br />Mesh (Istio) is prerequisite, since it is used as networking layer. |  |  |
 | `defaultDeploymentMode` _[DefaultDeploymentMode](#defaultdeploymentmode)_ | Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.<br />The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.<br />This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode. |  | Enum: [Serverless RawDeployment] <br /> |
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
@@ -205,12 +200,10 @@ DSCKueue contains all the configuration exposed in DSC instance for Kueue compon
 
 _Appears in:_
 - [Components](#components)
-- [Components](#components)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Unmanaged Removed] <br /> |
 | `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
 | `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
 
@@ -229,7 +222,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Unmanaged Removed] <br /> |
 
 
 #### DSCLlamaStackOperator
@@ -247,7 +240,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### DSCLlamaStackOperatorStatus
@@ -255,41 +247,6 @@ _Appears in:_
 
 
 DSCLlamaStackOperatorStatus struct holds the status for the LlamaStackOperator component exposed in the DSC
-
-
-
-_Appears in:_
-- [ComponentsStatus](#componentsstatus)
-- [ComponentsStatus](#componentsstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-
-
-#### DSCModelMeshServing
-
-
-
-DSCModelMeshServing contains all the configuration exposed in DSC instance for ModelMeshServing component
-
-
-
-_Appears in:_
-- [Components](#components)
-- [Components](#components)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### DSCModelMeshServingStatus
-
-
-
-DSCModelMeshServingStatus contains the observed state of the ModelMeshServing exposed in the DSC instance
 
 
 
@@ -317,7 +274,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
@@ -353,7 +309,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### DSCRayStatus
@@ -388,7 +343,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### DSCTrainingOperatorStatus
@@ -423,7 +377,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `eval` _[TrustyAIEvalSpec](#trustyaievalspec)_ | Eval configuration for TrustyAI evaluations |  |  |
 
 
@@ -459,7 +412,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
@@ -513,9 +465,6 @@ _Appears in:_
 - [DSCDashboard](#dscdashboard)
 - [DashboardSpec](#dashboardspec)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### DashboardCommonStatus
@@ -546,9 +495,6 @@ DashboardSpec defines the desired state of Dashboard
 _Appears in:_
 - [Dashboard](#dashboard)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### DashboardStatus
@@ -605,7 +551,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `argoWorkflowsControllers` _[ArgoWorkflowsControllersSpec](#argoworkflowscontrollersspec)_ |  |  |  |
 
 
@@ -639,7 +584,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `argoWorkflowsControllers` _[ArgoWorkflowsControllersSpec](#argoworkflowscontrollersspec)_ |  |  |  |
 
 
@@ -715,9 +659,6 @@ _Appears in:_
 - [DSCFeastOperator](#dscfeastoperator)
 - [FeastOperatorSpec](#feastoperatorspec)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### FeastOperatorCommonStatus
@@ -748,9 +689,6 @@ FeastOperatorSpec defines the desired state of FeastOperator
 _Appears in:_
 - [FeastOperator](#feastoperator)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### FeastOperatorStatus
@@ -807,7 +745,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `serving` _[ServingSpec](#servingspec)_ | Serving configures the KNative-Serving stack used for model serving. A Service<br />Mesh (Istio) is prerequisite, since it is used as networking layer. |  |  |
 | `defaultDeploymentMode` _[DefaultDeploymentMode](#defaultdeploymentmode)_ | Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.<br />The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.<br />This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode. |  | Enum: [Serverless RawDeployment] <br /> |
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
@@ -846,7 +783,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `serving` _[ServingSpec](#servingspec)_ | Serving configures the KNative-Serving stack used for model serving. A Service<br />Mesh (Istio) is prerequisite, since it is used as networking layer. |  |  |
 | `defaultDeploymentMode` _[DefaultDeploymentMode](#defaultdeploymentmode)_ | Configures the default deployment mode for Kserve. This can be set to 'Serverless' or 'RawDeployment'.<br />The value specified in this field will be used to set the default deployment mode in the 'inferenceservice-config' configmap for Kserve.<br />This field is optional. If no default deployment mode is specified, Kserve will use Serverless mode. |  | Enum: [Serverless RawDeployment] <br /> |
 | `rawDeploymentServiceConfig` _[RawServiceConfig](#rawserviceconfig)_ | Configures the type of service that is created for InferenceServices using RawDeployment.<br />The values for RawDeploymentServiceConfig can be "Headless" (default value) or "Headed".<br />Headless: to set "ServiceClusterIPNone = true" in the 'inferenceservice-config' configmap for Kserve.<br />Headed: to set "ServiceClusterIPNone = false" in the 'inferenceservice-config' configmap for Kserve. | Headless | Enum: [Headless Headed] <br /> |
@@ -905,11 +841,9 @@ Kueue is the Schema for the kueues API
 
 _Appears in:_
 - [DSCKueue](#dsckueue)
+- [DSCKueueV1](#dsckueuev1)
 - [KueueSpec](#kueuespec)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### KueueCommonStatus
@@ -939,6 +873,7 @@ _Appears in:_
 
 _Appears in:_
 - [DSCKueue](#dsckueue)
+- [DSCKueueV1](#dsckueuev1)
 - [KueueSpec](#kueuespec)
 
 | Field | Description | Default | Validation |
@@ -962,7 +897,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Unmanaged Removed] <br /> |
 
 
 #### KueueSpec
@@ -978,8 +913,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Unmanaged Removed] <br /> |
 | `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
 | `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
 
@@ -1036,9 +970,6 @@ _Appears in:_
 - [DSCLlamaStackOperator](#dscllamastackoperator)
 - [LlamaStackOperatorSpec](#llamastackoperatorspec)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### LlamaStackOperatorCommonStatus
@@ -1069,9 +1000,6 @@ LlamaStackOperatorSpec defines the desired state of LlamaStackOperator
 _Appears in:_
 - [LlamaStackOperator](#llamastackoperator)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### LlamaStackOperatorStatus
@@ -1097,7 +1025,7 @@ _Appears in:_
 
 
 
-ModelController is the Schema for the modelcontroller API, it is a shared component between kserve and modelmeshserving
+ModelController is the Schema for the modelcontroller API
 
 
 
@@ -1118,7 +1046,7 @@ ModelController is the Schema for the modelcontroller API, it is a shared compon
 
 
 
-a mini version of the DSCKserve only keep devflags and management spec
+a mini version of the DSCKserve only keeps management and NIM spec
 
 
 
@@ -1129,24 +1057,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  |  |  |
 | `nim` _[NimSpec](#nimspec)_ |  |  |  |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
-#### ModelControllerMMSpec
-
-
-
-a mini version of the DSCModelMeshServing only keep devflags and management spec
-
-
-
-_Appears in:_
-- [ModelControllerSpec](#modelcontrollerspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ |  |  |  |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### ModelControllerMRSpec
@@ -1178,8 +1090,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `kserve` _[ModelControllerKerveSpec](#modelcontrollerkervespec)_ | ModelMeshServing DSCModelMeshServing `json:"modelMeshServing,omitempty"` |  |  |
-| `modelMeshServing` _[ModelControllerMMSpec](#modelcontrollermmspec)_ |  |  |  |
+| `kserve` _[ModelControllerKerveSpec](#modelcontrollerkervespec)_ |  |  |  |
 | `modelRegistry` _[ModelControllerMRSpec](#modelcontrollermrspec)_ |  |  |  |
 
 
@@ -1199,96 +1110,6 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
-
-
-#### ModelMeshServing
-
-
-
-ModelMeshServing is the Schema for the modelmeshservings API
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `components.platform.opendatahub.io/v1alpha1` | | |
-| `kind` _string_ | `ModelMeshServing` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[ModelMeshServingSpec](#modelmeshservingspec)_ |  |  |  |
-| `status` _[ModelMeshServingStatus](#modelmeshservingstatus)_ |  |  |  |
-
-
-#### ModelMeshServingCommonSpec
-
-
-
-
-
-
-
-_Appears in:_
-- [DSCModelMeshServing](#dscmodelmeshserving)
-- [ModelMeshServingSpec](#modelmeshservingspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### ModelMeshServingCommonStatus
-
-
-
-ModelMeshServingCommonStatus defines the shared observed state of ModelMeshServing
-
-
-
-_Appears in:_
-- [DSCModelMeshServingStatus](#dscmodelmeshservingstatus)
-- [ModelMeshServingStatus](#modelmeshservingstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
-
-
-#### ModelMeshServingSpec
-
-
-
-ModelMeshServingSpec defines the desired state of ModelMeshServing
-
-
-
-_Appears in:_
-- [ModelMeshServing](#modelmeshserving)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
-
-
-#### ModelMeshServingStatus
-
-
-
-ModelMeshServingStatus defines the observed state of ModelMeshServing
-
-
-
-_Appears in:_
-- [ModelMeshServing](#modelmeshserving)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `phase` _string_ |  |  |  |
-| `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
-| `conditions` _[Condition](#condition) array_ |  |  |  |
-| `releases` _[ComponentRelease](#componentrelease) array_ |  |  |  |
 
 
 #### ModelRegistry
@@ -1326,7 +1147,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
@@ -1361,7 +1181,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
@@ -1457,9 +1276,6 @@ _Appears in:_
 - [DSCRay](#dscray)
 - [RaySpec](#rayspec)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### RayCommonStatus
@@ -1490,9 +1306,6 @@ RaySpec defines the desired state of Ray
 _Appears in:_
 - [Ray](#ray)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### RayStatus
@@ -1547,9 +1360,6 @@ _Appears in:_
 - [DSCTrainingOperator](#dsctrainingoperator)
 - [TrainingOperatorSpec](#trainingoperatorspec)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### TrainingOperatorCommonStatus
@@ -1580,9 +1390,6 @@ TrainingOperatorSpec defines the desired state of TrainingOperator
 _Appears in:_
 - [TrainingOperator](#trainingoperator)
 
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 
 
 #### TrainingOperatorStatus
@@ -1639,7 +1446,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `eval` _[TrustyAIEvalSpec](#trustyaievalspec)_ | Eval configuration for TrustyAI evaluations |  |  |
 
 
@@ -1708,7 +1514,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `eval` _[TrustyAIEvalSpec](#trustyaievalspec)_ | Eval configuration for TrustyAI evaluations |  |  |
 
 
@@ -1766,7 +1571,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
@@ -1801,7 +1605,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `devFlags` _[DevFlags](#devflags)_ | Add developer fields |  |  |
 | `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
@@ -1858,10 +1661,9 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
-| `modelmeshserving` _[DSCModelMeshServing](#dscmodelmeshserving)_ | ModelMeshServing component configuration. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
-| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
-| `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
+| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component |  |  |
+| `kueue` _[DSCKueueV1](#dsckueuev1)_ | Kueue component configuration. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
@@ -1885,7 +1687,6 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboardStatus](#dscdashboardstatus)_ | Dashboard component status. |  |  |
 | `workbenches` _[DSCWorkbenchesStatus](#dscworkbenchesstatus)_ | Workbenches component status. |  |  |
-| `modelmeshserving` _[DSCModelMeshServingStatus](#dscmodelmeshservingstatus)_ | ModelMeshServing component status. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | DataSciencePipeline component status. |  |  |
 | `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |
 | `kueue` _[DSCKueueStatus](#dsckueuestatus)_ | Kueue component status. |  |  |
@@ -1895,6 +1696,24 @@ _Appears in:_
 | `trainingoperator` _[DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)_ | Training Operator component status. |  |  |
 | `feastoperator` _[DSCFeastOperatorStatus](#dscfeastoperatorstatus)_ | Feast Operator component status. |  |  |
 | `llamastackoperator` _[DSCLlamaStackOperatorStatus](#dscllamastackoperatorstatus)_ | LlamaStack Operator component status. |  |  |
+
+
+#### DSCKueueV1
+
+
+
+
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
 
 
 #### DataScienceCluster
@@ -1957,6 +1776,22 @@ _Appears in:_
 | `release` _[Release](#release)_ | Version and release type |  |  |
 
 
+#### KueueManagementSpecV1
+
+
+
+KueueManagementSpec struct defines the component's management configuration.
+
+
+
+_Appears in:_
+- [DSCKueueV1](#dsckueuev1)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+
+
 
 ## datasciencecluster.opendatahub.io/v2
 
@@ -1982,9 +1817,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
-| `modelmeshserving` _[DSCModelMeshServing](#dscmodelmeshserving)_ | ModelMeshServing component configuration. |  |  |
-| `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
-| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component<br />Does not support enabled ModelMeshServing at the same time |  |  |
+| `aipipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | AIPipelines component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
+| `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component |  |  |
 | `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
@@ -2009,8 +1843,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboardStatus](#dscdashboardstatus)_ | Dashboard component status. |  |  |
 | `workbenches` _[DSCWorkbenchesStatus](#dscworkbenchesstatus)_ | Workbenches component status. |  |  |
-| `modelmeshserving` _[DSCModelMeshServingStatus](#dscmodelmeshservingstatus)_ | ModelMeshServing component status. |  |  |
-| `datasciencepipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | DataSciencePipeline component status. |  |  |
+| `aipipelines` _[DSCDataSciencePipelinesStatus](#dscdatasciencepipelinesstatus)_ | AIPipelines component status. |  |  |
 | `kserve` _[DSCKserveStatus](#dsckservestatus)_ | Kserve component status. |  |  |
 | `kueue` _[DSCKueueStatus](#dsckueuestatus)_ | Kueue component status. |  |  |
 | `ray` _[DSCRayStatus](#dscraystatus)_ | Ray component status. |  |  |
@@ -2281,8 +2114,6 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `manifestsUri` _string_ | ## DEPRECATED ## : ManifestsUri set on DSCI is not maintained.<br />Custom manifests uri for odh-manifests |  |  |
-| `logmode` _string_ | ## DEPRECATED ##: Ignored, use LogLevel instead | production | Enum: [devel development prod production default] <br /> |
 | `logLevel` _string_ | Override Zap log level. Can be "debug", "info", "error" or a number (more verbose). |  |  |
 
 

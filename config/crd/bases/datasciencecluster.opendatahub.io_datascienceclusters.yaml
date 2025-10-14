@@ -59,34 +59,6 @@ spec:
                       CodeFlare component configuration.
                       If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -105,34 +77,6 @@ spec:
                   dashboard:
                     description: Dashboard component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -173,34 +117,6 @@ spec:
                             pattern: ^(Managed|Unmanaged|Force|Removed)$
                             type: string
                         type: object
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -219,34 +135,6 @@ spec:
                   feastoperator:
                     description: Feast Operator component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -266,7 +154,6 @@ spec:
                     description: |-
                       Kserve component configuration.
                       Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
-                      Does not support enabled ModelMeshServing at the same time
                     properties:
                       defaultDeploymentMode:
                         description: |-
@@ -277,34 +164,6 @@ spec:
                         - Serverless
                         - RawDeployment
                         type: string
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -413,34 +272,6 @@ spec:
                         description: Configures the automatically created, in the
                           managed namespaces, local queue name.
                         type: string
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -463,34 +294,6 @@ spec:
                   llamastackoperator:
                     description: LlamaStack Operator component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -509,34 +312,6 @@ spec:
                   modelmeshserving:
                     description: ModelMeshServing component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -555,34 +330,6 @@ spec:
                   modelregistry:
                     description: ModelRegistry component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -615,34 +362,6 @@ spec:
                   ray:
                     description: Ray component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -661,34 +380,6 @@ spec:
                   trainingoperator:
                     description: Training Operator component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -707,34 +398,6 @@ spec:
                   trustyai:
                     description: TrustyAI component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       eval:
                         description: Eval configuration for TrustyAI evaluations
                         properties:
@@ -779,34 +442,6 @@ spec:
                   workbenches:
                     description: Workbenches component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -1019,16 +654,12 @@ spec:
                         description: |-
                           Set to one of the following values:
 
-                          - "Managed"   : the operator is actively managing the component and trying to keep it active.
-                                          It will only upgrade the component if it is safe to do so
-
                           - "Unmanaged" : the operator is actively managing the component and trying to keep it active.
                                           It will only upgrade the component if it is safe to do so
 
                           - "Removed"   : the operator is actively managing the component and will not install it,
                                           or if it is installed, the operator will try to remove it
                         enum:
-                        - Managed
                         - Unmanaged
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
@@ -1479,55 +1110,9 @@ spec:
               components:
                 description: Override and fine tune specific component configurations.
                 properties:
-                  dashboard:
-                    description: Dashboard component configuration.
-                    properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
-                      managementState:
-                        description: |-
-                          Set to one of the following values:
-
-                          - "Managed" : the operator is actively managing the component and trying to keep it active.
-                                        It will only upgrade the component if it is safe to do so
-
-                          - "Removed" : the operator is actively managing the component and will not install it,
-                                        or if it is installed, the operator will try to remove it
-                        enum:
-                        - Managed
-                        - Removed
-                        pattern: ^(Managed|Unmanaged|Force|Removed)$
-                        type: string
-                    type: object
-                  datasciencepipelines:
+                  aipipelines:
                     description: |-
-                      DataSciencePipeline component configuration.
+                      AIPipelines component configuration.
                       Requires OpenShift Pipelines Operator to be installed before enable component
                     properties:
                       argoWorkflowsControllers:
@@ -1550,34 +1135,24 @@ spec:
                             pattern: ^(Managed|Unmanaged|Force|Removed)$
                             type: string
                         type: object
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                    type: object
+                  dashboard:
+                    description: Dashboard component configuration.
+                    properties:
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -1596,34 +1171,6 @@ spec:
                   feastoperator:
                     description: Feast Operator component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -1643,7 +1190,6 @@ spec:
                     description: |-
                       Kserve component configuration.
                       Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
-                      Does not support enabled ModelMeshServing at the same time
                     properties:
                       defaultDeploymentMode:
                         description: |-
@@ -1654,34 +1200,6 @@ spec:
                         - Serverless
                         - RawDeployment
                         type: string
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -1790,40 +1308,9 @@ spec:
                         description: Configures the automatically created, in the
                           managed namespaces, local queue name.
                         type: string
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
-
-                          - "Managed"   : the operator is actively managing the component and trying to keep it active.
-                                          It will only upgrade the component if it is safe to do so
 
                           - "Unmanaged" : the operator is actively managing the component and trying to keep it active.
                                           It will only upgrade the component if it is safe to do so
@@ -1831,7 +1318,6 @@ spec:
                           - "Removed"   : the operator is actively managing the component and will not install it,
                                           or if it is installed, the operator will try to remove it
                         enum:
-                        - Managed
                         - Unmanaged
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
@@ -1840,80 +1326,6 @@ spec:
                   llamastackoperator:
                     description: LlamaStack Operator component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
-                      managementState:
-                        description: |-
-                          Set to one of the following values:
-
-                          - "Managed" : the operator is actively managing the component and trying to keep it active.
-                                        It will only upgrade the component if it is safe to do so
-
-                          - "Removed" : the operator is actively managing the component and will not install it,
-                                        or if it is installed, the operator will try to remove it
-                        enum:
-                        - Managed
-                        - Removed
-                        pattern: ^(Managed|Unmanaged|Force|Removed)$
-                        type: string
-                    type: object
-                  modelmeshserving:
-                    description: ModelMeshServing component configuration.
-                    properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -1932,34 +1344,6 @@ spec:
                   modelregistry:
                     description: ModelRegistry component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -1992,34 +1376,6 @@ spec:
                   ray:
                     description: Ray component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -2038,34 +1394,6 @@ spec:
                   trainingoperator:
                     description: Training Operator component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -2084,34 +1412,6 @@ spec:
                   trustyai:
                     description: TrustyAI component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       eval:
                         description: Eval configuration for TrustyAI evaluations
                         properties:
@@ -2156,34 +1456,6 @@ spec:
                   workbenches:
                     description: Workbenches component configuration.
                     properties:
-                      devFlags:
-                        description: Add developer fields
-                        properties:
-                          manifests:
-                            description: List of custom manifests for the given component
-                            items:
-                              properties:
-                                contextDir:
-                                  default: manifests
-                                  description: contextDir is the relative path to
-                                    the folder containing manifests in a repository,
-                                    default value "manifests"
-                                  type: string
-                                sourcePath:
-                                  default: ""
-                                  description: 'sourcePath is the subpath within contextDir
-                                    where kustomize builds start. Examples include
-                                    any sub-folder or path: `base`, `overlays/dev`,
-                                    `default`, `odh` etc.'
-                                  type: string
-                                uri:
-                                  default: ""
-                                  description: uri is the URI point to a git repo
-                                    with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                                  type: string
-                              type: object
-                            type: array
-                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -2217,28 +1489,8 @@ spec:
               components:
                 description: Expose component's specific status
                 properties:
-                  dashboard:
-                    description: Dashboard component status.
-                    properties:
-                      managementState:
-                        description: |-
-                          Set to one of the following values:
-
-                          - "Managed" : the operator is actively managing the component and trying to keep it active.
-                                        It will only upgrade the component if it is safe to do so
-
-                          - "Removed" : the operator is actively managing the component and will not install it,
-                                        or if it is installed, the operator will try to remove it
-                        enum:
-                        - Managed
-                        - Removed
-                        pattern: ^(Managed|Unmanaged|Force|Removed)$
-                        type: string
-                      url:
-                        type: string
-                    type: object
-                  datasciencepipelines:
-                    description: DataSciencePipeline component status.
+                  aipipelines:
+                    description: AIPipelines component status.
                     properties:
                       managementState:
                         description: |-
@@ -2272,6 +1524,26 @@ spec:
                         x-kubernetes-list-map-keys:
                         - name
                         x-kubernetes-list-type: map
+                    type: object
+                  dashboard:
+                    description: Dashboard component status.
+                    properties:
+                      managementState:
+                        description: |-
+                          Set to one of the following values:
+
+                          - "Managed" : the operator is actively managing the component and trying to keep it active.
+                                        It will only upgrade the component if it is safe to do so
+
+                          - "Removed" : the operator is actively managing the component and will not install it,
+                                        or if it is installed, the operator will try to remove it
+                        enum:
+                        - Managed
+                        - Removed
+                        pattern: ^(Managed|Unmanaged|Force|Removed)$
+                        type: string
+                      url:
+                        type: string
                     type: object
                   feastoperator:
                     description: Feast Operator component status.
@@ -2360,16 +1632,12 @@ spec:
                         description: |-
                           Set to one of the following values:
 
-                          - "Managed"   : the operator is actively managing the component and trying to keep it active.
-                                          It will only upgrade the component if it is safe to do so
-
                           - "Unmanaged" : the operator is actively managing the component and trying to keep it active.
                                           It will only upgrade the component if it is safe to do so
 
                           - "Removed"   : the operator is actively managing the component and will not install it,
                                           or if it is installed, the operator will try to remove it
                         enum:
-                        - Managed
                         - Unmanaged
                         - Removed
                         pattern: ^(Managed|Unmanaged|Force|Removed)$
@@ -2395,42 +1663,6 @@ spec:
                     type: object
                   llamastackoperator:
                     description: LlamaStack Operator component status.
-                    properties:
-                      managementState:
-                        description: |-
-                          Set to one of the following values:
-
-                          - "Managed" : the operator is actively managing the component and trying to keep it active.
-                                        It will only upgrade the component if it is safe to do so
-
-                          - "Removed" : the operator is actively managing the component and will not install it,
-                                        or if it is installed, the operator will try to remove it
-                        enum:
-                        - Managed
-                        - Removed
-                        pattern: ^(Managed|Unmanaged|Force|Removed)$
-                        type: string
-                      releases:
-                        items:
-                          description: ComponentRelease represents the detailed status
-                            of a component release.
-                          properties:
-                            name:
-                              type: string
-                            repoUrl:
-                              type: string
-                            version:
-                              type: string
-                          required:
-                          - name
-                          type: object
-                        type: array
-                        x-kubernetes-list-map-keys:
-                        - name
-                        x-kubernetes-list-type: map
-                    type: object
-                  modelmeshserving:
-                    description: ModelMeshServing component status.
                     properties:
                       managementState:
                         description: |-

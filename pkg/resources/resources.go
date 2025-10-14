@@ -23,8 +23,6 @@ import (
 	"k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
-
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 )
 
 const PlatformFieldOwner = "platform.opendatahub.io"
@@ -313,6 +311,27 @@ func Hash(in *unstructured.Unstructured) ([]byte, error) {
 	return hasher.Sum(nil), nil
 }
 
+// StripServerMetadata removes server-managed metadata fields from a resource,
+// returning a clean copy suitable for operations like creation, comparison, or backup.
+func StripServerMetadata(obj *unstructured.Unstructured) *unstructured.Unstructured {
+	if obj == nil {
+		return nil
+	}
+	clean := obj.DeepCopy()
+
+	// Remove server-managed metadata fields (same pattern as Hash function)
+	unstructured.RemoveNestedField(clean.Object, "metadata", "uid")
+	unstructured.RemoveNestedField(clean.Object, "metadata", "resourceVersion")
+	unstructured.RemoveNestedField(clean.Object, "metadata", "generation")
+	unstructured.RemoveNestedField(clean.Object, "metadata", "managedFields")
+	unstructured.RemoveNestedField(clean.Object, "metadata", "creationTimestamp")
+	unstructured.RemoveNestedField(clean.Object, "metadata", "deletionTimestamp")
+	unstructured.RemoveNestedField(clean.Object, "metadata", "ownerReferences")
+	unstructured.RemoveNestedField(clean.Object, "status")
+
+	return clean
+}
+
 func EncodeToString(in []byte) string {
 	return "v" + base64.RawURLEncoding.EncodeToString(in)
 }
@@ -356,26 +375,6 @@ func EnsureGroupVersionKind(s *runtime.Scheme, obj client.Object) error {
 	obj.GetObjectKind().SetGroupVersionKind(gvk)
 
 	return nil
-}
-
-func HasDevFlags(in common.WithDevFlags) bool {
-	if in == nil {
-		return false
-	}
-
-	df := in.GetDevFlags()
-
-	return df != nil && len(df.Manifests) != 0
-}
-
-// InstanceHasDevFlags checks if the given PlatformObject implements the WithDevFlags interface
-// and if it has any DevFlags set. If the object does not implement WithDevFlags, it returns false.
-// This function helps ensure that only objects with the WithDevFlags interface are processed for DevFlags.
-func InstanceHasDevFlags(in common.PlatformObject) bool {
-	if obj, ok := in.(common.WithDevFlags); ok {
-		return HasDevFlags(obj)
-	}
-	return false
 }
 
 func NamespacedNameFromObject(obj client.Object) types.NamespacedName {
