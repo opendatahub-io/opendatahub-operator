@@ -34,6 +34,11 @@ const (
 	// Namespaces for various components.
 	knativeServingNamespace = "knative-serving" // Namespace for Knative Serving components
 
+	// Component API field name constants for v1 <-> v2 conversion.
+	dataSciencePipelinesKind          = "DataSciencePipelines" // Kind name for DataSciencePipelines component
+	dataSciencePipelinesComponentName = "datasciencepipelines" // v1 API component name for DataSciencePipelines
+	aiPipelinesFieldName              = "aipipelines"          // v2 API field name for DataSciencePipelines component
+
 	// Test timing constants.
 	// controllerCacheRefreshDelay is the time to wait for controller-runtime
 	// informer cache to update after resource deletion. This prevents cache
@@ -210,7 +215,7 @@ func CreateDSC(name string) *dscv2.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
+				AIPipelines: componentApi.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},

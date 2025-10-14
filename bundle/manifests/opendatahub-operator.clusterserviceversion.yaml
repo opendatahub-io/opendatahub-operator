@@ -76,10 +76,10 @@ metadata:
           },
           "spec": {
             "components": {
-              "dashboard": {
+              "aipipelines": {
                 "managementState": "Managed"
               },
-              "datasciencepipelines": {
+              "dashboard": {
                 "managementState": "Managed"
               },
               "feastoperator": {
@@ -191,7 +191,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.0.0
-    createdAt: "2025-10-10T09:35:28Z"
+    createdAt: "2025-10-13T11:31:07Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
