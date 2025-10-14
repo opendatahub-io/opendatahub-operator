@@ -2,7 +2,7 @@ apiVersion: infrastructure.opendatahub.io/v1
 kind: HardwareProfile
 metadata:
   name: custom-serving
-  namespace: opendatahub
+  namespace: redhat-ods-applications
   annotations:
     opendatahub.io/dashboard-feature-visibility: model-serving
     opendatahub.io/modified-date: ""
