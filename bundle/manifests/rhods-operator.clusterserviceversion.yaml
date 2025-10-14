@@ -5,7 +5,7 @@ metadata:
     alm-examples: |-
       [
         {
-          "apiVersion": "datasciencecluster.opendatahub.io/v1",
+          "apiVersion": "datasciencecluster.opendatahub.io/v2",
           "kind": "DataScienceCluster",
           "metadata": {
             "labels": {
@@ -65,96 +65,6 @@ metadata:
           }
         },
         {
-          "apiVersion": "datasciencecluster.opendatahub.io/v2",
-          "kind": "DataScienceCluster",
-          "metadata": {
-            "labels": {
-              "app.kubernetes.io/name": "datasciencecluster",
-            },
-            "name": "default-dsc"
-          },
-          "spec": {
-            "components": {
-              "dashboard": {
-                "managementState": "Managed"
-              },
-              "datasciencepipelines": {
-                "managementState": "Managed"
-              },
-              "feastoperator": {
-                "managementState": "Removed"
-              },
-              "kserve": {
-                "managementState": "Managed",
-                "nim": {
-                  "managementState": "Managed"
-                },
-                "serving": {
-                  "ingressGateway": {
-                    "certificate": {
-                      "type": "OpenshiftDefaultIngress"
-                    }
-                  },
-                  "managementState": "Managed",
-                  "name": "knative-serving"
-                }
-              },
-              "kueue": {
-                "managementState": "Removed"
-              },
-              "llamastackoperator": {
-                "managementState": "Removed"
-              },
-              "modelregistry": {
-                "managementState": "Managed",
-                "registriesNamespace": "rhoai-model-registries"
-              },
-              "ray": {
-                "managementState": "Managed"
-              },
-              "trainingoperator": {
-                "managementState": "Managed"
-              },
-              "trustyai": {
-                "managementState": "Managed"
-              },
-              "workbenches": {
-                "managementState": "Managed"
-              }
-            }
-          }
-        },
-        {
-          "apiVersion": "dscinitialization.opendatahub.io/v1",
-          "kind": "DSCInitialization",
-          "metadata": {
-            "labels": {
-              "app.kubernetes.io/name": "dscinitialization"
-            },
-            "name": "default-dsci"
-          },
-          "spec": {
-            "applicationsNamespace": "redhat-ods-applications",
-            "monitoring": {
-              "managementState": "Managed",
-              "metrics": {},
-              "namespace": "redhat-ods-monitoring"
-            },
-            "serviceMesh": {
-              "controlPlane": {
-                "metricsCollection": "Istio",
-                "name": "data-science-smcp",
-                "namespace": "istio-system"
-              },
-              "managementState": "Managed"
-            },
-            "trustedCABundle": {
-              "customCABundle": "",
-              "managementState": "Managed"
-            }
-          }
-        },
-        {
           "apiVersion": "dscinitialization.opendatahub.io/v2",
           "kind": "DSCInitialization",
           "metadata": {
@@ -189,7 +99,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-10-10T10:20:23Z"
+    createdAt: "2025-10-14T08:18:12Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -263,13 +173,15 @@ metadata:
     operatorframework.io/suggested-namespace: redhat-ods-operator
     operators.openshift.io/infrastructure-features: '["disconnected"]'
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
-    operators.operatorframework.io/internal-objects: "[\"featuretrackers.features.opendatahub.io\",\n\"dashboards.components.platform.opendatahub.io\",
-      \"datasciencepipelines.components.platform.opendatahub.io\",\n\"kserves.components.platform.opendatahub.io\",
-      \"kueues.components.platform.opendatahub.io\",\n\"modelregistries.components.platform.opendatahub.io\",
-      \"rays.components.platform.opendatahub.io\", \n\"trainingoperators.components.platform.opendatahub.io\",
-      \"trustyais.components.platform.opendatahub.io\", \n\"workbenches.components.platform.opendatahub.io\",
-      \"monitorings.services.platform.opendatahub.io\", \n\"modelcontrollers.components.platform.opendatahub.io\",
-      \"feastoperators.components.platform.opendatahub.io\", \n\"llamastackoperators.components.platform.opendatahub.io\"]"
+    operators.operatorframework.io/internal-objects: |-
+      ["featuretrackers.features.opendatahub.io",
+      "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
+      "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
+      "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
+      "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
+      "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
+      "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
+      "llamastackoperators.components.platform.opendatahub.io"]
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
