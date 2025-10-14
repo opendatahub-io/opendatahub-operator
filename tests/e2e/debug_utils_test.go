@@ -550,6 +550,16 @@ func retrievePodLogs(namespace, podName, containerName string, previous bool) (s
 
 // getDebugControllerDeploymentName returns the platform-aware deployment name for debug purposes.
 func getDebugControllerDeploymentName() string {
+	var result string
+
+	// Defensive guard: never let platform detection crash diagnostics
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Warning: platform detection panicked: %v", r)
+			result = controllerDeploymentODH
+		}
+	}()
+
 	// Try to create a minimal test context to get platform detection
 	tc, err := NewTestContext(nil)
 	if err != nil {
@@ -558,7 +568,8 @@ func getDebugControllerDeploymentName() string {
 		return controllerDeploymentODH
 	}
 
-	return tc.getControllerDeploymentName()
+	result = tc.getControllerDeploymentName()
+	return result
 }
 
 // debugOperatorStatus checks the OpenDataHub operator deployment and pods.
