@@ -31,6 +31,7 @@ and configure these applications.
   - [Run functional Tests](#run-functional-tests)
   - [Run e2e Tests](#run-e2e-tests)
     - [Configuring e2e Tests](#configuring-e2e-tests)
+    - [E2E Tips/FAQ](#e2e-tipsfaq)
   - [Run Integration tests (Jenkins pipeline)](#run-integration-tests-jenkins-pipeline)
   - [Run Prometheus Unit Tests for Alerts](#run-prometheus-unit-tests-for-alerts)
   - [API Overview](#api-overview)
@@ -257,9 +258,9 @@ e.g `make image-build USE_LOCAL=true"`
   ```commandline
   operator-sdk run bundle quay.io/<username>/opendatahub-operator-bundle:<VERSION> --namespace $OPERATOR_NAMESPACE --decompression-image quay.io/project-codeflare/busybox:1.36
   ```
-  
+
 - Understanding Catalog Generation:
-  
+
   The operator uses File-Based Catalog (FBC) format for OLM integration. The `make catalog-build` command internally runs `catalog-prepare` which:
   - Uses the basic template from `config/catalog/fbc-basic-template.yaml`
   - Processes the template using `hack/update-catalog-template.sh` to generate `catalog/operator.yaml`
@@ -285,7 +286,7 @@ e.g `make image-build USE_LOCAL=true"`
   ```commandline
   make catalog-build catalog-push -e CATALOG_IMG=quay.io/<username>/opendatahub-operator-index:<target_version> BUNDLE_IMGS=<list-of-comma-separated-bundle-images>
   ```
-  
+
 ### Test with customized manifests
 
 There are 2 ways to test your changes with modification:
@@ -535,6 +536,76 @@ Additionally specific env vars can be used to configure tests timeouts
 | E2E_TEST_DEFAULTEVENTUALLYPOLLINTERVAL   | Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.         | `2s`          |
 | E2E_TEST_DEFAULTCONSISTENTLYTIMEOUT      | Duration used for Consistently; overrides Gomega's default of 2 seconds.                | `10s`         |
 | E2E_TEST_DEFAULTCONSISTENTLYPOLLINTERVAL | Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.       | `2s`          |
+
+#### E2E Tips/FAQ
+
+<details>
+<summary>Minimum Setup for e2e</summary>
+
+Set `IMAGE_TAG_BASE` (in your environment or in `local.mk`) \- replace `$ORG` with your [quay.io](http://quay.io) org:
+
+```shell
+export IMAGE_TAG_BASE=quay.io/$ORG/opendatahub-operator
+```
+
+</details>
+
+<details>
+<summary>Recommended Setup for e2e</summary>
+
+Turn off post-test cleanup
+
+```shell
+export E2E_TEST_DELETION_POLICY=never
+```
+</details>
+
+<details>
+<summary>Typical Workflow</summary>
+
+First, clone [olminstall](https://gitlab.cee.redhat.com/data-hub/olminstall) (Red Hat internal only), because it has a cleanup command you can use to ensure a clean slate:
+
+```shell
+~/olminstall/cleanup.sh -t operator
+make install
+make deploy
+make e2e-test  # include other args as needed
+```
+
+</details>
+
+<details>
+<summary>How do I run only tests for core services (monitoring, etc)?</summary>
+
+```shell
+make e2e-test -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_WEBHOOK=false -e E2E_TEST_COMPONENTS=false -e E2E_TEST_SERVICES=true -e E2E_TEST_DELETION_POLICY=never
+```
+
+</details>
+
+<details>
+<summary>How do I run only tests for a specific component?</summary>
+
+```shell
+make e2e-test -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_WEBHOOK=false -e E2E_TEST_COMPONENT=dashboard,workbenches -e E2E_TEST_SERVICES=false -e E2E_TEST_DELETION_POLICY=never
+```
+
+##### Alternative using E2E\_TEST\_FLAGS
+
+```shell
+make e2e-test -e E2E_TEST_FLAGS="--test-operator-controller=false --test-webhook=false --test-component=dashboard,workbenches --test-services=false --deletion-policy=never"
+```
+
+</details>
+
+<details>
+<summary>How do I run a specific test?</summary>
+
+```shell
+go test -v -run "TestOdhOperator/Operator_Resilience_E2E_Tests/Validate_components_deployment_failure" ./tests/e2e --timeout=15m
+```
+
+</details>
 
 ### Run Integration tests (Jenkins pipeline)
 
