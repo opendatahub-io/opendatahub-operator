@@ -376,6 +376,13 @@ func buildBaseOAuth2ProxyArgs(domain string) []string {
 		"--tls-key-file=" + TLSCertsMountPath + "/tls.key",
 		"--use-system-trust-store=true",
 		fmt.Sprintf("--https-address=0.0.0.0:%d", AuthProxyHTTPSPort),
+		"--cookie-expire=24h",         // Cookie expires after 24 hours
+		"--cookie-refresh=2h",         // Cookie is refreshed every 2 hours
+		"--cookie-secure=true",        // HTTPS only
+		"--cookie-httponly=true",      // XSS protection
+		"--cookie-samesite=lax",       // CSRF protection
+		"--cookie-name=_oauth2_proxy", // Custom cookie name
+		"--cookie-domain=" + domain,   // Cookie domain is the domain of the gateway
 	}
 }
 
@@ -383,6 +390,7 @@ func buildOIDCArgs(oidcConfig *serviceApi.OIDCConfig) []string {
 	return []string{
 		"--provider=oidc",
 		"--oidc-issuer-url=" + oidcConfig.IssuerURL,
+		"--skip-oidc-discovery=false", // Enable OIDC discovery
 	}
 }
 
