@@ -99,7 +99,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-10-14T08:18:12Z"
+    createdAt: "2025-10-14T16:54:55Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -119,7 +119,7 @@ metadata:
         "metadata": {
           "name": "default-dsc",
           "labels": {
-            "app.kubernetes.io/name": "datasciencecluster",
+            "app.kubernetes.io/name": "datasciencecluster"
           }
         },
         "spec": {
