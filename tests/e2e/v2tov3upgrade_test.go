@@ -155,7 +155,7 @@ func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T
 			jq.Match(`.apiVersion == "%s"`, dscv2.GroupVersion.String()),
 			jq.Match(`.kind == "DataScienceCluster"`),
 			jq.Match(`.spec.components | has("codeflare") | not`),
-			jq.Match(`([.spec.components.dashboard, .spec.components.workbenches, .spec.components.datasciencepipelines,
+			jq.Match(`([.spec.components.dashboard, .spec.components.workbenches, .spec.components.aipipelines,
 				.spec.components.kserve, .spec.components.kueue, .spec.components.ray, .spec.components.trustyai,
 				.spec.components.modelregistry, .spec.components.trainingoperator, .spec.components.feastoperator,
 				.spec.components.llamastackoperator] | map(.managementState) | all(. == "Removed"))`),
@@ -254,8 +254,8 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateComponentResourcePreservation(t *testing
 	tc.triggerDSCReconciliation(t)
 
 	// Verify component still exists after reconciliation (was not removed)
-	tc.EnsureResourceExistsConsistently(WithMinimalObject(gvk.CodeFlare, nn),
-		WithCustomErrorMsg("CodeFlare component resource '%s' was expected to exist but was not found", defaultCodeFlareComponentName),
+	tc.EnsureResourceExistsConsistently(WithMinimalObject(componentGVK, nn),
+		WithCustomErrorMsg("%s component resource '%s' was expected to exist but was not found", componentGVK.Kind, componentName),
 	)
 
 	// Cleanup
