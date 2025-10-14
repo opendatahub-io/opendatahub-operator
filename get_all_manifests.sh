@@ -16,7 +16,6 @@ declare -A COMPONENT_MANIFESTS=(
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@4c581eb93299dde716e7791ebe5f90d43919a52f:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main@cb5907d7bda2e72fe10c380c7f07ecc46d4de331:manifests"
     ["kserve"]="opendatahub-io:kserve:release-v0.15@a18bc288ffb44db34f77329257ae0d0a2f13097f:config"
-    ["kueue"]="opendatahub-io:kueue:dev@c7e5105e597d92831decdd9e972dc9fdf940edf3:config"
     ["ray"]="opendatahub-io:kuberay:dev@d751b14faddf13b141d0d26f6ced640ec23030b3:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@7f21761643ea756480f0a43f55ff8817458559a4:config"
     ["modelregistry"]="opendatahub-io:model-registry-operator:main@db2eadd13942a03e8c16498aeefd66e8a1c9ec22:config"

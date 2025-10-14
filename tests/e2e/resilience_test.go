@@ -119,7 +119,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
 		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
 		componentApi.KserveComponentName:               "kserve-controller-manager",
-		componentApi.KueueComponentName:                "kueue-controller-manager",
 		componentApi.LlamaStackOperatorComponentName:   "llama-stack-k8s-operator-controller-manager",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
@@ -140,12 +139,13 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	expectedComponentCount := reflect.TypeOf(dscv2.Components{}).NumField()
 	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
-	excludedComponents := 1 // TrustyAI
+	// Kueue is excluded because it does not have any deployment to manage anymore
+	excludedComponents := 2 // TrustyAI and Kueue
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
 			"Expected %d testable components but found %d. "+
-			"(Total DSC components: %d, Excluded: %d - TrustyAI due to InferenceServices CRD dependency)",
+			"(Total DSC components: %d, Excluded: %d - TrustyAI due to InferenceServices CRD dependency and Kueue because dose not manage any deployment)",
 		expectedTestableComponents, componentsLength, expectedComponentCount, excludedComponents)
 
 	// Ensure clean initial state by disabling all components first

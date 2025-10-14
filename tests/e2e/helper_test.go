@@ -51,6 +51,9 @@ const (
 	serverlessOpName             = "serverless-operator"              // Name of the Serverless Operator
 	authorinoOpName              = "authorino-operator"               // Name of the Serverless Operator
 	kueueOpName                  = "kueue-operator"                   // Name of the Kueue Operator
+	certManagerOpName            = "openshift-cert-manager-operator"  // Name of the cert-manager Operator
+	certManagerOpNamespace       = "cert-manager-operator"            // Name of the cert-manager Namespace
+	certManagerOpChannel         = "stable-v1"                        // Name of cert-manager operator stable channel
 	telemetryOpName              = "opentelemetry-product"            // Name of the Telemetry Operator
 	openshiftOperatorsNamespace  = "openshift-operators"              // Namespace for OpenShift Operators
 	serverlessOperatorNamespace  = "openshift-serverless"             // Namespace for the Serverless Operator
@@ -364,8 +367,8 @@ func CreateDSCv1(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				Kueue: componentApi.DSCKueue{
-					KueueManagementSpec: componentApi.KueueManagementSpec{
+				Kueue: dscv1.DSCKueueV1{
+					KueueManagementSpecV1: dscv1.KueueManagementSpecV1{
 						ManagementState: operatorv1.Removed,
 					},
 				},
