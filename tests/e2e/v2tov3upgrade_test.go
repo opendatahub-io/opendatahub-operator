@@ -8,6 +8,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -19,6 +20,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -39,7 +41,19 @@ const (
 	defaultModelMeshServingComponentName = "default-modelmeshserving"
 	testDSCV1Name                        = "test-dsc-v1-upgrade"
 	testDSCIV1Name                       = "test-dsci-v1-upgrade"
+	defaultServiceMeshName               = "default-servicemesh"
 )
+
+type CRDToCreate struct {
+	GVK  schema.GroupVersionKind
+	Name string
+}
+
+var removedCRDToCreate = []CRDToCreate{
+	{GVK: gvk.CodeFlare, Name: defaultCodeFlareComponentName},
+	{GVK: gvk.ModelMeshServing, Name: defaultModelMeshServingComponentName},
+	{GVK: gvk.ServiceMesh, Name: defaultServiceMeshName},
+}
 
 type V2Tov3UpgradeTestCtx struct {
 	*TestContext
@@ -56,19 +70,24 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 		TestContext: tc,
 	}
 
+	v2Tov3UpgradeTestCtx.createCRD(removedCRDToCreate)
+
 	// Define test cases.
 	testCases := []TestCase{
 		{"codeflare resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateCodeFlareResourcePreservation},
 		{"modelmeshserving resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateModelMeshServingResourcePreservation},
 		{"ray raise error if codeflare component present in the cluster", v2Tov3UpgradeTestCtx.ValidateRayRaiseErrorIfCodeFlarePresent},
+		{"servicemesh resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateServiceMeshResourcePreservation},
 	}
 
 	// Run the test suite.
 	RunTestCases(t, testCases)
 
-	tc.DeleteResource(
-		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: strings.ToLower(gvk.CodeFlare.Kind) + "s." + gvk.CodeFlare.Group}),
-	)
+	for _, crd := range removedCRDToCreate {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: strings.ToLower(crd.GVK.Kind) + "s." + crd.GVK.Group}),
+		)
+	}
 }
 
 func hardwareProfileTestSuite(t *testing.T) {
@@ -158,6 +177,7 @@ func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T
 			jq.Match(`.apiVersion == "%s"`, dscv1.GroupVersion.String()),
 			jq.Match(`.kind == "DataScienceCluster"`),
 			jq.Match(`.spec.components | has("codeflare")`),
+			jq.Match(`.spec.components | has("modelmeshserving")`),
 			jq.Match(`([.spec.components.dashboard, .spec.components.workbenches, .spec.components.datasciencepipelines,
 				.spec.components.kserve, .spec.components.kueue, .spec.components.ray, .spec.components.trustyai,
 				.spec.components.modelregistry, .spec.components.trainingoperator, .spec.components.feastoperator,
@@ -175,7 +195,8 @@ func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T
 			jq.Match(`.apiVersion == "%s"`, dscv2.GroupVersion.String()),
 			jq.Match(`.kind == "DataScienceCluster"`),
 			jq.Match(`.spec.components | has("codeflare") | not`),
-			jq.Match(`([.spec.components.dashboard, .spec.components.workbenches, .spec.components.datasciencepipelines,
+			jq.Match(`.spec.components | has("modelmeshserving") | not`),
+			jq.Match(`([.spec.components.dashboard, .spec.components.workbenches, .spec.components.aipipelines,
 				.spec.components.kserve, .spec.components.kueue, .spec.components.ray, .spec.components.trustyai,
 				.spec.components.modelregistry, .spec.components.trainingoperator, .spec.components.feastoperator,
 				.spec.components.llamastackoperator] | map(.managementState) | all(. == "Removed"))`),
@@ -365,9 +386,6 @@ func (tc *V2Tov3UpgradeTestCtx) HardwareProfileV1ToV1Alpha1VersionConversion(t *
 func (tc *V2Tov3UpgradeTestCtx) validateComponentResourcePreservation(t *testing.T, componentGVK schema.GroupVersionKind, componentName string) {
 	t.Helper()
 
-	// Create the specific CRD needed for this component (if not exists)
-	tc.createCRD(componentGVK, componentName)
-
 	dsc := tc.FetchDataScienceCluster()
 
 	componentToCreate := tc.operatorManagedComponent(componentGVK, componentName, dsc)
@@ -448,6 +466,7 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard = {}`)),
 		WithCondition(jq.Match(`.metadata.generation == .status.observedGeneration`)),
+		WithEventuallyTimeout(tc.TestTimeouts.defaultEventuallyTimeout),
 		WithCustomErrorMsg("Failed to trigger DSC reconciliation"),
 	)
 }
@@ -809,12 +828,87 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsWithoutKueue(t *testing.T) {
 }
 
 // createCRD creates a mock CRD for the given component GVK if it doesn't already exist in the cluster.
-func (tc *V2Tov3UpgradeTestCtx) createCRD(componentGVK schema.GroupVersionKind, componentName string) {
-	// Create mock CRD for the component
-	mockCRD := mocks.NewMockCRD(componentGVK.Group, componentGVK.Version, componentGVK.Kind, componentName)
+func (tc *V2Tov3UpgradeTestCtx) createCRD(crdsToCreate []CRDToCreate) {
+	for _, crd := range crdsToCreate {
+		// Create mock CRD for the component
+		mockCRD := mocks.NewMockCRD(crd.GVK.Group, crd.GVK.Version, crd.GVK.Kind, crd.Name)
 
-	tc.EventuallyResourceCreated(
-		WithObjectToCreate(mockCRD),
-		WithCustomErrorMsg("Failed to create CRD for %s component", componentGVK.Kind),
+		tc.EventuallyResourceCreated(
+			WithObjectToCreate(mockCRD),
+			WithAcceptableErr(k8serr.IsAlreadyExists, "IsAlreadyExists"),
+			WithCustomErrorMsg("Failed to create CRD for %s component", crd.GVK.Kind),
+			WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
+		)
+	}
+}
+
+func (tc *V2Tov3UpgradeTestCtx) ValidateServiceMeshResourcePreservation(t *testing.T) {
+	t.Helper()
+
+	nn := types.NamespacedName{
+		Name: defaultServiceMeshName,
+	}
+
+	dsci := tc.FetchDSCInitialization()
+
+	tc.createOperatorManagedServiceMesh(defaultServiceMeshName, dsci)
+
+	tc.triggerDSCIReconciliation(t)
+
+	// verify ServiceMesh still exists after reconciliation
+	tc.EnsureResourceExistsConsistently(WithMinimalObject(gvk.ServiceMesh, nn),
+		WithCustomErrorMsg("ServiceMesh service resource '%s' was expected to exist but was not found", defaultServiceMeshName),
+	)
+
+	tc.DeleteResource(
+		WithMinimalObject(gvk.ServiceMesh, nn),
+		WithWaitForDeletion(true),
+	)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedServiceMesh(serviceMeshName string, dsci *dsciv2.DSCInitialization) {
+	existingServiceMesh := resources.GvkToUnstructured(gvk.ServiceMesh)
+	existingServiceMesh.SetName(serviceMeshName)
+
+	resources.SetLabels(existingServiceMesh, map[string]string{
+		labels.PlatformPartOf: strings.ToLower(gvk.DSCInitialization.Kind),
+	})
+
+	resources.SetAnnotations(existingServiceMesh, map[string]string{
+		odhAnnotations.ManagedByODHOperator: "true",
+		odhAnnotations.PlatformVersion:      dsci.Status.Release.Version.String(),
+		odhAnnotations.PlatformType:         string(dsci.Status.Release.Name),
+		odhAnnotations.InstanceGeneration:   strconv.Itoa(int(dsci.GetGeneration())),
+		odhAnnotations.InstanceUID:          string(dsci.GetUID()),
+	})
+
+	err := controllerutil.SetOwnerReference(dsci, existingServiceMesh, tc.Scheme())
+	tc.g.Expect(err).NotTo(HaveOccurred(),
+		"Failed to set owner reference from DSCInitialization '%s' to ServiceMesh service '%s'",
+		dsci.GetName(), serviceMeshName)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(existingServiceMesh),
+		WithCustomErrorMsg("Failed to create existing ServiceMesh service for preservation test"),
+	)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) triggerDSCIReconciliation(t *testing.T) {
+	t.Helper()
+
+	// trigger DSCI reconciliation by setting a customCABundle
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.trustedCABundle.customCABundle = "# reconcile trigger"`)),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
+		WithCustomErrorMsg("Failed to trigger DSCI reconciliation"),
+	)
+
+	// restore original customCABundle in DSCInitialization instance
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.trustedCABundle.customCABundle = ""`)),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
+		WithCustomErrorMsg("Failed to trigger DSCI reconciliation"),
 	)
 }

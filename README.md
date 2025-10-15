@@ -41,14 +41,6 @@ and configure these applications.
 
 ## Usage
 
-### Prerequisites
-If `single model serving configuration` is used or if `Kserve` component is used then please make sure to install the following operators before proceeding to create a DSCI and DSC instances.
- - [Authorino operator](https://github.com/Kuadrant/authorino)
- - [Service Mesh operator](https://github.com/Maistra/istio-operator)
- - [Serverless operator](https://github.com/openshift-knative/serverless-operator)
-
-Additionally installing `Authorino operator` & `Service Mesh operator` enhances user-experience by providing a single sign on experience.
-
 ### Installation
 
 - The latest version of operator can be installed from the `community-operators` catalog on `OperatorHub`.
@@ -347,12 +339,6 @@ spec:
         backend: pv
         size: 5Gi
         retention: 2160h
-  serviceMesh:
-    controlPlane:
-      metricsCollection: Istio
-      name: data-science-smcp
-      namespace: istio-system
-    managementState: Unmanaged
   trustedCABundle:
     customCABundle: ''
     managementState: Managed
@@ -384,12 +370,6 @@ spec:
       nim:
         managementState: Managed
       rawDeploymentServiceConfig: Headed
-      serving:
-        ingressGateway:
-          certificate:
-            type: OpenshiftDefaultIngress
-        managementState: Unmanaged
-        name: knative-serving
     kueue:
       managementState: Managed
     modelregistry:

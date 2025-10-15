@@ -47,7 +47,7 @@ Together, these CRs are responsible for configuration of ODH at the platform lev
 #### DSCInitialization (DSCI)
 
 - DSCI CR is managed by the ODH operator to perform initial setup that is common for all components.
-  - for example, DSCI defines the namespace for ODH component deployments, monitoring config, ServiceMesh config,...
+  - for example, DSCI defines the namespace for ODH component deployments, monitoring config,...
 - Some examples of initial setup include creating namespaces, network policies, common configmaps and secrets.
 - DSCI instance is a singleton in the cluster, i.e., only one instance of this CR can be present in the cluster.
 - DSCI controller implementation can be found in `internal/controller/dscinitialization` directory.
@@ -119,9 +119,6 @@ The currently used accessory controllers are listed below:
 - Secret Generator controller
   - responsible for generating Secret used by the ODH Dashboard.
   - controller implementation located in `internal/controller/services/secretgenerator`.
-- ServiceMesh controller
-  - responsible for configuring ServiceMesh v2 and Authorino related resources.
-  - controller implementation located in `internal/controller/services/servicemesh`.
 - Setup controller
   - responsible for managing the ConfigMap that triggers the cleanup/uninstallation of ODH.
   - handles the cleanup logic itself.
@@ -146,12 +143,6 @@ spec:
       nim:
         managementState: Managed
       rawDeploymentServiceConfig: Headless
-      serving:
-        ingressGateway:
-          certificate:
-            type: OpenshiftDefaultIngress
-        managementState: Managed
-        name: knative-serving
     modelregistry:
       managementState: Managed
       registriesNamespace: "odh-model-registries"
