@@ -124,7 +124,7 @@ func (tc *DSCTestCtx) ValidateOperatorsWithCustomChannelsInstallation(t *testing
 		skipOperatorGroup bool
 		channel           string
 	}{
-		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace}, skipOperatorGroup: true, channel: "stable-v1.0"},
+		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace}, skipOperatorGroup: false, channel: "stable-v1.0"},
 	}
 
 	// Create and run test cases in parallel.
