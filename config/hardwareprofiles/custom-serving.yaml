@@ -1,0 +1,24 @@
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  name: custom-serving
+  namespace: redhat-ods-applications
+  annotations:
+    opendatahub.io/dashboard-feature-visibility: model-serving
+    opendatahub.io/modified-date: ""
+    opendatahub.io/display-name: custom-serving
+    opendatahub.io/description: ""
+    opendatahub.io/disabled: "false"
+    opendatahub.io/managed: "false"
+spec:
+  identifiers:
+    - identifier: cpu
+      displayName: cpu
+      resourceType: CPU
+      minCount: 1
+      defaultCount: 1
+    - identifier: memory
+      displayName: memory
+      resourceType: Memory
+      minCount: 1Gi
+      defaultCount: 1Gi
