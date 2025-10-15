@@ -43,15 +43,6 @@ metadata:
             },
             "kserve": {
               "managementState": "Managed",
-              "serving": {
-                "ingressGateway": {
-                  "certificate": {
-                    "type": "OpenshiftDefaultIngress"
-                  }
-                },
-                "managementState": "Managed",
-                "name": "knative-serving"
-              }
             },
             "llamastackoperator": {
                 "managementState": "Removed"
