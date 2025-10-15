@@ -60,13 +60,16 @@ func TestRunnerIntegration(t *testing.T) {
 		{
 			name:           "flaky tests pass after retry - with skip at prefix set",
 			testPath:       "./testdata/flaky",
-			skipAtPrefixes: []string{"TestNonFlaky"},
+			skipAtPrefixes: []string{"TestNonFlaky", "TestFlaky1", "TestFlaky2", "TestFlaky3"},
 			expectedResults: []testCaseOutput{
 				{Name: "TestFlaky1", HasFailure: true},
 				{Name: "TestFlaky2", HasFailure: true},
+				{Name: "TestFlaky3", HasFailure: true},
 				{Name: "TestNonFlaky", HasFailure: false},
 				{Name: "TestFlaky1", HasFailure: false},
 				{Name: "TestFlaky2", HasFailure: false},
+				{Name: "TestFlaky3", HasFailure: true},
+				{Name: "TestFlaky3", HasFailure: false},
 			},
 		},
 		{
@@ -75,9 +78,15 @@ func TestRunnerIntegration(t *testing.T) {
 			expectedResults: []testCaseOutput{
 				{Name: "TestFlaky1", HasFailure: true},
 				{Name: "TestFlaky2", HasFailure: true},
+				{Name: "TestFlaky3", HasFailure: true},
 				{Name: "TestNonFlaky", HasFailure: false},
 				{Name: "TestFlaky1", HasFailure: false},
 				{Name: "TestFlaky2", HasFailure: false},
+				{Name: "TestFlaky3", HasFailure: true},
+				{Name: "TestNonFlaky", HasFailure: false},
+				{Name: "TestFlaky1", HasFailure: false},
+				{Name: "TestFlaky2", HasFailure: false},
+				{Name: "TestFlaky3", HasFailure: false},
 				{Name: "TestNonFlaky", HasFailure: false},
 			},
 		},
@@ -178,7 +187,7 @@ func TestGitHubNotificationOnFlakyTests(t *testing.T) {
 	testPath := "./testdata/flaky"
 
 	opts := types.E2ETestOptions{
-		MaxRetries:        1,
+		MaxRetries:        2,
 		TestPath:          testPath,
 		Config:            &config.Config{Verbose: false},
 		NeverSkipPrefixes: []string{},
