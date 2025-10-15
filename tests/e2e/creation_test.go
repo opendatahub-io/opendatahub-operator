@@ -86,6 +86,7 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	operators := []struct {
 		nn                types.NamespacedName
 		skipOperatorGroup bool
+		channel           string
 	}{
 		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, channel: certManagerOpChannel},
 		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
