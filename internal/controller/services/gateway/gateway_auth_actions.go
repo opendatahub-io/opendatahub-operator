@@ -35,13 +35,6 @@ const (
 	AuthModeNone            AuthMode = "None"
 )
 
-// setErrorConditionAndReturn is a helper to set error condition and return error.
-func setErrorConditionAndReturn(gatewayConfig *serviceApi.GatewayConfig, message string, err error) error {
-	condition := CreateErrorCondition(message, err)
-	gatewayConfig.SetConditions([]common.Condition{condition})
-	return err
-}
-
 func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createAuthProxy")
 
@@ -63,16 +56,12 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return fmt.Errorf("failed to detect cluster authentication mode: %w", err)
 	}
 
-	l.V(1).Info("detected cluster authentication mode", "mode", authMode)
-
 	if errorCondition := validateOIDCConfig(authMode, gatewayConfig.Spec.OIDC); errorCondition != nil {
-		gatewayConfig.SetConditions([]common.Condition{*errorCondition})
-		return nil
+		return fmt.Errorf("%s", errorCondition.Message)
 	}
 
 	if condition := checkAuthModeNone(authMode); condition != nil {
-		gatewayConfig.SetConditions([]common.Condition{*condition})
-		return nil
+		return fmt.Errorf("%s", condition.Message)
 	}
 
 	var oidcConfig *serviceApi.OIDCConfig
@@ -83,31 +72,22 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	// get or generate secrets for kube-auth-proxy (handles OAuth and OIDC modes)
 	clientSecret, cookieSecret, err := getOrGenerateSecrets(ctx, rr, authMode)
 	if err != nil {
-		return setErrorConditionAndReturn(gatewayConfig, "Failed to get or generate secrets", err)
+		return fmt.Errorf("failed to get or generate secrets: %w", err)
 	}
 
 	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, clientSecret, cookieSecret, domain); err != nil {
-		return setErrorConditionAndReturn(gatewayConfig, "Failed to deploy auth proxy", err)
+		return fmt.Errorf("failed to deploy auth proxy: %w", err)
 	}
 
 	if authMode == AuthModeIntegratedOAuth {
 		if err := createOAuthClient(ctx, rr, clientSecret); err != nil {
-			return setErrorConditionAndReturn(gatewayConfig, "Failed to create OAuth client", err)
+			return fmt.Errorf("failed to create OAuth client: %w", err)
 		}
 	}
 
 	if err := createOAuthCallbackRoute(rr); err != nil {
-		return setErrorConditionAndReturn(gatewayConfig, "Failed to create OAuth callback route", err)
+		return fmt.Errorf("failed to create OAuth callback route: %w", err)
 	}
-
-	// Dashboard routing is now user's responsibility - removed createDashboardRoute and createReferenceGrant
-
-	gatewayConfig.SetConditions([]common.Condition{{
-		Type:    status.ConditionTypeReady,
-		Status:  metav1.ConditionTrue,
-		Reason:  status.ReadyReason,
-		Message: "Auth proxy deployed successfully",
-	}})
 
 	return nil
 }
@@ -389,6 +369,7 @@ func buildBaseOAuth2ProxyArgs(domain string) []string {
 		"--email-domain=*",
 		"--upstream=static://200", // Static response - real routing handled by EnvoyFilter
 		"--skip-provider-button",
+		"--skip-jwt-bearer-tokens=true", // Allow bearer tokens to bypass OAuth login flow
 		"--pass-access-token=true",
 		"--set-xauthrequest=true",
 		fmt.Sprintf("--redirect-url=https://%s/oauth2/callback", domain),
@@ -396,6 +377,13 @@ func buildBaseOAuth2ProxyArgs(domain string) []string {
 		"--tls-key-file=" + TLSCertsMountPath + "/tls.key",
 		"--use-system-trust-store=true",
 		fmt.Sprintf("--https-address=0.0.0.0:%d", AuthProxyHTTPSPort),
+		"--cookie-expire=24h",         // Cookie expires after 24 hours
+		"--cookie-refresh=2h",         // Cookie is refreshed every 2 hours
+		"--cookie-secure=true",        // HTTPS only
+		"--cookie-httponly=true",      // XSS protection
+		"--cookie-samesite=lax",       // CSRF protection
+		"--cookie-name=_oauth2_proxy", // Custom cookie name
+		"--cookie-domain=" + domain,   // Cookie domain is the domain of the gateway
 	}
 }
 
@@ -403,6 +391,7 @@ func buildOIDCArgs(oidcConfig *serviceApi.OIDCConfig) []string {
 	return []string{
 		"--provider=oidc",
 		"--oidc-issuer-url=" + oidcConfig.IssuerURL,
+		"--skip-oidc-discovery=false", // Enable OIDC discovery
 	}
 }
 

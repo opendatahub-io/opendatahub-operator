@@ -6,14 +6,11 @@ import (
 	"os"
 	"strings"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -172,19 +169,4 @@ func CreateListeners(certSecretName string, domain string) []gwapiv1.Listener {
 
 	listeners = append(listeners, httpsListener)
 	return listeners
-}
-
-// CreateErrorCondition creates a standardized error condition for gateway operations.
-func CreateErrorCondition(message string, err error) common.Condition {
-	fullMessage := message
-	if err != nil {
-		fullMessage = fmt.Sprintf("%s: %v", message, err)
-	}
-
-	return common.Condition{
-		Type:    status.ConditionTypeReady,
-		Status:  metav1.ConditionFalse,
-		Reason:  status.NotReadyReason,
-		Message: fullMessage,
-	}
 }
