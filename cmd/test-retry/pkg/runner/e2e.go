@@ -240,7 +240,7 @@ func (r *E2ETestRunner) buildSkipFilter(testResult *types.TestResult) string {
 			escapedName := regexp.QuoteMeta(level)
 
 			// Match tests that start with this level
-			filters = append(filters, fmt.Sprintf("^%s", escapedName))
+			filters = append(filters, buildGoTestSkipFilter(escapedName)...)
 		}
 	}
 
@@ -251,6 +251,15 @@ func (r *E2ETestRunner) buildSkipFilter(testResult *types.TestResult) string {
 	sort.Strings(filters)
 
 	return strings.Join(filters, "|")
+}
+
+func buildGoTestSkipFilter(testName string) []string {
+	var skipFilter []string
+	testNameParts := strings.Split(testName, "/")
+	for _, part := range testNameParts {
+		skipFilter = append(skipFilter, fmt.Sprintf("^%s$", part))
+	}
+	return []string{strings.Join(skipFilter, "/")}
 }
 
 // extractTestLevel extracts the appropriate level from test names based on configuration rules
