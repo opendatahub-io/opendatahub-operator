@@ -52,6 +52,7 @@ type CRDToCreate struct {
 var removedCRDToCreate = []CRDToCreate{
 	{GVK: gvk.CodeFlare, Name: defaultCodeFlareComponentName},
 	{GVK: gvk.ModelMeshServing, Name: defaultModelMeshServingComponentName},
+	{GVK: gvk.ServiceMesh, Name: defaultServiceMeshName},
 }
 
 type V2Tov3UpgradeTestCtx struct {
@@ -843,8 +844,6 @@ func (tc *V2Tov3UpgradeTestCtx) createCRD(crdsToCreate []CRDToCreate) {
 
 func (tc *V2Tov3UpgradeTestCtx) ValidateServiceMeshResourcePreservation(t *testing.T) {
 	t.Helper()
-
-	tc.createCRD(gvk.ServiceMesh, defaultServiceMeshName)
 
 	nn := types.NamespacedName{
 		Name: defaultServiceMeshName,
