@@ -7,7 +7,7 @@ import (
 )
 
 func TestSiblings(t *testing.T) {
-	t.Run("nested", func(t *testing.T) {
+	t.Run("nested with same prefix", func(t *testing.T) {
 		t.Run("sibling 1", func(t *testing.T) {
 			require.Fail(t, "This test always fails")
 		})
@@ -16,7 +16,7 @@ func TestSiblings(t *testing.T) {
 		})
 	})
 
-	t.Run("pass 1", func(t *testing.T) {
+	t.Run("nested", func(t *testing.T) {
 		t.Log("This test passes")
 	})
 }
