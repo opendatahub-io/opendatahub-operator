@@ -36,21 +36,4 @@
 //			},
 //		)
 //	}
-//
-// doServiceMeshStuff manages the Service Mesh configuration process during DSCInitialization reconcile.
-// It creates a reporter and reports any conditions derived from the service mesh configuration process.
-//
-//	func (r *DSCInitializationReconciler) doStdoServiceMeshStuffff(instance *dsciv2.DSCInitialization) error {
-//		reporter := createReporter(r.GetClient, instance, &conditionsv1.Condition{
-//			Type:    status.CapabilityServiceMesh,
-//			Status:  corev1.ConditionTrue,
-//			Reason:  status.ConfiguredReason,
-//			Message: "Service Mesh configured",
-//		})
-//
-//		serviceMeshErr := createServiceMesh(instance)
-//		_, reportError := reporter.ReportCondition(serviceMeshErr)
-//
-//		return multierror.Append(serviceMeshErr, reportError) // return all errors
-//	}
 package status

@@ -20,6 +20,7 @@ import (
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -40,6 +41,7 @@ const (
 	defaultModelMeshServingComponentName = "default-modelmeshserving"
 	testDSCV1Name                        = "test-dsc-v1-upgrade"
 	testDSCIV1Name                       = "test-dsci-v1-upgrade"
+	defaultServiceMeshName               = "default-servicemesh"
 )
 
 type CRDToCreate struct {
@@ -50,6 +52,7 @@ type CRDToCreate struct {
 var removedCRDToCreate = []CRDToCreate{
 	{GVK: gvk.CodeFlare, Name: defaultCodeFlareComponentName},
 	{GVK: gvk.ModelMeshServing, Name: defaultModelMeshServingComponentName},
+	{GVK: gvk.ServiceMesh, Name: defaultServiceMeshName},
 }
 
 type V2Tov3UpgradeTestCtx struct {
@@ -74,6 +77,7 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 		{"codeflare resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateCodeFlareResourcePreservation},
 		{"modelmeshserving resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateModelMeshServingResourcePreservation},
 		{"ray raise error if codeflare component present in the cluster", v2Tov3UpgradeTestCtx.ValidateRayRaiseErrorIfCodeFlarePresent},
+		{"servicemesh resources preserved after support removal", v2Tov3UpgradeTestCtx.ValidateServiceMeshResourcePreservation},
 	}
 
 	// Run the test suite.
@@ -836,4 +840,75 @@ func (tc *V2Tov3UpgradeTestCtx) createCRD(crdsToCreate []CRDToCreate) {
 			WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
 		)
 	}
+}
+
+func (tc *V2Tov3UpgradeTestCtx) ValidateServiceMeshResourcePreservation(t *testing.T) {
+	t.Helper()
+
+	nn := types.NamespacedName{
+		Name: defaultServiceMeshName,
+	}
+
+	dsci := tc.FetchDSCInitialization()
+
+	tc.createOperatorManagedServiceMesh(defaultServiceMeshName, dsci)
+
+	tc.triggerDSCIReconciliation(t)
+
+	// verify ServiceMesh still exists after reconciliation
+	tc.EnsureResourceExistsConsistently(WithMinimalObject(gvk.ServiceMesh, nn),
+		WithCustomErrorMsg("ServiceMesh service resource '%s' was expected to exist but was not found", defaultServiceMeshName),
+	)
+
+	tc.DeleteResource(
+		WithMinimalObject(gvk.ServiceMesh, nn),
+		WithWaitForDeletion(true),
+	)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedServiceMesh(serviceMeshName string, dsci *dsciv2.DSCInitialization) {
+	existingServiceMesh := resources.GvkToUnstructured(gvk.ServiceMesh)
+	existingServiceMesh.SetName(serviceMeshName)
+
+	resources.SetLabels(existingServiceMesh, map[string]string{
+		labels.PlatformPartOf: strings.ToLower(gvk.DSCInitialization.Kind),
+	})
+
+	resources.SetAnnotations(existingServiceMesh, map[string]string{
+		odhAnnotations.ManagedByODHOperator: "true",
+		odhAnnotations.PlatformVersion:      dsci.Status.Release.Version.String(),
+		odhAnnotations.PlatformType:         string(dsci.Status.Release.Name),
+		odhAnnotations.InstanceGeneration:   strconv.Itoa(int(dsci.GetGeneration())),
+		odhAnnotations.InstanceUID:          string(dsci.GetUID()),
+	})
+
+	err := controllerutil.SetOwnerReference(dsci, existingServiceMesh, tc.Scheme())
+	tc.g.Expect(err).NotTo(HaveOccurred(),
+		"Failed to set owner reference from DSCInitialization '%s' to ServiceMesh service '%s'",
+		dsci.GetName(), serviceMeshName)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(existingServiceMesh),
+		WithCustomErrorMsg("Failed to create existing ServiceMesh service for preservation test"),
+	)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) triggerDSCIReconciliation(t *testing.T) {
+	t.Helper()
+
+	// trigger DSCI reconciliation by setting a customCABundle
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.trustedCABundle.customCABundle = "# reconcile trigger"`)),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
+		WithCustomErrorMsg("Failed to trigger DSCI reconciliation"),
+	)
+
+	// restore original customCABundle in DSCInitialization instance
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.trustedCABundle.customCABundle = ""`)),
+		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
+		WithCustomErrorMsg("Failed to trigger DSCI reconciliation"),
+	)
 }
