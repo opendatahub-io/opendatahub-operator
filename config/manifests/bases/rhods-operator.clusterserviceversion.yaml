@@ -27,7 +27,7 @@ metadata:
         "metadata": {
           "name": "default-dsc",
           "labels": {
-            "app.kubernetes.io/name": "datasciencecluster",
+            "app.kubernetes.io/name": "datasciencecluster"
           }
         },
         "spec": {

@@ -1,0 +1,29 @@
+{
+  "PassedTest": [
+    {
+      "ID": 3,
+      "Name": "TestPass",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/runner/testdata/failing",
+      "Duration": 0,
+      "Time": "2025-10-03T17:43:53.154319+02:00"
+    }
+  ],
+  "FailedTest": [
+    {
+      "ID": 1,
+      "Name": "TestAlwaysFail1",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/runner/testdata/failing",
+      "Duration": 0,
+      "FailureOutput": "=== RUN   TestAlwaysFail1\n    failing_test.go:11: \n        \tError Trace:\todh-operator-flaky-cli/cmd/test-retry/pkg/runner/testdata/failing/failing_test.go:11\n        \tError:      \tThis test always fails\n        \tTest:       \tTestAlwaysFail1\n--- FAIL: TestAlwaysFail1 (0.00s)\n",
+      "Time": "2025-10-03T17:43:53.154117+02:00"
+    },
+    {
+      "ID": 2,
+      "Name": "TestAlwaysFail2",
+      "Package": "github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/runner/testdata/failing",
+      "Duration": 0,
+      "FailureOutput": "=== RUN   TestAlwaysFail2\n    failing_test.go:16: \n        \tError Trace:\todh-operator-flaky-cli/cmd/test-retry/pkg/runner/testdata/failing/failing_test.go:16\n        \tError:      \tThis test also always fails\n        \tTest:       \tTestAlwaysFail2\n--- FAIL: TestAlwaysFail2 (0.00s)\n",
+      "Time": "2025-10-03T17:43:53.154256+02:00"
+    }
+  ]
+}
