@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -46,11 +46,11 @@ func createOrUpdateSubscription(ctx context.Context, client client.Client, subsc
 	return err
 }
 
-func CreateOrUpdateDSCI(ctx context.Context, client client.Client, dsci *dsciv1.DSCInitialization) error {
+func CreateOrUpdateDSCI(ctx context.Context, client client.Client, dsci *dsciv2.DSCInitialization) error {
 	_, err := controllerutil.CreateOrUpdate(ctx, client, dsci, func() error {
 		return nil
 	})
-	dsci.APIVersion = dsciv1.GroupVersion.String()
+	dsci.APIVersion = dsciv2.GroupVersion.String()
 	dsci.Kind = gvk.DSCInitialization.Kind
 	return err
 }
@@ -159,8 +159,8 @@ func GetFeatureTracker(ctx context.Context, cli client.Client, appNamespace, fea
 	return tracker, err
 }
 
-func NewDSCInitialization(ctx context.Context, cli client.Client, dsciName, ns string) *dsciv1.DSCInitialization {
-	dsci := &dsciv1.DSCInitialization{
+func NewDSCInitialization(ctx context.Context, cli client.Client, dsciName, ns string) *dsciv2.DSCInitialization {
+	dsci := &dsciv2.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: gvk.DSCInitialization.Version,
 			Kind:       gvk.DSCInitialization.Kind,
@@ -171,7 +171,7 @@ func NewDSCInitialization(ctx context.Context, cli client.Client, dsciName, ns s
 	}
 
 	_, errCreate := controllerutil.CreateOrUpdate(ctx, cli, dsci, func() error {
-		dsci.Spec = dsciv1.DSCInitializationSpec{
+		dsci.Spec = dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: ns,
 			ServiceMesh: &infrav1.ServiceMeshSpec{
 				ManagementState: "Managed",

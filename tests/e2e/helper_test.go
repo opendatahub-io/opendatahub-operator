@@ -12,11 +12,14 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
@@ -30,6 +33,11 @@ import (
 const (
 	// Namespaces for various components.
 	knativeServingNamespace = "knative-serving" // Namespace for Knative Serving components
+
+	// Component API field name constants for v1 <-> v2 conversion.
+	dataSciencePipelinesKind          = "DataSciencePipelines" // Kind name for DataSciencePipelines component
+	dataSciencePipelinesComponentName = "datasciencepipelines" // v1 API component name for DataSciencePipelines
+	aiPipelinesFieldName              = "aipipelines"          // v2 API field name for DataSciencePipelines component
 
 	// Test timing constants.
 	// controllerCacheRefreshDelay is the time to wait for controller-runtime
@@ -147,16 +155,16 @@ func ExtractAndExpectValue[T any](g Gomega, in any, expression string, matchers 
 }
 
 // CreateDSCI creates a DSCInitialization CR.
-func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv1.DSCInitialization {
-	return &dsciv1.DSCInitialization{
+func CreateDSCI(name, groupVersion string, appNamespace, monitoringNamespace string) *dsciv2.DSCInitialization {
+	return &dsciv2.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
-			APIVersion: dsciv1.GroupVersion.String(),
+			APIVersion: groupVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: dsciv1.DSCInitializationSpec{
+		Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: appNamespace,
 			Monitoring: serviceApi.DSCIMonitoring{
 				ManagementSpec: common.ManagementSpec{
@@ -166,7 +174,7 @@ func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv1.DSCIniti
 					Namespace: monitoringNamespace,
 				},
 			},
-			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
+			TrustedCABundle: &dsciv2.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
 				CustomCABundle:  "",
 			},
@@ -183,7 +191,94 @@ func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv1.DSCIniti
 }
 
 // CreateDSC creates a DataScienceCluster CR.
-func CreateDSC(name string) *dscv1.DataScienceCluster {
+func CreateDSC(name string) *dscv2.DataScienceCluster {
+	return &dscv2.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DataScienceCluster",
+			APIVersion: dscv2.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				// keep dashboard as enabled, because other test is rely on this
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Workbenches: componentApi.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				AIPipelines: componentApi.DSCDataSciencePipelines{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+					KserveCommonSpec: componentApi.KserveCommonSpec{
+						DefaultDeploymentMode: componentApi.Serverless,
+						Serving: infrav1.ServingSpec{
+							ManagementState: operatorv1.Managed,
+							Name:            knativeServingNamespace,
+							IngressGateway: infrav1.GatewaySpec{
+								Certificate: infrav1.CertificateSpec{
+									Type: infrav1.OpenshiftDefaultIngress,
+								},
+							},
+						},
+					},
+				},
+				Ray: componentApi.DSCRay{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Kueue: componentApi.DSCKueue{
+					KueueManagementSpec: componentApi.KueueManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				TrustyAI: componentApi.DSCTrustyAI{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				ModelRegistry: componentApi.DSCModelRegistry{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
+						RegistriesNamespace: modelregistryctrl.DefaultModelRegistriesNamespace,
+					},
+				},
+				TrainingOperator: componentApi.DSCTrainingOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				FeastOperator: componentApi.DSCFeastOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+			},
+		},
+	}
+}
+
+func CreateDSCv1(name string) *dscv1.DataScienceCluster {
 	return &dscv1.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
@@ -194,7 +289,6 @@ func CreateDSC(name string) *dscv1.DataScienceCluster {
 		},
 		Spec: dscv1.DataScienceClusterSpec{
 			Components: dscv1.Components{
-				// keep dashboard as enabled, because other test is rely on this
 				Dashboard: componentApi.DSCDashboard{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
@@ -242,11 +336,6 @@ func CreateDSC(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				Kueue: componentApi.DSCKueue{
-					KueueManagementSpec: componentApi.KueueManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
 				TrustyAI: componentApi.DSCTrustyAI{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
@@ -265,19 +354,71 @@ func CreateDSC(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
+				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
 				FeastOperator: componentApi.DSCFeastOperator{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
-					ManagementSpec: common.ManagementSpec{
+				Kueue: componentApi.DSCKueue{
+					KueueManagementSpec: componentApi.KueueManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
 				},
 			},
 		},
 	}
+}
+
+func CreateHardwareProfile(name, namespace, apiVersion string) *unstructured.Unstructured {
+	minCount := intstr.FromInt32(1)
+	maxCount := intstr.FromInt32(4)
+	defaultCount := intstr.FromInt32(2)
+
+	hwProfile := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": apiVersion,
+			"kind":       "HardwareProfile",
+			"metadata": map[string]interface{}{
+				"name":      name,
+				"namespace": namespace,
+			},
+			"spec": map[string]interface{}{
+				"identifiers": []map[string]interface{}{
+					{
+						"displayName":  "GPU",
+						"identifier":   "nvidia.com/gpu",
+						"minCount":     minCount.IntVal,
+						"maxCount":     maxCount.IntVal,
+						"defaultCount": defaultCount.IntVal,
+						"resourceType": "Accelerator",
+					},
+				},
+				"scheduling": map[string]interface{}{
+					"type": "Node",
+					"node": map[string]interface{}{
+						"nodeSelector": map[string]interface{}{
+							"kubernetes.io/arch":             "amd64",
+							"node-role.kubernetes.io/worker": "",
+						},
+						"tolerations": []map[string]interface{}{
+							{
+								"key":      "nvidia.com/gpu",
+								"operator": "Exists",
+								"effect":   "NoSchedule",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return hwProfile
 }
 
 // CreateNamespaceWithLabels creates a namespace manifest with optional labels for use with WithObjectToCreate.

@@ -114,14 +114,12 @@ EOF
 
 ```console
 cat <<EOF | oc apply -f -
-apiVersion: datasciencecluster.opendatahub.io/v1
+apiVersion: datasciencecluster.opendatahub.io/v2
 kind: DataScienceCluster
 metadata:
   name: example
 spec:
   components:
-    codeflare:
-      managementState: Managed
     dashboard:
       managementState: Managed
     datasciencepipelines:
@@ -134,8 +132,6 @@ spec:
             type: OpenshiftDefaultIngress
         managementState: Managed
         name: knative-serving
-    modelmeshserving:
-      managementState: Managed
     modelregistry:
       managementState: Removed
       registriesNamespace: "rhoai-model-registries"

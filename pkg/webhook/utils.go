@@ -176,7 +176,7 @@ func CountObjects(ctx context.Context, cli client.Reader, gvk schema.GroupVersio
 //
 // Returns:
 //   - admission.Response: Denied if objects exist, Allowed otherwise, or Errored on failure.
-func DenyCountGtZero(ctx context.Context, cli client.Reader, gvk schema.GroupVersionKind, msg string) admission.Response {
+func DenyCountGtZero(ctx context.Context, cli client.Reader, gvk schema.GroupVersionKind, denyMessage string) admission.Response {
 	count, err := CountObjects(ctx, cli, gvk)
 	if err != nil {
 		logf.FromContext(ctx).Error(err, "error listing objects")
@@ -184,7 +184,7 @@ func DenyCountGtZero(ctx context.Context, cli client.Reader, gvk schema.GroupVer
 	}
 
 	if count > 0 {
-		return admission.Denied(msg)
+		return admission.Denied(denyMessage)
 	}
 
 	return admission.Allowed("")
@@ -196,20 +196,20 @@ func DenyCountGtZero(ctx context.Context, cli client.Reader, gvk schema.GroupVer
 //   - ctx: Context for the API call (logger is extracted from here).
 //   - cli: The controller-runtime reader to use for listing objects.
 //   - req: The admission request being processed.
-//   - expectedKind: The expected Kind string for validation.
+//   - expectedKind: The expected Kind for validation.
 //
 // Returns:
 //   - admission.Response: Errored if kind does not match, Denied if duplicate exists, Allowed otherwise.
-func ValidateSingletonCreation(ctx context.Context, cli client.Reader, req *admission.Request, expectedKind string) admission.Response {
-	if req.Kind.Kind != expectedKind {
-		err := fmt.Errorf("unexpected kind: %s", req.Kind.Kind)
-		logf.FromContext(ctx).Error(err, "got wrong kind")
+func ValidateSingletonCreation(ctx context.Context, cli client.Reader, req *admission.Request, expectedKind schema.GroupVersionKind) admission.Response {
+	if req.Kind.Kind != expectedKind.Kind || req.Kind.Group != expectedKind.Group {
+		err := fmt.Errorf("unexpected kind: %s, group: %s", req.Kind.Kind, req.Kind.Group)
+		logf.FromContext(ctx).Error(err, "got wrong kind/group")
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
 	resourceGVK := schema.GroupVersionKind{
 		Group:   req.Kind.Group,
-		Version: req.Kind.Version,
+		Version: expectedKind.Version,
 		Kind:    req.Kind.Kind,
 	}
 

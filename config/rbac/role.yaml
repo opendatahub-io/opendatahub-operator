@@ -259,24 +259,6 @@ rules:
 - apiGroups:
   - components.platform.opendatahub.io
   resources:
-  - codeflares/finalizers
-  - datasciencepipelines/finalizers
-  - feastoperators/finalizers
-  - kserves/finalizers
-  - kueues/finalizers
-  - llamastackoperators/finalizers
-  - modelcontrollers/finalizers
-  - modelmeshservings/finalizers
-  - modelregistries/finalizers
-  - rays/finalizers
-  - trainingoperators/finalizers
-  - trustyais/finalizers
-  - workbenches/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - components.platform.opendatahub.io
-  resources:
   - codeflares/status
   verbs:
   - get
@@ -335,6 +317,23 @@ rules:
   verbs:
   - get
   - patch
+  - update
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - datasciencepipelines/finalizers
+  - feastoperators/finalizers
+  - kserves/finalizers
+  - kueues/finalizers
+  - llamastackoperators/finalizers
+  - modelcontrollers/finalizers
+  - modelmeshservings/finalizers
+  - modelregistries/finalizers
+  - rays/finalizers
+  - trainingoperators/finalizers
+  - trustyais/finalizers
+  - workbenches/finalizers
+  verbs:
   - update
 - apiGroups:
   - config.openshift.io

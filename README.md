@@ -1,7 +1,7 @@
 [![codecov](https://codecov.io/github/opendatahub-io/opendatahub-operator/graph/badge.svg?token=QN7G7IVSYA)](https://codecov.io/github/opendatahub-io/opendatahub-operator)
 
-This operator is the primary operator for Open Data Hub. It is responsible for enabling Data science applications like 
-Jupyter Notebooks, Modelmesh serving, Datascience pipelines etc. The operator makes use of `DataScienceCluster` CRD to deploy
+This operator is the primary operator for Open Data Hub. It is responsible for enabling Data science applications like
+Jupyter Notebooks, Datascience pipelines etc. The operator makes use of `DataScienceCluster` CRD to deploy
 and configure these applications.
 
 ### Table of contents
@@ -91,7 +91,6 @@ ODH operator can be configured both through flags and environment variables, her
 | ODH_MANAGER_METRICS_BIND_ADDRESS                     | --metrics-bind-address      | The address the metric endpoint binds to.                                                                                                                                  | :8080         |
 | ODH_MANAGER_HEALTH_PROBE_BIND_ADDRESS                | --health-probe-bind-address | The address the probe endpoint binds to.                                                                                                                                   | :8081         |
 | ODH_MANAGER_LEADER_ELECT                             | --leader-elect              | Enable leader election for controller manager.                                                                                                                             | false         |
-| ODH_MANAGER_DSC_MONITORING_NAMESPACE                 | --dsc-monitoring-namespace  | The namespace where data science cluster monitoring stack will be deployed                                                                                                 | opendatahub   |
 | ODH_MANAGER_LOG_MODE                                 | --log-mode                  | Log mode ('', prod, devel), default to ''. See [Log mode values](#log-mode-values) for details.                                                                            |               |
 | ODH_MANAGER_PPROF_BIND_ADDRESS or PPROF_BIND_ADDRESS | --pprof-bind-address        | The address that pprof binds to.                                                                                                                                           |               |
 | ZAP_DEVEL                                            | --zap-devel                 | Development Mode defaults(encoder=consoleEncoder,logLevel=Debug,stackTraceLevel=Warn)<br>Production Mode defaults(encoder=jsonEncoder,logLevel=Info,stackTraceLevel=Error) | false         |
@@ -347,8 +346,6 @@ metadata:
   name: default-dsc
 spec:
   components:
-    codeflare:
-      managementState: Managed
     dashboard:
       managementState: Managed
     datasciencepipelines:
@@ -365,8 +362,6 @@ spec:
         managementState: Managed
         name: knative-serving
     kueue:
-      managementState: Managed
-    modelmeshserving:
       managementState: Managed
     modelregistry:
       managementState: Managed
@@ -453,6 +448,7 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_SERVICES               | Enable testing of individual services specified by --test-service flag                                                                                                       | `true`                        |
 | E2E_TEST_SERVICE                | A comma separated configuration to control which services should be tested, by default all service specific test are executed                                                | `all services`                |
 | E2E_TEST_OPERATOR_V2TOV3UPGRADE | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                       | `true`                        |
+| E2E_TEST_HARDWARE_PROFILE       | To configure the execution of hardware profile tests, useful for testing hardware profile functionality for v1 and v1alpha1                                              | `true`                        |
 |                                 |                                                                                                                                                                              |                               |
 | E2E_TEST_FLAGS                  | Alternatively the above configurations can be passed to e2e-tests as flags using this env var (see flags table below)                                                        |                               |
 
@@ -471,6 +467,7 @@ Alternatively the above configurations can be passed to e2e-tests as flags by se
 | --test-services               | Enable testing of individual services specified by --test-service flag                                                                                                       | `true`                        |
 | --test-service                | A repeatable (or comma separated no spaces) flag that control which services should be tested, by default all service specific test are executed                             | `all services`                |
 | --test-operator-v2tov3upgrade | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                       | `true`                        |
+| --test-hardware-profile       | To configure the execution of hardware profile tests, useful for testing hardware profile functionality between v1 and v1alpah1                                               | `true`                        |
 
 Example command to run full test suite skipping the DataScienceCluster deletion (useful to troubleshooting tests failures):
 

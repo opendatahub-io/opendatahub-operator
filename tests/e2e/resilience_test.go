@@ -20,7 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -117,7 +117,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.KserveComponentName:               "kserve-controller-manager",
 		componentApi.KueueComponentName:                "kueue-controller-manager",
 		componentApi.LlamaStackOperatorComponentName:   "llama-stack-k8s-operator-controller-manager",
-		componentApi.ModelMeshServingComponentName:     "modelmesh-controller",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
 		componentApi.TrainingOperatorComponentName:     "kubeflow-training-operator",
@@ -135,10 +134,9 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	t.Log("Verifying component count matches DSC Components struct")
 
-	expectedComponentCount := reflect.TypeOf(dscv1.Components{}).NumField()
+	expectedComponentCount := reflect.TypeOf(dscv2.Components{}).NumField()
 	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
-	// TODO: Remove CodeFlare when DSC v2
-	excludedComponents := 2 // TrustyAI and CodeFlare
+	excludedComponents := 1 // TrustyAI
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
@@ -370,7 +368,12 @@ func (tc *OperatorResilienceTestCtx) deleteZeroPodQuotaForOperator() {
 func updateAllComponentsTransform(components []string, state operatorv1.ManagementState) testf.TransformFn {
 	transformParts := make([]string, len(components))
 	for i, component := range components {
-		transformParts[i] = fmt.Sprintf(`.spec.components.%s.managementState = "%s"`, component, state)
+		// Map datasciencepipelines to aipipelines for v2 API
+		componentFieldName := component
+		if component == dataSciencePipelinesComponentName {
+			componentFieldName = aiPipelinesFieldName
+		}
+		transformParts[i] = fmt.Sprintf(`.spec.components.%s.managementState = "%s"`, componentFieldName, state)
 	}
 
 	return testf.Transform("%s", strings.Join(transformParts, " | "))

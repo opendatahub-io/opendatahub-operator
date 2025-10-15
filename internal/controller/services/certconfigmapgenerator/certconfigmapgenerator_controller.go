@@ -19,7 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
@@ -151,7 +151,7 @@ func NewWithManager(_ context.Context, mgr ctrl.Manager) error {
 		// It uses the manager's shared cache to prevent the creation of redundant informers.
 		source.TypedKind[client.Object, ctrl.Request](
 			mgr.GetCache(),
-			&dsciv1.DSCInitialization{},
+			&dsciv2.DSCInitialization{},
 			dsciEventHandler(r.sharedClient),
 			dsciPredicates(r.sharedClient),
 		),

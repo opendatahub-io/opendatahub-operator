@@ -285,6 +285,7 @@ func (tc *MonitoringTestCtx) ValidateCELAllowsValidMonitoringConfigs(t *testing.
 			name: "empty_metrics_without_alerting",
 			transforms: []testf.TransformFn{
 				withEmptyMetrics(),
+				withNoCollectorReplicas(),
 				withNoAlerting(),
 			},
 			description: "Empty metrics should be allowed without alerting",
@@ -929,7 +930,7 @@ func withNoTraces() testf.TransformFn {
 }
 
 // withNoCollectorReplicas returns a transform that removes the collectorReplicas field entirely.
-func withNoCollectorReplicas() testf.TransformFn { //nolint:unused
+func withNoCollectorReplicas() testf.TransformFn {
 	return testf.Transform(`del(.spec.monitoring.collectorReplicas)`)
 }
 

@@ -46,7 +46,6 @@ type Components struct {
 
 	// Kserve component configuration.
 	// Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
-	// Does not support enabled ModelMeshServing at the same time
 	Kserve componentApi.DSCKserve `json:"kserve,omitempty"`
 
 	// Kueue component configuration.
@@ -149,7 +148,6 @@ func (s *DataScienceClusterStatus) SetConditions(conditions []common.Condition) 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster,shortName=dsc
-// +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 

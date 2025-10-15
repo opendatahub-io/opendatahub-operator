@@ -5,8 +5,11 @@ package webhook
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
-	dsciwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dashboard"
+	dscv1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v1"
+	dscv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
+	dsciv1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v1"
+	dsciv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/dscinitialization/v2"
 	hardwareprofilewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 	notebookwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/notebook"
@@ -17,12 +20,15 @@ import (
 // Returns the first error encountered during registration, or nil if all succeed.
 func RegisterAllWebhooks(mgr ctrl.Manager) error {
 	webhookRegistrations := []func(ctrl.Manager) error{
-		dscwebhook.RegisterWebhooks,
-		dsciwebhook.RegisterWebhooks,
+		dscv1webhook.RegisterWebhooks,
+		dscv2webhook.RegisterWebhooks,
+		dsciv1webhook.RegisterWebhooks,
+		dsciv2webhook.RegisterWebhooks,
 		hardwareprofilewebhook.RegisterWebhooks,
 		kueuewebhook.RegisterWebhooks,
 		serving.RegisterWebhooks,
 		notebookwebhook.RegisterWebhooks,
+		dashboard.RegisterWebhooks,
 	}
 	for _, reg := range webhookRegistrations {
 		if err := reg(mgr); err != nil {

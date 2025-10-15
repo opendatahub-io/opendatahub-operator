@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
@@ -99,8 +99,8 @@ func TestBindRoleValidation(t *testing.T) {
 			// Create reconciliation request
 			rr := &odhtypes.ReconciliationRequest{
 				Client: fakeClient,
-				DSCI: &dsciv1.DSCInitialization{
-					Spec: dsciv1.DSCInitializationSpec{
+				DSCI: &dsciv2.DSCInitialization{
+					Spec: dsciv2.DSCInitializationSpec{
 						ApplicationsNamespace: "test-namespace",
 					},
 				},
@@ -161,8 +161,8 @@ func TestManagePermissionsBasic(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   fakeClient,
 		Instance: auth,
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{
 				ApplicationsNamespace: "test-namespace",
 			},
 		},
@@ -217,8 +217,8 @@ func TestManagePermissionsInvalidInstance(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   fakeClient,
 		Instance: &serviceApi.Monitoring{}, // Wrong type
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{
 				ApplicationsNamespace: "test-namespace",
 			},
 		},
@@ -262,8 +262,8 @@ func TestCreateDefaultGroupBasic(t *testing.T) {
 		Release: common.Release{
 			Name: "test-platform",
 		},
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{
 				ApplicationsNamespace: "test-namespace",
 			},
 		},

@@ -8,7 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/feature"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -28,7 +28,7 @@ var _ = Describe("feature cleanup", func() {
 		)
 
 		var (
-			dsci          *dsciv1.DSCInitialization
+			dsci          *dsciv2.DSCInitialization
 			namespace     string
 			testFeature   *feature.Feature
 			objectCleaner *envtestutil.Cleaner
@@ -94,7 +94,7 @@ var _ = Describe("feature cleanup", func() {
 		)
 
 		var (
-			dsci            *dsciv1.DSCInitialization
+			dsci            *dsciv2.DSCInitialization
 			namespace       string
 			featuresHandler *feature.FeaturesHandler
 		)

@@ -21,8 +21,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -89,8 +89,8 @@ func GetSingleton[T client.Object](ctx context.Context, cli client.Client, obj T
 }
 
 // GetDSC retrieves the DataScienceCluster (DSC) instance from the Kubernetes cluster.
-func GetDSC(ctx context.Context, cli client.Reader) (*dscv1.DataScienceCluster, error) {
-	instances := dscv1.DataScienceClusterList{}
+func GetDSC(ctx context.Context, cli client.Reader) (*dscv2.DataScienceCluster, error) {
+	instances := dscv2.DataScienceClusterList{}
 	if err := cli.List(ctx, &instances); err != nil {
 		return nil, fmt.Errorf("failed to list resources of type %s: %w", gvk.DataScienceCluster, err)
 	}
@@ -112,8 +112,8 @@ func GetDSC(ctx context.Context, cli client.Reader) (*dscv1.DataScienceCluster, 
 }
 
 // GetDSCI retrieves the DSCInitialization (DSCI) instance from the Kubernetes cluster.
-func GetDSCI(ctx context.Context, cli client.Client) (*dsciv1.DSCInitialization, error) {
-	instances := dsciv1.DSCInitializationList{}
+func GetDSCI(ctx context.Context, cli client.Client) (*dsciv2.DSCInitialization, error) {
+	instances := dsciv2.DSCInitializationList{}
 	if err := cli.List(ctx, &instances); err != nil {
 		return nil, fmt.Errorf("failed to list resources of type %s: %w", gvk.DSCInitialization, err)
 	}

@@ -12,6 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -93,9 +95,8 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: serverlessOperatorNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
 		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: opentelemetryOpName, Namespace: opentelemetryOpNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
 	}
 
 	// Create and run test cases in parallel.
@@ -118,7 +119,7 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 	t.Helper()
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace, tc.MonitoringNamespace)),
+		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, dsciv2.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name),
 
@@ -238,16 +239,22 @@ func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCIDuplication(t *testing.T) {
 	t.Helper()
 
-	dup := CreateDSCI(dsciInstanceNameDuplicate, tc.AppsNamespace, tc.MonitoringNamespace)
-	tc.EnsureResourceIsUnique(dup)
+	dup := CreateDSCI(dsciInstanceNameDuplicate, dsciv2.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)
+	tc.EnsureResourceIsUnique(dup, "Error validating DSCInitialization duplication")
+
+	dup = CreateDSCI(dsciInstanceNameDuplicate, dsciv1.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)
+	tc.EnsureResourceIsUnique(dup, "Error validating DSCInitialization duplication v1")
 }
 
 // ValidateDSCDuplication ensures that no duplicate DataScienceCluster resource can be created.
 func (tc *DSCTestCtx) ValidateDSCDuplication(t *testing.T) {
 	t.Helper()
 
-	dup := CreateDSC(dscInstanceNameDuplicate)
-	tc.EnsureResourceIsUnique(dup, "Error validating DataScienceCluster duplication")
+	dsc := CreateDSC(dscInstanceNameDuplicate)
+	tc.EnsureResourceIsUnique(dsc, "Error validating DataScienceCluster duplication")
+
+	dsv1 := CreateDSCv1(dscInstanceNameDuplicate)
+	tc.EnsureResourceIsUnique(dsv1, "Error validating DataScienceCluster duplication v1")
 }
 
 // ValidateModelRegistryConfig validates the ModelRegistry configuration changes based on ManagementState.
@@ -339,6 +346,72 @@ func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
 		WithCondition(And(
 			jq.Match(`.spec.identifiers[0].defaultCount == 2`),
 			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
+		)),
+		WithCustomErrorMsg("Hardware profile was not recreated with default values"),
+	)
+
+	// verifed custom-serving hardwareprofile exists and api version is correct on v1.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "custom-serving", Namespace: tc.AppsNamespace}),
+		WithCondition(And(
+			jq.Match(`.spec.identifiers[0].identifier == "cpu"`),
+			jq.Match(`.spec.identifiers[0].displayName == "cpu"`),
+			jq.Match(`.spec.identifiers[0].resourceType == "CPU"`),
+			jq.Match(`.spec.identifiers[0].minCount == 1`),
+			jq.Match(`.spec.identifiers[0].defaultCount == 1`),
+			jq.Match(`.spec.identifiers[1].identifier == "memory"`),
+			jq.Match(`.spec.identifiers[1].displayName == "memory"`),
+			jq.Match(`.spec.identifiers[1].resourceType == "Memory"`),
+			jq.Match(`.spec.identifiers[1].minCount == "1Gi"`),
+			jq.Match(`.spec.identifiers[1].defaultCount == "1Gi"`),
+			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
+			jq.Match(`.metadata.annotations["opendatahub.io/dashboard-feature-visibility"] == "model-serving"`),
+			jq.Match(`.apiVersion == "infrastructure.opendatahub.io/v1"`),
+		)),
+		WithCustomErrorMsg("Custom-serving hardwareprofile should have correct identifiers, managed=false, dashboard-feature-visibility=model-serving, and use v1 API version"),
+	)
+
+	// update custom-serving hardwareprofile to different value and check it is updated.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "custom-serving", Namespace: tc.AppsNamespace}),
+		WithMutateFunc(testf.Transform(`
+				.spec.identifiers[0].defaultCount = 4 |
+				.metadata.annotations["opendatahub.io/managed"] = "false"
+			`)),
+		WithCondition(And(
+			Succeed(),
+			jq.Match(`.spec.identifiers[0].defaultCount == 4`),
+			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
+		)),
+		WithCustomErrorMsg("Failed to update defaultCount from 1 to 4"),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "custom-serving", Namespace: tc.AppsNamespace}),
+		WithCondition(jq.Match(`.spec.identifiers[0].defaultCount == 4`)),
+		WithCustomErrorMsg("Should have defaultCount to 4 but now got %s", jq.Match(`.spec.identifiers[0].defaultCount`)),
+	)
+
+	// delete custom-serving hardwareprofile and check it is recreated with default values.
+	tc.DeleteResource(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "custom-serving", Namespace: tc.AppsNamespace}),
+	)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "custom-serving", Namespace: tc.AppsNamespace}),
+		WithCondition(And(
+			jq.Match(`.spec.identifiers[0].identifier == "cpu"`),
+			jq.Match(`.spec.identifiers[0].displayName == "cpu"`),
+			jq.Match(`.spec.identifiers[0].resourceType == "CPU"`),
+			jq.Match(`.spec.identifiers[0].minCount == 1`),
+			jq.Match(`.spec.identifiers[0].defaultCount == 1`),
+			jq.Match(`.spec.identifiers[1].identifier == "memory"`),
+			jq.Match(`.spec.identifiers[1].displayName == "memory"`),
+			jq.Match(`.spec.identifiers[1].resourceType == "Memory"`),
+			jq.Match(`.spec.identifiers[1].minCount == "1Gi"`),
+			jq.Match(`.spec.identifiers[1].defaultCount == "1Gi"`),
+			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
+			jq.Match(`.metadata.annotations["opendatahub.io/dashboard-feature-visibility"] == "model-serving"`),
+			jq.Match(`.apiVersion == "infrastructure.opendatahub.io/v1"`),
 		)),
 		WithCustomErrorMsg("Hardware profile was not recreated with default values"),
 	)

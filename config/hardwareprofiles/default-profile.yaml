@@ -1,0 +1,25 @@
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  annotations:
+    opendatahub.io/dashboard-feature-visibility: '[]'
+    opendatahub.io/description: 'Provides a baseline hardware profile with 2 CPUs and 4Gi memory by default, adjustable up to 4 CPUs and 8Gi memory.'
+    opendatahub.io/disabled: 'false'
+    opendatahub.io/display-name: default-profile
+    opendatahub.io/managed: "false"
+  name: default-profile
+  namespace: redhat-ods-applications
+spec:
+  identifiers:
+    - defaultCount: 2
+      displayName: CPU
+      identifier: cpu
+      maxCount: 4
+      minCount: 1
+      resourceType: CPU
+    - defaultCount: 4Gi
+      displayName: Memory
+      identifier: memory
+      maxCount: 8Gi
+      minCount: 2Gi
+      resourceType: Memory

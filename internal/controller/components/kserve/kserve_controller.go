@@ -28,11 +28,10 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
@@ -95,27 +94,13 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.KserveInstanceName)),
-			reconciler.WithPredicates(predicate.And(
+			reconciler.WithPredicates(
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
-				predicate.Funcs{
-					UpdateFunc: func(event event.UpdateEvent) bool {
-						// The KServe and ModelMesh are shipping the same CRDs as part of their manifests
-						// but with different versions, this cause the respective component reconcilers to
-						// keep trying to install their respective version, ending in an infinite loop.
-						switch event.ObjectNew.GetName() {
-						case "inferenceservices.serving.kserve.io":
-							return false
-						case "servingruntimes.serving.kserve.io":
-							return false
-						}
-						return true
-					},
-				},
-			)),
+			),
 		).
 		// resource
 		Watches(
-			&dsciv1.DSCInitialization{},
+			&dsciv2.DSCInitialization{},
 			reconciler.WithEventHandler(handlers.ToNamed(componentApi.KserveInstanceName)),
 			reconciler.WithPredicates(predicate.Or(generation.New(), resources.DSCIReadiness, resources.DSCIServiceMeshCondition)),
 		).

@@ -50,10 +50,9 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	}
 
 	extraParamsMap := map[string]string{
-		"nim-state":              strings.ToLower(string(nimState)),
-		"kserve-state":           strings.ToLower(string(mc.Spec.Kserve.ManagementState)),
-		"modelmeshserving-state": strings.ToLower(string(mc.Spec.ModelMeshServing.ManagementState)),
-		"modelregistry-state":    strings.ToLower(string(mrState)),
+		"nim-state":           strings.ToLower(string(nimState)),
+		"kserve-state":        strings.ToLower(string(mc.Spec.Kserve.ManagementState)),
+		"modelregistry-state": strings.ToLower(string(mrState)),
 	}
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", rr.Manifests[0].String(), err)
@@ -62,7 +61,7 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-// download devflag from kserve or modelmeshserving.
+// download devflag from kserve.
 func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	mc, ok := rr.Instance.(*componentApi.ModelController)
 	if !ok {
@@ -74,16 +73,11 @@ func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	var df *common.DevFlags
 
 	ks := mc.Spec.Kserve
-	ms := mc.Spec.ModelMeshServing
 
-	switch {
-	case ks != nil && ks.ManagementState == operatorv1.Managed && resources.HasDevFlags(ks):
+	if ks != nil && ks.ManagementState == operatorv1.Managed && resources.HasDevFlags(ks) {
 		l.V(3).Info("Using DevFlags from KServe")
 		df = ks.GetDevFlags()
-	case ms != nil && ms.ManagementState == operatorv1.Managed && resources.HasDevFlags(ms):
-		l.V(3).Info("Using DevFlags from ModelMesh")
-		df = ms.GetDevFlags()
-	default:
+	} else {
 		return nil
 	}
 
