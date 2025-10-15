@@ -318,6 +318,10 @@ func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfi
 									ContainerPort: AuthProxyHTTPSPort,
 									Name:          "https",
 								},
+								{
+									ContainerPort: AuthProxyMetricsPort,
+									Name:          "metrics",
+								},
 							},
 							Args: buildOAuth2ProxyArgs(oidcConfig, domain),
 							Env: []corev1.EnvVar{
@@ -378,13 +382,14 @@ func buildBaseOAuth2ProxyArgs(domain string) []string {
 		"--tls-key-file=" + TLSCertsMountPath + "/tls.key",
 		"--use-system-trust-store=true",
 		fmt.Sprintf("--https-address=0.0.0.0:%d", AuthProxyHTTPSPort),
-		"--cookie-expire=24h",         // Cookie expires after 24 hours
-		"--cookie-refresh=2h",         // Cookie is refreshed every 2 hours
-		"--cookie-secure=true",        // HTTPS only
-		"--cookie-httponly=true",      // XSS protection
-		"--cookie-samesite=lax",       // CSRF protection
-		"--cookie-name=_oauth2_proxy", // Custom cookie name
-		"--cookie-domain=" + domain,   // Cookie domain is the domain of the gateway
+		"--cookie-expire=24h",                                             // Cookie expires after 24 hours
+		"--cookie-refresh=2h",                                             // Cookie is refreshed every 2 hours
+		"--cookie-secure=true",                                            // HTTPS only
+		"--cookie-httponly=true",                                          // XSS protection
+		"--cookie-samesite=lax",                                           // CSRF protection
+		"--cookie-name=_oauth2_proxy",                                     // Custom cookie name
+		"--cookie-domain=" + domain,                                       // Cookie domain is the domain of the gateway
+		fmt.Sprintf("--metrics-address=0.0.0.0:%d", AuthProxyMetricsPort), // Expose metrics on unauthenticated port
 	}
 }
 
@@ -420,6 +425,11 @@ func createKubeAuthProxyService(rr *odhtypes.ReconciliationRequest) error {
 					Name:       "https",
 					Port:       AuthProxyHTTPSPort,
 					TargetPort: intstr.FromInt(AuthProxyHTTPSPort),
+				},
+				{
+					Name:       "metrics",
+					Port:       AuthProxyMetricsPort,
+					TargetPort: intstr.FromInt(AuthProxyMetricsPort),
 				},
 			},
 		},

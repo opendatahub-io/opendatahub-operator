@@ -32,9 +32,10 @@ const (
 	OAuthCallbackRouteName   = "oauth-callback-route"
 
 	// Network configuration.
-	AuthProxyHTTPPort   = 4180
-	AuthProxyHTTPSPort  = 8443
-	AuthProxyOAuth2Path = "/oauth2"
+	AuthProxyHTTPPort    = 4180
+	AuthProxyHTTPSPort   = 8443
+	AuthProxyMetricsPort = 9000
+	AuthProxyOAuth2Path  = "/oauth2"
 
 	// Volume and mount paths.
 	TLSCertsVolumeName = "tls-certs"
