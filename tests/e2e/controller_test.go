@@ -281,7 +281,7 @@ func TestOdhOperator(t *testing.T) {
 
 		// Run V2 to V3 upgrade test suites that needs to delete DSC and DSCI
 		if testOpts.v2tov3upgradeTest {
-			mustRun(t, "V2 to V3 upgrade E2E Tests", v2Tov3UpgradeDeletingDscDsciTestSuite)
+			mustRun(t, "upgrade DSC and DSCI v1 API", v2Tov3UpgradeDeletingDscDsciTestSuite)
 		}
 
 		// Always perform cleanup after failure
