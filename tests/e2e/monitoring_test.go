@@ -941,8 +941,15 @@ func withNoCollectorReplicas() testf.TransformFn {
 // withCustomMetricsExporters returns a transform that sets custom metrics exporters.
 func withCustomMetricsExporters() testf.TransformFn {
 	return testf.Transform(`.spec.monitoring.metrics.exporters = {
-		"debug": "verbosity: detailed",
-        "%s": "endpoint: http://custom-backend:4317\ntls:\n  insecure: true"
+		"debug": {
+			"verbosity": "detailed"
+		},
+        "%s": {
+			"endpoint": "http://custom-backend:4317",
+			"tls": {
+				"insecure": true
+			}
+		}
 	}`, OtlpCustomExporter)
 }
 
