@@ -86,12 +86,10 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	operators := []struct {
 		nn                types.NamespacedName
 		skipOperatorGroup bool
-		channel           string
 	}{
-		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, channel: certManagerOpChannel},
-		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
-		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
-		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
 	}
 
 	// Create and run test cases in parallel.
