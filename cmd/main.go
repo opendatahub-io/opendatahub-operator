@@ -355,7 +355,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 				DisableFor: []client.Object{
 					resources.GvkToUnstructured(gvk.OpenshiftIngress),
 					&ofapiv1alpha1.Subscription{},
-					resources.GvkToUnstructured(gvk.ServiceMeshControlPlane),
 					&authorizationv1.SelfSubjectRulesReview{},
 					&corev1.Pod{},
 					&userv1.Group{},
@@ -555,7 +554,6 @@ func createSecretCacheConfig(ctx context.Context, cli client.Client, platform co
 		return nil, err
 	}
 
-	namespaceConfigs["istio-system"] = cache.Config{} // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
 	namespaceConfigs["openshift-ingress"] = cache.Config{}
 
 	return namespaceConfigs, nil
@@ -567,7 +565,6 @@ func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platfor
 		return nil, err
 	}
 
-	namespaceConfigs["istio-system"] = cache.Config{}        // for serivcemonitor: data-science-smcp-pilot-monitor
 	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
 	namespaceConfigs["openshift-ingress"] = cache.Config{}   // for gateway auth proxy resources
 

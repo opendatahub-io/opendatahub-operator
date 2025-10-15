@@ -140,14 +140,6 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform
 				Metrics:   &serviceApi.Metrics{},
 			},
 		},
-		ServiceMesh: &infrav1.ServiceMeshSpec{
-			ManagementState: "Managed",
-			ControlPlane: infrav1.ControlPlaneSpec{
-				Name:              "data-science-smcp",
-				Namespace:         "istio-system",
-				MetricsCollection: "Istio",
-			},
-		},
 		TrustedCABundle: &dsciv2.TrustedCABundleSpec{
 			ManagementState: "Managed",
 		},
@@ -313,7 +305,7 @@ func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) e
 
 	err := c.List(ctx, list, client.InNamespace(res.Namespace))
 	if err != nil {
-		if errors.Is(err, &meta.NoKindMatchError{}) {
+		if meta.IsNoMatchError(err) {
 			log.Info("CRD not found, will not delete", "gvk", res.Gvk.String())
 			return nil
 		}

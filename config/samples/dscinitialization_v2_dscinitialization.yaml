@@ -10,12 +10,6 @@ spec:
     namespace: 'redhat-ods-monitoring'
     metrics: {}
   applicationsNamespace: 'redhat-ods-applications'
-  serviceMesh:
-    controlPlane:
-      metricsCollection: Istio
-      name: data-science-smcp
-      namespace: istio-system
-    managementState: "Managed"
   trustedCABundle:
     managementState: "Managed"
     customCABundle: ""
