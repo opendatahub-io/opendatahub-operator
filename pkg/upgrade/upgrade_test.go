@@ -1532,7 +1532,7 @@ func TestAttachHardwareProfileToInferenceServices(t *testing.T) {
 		updatedIsvc.SetGroupVersionKind(gvk.InferenceServices)
 		err = cli.Get(ctx, client.ObjectKey{Name: "isvc-custom", Namespace: namespace}, updatedIsvc)
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "custom-serving"))
+		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", upgrade.CustomServingHWPName))
 	})
 
 	t.Run("should use custom-serving for InferenceService without resources", func(t *testing.T) {
@@ -1552,7 +1552,7 @@ func TestAttachHardwareProfileToInferenceServices(t *testing.T) {
 		updatedIsvc.SetGroupVersionKind(gvk.InferenceServices)
 		err = cli.Get(ctx, client.ObjectKey{Name: "isvc-no-resources", Namespace: namespace}, updatedIsvc)
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "custom-serving"))
+		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", upgrade.CustomServingHWPName))
 	})
 
 	t.Run("should skip InferenceService that already has HWP annotation", func(t *testing.T) {

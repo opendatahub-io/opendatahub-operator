@@ -60,6 +60,7 @@ const (
 	hardwareProfileNameAnnotation      = "opendatahub.io/hardware-profile-name"
 	hardwareProfileNamespaceAnnotation = "opendatahub.io/hardware-profile-namespace"
 	containerSizeHWPPrefix             = "containersize-"
+	CustomServingHWPName               = "custom-serving"
 )
 
 var defaultResourceLimits = map[string]string{
@@ -863,7 +864,7 @@ func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, ap
 func CreateCustomServingHardwareProfile(ctx context.Context, cli client.Client, namespace string) error {
 	log := logf.FromContext(ctx)
 	// Check if custom-serving HardwareProfile CR already exists
-	_, customServingError := cluster.GetHardwareProfile(ctx, cli, "custom-serving", namespace)
+	_, customServingError := cluster.GetHardwareProfile(ctx, cli, CustomServingHWPName, namespace)
 	if client.IgnoreNotFound(customServingError) != nil {
 		return fmt.Errorf("failed to check HardwareProfile CR: custom-serving %w", customServingError)
 	}
@@ -875,12 +876,12 @@ func CreateCustomServingHardwareProfile(ctx context.Context, cli client.Client, 
 				Kind:       "HardwareProfile",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "custom-serving",
+				Name:      CustomServingHWPName,
 				Namespace: namespace,
 				Annotations: map[string]string{
 					"opendatahub.io/dashboard-feature-visibility": "['model-serving']",
 					"opendatahub.io/modified-date":                time.Now().Format(time.RFC3339),
-					"opendatahub.io/display-name":                 "custom-serving",
+					"opendatahub.io/display-name":                 CustomServingHWPName,
 					"opendatahub.io/description":                  "",
 					"opendatahub.io/disabled":                     "false",
 					"opendatahub.io/managed":                      "false",
@@ -971,7 +972,7 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 
 		// No AP found, try container size matching
 		// Default usign HWProfile CR "custom-serving", update only if we find a matching size
-		hwpName := "custom-serving"
+		hwpName := CustomServingHWPName
 		var matchedSize string
 
 		resources, err := getInferenceServiceResources(isvc)
