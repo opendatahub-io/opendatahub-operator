@@ -8,6 +8,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -40,6 +41,16 @@ const (
 	testDSCIV1Name                       = "test-dsci-v1-upgrade"
 )
 
+type CRDToCreate struct {
+	GVK  schema.GroupVersionKind
+	Name string
+}
+
+var removedCRDToCreate = []CRDToCreate{
+	{GVK: gvk.CodeFlare, Name: defaultCodeFlareComponentName},
+	{GVK: gvk.ModelMeshServing, Name: defaultModelMeshServingComponentName},
+}
+
 type V2Tov3UpgradeTestCtx struct {
 	*TestContext
 }
@@ -55,8 +66,7 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 		TestContext: tc,
 	}
 
-	// Create a mock CRD for the removed components, to correctly test upgrades.
-	v2Tov3UpgradeTestCtx.createRemovedComponentCRD(t)
+	v2Tov3UpgradeTestCtx.createCRD(removedCRDToCreate)
 
 	// Define test cases.
 	testCases := []TestCase{
@@ -68,9 +78,11 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 	// Run the test suite.
 	RunTestCases(t, testCases)
 
-	tc.DeleteResource(
-		WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: strings.ToLower(gvk.CodeFlare.Kind) + "s." + gvk.CodeFlare.Group}),
-	)
+	for _, crd := range removedCRDToCreate {
+		tc.DeleteResource(
+			WithMinimalObject(gvk.CustomResourceDefinition, types.NamespacedName{Name: strings.ToLower(crd.GVK.Kind) + "s." + crd.GVK.Group}),
+		)
+	}
 }
 
 func hardwareProfileTestSuite(t *testing.T) {
@@ -160,6 +172,7 @@ func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T
 			jq.Match(`.apiVersion == "%s"`, dscv1.GroupVersion.String()),
 			jq.Match(`.kind == "DataScienceCluster"`),
 			jq.Match(`.spec.components | has("codeflare")`),
+			jq.Match(`.spec.components | has("modelmeshserving")`),
 			jq.Match(`([.spec.components.dashboard, .spec.components.workbenches, .spec.components.datasciencepipelines,
 				.spec.components.kserve, .spec.components.kueue, .spec.components.ray, .spec.components.trustyai,
 				.spec.components.modelregistry, .spec.components.trainingoperator, .spec.components.feastoperator,
@@ -177,6 +190,7 @@ func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T
 			jq.Match(`.apiVersion == "%s"`, dscv2.GroupVersion.String()),
 			jq.Match(`.kind == "DataScienceCluster"`),
 			jq.Match(`.spec.components | has("codeflare") | not`),
+			jq.Match(`.spec.components | has("modelmeshserving") | not`),
 			jq.Match(`([.spec.components.dashboard, .spec.components.workbenches, .spec.components.aipipelines,
 				.spec.components.kserve, .spec.components.kueue, .spec.components.ray, .spec.components.trustyai,
 				.spec.components.modelregistry, .spec.components.trainingoperator, .spec.components.feastoperator,
@@ -367,10 +381,6 @@ func (tc *V2Tov3UpgradeTestCtx) HardwareProfileV1ToV1Alpha1VersionConversion(t *
 func (tc *V2Tov3UpgradeTestCtx) validateComponentResourcePreservation(t *testing.T, componentGVK schema.GroupVersionKind, componentName string) {
 	t.Helper()
 
-	nn := types.NamespacedName{
-		Name: componentName,
-	}
-
 	dsc := tc.FetchDataScienceCluster()
 
 	tc.createOperatorManagedComponent(componentGVK, componentName, dsc)
@@ -378,13 +388,14 @@ func (tc *V2Tov3UpgradeTestCtx) validateComponentResourcePreservation(t *testing
 	tc.triggerDSCReconciliation(t)
 
 	// Verify component still exists after reconciliation (was not removed)
-	tc.EnsureResourceExistsConsistently(WithMinimalObject(componentGVK, nn),
+	tc.EnsureResourceExistsConsistently(
+		WithMinimalObject(componentGVK, types.NamespacedName{Name: componentName}),
 		WithCustomErrorMsg("%s component resource '%s' was expected to exist but was not found", componentGVK.Kind, componentName),
 	)
 
 	// Cleanup
 	tc.DeleteResource(
-		WithMinimalObject(componentGVK, nn),
+		WithMinimalObject(componentGVK, types.NamespacedName{Name: componentName}),
 		WithWaitForDeletion(true),
 	)
 }
@@ -441,6 +452,7 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.dashboard = {}`)),
 		WithCondition(jq.Match(`.metadata.generation == .status.observedGeneration`)),
+		WithEventuallyTimeout(tc.TestTimeouts.defaultEventuallyTimeout),
 		WithCustomErrorMsg("Failed to trigger DSC reconciliation"),
 	)
 }
@@ -484,23 +496,6 @@ func (tc *V2Tov3UpgradeTestCtx) updateComponentStateInDataScienceCluster(t *test
 	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentFieldName, managementState)),
-	)
-}
-
-func (tc *V2Tov3UpgradeTestCtx) createRemovedComponentCRD(t *testing.T) {
-	t.Helper()
-
-	codeFlareCRD := mocks.NewMockCRD(gvk.CodeFlare.Group, gvk.CodeFlare.Version, gvk.CodeFlare.Kind, gvk.CodeFlare.Kind)
-	modelMeshServingCRD := mocks.NewMockCRD(gvk.ModelMeshServing.Group, gvk.ModelMeshServing.Version, gvk.ModelMeshServing.Kind, gvk.ModelMeshServing.Kind)
-
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(codeFlareCRD),
-		WithCustomErrorMsg("Failed to create removed component CRD"),
-	)
-
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(modelMeshServingCRD),
-		WithCustomErrorMsg("Failed to create ModelMeshServing CRD"),
 	)
 }
 
@@ -819,4 +814,19 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateAllowsWithoutKueue(t *testing.T) {
 		WithMinimalObject(gvk.DataScienceClusterV1, types.NamespacedName{Name: dscName}),
 		WithWaitForDeletion(true),
 	)
+}
+
+// createCRD creates a mock CRD for the given component GVK if it doesn't already exist in the cluster.
+func (tc *V2Tov3UpgradeTestCtx) createCRD(crdsToCreate []CRDToCreate) {
+	for _, crd := range crdsToCreate {
+		// Create mock CRD for the component
+		mockCRD := mocks.NewMockCRD(crd.GVK.Group, crd.GVK.Version, crd.GVK.Kind, crd.Name)
+
+		tc.EventuallyResourceCreated(
+			WithObjectToCreate(mockCRD),
+			WithAcceptableErr(k8serr.IsAlreadyExists, "IsAlreadyExists"),
+			WithCustomErrorMsg("Failed to create CRD for %s component", crd.GVK.Kind),
+			WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
+		)
+	}
 }
