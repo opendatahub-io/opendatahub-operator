@@ -4,7 +4,6 @@ package upgrade
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
