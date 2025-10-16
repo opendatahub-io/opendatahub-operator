@@ -27,16 +27,16 @@ const (
 	systemAuthenticatedGroup = "system:authenticated"
 
 	// Role names used for RBAC configuration.
-	adminGroupRoleName   = "admingroup-role"
-	allowedGroupRoleName = "allowedgroup-role"
+	adminGroupRoleName = "admingroup-role"
 
 	// RoleBinding names to bind roles to specific groups.
-	adminGroupRoleBindingName   = "admingroup-rolebinding"
-	allowedGroupRoleBindingName = "allowedgroup-rolebinding"
+	adminGroupRoleBindingName = "admingroup-rolebinding"
 
-	// ClusterRole and ClusterRoleBinding names for admin group access at cluster level.
-	adminGroupClusterRoleName        = "admingroupcluster-role"
-	adminGroupClusterRoleBindingName = "admingroupcluster-rolebinding"
+	// ClusterRole and ClusterRoleBinding names for group access at cluster level.
+	adminGroupClusterRoleName          = "admingroupcluster-role"
+	adminGroupClusterRoleBindingName   = "admingroupcluster-rolebinding"
+	allowedGroupClusterRoleName        = "allowedgroupcluster-role"
+	allowedGroupClusterRoleBindingName = "allowedgroupcluster-rolebinding"
 )
 
 type AuthControllerTestCtx struct {
@@ -97,22 +97,24 @@ func (tc *AuthControllerTestCtx) ValidateAuthSystemInitialization(t *testing.T) 
 	)
 
 	// 2. Validate RBAC infrastructure - Roles are created
-	roles := []string{adminGroupRoleName, allowedGroupRoleName}
+	roles := []string{adminGroupRoleName}
 	for _, roleName := range roles {
 		tc.validateRBACResource(gvk.Role, roleName)
 	}
 
 	// 3. Validate RBAC infrastructure - RoleBindings are created
-	roleBindings := []string{adminGroupRoleBindingName, allowedGroupRoleBindingName}
+	roleBindings := []string{adminGroupRoleBindingName}
 	for _, roleBinding := range roleBindings {
 		tc.validateRBACResource(gvk.RoleBinding, roleBinding)
 	}
 
 	// 4. Validate cluster-level RBAC infrastructure - ClusterRole is created
 	tc.validateRBACResource(gvk.ClusterRole, adminGroupClusterRoleName)
+	tc.validateRBACResource(gvk.ClusterRole, allowedGroupClusterRoleName)
 
 	// 5. Validate cluster-level RBAC infrastructure - ClusterRoleBinding is created
 	tc.validateRBACResource(gvk.ClusterRoleBinding, adminGroupClusterRoleBindingName)
+	tc.validateRBACResource(gvk.ClusterRoleBinding, allowedGroupClusterRoleBindingName)
 }
 
 // ValidateAddingGroups adds groups and validates.
@@ -137,7 +139,7 @@ func (tc *AuthControllerTestCtx) ValidateAddingGroups(t *testing.T) {
 		WithCondition(jq.Match(`.subjects | map(.name) | index("%s") != null`, testAdminGroup)))
 	tc.validateRBACResource(gvk.ClusterRoleBinding, adminGroupClusterRoleBindingName,
 		WithCondition(jq.Match(`.subjects | map(.name) | index("%s") != null`, testAdminGroup)))
-	tc.validateRBACResource(gvk.RoleBinding, allowedGroupRoleBindingName,
+	tc.validateRBACResource(gvk.ClusterRoleBinding, allowedGroupClusterRoleBindingName,
 		WithCondition(jq.Match(`.subjects | map(.name) | index("%s") != null`, testAllowedGroup)))
 }
 
