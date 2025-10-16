@@ -12,7 +12,8 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscwebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster"
+	dscv1webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v1"
+	dscv2webhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
@@ -48,7 +49,7 @@ func TestKueueWebhook_Integration(t *testing.T) {
 		},
 		{
 			name:              "Kueue enabled, ns enabled, missing workload label - should deny",
-			kueueState:        operatorv1.Managed,
+			kueueState:        operatorv1.Unmanaged,
 			nsLabels:          map[string]string{kueueManagedLabelKey: "true"},
 			workloadLabels:    map[string]string{},
 			expectAllowed:     false,
@@ -56,21 +57,21 @@ func TestKueueWebhook_Integration(t *testing.T) {
 		},
 		{
 			name:           "Kueue enabled, ns enabled, valid workload label - should allow",
-			kueueState:     operatorv1.Managed,
+			kueueState:     operatorv1.Unmanaged,
 			nsLabels:       map[string]string{kueueManagedLabelKey: "true"},
 			workloadLabels: map[string]string{kueueQueueNameLabelKey: localQueueName},
 			expectAllowed:  true,
 		},
 		{
 			name:           "Kueue enabled, ns not labeled - should allow",
-			kueueState:     operatorv1.Managed,
+			kueueState:     operatorv1.Unmanaged,
 			nsLabels:       nil,
 			workloadLabels: map[string]string{},
 			expectAllowed:  true,
 		},
 		{
 			name:           "Kueue enabled, ns enabled with legacy label, valid workload label - should allow",
-			kueueState:     operatorv1.Managed,
+			kueueState:     operatorv1.Unmanaged,
 			nsLabels:       map[string]string{kueueLegacyManagedLabelKey: "true"},
 			workloadLabels: map[string]string{kueueQueueNameLabelKey: localQueueName},
 			expectAllowed:  true,
@@ -86,8 +87,10 @@ func TestKueueWebhook_Integration(t *testing.T) {
 				t,
 				[]envt.RegisterWebhooksFn{
 					envtestutil.RegisterWebhooks,
-					dscwebhook.RegisterWebhooks,
+					dscv2webhook.RegisterWebhooks,
+					dscv1webhook.RegisterWebhooks,
 				},
+				[]envt.RegisterControllersFn{},
 				20*time.Second,
 				envtestutil.WithNotebook(),
 				envtestutil.WithInferenceService(),
@@ -100,7 +103,7 @@ func TestKueueWebhook_Integration(t *testing.T) {
 			ns := xid.New().String()
 
 			// Create DSC with the appropriate Kueue state
-			dsc := envtestutil.NewDSC("default", "")
+			dsc := envtestutil.NewDSC("default")
 			g.Expect(k8sClient.Create(ctx, dsc)).To(Succeed())
 
 			// Update status separately (required for envtest)

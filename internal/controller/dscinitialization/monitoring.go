@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -33,7 +33,7 @@ var (
 
 // only when reconcile on DSCI CR, initial set to true
 // if reconcile from monitoring, initial set to false, skip blackbox and rolebinding.
-func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Context, dscInit *dsciv1.DSCInitialization, initial string) error {
+func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Context, dscInit *dsciv2.DSCInitialization, initial string) error {
 	log := logf.FromContext(ctx)
 	if initial == "init" {
 		// configure Blackbox exporter
@@ -84,7 +84,7 @@ func (r *DSCInitializationReconciler) configureManagedMonitoring(ctx context.Con
 	return nil
 }
 
-func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitialization, r *DSCInitializationReconciler) error {
+func configureAlertManager(ctx context.Context, dsciInit *dsciv2.DSCInitialization, r *DSCInitializationReconciler) error {
 	log := logf.FromContext(ctx)
 	// Get Deadmansnitch secret
 	deadmansnitchSecret, err := r.waitForManagedSecret(ctx, "redhat-rhods-deadmanssnitch", dsciInit.Spec.Monitoring.Namespace)
@@ -195,7 +195,7 @@ func configureAlertManager(ctx context.Context, dsciInit *dsciv1.DSCInitializati
 	return nil
 }
 
-func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization, r *DSCInitializationReconciler) error {
+func configurePrometheus(ctx context.Context, dsciInit *dsciv2.DSCInitialization, r *DSCInitializationReconciler) error {
 	log := logf.FromContext(ctx)
 	// Update rolebinding-viewer
 	err := common.ReplaceStringsInFile(filepath.Join(prometheusManifestsPath, "prometheus-rolebinding-viewer.yaml"),
@@ -343,7 +343,7 @@ func configurePrometheus(ctx context.Context, dsciInit *dsciv1.DSCInitialization
 	return nil
 }
 
-func configureBlackboxExporter(ctx context.Context, dsciInit *dsciv1.DSCInitialization, r *DSCInitializationReconciler) error {
+func configureBlackboxExporter(ctx context.Context, dsciInit *dsciv2.DSCInitialization, r *DSCInitializationReconciler) error {
 	log := logf.FromContext(ctx)
 	consoleRoute := &routev1.Route{}
 	err := r.Client.Get(ctx, client.ObjectKey{Name: cluster.NameConsoleLink, Namespace: cluster.NamespaceConsoleLink}, consoleRoute)
@@ -397,7 +397,7 @@ func configureBlackboxExporter(ctx context.Context, dsciInit *dsciv1.DSCInitiali
 	return nil
 }
 
-func createMonitoringProxySecret(ctx context.Context, cli client.Client, name string, dsciInit *dsciv1.DSCInitialization) error {
+func createMonitoringProxySecret(ctx context.Context, cli client.Client, name string, dsciInit *dsciv2.DSCInitialization) error {
 	sessionSecret, err := GenerateRandomHex(32)
 	if err != nil {
 		return err
@@ -433,7 +433,7 @@ func createMonitoringProxySecret(ctx context.Context, cli client.Client, name st
 	return nil
 }
 
-func (r *DSCInitializationReconciler) configureSegmentIO(ctx context.Context, dsciInit *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) configureSegmentIO(ctx context.Context, dsciInit *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 	// create segment.io only when configmap does not exist in the cluster
 	segmentioConfigMap := &corev1.ConfigMap{}
@@ -462,7 +462,7 @@ func (r *DSCInitializationReconciler) configureSegmentIO(ctx context.Context, ds
 	return nil
 }
 
-func (r *DSCInitializationReconciler) configureCommonMonitoring(ctx context.Context, dsciInit *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) configureCommonMonitoring(ctx context.Context, dsciInit *dsciv2.DSCInitialization) error {
 	log := logf.FromContext(ctx)
 	if err := r.configureSegmentIO(ctx, dsciInit); err != nil {
 		return err

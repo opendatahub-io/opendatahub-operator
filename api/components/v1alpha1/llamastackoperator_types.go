@@ -39,7 +39,6 @@ type LlamaStackOperator struct {
 
 type LlamaStackOperatorCommonSpec struct {
 	// new component spec exposed to DSC api
-	common.DevFlagsSpec `json:",inline"`
 }
 
 // LlamaStackOperatorSpec defines the desired state of LlamaStackOperator
@@ -56,11 +55,6 @@ type LlamaStackOperatorCommonStatus struct {
 type LlamaStackOperatorStatus struct {
 	common.Status                  `json:",inline"`
 	LlamaStackOperatorCommonStatus `json:",inline"`
-}
-
-// GetDevFlags retrieves the development flags from the spec
-func (c *LlamaStackOperator) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 // GetStatus retrieves the status of the LlamaStackOperator component

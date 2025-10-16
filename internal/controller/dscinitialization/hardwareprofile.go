@@ -5,48 +5,18 @@ import (
 	"fmt"
 	"path/filepath"
 
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-// CreateVAP creates VAP/VAPB for blocking Dashboard's HWProfile/AcceleratorProfile.
-func (r *DSCInitializationReconciler) CreateVAP(ctx context.Context, dscInit *dsciv1.DSCInitialization) error {
-	log := logf.FromContext(ctx)
-
-	// first check if CRDs in cluster, if no, quick exit
-	apCRDExists, err := cluster.HasCRD(ctx, r.Client, gvk.DashboardAcceleratorProfile)
-	if err != nil {
-		return odherrors.NewStopError("failed to check %s CRDs version: %w", gvk.DashboardAcceleratorProfile, err)
-	}
-	dhpCRDExists, err := cluster.HasCRD(ctx, r.Client, gvk.DashboardHardwareProfile)
-	if err != nil {
-		return odherrors.NewStopError("failed to check %s CRDs version: %w", gvk.DashboardHardwareProfile, err)
-	}
-
-	// proceed if any CRDs exist
-	if !apCRDExists && !dhpCRDExists {
-		log.V(1).Info("Both CRDs not exist, skipping creation for VAP/VAPB")
-		return nil
-	}
-
-	vapPath := filepath.Join(deploy.DefaultManifestPath, "hardwareprofiles", "vap")
-	if err := deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, vapPath, "", "vap", true); err != nil {
-		return fmt.Errorf("failed to deploy VAP/VAPB manifests from path %s: %w", vapPath, err)
-	}
-
-	log.V(1).Info("Successfully deployed VAP/VAPB resources")
-	return nil
-}
-
 // deploy hardware profile CR with dsci as owner, but allow user change by annotation set to false.
-func (r *DSCInitializationReconciler) ManageDefaultHWProfileCR(ctx context.Context, dscInit *dsciv1.DSCInitialization, platform common.Platform) error {
+func (r *DSCInitializationReconciler) ManageDefaultAndCustomHWProfileCR(ctx context.Context, dscInit *dsciv2.DSCInitialization, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
 	if platform == "" { // this is for test to skip creation.
@@ -54,22 +24,24 @@ func (r *DSCInitializationReconciler) ManageDefaultHWProfileCR(ctx context.Conte
 		return nil
 	}
 
-	// Check if default HardwareProfile CR already exists
-	_, err := cluster.GetHardwareProfile(ctx, r.Client, "default-profile", dscInit.Spec.ApplicationsNamespace)
-	if err == nil {
-		log.V(1).Info("HardwareProfile CR 'default-profile' already exists")
-		return nil
-	}
-	if client.IgnoreNotFound(err) != nil {
-		return fmt.Errorf("failed to check default HardwareProfile CR: %w", err)
+	// Check if default HardwareProfile CR already exists.
+	_, defaultProfileError := cluster.GetHardwareProfile(ctx, r.Client, "default-profile", dscInit.Spec.ApplicationsNamespace)
+	// Check if custom-serving HardwareProfile CR already exists
+	_, customServingError := cluster.GetHardwareProfile(ctx, r.Client, "custom-serving", dscInit.Spec.ApplicationsNamespace)
+
+	if client.IgnoreNotFound(defaultProfileError) != nil || client.IgnoreNotFound(customServingError) != nil {
+		return fmt.Errorf("failed to check HardwareProfile CR: default-profile %w, custom-serving %w", defaultProfileError, customServingError)
 	}
 
-	// deploy hardware profile CR with dsci as owner, but allow user change by have annotation in the default.
-	hwProfilePath := filepath.Join(deploy.DefaultManifestPath, "hardwareprofiles")
-	if err := deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, hwProfilePath, dscInit.Spec.ApplicationsNamespace, "hardwareprofile", true); err != nil {
-		return fmt.Errorf("failed to deploy HardwareProfile CR from path %s: %w", hwProfilePath, err)
+	if k8serr.IsNotFound(defaultProfileError) || k8serr.IsNotFound(customServingError) {
+		// deploy hardware profile CRs with dsci as owner, but allow user change by have annotation in the default.
+		// default and custom hardwareprofile CRs are stored in the config/hardwareprofiles directory.
+		// so by deploying the path, Kustomize will deploy either or both depending on the CRs present.
+		hwProfilePath := filepath.Join(deploy.DefaultManifestPath, "hardwareprofiles")
+		if err := deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, hwProfilePath, dscInit.Spec.ApplicationsNamespace, "hardwareprofile", true); err != nil {
+			return fmt.Errorf("failed to deploy HardwareProfile CR from path %s: %w", hwProfilePath, err)
+		}
+		log.V(1).Info("Successfully deployed HardwareProfile CRs")
 	}
-
-	log.V(1).Info("Successfully deployed HardwareProfile CR default-profile")
 	return nil
 }

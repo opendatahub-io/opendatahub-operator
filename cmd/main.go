@@ -67,7 +67,9 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
@@ -92,7 +94,6 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/llamastackoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
-	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelmeshserving"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
@@ -103,7 +104,6 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/secretgenerator"
-	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/servicemesh"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/setup"
 )
 
@@ -120,7 +120,9 @@ func init() { //nolint:gochecknoinits
 	// +kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsciv1.AddToScheme(scheme))
+	utilruntime.Must(dsciv2.AddToScheme(scheme))
 	utilruntime.Must(dscv1.AddToScheme(scheme))
+	utilruntime.Must(dscv2.AddToScheme(scheme))
 	utilruntime.Must(featurev1.AddToScheme(scheme))
 	utilruntime.Must(networkingv1.AddToScheme(scheme))
 	utilruntime.Must(rbacv1.AddToScheme(scheme))
@@ -353,12 +355,10 @@ func main() { //nolint:funlen,maintidx,gocyclo
 				DisableFor: []client.Object{
 					resources.GvkToUnstructured(gvk.OpenshiftIngress),
 					&ofapiv1alpha1.Subscription{},
-					resources.GvkToUnstructured(gvk.ServiceMeshControlPlane),
 					&authorizationv1.SelfSubjectRulesReview{},
 					&corev1.Pod{},
 					&userv1.Group{},
 					&ofapiv1alpha1.CatalogSource{},
-					resources.GvkToUnstructured(gvk.Authorino),
 				},
 				// Set it to true so the cache-backed client reads unstructured objects
 				// or lists from the cache instead of a live lookup.
@@ -554,7 +554,6 @@ func createSecretCacheConfig(ctx context.Context, cli client.Client, platform co
 		return nil, err
 	}
 
-	namespaceConfigs["istio-system"] = cache.Config{} // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
 	namespaceConfigs["openshift-ingress"] = cache.Config{}
 
 	return namespaceConfigs, nil
@@ -566,7 +565,6 @@ func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platfor
 		return nil, err
 	}
 
-	namespaceConfigs["istio-system"] = cache.Config{}        // for serivcemonitor: data-science-smcp-pilot-monitor
 	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
 	namespaceConfigs["openshift-ingress"] = cache.Config{}   // for gateway auth proxy resources
 

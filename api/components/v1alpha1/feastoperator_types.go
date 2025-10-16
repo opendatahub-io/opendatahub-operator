@@ -56,7 +56,6 @@ type FeastOperator struct {
 // FeastOperatorCommonSpec defines the common spec shared across APIs for FeastOperator
 type FeastOperatorCommonSpec struct {
 	// Spec fields exposed to the DSC API
-	common.DevFlagsSpec `json:",inline"`
 }
 
 // FeastOperatorCommonStatus defines the shared observed state of FeastOperator
@@ -73,11 +72,6 @@ type FeastOperatorSpec struct {
 type FeastOperatorStatus struct {
 	common.Status             `json:",inline"`
 	FeastOperatorCommonStatus `json:",inline"`
-}
-
-// GetDevFlags retrieves the development flags from the spec
-func (c *FeastOperator) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 // GetStatus retrieves the status of the FeastOperator component

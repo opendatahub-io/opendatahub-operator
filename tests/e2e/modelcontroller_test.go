@@ -57,70 +57,49 @@ func modelControllerTestSuite(t *testing.T) {
 func (tc *ModelControllerTestCtx) ValidateComponentEnabled(t *testing.T) {
 	t.Helper()
 
-	// Define the test cases for checking component states
-	testCases := []TestCase{
-		{"ModelMeshServing enabled", func(t *testing.T) {
-			t.Helper()
-			tc.ValidateComponentDeployed(operatorv1.Managed, operatorv1.Removed, operatorv1.Removed, metav1.ConditionTrue)
-		}},
-		{"Kserve enabled", func(t *testing.T) {
-			t.Helper()
-			tc.ValidateComponentDeployed(operatorv1.Removed, operatorv1.Managed, operatorv1.Removed, metav1.ConditionTrue)
-		}},
-		{"Kserve and ModelMeshServing enabled", func(t *testing.T) {
-			t.Helper()
-			tc.ValidateComponentDeployed(operatorv1.Managed, operatorv1.Managed, operatorv1.Removed, metav1.ConditionTrue)
-		}},
-		{"ModelRegistry enabled", func(t *testing.T) {
-			t.Helper()
-			tc.ValidateComponentDeployed(operatorv1.Managed, operatorv1.Managed, operatorv1.Managed, metav1.ConditionTrue)
-		}},
-	}
+	// Ensure Kserve and ModelRegistry components are set as Managed in DataScienceCluster.
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(
+			testf.TransformPipeline(
+				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, operatorv1.Managed),
+				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelRegistryComponentName, operatorv1.Managed),
+			),
+		),
+	)
 
-	// Run the test suite.
-	RunTestCases(t, testCases)
+	// Ensure ModelController resources are deployed.
+	tc.verifyResourcesDeployed()
+
+	// Ensure ModelController condition matches the expected status in the DataScienceCluster.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, modelcontroller.ReadyConditionType, metav1.ConditionTrue)),
+	)
 }
 
 // ValidateComponentDisabled validates that the components are disabled.
 func (tc *ModelControllerTestCtx) ValidateComponentDisabled(t *testing.T) {
 	t.Helper()
 
-	t.Run("Kserve ModelMeshServing and ModelRegistry disabled", func(t *testing.T) {
-		t.Helper()
-		tc.ValidateComponentDeployed(operatorv1.Removed, operatorv1.Removed, operatorv1.Removed, metav1.ConditionFalse)
-	})
-}
-
-// ValidateComponentDeployed validates that the components are deployed with the correct management state.
-func (tc *ModelControllerTestCtx) ValidateComponentDeployed(
-	modelMeshState operatorv1.ManagementState,
-	kserveState operatorv1.ManagementState,
-	modelRegistryState operatorv1.ManagementState,
-	status metav1.ConditionStatus,
-) {
-	// Ensure the components are updated with the correct states in DataScienceCluster.
-	tc.EventuallyResourceCreatedOrUpdated(
+	// Ensure Kserve and ModelRegistry components are set as Removed in DataScienceCluster.
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(
 			testf.TransformPipeline(
-				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelMeshServingComponentName, modelMeshState),
-				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, kserveState),
-				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelRegistryComponentName, modelRegistryState),
+				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.KserveComponentName, operatorv1.Removed),
+				testf.Transform(`.spec.components.%s.managementState = "%s"`, componentApi.ModelRegistryComponentName, operatorv1.Removed),
 			),
 		),
 	)
 
-	// Verify resources based on the desired status.
-	if status == metav1.ConditionTrue {
-		tc.verifyResourcesDeployed()
-	} else {
-		tc.verifyResourcesNotDeployed()
-	}
+	// Ensure ModelController resources are removed.
+	tc.verifyResourcesNotDeployed()
 
 	// Ensure ModelController condition matches the expected status in the DataScienceCluster.
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, modelcontroller.ReadyConditionType, status)),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, modelcontroller.ReadyConditionType, metav1.ConditionFalse)),
 	)
 }
 
@@ -154,7 +133,6 @@ func (tc *ModelControllerTestCtx) verifyResourcesDeployed() {
 func (tc *ModelControllerTestCtx) verifyResourcesNotDeployed() {
 	// Ensure that the components are not deployed
 	tc.EnsureResourceGone(WithMinimalObject(gvk.Kserve, types.NamespacedName{Name: componentApi.KserveInstanceName}))
-	tc.EnsureResourceGone(WithMinimalObject(gvk.ModelMeshServing, types.NamespacedName{Name: componentApi.ModelMeshServingInstanceName}))
 	tc.EnsureResourceGone(WithMinimalObject(gvk.ModelController, types.NamespacedName{Name: componentApi.ModelControllerInstanceName}))
 	tc.EnsureResourcesGone(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.AppsNamespace}),

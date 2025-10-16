@@ -21,8 +21,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -59,17 +59,14 @@ func GetSingleton[T client.Object](ctx context.Context, cli client.Client, obj T
 		return err
 	}
 
-	instances := unstructured.UnstructuredList{}
-	instances.SetAPIVersion(objGVK.GroupVersion().String())
-	instances.SetKind(objGVK.Kind)
-
-	if err := cli.List(ctx, &instances); err != nil {
-		return fmt.Errorf("failed to list resources of type %s: %w", objGVK, err)
+	instances, err := ListGVK(ctx, cli, objGVK)
+	if err != nil {
+		return err
 	}
 
-	switch len(instances.Items) {
+	switch len(instances) {
 	case 1:
-		if err := cli.Scheme().Convert(&instances.Items[0], obj, ctx); err != nil {
+		if err := cli.Scheme().Convert(&instances[0], obj, ctx); err != nil {
 			return fmt.Errorf("failed to convert resource to %T: %w", obj, err)
 		}
 		return nil
@@ -87,13 +84,13 @@ func GetSingleton[T client.Object](ctx context.Context, cli client.Client, obj T
 			"",
 		)
 	default:
-		return fmt.Errorf("failed to get a valid %s instance, expected to find 1 instance, found %d", objGVK, len(instances.Items))
+		return fmt.Errorf("failed to get a valid %s instance, expected to find 1 instance, found %d", objGVK, len(instances))
 	}
 }
 
 // GetDSC retrieves the DataScienceCluster (DSC) instance from the Kubernetes cluster.
-func GetDSC(ctx context.Context, cli client.Reader) (*dscv1.DataScienceCluster, error) {
-	instances := dscv1.DataScienceClusterList{}
+func GetDSC(ctx context.Context, cli client.Reader) (*dscv2.DataScienceCluster, error) {
+	instances := dscv2.DataScienceClusterList{}
 	if err := cli.List(ctx, &instances); err != nil {
 		return nil, fmt.Errorf("failed to list resources of type %s: %w", gvk.DataScienceCluster, err)
 	}
@@ -115,8 +112,8 @@ func GetDSC(ctx context.Context, cli client.Reader) (*dscv1.DataScienceCluster, 
 }
 
 // GetDSCI retrieves the DSCInitialization (DSCI) instance from the Kubernetes cluster.
-func GetDSCI(ctx context.Context, cli client.Client) (*dsciv1.DSCInitialization, error) {
-	instances := dsciv1.DSCInitializationList{}
+func GetDSCI(ctx context.Context, cli client.Client) (*dsciv2.DSCInitialization, error) {
+	instances := dsciv2.DSCInitializationList{}
 	if err := cli.List(ctx, &instances); err != nil {
 		return nil, fmt.Errorf("failed to list resources of type %s: %w", gvk.DSCInitialization, err)
 	}
@@ -359,4 +356,15 @@ func HasCRDWithVersion(ctx context.Context, cli client.Client, gk schema.GroupKi
 	default:
 		return true, nil
 	}
+}
+
+func ListGVK(ctx context.Context, cli client.Client, gvk schema.GroupVersionKind, listOptions ...client.ListOption) ([]unstructured.Unstructured, error) {
+	resources := unstructured.UnstructuredList{}
+	resources.SetAPIVersion(gvk.GroupVersion().String())
+	resources.SetKind(gvk.Kind)
+
+	if err := cli.List(ctx, &resources, listOptions...); err != nil {
+		return nil, fmt.Errorf("failed to list resources of type %s: %w", gvk, err)
+	}
+	return resources.Items, nil
 }

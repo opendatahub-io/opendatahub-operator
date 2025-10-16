@@ -51,13 +51,15 @@ type Metrics struct {
 	// +kubebuilder:validation:Minimum=0
 	Replicas int32 `json:"replicas,omitempty"`
 	// Exporters defines custom metrics exporters for sending metrics to external observability tools.
-	// Each key-value pair represents an exporter name and its configuration.
+	// Each key represents the exporter name, and the value contains the exporter configuration.
+	// The configuration follows the OpenTelemetry Collector exporter format.
 	// Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.
+	// Maximum 10 exporters allowed, each config must be less than 10KB (enforced at reconciliation time).
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="!('prometheus' in self)",message="exporter name 'prometheus' is reserved and cannot be used"
 	// +kubebuilder:validation:XValidation:rule="!('otlp/tempo' in self)",message="exporter name 'otlp/tempo' is reserved and cannot be used"
-	// +kubebuilder:validation:XValidation:rule="self.all(k, self[k] != '')",message="exporter configuration values must be non-empty strings"
-	Exporters map[string]string `json:"exporters,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="size(self) <= 10",message="maximum 10 exporters allowed"
+	Exporters map[string]runtime.RawExtension `json:"exporters,omitempty"`
 }
 
 // MetricsStorage defines the storage configuration for the monitoring service
@@ -197,10 +199,6 @@ type MonitoringList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Monitoring `json:"items"`
-}
-
-func (m *Monitoring) GetDevFlags() *common.DevFlags {
-	return nil
 }
 
 func (m *Monitoring) GetStatus() *common.Status {

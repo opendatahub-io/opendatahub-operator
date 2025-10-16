@@ -14,7 +14,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 const (
@@ -65,9 +64,8 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 		return fmt.Errorf("resource instance %v is not a WithReleases", rr.Instance)
 	}
 
-	// If the release status is empty, or if the DevFlags.Manifests is set, render the release information.
-	// This ensures that releases are either reprocessed or fetched from the manifests specified in DevFlags.
-	if len(a.componentReleaseStatus) == 0 || resources.InstanceHasDevFlags(rr.Instance) {
+	// If the release status is empty render the release information.
+	if len(a.componentReleaseStatus) == 0 {
 		releases, err := a.render(ctx, rr)
 		if err != nil {
 			return err

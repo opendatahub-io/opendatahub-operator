@@ -55,8 +55,9 @@ YQ ?= $(LOCALBIN)/yq
 KUSTOMIZE_VERSION ?= v5.7.0
 CONTROLLER_TOOLS_VERSION ?= v0.17.3
 OPERATOR_SDK_VERSION ?= v1.39.2
-GOLANGCI_LINT_VERSION ?= v2.1.2
+GOLANGCI_LINT_VERSION ?= v2.5.0
 YQ_VERSION ?= v4.12.2
+KUBE_LINTER_VERSION ?= v0.7.6
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 #ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.20)
@@ -172,6 +173,13 @@ lint-fix: golangci-lint ## Run golangci-lint against code.
 	$(GOLANGCI_LINT) run --fix
 	$(GOLANGCI_LINT) fmt
 
+.PHONY: kube-lint
+kube-lint: prepare ## Run kube-linter against rendered manifests.
+	@TMP_FILE=$$(mktemp /tmp/kube-lint.XXXXXX.yaml) && \
+	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/manifests > $$TMP_FILE && \
+	go run golang.stackrox.io/kube-linter/cmd/kube-linter@$(KUBE_LINTER_VERSION) lint --config .kube-linter.yaml $$TMP_FILE && \
+	rm -f $$TMP_FILE
+
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
 	./get_all_manifests.sh
@@ -255,11 +263,11 @@ uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/c
 
 .PHONY: deploy
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
 undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
@@ -313,12 +321,13 @@ new-component: $(LOCALBIN)/component-codegen
 $(LOCALBIN)/component-codegen: | $(LOCALBIN)
 	cd ./cmd/component-codegen && go mod tidy && go build -o $@
 
+# TODO: change kustomize layout to remove --load-restrictor LoadRestrictionsNone option in each kustomize invocation in this makefile
 BUNDLE_DIR ?= "bundle"
 WARNINGMSG = "provided API should have an example annotation"
 .PHONY: bundle
 bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
-	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) 2>&1 | grep -v $(WARNINGMSG)
+	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	mv bundle.Dockerfile Dockerfiles/
 	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
@@ -459,8 +468,14 @@ e2e-test:
 ifndef E2E_TEST_OPERATOR_NAMESPACE
 export E2E_TEST_OPERATOR_NAMESPACE = $(OPERATOR_NAMESPACE)
 endif
-e2e-test: ## Run e2e tests for the controller
-	go test ./tests/e2e/ -run ^TestOdhOperator -v ${E2E_TEST_FLAGS}
+ifdef ARTIFACT_DIR
+export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
+endif
+e2e-test:
+	go run -C ./cmd/test-retry main.go e2e --verbose --working-dir=$(CURDIR) $(if $(JUNIT_OUTPUT_PATH),--junit-output=$(JUNIT_OUTPUT_PATH)) -- ${E2E_TEST_FLAGS}
+
+unit-test-cli:
+	go -C ./cmd/test-retry/ test ./...
 
 .PHONY: clean
 clean: $(GOLANGCI_LINT)
