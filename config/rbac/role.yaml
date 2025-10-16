@@ -382,6 +382,14 @@ rules:
   - dashboard.opendatahub.io
   resources:
   - acceleratorprofiles
+  - hardwareprofiles
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - dashboard.opendatahub.io
+  resources:
   - odhapplications
   - odhdocuments
   verbs:
@@ -390,15 +398,6 @@ rules:
   - get
   - list
   - patch
-  - update
-  - watch
-- apiGroups:
-  - dashboard.opendatahub.io
-  resources:
-  - hardwareprofiles
-  verbs:
-  - get
-  - list
   - update
   - watch
 - apiGroups:
