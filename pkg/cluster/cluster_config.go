@@ -162,6 +162,34 @@ func IsActiveNamespace(ns *corev1.Namespace) bool {
 	return ns.Status.Phase == corev1.NamespaceActive
 }
 
+// IsSingleNodeCluster determines if the cluster is a single-node cluster by counting the actual nodes.
+func IsSingleNodeCluster(ctx context.Context, cli client.Client) bool {
+	nodeList := &corev1.NodeList{}
+	if err := cli.List(ctx, nodeList); err != nil {
+		logf.FromContext(ctx).Info("could not list nodes, defaulting to multi-node behavior", "error", err)
+		return false
+	}
+
+	// Count only nodes that are ready and not marked for deletion
+	var readyNodeCount int
+	for _, node := range nodeList.Items {
+		if node.DeletionTimestamp == nil {
+			for _, condition := range node.Status.Conditions {
+				if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
+					readyNodeCount++
+					break
+				}
+			}
+		}
+		if readyNodeCount > 1 {
+			break
+		}
+	}
+
+	logf.FromContext(ctx).V(1).Info("detected cluster size", "totalNodes", len(nodeList.Items), "readyNodes", readyNodeCount)
+	return readyNodeCount <= 1
+}
+
 // GetClusterServiceVersion retries CSV only from the defined namespace.
 func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace string) (*ofapiv1alpha1.ClusterServiceVersion, error) {
 	clusterServiceVersionList := &ofapiv1alpha1.ClusterServiceVersionList{}
