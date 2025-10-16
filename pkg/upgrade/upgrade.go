@@ -680,14 +680,13 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 	}
 
 	// Get OdhDashboardConfig once for all migration functions
-	odhConfig, err := GetOdhDashboardConfig(ctx, cli, applicationNS)
+	odhConfig, found, err := getOdhDashboardConfig(ctx, cli, applicationNS)
 	if err != nil {
-		// Check if the error indicates that OdhDashboardConfig was not found anywhere
-		if strings.Contains(err.Error(), "not found in cluster or manifests") {
-			log.Info("OdhDashboardConfig not found, skipping HardwareProfile migrations")
-			return nil
-		}
 		return fmt.Errorf("failed to get OdhDashboardConfig: %w", err)
+	}
+	if !found {
+		log.Info("OdhDashboardConfig not found, skipping HardwareProfile migrations")
+		return nil
 	}
 
 	// 1. Create 2 HardwareProfiles for each AcceleratorProfile (notebooks and serving)
@@ -822,33 +821,39 @@ func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, ap
 	}
 
 	for _, notebook := range notebooks {
+		// Get annotations once for efficiency
+		annotations := notebook.GetAnnotations()
+		if annotations == nil {
+			annotations = map[string]string{}
+		}
+
 		// Skip if already has HardwareProfile annotation
-		if hasHardwareProfileAnnotation(notebook) {
+		if annotations[hardwareProfileNameAnnotation] != "" {
 			continue
 		}
 
-		// Handle AP annotation migration
-		if apName := getAnnotation(notebook, acceleratorNameAnnotation); apName != "" {
-			// Convert to lowercase and replace spaces with dashes to comply with the hardwareprofile CRD validation
-			hwpName := fmt.Sprintf("%s-notebooks", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
+		var hwpName string
+		var migrationSource string
 
-			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName, applicationNS); err != nil {
-				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for notebook %s: %w", notebook.GetName(), err))
-				continue
-			}
-			log.Info("Migrated AP annotation to HardwareProfile annotation for Notebook", "notebook", notebook.GetName(), "hwp", hwpName)
-			continue // Don't check container size if AP exists
+		// Check for AcceleratorProfile annotation first (higher priority)
+		if apName := annotations[acceleratorNameAnnotation]; apName != "" {
+			// Convert to lowercase and replace spaces with dashes to comply with the hardwareprofile CRD validation
+			hwpName = fmt.Sprintf("%s-notebooks", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
+			migrationSource = "AcceleratorProfile annotation"
+		} else if sizeSelection := annotations[lastSizeSelectionAnnotation]; sizeSelection != "" && containerSizeExists(containerSizes, sizeSelection) {
+			// Handle container size annotation migration
+			// If size doesn't exist in OdhDashboardConfig, leave annotation as-is (per requirements)
+			hwpName = fmt.Sprintf("%s%s-notebooks", containerSizeHWPPrefix, strings.ReplaceAll(strings.ToLower(sizeSelection), " ", "-"))
+			migrationSource = "container size annotation"
 		}
 
-		// Handle container size annotation migration
-		// If size doesn't exist in OdhDashboardConfig, leave annotation as-is (per requirements)
-		if sizeSelection := getAnnotation(notebook, lastSizeSelectionAnnotation); sizeSelection != "" && containerSizeExists(containerSizes, sizeSelection) {
-			hwpName := fmt.Sprintf("%s%s-notebooks", containerSizeHWPPrefix, strings.ReplaceAll(strings.ToLower(sizeSelection), " ", "-"))
+		// Set HardwareProfile annotation if we found a migration source
+		if hwpName != "" {
 			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName, applicationNS); err != nil {
 				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for notebook %s: %w", notebook.GetName(), err))
 				continue
 			}
-			log.Info("Migrated container size annotation to HardwareProfile annotation for Notebook", "notebook", notebook.GetName(), "size", sizeSelection, "hwp", hwpName)
+			log.Info("Migrated annotation to HardwareProfile for Notebook", "notebook", notebook.GetName(), "migrationSource", migrationSource, "hardwareProfile", hwpName)
 		}
 	}
 
@@ -934,15 +939,25 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 	}
 
 	for _, isvc := range inferenceServices {
+		// Get annotations once for efficiency
+		isvcAnnotations := isvc.GetAnnotations()
+		if isvcAnnotations == nil {
+			isvcAnnotations = map[string]string{}
+		}
+
 		// Skip if already has HardwareProfile annotation
-		if hasHardwareProfileAnnotation(isvc) {
+		if isvcAnnotations[hardwareProfileNameAnnotation] != "" {
 			continue
 		}
 
-		// Try to get AP from ServingRuntime
+		// Check ServingRuntime for AcceleratorProfile annotation and apply to InferenceService
 		servingRuntime, err := getSRFromISVC(ctx, cli, isvc)
 		if err == nil {
-			if apName := getAnnotation(servingRuntime, acceleratorNameAnnotation); apName != "" {
+			runtimeAnnotations := servingRuntime.GetAnnotations()
+			if runtimeAnnotations == nil {
+				runtimeAnnotations = map[string]string{}
+			}
+			if apName := runtimeAnnotations[acceleratorNameAnnotation]; apName != "" {
 				hwpName := fmt.Sprintf("%s-serving", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
 				if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
 					multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
@@ -955,32 +970,28 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 		}
 
 		// No AP found, try container size matching
+		// Default usign HWProfile CR "custom-serving", update only if we find a matching size
+		hwpName := "custom-serving"
+		var matchedSize string
+
 		resources, err := getInferenceServiceResources(isvc)
-		if err != nil {
-			// No resources found, use custom-serving
-			hwpName := "custom-serving"
-			if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
-				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
-			} else {
-				log.Info("Set custom-serving HardwareProfile annotation for InferenceService (no resources found)", "isvc", isvc.GetName(), "hwp", hwpName)
+		if err == nil {
+			// Try to match resources to a container size
+			matchedSize = findContainerSizeByResources(containerSizes, resources)
+			if matchedSize != "" {
+				hwpName = fmt.Sprintf("%s%s-serving", containerSizeHWPPrefix, strings.ReplaceAll(strings.ToLower(matchedSize), " ", "-"))
 			}
-			continue
-		}
-
-		// Try to match resources to a container size
-		matchedSize := findContainerSizeByResources(containerSizes, resources)
-
-		var hwpName string
-		if matchedSize != "" {
-			hwpName = fmt.Sprintf("%s%s-serving", containerSizeHWPPrefix, strings.ReplaceAll(strings.ToLower(matchedSize), " ", "-"))
-			log.Info("Matched container size to HardwareProfile annotation for InferenceService", "isvc", isvc.GetName(), "size", matchedSize, "hwp", hwpName)
-		} else {
-			hwpName = "custom-serving"
-			log.Info("Set custom-serving HardwareProfile annotation for InferenceService (no size match)", "isvc", isvc.GetName(), "hwp", hwpName)
 		}
 
 		if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
+		} else {
+			// Log after successful annotation setting
+			if matchedSize != "" {
+				log.Info("Set HardwareProfile annotation for InferenceService based on container size match", "isvc", isvc.GetName(), "size", matchedSize, "hardwareProfile", hwpName)
+			} else {
+				log.Info("Set HardwareProfile annotation for InferenceService with custom-serving HardwareProfile", "isvc", isvc.GetName(), "hardwareProfile", hwpName)
+			}
 		}
 	}
 

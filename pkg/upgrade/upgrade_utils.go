@@ -1,4 +1,4 @@
-// Package upgrade provides functions of upgrade ODH from v1 to v2 and vaiours v2 versions.
+// Package upgrade provides functions of upgrade ODH from v1 to v2 and various v2 versions.
 // This file contains utility functions for hardware profile migration.
 package upgrade
 
@@ -56,7 +56,7 @@ func getAcceleratorProfiles(ctx context.Context, cli client.Client) ([]unstructu
 	return apList.Items, nil
 }
 
-func GetOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS string) (*unstructured.Unstructured, error) {
+func getOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS string) (*unstructured.Unstructured, bool, error) {
 	log := logf.FromContext(ctx)
 	odhConfig := &unstructured.Unstructured{}
 	odhConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
@@ -65,12 +65,12 @@ func GetOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS
 	err := cli.Get(ctx, client.ObjectKey{Name: "odh-dashboard-config", Namespace: applicationNS}, odhConfig)
 	if err == nil {
 		log.Info("Found OdhDashboardConfig in cluster")
-		return odhConfig, nil
+		return odhConfig, true, nil
 	}
 
 	// If not found in cluster, check if it's a "not found" error
 	if !k8serr.IsNotFound(err) {
-		return nil, fmt.Errorf("failed to get OdhDashboardConfig from cluster: %w", err)
+		return nil, false, fmt.Errorf("failed to get OdhDashboardConfig from cluster: %w", err)
 	}
 
 	log.Info("OdhDashboardConfig not found in cluster, attempting to load from manifests")
@@ -78,15 +78,16 @@ func GetOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS
 	// Try to load from manifests
 	manifestConfig, found, err := loadOdhDashboardConfigFromManifests(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load OdhDashboardConfig from manifests: %w", err)
+		return nil, false, fmt.Errorf("failed to load OdhDashboardConfig from manifests: %w", err)
 	}
 
 	if !found {
-		return nil, errors.New("OdhDashboardConfig not found in cluster or manifests - skipping migration")
+		log.Info("OdhDashboardConfig not found in cluster or manifests")
+		return nil, false, nil
 	}
 
 	log.Info("Successfully loaded OdhDashboardConfig from manifests")
-	return manifestConfig, nil
+	return manifestConfig, true, nil
 }
 
 func createHardwareProfileFromContainerSize(ctx context.Context, cli client.Client, size ContainerSize,
@@ -381,7 +382,7 @@ func generateHardwareProfileFromAcceleratorProfile(ctx context.Context, ap unstr
 
 	// Create annotations
 	annotations := map[string]string{
-		"opendatahub.io/dashboard-feature-visibility": GetFeatureVisibility(profileType),
+		"opendatahub.io/dashboard-feature-visibility": getFeatureVisibility(profileType),
 		"opendatahub.io/modified-date":                time.Now().Format(time.RFC3339),
 		"opendatahub.io/display-name":                 displayName,
 		"opendatahub.io/description":                  description,
@@ -498,7 +499,7 @@ func generateHardwareProfileFromContainerSize(ctx context.Context, size Containe
 	hwpName := fmt.Sprintf("%s%s-%s", containerSizeHWPPrefix, strings.ReplaceAll(strings.ToLower(size.Name), " ", "-"), profileType)
 	// Create annotations
 	annotations := map[string]string{
-		"opendatahub.io/dashboard-feature-visibility": GetFeatureVisibility(profileType),
+		"opendatahub.io/dashboard-feature-visibility": getFeatureVisibility(profileType),
 		"opendatahub.io/modified-date":                time.Now().Format(time.RFC3339),
 		"opendatahub.io/display-name":                 size.Name,
 		"opendatahub.io/description":                  "",
@@ -555,8 +556,8 @@ func generateHardwareProfileFromContainerSize(ctx context.Context, size Containe
 	}
 }
 
-// GetFeatureVisibility returns the dashboard feature visibility string for a profile type.
-func GetFeatureVisibility(profileType string) string {
+// getFeatureVisibility returns the dashboard feature visibility string for a profile type.
+func getFeatureVisibility(profileType string) string {
 	if profileType == serving {
 		return "['model-serving']"
 	}
@@ -674,22 +675,8 @@ func containerSizeExists(sizes []ContainerSize, name string) bool {
 	return false
 }
 
-// getAnnotation retrieves an annotation value from an unstructured object.
-func getAnnotation(obj *unstructured.Unstructured, key string) string {
-	annotations := obj.GetAnnotations()
-	if annotations == nil {
-		return ""
-	}
-	return annotations[key]
-}
-
-// hasHardwareProfileAnnotation checks if an object has the HWP annotation.
-func hasHardwareProfileAnnotation(obj *unstructured.Unstructured) bool {
-	return getAnnotation(obj, hardwareProfileNameAnnotation) != ""
-}
-
 // setHardwareProfileAnnotation sets the HWP annotation on an object and updates it.
-func setHardwareProfileAnnotation(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, hwpName string, applicationNS string) error {
+func setHardwareProfileAnnotation(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, hwpName string, namespace string) error {
 	annotations := obj.GetAnnotations()
 	if annotations == nil {
 		annotations = make(map[string]string)
@@ -698,7 +685,7 @@ func setHardwareProfileAnnotation(ctx context.Context, cli client.Client, obj *u
 
 	// If hardwareprofile name starts with the containersize- prefix, also set the HWP namespace annotation to the application namespace
 	if strings.HasPrefix(hwpName, containerSizeHWPPrefix) {
-		annotations[hardwareProfileNamespaceAnnotation] = applicationNS
+		annotations[hardwareProfileNamespaceAnnotation] = namespace
 	}
 	obj.SetAnnotations(annotations)
 
