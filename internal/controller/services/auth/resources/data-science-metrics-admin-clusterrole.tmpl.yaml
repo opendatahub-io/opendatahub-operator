@@ -16,16 +16,11 @@ rules:
     resources: ["pods", "nodes"]
     verbs: ["get", "list"]
   - apiGroups: [""]
-    resources:
-      [
-        "namespaces",
-        "pods",
-        "services",
-        "services/proxy",
-        "services/unsafeproxy",
-        "endpoints",
-      ]
+    resources: ["namespaces", "pods", "services", "endpoints"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["services/proxy", "services/unsafeproxy"]
+    verbs: ["get", "create"]
   - apiGroups: ["apps"]
     resources: ["deployments", "replicasets"]
     verbs: ["get", "list", "watch"]

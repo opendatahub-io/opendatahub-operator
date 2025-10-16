@@ -82,11 +82,6 @@ data:
         subresource: proxy
         namespace: "{{ "{{ .Value }}" }}"
         name: data-science-monitoringstack-prometheus
-        verb: get
-    upstreams:
-      - upstream: http://127.0.0.1:9091/
-        path: /
-        rewriteTarget: /
 ---
 apiVersion: apps/v1
 kind: Deployment

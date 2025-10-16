@@ -838,8 +838,9 @@ func TestMonitoringStackThanosQuerierIntegration(t *testing.T) {
 			hasThanosQuerierCRD:       true,
 			expectedMSConditionStatus: "True",
 			expectedTQConditionStatus: "True",
-			expectedMSTemplates:       8, // MonitoringStack + Alertmanager RBAC + PrometheusRoute +
-			// PrometheusSecureRBAC + PrometheusServiceOverride + PrometheusNetworkPolicy + PrometheusRestricted + PrometheusRestrictedNetworkPolicy + Perses
+			expectedMSTemplates:       10, // MonitoringStack + Alertmanager RBAC + PrometheusRoute +
+			// PrometheusSecureRBAC + PrometheusServiceOverride + PrometheusNetworkPolicy + PrometheusWebTLSService +
+			// PrometheusWebTLSCASecretJob + PrometheusRestricted + PrometheusRestrictedNetworkPolicy
 			expectedTQTemplates: 2, // ThanosQuerier + ThanosQuerierRoute
 			description:         "When both CRDs are available and metrics configured, both should be deployed",
 		},
@@ -1046,7 +1047,7 @@ func TestGetTemplateDataImageURLs(t *testing.T) {
 			platform:               common.Platform("Open Data Hub"),
 			envKubeRBACProxy:       "",
 			envPromLabelProxy:      "",
-			expectedKubeRBACProxy:  "gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0",
+			expectedKubeRBACProxy:  "quay.io/brancz/kube-rbac-proxy:v0.20.0",
 			expectedPromLabelProxy: "quay.io/prometheuscommunity/prom-label-proxy:v0.8.0",
 		},
 		{
@@ -1054,16 +1055,16 @@ func TestGetTemplateDataImageURLs(t *testing.T) {
 			platform:               common.Platform("OpenShift AI Self-Managed"),
 			envKubeRBACProxy:       "",
 			envPromLabelProxy:      "",
-			expectedKubeRBACProxy:  "registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9",
-			expectedPromLabelProxy: "registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9",
+			expectedKubeRBACProxy:  "registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9:v4.17",
+			expectedPromLabelProxy: "registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9:v4.17",
 		},
 		{
 			name:                   "RHOAI Managed with no env vars",
 			platform:               common.Platform("OpenShift AI Cloud Service"),
 			envKubeRBACProxy:       "",
 			envPromLabelProxy:      "",
-			expectedKubeRBACProxy:  "registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9",
-			expectedPromLabelProxy: "registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9",
+			expectedKubeRBACProxy:  "registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9:v4.17",
+			expectedPromLabelProxy: "registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9:v4.17",
 		},
 		{
 			name:                   "Custom images via env vars",
