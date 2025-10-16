@@ -1271,9 +1271,42 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *t
 	tc.resetMonitoringConfigToManaged()
 }
 
+func (tc *MonitoringTestCtx) waitForPrometheusRestrictedPrerequisites(t *testing.T, namespace string) {
+	t.Helper()
+
+	// 1. Wait for MonitoringStack CRD to exist and be established (required by controller)
+	tc.EnsureCRDEstablished("monitoringstacks.monitoring.rhobs")
+	t.Logf("MonitoringStack CRD is established")
+
+	// 2. Wait for MonitoringStack CR to be created and available
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{
+			Name:      MonitoringStackName,
+			Namespace: namespace,
+		}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
+		WithCustomErrorMsg("MonitoringStack should be Available before prometheus-restricted deployment"),
+	)
+
+	t.Logf("MonitoringStack CR is Available")
+
+	// 3. Wait for Monitoring CR to show NamespaceRestrictedMetricsAvailable condition
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "NamespaceRestrictedMetricsAvailable") | .status == "True"`)),
+		WithCustomErrorMsg("Monitoring CR should show NamespaceRestrictedMetricsAvailable=True before checking deployment"),
+	)
+
+	t.Logf("All prerequisites met for prometheus-restricted deployment")
+}
+
 // validatePrometheusRestrictedResourcesCommon validates common data-science-prometheus-restricted resources that are shared between tests.
 func (tc *MonitoringTestCtx) validatePrometheusRestrictedResourcesCommon(t *testing.T, namespace string) {
 	t.Helper()
+
+	// Wait for prerequisites before checking deployment
+	// The controller only deploys prometheus-restricted when MonitoringStack is available
+	tc.waitForPrometheusRestrictedPrerequisites(t, namespace)
 
 	// Verify the data-science-prometheus-restricted deployment is created
 	tc.EnsureResourceExists(
@@ -1346,7 +1379,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRestrictedResourceConfiguration(t
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
-			withMetricsConfig(),
+			tc.withMetricsConfig(),
 		)),
 	)
 
@@ -1437,7 +1470,7 @@ func (tc *MonitoringTestCtx) ValidateMetricsAPIAuthenticationAndAuthorization(t 
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
-			withMetricsConfig(),
+			tc.withMetricsConfig(),
 		)),
 	)
 
@@ -1482,6 +1515,11 @@ func (tc *MonitoringTestCtx) ValidateMetricsAPIAuthenticationAndAuthorization(t 
 	// Test 3: Invalid authentication gets denied access
 	t.Run("Invalid authentication gets denied access", func(t *testing.T) {
 		tc.testInvalidAuthentication(t, routeURL)
+	})
+
+	// Test 4: POST method is supported for complex queries
+	t.Run("POST method works for valid users", func(t *testing.T) {
+		tc.testPostMethodAccess(t, routeURL, dsci.Spec.Monitoring.Namespace)
 	})
 }
 
@@ -1602,8 +1640,8 @@ func (tc *MonitoringTestCtx) createDirectServiceAccountBinding(t *testing.T, ser
 	t.Logf("Created ClusterRoleBinding '%s' binding ServiceAccount %s/%s to ClusterRole data-science-metrics-admin",
 		bindingName, namespace, serviceAccountName)
 
-	// Wait for RBAC to propagate
-	time.Sleep(5 * time.Second)
+	// Wait for RBAC to propagate by polling SubjectAccessReview
+	tc.waitForRBACPropagation(t, serviceAccountName, namespace)
 }
 
 // cleanupTestServiceAccount removes the test ServiceAccount and its ClusterRoleBinding.
@@ -1651,6 +1689,12 @@ func (tc *MonitoringTestCtx) getServiceAccountToken(t *testing.T, serviceAccount
 // testMetricsAccess tests access to the metrics endpoint with the given token.
 func (tc *MonitoringTestCtx) testMetricsAccess(t *testing.T, routeURL, token, namespace string, expectSuccess bool, errorMsg string) {
 	t.Helper()
+	tc.testMetricsAccessWithMethod(t, routeURL, token, namespace, http.MethodGet, expectSuccess, errorMsg)
+}
+
+// testMetricsAccessWithMethod tests access to the metrics endpoint with a specific HTTP method.
+func (tc *MonitoringTestCtx) testMetricsAccessWithMethod(t *testing.T, routeURL, token, namespace, method string, expectSuccess bool, errorMsg string) {
+	t.Helper()
 
 	// Create HTTP client with custom transport to skip TLS verification for tests
 	tr := &http.Transport{
@@ -1658,14 +1702,14 @@ func (tc *MonitoringTestCtx) testMetricsAccess(t *testing.T, routeURL, token, na
 	}
 	client := &http.Client{Transport: tr}
 	requestURL := fmt.Sprintf("%s/api/v1/query?query=up&namespace=%s", routeURL, namespace)
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, requestURL, nil)
+	req, err := http.NewRequestWithContext(t.Context(), method, requestURL, nil)
 	require.NoError(t, err, "Failed to create HTTP request")
 
 	if token != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	}
 
-	t.Logf("Making metrics request: URL=%s, Namespace=%s, HasToken=%v", requestURL, namespace, token != "")
+	t.Logf("Making metrics request: Method=%s, URL=%s, Namespace=%s, HasToken=%v", method, requestURL, namespace, token != "")
 
 	// Make the request
 	resp, err := client.Do(req)
@@ -1683,8 +1727,70 @@ func (tc *MonitoringTestCtx) testMetricsAccess(t *testing.T, routeURL, token, na
 		tc.g.Expect(resp.StatusCode).To(Or(Equal(http.StatusUnauthorized), Equal(http.StatusForbidden)), errorMsg+": Expected authentication/authorization failure status code")
 	}
 
-	t.Logf("Metrics access test completed: URL=%s, Token=%s, ExpectSuccess=%t, StatusCode=%d",
-		requestURL, token[:min(10, len(token))]+"...", expectSuccess, resp.StatusCode)
+	t.Logf("Metrics access test completed: Method=%s, URL=%s, Token=%s, ExpectSuccess=%t, StatusCode=%d",
+		method, requestURL, token[:min(10, len(token))]+"...", expectSuccess, resp.StatusCode)
+}
+
+// testPostMethodAccess tests that POST requests work for authorized users (used for complex queries).
+func (tc *MonitoringTestCtx) testPostMethodAccess(t *testing.T, routeURL, namespace string) {
+	t.Helper()
+
+	testSA := tc.createTestServiceAccount(t, "test-metrics-post", namespace)
+	tc.createDirectServiceAccountBinding(t, testSA.Name, namespace)
+
+	token := tc.getServiceAccountToken(t, testSA.Name, namespace)
+
+	// Test that POST method works (Prometheus uses POST for complex queries)
+	tc.testMetricsAccessWithMethod(t, routeURL, token, namespace, http.MethodPost, true, "Valid user should be able to use POST method for complex queries")
+
+	tc.cleanupTestServiceAccount(t, testSA.Name, namespace)
+}
+
+// waitForRBACPropagation polls SubjectAccessReview until the RBAC binding propagates.
+func (tc *MonitoringTestCtx) waitForRBACPropagation(t *testing.T, serviceAccountName, namespace string) {
+	t.Helper()
+
+	ctx := tc.Context()
+	user := fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccountName)
+
+	// Poll for metrics.k8s.io/pods get permission
+	tc.g.Eventually(func(g Gomega) {
+		sar := &authorizationv1.SubjectAccessReview{
+			Spec: authorizationv1.SubjectAccessReviewSpec{
+				User: user,
+				ResourceAttributes: &authorizationv1.ResourceAttributes{
+					Namespace: namespace,
+					Verb:      "get",
+					Group:     "metrics.k8s.io",
+					Resource:  "pods",
+				},
+			},
+		}
+
+		err := tc.Client().Create(ctx, sar)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to create SubjectAccessReview")
+		g.Expect(sar.Status.Allowed).To(BeTrue(), "RBAC should propagate: ServiceAccount should have metrics.k8s.io/pods get permission. Reason: %s", sar.Status.Reason)
+	}).WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(Succeed())
+
+	tc.g.Eventually(func(g Gomega) {
+		sar := &authorizationv1.SubjectAccessReview{
+			Spec: authorizationv1.SubjectAccessReviewSpec{
+				User: user,
+				ResourceAttributes: &authorizationv1.ResourceAttributes{
+					Namespace: namespace,
+					Verb:      "create",
+					Group:     "metrics.k8s.io",
+					Resource:  "pods",
+				},
+			},
+		}
+
+		err := tc.Client().Create(ctx, sar)
+		g.Expect(err).NotTo(HaveOccurred(), "Failed to create SubjectAccessReview")
+		g.Expect(sar.Status.Allowed).To(BeTrue(), "RBAC should propagate: ServiceAccount should have metrics.k8s.io/pods create permission. Reason: %s", sar.Status.Reason)
+	}).WithTimeout(30 * time.Second).WithPolling(1 * time.Second).Should(Succeed())
+
+	t.Logf("RBAC propagated successfully for ServiceAccount %s/%s", namespace, serviceAccountName)
 }
 
 // verifyServiceAccountPermissions uses SubjectAccessReview to verify the service account has the required permissions.
@@ -1695,12 +1801,10 @@ func (tc *MonitoringTestCtx) verifyServiceAccountPermissions(t *testing.T, servi
 		Spec: authorizationv1.SubjectAccessReviewSpec{
 			User: fmt.Sprintf("system:serviceaccount:%s:%s", namespace, serviceAccountName),
 			ResourceAttributes: &authorizationv1.ResourceAttributes{
-				Namespace:   namespace,
-				Verb:        "get",
-				Group:       "",
-				Resource:    "services",
-				Subresource: "unsafeproxy",
-				Name:        "data-science-monitoringstack-prometheus",
+				Namespace: namespace,
+				Verb:      "get",
+				Group:     "metrics.k8s.io",
+				Resource:  "pods",
 			},
 		},
 	}
@@ -1713,13 +1817,13 @@ func (tc *MonitoringTestCtx) verifyServiceAccountPermissions(t *testing.T, servi
 		sar.Status.Allowed, sar.Status.Reason, sar.Status.EvaluationError)
 
 	if !sar.Status.Allowed {
-		t.Logf("WARNING: SubjectAccessReview shows service account does NOT have permission to access services/unsafeproxy")
+		t.Logf("WARNING: SubjectAccessReview shows service account does NOT have permission to access metrics.k8s.io/pods")
 		t.Logf("This explains the 403 error. Checking RBAC setup...")
 		t.Logf("Reason: %s", sar.Status.Reason)
 		if sar.Status.EvaluationError != "" {
 			t.Logf("Evaluation Error: %s", sar.Status.EvaluationError)
 		}
 	} else {
-		t.Logf("SubjectAccessReview confirms service account HAS permission to access services/unsafeproxy")
+		t.Logf("SubjectAccessReview confirms service account HAS permission to access metrics.k8s.io/pods")
 	}
 }

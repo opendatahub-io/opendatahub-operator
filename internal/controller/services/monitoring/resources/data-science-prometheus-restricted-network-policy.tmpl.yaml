@@ -2,15 +2,10 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: data-science-prometheus-restricted-ingress
+  name: data-science-prometheus-proxy-ingress
   namespace: {{.Namespace}}
   labels:
     platform.opendatahub.io/part-of: monitoring
-  ownerReferences:
-    - apiVersion: {{.Component.APIVersion}}
-      kind: {{.Component.Kind}}
-      name: {{.Component.Name}}
-      uid: {{.Component.UID}}
 spec:
   podSelector:
     matchLabels:

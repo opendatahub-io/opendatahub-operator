@@ -7,11 +7,6 @@ metadata:
   labels:
     app: data-science-prometheus-restricted
     platform.opendatahub.io/part-of: monitoring
-  ownerReferences:
-  - apiVersion: {{.Component.APIVersion}}
-    kind: {{.Component.Kind}}
-    name: {{.Component.Name}}
-    uid: {{.Component.UID}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -19,13 +14,6 @@ metadata:
   name: data-science-prometheus-restricted
   labels:
     platform.opendatahub.io/part-of: monitoring
-  {{- if .DSCI }}
-  ownerReferences:
-  - apiVersion: {{.DSCI.APIVersion}}
-    kind: {{.DSCI.Kind}}
-    name: {{.DSCI.Name}}
-    uid: {{.DSCI.UID}}
-  {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -41,13 +29,6 @@ metadata:
   name: data-science-prometheus-restricted-auth-delegator
   labels:
     platform.opendatahub.io/part-of: monitoring
-  {{- if .DSCI }}
-  ownerReferences:
-  - apiVersion: {{.DSCI.APIVersion}}
-    kind: {{.DSCI.Kind}}
-    name: {{.DSCI.Name}}
-    uid: {{.DSCI.UID}}
-  {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -65,11 +46,6 @@ metadata:
   labels:
     app: data-science-prometheus-restricted
     platform.opendatahub.io/part-of: monitoring
-  ownerReferences:
-  - apiVersion: {{.Component.APIVersion}}
-    kind: {{.Component.Kind}}
-    name: {{.Component.Name}}
-    uid: {{.Component.UID}}
 data:
   kube-rbac-proxy.yaml: |
     authorization:
@@ -77,16 +53,9 @@ data:
         byQueryParameter:
           name: "namespace"
       resourceAttributes:
-        group: ""
-        resource: services
-        subresource: proxy
+        apiGroup: metrics.k8s.io
+        resource: pods
         namespace: "{{ "{{ .Value }}" }}"
-        name: data-science-monitoringstack-prometheus
-        verb: get
-    upstreams:
-      - upstream: http://127.0.0.1:9091/
-        path: /
-        rewriteTarget: /
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -96,11 +65,6 @@ metadata:
   labels:
     app: data-science-prometheus-restricted
     platform.opendatahub.io/part-of: monitoring
-  ownerReferences:
-  - apiVersion: {{.Component.APIVersion}}
-    kind: {{.Component.Kind}}
-    name: {{.Component.Name}}
-    uid: {{.Component.UID}}
 spec:
   replicas: 1
   selector:
@@ -214,11 +178,6 @@ metadata:
   labels:
     app: data-science-prometheus-restricted
     platform.opendatahub.io/part-of: monitoring
-  ownerReferences:
-  - apiVersion: {{.Component.APIVersion}}
-    kind: {{.Component.Kind}}
-    name: {{.Component.Name}}
-    uid: {{.Component.UID}}
   annotations:
     service.beta.openshift.io/serving-cert-secret-name: data-science-prometheus-restricted-tls
 spec:

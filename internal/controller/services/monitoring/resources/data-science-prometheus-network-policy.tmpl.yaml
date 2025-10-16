@@ -2,15 +2,10 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: data-science-prometheus-secure-access
+  name: data-science-prometheus-instance-ingress
   namespace: {{.Namespace}}
   labels:
     platform.opendatahub.io/part-of: monitoring
-  ownerReferences:
-    - apiVersion: {{.Component.APIVersion}}
-      kind: {{.Component.Kind}}
-      name: {{.Component.Name}}
-      uid: {{.Component.UID}}
 spec:
   podSelector:
     matchLabels:
@@ -23,6 +18,20 @@ spec:
         - podSelector:
             matchLabels:
               app: data-science-prometheus-restricted
+      ports:
+        - protocol: TCP
+          port: 9090
+    # Allow access from OpenShift cluster monitoring Prometheus for federation.
+    # This enables the cluster-level Prometheus in openshift-monitoring to scrape/federate
+    # metrics from this data-science Prometheus instance, providing cluster admins with
+    # visibility into data science workload metrics at the cluster monitoring level.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
       ports:
         - protocol: TCP
           port: 9090
