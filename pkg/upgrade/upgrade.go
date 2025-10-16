@@ -50,14 +50,16 @@ type ResourceSpec struct {
 }
 
 const (
-	defaultMinMemory              = "1Mi"
-	defaultMinCpu                 = "1"
-	odhDashboardConfigPath        = "/dashboard/rhoai/shared/odhdashboardconfig/odhdashboardconfig.yaml"
-	serving                       = "serving"
-	notebooks                     = "notebooks"
-	acceleratorNameAnnotation     = "opendatahub.io/accelerator-name"
-	lastSizeSelectionAnnotation   = "notebooks.opendatahub.io/last-size-selection"
-	hardwareProfileNameAnnotation = "opendatahub.io/hardware-profile-name"
+	defaultMinMemory                   = "1Mi"
+	defaultMinCpu                      = "1"
+	odhDashboardConfigPath             = "/dashboard/rhoai/shared/odhdashboardconfig/odhdashboardconfig.yaml"
+	serving                            = "serving"
+	notebooks                          = "notebooks"
+	acceleratorNameAnnotation          = "opendatahub.io/accelerator-name"
+	lastSizeSelectionAnnotation        = "notebooks.opendatahub.io/last-size-selection"
+	hardwareProfileNameAnnotation      = "opendatahub.io/hardware-profile-name"
+	hardwareProfileNamespaceAnnotation = "opendatahub.io/hardware-profile-namespace"
+	containerSizeHWPPrefix             = "containersize-"
 )
 
 var defaultResourceLimits = map[string]string{
@@ -276,10 +278,9 @@ func CleanupExistingResource(ctx context.Context,
 	// cleanup deprecated kueue ValidatingAdmissionPolicyBinding
 	multiErr = multierror.Append(multiErr, cleanupDeprecatedKueueVAPB(ctx, cli))
 
-	// HardwareProfile migration as described in RHOAIENG-33158
+	// HardwareProfile migration as described in RHOAIENG-33158 and RHOAIENG-33159
 	// This includes creating HardwareProfile resources and updating annotations on Notebooks and InferenceServices
 	if cluster.GetRelease().Version.Major == 3 && oldReleaseVersion.Version.Major == 2 {
-		// 1. Create HardwareProfile resources
 		multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, d.Spec.ApplicationsNamespace))
 	}
 
@@ -690,7 +691,7 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 	}
 
 	// 1. Create 2 HardwareProfiles for each AcceleratorProfile (notebooks and serving)
-	multiErr = multierror.Append(multiErr, MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, applicationNS, odhConfig))
+	multiErr = multierror.Append(multiErr, MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, odhConfig))
 
 	// 2. Create 1 HardwareProfile for each container size (notebook and model server sizes)
 	multiErr = multierror.Append(multiErr, MigrateContainerSizesToHardwareProfiles(ctx, cli, applicationNS, odhConfig))
@@ -698,8 +699,8 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 	// 3. Attach HardwareProfile annotations to existing Notebooks
 	multiErr = multierror.Append(multiErr, AttachHardwareProfileToNotebooks(ctx, cli, applicationNS, odhConfig))
 
-	// 4. Attach HardwareProfile annotations to existing InferenceServices but create custom-serving first.
-	multiErr = multierror.Append(multiErr, CreateCustomServingHardwareProfile(ctx, cli, applicationNS, odhConfig))
+	// 4. Attach HardwareProfile annotations to existing InferenceServices but create custom-serving HWP first.
+	multiErr = multierror.Append(multiErr, CreateCustomServingHardwareProfile(ctx, cli, applicationNS))
 	multiErr = multierror.Append(multiErr, AttachHardwareProfileToInferenceServices(ctx, cli, applicationNS, odhConfig))
 
 	return multiErr.ErrorOrNil()
@@ -707,7 +708,7 @@ func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, appl
 
 // MigrateAcceleratorProfilesToHardwareProfiles migrates AcceleratorProfiles to HardwareProfiles
 // as described in RHOAIENG-33158. This creates 2 HardwareProfiles for each AP (notebooks and serving).
-func MigrateAcceleratorProfilesToHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string, odhConfig *unstructured.Unstructured) error {
+func MigrateAcceleratorProfilesToHardwareProfiles(ctx context.Context, cli client.Client, odhConfig *unstructured.Unstructured) error {
 	log := logf.FromContext(ctx)
 
 	apList, err := getAcceleratorProfiles(ctx, cli)
@@ -800,11 +801,11 @@ func MigrateContainerSizesToHardwareProfiles(ctx context.Context, cli client.Cli
 
 // AttachHardwareProfileToNotebooks migrates AcceleratorProfile and container size annotations
 // on Notebooks to HardwareProfile annotations as described in RHOAIENG-33158.
-func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, namespace string, odhConfig *unstructured.Unstructured) error {
+func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, applicationNS string, odhConfig *unstructured.Unstructured) error {
 	log := logf.FromContext(ctx)
 	var multiErr *multierror.Error
 
-	notebooks, err := getNotebooks(ctx, cli, namespace)
+	notebooks, err := getNotebooks(ctx, cli)
 	if err != nil {
 		return fmt.Errorf("failed to get notebooks: %w", err)
 	}
@@ -831,7 +832,7 @@ func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, na
 			// Convert to lowercase and replace spaces with dashes to comply with the hardwareprofile CRD validation
 			hwpName := fmt.Sprintf("%s-notebooks", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
 
-			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName); err != nil {
+			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName, applicationNS); err != nil {
 				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for notebook %s: %w", notebook.GetName(), err))
 				continue
 			}
@@ -842,8 +843,8 @@ func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, na
 		// Handle container size annotation migration
 		// If size doesn't exist in OdhDashboardConfig, leave annotation as-is (per requirements)
 		if sizeSelection := getAnnotation(notebook, lastSizeSelectionAnnotation); sizeSelection != "" && containerSizeExists(containerSizes, sizeSelection) {
-			hwpName := fmt.Sprintf("containersize-%s-notebooks", strings.ReplaceAll(strings.ToLower(sizeSelection), " ", "-"))
-			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName); err != nil {
+			hwpName := fmt.Sprintf("%s%s-notebooks", containerSizeHWPPrefix, strings.ReplaceAll(strings.ToLower(sizeSelection), " ", "-"))
+			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName, applicationNS); err != nil {
 				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for notebook %s: %w", notebook.GetName(), err))
 				continue
 			}
@@ -854,7 +855,7 @@ func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, na
 	return multiErr.ErrorOrNil()
 }
 
-func CreateCustomServingHardwareProfile(ctx context.Context, cli client.Client, namespace string, odhConfig *unstructured.Unstructured) error {
+func CreateCustomServingHardwareProfile(ctx context.Context, cli client.Client, namespace string) error {
 	log := logf.FromContext(ctx)
 	// Check if custom-serving HardwareProfile CR already exists
 	_, customServingError := cluster.GetHardwareProfile(ctx, cli, "custom-serving", namespace)
@@ -912,11 +913,11 @@ func CreateCustomServingHardwareProfile(ctx context.Context, cli client.Client, 
 
 // AttachHardwareProfileToInferenceServices migrates AcceleratorProfile annotations from ServingRuntimes
 // and matches container sizes on InferenceServices to HardwareProfile annotations as described in RHOAIENG-33158.
-func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Client, namespace string, odhConfig *unstructured.Unstructured) error {
+func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Client, applicationNamespace string, odhConfig *unstructured.Unstructured) error {
 	log := logf.FromContext(ctx)
 	var multiErr *multierror.Error
 
-	inferenceServices, err := getInferenceServices(ctx, cli, namespace)
+	inferenceServices, err := getInferenceServices(ctx, cli)
 	if err != nil {
 		return fmt.Errorf("failed to get InferenceServices: %w", err)
 	}
@@ -943,7 +944,7 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 		if err == nil {
 			if apName := getAnnotation(servingRuntime, acceleratorNameAnnotation); apName != "" {
 				hwpName := fmt.Sprintf("%s-serving", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
-				if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName); err != nil {
+				if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
 					multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
 					continue
 				}
@@ -958,7 +959,7 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 		if err != nil {
 			// No resources found, use custom-serving
 			hwpName := "custom-serving"
-			if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName); err != nil {
+			if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
 				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
 			} else {
 				log.Info("Set custom-serving HardwareProfile annotation for InferenceService (no resources found)", "isvc", isvc.GetName(), "hwp", hwpName)
@@ -971,14 +972,14 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 
 		var hwpName string
 		if matchedSize != "" {
-			hwpName = fmt.Sprintf("containersize-%s-serving", strings.ReplaceAll(strings.ToLower(matchedSize), " ", "-"))
+			hwpName = fmt.Sprintf("%s%s-serving", containerSizeHWPPrefix, strings.ReplaceAll(strings.ToLower(matchedSize), " ", "-"))
 			log.Info("Matched container size to HardwareProfile annotation for InferenceService", "isvc", isvc.GetName(), "size", matchedSize, "hwp", hwpName)
 		} else {
 			hwpName = "custom-serving"
 			log.Info("Set custom-serving HardwareProfile annotation for InferenceService (no size match)", "isvc", isvc.GetName(), "hwp", hwpName)
 		}
 
-		if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName); err != nil {
+		if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
 		}
 	}

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/stretchr/testify/assert/yaml"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -22,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/yaml"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -495,7 +495,7 @@ func generateHardwareProfileFromContainerSize(ctx context.Context, size Containe
 
 	// Create HWP name
 	// Convert size name to lowercase and replace spaces with dashes to comply with the hardwareprofile CRD validation
-	hwpName := fmt.Sprintf("containersize-%s-%s", strings.ReplaceAll(strings.ToLower(size.Name), " ", "-"), profileType)
+	hwpName := fmt.Sprintf("%s%s-%s", containerSizeHWPPrefix, strings.ReplaceAll(strings.ToLower(size.Name), " ", "-"), profileType)
 	// Create annotations
 	annotations := map[string]string{
 		"opendatahub.io/dashboard-feature-visibility": GetFeatureVisibility(profileType),
@@ -564,11 +564,11 @@ func GetFeatureVisibility(profileType string) string {
 }
 
 // getNotebooks retrieves all Notebook resources in the given namespace.
-func getNotebooks(ctx context.Context, cli client.Client, namespace string) ([]*unstructured.Unstructured, error) {
+func getNotebooks(ctx context.Context, cli client.Client) ([]*unstructured.Unstructured, error) {
 	notebookList := &unstructured.UnstructuredList{}
 	notebookList.SetGroupVersionKind(gvk.Notebook)
 
-	err := cli.List(ctx, notebookList, client.InNamespace(namespace))
+	err := cli.List(ctx, notebookList)
 	if err != nil {
 		if meta.IsNoMatchError(err) {
 			return nil, nil
@@ -584,11 +584,11 @@ func getNotebooks(ctx context.Context, cli client.Client, namespace string) ([]*
 }
 
 // getInferenceServices retrieves all InferenceService resources in the given namespace.
-func getInferenceServices(ctx context.Context, cli client.Client, namespace string) ([]*unstructured.Unstructured, error) {
+func getInferenceServices(ctx context.Context, cli client.Client) ([]*unstructured.Unstructured, error) {
 	isvcList := &unstructured.UnstructuredList{}
 	isvcList.SetGroupVersionKind(gvk.InferenceServices)
 
-	err := cli.List(ctx, isvcList, client.InNamespace(namespace))
+	err := cli.List(ctx, isvcList)
 	if err != nil {
 		if meta.IsNoMatchError(err) {
 			return nil, nil
@@ -689,12 +689,17 @@ func hasHardwareProfileAnnotation(obj *unstructured.Unstructured) bool {
 }
 
 // setHardwareProfileAnnotation sets the HWP annotation on an object and updates it.
-func setHardwareProfileAnnotation(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, hwpName string) error {
+func setHardwareProfileAnnotation(ctx context.Context, cli client.Client, obj *unstructured.Unstructured, hwpName string, applicationNS string) error {
 	annotations := obj.GetAnnotations()
 	if annotations == nil {
 		annotations = make(map[string]string)
 	}
 	annotations[hardwareProfileNameAnnotation] = hwpName
+
+	// If hardwareprofile name starts with the containersize- prefix, also set the HWP namespace annotation to the application namespace
+	if strings.HasPrefix(hwpName, containerSizeHWPPrefix) {
+		annotations[hardwareProfileNamespaceAnnotation] = applicationNS
+	}
 	obj.SetAnnotations(annotations)
 
 	return cli.Update(ctx, obj)

@@ -153,7 +153,7 @@ func TestMigrateAcceleratorProfilesToHardwareProfiles(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, "test-namespace", odhConfig)
+		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, odhConfig)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Verify HardwareProfiles were created
@@ -183,7 +183,7 @@ func TestMigrateAcceleratorProfilesToHardwareProfiles(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, "test-namespace", odhConfig)
+		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, odhConfig)
 		g.Expect(err).ShouldNot(HaveOccurred())
 	})
 
@@ -196,7 +196,7 @@ func TestMigrateAcceleratorProfilesToHardwareProfiles(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, "test-namespace", odhConfig)
+		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, odhConfig)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Verify HardwareProfile has tolerations
@@ -219,7 +219,7 @@ func TestMigrateAcceleratorProfilesToHardwareProfiles(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, "test-namespace", odhConfig)
+		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, odhConfig)
 		g.Expect(err).Should(HaveOccurred())
 		g.Expect(err.Error()).To(ContainSubstring("failed to generate"))
 	})
