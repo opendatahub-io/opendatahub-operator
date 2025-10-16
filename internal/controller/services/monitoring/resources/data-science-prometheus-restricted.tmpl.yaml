@@ -155,14 +155,16 @@ spec:
                 - ALL
             readOnlyRootFilesystem: true
             runAsNonRoot: true
-        # prom-label-proxy for namespace filtering
         - name: prom-label-proxy
           image: {{.PromLabelProxyImage}}
           args:
             - --insecure-listen-address=127.0.0.1:9091
-            - --upstream=http://prometheus-operated.{{.Namespace}}.svc:9090
+            - --upstream=https://prometheus-operated.{{.Namespace}}.svc:9090
             - --label=namespace
             - --enable-label-apis
+          env:
+            - name: SSL_CERT_DIR
+              value: /etc/prometheus-tls-ca:/etc/ssl/certs:/etc/pki/tls/certs
           resources:
             limits:
               cpu: 20m
@@ -171,6 +173,10 @@ spec:
               cpu: 10m
               memory: 20Mi
           terminationMessagePolicy: FallbackToLogsOnError
+          volumeMounts:
+            - name: prometheus-tls-ca
+              mountPath: /etc/prometheus-tls-ca
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -189,6 +195,12 @@ spec:
           configMap:
             name: prometheus-client-ca
             optional: true
+        - name: prometheus-tls-ca
+          configMap:
+            name: prometheus-web-tls-ca
+            items:
+              - key: service-ca.crt
+                path: ca.crt
       nodeSelector:
         kubernetes.io/os: linux
       securityContext:
