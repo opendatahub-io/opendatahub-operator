@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deleteresource"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -57,7 +57,7 @@ func TestDeleteResourcesAction(t *testing.T) {
 	err = action(ctx, &types.ReconciliationRequest{
 		Client:   cl,
 		Instance: nil,
-		DSCI:     &dsciv1.DSCInitialization{Spec: dsciv1.DSCInitializationSpec{ApplicationsNamespace: ns}},
+		DSCI:     &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	})
 

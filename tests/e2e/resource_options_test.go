@@ -4,12 +4,14 @@ import (
 	"time"
 
 	gTypes "github.com/onsi/gomega/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
 
 	. "github.com/onsi/gomega"
 )
@@ -194,6 +196,20 @@ func WithClientDeleteOptions(deleteOptions *client.DeleteOptions) ResourceOpts {
 	}
 }
 
+// WithDeletionPropagation sets the deletion propagation policy.
+func WithDeletionPropagation(policy metav1.DeletionPropagation) ResourceOpts {
+	return WithClientDeleteOptions(&client.DeleteOptions{
+		PropagationPolicy: &policy,
+	})
+}
+
+// WithForegroundDeletion ensures dependent resources are deleted before the parent resource.
+// Use this when you need to guarantee that all child resources (like Pods from a Deployment)
+// are fully cleaned up before the parent is removed, preventing orphaned resources.
+func WithForegroundDeletion() ResourceOpts {
+	return WithDeletionPropagation(metav1.DeletePropagationForeground)
+}
+
 // WithWaitForDeletion sets the WaitForDeletion flag.
 // When enabled, DeleteResource will wait until the resource is fully removed from the cluster.
 func WithWaitForDeletion(wait bool) ResourceOpts {
@@ -226,6 +242,12 @@ func WithMutateFunc(fn func(obj *unstructured.Unstructured) error) ResourceOpts 
 	return func(ro *ResourceOptions) {
 		ro.MutateFunc = fn
 	}
+}
+
+// WithTransforms is a convenience wrapper for WithMutateFunc(testf.TransformPipeline(...))
+// when you have multiple transform functions to apply.
+func WithTransforms(transforms ...testf.TransformFn) ResourceOpts {
+	return WithMutateFunc(testf.TransformPipeline(transforms...))
 }
 
 // WithCondition creates a ResourceOpts function that sets a custom Gomega matcher condition (e.g., Expect(Succeed())).

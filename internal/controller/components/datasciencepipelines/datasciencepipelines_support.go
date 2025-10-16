@@ -16,12 +16,19 @@ const (
 	ArgoWorkflowCRD = "workflows.argoproj.io"
 	ComponentName   = componentApi.DataSciencePipelinesComponentName
 
-	ReadyConditionType = componentApi.DataSciencePipelinesKind + status.ReadySuffix
+	// ReadyConditionType is the condition type for AIPipelines in v2 (storage version).
+	// The conversion webhook will translate this to DataSciencePipelinesReady for v1 users.
+	ReadyConditionType = componentApi.AIPipelinesKind + status.ReadySuffix
 
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
-	LegacyComponentName               = "data-science-pipelines-operator"
+	LegacyComponentName = "data-science-pipelines-operator"
+
+	// InstalledComponentName is the name used for tracking installation status in DSC.
+	// This reflects the new component name (aipipelines) for status reporting.
+	InstalledComponentName = "aipipelines"
+
 	platformVersionParamsKey          = "PLATFORMVERSION"
 	fipsEnabledParamsKey              = "FIPSENABLED"
 	argoWorkflowsControllersParamsKey = "ARGOWORKFLOWSCONTROLLERS"
@@ -49,6 +56,7 @@ var (
 		"IMAGES_OAUTHPROXY":              "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
 		"IMAGES_TOOLBOX":                 "RELATED_IMAGE_DSP_TOOLBOX_IMAGE",
 		"IMAGES_RHELAI":                  "RELATED_IMAGE_DSP_INSTRUCTLAB_NVIDIA_IMAGE",
+		"kube-rbac-proxy":                "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
 
 	overlaysSourcePaths = map[common.Platform]string{

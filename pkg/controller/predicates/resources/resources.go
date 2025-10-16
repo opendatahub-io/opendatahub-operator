@@ -10,11 +10,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -91,11 +88,11 @@ var DSCDeletionPredicate = predicate.Funcs{
 
 var DSCComponentUpdatePredicate = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldDSC, ok := e.ObjectOld.(*dscv1.DataScienceCluster)
+		oldDSC, ok := e.ObjectOld.(*dscv2.DataScienceCluster)
 		if !ok {
 			return false
 		}
-		newDSC, ok := e.ObjectNew.(*dscv1.DataScienceCluster)
+		newDSC, ok := e.ObjectNew.(*dscv2.DataScienceCluster)
 		if !ok {
 			return false
 		}
@@ -127,11 +124,11 @@ var DSCComponentUpdatePredicate = predicate.Funcs{
 
 var DSCIReadiness = predicate.Funcs{
 	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldObj, ok := e.ObjectOld.(*dsciv1.DSCInitialization)
+		oldObj, ok := e.ObjectOld.(*dsciv2.DSCInitialization)
 		if !ok {
 			return false
 		}
-		newObj, ok := e.ObjectNew.(*dsciv1.DSCInitialization)
+		newObj, ok := e.ObjectNew.(*dsciv2.DSCInitialization)
 		if !ok {
 			return false
 		}
@@ -196,79 +193,4 @@ func CreatedOrUpdatedOrDeletedNamePrefixed(namePrefix string) predicate.Predicat
 			return strings.HasPrefix(e.Object.GetName(), namePrefix)
 		},
 	}
-}
-
-var DSCIServiceMeshCondition = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldObj, ok := e.ObjectOld.(*dsciv1.DSCInitialization)
-		if !ok {
-			return false
-		}
-		newObj, ok := e.ObjectNew.(*dsciv1.DSCInitialization)
-		if !ok {
-			return false
-		}
-
-		oldMeshCondition := conditions.FindStatusCondition(&oldObj.Status, status.CapabilityServiceMesh)
-		newMeshCondition := conditions.FindStatusCondition(&newObj.Status, status.CapabilityServiceMesh)
-
-		if oldMeshCondition == nil || newMeshCondition == nil {
-			return oldMeshCondition != newMeshCondition
-		}
-
-		return oldMeshCondition.Status != newMeshCondition.Status
-	},
-	CreateFunc: func(e event.CreateEvent) bool {
-		return false
-	},
-	DeleteFunc: func(e event.DeleteEvent) bool {
-		return false
-	},
-	GenericFunc: func(e event.GenericEvent) bool {
-		return false
-	},
-}
-
-var ServiceMeshStatusCondition = predicate.Funcs{
-	UpdateFunc: func(e event.UpdateEvent) bool {
-		oldObj, ok := e.ObjectOld.(common.PlatformObject)
-		if !ok {
-			return false
-		}
-		newObj, ok := e.ObjectNew.(common.PlatformObject)
-		if !ok {
-			return false
-		}
-
-		oldMeshCondition := conditions.FindStatusCondition(oldObj.GetStatus(), status.CapabilityServiceMesh)
-		newMeshCondition := conditions.FindStatusCondition(newObj.GetStatus(), status.CapabilityServiceMesh)
-		oldAuthCondition := conditions.FindStatusCondition(oldObj.GetStatus(), status.CapabilityServiceMeshAuthorization)
-		newAuthCondition := conditions.FindStatusCondition(newObj.GetStatus(), status.CapabilityServiceMeshAuthorization)
-
-		meshConditionChanged := false
-		authConditionChanged := false
-
-		if oldMeshCondition == nil || newMeshCondition == nil {
-			meshConditionChanged = oldMeshCondition != newMeshCondition
-		} else {
-			meshConditionChanged = oldMeshCondition.Status != newMeshCondition.Status
-		}
-
-		if oldAuthCondition == nil || newAuthCondition == nil {
-			authConditionChanged = oldAuthCondition != newAuthCondition
-		} else {
-			authConditionChanged = oldAuthCondition.Status != newAuthCondition.Status
-		}
-
-		return meshConditionChanged || authConditionChanged
-	},
-	CreateFunc: func(e event.CreateEvent) bool {
-		return false
-	},
-	DeleteFunc: func(e event.DeleteEvent) bool {
-		return false
-	},
-	GenericFunc: func(e event.GenericEvent) bool {
-		return false
-	},
 }

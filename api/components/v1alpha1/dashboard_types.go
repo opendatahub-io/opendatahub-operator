@@ -35,7 +35,6 @@ var _ common.PlatformObject = (*Dashboard)(nil)
 // DashboardCommonSpec spec defines the shared desired state of Dashboard
 type DashboardCommonSpec struct {
 	// dashboard spec exposed to DSC api
-	common.DevFlagsSpec `json:",inline"`
 	// dashboard spec exposed only to internal api
 }
 
@@ -72,10 +71,6 @@ type Dashboard struct {
 
 	Spec   DashboardSpec   `json:"spec,omitempty"`
 	Status DashboardStatus `json:"status,omitempty"`
-}
-
-func (c *Dashboard) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *Dashboard) GetStatus() *common.Status {

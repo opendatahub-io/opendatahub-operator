@@ -1,6 +1,7 @@
 package envt
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
 	"github.com/opendatahub-io/opendatahub-operator/v2/tests/envtestutil"
@@ -26,6 +28,9 @@ type OptionFn func(in *EnvT)
 
 // RegisterWebhooksFn is a function that registers webhooks with a manager.
 type RegisterWebhooksFn func(manager.Manager) error
+
+// RegisterControllersFn is a function that registers controllers with a manager.
+type RegisterControllersFn func(manager.Manager) error
 
 // createManager sets up and configures the controller-runtime manager.
 func (et *EnvT) createManager() error {
@@ -76,6 +81,12 @@ func (et *EnvT) createManager() error {
 			return fmt.Errorf("failed to register webhooks: %w", err)
 		}
 	}
+	// Register controllers
+	for _, reg := range et.registerControllers {
+		if err := reg(mgr); err != nil {
+			return fmt.Errorf("failed to register controllers: %w", err)
+		}
+	}
 
 	return nil
 }
@@ -113,6 +124,14 @@ func WithManager(opts ...manager.Options) OptionFn {
 func WithRegisterWebhooks(funcs ...RegisterWebhooksFn) OptionFn {
 	return func(in *EnvT) {
 		in.registerWebhooks = append(in.registerWebhooks, funcs...)
+	}
+}
+
+// WithRegisterControllers registers one or more controllers setup functions to be called on the manager.
+// Each function should register controllers with the provided manager.
+func WithRegisterControllers(funcs ...RegisterControllersFn) OptionFn {
+	return func(in *EnvT) {
+		in.registerControllers = append(in.registerControllers, funcs...)
 	}
 }
 
@@ -187,7 +206,7 @@ func New(opts ...OptionFn) (*EnvT, error) {
 	result.dynamicClient = dynamicCli
 
 	// Create the manager if requested or if webhooks are registered
-	needManager := result.withManager || len(result.registerWebhooks) > 0
+	needManager := result.withManager || len(result.registerWebhooks) > 0 || len(result.registerControllers) > 0
 	if needManager {
 		if err := result.createManager(); err != nil {
 			return nil, err
@@ -198,17 +217,18 @@ func New(opts ...OptionFn) (*EnvT, error) {
 }
 
 type EnvT struct {
-	root             string
-	withManager      bool
-	managerOpts      *manager.Options
-	registerWebhooks []RegisterWebhooksFn
-	s                *runtime.Scheme
-	Env              envtest.Environment
-	cfg              *rest.Config
-	cli              client.Client
-	discoveryClient  discovery.DiscoveryInterface
-	dynamicClient    dynamic.Interface
-	mgr              manager.Manager
+	root                string
+	withManager         bool
+	managerOpts         *manager.Options
+	registerWebhooks    []RegisterWebhooksFn
+	registerControllers []RegisterControllersFn
+	s                   *runtime.Scheme
+	Env                 envtest.Environment
+	cfg                 *rest.Config
+	cli                 client.Client
+	discoveryClient     discovery.DiscoveryInterface
+	dynamicClient       dynamic.Interface
+	mgr                 manager.Manager
 }
 
 // Scheme returns the runtime.Scheme used by the test environment.
@@ -270,28 +290,49 @@ func (et *EnvT) Manager() manager.Manager {
 // WaitForWebhookServer waits until the webhook server managed by this EnvT is ready by dialing the port using TLS.
 //
 // Parameters:
+//   - ctx: A non-nil context passed to the underlying Dialer
 //   - timeout: The maximum duration to wait for the server to become ready.
 //
 // Returns:
 //   - error: If the server is not ready within the timeout or a connection error occurs.
-func (et *EnvT) WaitForWebhookServer(timeout time.Duration) error {
+func (et *EnvT) WaitForWebhookServer(ctx context.Context, timeout time.Duration) error {
 	host := et.Env.WebhookInstallOptions.LocalServingHost
 	port := et.Env.WebhookInstallOptions.LocalServingPort
 	if host == "" || port == 0 {
 		return fmt.Errorf("webhook server host/port not set (host=%q, port=%d)", host, port)
 	}
+
 	addrPort := fmt.Sprintf("%s:%d", host, port)
-	dialer := &net.Dialer{Timeout: time.Second}
 	deadline := time.Now().Add(timeout)
+
 	for time.Now().Before(deadline) {
-		conn, err := tls.DialWithDialer(dialer, "tcp", addrPort, &tls.Config{
-			InsecureSkipVerify: true, // #nosec G402
-			MinVersion:         tls.VersionTLS12,
-		})
+		tlsDialer := &tls.Dialer{
+			Config: &tls.Config{
+				InsecureSkipVerify: true, // #nosec G402
+				MinVersion:         tls.VersionTLS12,
+			},
+			NetDialer: &net.Dialer{Timeout: time.Second},
+		}
+
+		conn, err := tlsDialer.DialContext(ctx, "tcp", addrPort)
 		if err == nil {
 			return conn.Close()
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	return fmt.Errorf("webhook server not ready after %s", timeout)
+}
+
+// BypassHandler wraps a handler and allows bypassing validation based on a custom function.
+type BypassHandler struct {
+	Delegate   admission.Handler
+	BypassFunc func(req admission.Request) bool
+}
+
+// Handle implements the admission.Handler interface for BypassHandler.
+func (h *BypassHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	if h.BypassFunc != nil && h.BypassFunc(req) {
+		return admission.Allowed("Bypass allowed for test resource")
+	}
+	return h.Delegate.Handle(ctx, req)
 }

@@ -27,16 +27,16 @@ const (
 	systemAuthenticatedGroup = "system:authenticated"
 
 	// Role names used for RBAC configuration.
-	adminGroupRoleName   = "admingroup-role"
-	allowedGroupRoleName = "allowedgroup-role"
+	adminGroupRoleName = "admingroup-role"
 
 	// RoleBinding names to bind roles to specific groups.
-	adminGroupRoleBindingName   = "admingroup-rolebinding"
-	allowedGroupRoleBindingName = "allowedgroup-rolebinding"
+	adminGroupRoleBindingName = "admingroup-rolebinding"
 
-	// ClusterRole and ClusterRoleBinding names for admin group access at cluster level.
-	adminGroupClusterRoleName        = "admingroupcluster-role"
-	adminGroupClusterRoleBindingName = "admingroupcluster-rolebinding"
+	// ClusterRole and ClusterRoleBinding names for group access at cluster level.
+	adminGroupClusterRoleName          = "admingroupcluster-role"
+	adminGroupClusterRoleBindingName   = "admingroupcluster-rolebinding"
+	allowedGroupClusterRoleName        = "allowedgroupcluster-role"
+	allowedGroupClusterRoleBindingName = "allowedgroupcluster-rolebinding"
 )
 
 type AuthControllerTestCtx struct {
@@ -97,22 +97,24 @@ func (tc *AuthControllerTestCtx) ValidateAuthSystemInitialization(t *testing.T) 
 	)
 
 	// 2. Validate RBAC infrastructure - Roles are created
-	roles := []string{adminGroupRoleName, allowedGroupRoleName}
+	roles := []string{adminGroupRoleName}
 	for _, roleName := range roles {
 		tc.validateRBACResource(gvk.Role, roleName)
 	}
 
 	// 3. Validate RBAC infrastructure - RoleBindings are created
-	roleBindings := []string{adminGroupRoleBindingName, allowedGroupRoleBindingName}
+	roleBindings := []string{adminGroupRoleBindingName}
 	for _, roleBinding := range roleBindings {
 		tc.validateRBACResource(gvk.RoleBinding, roleBinding)
 	}
 
 	// 4. Validate cluster-level RBAC infrastructure - ClusterRole is created
 	tc.validateRBACResource(gvk.ClusterRole, adminGroupClusterRoleName)
+	tc.validateRBACResource(gvk.ClusterRole, allowedGroupClusterRoleName)
 
 	// 5. Validate cluster-level RBAC infrastructure - ClusterRoleBinding is created
 	tc.validateRBACResource(gvk.ClusterRoleBinding, adminGroupClusterRoleBindingName)
+	tc.validateRBACResource(gvk.ClusterRoleBinding, allowedGroupClusterRoleBindingName)
 }
 
 // ValidateAddingGroups adds groups and validates.
@@ -123,7 +125,7 @@ func (tc *AuthControllerTestCtx) ValidateAddingGroups(t *testing.T) {
 	testAllowedGroup := "aTestAllowedGroup"
 
 	// Update the Auth CR with new admin and allowed groups.
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 		WithMutateFunc(
 			testf.Transform(
@@ -137,7 +139,7 @@ func (tc *AuthControllerTestCtx) ValidateAddingGroups(t *testing.T) {
 		WithCondition(jq.Match(`.subjects | map(.name) | index("%s") != null`, testAdminGroup)))
 	tc.validateRBACResource(gvk.ClusterRoleBinding, adminGroupClusterRoleBindingName,
 		WithCondition(jq.Match(`.subjects | map(.name) | index("%s") != null`, testAdminGroup)))
-	tc.validateRBACResource(gvk.RoleBinding, allowedGroupRoleBindingName,
+	tc.validateRBACResource(gvk.ClusterRoleBinding, allowedGroupClusterRoleBindingName,
 		WithCondition(jq.Match(`.subjects | map(.name) | index("%s") != null`, testAllowedGroup)))
 }
 
@@ -149,7 +151,7 @@ func (tc *AuthControllerTestCtx) ValidateRemovingGroups(t *testing.T) {
 	expectedGroup := tc.getExpectedAdminGroupForPlatform()
 
 	// Update the Auth CR to set only the expected admin group.
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.adminGroups = ["%s"]`, expectedGroup)),
 		WithCustomErrorMsg("Failed to create or update Auth resource '%s' with admin group '%s'", serviceApi.AuthInstanceName, expectedGroup),
@@ -205,7 +207,7 @@ func (tc *AuthControllerTestCtx) ValidateCELBlocksInvalidGroupsViaUpdate(t *test
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			tc.EventuallyResourceCreatedOrUpdated(
+			tc.EventuallyResourcePatched(
 				WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 				WithMutateFunc(testCase.transforms),
 				WithAcceptableErr(k8serr.IsInvalid, "IsInvalid"),
@@ -248,7 +250,7 @@ func (tc *AuthControllerTestCtx) ValidateCELAllowsValidGroups(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			tc.EventuallyResourceCreatedOrUpdated(
+			tc.EventuallyResourcePatched(
 				WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 				WithMutateFunc(testCase.transforms),
 				WithCustomErrorMsg(testCase.description),
@@ -268,7 +270,7 @@ func (tc *AuthControllerTestCtx) resetAuthToDefaults(t *testing.T) {
 	expectedAdminGroup := tc.getExpectedAdminGroupForPlatform()
 
 	// Reset Auth to default values (within-suite cleanup)
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.Auth, tc.AuthNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.adminGroups = ["%s"] | .spec.allowedGroups = ["%s"]`, expectedAdminGroup, systemAuthenticatedGroup)),
 		WithCustomErrorMsg("Failed to reset Auth CR to default state after CEL tests"),

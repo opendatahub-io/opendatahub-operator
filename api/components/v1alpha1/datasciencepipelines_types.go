@@ -27,6 +27,8 @@ const (
 	// value should match whats set in the XValidation below
 	DataSciencePipelinesInstanceName = "default-" + DataSciencePipelinesComponentName
 	DataSciencePipelinesKind         = "DataSciencePipelines"
+	// AIPipelinesKind is the user-facing name for DataSciencePipelines in v2
+	AIPipelinesKind = "AIPipelines"
 )
 
 // Check that the component implements common.PlatformObject.
@@ -70,7 +72,6 @@ type ArgoWorkflowsControllersSpec struct {
 }
 
 type DataSciencePipelinesCommonSpec struct {
-	common.DevFlagsSpec      `json:",inline"`
 	ArgoWorkflowsControllers *ArgoWorkflowsControllersSpec `json:"argoWorkflowsControllers,omitempty"`
 }
 
@@ -83,10 +84,6 @@ type DataSciencePipelinesCommonStatus struct {
 type DataSciencePipelinesStatus struct {
 	common.Status                    `json:",inline"`
 	DataSciencePipelinesCommonStatus `json:",inline"`
-}
-
-func (c *DataSciencePipelines) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *DataSciencePipelines) GetStatus() *common.Status {

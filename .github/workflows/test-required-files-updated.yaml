@@ -1,0 +1,36 @@
+name: Check config and readme updates
+on:
+  pull_request:
+jobs:
+  file-updates:
+    name: Ensure generated files are included
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{github.event.pull_request.head.ref}}
+          repository: ${{github.event.pull_request.head.repo.full_name}}
+      - name: Save the PR number for artifact upload
+        run: |
+          echo ${{ github.event.number }} > pr_number.txt
+      - name: Upload the PR number as artifact
+        id: artifact-upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr_number
+          path: ./pr_number.txt
+          retention-days: 1 # This will delete the generated artifacts every day.
+      - name: Generate files
+        run: make generate manifests api-docs
+      - name: Ensure generated files are up-to-date
+        id: check_generated_files
+        run : |
+          rm ./pr_number.txt # remove the pr_number.txt before checking "git status", to have correct assessment of the changed files.
+          if [[ -n $(git status -s) ]]
+          then
+            echo "Generated files have been missed in the PR"
+            git diff
+           exit 1
+          else
+            echo "No new files to commit"
+          fi

@@ -1,3 +1,4 @@
+// +kubebuilder:skip
 package dashboard
 
 import (
@@ -33,7 +34,8 @@ import (
 type DashboardHardwareProfile struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              DashboardHardwareProfileSpec `json:"spec"`
+
+	Spec DashboardHardwareProfileSpec `json:"spec"`
 }
 
 type DashboardHardwareProfileSpec struct {
@@ -48,37 +50,12 @@ type DashboardHardwareProfileSpec struct {
 type DashboardHardwareProfileList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []DashboardHardwareProfile `json:"items"`
+
+	Items []DashboardHardwareProfile `json:"items"`
 }
 
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = []odhtypes.ManifestInfo{defaultManifestInfo(rr.Release.Name)}
-
-	return nil
-}
-
-func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	dashboard, ok := rr.Instance.(*componentApi.Dashboard)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.Dashboard)", rr.Instance)
-	}
-
-	if dashboard.Spec.DevFlags == nil {
-		return nil
-	}
-	// Implement devflags support logic
-	// If dev flags are set, update default manifests path
-	if len(dashboard.Spec.DevFlags.Manifests) != 0 {
-		manifestConfig := dashboard.Spec.DevFlags.Manifests[0]
-		if err := odhdeploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
-			return err
-		}
-		if manifestConfig.SourcePath != "" {
-			rr.Manifests[0].Path = odhdeploy.DefaultManifestPath
-			rr.Manifests[0].ContextDir = ComponentName
-			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
-		}
-	}
 
 	return nil
 }
@@ -96,7 +73,7 @@ func customizeResources(_ context.Context, rr *odhtypes.ReconciliationRequest) e
 }
 
 func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name, &rr.DSCI.Spec)
+	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name)
 	if err != nil {
 		return errors.New("failed to set variable for url, section-title etc")
 	}
