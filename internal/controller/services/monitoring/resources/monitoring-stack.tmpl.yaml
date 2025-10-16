@@ -14,6 +14,16 @@ spec:
         requests:
           storage: {{.StorageSize}}
     replicas: {{.Replicas}}
+    webTLSConfig:
+      certificate:
+        name: prometheus-operated-tls
+        key: tls.crt
+      privateKey:
+        name: prometheus-operated-tls
+        key: tls.key
+      certificateAuthority:
+        name: prometheus-web-tls-ca
+        key: service-ca.crt
   resourceSelector: {}
   resources:
     limits:
