@@ -95,8 +95,6 @@ func (tc *DashboardTestCtx) ValidateCRDReinstated(t *testing.T) {
 	t.Helper()
 
 	crds := []CRD{
-		{Name: "acceleratorprofiles.dashboard.opendatahub.io", Version: ""}, // todo: remove this when CRD is not included
-		{Name: "hardwareprofiles.dashboard.opendatahub.io", Version: ""},    // todo: remove this when CRD is not included
 		{Name: "odhapplications.dashboard.opendatahub.io", Version: ""},
 		{Name: "odhdocuments.dashboard.opendatahub.io", Version: ""},
 	}
