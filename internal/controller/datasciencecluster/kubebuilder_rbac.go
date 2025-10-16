@@ -168,8 +168,8 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="console.openshift.io",resources=odhquickstarts,verbs=create;get;patch;list;delete;watch;update
 // +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhdocuments,verbs=create;get;patch;list;delete;watch;update
 // +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=odhapplications,verbs=create;get;patch;list;delete;watch;update
-// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=acceleratorprofiles,verbs=create;get;patch;list;delete;watch;update
-// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=hardwareprofiles,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=acceleratorprofiles,verbs=get;list;watch
+// +kubebuilder:rbac:groups="dashboard.opendatahub.io",resources=hardwareprofiles,verbs=get;list;watch
 
 // ModelRegistry
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelregistries,verbs=get;list;watch;create;update;patch;delete
