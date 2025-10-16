@@ -529,11 +529,19 @@ func TestCreateKubeAuthProxyService(t *testing.T) {
 	g.Expect(service.Annotations).To(Equal(expectedAnnotations))
 
 	// Verify port configuration
-	g.Expect(service.Spec.Ports).To(HaveLen(1))
-	port := service.Spec.Ports[0]
-	g.Expect(port.Name).To(Equal("https"))
-	g.Expect(port.Port).To(Equal(int32(AuthProxyHTTPSPort)))
-	g.Expect(port.TargetPort).To(Equal(intstr.FromInt(AuthProxyHTTPSPort)))
+	g.Expect(service.Spec.Ports).To(HaveLen(2))
+
+	// Verify HTTPS port
+	httpsPort := service.Spec.Ports[0]
+	g.Expect(httpsPort.Name).To(Equal("https"))
+	g.Expect(httpsPort.Port).To(Equal(int32(AuthProxyHTTPSPort)))
+	g.Expect(httpsPort.TargetPort).To(Equal(intstr.FromInt(AuthProxyHTTPSPort)))
+
+	// Verify metrics port
+	metricsPort := service.Spec.Ports[1]
+	g.Expect(metricsPort.Name).To(Equal("metrics"))
+	g.Expect(metricsPort.Port).To(Equal(int32(AuthProxyMetricsPort)))
+	g.Expect(metricsPort.TargetPort).To(Equal(intstr.FromInt(AuthProxyMetricsPort)))
 }
 
 // TestCreateOAuthCallbackRoute tests the OAuth callback route creation logic.
