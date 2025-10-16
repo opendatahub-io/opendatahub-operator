@@ -9,11 +9,6 @@ metadata:
     platform.opendatahub.io/part-of: monitoring
     app.kubernetes.io/name: prometheus
     app.kubernetes.io/instance: data-science-monitoringstack
-  ownerReferences:
-    - apiVersion: {{.Component.APIVersion}}
-      kind: {{.Component.Kind}}
-      name: {{.Component.Name}}
-      uid: {{.Component.UID}}
   annotations:
     monitoring.opendatahub.io/secure-proxy: "true"
     monitoring.opendatahub.io/secure-proxy-version: "v2"

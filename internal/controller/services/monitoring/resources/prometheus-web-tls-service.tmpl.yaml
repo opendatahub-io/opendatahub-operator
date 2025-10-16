@@ -6,11 +6,6 @@ metadata:
   namespace: {{.Namespace}}
   labels:
     platform.opendatahub.io/part-of: monitoring
-  ownerReferences:
-    - apiVersion: {{.Component.APIVersion}}
-      kind: {{.Component.Kind}}
-      name: {{.Component.Name}}
-      uid: {{.Component.UID}}
   annotations:
     service.beta.openshift.io/inject-cabundle: "true"
 ---

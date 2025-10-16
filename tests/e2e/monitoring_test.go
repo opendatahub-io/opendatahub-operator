@@ -1202,7 +1202,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRestrictedResourceConfiguration(t
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
-			withMetricsConfig(),
+			tc.withMetricsConfig(),
 		)),
 	)
 
@@ -1293,7 +1293,7 @@ func (tc *MonitoringTestCtx) ValidateMetricsAPIAuthenticationAndAuthorization(t 
 		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
 		WithMutateFunc(testf.TransformPipeline(
 			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
-			withMetricsConfig(),
+			tc.withMetricsConfig(),
 		)),
 	)
 
@@ -1338,6 +1338,11 @@ func (tc *MonitoringTestCtx) ValidateMetricsAPIAuthenticationAndAuthorization(t 
 	// Test 3: Invalid authentication gets denied access
 	t.Run("Invalid authentication gets denied access", func(t *testing.T) {
 		tc.testInvalidAuthentication(t, routeURL)
+	})
+
+	// Test 4: POST method is supported for complex queries
+	t.Run("POST method works for valid users", func(t *testing.T) {
+		tc.testPostMethodAccess(t, routeURL, dsci.Spec.Monitoring.Namespace)
 	})
 }
 
@@ -1507,6 +1512,12 @@ func (tc *MonitoringTestCtx) getServiceAccountToken(t *testing.T, serviceAccount
 // testMetricsAccess tests access to the metrics endpoint with the given token.
 func (tc *MonitoringTestCtx) testMetricsAccess(t *testing.T, routeURL, token, namespace string, expectSuccess bool, errorMsg string) {
 	t.Helper()
+	tc.testMetricsAccessWithMethod(t, routeURL, token, namespace, http.MethodGet, expectSuccess, errorMsg)
+}
+
+// testMetricsAccessWithMethod tests access to the metrics endpoint with a specific HTTP method.
+func (tc *MonitoringTestCtx) testMetricsAccessWithMethod(t *testing.T, routeURL, token, namespace, method string, expectSuccess bool, errorMsg string) {
+	t.Helper()
 
 	// Create HTTP client with custom transport to skip TLS verification for tests
 	tr := &http.Transport{
@@ -1514,14 +1525,14 @@ func (tc *MonitoringTestCtx) testMetricsAccess(t *testing.T, routeURL, token, na
 	}
 	client := &http.Client{Transport: tr}
 	requestURL := fmt.Sprintf("%s/api/v1/query?query=up&namespace=%s", routeURL, namespace)
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, requestURL, nil)
+	req, err := http.NewRequestWithContext(t.Context(), method, requestURL, nil)
 	require.NoError(t, err, "Failed to create HTTP request")
 
 	if token != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	}
 
-	t.Logf("Making metrics request: URL=%s, Namespace=%s, HasToken=%v", requestURL, namespace, token != "")
+	t.Logf("Making metrics request: Method=%s, URL=%s, Namespace=%s, HasToken=%v", method, requestURL, namespace, token != "")
 
 	// Make the request
 	resp, err := client.Do(req)
@@ -1539,8 +1550,23 @@ func (tc *MonitoringTestCtx) testMetricsAccess(t *testing.T, routeURL, token, na
 		tc.g.Expect(resp.StatusCode).To(Or(Equal(http.StatusUnauthorized), Equal(http.StatusForbidden)), errorMsg+": Expected authentication/authorization failure status code")
 	}
 
-	t.Logf("Metrics access test completed: URL=%s, Token=%s, ExpectSuccess=%t, StatusCode=%d",
-		requestURL, token[:min(10, len(token))]+"...", expectSuccess, resp.StatusCode)
+	t.Logf("Metrics access test completed: Method=%s, URL=%s, Token=%s, ExpectSuccess=%t, StatusCode=%d",
+		method, requestURL, token[:min(10, len(token))]+"...", expectSuccess, resp.StatusCode)
+}
+
+// testPostMethodAccess tests that POST requests work for authorized users (used for complex queries).
+func (tc *MonitoringTestCtx) testPostMethodAccess(t *testing.T, routeURL, namespace string) {
+	t.Helper()
+
+	testSA := tc.createTestServiceAccount(t, "test-metrics-post", namespace)
+	tc.createDirectServiceAccountBinding(t, testSA.Name, namespace)
+
+	token := tc.getServiceAccountToken(t, testSA.Name, namespace)
+
+	// Test that POST method works (Prometheus uses POST for complex queries)
+	tc.testMetricsAccessWithMethod(t, routeURL, token, namespace, http.MethodPost, true, "Valid user should be able to use POST method for complex queries")
+
+	tc.cleanupTestServiceAccount(t, testSA.Name, namespace)
 }
 
 // verifyServiceAccountPermissions uses SubjectAccessReview to verify the service account has the required permissions.

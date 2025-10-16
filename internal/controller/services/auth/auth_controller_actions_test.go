@@ -277,11 +277,22 @@ func TestManagePermissionsWithMetricsGroups(t *testing.T) {
 
 	// Create a fake client with proper scheme
 	scheme := runtime.NewScheme()
-	_ = rbacv1.AddToScheme(scheme)
-	_ = serviceApi.AddToScheme(scheme)
-	_ = configv1.AddToScheme(scheme)
-	_ = userv1.AddToScheme(scheme)
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	g.Expect(dsciv2.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(rbacv1.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(serviceApi.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(configv1.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(userv1.AddToScheme(scheme)).Should(Succeed())
+
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "default-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: "test-namespace",
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(dsci).Build()
 
 	auth := &serviceApi.Auth{
 		ObjectMeta: metav1.ObjectMeta{
@@ -296,13 +307,8 @@ func TestManagePermissionsWithMetricsGroups(t *testing.T) {
 
 	// Create reconciliation request
 	rr := &odhtypes.ReconciliationRequest{
-		Client:   fakeClient,
-		Instance: auth,
-		DSCI: &dsciv2.DSCInitialization{
-			Spec: dsciv2.DSCInitializationSpec{
-				ApplicationsNamespace: "test-namespace",
-			},
-		},
+		Client:    fakeClient,
+		Instance:  auth,
 		Resources: []unstructured.Unstructured{},
 	}
 
@@ -363,11 +369,22 @@ func TestManagePermissionsWithEmptyMetricsGroups(t *testing.T) {
 
 	// Create a fake client with proper scheme
 	scheme := runtime.NewScheme()
-	_ = rbacv1.AddToScheme(scheme)
-	_ = serviceApi.AddToScheme(scheme)
-	_ = configv1.AddToScheme(scheme)
-	_ = userv1.AddToScheme(scheme)
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	g.Expect(dsciv2.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(rbacv1.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(serviceApi.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(configv1.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(userv1.AddToScheme(scheme)).Should(Succeed())
+
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "default-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: "test-namespace",
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(dsci).Build()
 
 	auth := &serviceApi.Auth{
 		ObjectMeta: metav1.ObjectMeta{
@@ -382,13 +399,8 @@ func TestManagePermissionsWithEmptyMetricsGroups(t *testing.T) {
 
 	// Create reconciliation request
 	rr := &odhtypes.ReconciliationRequest{
-		Client:   fakeClient,
-		Instance: auth,
-		DSCI: &dsciv2.DSCInitialization{
-			Spec: dsciv2.DSCInitializationSpec{
-				ApplicationsNamespace: "test-namespace",
-			},
-		},
+		Client:    fakeClient,
+		Instance:  auth,
 		Resources: []unstructured.Unstructured{},
 	}
 

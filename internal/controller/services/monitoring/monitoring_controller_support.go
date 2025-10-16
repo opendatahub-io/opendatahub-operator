@@ -222,14 +222,14 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 func addImageURLs(rr *odhtypes.ReconciliationRequest, templateData map[string]any) {
 	templateData["KubeRBACProxyImage"] = getImageURL(
 		"RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
-		"gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0",
-		"registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9",
+		"quay.io/brancz/kube-rbac-proxy:v0.20.0",
+		"registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9:v4.17",
 		rr.Release.Name,
 	)
 	templateData["PromLabelProxyImage"] = getImageURL(
 		"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",
 		"quay.io/prometheuscommunity/prom-label-proxy:v0.8.0",
-		"registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9",
+		"registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9:v4.17",
 		rr.Release.Name,
 	)
 }
