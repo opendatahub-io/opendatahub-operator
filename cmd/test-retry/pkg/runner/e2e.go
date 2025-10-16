@@ -66,7 +66,7 @@ func (r *E2ETestRunner) Run() error {
 		}
 
 		// Run tests again, skipping the ones that passed
-		retrySummary, err := r.runE2ETests(r.buildSkipFilter(aggregateResult))
+		retrySummary, err := r.runE2ETests(r.buildSkipFilter(aggregateResult, lastTestResult))
 		if err != nil {
 			if r.opts.Config.Verbose {
 				fmt.Printf("Error in retry attempt %d: %v\n", attempt, err)
@@ -205,14 +205,22 @@ func isExitError(err error) bool {
 }
 
 // buildSkipFilter creates a regex pattern to skip all passed tests at their appropriate levels
-func (r *E2ETestRunner) buildSkipFilter(testResult *types.TestResult) string {
-	if len(testResult.PassedTest) == 0 {
+func (r *E2ETestRunner) buildSkipFilter(aggregateResult, lastTestResult *types.TestResult) string {
+	if lastTestResult == nil {
+		lastTestResult = &types.TestResult{}
+	}
+	if aggregateResult == nil {
+		aggregateResult = &types.TestResult{}
+	}
+	totalPassedTests := aggregateResult.PassedTest
+	lastFailedTests := lastTestResult.FailedTest
+	if len(totalPassedTests) == 0 {
 		return ""
 	}
 
 	// Extract normalized test levels for both passed and failed tests
 	passedLevels := make(map[string]bool)
-	for _, passedTest := range testResult.PassedTest {
+	for _, passedTest := range totalPassedTests {
 		if level, shouldSkip := r.extractTestLevel(passedTest.Name); shouldSkip {
 			passedLevels[level] = true
 		}
@@ -220,7 +228,7 @@ func (r *E2ETestRunner) buildSkipFilter(testResult *types.TestResult) string {
 
 	// Track which test groups have failures
 	failedGroups := make(map[string]bool)
-	for _, failedTest := range testResult.FailedTest {
+	for _, failedTest := range lastFailedTests {
 		if level, shouldSkip := r.extractTestLevel(failedTest.Name); shouldSkip {
 			failedGroups[level] = true
 		}
