@@ -15,15 +15,7 @@ spec:
       nim: {
         managementState: "Managed"
       },
-      serving: {
-        ingressGateway: {
-          certificate: {
-            type: OpenshiftDefaultIngress
-          }
-        },
-        name: "knative-serving",
-        managementState: "Managed"
-      }
+      rawDeploymentServiceConfig: "Headed",
     }
     kueue:
       managementState: "Managed"

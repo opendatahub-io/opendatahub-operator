@@ -42,7 +42,7 @@ type Components struct {
 	AIPipelines componentApi.DSCDataSciencePipelines `json:"aipipelines,omitempty"`
 
 	// Kserve component configuration.
-	// Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
+	// Only RawDeployment mode is supported.
 	Kserve componentApi.DSCKserve `json:"kserve,omitempty"`
 
 	// Kueue component configuration.

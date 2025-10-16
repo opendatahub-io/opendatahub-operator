@@ -126,12 +126,6 @@ spec:
       managementState: Managed
     kserve:
       managementState: Managed
-      serving:
-        ingressGateway:
-          certificate:
-            type: OpenshiftDefaultIngress
-        managementState: Managed
-        name: knative-serving
     modelregistry:
       managementState: Removed
       registriesNamespace: "rhoai-model-registries"
