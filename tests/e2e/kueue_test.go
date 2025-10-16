@@ -142,6 +142,9 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, tc.GVK.Kind, metav1.ConditionFalse),
 	}
 
+	// Create Kueue ConfigMap to verify default Kueue resource is created correctly
+	tc.createKueueConfigMap(t)
+
 	// Update the management state of the component in the DataScienceCluster.
 	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
@@ -164,12 +167,31 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 		WithCondition(And(conditionsUnmanagedReady...)),
 	)
 
+	// Validate that Kueue configuration is created with all expected frameworks
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
+		WithCondition(And(
+			jq.Match(`([
+				"AppWrapper", "BatchJob", "Deployment", "JobSet", "LeaderWorkerSet", "MPIJob",
+				"PaddleJob", "Pod", "PyTorchJob", "RayCluster", "RayJob", "StatefulSet", "TFJob",
+				"XGBoostJob"
+			] - .spec.config.integrations.frameworks) | length == 0`),
+		)),
+		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
+	)
+
 	// Default resources should be created
 	tc.ensureClusterAndLocalQueueExist(kueueTestManagedNamespace)
 
 	// Validate that default resource flavor is created
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ResourceFlavor, types.NamespacedName{Name: kueue.DefaultFlavorName}),
+	)
+
+	tc.DeleteResource(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{Name: kueue.KueueConfigMapName, Namespace: tc.AppsNamespace}),
+		WithIgnoreNotFound(true),
+		WithWaitForDeletion(true),
 	)
 }
 
@@ -614,6 +636,7 @@ func (tc *KueueTestCtx) ensureClusterAndLocalQueueExist(localQueueNamespaceName 
 			jq.Match(`.spec.resourceGroups | length >= 1`),
 		)),
 		WithCustomErrorMsg("ClusterQueue should exist with proper namespace selector and resource groups"),
+		WithEventuallyTimeout(tc.TestTimeouts.defaultEventuallyTimeout),
 	)
 
 	// Validate that LocalQueue exists for the managed namespace
@@ -644,4 +667,43 @@ func (tc *KueueTestCtx) ValidateKueueComponentDisabled(t *testing.T) {
 
 	// Ensure that the resources associated with the component do not exist
 	tc.EnsureResourcesGone(WithMinimalObject(tc.GVK, tc.NamespacedName))
+}
+
+func (tc *KueueTestCtx) createKueueConfigMap(t *testing.T) {
+	t.Helper()
+
+	kueueConfigMapYAML := `apiVersion: config.kueue.x-k8s.io/v1beta1
+kind: Configuration
+integrations:
+  frameworks:
+  - "batch/job"
+  - "kubeflow.org/mpijob"
+  - "ray.io/rayjob"
+  - "ray.io/raycluster"
+  - "jobset.x-k8s.io/jobset"
+  - "kubeflow.org/paddlejob"
+  - "kubeflow.org/pytorchjob"
+  - "kubeflow.org/tfjob"
+  - "kubeflow.org/xgboostjob"
+  - "workload.codeflare.dev/appwrapper"
+  - "pod"
+  - "deployment"
+  - "statefulset"
+  - "leaderworkerset.x-k8s.io/leaderworkerset"
+`
+
+	kueueConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      kueue.KueueConfigMapName,
+			Namespace: tc.AppsNamespace,
+		},
+		Data: map[string]string{
+			kueue.KueueConfigMapEntry: kueueConfigMapYAML,
+		},
+	}
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(kueueConfigMap),
+		WithCustomErrorMsg("Failed to create Kueue ConfigMap '%s'", kueue.KueueConfigMapName),
+	)
 }
