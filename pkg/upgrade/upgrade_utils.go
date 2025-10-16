@@ -683,8 +683,8 @@ func setHardwareProfileAnnotation(ctx context.Context, cli client.Client, obj *u
 	}
 	annotations[hardwareProfileNameAnnotation] = hwpName
 
-	// If hardwareprofile name starts with the containersize- prefix, also set the HWP namespace annotation to the application namespace
-	if strings.HasPrefix(hwpName, containerSizeHWPPrefix) {
+	// If hardwareprofile name starts with the containersize- prefix or is custom-serving, also set the HWP namespace annotation to the application namespace
+	if strings.HasPrefix(hwpName, containerSizeHWPPrefix) || (hwpName == "custom-serving") {
 		annotations[hardwareProfileNamespaceAnnotation] = namespace
 	}
 	obj.SetAnnotations(annotations)
