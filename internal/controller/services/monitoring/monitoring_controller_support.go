@@ -12,7 +12,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v3"
-	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -259,35 +258,6 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 	return templateData, nil
 }
 
-// isSingleNodeCluster determines if the cluster is a single-node cluster by counting the actual nodes.
-func isSingleNodeCluster(ctx context.Context, rr *odhtypes.ReconciliationRequest) bool {
-	nodeList := &corev1.NodeList{}
-	if err := rr.Client.List(ctx, nodeList); err != nil {
-		logf.FromContext(ctx).Info("could not list nodes, defaulting to multi-node behavior", "error", err)
-		return false
-	}
-
-	// Count only nodes that are ready and not marked for deletion
-	// We only need to know if there are more than 1 ready nodes, so we can break early
-	var readyNodeCount int
-	for _, node := range nodeList.Items {
-		if node.DeletionTimestamp == nil {
-			for _, condition := range node.Status.Conditions {
-				if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
-					readyNodeCount++
-					break
-				}
-			}
-		}
-		if readyNodeCount > 1 {
-			break
-		}
-	}
-
-	logf.FromContext(ctx).V(1).Info("detected cluster size", "totalNodes", len(nodeList.Items), "readyNodes", readyNodeCount)
-	return readyNodeCount <= 1
-}
-
 func addMonitoringCapability(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
 
@@ -436,7 +406,7 @@ func addReplicasData(ctx context.Context, rr *odhtypes.ReconciliationRequest, me
 	// - if metrics is configured (storage or resources) but no explicit replicas, use SNO-aware defaults
 	// - otherwise, rely on MonitoringStack CRD defaults
 	allowedByConfig := metrics.Storage != nil || metrics.Resources != nil
-	isSNO := isSingleNodeCluster(ctx, rr)
+	isSNO := cluster.IsSingleNodeCluster(ctx, rr.Client)
 
 	switch {
 	case metrics.Replicas != 0 && allowedByConfig:
