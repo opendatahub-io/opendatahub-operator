@@ -626,6 +626,18 @@ rules:
   - update
   - watch
 - apiGroups:
+  - kubeflow.org
+  resources:
+  - notebooks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - kueue.openshift.io
   resources:
   - kueues
