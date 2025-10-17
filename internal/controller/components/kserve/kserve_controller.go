@@ -91,7 +91,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 
 		// actions
 		WithAction(initialize).
-		WithAction(devFlags).
 		WithAction(releases.NewAction()).
 		WithAction(removeOwnershipFromUnmanagedResources).
 		WithAction(cleanUpTemplatedResources).

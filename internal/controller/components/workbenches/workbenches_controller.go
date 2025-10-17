@@ -63,7 +63,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		Watches(&corev1.Namespace{}).
 		WithAction(initialize).
-		WithAction(devFlags).
 		WithAction(releases.NewAction(
 			releases.WithMetadataFilePath(
 				path.Join(odhdeploy.DefaultManifestPath, ComponentName, kfNotebookControllerPath, releases.ComponentMetadataFilename)))).

@@ -3,7 +3,6 @@ package kserve
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,52 +17,12 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = []odhtypes.ManifestInfo{
 		kserveManifestInfo(kserveManifestSourcePath),
-	}
-
-	return nil
-}
-
-func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	k, ok := rr.Instance.(*componentApi.Kserve)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
-	}
-
-	df := k.GetDevFlags()
-	if df == nil {
-		return nil
-	}
-	if len(df.Manifests) == 0 {
-		return nil
-	}
-
-	kSourcePath := kserveManifestSourcePath
-
-	for _, subcomponent := range df.Manifests {
-		if !strings.Contains(subcomponent.URI, componentName) && !strings.Contains(subcomponent.URI, LegacyComponentName) {
-			continue
-		}
-
-		if err := deploy.DownloadManifests(ctx, componentName, subcomponent); err != nil {
-			return err
-		}
-
-		if subcomponent.SourcePath != "" {
-			kSourcePath = subcomponent.SourcePath
-		}
-
-		break
-	}
-
-	rr.Manifests = []odhtypes.ManifestInfo{
-		kserveManifestInfo(kSourcePath),
 	}
 
 	return nil
