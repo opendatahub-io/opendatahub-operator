@@ -398,9 +398,15 @@ func TestValidateOIDCConfig(t *testing.T) {
 		description string
 	}{
 		{
-			name:        "OIDC mode with valid config",
-			authMode:    AuthModeOIDC,
-			oidcConfig:  &serviceApi.OIDCConfig{IssuerURL: testOIDCIssuerURL},
+			name:     "OIDC mode with valid config",
+			authMode: AuthModeOIDC,
+			oidcConfig: &serviceApi.OIDCConfig{
+				IssuerURL: testOIDCIssuerURL,
+				ClientID:  "test-client",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "test-secret"},
+				},
+			},
 			expectError: false,
 			description: "should pass when OIDC mode has valid configuration",
 		},
@@ -410,6 +416,32 @@ func TestValidateOIDCConfig(t *testing.T) {
 			oidcConfig:  nil,
 			expectError: true,
 			description: "should fail when OIDC mode has no configuration",
+		},
+		{
+			name:     "OIDC mode with empty clientID",
+			authMode: AuthModeOIDC,
+			oidcConfig: &serviceApi.OIDCConfig{
+				IssuerURL: testOIDCIssuerURL,
+				ClientID:  "",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "test-secret"},
+				},
+			},
+			expectError: true,
+			description: "should fail when clientID is empty",
+		},
+		{
+			name:     "OIDC mode with all fields empty",
+			authMode: AuthModeOIDC,
+			oidcConfig: &serviceApi.OIDCConfig{
+				IssuerURL: "",
+				ClientID:  "",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: ""},
+				},
+			},
+			expectError: true,
+			description: "should fail when all required fields are empty",
 		},
 		{
 			name:        "IntegratedOAuth mode",
@@ -529,11 +561,19 @@ func TestCreateKubeAuthProxyService(t *testing.T) {
 	g.Expect(service.Annotations).To(Equal(expectedAnnotations))
 
 	// Verify port configuration
-	g.Expect(service.Spec.Ports).To(HaveLen(1))
-	port := service.Spec.Ports[0]
-	g.Expect(port.Name).To(Equal("https"))
-	g.Expect(port.Port).To(Equal(int32(AuthProxyHTTPSPort)))
-	g.Expect(port.TargetPort).To(Equal(intstr.FromInt(AuthProxyHTTPSPort)))
+	g.Expect(service.Spec.Ports).To(HaveLen(2))
+
+	// Verify HTTPS port
+	httpsPort := service.Spec.Ports[0]
+	g.Expect(httpsPort.Name).To(Equal("https"))
+	g.Expect(httpsPort.Port).To(Equal(int32(AuthProxyHTTPSPort)))
+	g.Expect(httpsPort.TargetPort).To(Equal(intstr.FromInt(AuthProxyHTTPSPort)))
+
+	// Verify metrics port
+	metricsPort := service.Spec.Ports[1]
+	g.Expect(metricsPort.Name).To(Equal("metrics"))
+	g.Expect(metricsPort.Port).To(Equal(int32(AuthProxyMetricsPort)))
+	g.Expect(metricsPort.TargetPort).To(Equal(intstr.FromInt(AuthProxyMetricsPort)))
 }
 
 // TestCreateOAuthCallbackRoute tests the OAuth callback route creation logic.
@@ -591,7 +631,7 @@ func TestBuildOAuth2ProxyArgsOpenShift(t *testing.T) {
 
 	domain := "data-science-gateway.apps.example.com"
 
-	args := buildOAuth2ProxyArgs(nil, domain) // nil = OpenShift mode
+	args := buildOAuth2ProxyArgs(nil, nil, domain) // nil OIDC = OpenShift mode, nil cookie = defaults
 
 	// Verify base arguments are present
 	g.Expect(args).To(ContainElement(ContainSubstring("--http-address=0.0.0.0:")))
@@ -625,7 +665,7 @@ func TestBuildOAuth2ProxyArgsOIDC(t *testing.T) {
 		IssuerURL: testOIDCIssuerURL,
 	}
 
-	args := buildOAuth2ProxyArgs(oidcConfig, domain)
+	args := buildOAuth2ProxyArgs(oidcConfig, nil, domain) // nil cookie = defaults
 
 	// Verify base arguments are present
 	g.Expect(args).To(ContainElement(ContainSubstring("--http-address=0.0.0.0:")))

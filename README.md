@@ -300,7 +300,7 @@ Log level can be changed at runtime by DSCI devFlags by setting
 `.spec.devFlags.logLevel`. It accepts the same values as `--zap-log-level` flag or `ZAP_LOG_LEVEL` env variable. See example :
 
 ```console
-apiVersion: dscinitialization.opendatahub.io/v1
+apiVersion: dscinitialization.opendatahub.io/v2
 kind: DSCInitialization
 metadata:
   name: default-dsci
@@ -316,7 +316,7 @@ Below is the default DSCI CR config
 
 ```console
 kind: DSCInitialization
-apiVersion: dscinitialization.opendatahub.io/v1
+apiVersion: dscinitialization.opendatahub.io/v2
 metadata:
   name: default-dsci
 spec:
@@ -355,7 +355,7 @@ components. At a given time, ODH supports only **one** instance of the CR, which
 1. Enable all components
 
 ```console
-apiVersion: datasciencecluster.opendatahub.io/v1
+apiVersion: datasciencecluster.opendatahub.io/v2
 kind: DataScienceCluster
 metadata:
   name: default-dsc
@@ -363,7 +363,7 @@ spec:
   components:
     dashboard:
       managementState: Managed
-    datasciencepipelines:
+    aipipelines:
       managementState: Managed
     kserve:
       managementState: Managed
@@ -371,7 +371,7 @@ spec:
         managementState: Managed
       rawDeploymentServiceConfig: Headed
     kueue:
-      managementState: Managed
+      managementState: Unmanaged
     modelregistry:
       managementState: Managed
       registriesNamespace: "odh-model-registries"
@@ -392,7 +392,7 @@ spec:
 2. Enable only Dashboard and Workbenches
 
 ```console
-apiVersion: datasciencecluster.opendatahub.io/v1
+apiVersion: datasciencecluster.opendatahub.io/v2
 kind: DataScienceCluster
 metadata:
   name: example

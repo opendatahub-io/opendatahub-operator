@@ -153,7 +153,7 @@ func TestMigrateAcceleratorProfilesToHardwareProfiles(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, "test-namespace", odhConfig)
+		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, odhConfig)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Verify HardwareProfiles were created
@@ -183,7 +183,7 @@ func TestMigrateAcceleratorProfilesToHardwareProfiles(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, "test-namespace", odhConfig)
+		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, odhConfig)
 		g.Expect(err).ShouldNot(HaveOccurred())
 	})
 
@@ -196,7 +196,7 @@ func TestMigrateAcceleratorProfilesToHardwareProfiles(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, "test-namespace", odhConfig)
+		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, odhConfig)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
 		// Verify HardwareProfile has tolerations
@@ -219,7 +219,7 @@ func TestMigrateAcceleratorProfilesToHardwareProfiles(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, ap))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, "test-namespace", odhConfig)
+		err = upgrade.MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, odhConfig)
 		g.Expect(err).Should(HaveOccurred())
 		g.Expect(err.Error()).To(ContainSubstring("failed to generate"))
 	})
@@ -565,7 +565,11 @@ func validateAcceleratorProfileHardwareProfile(g *WithT, hwp *infrav1.HardwarePr
 	annotations := hwp.GetAnnotations()
 	g.Expect(annotations).ToNot(BeNil())
 	g.Expect(annotations).To(HaveKey("opendatahub.io/dashboard-feature-visibility"))
-	g.Expect(annotations["opendatahub.io/dashboard-feature-visibility"]).To(Equal(upgrade.GetFeatureVisibility(profileType)))
+	expectedVisibility := `["model-serving"]`
+	if profileType == notebooksProfileType {
+		expectedVisibility = `["workbench"]`
+	}
+	g.Expect(annotations["opendatahub.io/dashboard-feature-visibility"]).To(Equal(expectedVisibility))
 	g.Expect(annotations).To(HaveKey("opendatahub.io/modified-date"))
 	g.Expect(annotations).To(HaveKey("opendatahub.io/display-name"))
 	g.Expect(annotations["opendatahub.io/display-name"]).To(Equal(displayName))
@@ -748,7 +752,11 @@ func validateContainerSizeHardwareProfile(g *WithT, hwp *infrav1.HardwareProfile
 	annotations := hwp.GetAnnotations()
 	g.Expect(annotations).ToNot(BeNil())
 	g.Expect(annotations).To(HaveKey("opendatahub.io/dashboard-feature-visibility"))
-	g.Expect(annotations["opendatahub.io/dashboard-feature-visibility"]).To(Equal(upgrade.GetFeatureVisibility(sizeType)))
+	expectedVisibility := `["model-serving"]`
+	if sizeType == notebooksProfileType {
+		expectedVisibility = `["workbench"]`
+	}
+	g.Expect(annotations["opendatahub.io/dashboard-feature-visibility"]).To(Equal(expectedVisibility))
 	g.Expect(annotations).To(HaveKey("opendatahub.io/modified-date"))
 	g.Expect(annotations).To(HaveKey("opendatahub.io/display-name"))
 	g.Expect(annotations["opendatahub.io/display-name"]).To(Equal(sizeName))
@@ -1321,4 +1329,330 @@ func TestFindCpuMemoryMinMaxCountFromContainerSizes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAttachHardwareProfileToNotebooks(t *testing.T) {
+	ctx := context.Background()
+	namespace := "test-namespace"
+
+	t.Run("should migrate AP annotation to HWP annotation", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		notebook := createTestNotebook(namespace, "notebook-with-ap")
+		notebook.SetAnnotations(map[string]string{
+			"opendatahub.io/accelerator-name": "nvidia-gpu",
+		})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, notebook))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToNotebooks(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify HWP annotation was added
+		updatedNotebook := &unstructured.Unstructured{}
+		updatedNotebook.SetGroupVersionKind(gvk.Notebook)
+		err = cli.Get(ctx, client.ObjectKey{Name: "notebook-with-ap", Namespace: namespace}, updatedNotebook)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedNotebook.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "nvidia-gpu-notebooks"))
+	})
+
+	t.Run("should migrate valid container size annotation to HWP annotation", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		notebook := createTestNotebook(namespace, "notebook-with-size")
+		notebook.SetAnnotations(map[string]string{
+			"notebooks.opendatahub.io/last-size-selection": "X Large",
+		})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, notebook))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToNotebooks(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify HWP annotation was added
+		updatedNotebook := &unstructured.Unstructured{}
+		updatedNotebook.SetGroupVersionKind(gvk.Notebook)
+		err = cli.Get(ctx, client.ObjectKey{Name: "notebook-with-size", Namespace: namespace}, updatedNotebook)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedNotebook.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-x-large-notebooks"))
+	})
+
+	t.Run("should not migrate invalid container size annotation", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		notebook := createTestNotebook(namespace, "notebook-with-invalid-size")
+		notebook.SetAnnotations(map[string]string{
+			"notebooks.opendatahub.io/last-size-selection": "InvalidSize",
+		})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, notebook))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToNotebooks(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify HWP annotation was NOT added (original annotation remains)
+		updatedNotebook := &unstructured.Unstructured{}
+		updatedNotebook.SetGroupVersionKind(gvk.Notebook)
+		err = cli.Get(ctx, client.ObjectKey{Name: "notebook-with-invalid-size", Namespace: namespace}, updatedNotebook)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedNotebook.GetAnnotations()).ToNot(HaveKey("opendatahub.io/hardware-profile-name"))
+		g.Expect(updatedNotebook.GetAnnotations()).To(HaveKeyWithValue("notebooks.opendatahub.io/last-size-selection", "InvalidSize"))
+	})
+
+	t.Run("should handle multiple notebooks with mixed scenarios", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		notebook1 := createTestNotebook(namespace, "notebook-ap")
+		notebook1.SetAnnotations(map[string]string{
+			"opendatahub.io/accelerator-name": "gpu-1",
+		})
+
+		notebook2 := createTestNotebook(namespace, "notebook-size")
+		notebook2.SetAnnotations(map[string]string{
+			"notebooks.opendatahub.io/last-size-selection": "Medium",
+		})
+
+		notebook3 := createTestNotebook(namespace, "notebook-existing-hwp")
+		notebook3.SetAnnotations(map[string]string{
+			"opendatahub.io/hardware-profile-name": "already-set",
+		})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, notebook1, notebook2, notebook3))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToNotebooks(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify first notebook
+		nb1 := &unstructured.Unstructured{}
+		nb1.SetGroupVersionKind(gvk.Notebook)
+		err = cli.Get(ctx, client.ObjectKey{Name: "notebook-ap", Namespace: namespace}, nb1)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(nb1.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "gpu-1-notebooks"))
+
+		// Verify second notebook
+		nb2 := &unstructured.Unstructured{}
+		nb2.SetGroupVersionKind(gvk.Notebook)
+		err = cli.Get(ctx, client.ObjectKey{Name: "notebook-size", Namespace: namespace}, nb2)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(nb2.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-medium-notebooks"))
+
+		// Verify third notebook
+		nb3 := &unstructured.Unstructured{}
+		nb3.SetGroupVersionKind(gvk.Notebook)
+		err = cli.Get(ctx, client.ObjectKey{Name: "notebook-existing-hwp", Namespace: namespace}, nb3)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(nb3.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "already-set"))
+	})
+
+	t.Run("should handle no notebooks gracefully", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToNotebooks(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+}
+
+func TestAttachHardwareProfileToInferenceServices(t *testing.T) {
+	ctx := context.Background()
+	namespace := "test-namespace"
+
+	t.Run("should migrate AP annotation from ServingRuntime to InferenceService", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		servingRuntime := createTestServingRuntime(namespace, "test-runtime")
+		servingRuntime.SetAnnotations(map[string]string{
+			"opendatahub.io/accelerator-name": "nvidia Gpu",
+		})
+
+		isvc := createTestInferenceService(namespace, "isvc-with-runtime", "test-runtime")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, servingRuntime, isvc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify HWP annotation was added to InferenceService
+		updatedIsvc := &unstructured.Unstructured{}
+		updatedIsvc.SetGroupVersionKind(gvk.InferenceServices)
+		err = cli.Get(ctx, client.ObjectKey{Name: "isvc-with-runtime", Namespace: namespace}, updatedIsvc)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "nvidia-gpu-serving"))
+	})
+
+	t.Run("should match container size for InferenceService without AP", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		isvc := createTestInferenceServiceWithResources(namespace, "isvc-with-resources",
+			"1", "4Gi", "2", "8Gi")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, isvc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify HWP annotation matches container size
+		updatedIsvc := &unstructured.Unstructured{}
+		updatedIsvc.SetGroupVersionKind(gvk.InferenceServices)
+		err = cli.Get(ctx, client.ObjectKey{Name: "isvc-with-resources", Namespace: namespace}, updatedIsvc)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "containersize-small-serving"))
+	})
+
+	t.Run("should use custom-serving for non-matching resources", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		isvc := createTestInferenceServiceWithResources(namespace, "isvc-custom",
+			"3", "10Gi", "5", "20Gi")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, isvc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify custom-serving HWP annotation
+		updatedIsvc := &unstructured.Unstructured{}
+		updatedIsvc.SetGroupVersionKind(gvk.InferenceServices)
+		err = cli.Get(ctx, client.ObjectKey{Name: "isvc-custom", Namespace: namespace}, updatedIsvc)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "custom-serving"))
+	})
+
+	t.Run("should use custom-serving for InferenceService without resources", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		isvc := createTestInferenceService(namespace, "isvc-no-resources", "")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, isvc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify custom-serving HWP annotation
+		updatedIsvc := &unstructured.Unstructured{}
+		updatedIsvc.SetGroupVersionKind(gvk.InferenceServices)
+		err = cli.Get(ctx, client.ObjectKey{Name: "isvc-no-resources", Namespace: namespace}, updatedIsvc)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "custom-serving"))
+	})
+
+	t.Run("should skip InferenceService that already has HWP annotation", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		isvc := createTestInferenceService(namespace, "isvc-with-hwp", "")
+		isvc.SetAnnotations(map[string]string{
+			"opendatahub.io/hardware-profile-name": "existing-hwp",
+		})
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig, isvc))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify HWP annotation remains unchanged
+		updatedIsvc := &unstructured.Unstructured{}
+		updatedIsvc.SetGroupVersionKind(gvk.InferenceServices)
+		err = cli.Get(ctx, client.ObjectKey{Name: "isvc-with-hwp", Namespace: namespace}, updatedIsvc)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(updatedIsvc.GetAnnotations()).To(HaveKeyWithValue("opendatahub.io/hardware-profile-name", "existing-hwp"))
+	})
+
+	t.Run("should handle no InferenceServices gracefully", func(t *testing.T) {
+		g := NewWithT(t)
+
+		odhConfig := createTestOdhDashboardConfig(namespace)
+		cli, err := fakeclient.New(fakeclient.WithObjects(odhConfig))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		err = upgrade.AttachHardwareProfileToInferenceServices(ctx, cli, namespace, odhConfig)
+		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+}
+
+// Helper function to create test Notebook.
+func createTestNotebook(namespace, name string) *unstructured.Unstructured {
+	notebook := &unstructured.Unstructured{}
+	notebook.SetGroupVersionKind(gvk.Notebook)
+	notebook.SetName(name)
+	notebook.SetNamespace(namespace)
+	return notebook
+}
+
+// Helper function to create test ServingRuntime.
+func createTestServingRuntime(namespace, name string) *unstructured.Unstructured {
+	servingRuntime := &unstructured.Unstructured{}
+	servingRuntime.SetGroupVersionKind(gvk.ServingRuntime)
+	servingRuntime.SetName(name)
+	servingRuntime.SetNamespace(namespace)
+	return servingRuntime
+}
+
+// Helper function to create test InferenceService.
+func createTestInferenceService(namespace, name, runtimeName string) *unstructured.Unstructured {
+	isvc := &unstructured.Unstructured{}
+	isvc.SetGroupVersionKind(gvk.InferenceServices)
+	isvc.SetName(name)
+	isvc.SetNamespace(namespace)
+
+	if runtimeName != "" {
+		spec := map[string]interface{}{
+			"predictor": map[string]interface{}{
+				"model": map[string]interface{}{
+					"runtime": runtimeName,
+				},
+			},
+		}
+		isvc.Object["spec"] = spec
+	}
+
+	return isvc
+}
+
+// Helper function to create test InferenceService with resources.
+func createTestInferenceServiceWithResources(namespace, name, reqCpu, reqMem, limCpu, limMem string) *unstructured.Unstructured {
+	isvc := &unstructured.Unstructured{}
+	isvc.SetGroupVersionKind(gvk.InferenceServices)
+	isvc.SetName(name)
+	isvc.SetNamespace(namespace)
+
+	spec := map[string]interface{}{
+		"predictor": map[string]interface{}{
+			"model": map[string]interface{}{
+				"resources": map[string]interface{}{
+					"requests": map[string]interface{}{
+						"cpu":    reqCpu,
+						"memory": reqMem,
+					},
+					"limits": map[string]interface{}{
+						"cpu":    limCpu,
+						"memory": limMem,
+					},
+				},
+			},
+		},
+	}
+	isvc.Object["spec"] = spec
+
+	return isvc
 }
