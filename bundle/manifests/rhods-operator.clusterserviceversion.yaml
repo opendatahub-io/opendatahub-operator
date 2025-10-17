@@ -1484,7 +1484,7 @@ spec:
                         - key: name
                           operator: In
                           values:
-                          - opendatahub-operator
+                          - rhods-operator
                       topologyKey: kubernetes.io/hostname
                     weight: 100
               containers:
