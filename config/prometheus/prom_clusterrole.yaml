@@ -1,7 +1,7 @@
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: prometheus-k8s-viewer
+  name: data-science-prometheus-k8s-viewer
 rules:
   - apiGroups:
     - ''

@@ -23,7 +23,7 @@ spec:
       scheme: https
       tlsConfig:
         caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
-        serverName: prometheus.redhat-ods-monitoring.svc
+        serverName: data-science-prometheus.redhat-ods-monitoring.svc
       scrapeTimeout: 10s
       interval: 30s
   namespaceSelector:

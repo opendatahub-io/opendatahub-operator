@@ -8,7 +8,7 @@ metadata:
     prometheus.io/scrape: 'true'
   labels:
     app: prometheus
-  name: prometheus
+  name: data-science-prometheus
   namespace: redhat-ods-monitoring
 spec:
   ports:

@@ -6,7 +6,7 @@ metadata:
     kubernetes.io/tls-acme: 'true'
   labels:
     app: prometheus
-  name: prometheus
+  name: data-science-prometheus
   namespace: redhat-ods-monitoring
 spec:
   port:
@@ -16,5 +16,5 @@ spec:
     termination: reencrypt
   to:
     kind: Service
-    name: prometheus
+    name: data-science-prometheus
   wildcardPolicy: None
