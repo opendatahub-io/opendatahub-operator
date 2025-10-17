@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlcfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
@@ -555,7 +556,7 @@ func debugOperatorStatus() {
 	// Check main operator deployment
 	operatorDeploy := &appsv1.Deployment{}
 	err := globalDebugClient.Get(context.TODO(),
-		types.NamespacedName{Name: controllerDeploymentODH, Namespace: testOpts.operatorNamespace},
+		types.NamespacedName{Name: getControllerDeploymentName(), Namespace: testOpts.operatorNamespace},
 		operatorDeploy)
 
 	if err != nil {
@@ -591,31 +592,37 @@ func debugOperatorStatus() {
 	}
 }
 
-// debugDSCIStatus checks DataScienceClusterInitialization and DataScienceCluster status.
-func debugDSCIStatus() {
-	log.Printf("=== DSCI/DSC STATUS ===")
-
-	// Check DSCI (prerequisite for DSC)
+func getDSCI() *unstructured.Unstructured {
 	dsci := &unstructured.Unstructured{}
 	dsci.SetGroupVersionKind(gvk.DSCInitialization)
 	err := globalDebugClient.Get(context.TODO(), types.NamespacedName{Name: dsciInstanceName}, dsci)
 	if err != nil && !errors.IsNotFound(err) {
 		log.Printf("Failed to get DSCI: %v", err)
-		return
+		return nil
 	}
 
 	if errors.IsNotFound(err) {
 		log.Printf("No DSCI instance found")
-		return
+		return nil
 	}
+	return dsci
+}
 
-	log.Printf("DSCI %s:", dsci.GetName())
-	logUnhealthyConditions(dsci.Object)
+// debugDSCIStatus checks DataScienceClusterInitialization and DataScienceCluster status.
+func debugDSCIStatus() {
+	log.Printf("=== DSCI/DSC STATUS ===")
+
+	// Check DSCI (prerequisite for DSC)
+	dsci := getDSCI()
+	if dsci != nil {
+		log.Printf("DSCI %s:", dsci.GetName())
+		logUnhealthyConditions(dsci.Object)
+	}
 
 	// Check DSC (singleton resource - depends on DSCI)
 	dsc := &unstructured.Unstructured{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
-	err = globalDebugClient.Get(context.TODO(), types.NamespacedName{Name: dscInstanceName}, dsc)
+	err := globalDebugClient.Get(context.TODO(), types.NamespacedName{Name: dscInstanceName}, dsc)
 	if err != nil && !errors.IsNotFound(err) {
 		log.Printf("Failed to get DSC: %v", err)
 		return
@@ -754,4 +761,22 @@ func debugResourceQuotas() {
 		log.Printf("All resource quotas are within limits")
 		return
 	}
+}
+
+func getControllerDeploymentName() string {
+	defaultControllerDeploymentName := controllerDeploymentODH
+	dsci := getDSCI()
+	if dsci == nil {
+		return defaultControllerDeploymentName
+	}
+	platform, ok, err := unstructured.NestedString(dsci.Object, "status", "release", "name")
+	if err != nil {
+		log.Printf("Failed to get platform from DSCI: %v", err)
+		return defaultControllerDeploymentName
+	}
+	if !ok {
+		log.Printf("Failed to get platform from DSCI: platform not found")
+		return defaultControllerDeploymentName
+	}
+	return getControllerDeploymentNameByPlatform(common.Platform(platform))
 }
