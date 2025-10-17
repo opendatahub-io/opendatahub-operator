@@ -41,7 +41,6 @@ type Components struct {
 	ModelMeshServing componentApi.DSCModelMeshServing `json:"modelmeshserving,omitempty"`
 
 	// DataSciencePipeline component configuration.
-	// Requires OpenShift Pipelines Operator to be installed before enable component
 	DataSciencePipelines componentApi.DSCDataSciencePipelines `json:"datasciencepipelines,omitempty"`
 
 	// Kserve component configuration.

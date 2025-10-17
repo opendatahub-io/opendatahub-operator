@@ -149,9 +149,7 @@ spec:
                         type: string
                     type: object
                   datasciencepipelines:
-                    description: |-
-                      DataSciencePipeline component configuration.
-                      Requires OpenShift Pipelines Operator to be installed before enable component
+                    description: DataSciencePipeline component configuration.
                     properties:
                       argoWorkflowsControllers:
                         properties:
@@ -1405,9 +1403,7 @@ spec:
                 description: Override and fine tune specific component configurations.
                 properties:
                   aipipelines:
-                    description: |-
-                      AIPipelines component configuration.
-                      Requires OpenShift Pipelines Operator to be installed before enable component
+                    description: AIPipelines component configuration.
                     properties:
                       argoWorkflowsControllers:
                         properties:

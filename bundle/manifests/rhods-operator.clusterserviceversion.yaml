@@ -83,7 +83,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-10-14T16:54:55Z"
+    createdAt: "2025-10-17T08:18:17Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -118,10 +118,10 @@ metadata:
               "managementState": "Removed"
             },
             "kserve": {
-              "managementState": "Managed",
+              "managementState": "Managed"
             },
             "llamastackoperator": {
-                "managementState": "Removed"
+              "managementState": "Removed"
             },
             "kueue": {
               "managementState": "Managed"
@@ -913,6 +913,18 @@ spec:
           - keda.sh
           resources:
           - triggerauthentications
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - kubeflow.org
+          resources:
+          - notebooks
           verbs:
           - create
           - delete
