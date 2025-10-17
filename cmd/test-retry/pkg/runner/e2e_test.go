@@ -37,7 +37,6 @@ func TestBuildSkipFilter(t *testing.T) {
 		name                 string
 		opts                 types.E2ETestOptions
 		aggregatedTestResult *types.TestResult
-		lastTestResult       *types.TestResult
 		expected             string
 	}{
 		{
@@ -49,6 +48,8 @@ func TestBuildSkipFilter(t *testing.T) {
 			name: "single passed test",
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator"},
+				{Name: "TestOdhOperator/Feature1"},
 				{Name: "TestOdhOperator/Feature1/test_case"},
 			}},
 			expected: "^TestOdhOperator$/^Feature1$",
@@ -57,6 +58,7 @@ func TestBuildSkipFilter(t *testing.T) {
 			name: "multiple passed tests",
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator"},
 				{Name: "TestOdhOperator/Feature1"},
 				{Name: "TestOdhOperator/Feature1/test_case"},
 				{Name: "TestOdhOperator/Feature2"},
@@ -67,22 +69,30 @@ func TestBuildSkipFilter(t *testing.T) {
 			name: "service test - should use third level",
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator"},
+				{Name: "TestOdhOperator/services"},
+				{Name: "TestOdhOperator/services/auth"},
 				{Name: "TestOdhOperator/services/auth/subtest"},
 			}},
-			expected: "^TestOdhOperator$/^services$/^auth$",
+			expected: "^TestOdhOperator$/^services$|^TestOdhOperator$/^services$/^auth$",
 		},
 		{
 			name: "component test - should use third level",
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator"},
+				{Name: "TestOdhOperator/components"},
+				{Name: "TestOdhOperator/components/dashboard"},
 				{Name: "TestOdhOperator/components/dashboard/subtest"},
 			}},
-			expected: "^TestOdhOperator$/^components$/^dashboard$",
+			expected: "^TestOdhOperator$/^components$|^TestOdhOperator$/^components$/^dashboard$",
 		},
 		{
 			name: "dsc initialization test - should not be skipped",
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator"},
+				{Name: "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests"},
 				{Name: "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/test1"},
 			}},
 			expected: "",
@@ -91,16 +101,22 @@ func TestBuildSkipFilter(t *testing.T) {
 			name: "mix of service and component tests",
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator"},
+				{Name: "TestOdhOperator/services"},
+				{Name: "TestOdhOperator/services/auth"},
 				{Name: "TestOdhOperator/services/auth/subtest1"},
 				{Name: "TestOdhOperator/services/auth/subtest2"},
+				{Name: "TestOdhOperator/components"},
+				{Name: "TestOdhOperator/components/dashboard"},
 				{Name: "TestOdhOperator/components/dashboard/subtest"},
 			}},
-			expected: "^TestOdhOperator$/^components$/^dashboard$|^TestOdhOperator$/^services$/^auth$",
+			expected: "^TestOdhOperator$/^components$|^TestOdhOperator$/^components$/^dashboard$|^TestOdhOperator$/^services$|^TestOdhOperator$/^services$/^auth$",
 		},
 		{
 			name: "test with special regex characters",
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator"},
 				{Name: "TestOdhOperator/Feature(with)special[chars]"},
 			}},
 			expected: `^TestOdhOperator$/^Feature\(with\)special\[chars\]$`,
@@ -109,7 +125,9 @@ func TestBuildSkipFilter(t *testing.T) {
 			name: "mix including dsc initialization",
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator"},
 				{Name: "TestOdhOperator/Feature1"},
+				{Name: "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests"},
 				{Name: "TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/test1"},
 				{Name: "TestOdhOperator/Feature2"},
 			}},
@@ -119,6 +137,7 @@ func TestBuildSkipFilter(t *testing.T) {
 			name: "with multiple test cases",
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{PassedTest: []types.TestCase{
+				{Name: "TestOdhOperator"},
 				{Name: "TestOdhOperator/Feature1"},
 				{Name: "TestOdhOperator/Feature1/test_case"},
 				{Name: "TestOdhOperator/Feature1/test_case/subtest"},
@@ -136,11 +155,7 @@ func TestBuildSkipFilter(t *testing.T) {
 					{Name: "TestOdhOperator/Feature1/sibling1"},
 				},
 			},
-			lastTestResult: &types.TestResult{
-				FailedTest: []types.TestCase{
-					{Name: "TestOdhOperator/Feature1/sibling2"},
-				},
-			},
+			// TestOdhOperator and TestOdhOperator/Feature1 not passed, so we don't skip anything
 			expected: "",
 		},
 		{
@@ -148,6 +163,8 @@ func TestBuildSkipFilter(t *testing.T) {
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{
 				PassedTest: []types.TestCase{
+					{Name: "TestOdhOperator"},
+					{Name: "TestOdhOperator/Feature1"},
 					{Name: "TestOdhOperator/Feature1/sibling1"},
 					{Name: "TestOdhOperator/Feature1/sibling2"},
 				},
@@ -160,20 +177,15 @@ func TestBuildSkipFilter(t *testing.T) {
 			aggregatedTestResult: &types.TestResult{
 				PassedTest: []types.TestCase{
 					{Name: "TestOdhOperator/Feature1/sibling1"},
+					{Name: "TestOdhOperator/Feature2"},
 					{Name: "TestOdhOperator/Feature2/test1"},
 					{Name: "TestOdhOperator/Feature2/test2"},
 					{Name: "TestOdhOperator/Feature3/testA"},
 				},
 			},
-			lastTestResult: &types.TestResult{
-				FailedTest: []types.TestCase{
-					{Name: "TestOdhOperator/Feature1/sibling2"},
-					{Name: "TestOdhOperator/Feature3/testB"},
-				},
-			},
-			// Feature1: has failures, don't skip
-			// Feature2: all passed, skip
-			// Feature3: has failures, don't skip
+			// Feature1: has failures, don't skip (TestOdhOperator/Feature1 not present in passed tests)
+			// Feature2: all passed, skip (TestOdhOperator/Feature2 present in passed tests)
+			// Feature3: has failures, don't skip (TestOdhOperator/Feature3 not present in passed tests)
 			expected: "^TestOdhOperator$/^Feature2$",
 		},
 		{
@@ -184,11 +196,7 @@ func TestBuildSkipFilter(t *testing.T) {
 					{Name: "TestOdhOperator/services/auth/subtest1"},
 				},
 			},
-			lastTestResult: &types.TestResult{
-				FailedTest: []types.TestCase{
-					{Name: "TestOdhOperator/services/auth/subtest2"},
-				},
-			},
+			// TestOdhOperator and TestOdhOperator/services not passed, so we don't skip anything
 			expected: "",
 		},
 		{
@@ -196,20 +204,36 @@ func TestBuildSkipFilter(t *testing.T) {
 			opts: defaultOpts,
 			aggregatedTestResult: &types.TestResult{
 				PassedTest: []types.TestCase{
+					{Name: "TestOdhOperator/services/auth"},
 					{Name: "TestOdhOperator/services/auth/subtest1"},
 					{Name: "TestOdhOperator/services/auth/subtest2"},
 					{Name: "TestOdhOperator/services/auth/subtest3"},
 				},
-				FailedTest: []types.TestCase{
-					{Name: "TestOdhOperator/services/foobar/a_test"},
-				},
 			},
-			lastTestResult: &types.TestResult{
-				FailedTest: []types.TestCase{
-					{Name: "TestOdhOperator/services/foobar/a_test"},
-				},
-			},
+			// TestOdhOperator/services/auth present in passed tests,
+			// but TestOdhOperator and TestOdhOperator/services not passed
 			expected: "^TestOdhOperator$/^services$/^auth$",
+		},
+		{
+			name: "with different order tests and fail fast",
+			opts: defaultOpts,
+			aggregatedTestResult: &types.TestResult{
+				PassedTest: []types.TestCase{
+					{Name: "TestOdhOperator/components/component1"},                     // first run
+					{Name: "TestOdhOperator/components/component_fail_consistently/t1"}, // first run
+				},
+				// Just to reference the failed tests for a case like this one
+				FailedTest: []types.TestCase{
+					{Name: "TestOdhOperator"},                                           // first run
+					{Name: "TestOdhOperator/components"},                                // first run
+					{Name: "TestOdhOperator/components/component_fail_consistently"},    // first run
+					{Name: "TestOdhOperator/components/component_fail_consistently/t2"}, // first run
+					{Name: "TestOdhOperator"},                                           // second run
+					{Name: "TestOdhOperator/components"},                                // second run
+					{Name: "TestOdhOperator/components/component3"},                     // second run
+				},
+			},
+			expected: "^TestOdhOperator$/^components$/^component1$",
 		},
 	}
 
@@ -219,7 +243,7 @@ func TestBuildSkipFilter(t *testing.T) {
 				opts: tt.opts,
 			}
 
-			result := runner.buildSkipFilter(tt.aggregatedTestResult, tt.lastTestResult)
+			result := runner.buildSkipFilter(tt.aggregatedTestResult)
 			require.Equal(t, tt.expected, result)
 		})
 	}
