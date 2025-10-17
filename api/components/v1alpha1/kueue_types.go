@@ -57,9 +57,7 @@ type KueueSpec struct {
 	KueueDefaultQueueSpec `json:",inline"`
 }
 
-type KueueCommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
-}
+type KueueCommonSpec struct{}
 
 // KueueCommonStatus defines the shared observed state of Kueue
 type KueueCommonStatus struct {
@@ -82,10 +80,6 @@ type KueueList struct {
 
 func init() {
 	SchemeBuilder.Register(&Kueue{}, &KueueList{})
-}
-
-func (c *Kueue) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *Kueue) GetStatus() *common.Status {

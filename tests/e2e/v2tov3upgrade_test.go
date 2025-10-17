@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -387,7 +388,11 @@ func (tc *V2Tov3UpgradeTestCtx) validateComponentResourcePreservation(t *testing
 
 	dsc := tc.FetchDataScienceCluster()
 
-	tc.createOperatorManagedComponent(componentGVK, componentName, dsc)
+	componentToCreate := tc.operatorManagedComponent(componentGVK, componentName, dsc)
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(componentToCreate),
+		WithCustomErrorMsg("Failed to create existing %s component for preservation test", componentGVK.Kind),
+	)
 
 	tc.triggerDSCReconciliation(t)
 
@@ -408,7 +413,12 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateRayRaiseErrorIfCodeFlarePresent(t *testi
 	t.Helper()
 
 	dsc := tc.FetchDataScienceCluster()
-	tc.createOperatorManagedComponent(gvk.CodeFlare, defaultCodeFlareComponentName, dsc)
+	existingComponent := tc.operatorManagedComponent(gvk.CodeFlare, defaultCodeFlareComponentName, dsc)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(existingComponent),
+		WithCustomErrorMsg("Failed to create existing %s component", gvk.CodeFlare),
+	)
 
 	tc.updateComponentStateInDataScienceCluster(t, gvk.Ray.Kind, operatorv1.Managed)
 
@@ -461,7 +471,7 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 	)
 }
 
-func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedComponent(componentGVK schema.GroupVersionKind, componentName string, dsc *dscv2.DataScienceCluster) {
+func (tc *V2Tov3UpgradeTestCtx) operatorManagedComponent(componentGVK schema.GroupVersionKind, componentName string, dsc *dscv2.DataScienceCluster) client.Object {
 	existingComponent := resources.GvkToUnstructured(componentGVK)
 	existingComponent.SetName(componentName)
 
@@ -482,10 +492,7 @@ func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedComponent(componentGVK sche
 		"Failed to set owner reference from DataScienceCluster '%s' to %s component '%s'",
 		dsc.GetName(), componentGVK.Kind, componentName)
 
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(existingComponent),
-		WithCustomErrorMsg("Failed to create existing %s component for preservation test", componentGVK.Kind),
-	)
+	return existingComponent
 }
 
 func (tc *V2Tov3UpgradeTestCtx) updateComponentStateInDataScienceCluster(t *testing.T, kind string, managementState operatorv1.ManagementState) {

@@ -73,7 +73,6 @@ type TrustyAILMEvalSpec struct {
 }
 
 type TrustyAICommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
 	// Eval configuration for TrustyAI evaluations
 	Eval TrustyAIEvalSpec `json:"eval,omitempty"`
 }
@@ -99,10 +98,6 @@ type TrustyAIList struct {
 
 func init() {
 	SchemeBuilder.Register(&TrustyAI{}, &TrustyAIList{})
-}
-
-func (c *TrustyAI) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *TrustyAI) GetStatus() *common.Status {

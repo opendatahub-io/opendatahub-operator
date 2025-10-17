@@ -33,8 +33,6 @@ const (
 var _ common.PlatformObject = (*Workbenches)(nil)
 
 type WorkbenchesCommonSpec struct {
-	// workbenches spec exposed to DSC api
-	common.DevFlagsSpec `json:",inline"`
 	// workbenches spec exposed only to internal api
 
 	// Namespace for workbenches to be installed, defaults to "rhods-notebooks" configurable once when component is enabled.
@@ -78,10 +76,6 @@ type Workbenches struct {
 
 	Spec   WorkbenchesSpec   `json:"spec,omitempty"`
 	Status WorkbenchesStatus `json:"status,omitempty"`
-}
-
-func (c *Workbenches) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *Workbenches) GetStatus() *common.Status {

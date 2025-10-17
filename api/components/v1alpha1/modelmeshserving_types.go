@@ -29,11 +29,6 @@ const (
 
 // NOTE: This file contains MINIMAL types required for v1 DSC API compatibility only.
 
-// ModelMeshServingCommonSpec defines the common spec for ModelMeshServing (minimal for v1 compatibility)
-type ModelMeshServingCommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
-}
-
 // ModelMeshServingCommonStatus defines the common status for ModelMeshServing (minimal for v1 compatibility)
 type ModelMeshServingCommonStatus struct {
 	common.ComponentReleaseStatus `json:",inline"`
@@ -42,8 +37,6 @@ type ModelMeshServingCommonStatus struct {
 // DSCModelMeshServing contains all the configuration exposed in DSC instance for ModelMeshServing component
 type DSCModelMeshServing struct {
 	common.ManagementSpec `json:",inline"`
-	// configuration fields common across components
-	ModelMeshServingCommonSpec `json:",inline"`
 }
 
 // DSCModelMeshServingStatus contains the observed state of the ModelMeshServing exposed in the DSC instance
