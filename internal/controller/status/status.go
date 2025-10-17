@@ -185,6 +185,9 @@ const (
 	AuthProxyFailedCallbackRouteMessage      = "Failed to create auth callback route"
 	AuthProxyFailedGenerateSecretMessage     = "Failed to generate client secret"
 	AuthProxyOIDCModeWithoutConfigMessage    = "Cluster is in OIDC mode but GatewayConfig has no OIDC configuration"
+	AuthProxyOIDCClientIDEmptyMessage        = "OIDC clientID cannot be empty"
+	AuthProxyOIDCIssuerURLEmptyMessage       = "OIDC issuerURL cannot be empty"
+	AuthProxyOIDCSecretRefNameEmptyMessage   = "OIDC clientSecretRef.name cannot be empty" //nolint:gosec // This is an error message, not a credential
 	AuthProxyExternalAuthNoDeploymentMessage = "Cluster uses external authentication, no gateway auth proxy deployed"
 )
 

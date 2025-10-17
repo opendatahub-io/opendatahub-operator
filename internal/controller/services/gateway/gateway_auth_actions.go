@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
@@ -114,14 +115,38 @@ func detectClusterAuthMode(ctx context.Context, rr *odhtypes.ReconciliationReque
 }
 
 func validateOIDCConfig(authMode AuthMode, oidcConfig *serviceApi.OIDCConfig) *common.Condition {
-	if authMode == AuthModeOIDC && oidcConfig == nil {
-		return &common.Condition{
-			Type:    status.ConditionTypeReady,
-			Status:  metav1.ConditionFalse,
-			Reason:  status.NotReadyReason,
-			Message: "Cluster is in OIDC mode but GatewayConfig has no OIDC configuration",
-		}
+	if authMode != AuthModeOIDC {
+		return nil
 	}
+
+	condition := &common.Condition{
+		Type:   status.ConditionTypeReady,
+		Status: metav1.ConditionFalse,
+		Reason: status.NotReadyReason,
+	}
+
+	if oidcConfig == nil {
+		condition.Message = status.AuthProxyOIDCModeWithoutConfigMessage
+		return condition
+	}
+
+	var validationErrors []string
+
+	if oidcConfig.ClientID == "" {
+		validationErrors = append(validationErrors, status.AuthProxyOIDCClientIDEmptyMessage)
+	}
+	if oidcConfig.IssuerURL == "" {
+		validationErrors = append(validationErrors, status.AuthProxyOIDCIssuerURLEmptyMessage)
+	}
+	if oidcConfig.ClientSecretRef.Name == "" {
+		validationErrors = append(validationErrors, status.AuthProxyOIDCSecretRefNameEmptyMessage)
+	}
+
+	if len(validationErrors) > 0 {
+		condition.Message = strings.Join(validationErrors, ", ")
+		return condition
+	}
+
 	return nil
 }
 
