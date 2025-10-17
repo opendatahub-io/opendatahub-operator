@@ -124,6 +124,7 @@ func TestDataScienceClusterV1_Integration(t *testing.T) {
 					v2webhook.RegisterWebhooks,
 					dsciv2webhook.RegisterWebhooks,
 				},
+				[]envt.RegisterControllersFn{},
 				envtestutil.DefaultWebhookTimeout,
 			)
 			t.Cleanup(teardown)
@@ -349,6 +350,7 @@ func TestDataScienceClusterV1V2_ConversionWebhook(t *testing.T) {
 					v2webhook.RegisterWebhooks,
 					dsciv2webhook.RegisterWebhooks,
 				},
+				[]envt.RegisterControllersFn{},
 				envtestutil.DefaultWebhookTimeout,
 			)
 			t.Cleanup(teardown)

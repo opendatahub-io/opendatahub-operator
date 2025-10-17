@@ -148,8 +148,8 @@ const (
 	MultiKueueCRDReason  = "MultiKueueCRDV1Alpha1Exist"
 	MultiKueueCRDMessage = "Kueue CRDs MultiKueueConfig v1alpha1 and/or MultiKueueCluster v1alpha1 exist, please remove them to proceed"
 
-	KueueOperatorAlreadyInstalleReason   = "KueueOperatorAlreadyInstalled"
-	KueueOperatorAlreadyInstalledMessage = "Kueue operator already installed, uninstall it or change kueue component state to Unmanaged"
+	KueueStateManagedNotSupported        = "KueueStateManagedNotSupported"
+	KueueStateManagedNotSupportedMessage = "Kueue managementState Managed is not supported, please use Removed or Unmanaged"
 	KueueOperatorNotInstalleReason       = "KueueOperatorNotInstalleReason"
 	KueueOperatorNotInstalledMessage     = "Kueue operator not installed, install it or change kueue component state to Managed"
 )

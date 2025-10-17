@@ -32,7 +32,7 @@ metadata:
                 "rawDeploymentServiceConfig": "Headed"
               },
               "kueue": {
-                "managementState": "Managed"
+                "managementState": "Removed"
               },
               "llamastackoperator": {
                 "managementState": "Removed"

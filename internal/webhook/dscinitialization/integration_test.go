@@ -95,6 +95,7 @@ func TestDSCIWebhook_Integration(t *testing.T) {
 					v1webhook.RegisterWebhooks,
 					v2webhook.RegisterWebhooks,
 				},
+				[]envt.RegisterControllersFn{},
 				envtestutil.DefaultWebhookTimeout,
 			)
 			t.Cleanup(teardown)
