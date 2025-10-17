@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: blackbox
+  name: data-science-blackbox-external
 data:
   blackbox.yml: |
     modules:

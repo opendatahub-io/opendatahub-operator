@@ -2,7 +2,7 @@
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: rhods-prometheus-cluster-monitoring-viewer
+  name: data-science-prometheus-cluster-monitoring-viewer
   namespace: redhat-ods-monitoring
 rules:
   - verbs:
