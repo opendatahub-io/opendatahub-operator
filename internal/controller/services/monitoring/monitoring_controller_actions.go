@@ -34,6 +34,7 @@ const (
 	InstrumentationTemplate                 = "resources/instrumentation.tmpl.yaml"
 	ThanosQuerierTemplate                   = "resources/thanos-querier-cr.tmpl.yaml"
 	ThanosQuerierRouteTemplate              = "resources/thanos-querier-route.tmpl.yaml"
+	PersesTempoDatasourceTemplate           = "resources/perses-tempo-datasource.tmpl.yaml"
 )
 
 // CRDRequirement defines a required CRD and its associated condition for monitoring components.
@@ -410,6 +411,49 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 	if len(addErrors) > 0 || len(cleanupErrors) > 0 {
 		return errors.New("errors occurred while adding or cleaning up prometheus rules for components")
 	}
+
+	return nil
+}
+
+func deployPersesDatasource(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	// Only create Perses datasource if traces are configured
+	if monitoring.Spec.Traces == nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionPersesTempoDataSourceAvailable,
+			conditions.WithReason(status.TracesNotConfiguredReason),
+			conditions.WithMessage(status.TracesNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	// Check if PersesDatasource CRD exists
+	persesExists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDatasource)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD PersesDatasource exists: %w", err)
+	}
+	if !persesExists {
+		rr.Conditions.MarkFalse(
+			status.ConditionPersesTempoDataSourceAvailable,
+			conditions.WithReason(gvk.PersesDatasource.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage("%s CRD Not Found", gvk.PersesDatasource.Kind),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesTempoDataSourceAvailable)
+
+	template := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesTempoDatasourceTemplate,
+		},
+	}
+	rr.Templates = append(rr.Templates, template...)
 
 	return nil
 }
