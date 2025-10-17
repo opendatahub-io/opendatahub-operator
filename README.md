@@ -28,6 +28,7 @@ and configure these applications.
   - [Change logging level at runtime](#change-logging-level-at-runtime)
   - [Example DSCInitialization](#example-dscinitialization)
   - [Example DataScienceCluster](#example-datasciencecluster)
+  - [Example GatewayConfig](#example-gatewayconfig)
   - [Run functional Tests](#run-functional-tests)
   - [Run e2e Tests](#run-e2e-tests)
     - [Configuring e2e Tests](#configuring-e2e-tests)
@@ -381,6 +382,10 @@ spec:
       managementState: Managed
     trustyai:
       managementState: Managed
+      eval:
+        lmeval:
+          permitCodeExecution: deny
+          permitOnline: deny
     workbenches:
       managementState: Managed
     feastoperator:
@@ -405,6 +410,70 @@ spec:
 ```
 
 **Note:** Default value for managementState in component is `false`.
+
+### Example GatewayConfig
+
+The GatewayConfig custom resource is used to configure gateway settings for OpenDataHub, including OIDC authentication and ingress gateway configuration. This CR is cluster-scoped and must be named `data-science-gatewayconfig`.
+
+**Automatic Creation**: The GatewayConfig CR is automatically created when a DSCInitialization CR is applied to the cluster. Users typically don't need to create this CR manually unless they want to configure OIDC authentication mode or customize ingress gateway settings.
+
+Here's an example of the default GatewayConfig CR (automatically created):
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: data-science-gatewayconfig
+spec:
+  ingressGateway:
+    certificate:
+      type: OpenshiftDefaultIngress
+```
+
+For a setup with custom certificate (Provided type):
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: data-science-gatewayconfig
+spec:
+  ingressGateway:
+    domain: "*.apps.example.com"
+    certificate:
+      type: Provided
+      secretName: custom-tls-cert  # Secret must already exist in openshift-ingress namespace with tls.crt and tls.key
+```
+
+For an advanced example with OIDC authentication:
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: data-science-gatewayconfig
+spec:
+  oidc:
+    issuerURL: "https://keycloak.example.com/auth/realms/opendatahub"
+    clientID: "opendatahub-client"
+    clientSecretRef:
+      name: oidc-client-secret
+      key: client-secret
+    secretNamespace: "my-custom-namespace"
+  ingressGateway:
+    domain: "*.apps.example.com"
+    certificate:
+      type: SelfSigned
+```
+
+**Important Notes:**
+- The GatewayConfig name must be exactly `data-science-gatewayconfig`
+- This is a cluster-scoped resource
+- **Automatic creation**: This CR is automatically created after DSCInitialization CR is applied
+- **Manual configuration needed**: Only configure this CR manually if you want to enable OIDC authentication mode or customize ingress gateway settings
+- OIDC configuration is optional and only needed when cluster is in OIDC authentication mode
+  - The `secretNamespace` field in OIDC config specifies where to find the client secret (defaults to openshift-ingress if not specified)
+- Certificate types can be `OpenshiftDefaultIngress`, `SelfSigned`, or `Provided`
 
 ### Run functional Tests
 

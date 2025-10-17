@@ -48,39 +48,14 @@ spec:
           spec:
             description: GatewayConfigSpec defines the desired state of GatewayConfig
             properties:
-              certificate:
-                description: Certificate management
-                properties:
-                  secretName:
-                    description: |-
-                      SecretName specifies the name of the Kubernetes Secret resource that contains a
-                      TLS certificate secure HTTP communications for the KNative network.
-                    type: string
-                  type:
-                    default: OpenshiftDefaultIngress
-                    description: |-
-                      Type specifies if the TLS certificate should be generated automatically, or if the certificate
-                      is provided by the user. Allowed values are:
-                      * SelfSigned: A certificate is going to be generated using an own private key.
-                      * Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.
-                      * OpenshiftDefaultIngress: Default ingress certificate configured for OpenShift
-                    enum:
-                    - SelfSigned
-                    - Provided
-                    - OpenshiftDefaultIngress
-                    type: string
-                type: object
               cookie:
-                description: Cookie configuration for OAuth2 proxy (applies to both
-                  OIDC and OpenShift OAuth)
+                description: CookieConfig defines cookie settings for OAuth2 proxy
                 properties:
                   expire:
                     default: 24h
                     description: |-
                       Expire duration for OAuth2 proxy session cookie (e.g., "24h", "8h")
                       This controls how long the session cookie is valid before requiring re-authentication.
-                      Default: "24h"
-                    pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                     type: string
                   refresh:
                     default: 1h
@@ -88,15 +63,44 @@ spec:
                       Refresh duration for OAuth2 proxy to refresh access tokens (e.g., "2h", "1h", "30m")
                       This must be LESS than the OIDC provider's Access Token Lifespan to avoid token expiration.
                       For example, if Keycloak Access Token Lifespan is 1 hour, set this to "30m" or "45m".
-                      Default: "1h"
-                    pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                     type: string
                 type: object
-              domain:
-                description: |-
-                  Domain configuration for the GatewayConfig
-                  Example: apps.example.com
-                type: string
+              ingressGateway:
+                description: GatewaySpec represents the configuration of the Ingress
+                  Gateways.
+                properties:
+                  certificate:
+                    description: |-
+                      Certificate specifies configuration of the TLS certificate securing communication
+                      for the gateway.
+                    properties:
+                      secretName:
+                        description: |-
+                          SecretName specifies the name of the Kubernetes Secret resource that contains a
+                          TLS certificate secure HTTP communications for the KNative network.
+                        type: string
+                      type:
+                        default: OpenshiftDefaultIngress
+                        description: |-
+                          Type specifies if the TLS certificate should be generated automatically, or if the certificate
+                          is provided by the user. Allowed values are:
+                          * SelfSigned: A certificate is going to be generated using an own private key.
+                          * Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.
+                          * OpenshiftDefaultIngress: Default ingress certificate configured for OpenShift
+                        enum:
+                        - SelfSigned
+                        - Provided
+                        - OpenshiftDefaultIngress
+                        type: string
+                    type: object
+                  domain:
+                    description: |-
+                      Domain specifies the host name for intercepting incoming requests.
+                      Most likely, you will want to use a wildcard name, like *.example.com.
+                      If not set, the domain of the OpenShift Ingress is used.
+                      If you choose to generate a certificate, this is the domain used for the certificate request.
+                    type: string
+                type: object
               oidc:
                 description: OIDC configuration (used when cluster is in OIDC authentication
                   mode)
@@ -131,11 +135,18 @@ spec:
                   issuerURL:
                     description: OIDC issuer URL
                     type: string
+                  secretNamespace:
+                    description: |-
+                      Namespace where the client secret is located
+                      If not specified, defaults to openshift-ingress
+                    type: string
                 required:
                 - clientID
                 - clientSecretRef
                 - issuerURL
                 type: object
+            required:
+            - cookie
             type: object
           status:
             description: GatewayConfigStatus defines the observed state of GatewayConfig
@@ -205,8 +216,8 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: GatewayConfig name must be default-gateway
-          rule: self.metadata.name == 'default-gateway'
+        - message: GatewayConfig name must be data-science-gatewayconfig
+          rule: self.metadata.name == 'data-science-gatewayconfig'
     served: true
     storage: true
     subresources:

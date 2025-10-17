@@ -1,0 +1,16 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{.GatewayName}}
+  namespace: {{.GatewayNamespace}}
+spec: # .host is intentionally omitted to allow OpenShift to auto-generate the hostname.
+  port:
+    targetPort: https
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: passthrough
+  to:
+    kind: Service
+    name: {{.GatewayName}}-{{.GatewayClassName}}
+    weight: 100
+  wildcardPolicy: None

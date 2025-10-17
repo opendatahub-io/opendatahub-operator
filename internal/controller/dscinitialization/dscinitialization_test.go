@@ -2,6 +2,7 @@ package dscinitialization_test
 
 import (
 	"context"
+	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	userv1 "github.com/openshift/api/user/v1"
@@ -83,6 +84,29 @@ var _ = Describe("DataScienceCluster initialization", func() {
 				WithTimeout(timeout).
 				WithPolling(interval).
 				Should(BeFalse())
+		})
+
+		It("Should create GatewayConfig with default values and proper ownership", func(ctx context.Context) {
+			// then
+			foundGatewayConfig := &serviceApi.GatewayConfig{}
+			Eventually(objectExists(serviceApi.GatewayConfigName, "", foundGatewayConfig)).
+				WithContext(ctx).
+				WithTimeout(timeout).
+				WithPolling(interval).
+				Should(BeTrue())
+
+			// Verify GatewayConfig is owned by DSCInitialization
+			Expect(foundGatewayConfig.OwnerReferences).To(HaveLen(1))
+			Expect(foundGatewayConfig.OwnerReferences[0].Kind).To(Equal("DSCInitialization"))
+			Expect(foundGatewayConfig.OwnerReferences[0].Name).To(Equal(applicationName))
+
+			// Verify default cookie values
+			Expect(foundGatewayConfig.Spec.Cookie.Expire.Duration).To(Equal(24 * time.Hour))
+			Expect(foundGatewayConfig.Spec.Cookie.Refresh.Duration).To(Equal(2 * time.Hour))
+
+			// Verify default ingress gateway configuration
+			Expect(foundGatewayConfig.Spec.IngressGateway.Certificate.Type).To(BeEquivalentTo("OpenshiftDefaultIngress"))
+			Expect(foundGatewayConfig.Spec.IngressGateway.Certificate.SecretName).To(Equal("opendatahub-gateway-tls"))
 		})
 	})
 

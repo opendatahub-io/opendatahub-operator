@@ -52,14 +52,11 @@ func TestServiceTypesConformToPlatformObject(t *testing.T) {
 					Name: "gateway",
 				},
 				Spec: GatewayConfigSpec{
-					Domain: "example.com",
-					Certificate: &infrav1.CertificateSpec{
-						Type: infrav1.SelfSigned,
-					},
-				},
-				Status: GatewayConfigStatus{
-					Status: common.Status{
-						Phase: "Ready",
+					IngressGateway: GatewaySpec{
+						Domain: "example.com",
+						Certificate: infrav1.CertificateSpec{
+							Type: infrav1.SelfSigned,
+						},
 					},
 				},
 			},
