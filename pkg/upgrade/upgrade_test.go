@@ -565,9 +565,9 @@ func validateAcceleratorProfileHardwareProfile(g *WithT, hwp *infrav1.HardwarePr
 	annotations := hwp.GetAnnotations()
 	g.Expect(annotations).ToNot(BeNil())
 	g.Expect(annotations).To(HaveKey("opendatahub.io/dashboard-feature-visibility"))
-	expectedVisibility := "['model-serving']"
+	expectedVisibility := `["model-serving"]`
 	if profileType == notebooksProfileType {
-		expectedVisibility = "['workbench']"
+		expectedVisibility = `["workbench"]`
 	}
 	g.Expect(annotations["opendatahub.io/dashboard-feature-visibility"]).To(Equal(expectedVisibility))
 	g.Expect(annotations).To(HaveKey("opendatahub.io/modified-date"))
@@ -752,9 +752,9 @@ func validateContainerSizeHardwareProfile(g *WithT, hwp *infrav1.HardwareProfile
 	annotations := hwp.GetAnnotations()
 	g.Expect(annotations).ToNot(BeNil())
 	g.Expect(annotations).To(HaveKey("opendatahub.io/dashboard-feature-visibility"))
-	expectedVisibility := "['model-serving']"
+	expectedVisibility := `["model-serving"]`
 	if sizeType == notebooksProfileType {
-		expectedVisibility = "['workbench']"
+		expectedVisibility = `["workbench"]`
 	}
 	g.Expect(annotations["opendatahub.io/dashboard-feature-visibility"]).To(Equal(expectedVisibility))
 	g.Expect(annotations).To(HaveKey("opendatahub.io/modified-date"))
