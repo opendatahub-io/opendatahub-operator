@@ -79,14 +79,12 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	ms := components.NormalizeManagementState(dsc.Spec.Components.FeastOperator.ManagementState)
 
-	dsc.Status.InstalledComponents[ComponentName] = false
 	dsc.Status.Components.FeastOperator.ManagementState = ms
 	dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	if s.IsEnabled(dsc) {
-		dsc.Status.InstalledComponents[ComponentName] = true
 		dsc.Status.Components.FeastOperator.FeastOperatorCommonStatus = c.Status.FeastOperatorCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
