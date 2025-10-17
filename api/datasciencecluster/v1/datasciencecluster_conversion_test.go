@@ -3,6 +3,9 @@ package v1
 import (
 	"testing"
 
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	operatorv1 "github.com/openshift/api/operator/v1"
+
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -10,80 +13,125 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 )
 
-// TestConvertInstalledComponents_V1ToV2 verifies that v1 component names are properly
-// converted to v2 names while preserving other components unchanged.
-func TestConvertInstalledComponents_V1ToV2(t *testing.T) {
+// TestGetV1ComponentName verifies that component name mapping works correctly.
+func TestGetV1ComponentName(t *testing.T) {
 	g := NewWithT(t)
 
-	input := map[string]bool{
-		"data-science-pipelines-operator": true,
-		"dashboard":                       true,
-		"workbenches":                     false,
-	}
+	// Test components that have different names between v1 and v2
+	g.Expect(getV1ComponentName(componentApi.DataSciencePipelinesComponentName)).To(Equal(LegacyDataScienceComponentName))
+	g.Expect(getV1ComponentName(componentApi.ModelRegistryComponentName)).To(Equal(LegacyModelRegistryComponentName))
 
-	result := convertInstalledComponents(input, true)
-
-	g.Expect(result).To(HaveKeyWithValue("aipipelines", true))
-	g.Expect(result).To(HaveKeyWithValue("dashboard", true))
-	g.Expect(result).To(HaveKeyWithValue("workbenches", false))
-	g.Expect(result).NotTo(HaveKey("data-science-pipelines-operator"))
+	// Test components that have the same names between v1 and v2
+	g.Expect(getV1ComponentName(componentApi.DashboardComponentName)).To(Equal(componentApi.DashboardComponentName))
+	g.Expect(getV1ComponentName(componentApi.KserveComponentName)).To(Equal(componentApi.KserveComponentName))
+	g.Expect(getV1ComponentName(componentApi.KueueComponentName)).To(Equal(componentApi.KueueComponentName))
+	g.Expect(getV1ComponentName(componentApi.RayComponentName)).To(Equal(componentApi.RayComponentName))
+	g.Expect(getV1ComponentName(componentApi.TrustyAIComponentName)).To(Equal(componentApi.TrustyAIComponentName))
+	g.Expect(getV1ComponentName(componentApi.TrainingOperatorComponentName)).To(Equal(componentApi.TrainingOperatorComponentName))
+	g.Expect(getV1ComponentName(componentApi.FeastOperatorComponentName)).To(Equal(componentApi.FeastOperatorComponentName))
+	g.Expect(getV1ComponentName(componentApi.LlamaStackOperatorComponentName)).To(Equal(componentApi.LlamaStackOperatorComponentName))
 }
 
-// TestConvertInstalledComponents_V2ToV1 verifies that v2 component names are properly
-// converted to v1 names while preserving other components unchanged.
-func TestConvertInstalledComponents_V2ToV1(t *testing.T) {
+// TestConstructInstalledComponentsFromV2Status verifies that the construction function
+// properly creates InstalledComponents map from v2 component status.
+func TestConstructInstalledComponentsFromV2Status(t *testing.T) {
 	g := NewWithT(t)
 
-	input := map[string]bool{
-		"aipipelines": true,
-		"dashboard":   true,
-		"kserve":      false,
-	}
-
-	result := convertInstalledComponents(input, false)
-
-	g.Expect(result).To(HaveKeyWithValue("data-science-pipelines-operator", true))
-	g.Expect(result).To(HaveKeyWithValue("dashboard", true))
-	g.Expect(result).To(HaveKeyWithValue("kserve", false))
-	g.Expect(result).NotTo(HaveKey("aipipelines"))
-}
-
-// TestConvertInstalledComponents_Nil ensures nil input returns nil without panicking.
-func TestConvertInstalledComponents_Nil(t *testing.T) {
-	g := NewWithT(t)
-	result := convertInstalledComponents(nil, true)
-	g.Expect(result).To(BeNil())
-}
-
-// TestConvertTo_InstalledComponents verifies that the full ConvertTo method properly
-// converts InstalledComponents from v1 to v2 format.
-func TestConvertTo_InstalledComponents(t *testing.T) {
-	g := NewWithT(t)
-
-	v1DSC := &DataScienceCluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-dsc",
-		},
-		Status: DataScienceClusterStatus{
-			InstalledComponents: map[string]bool{
-				"data-science-pipelines-operator": true,
-				"dashboard":                       false,
+	v2Status := dscv2.DataScienceClusterStatus{
+		Components: dscv2.ComponentsStatus{
+			Dashboard: componentApi.DSCDashboardStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Managed,
+				},
+			},
+			AIPipelines: componentApi.DSCDataSciencePipelinesStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Managed,
+				},
+			},
+			Kserve: componentApi.DSCKserveStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Removed,
+				},
+			},
+			Kueue: componentApi.DSCKueueStatus{
+				KueueManagementSpec: componentApi.KueueManagementSpec{
+					ManagementState: operatorv1.Unmanaged,
+				},
+			},
+			Ray: componentApi.DSCRayStatus{
+				ManagementSpec: common.ManagementSpec{
+					ManagementState: operatorv1.Managed,
+				},
 			},
 		},
 	}
 
-	v2DSC := &dscv2.DataScienceCluster{}
-	err := v1DSC.ConvertTo(v2DSC)
+	result := constructInstalledComponentsFromV2Status(v2Status)
 
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(v2DSC.Status.InstalledComponents).To(HaveKeyWithValue("aipipelines", true))
-	g.Expect(v2DSC.Status.InstalledComponents).To(HaveKeyWithValue("dashboard", false))
-	g.Expect(v2DSC.Status.InstalledComponents).NotTo(HaveKey("data-science-pipelines-operator"))
+	// Test components that are managed (should be true)
+	g.Expect(result).To(HaveKeyWithValue(componentApi.DashboardComponentName, true))
+	g.Expect(result).To(HaveKeyWithValue(LegacyDataScienceComponentName, true))
+	g.Expect(result).To(HaveKeyWithValue(componentApi.RayComponentName, true))
+
+	// Test components that are not managed (should be false)
+	g.Expect(result).To(HaveKeyWithValue(componentApi.KserveComponentName, false))
+	g.Expect(result).To(HaveKeyWithValue(componentApi.KueueComponentName, false))
+
+	// Test that all expected components are present
+	expectedComponents := []string{
+		componentApi.DashboardComponentName,
+		LegacyDataScienceComponentName, // Special case - uses legacy name
+		componentApi.KserveComponentName,
+		componentApi.KueueComponentName,
+		componentApi.RayComponentName,
+		componentApi.TrustyAIComponentName,
+		LegacyModelRegistryComponentName, // Special case - uses legacy name
+		componentApi.TrainingOperatorComponentName,
+		componentApi.FeastOperatorComponentName,
+		componentApi.LlamaStackOperatorComponentName,
+	}
+	for _, component := range expectedComponents {
+		g.Expect(result).To(HaveKey(component))
+	}
 }
 
-// TestConvertFrom_InstalledComponents verifies that the full ConvertFrom method properly
-// converts InstalledComponents from v2 to v1 format.
-func TestConvertFrom_InstalledComponents(t *testing.T) {
+// TestConstructInstalledComponentsFromV2Status_EmptyValue verifies behavior with completely empty status
+func TestConstructInstalledComponentsFromV2Status_EmptyValue(t *testing.T) {
+	g := NewWithT(t)
+
+	// Test with completely empty status (no components configured)
+	emptyStatus := dscv2.DataScienceClusterStatus{}
+	result := constructInstalledComponentsFromV2Status(emptyStatus)
+
+	// Define expected components list
+	expectedComponents := []string{
+		componentApi.DashboardComponentName,
+		LegacyDataScienceComponentName,
+		componentApi.KserveComponentName,
+		componentApi.KueueComponentName,
+		componentApi.RayComponentName,
+		componentApi.TrustyAIComponentName,
+		LegacyModelRegistryComponentName,
+		componentApi.TrainingOperatorComponentName,
+		componentApi.FeastOperatorComponentName,
+		componentApi.LlamaStackOperatorComponentName,
+		componentApi.WorkbenchesComponentName,
+	}
+
+	// Should return map with all components false (since ManagementState is empty/unset)
+	g.Expect(result).NotTo(BeNil())
+	g.Expect(len(result)).To(Equal(len(expectedComponents))) // All 11 components should be present
+
+	// All should be false since empty ManagementState != Managed
+	for _, value := range result {
+		g.Expect(value).To(BeFalse())
+	}
+}
+
+// TestConvertFrom_ConstructsInstalledComponents verifies that ConvertFrom properly
+// constructs the v1 InstalledComponents field from v2 component management states.
+func TestConvertFrom_ConstructsInstalledComponents(t *testing.T) {
 	g := NewWithT(t)
 
 	v2DSC := &dscv2.DataScienceCluster{
@@ -91,9 +139,27 @@ func TestConvertFrom_InstalledComponents(t *testing.T) {
 			Name: "test-dsc",
 		},
 		Status: dscv2.DataScienceClusterStatus{
-			InstalledComponents: map[string]bool{
-				"aipipelines": true,
-				"workbenches": false,
+			Components: dscv2.ComponentsStatus{
+				Dashboard: componentApi.DSCDashboardStatus{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+				},
+				AIPipelines: componentApi.DSCDataSciencePipelinesStatus{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Managed,
+					},
+				},
+				Kserve: componentApi.DSCKserveStatus{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Workbenches: componentApi.DSCWorkbenchesStatus{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Unmanaged,
+					},
+				},
 			},
 		},
 	}
@@ -102,9 +168,10 @@ func TestConvertFrom_InstalledComponents(t *testing.T) {
 	err := v1DSC.ConvertFrom(v2DSC)
 
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(v1DSC.Status.InstalledComponents).To(HaveKeyWithValue("data-science-pipelines-operator", true))
-	g.Expect(v1DSC.Status.InstalledComponents).To(HaveKeyWithValue("workbenches", false))
-	g.Expect(v1DSC.Status.InstalledComponents).NotTo(HaveKey("aipipelines"))
+	g.Expect(v1DSC.Status.InstalledComponents).To(HaveKeyWithValue(componentApi.DashboardComponentName, true))
+	g.Expect(v1DSC.Status.InstalledComponents).To(HaveKeyWithValue(LegacyDataScienceComponentName, true))
+	g.Expect(v1DSC.Status.InstalledComponents).To(HaveKeyWithValue(componentApi.KserveComponentName, false))
+	g.Expect(v1DSC.Status.InstalledComponents).To(HaveKeyWithValue(componentApi.WorkbenchesComponentName, false))
 }
 
 // TestConvertConditions_V1ToV2 verifies that condition types containing v1 component names

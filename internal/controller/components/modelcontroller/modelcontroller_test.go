@@ -219,7 +219,6 @@ func createDSCWithModelController(kserveState, modelregistryState operatorv1.Man
 
 	dsc.Spec.Components.Kserve.ManagementState = kserveState
 	dsc.Spec.Components.ModelRegistry.ManagementState = modelregistryState
-	dsc.Status.InstalledComponents = make(map[string]bool)
 
 	return &dsc
 }
