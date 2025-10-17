@@ -34,7 +34,7 @@ spec:
                 - key: name
                   operator: In
                   values:
-                  - opendatahub-operator
+                  - rhods-operator
               topologyKey: kubernetes.io/hostname
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
