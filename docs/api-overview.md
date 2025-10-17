@@ -1631,7 +1631,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
-| `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
+| `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration. |  |  |
 | `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Only RawDeployment mode is supported. |  |  |
 | `kueue` _[DSCKueueV1](#dsckueuev1)_ | Kueue component configuration. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
@@ -1787,7 +1787,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `dashboard` _[DSCDashboard](#dscdashboard)_ | Dashboard component configuration. |  |  |
 | `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
-| `aipipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | AIPipelines component configuration.<br />Requires OpenShift Pipelines Operator to be installed before enable component |  |  |
+| `aipipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | AIPipelines component configuration. |  |  |
 | `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Only RawDeployment mode is supported. |  |  |
 | `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
