@@ -72,7 +72,6 @@ type ArgoWorkflowsControllersSpec struct {
 }
 
 type DataSciencePipelinesCommonSpec struct {
-	common.DevFlagsSpec      `json:",inline"`
 	ArgoWorkflowsControllers *ArgoWorkflowsControllersSpec `json:"argoWorkflowsControllers,omitempty"`
 }
 
@@ -85,10 +84,6 @@ type DataSciencePipelinesCommonStatus struct {
 type DataSciencePipelinesStatus struct {
 	common.Status                    `json:",inline"`
 	DataSciencePipelinesCommonStatus `json:",inline"`
-}
-
-func (c *DataSciencePipelines) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *DataSciencePipelines) GetStatus() *common.Status {
