@@ -17,12 +17,12 @@ limitations under the License.
 package v1
 
 import (
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"strings"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
