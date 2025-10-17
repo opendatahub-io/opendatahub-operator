@@ -181,22 +181,10 @@ var (
 		Kind:    "Route",
 	}
 
-	KnativeServing = schema.GroupVersionKind{
-		Group:   "operator.knative.dev",
-		Version: "v1beta1",
-		Kind:    "KnativeServing",
-	}
-
 	OpenshiftIngress = schema.GroupVersionKind{
 		Group:   "config.openshift.io",
 		Version: "v1",
 		Kind:    "Ingress",
-	}
-
-	ServiceMeshControlPlane = schema.GroupVersionKind{
-		Group:   "maistra.io",
-		Version: "v2",
-		Kind:    "ServiceMeshControlPlane",
 	}
 
 	OdhApplication = schema.GroupVersionKind{
@@ -331,12 +319,6 @@ var (
 		Kind:    "CustomResourceDefinition",
 	}
 
-	ServiceMeshMember = schema.GroupVersionKind{
-		Group:   "maistra.io",
-		Version: "v1",
-		Kind:    "ServiceMeshMember",
-	}
-
 	Lease = schema.GroupVersionKind{
 		Group:   coordinationv1.SchemeGroupVersion.Group,
 		Version: coordinationv1.SchemeGroupVersion.Version,
@@ -353,24 +335,6 @@ var (
 		Group:   "networking.istio.io",
 		Version: "v1",
 		Kind:    "DestinationRule",
-	}
-
-	AuthorizationPolicy = schema.GroupVersionKind{
-		Group:   "security.istio.io",
-		Version: "v1",
-		Kind:    "AuthorizationPolicy",
-	}
-
-	AuthorizationPolicyv1beta1 = schema.GroupVersionKind{
-		Group:   "security.istio.io",
-		Version: "v1beta1",
-		Kind:    "AuthorizationPolicy",
-	}
-
-	IstioGateway = schema.GroupVersionKind{
-		Group:   "networking.istio.io",
-		Version: "v1beta1",
-		Kind:    "Gateway",
 	}
 
 	GatewayConfig = schema.GroupVersionKind{
@@ -449,6 +413,12 @@ var (
 		Group:   "serving.kserve.io",
 		Version: "v1beta1",
 		Kind:    "InferenceService",
+	}
+
+	ServingRuntime = schema.GroupVersionKind{
+		Group:   "serving.kserve.io",
+		Version: "v1alpha1",
+		Kind:    "ServingRuntime",
 	}
 
 	Notebook = schema.GroupVersionKind{
@@ -563,6 +533,12 @@ var (
 		Group:   "monitoring.rhobs",
 		Version: "v1",
 		Kind:    "PrometheusRule",
+	}
+
+	ServiceMesh = schema.GroupVersionKind{
+		Group:   serviceApi.GroupVersion.Group,
+		Version: serviceApi.GroupVersion.Version,
+		Kind:    serviceApi.ServiceMeshKind,
 	}
 
 	ThanosQuerier = schema.GroupVersionKind{

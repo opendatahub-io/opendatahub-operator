@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -14,7 +13,6 @@ import (
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -54,8 +52,6 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Ensure required operators are installed", dscTestCtx.ValidateOperatorsInstallation},
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
-		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
-		{"Validate Knative resource", dscTestCtx.ValidateKnativeSpecInDSC},
 		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
@@ -82,7 +78,7 @@ func dscManagementTestSuite(t *testing.T) {
 	RunTestCases(t, testCases)
 }
 
-// ValidateOperatorsInstallation ensures the Service Mesh and Serverless operators are installed.
+// ValidateOperatorsInstallation ensures the required operators are installed.
 func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	t.Helper()
 
@@ -91,9 +87,6 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		nn                types.NamespacedName
 		skipOperatorGroup bool
 	}{
-		{nn: types.NamespacedName{Name: serviceMeshOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
-		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: serverlessOperatorNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
 		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false},
 		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
@@ -141,66 +134,6 @@ func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 		// Increase time required to get DSC created
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
-	)
-}
-
-// ValidateServiceMeshSpecInDSCI validates the ServiceMeshSpec within a DSCInitialization instance.
-func (tc *DSCTestCtx) ValidateServiceMeshSpecInDSCI(t *testing.T) {
-	t.Helper()
-
-	// expected ServiceMeshSpec.
-	expServiceMeshSpec := &infrav1.ServiceMeshSpec{
-		ManagementState: operatorv1.Managed,
-		ControlPlane: infrav1.ControlPlaneSpec{
-			Name:              serviceMeshControlPlane,
-			Namespace:         serviceMeshNamespace,
-			MetricsCollection: serviceMeshMetricsCollection,
-		},
-		Auth: infrav1.AuthSpec{
-			Audiences: &[]string{"https://kubernetes.default.svc"},
-		},
-	}
-
-	// Marshal the expected ServiceMeshSpec to JSON.
-	expServiceMeshSpecJSON, err := json.Marshal(expServiceMeshSpec)
-	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Error marshaling expected ServiceMeshSpec")
-
-	// Assert that the actual ServiceMeshSpec matches the expected one.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithCondition(jq.Match(`.spec.serviceMesh == %s`, expServiceMeshSpecJSON)),
-		WithCustomErrorMsg("Error validating DSCInitialization instance: Service Mesh spec mismatch"),
-	)
-
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)))
-}
-
-// ValidateKnativeSpecInDSC validates that the Kserve serving spec in the DataScienceCluster matches the expected spec.
-func (tc *DSCTestCtx) ValidateKnativeSpecInDSC(t *testing.T) {
-	t.Helper()
-
-	// expected ServingSpec
-	expServingSpec := &infrav1.ServingSpec{
-		ManagementState: operatorv1.Managed,
-		Name:            knativeServingNamespace,
-		IngressGateway: infrav1.GatewaySpec{
-			Certificate: infrav1.CertificateSpec{
-				Type: infrav1.OpenshiftDefaultIngress,
-			},
-		},
-	}
-
-	// Marshal the expected ServingSpec to JSON
-	expServingSpecJSON, err := json.Marshal(expServingSpec)
-	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Error marshaling expected ServingSpec")
-
-	// Assert that the actual ServingSpec matches the expected one.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(`.spec.components.kserve.serving == %s`, expServingSpecJSON)),
-		WithCustomErrorMsg("Error validating DSCInitialization instance: Knative Serving spec mismatch"),
 	)
 }
 
@@ -346,72 +279,6 @@ func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
 		WithCondition(And(
 			jq.Match(`.spec.identifiers[0].defaultCount == 2`),
 			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
-		)),
-		WithCustomErrorMsg("Hardware profile was not recreated with default values"),
-	)
-
-	// verifed custom-serving hardwareprofile exists and api version is correct on v1.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "custom-serving", Namespace: tc.AppsNamespace}),
-		WithCondition(And(
-			jq.Match(`.spec.identifiers[0].identifier == "cpu"`),
-			jq.Match(`.spec.identifiers[0].displayName == "cpu"`),
-			jq.Match(`.spec.identifiers[0].resourceType == "CPU"`),
-			jq.Match(`.spec.identifiers[0].minCount == 1`),
-			jq.Match(`.spec.identifiers[0].defaultCount == 1`),
-			jq.Match(`.spec.identifiers[1].identifier == "memory"`),
-			jq.Match(`.spec.identifiers[1].displayName == "memory"`),
-			jq.Match(`.spec.identifiers[1].resourceType == "Memory"`),
-			jq.Match(`.spec.identifiers[1].minCount == "1Gi"`),
-			jq.Match(`.spec.identifiers[1].defaultCount == "1Gi"`),
-			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
-			jq.Match(`.metadata.annotations["opendatahub.io/dashboard-feature-visibility"] == "model-serving"`),
-			jq.Match(`.apiVersion == "infrastructure.opendatahub.io/v1"`),
-		)),
-		WithCustomErrorMsg("Custom-serving hardwareprofile should have correct identifiers, managed=false, dashboard-feature-visibility=model-serving, and use v1 API version"),
-	)
-
-	// update custom-serving hardwareprofile to different value and check it is updated.
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "custom-serving", Namespace: tc.AppsNamespace}),
-		WithMutateFunc(testf.Transform(`
-				.spec.identifiers[0].defaultCount = 4 |
-				.metadata.annotations["opendatahub.io/managed"] = "false"
-			`)),
-		WithCondition(And(
-			Succeed(),
-			jq.Match(`.spec.identifiers[0].defaultCount == 4`),
-			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
-		)),
-		WithCustomErrorMsg("Failed to update defaultCount from 1 to 4"),
-	)
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "custom-serving", Namespace: tc.AppsNamespace}),
-		WithCondition(jq.Match(`.spec.identifiers[0].defaultCount == 4`)),
-		WithCustomErrorMsg("Should have defaultCount to 4 but now got %s", jq.Match(`.spec.identifiers[0].defaultCount`)),
-	)
-
-	// delete custom-serving hardwareprofile and check it is recreated with default values.
-	tc.DeleteResource(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "custom-serving", Namespace: tc.AppsNamespace}),
-	)
-
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "custom-serving", Namespace: tc.AppsNamespace}),
-		WithCondition(And(
-			jq.Match(`.spec.identifiers[0].identifier == "cpu"`),
-			jq.Match(`.spec.identifiers[0].displayName == "cpu"`),
-			jq.Match(`.spec.identifiers[0].resourceType == "CPU"`),
-			jq.Match(`.spec.identifiers[0].minCount == 1`),
-			jq.Match(`.spec.identifiers[0].defaultCount == 1`),
-			jq.Match(`.spec.identifiers[1].identifier == "memory"`),
-			jq.Match(`.spec.identifiers[1].displayName == "memory"`),
-			jq.Match(`.spec.identifiers[1].resourceType == "Memory"`),
-			jq.Match(`.spec.identifiers[1].minCount == "1Gi"`),
-			jq.Match(`.spec.identifiers[1].defaultCount == "1Gi"`),
-			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
-			jq.Match(`.metadata.annotations["opendatahub.io/dashboard-feature-visibility"] == "model-serving"`),
-			jq.Match(`.apiVersion == "infrastructure.opendatahub.io/v1"`),
 		)),
 		WithCustomErrorMsg("Hardware profile was not recreated with default values"),
 	)

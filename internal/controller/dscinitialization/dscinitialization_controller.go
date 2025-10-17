@@ -19,6 +19,7 @@ package dscinitialization
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -46,6 +47,7 @@ import (
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -111,11 +113,6 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 	} else {
-		log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
-		if err := r.removeServiceMesh(ctx, instance); err != nil {
-			return reconcile.Result{}, err
-		}
-
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			newInstance := &dsciv2.DSCInitialization{}
 			if err := r.Client.Get(ctx, client.ObjectKeyFromObject(instance), newInstance); err != nil {
@@ -267,10 +264,29 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 
-		// Apply Service Mesh configurations
-		if errServiceMesh := r.configureServiceMesh(ctx, instance); errServiceMesh != nil {
-			return reconcile.Result{}, errServiceMesh
+		// legacy ServiceMesh FeatureTracker cleanup, retained from the remove ServiceMesh controller
+		ftNames := []string{
+			instance.Spec.ApplicationsNamespace + "-mesh-shared-configmap",
+			instance.Spec.ApplicationsNamespace + "-mesh-control-plane-creation",
+			instance.Spec.ApplicationsNamespace + "-mesh-metrics-collection",
+			instance.Spec.ApplicationsNamespace + "-enable-proxy-injection-in-authorino-deployment",
+			instance.Spec.ApplicationsNamespace + "-mesh-control-plane-external-authz",
 		}
+		for _, name := range ftNames {
+			ft := featuresv1.FeatureTracker{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}
+
+			err := r.Client.Delete(ctx, &ft, client.PropagationPolicy(metav1.DeletePropagationForeground))
+			if k8serr.IsNotFound(err) {
+				continue
+			} else if err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to delete FeatureTracker %s: %w", ft.GetName(), err)
+			}
+		}
+
 		// Create Auth
 		if err = r.CreateAuth(ctx, platform); err != nil {
 			log.Info("failed to create Auth")

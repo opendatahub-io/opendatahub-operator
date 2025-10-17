@@ -22,11 +22,12 @@ func TestBuildBaseOAuth2ProxyArgs(t *testing.T) {
 	args := buildBaseOAuth2ProxyArgs(testProxyDomain)
 
 	// Verify argument count
-	g.Expect(args).To(HaveLen(19), "should have 19 base arguments")
+	g.Expect(args).To(HaveLen(20), "should have 20 base arguments")
 
 	// Core configuration
 	g.Expect(args).To(ContainElement("--http-address=0.0.0.0:4180"))
 	g.Expect(args).To(ContainElement("--https-address=0.0.0.0:8443"))
+	g.Expect(args).To(ContainElement("--metrics-address=0.0.0.0:9000"))
 	g.Expect(args).To(ContainElement("--email-domain=*"))
 	g.Expect(args).To(ContainElement("--upstream=static://200"))
 	g.Expect(args).To(ContainElement("--redirect-url=https://" + testProxyDomain + "/oauth2/callback"))

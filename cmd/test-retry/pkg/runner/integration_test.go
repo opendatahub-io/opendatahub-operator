@@ -6,10 +6,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/config"
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/formatter"
 	"github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry/pkg/types"
-	"github.com/stretchr/testify/require"
 )
 
 type testResult struct {
