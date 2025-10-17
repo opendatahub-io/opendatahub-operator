@@ -425,6 +425,10 @@ func ParseTestFlags() error {
 // getControllerDeploymentName returns deployment name based on platform.
 func (tc *TestContext) getControllerDeploymentName() string {
 	platform := tc.FetchPlatformRelease()
+	return getControllerDeploymentNameByPlatform(platform)
+}
+
+func getControllerDeploymentNameByPlatform(platform common.Platform) string {
 	switch platform {
 	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
 		return controllerDeploymentRhoai
