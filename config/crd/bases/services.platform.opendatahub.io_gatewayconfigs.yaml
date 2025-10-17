@@ -70,6 +70,28 @@ spec:
                     - OpenshiftDefaultIngress
                     type: string
                 type: object
+              cookie:
+                description: Cookie configuration for OAuth2 proxy (applies to both
+                  OIDC and OpenShift OAuth)
+                properties:
+                  expire:
+                    default: 24h
+                    description: |-
+                      Expire duration for OAuth2 proxy session cookie (e.g., "24h", "8h")
+                      This controls how long the session cookie is valid before requiring re-authentication.
+                      Default: "24h"
+                    pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                    type: string
+                  refresh:
+                    default: 1h
+                    description: |-
+                      Refresh duration for OAuth2 proxy to refresh access tokens (e.g., "2h", "1h", "30m")
+                      This must be LESS than the OIDC provider's Access Token Lifespan to avoid token expiration.
+                      For example, if Keycloak Access Token Lifespan is 1 hour, set this to "30m" or "45m".
+                      Default: "1h"
+                    pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                    type: string
+                type: object
               domain:
                 description: |-
                   Domain configuration for the GatewayConfig

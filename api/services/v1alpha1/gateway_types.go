@@ -48,6 +48,10 @@ type GatewayConfigSpec struct {
 	// Example: apps.example.com
 	// +optional
 	Domain string `json:"domain,omitempty"`
+
+	// Cookie configuration for OAuth2 proxy (applies to both OIDC and OpenShift OAuth)
+	// +optional
+	Cookie *CookieConfig `json:"cookie,omitempty"`
 }
 
 // OIDCConfig defines OIDC provider configuration
@@ -63,6 +67,26 @@ type OIDCConfig struct {
 	// Reference to secret containing client secret
 	// +kubebuilder:validation:Required
 	ClientSecretRef corev1.SecretKeySelector `json:"clientSecretRef"`
+}
+
+// CookieConfig defines cookie settings for OAuth2 proxy
+type CookieConfig struct {
+	// Expire duration for OAuth2 proxy session cookie (e.g., "24h", "8h")
+	// This controls how long the session cookie is valid before requiring re-authentication.
+	// Default: "24h"
+	// +optional
+	// +kubebuilder:default="24h"
+	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`
+	Expire string `json:"expire,omitempty"`
+
+	// Refresh duration for OAuth2 proxy to refresh access tokens (e.g., "2h", "1h", "30m")
+	// This must be LESS than the OIDC provider's Access Token Lifespan to avoid token expiration.
+	// For example, if Keycloak Access Token Lifespan is 1 hour, set this to "30m" or "45m".
+	// Default: "1h"
+	// +optional
+	// +kubebuilder:default="1h"
+	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`
+	Refresh string `json:"refresh,omitempty"`
 }
 
 // GatewayConfigStatus defines the observed state of GatewayConfig

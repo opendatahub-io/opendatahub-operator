@@ -599,7 +599,7 @@ func TestBuildOAuth2ProxyArgsOpenShift(t *testing.T) {
 
 	domain := "data-science-gateway.apps.example.com"
 
-	args := buildOAuth2ProxyArgs(nil, domain) // nil = OpenShift mode
+	args := buildOAuth2ProxyArgs(nil, nil, domain) // nil OIDC = OpenShift mode, nil cookie = defaults
 
 	// Verify base arguments are present
 	g.Expect(args).To(ContainElement(ContainSubstring("--http-address=0.0.0.0:")))
@@ -633,7 +633,7 @@ func TestBuildOAuth2ProxyArgsOIDC(t *testing.T) {
 		IssuerURL: testOIDCIssuerURL,
 	}
 
-	args := buildOAuth2ProxyArgs(oidcConfig, domain)
+	args := buildOAuth2ProxyArgs(oidcConfig, nil, domain) // nil cookie = defaults
 
 	// Verify base arguments are present
 	g.Expect(args).To(ContainElement(ContainSubstring("--http-address=0.0.0.0:")))

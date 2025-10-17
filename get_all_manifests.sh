@@ -12,8 +12,8 @@ GITHUB_URL="https://github.com"
 # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
 declare -A COMPONENT_MANIFESTS=(
     ["dashboard"]="opendatahub-io:odh-dashboard:main@e356f9630874efe5cd1b2c96fddc15b1cdfdf8bd:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@4c581eb93299dde716e7791ebe5f90d43919a52f:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@4c581eb93299dde716e7791ebe5f90d43919a52f:components/odh-notebook-controller/config"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@bf6b20b5a4cf689c0c3fa06f99dfbdcf6674d51f:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@bf6b20b5a4cf689c0c3fa06f99dfbdcf6674d51f:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main@40a15f26ca1f3af8135ddbadee43708501cd19b1:manifests"
     ["kserve"]="opendatahub-io:kserve:release-v0.15@1381fab8f77e7d5b211f634506a7a09e97345655:config"
     ["ray"]="opendatahub-io:kuberay:dev@d751b14faddf13b141d0d26f6ced640ec23030b3:ray-operator/config"
