@@ -38,7 +38,6 @@ type Components struct {
 	Workbenches componentApi.DSCWorkbenches `json:"workbenches,omitempty"`
 
 	// AIPipelines component configuration.
-	// Requires OpenShift Pipelines Operator to be installed before enable component
 	AIPipelines componentApi.DSCDataSciencePipelines `json:"aipipelines,omitempty"`
 
 	// Kserve component configuration.
