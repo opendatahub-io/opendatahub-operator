@@ -20,7 +20,6 @@ package deploy
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"os"
