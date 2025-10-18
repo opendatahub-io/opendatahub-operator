@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
@@ -92,11 +93,17 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 
 	dst.Spec = dscv2.DataScienceClusterSpec{
 		Components: dscv2.Components{
-			Dashboard:          c.Spec.Components.Dashboard,
-			Workbenches:        c.Spec.Components.Workbenches,
-			AIPipelines:        c.Spec.Components.DataSciencePipelines,
-			Kserve:             c.Spec.Components.Kserve,
-			Kueue:              c.Spec.Components.Kueue,
+			Dashboard:   c.Spec.Components.Dashboard,
+			Workbenches: c.Spec.Components.Workbenches,
+			AIPipelines: c.Spec.Components.DataSciencePipelines,
+			Kserve:      c.Spec.Components.Kserve,
+			Kueue: componentApi.DSCKueue{
+				KueueManagementSpec: componentApi.KueueManagementSpec{
+					ManagementState: c.Spec.Components.Kueue.ManagementState,
+				},
+				KueueCommonSpec:       c.Spec.Components.Kueue.KueueCommonSpec,
+				KueueDefaultQueueSpec: c.Spec.Components.Kueue.KueueDefaultQueueSpec,
+			},
 			Ray:                c.Spec.Components.Ray,
 			TrustyAI:           c.Spec.Components.TrustyAI,
 			ModelRegistry:      c.Spec.Components.ModelRegistry,
@@ -149,13 +156,19 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 			Workbenches:          src.Spec.Components.Workbenches,
 			DataSciencePipelines: src.Spec.Components.AIPipelines,
 			Kserve:               src.Spec.Components.Kserve,
-			Kueue:                src.Spec.Components.Kueue,
-			Ray:                  src.Spec.Components.Ray,
-			TrustyAI:             src.Spec.Components.TrustyAI,
-			ModelRegistry:        src.Spec.Components.ModelRegistry,
-			TrainingOperator:     src.Spec.Components.TrainingOperator,
-			FeastOperator:        src.Spec.Components.FeastOperator,
-			LlamaStackOperator:   src.Spec.Components.LlamaStackOperator,
+			Kueue: DSCKueueV1{
+				KueueManagementSpecV1: KueueManagementSpecV1{
+					ManagementState: src.Spec.Components.Kueue.ManagementState,
+				},
+				KueueCommonSpec:       src.Spec.Components.Kueue.KueueCommonSpec,
+				KueueDefaultQueueSpec: src.Spec.Components.Kueue.KueueDefaultQueueSpec,
+			},
+			Ray:                src.Spec.Components.Ray,
+			TrustyAI:           src.Spec.Components.TrustyAI,
+			ModelRegistry:      src.Spec.Components.ModelRegistry,
+			TrainingOperator:   src.Spec.Components.TrainingOperator,
+			FeastOperator:      src.Spec.Components.FeastOperator,
+			LlamaStackOperator: src.Spec.Components.LlamaStackOperator,
 		},
 	}
 

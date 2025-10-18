@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
@@ -75,7 +76,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return fmt.Errorf("failed to get or generate secrets: %w", err)
 	}
 
-	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, clientSecret, cookieSecret, domain); err != nil {
+	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, gatewayConfig.Spec.Cookie, clientSecret, cookieSecret, domain); err != nil {
 		return fmt.Errorf("failed to deploy auth proxy: %w", err)
 	}
 
@@ -114,14 +115,38 @@ func detectClusterAuthMode(ctx context.Context, rr *odhtypes.ReconciliationReque
 }
 
 func validateOIDCConfig(authMode AuthMode, oidcConfig *serviceApi.OIDCConfig) *common.Condition {
-	if authMode == AuthModeOIDC && oidcConfig == nil {
-		return &common.Condition{
-			Type:    status.ConditionTypeReady,
-			Status:  metav1.ConditionFalse,
-			Reason:  status.NotReadyReason,
-			Message: "Cluster is in OIDC mode but GatewayConfig has no OIDC configuration",
-		}
+	if authMode != AuthModeOIDC {
+		return nil
 	}
+
+	condition := &common.Condition{
+		Type:   status.ConditionTypeReady,
+		Status: metav1.ConditionFalse,
+		Reason: status.NotReadyReason,
+	}
+
+	if oidcConfig == nil {
+		condition.Message = status.AuthProxyOIDCModeWithoutConfigMessage
+		return condition
+	}
+
+	var validationErrors []string
+
+	if oidcConfig.ClientID == "" {
+		validationErrors = append(validationErrors, status.AuthProxyOIDCClientIDEmptyMessage)
+	}
+	if oidcConfig.IssuerURL == "" {
+		validationErrors = append(validationErrors, status.AuthProxyOIDCIssuerURLEmptyMessage)
+	}
+	if oidcConfig.ClientSecretRef.Name == "" {
+		validationErrors = append(validationErrors, status.AuthProxyOIDCSecretRefNameEmptyMessage)
+	}
+
+	if len(validationErrors) > 0 {
+		condition.Message = strings.Join(validationErrors, ", ")
+		return condition
+	}
+
 	return nil
 }
 
@@ -190,7 +215,9 @@ func createSecretKeySelector(key string) *corev1.EnvVarSource {
 }
 
 // deployKubeAuthProxy deploys the complete OAuth2 proxy infrastructure including secret, service and deployment.
-func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig, clientSecret, cookieSecret string, domain string) error {
+func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest,
+	oidcConfig *serviceApi.OIDCConfig, cookieConfig *serviceApi.CookieConfig,
+	clientSecret, cookieSecret string, domain string) error {
 	l := logf.FromContext(ctx).WithName("deployAuthProxy")
 
 	if oidcConfig != nil {
@@ -214,7 +241,7 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return err
 	}
 
-	err = createKubeAuthProxyDeployment(rr, oidcConfig, domain)
+	err = createKubeAuthProxyDeployment(rr, oidcConfig, cookieConfig, domain)
 	if err != nil {
 		return err
 	}
@@ -289,7 +316,7 @@ func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationR
 	return nil
 }
 
-func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig, domain string) error {
+func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig, cookieConfig *serviceApi.CookieConfig, domain string) error {
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      KubeAuthProxyName,
@@ -323,7 +350,7 @@ func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfi
 									Name:          "metrics",
 								},
 							},
-							Args: buildOAuth2ProxyArgs(oidcConfig, domain),
+							Args: buildOAuth2ProxyArgs(oidcConfig, cookieConfig, domain),
 							Env: []corev1.EnvVar{
 								{Name: EnvClientID, ValueFrom: createSecretKeySelector(EnvClientID)},
 								{Name: EnvClientSecret, ValueFrom: createSecretKeySelector(EnvClientSecret)},
@@ -357,9 +384,9 @@ func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfi
 	return rr.AddResources(deployment)
 }
 
-func buildOAuth2ProxyArgs(oidcConfig *serviceApi.OIDCConfig, domain string) []string {
+func buildOAuth2ProxyArgs(oidcConfig *serviceApi.OIDCConfig, cookieConfig *serviceApi.CookieConfig, domain string) []string {
 	// OAuth2 proxy acts as auth service only - no upstream needed
-	baseArgs := buildBaseOAuth2ProxyArgs(domain)
+	baseArgs := buildBaseOAuth2ProxyArgs(cookieConfig, domain)
 
 	if oidcConfig != nil {
 		return append(baseArgs, buildOIDCArgs(oidcConfig)...)
@@ -368,7 +395,27 @@ func buildOAuth2ProxyArgs(oidcConfig *serviceApi.OIDCConfig, domain string) []st
 	return append(baseArgs, buildOpenShiftOAuthArgs()...)
 }
 
-func buildBaseOAuth2ProxyArgs(domain string) []string {
+// getCookieSettings returns cookie expire and refresh durations with defaults.
+func getCookieSettings(cookieConfig *serviceApi.CookieConfig) (string, string) {
+	// Set defaults
+	expire, refresh := "24h", "1h"
+
+	// Override with user configuration if provided
+	if cookieConfig != nil {
+		if cookieConfig.Expire != "" {
+			expire = cookieConfig.Expire
+		}
+		if cookieConfig.Refresh != "" {
+			refresh = cookieConfig.Refresh
+		}
+	}
+
+	return expire, refresh
+}
+
+func buildBaseOAuth2ProxyArgs(cookieConfig *serviceApi.CookieConfig, domain string) []string {
+	cookieExpire, cookieRefresh := getCookieSettings(cookieConfig)
+
 	return []string{
 		fmt.Sprintf("--http-address=0.0.0.0:%d", AuthProxyHTTPPort),
 		"--email-domain=*",
@@ -382,8 +429,8 @@ func buildBaseOAuth2ProxyArgs(domain string) []string {
 		"--tls-key-file=" + TLSCertsMountPath + "/tls.key",
 		"--use-system-trust-store=true",
 		fmt.Sprintf("--https-address=0.0.0.0:%d", AuthProxyHTTPSPort),
-		"--cookie-expire=24h",                                             // Cookie expires after 24 hours
-		"--cookie-refresh=2h",                                             // Cookie is refreshed every 2 hours
+		"--cookie-expire=" + cookieExpire,                                 // Configurable cookie expiration
+		"--cookie-refresh=" + cookieRefresh,                               // Configurable cookie refresh interval
 		"--cookie-secure=true",                                            // HTTPS only
 		"--cookie-httponly=true",                                          // XSS protection
 		"--cookie-samesite=lax",                                           // CSRF protection

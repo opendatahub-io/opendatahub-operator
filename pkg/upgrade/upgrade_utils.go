@@ -559,9 +559,9 @@ func generateHardwareProfileFromContainerSize(ctx context.Context, size Containe
 // getFeatureVisibility returns the dashboard feature visibility string for a profile type.
 func getFeatureVisibility(profileType string) string {
 	if profileType == serving {
-		return "['model-serving']"
+		return `["model-serving"]`
 	}
-	return "['workbench']"
+	return `["workbench"]`
 }
 
 // getNotebooks retrieves all Notebook resources in the given namespace.

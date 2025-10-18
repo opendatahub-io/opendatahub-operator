@@ -878,7 +878,7 @@ func CreateCustomServingHardwareProfile(ctx context.Context, cli client.Client, 
 				Name:      "custom-serving",
 				Namespace: namespace,
 				Annotations: map[string]string{
-					"opendatahub.io/dashboard-feature-visibility": "['model-serving']",
+					"opendatahub.io/dashboard-feature-visibility": `["model-serving"]`,
 					"opendatahub.io/modified-date":                time.Now().Format(time.RFC3339),
 					"opendatahub.io/display-name":                 "custom-serving",
 					"opendatahub.io/description":                  "",

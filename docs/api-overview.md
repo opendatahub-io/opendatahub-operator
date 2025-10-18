@@ -198,11 +198,10 @@ DSCKueue contains all the configuration exposed in DSC instance for Kueue compon
 
 _Appears in:_
 - [Components](#components)
-- [Components](#components)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Unmanaged Removed] <br /> |
 | `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
 | `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
 
@@ -221,7 +220,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Unmanaged Removed] <br /> |
 
 
 #### DSCLlamaStackOperator
@@ -812,6 +811,7 @@ Kueue is the Schema for the kueues API
 
 _Appears in:_
 - [DSCKueue](#dsckueue)
+- [DSCKueueV1](#dsckueuev1)
 - [KueueSpec](#kueuespec)
 
 
@@ -843,6 +843,7 @@ _Appears in:_
 
 _Appears in:_
 - [DSCKueue](#dsckueue)
+- [DSCKueueV1](#dsckueuev1)
 - [KueueSpec](#kueuespec)
 
 | Field | Description | Default | Validation |
@@ -866,7 +867,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Unmanaged Removed] <br /> |
 
 
 #### KueueSpec
@@ -882,7 +883,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Unmanaged Removed] <br /> |
 | `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
 | `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
 
@@ -1632,7 +1633,7 @@ _Appears in:_
 | `workbenches` _[DSCWorkbenches](#dscworkbenches)_ | Workbenches component configuration. |  |  |
 | `datasciencepipelines` _[DSCDataSciencePipelines](#dscdatasciencepipelines)_ | DataSciencePipeline component configuration. |  |  |
 | `kserve` _[DSCKserve](#dsckserve)_ | Kserve component configuration.<br />Only RawDeployment mode is supported. |  |  |
-| `kueue` _[DSCKueue](#dsckueue)_ | Kueue component configuration. |  |  |
+| `kueue` _[DSCKueueV1](#dsckueuev1)_ | Kueue component configuration. |  |  |
 | `ray` _[DSCRay](#dscray)_ | Ray component configuration. |  |  |
 | `trustyai` _[DSCTrustyAI](#dsctrustyai)_ | TrustyAI component configuration. |  |  |
 | `modelregistry` _[DSCModelRegistry](#dscmodelregistry)_ | ModelRegistry component configuration. |  |  |
@@ -1665,6 +1666,24 @@ _Appears in:_
 | `trainingoperator` _[DSCTrainingOperatorStatus](#dsctrainingoperatorstatus)_ | Training Operator component status. |  |  |
 | `feastoperator` _[DSCFeastOperatorStatus](#dscfeastoperatorstatus)_ | Feast Operator component status. |  |  |
 | `llamastackoperator` _[DSCLlamaStackOperatorStatus](#dscllamastackoperatorstatus)_ | LlamaStack Operator component status. |  |  |
+
+
+#### DSCKueueV1
+
+
+
+
+
+
+
+_Appears in:_
+- [Components](#components)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
+| `defaultLocalQueueName` _string_ | Configures the automatically created, in the managed namespaces, local queue name. | default |  |
+| `defaultClusterQueueName` _string_ | Configures the automatically created cluster queue name. | default |  |
 
 
 #### DataScienceCluster
@@ -1725,6 +1744,22 @@ _Appears in:_
 | `installedComponents` _object (keys:string, values:boolean)_ | List of components with status if installed or not |  |  |
 | `components` _[ComponentsStatus](#componentsstatus)_ | Expose component's specific status |  |  |
 | `release` _[Release](#release)_ | Version and release type |  |  |
+
+
+#### KueueManagementSpecV1
+
+
+
+KueueManagementSpec struct defines the component's management configuration.
+
+
+
+_Appears in:_
+- [DSCKueueV1](#dsckueuev1)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed"   : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Unmanaged" : the operator is actively managing the component and trying to keep it active.<br />                It will only upgrade the component if it is safe to do so<br />- "Removed"   : the operator is actively managing the component and will not install it,<br />                or if it is installed, the operator will try to remove it |  | Enum: [Managed Unmanaged Removed] <br /> |
 
 
 
@@ -2515,6 +2550,23 @@ _Appears in:_
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 
 
+#### CookieConfig
+
+
+
+CookieConfig defines cookie settings for OAuth2 proxy
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `expire` _string_ | Expire duration for OAuth2 proxy session cookie (e.g., "24h", "8h")<br />This controls how long the session cookie is valid before requiring re-authentication.<br />Default: "24h" | 24h | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
+| `refresh` _string_ | Refresh duration for OAuth2 proxy to refresh access tokens (e.g., "2h", "1h", "30m")<br />This must be LESS than the OIDC provider's Access Token Lifespan to avoid token expiration.<br />For example, if Keycloak Access Token Lifespan is 1 hour, set this to "30m" or "45m".<br />Default: "1h" | 1h | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
+
+
 #### DSCIMonitoring
 
 
@@ -2574,6 +2626,7 @@ _Appears in:_
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
 | `domain` _string_ | Domain configuration for the GatewayConfig<br />Example: apps.example.com |  |  |
+| `cookie` _[CookieConfig](#cookieconfig)_ | Cookie configuration for OAuth2 proxy (applies to both OIDC and OpenShift OAuth) |  |  |
 
 
 #### GatewayConfigStatus

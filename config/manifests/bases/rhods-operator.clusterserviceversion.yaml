@@ -42,10 +42,10 @@ metadata:
               "managementState": "Removed"
             },
             "kserve": {
-              "managementState": "Managed",
+              "managementState": "Managed"
             },
             "llamastackoperator": {
-                "managementState": "Removed"
+              "managementState": "Removed"
             },
             "kueue": {
               "managementState": "Managed"
