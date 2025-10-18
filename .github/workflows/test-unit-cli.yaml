@@ -9,7 +9,7 @@ on:
       - 'cmd/test-retry/**'
 jobs:
   unit-test:
-    name: Run tests and collect coverage on internal and pkg
+    name: Run CLI tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -66,7 +66,7 @@ func (r *E2ETestRunner) Run() error {
 		}
 
 		// Run tests again, skipping the ones that passed
-		retrySummary, err := r.runE2ETests(r.buildSkipFilter(aggregateResult, lastTestResult))
+		retrySummary, err := r.runE2ETests(r.buildSkipFilter(aggregateResult))
 		if err != nil {
 			if r.opts.Config.Verbose {
 				fmt.Printf("Error in retry attempt %d: %v\n", attempt, err)
@@ -205,51 +205,35 @@ func isExitError(err error) bool {
 }
 
 // buildSkipFilter creates a regex pattern to skip all passed tests at their appropriate levels
-func (r *E2ETestRunner) buildSkipFilter(aggregateResult, lastTestResult *types.TestResult) string {
-	if lastTestResult == nil {
-		lastTestResult = &types.TestResult{}
-	}
+func (r *E2ETestRunner) buildSkipFilter(aggregateResult *types.TestResult) string {
 	if aggregateResult == nil {
 		aggregateResult = &types.TestResult{}
 	}
 	totalPassedTests := aggregateResult.PassedTest
-	lastFailedTests := lastTestResult.FailedTest
 	if len(totalPassedTests) == 0 {
 		return ""
 	}
 
 	// Extract normalized test levels for both passed and failed tests
-	passedLevels := make(map[string]bool)
+	runLevelsWithPassedTests := make(map[string]bool)
 	for _, passedTest := range totalPassedTests {
-		if level, shouldSkip := r.extractTestLevel(passedTest.Name); shouldSkip {
-			passedLevels[level] = true
+		if level, shouldSkip := r.extractTestLevel(passedTest.Name); shouldSkip && passedTest.Name == level {
+			runLevelsWithPassedTests[level] = true
 		}
 	}
-
-	// Track which test groups have failures
-	failedGroups := make(map[string]bool)
-	for _, failedTest := range lastFailedTests {
-		if level, shouldSkip := r.extractTestLevel(failedTest.Name); shouldSkip {
-			failedGroups[level] = true
-		}
-	}
-
-	if len(passedLevels) == 0 {
+	if len(runLevelsWithPassedTests) == 0 {
 		return ""
 	}
 
 	// Build a regex pattern that matches any test starting with the normalized levels
 	// BUT exclude groups that have any failures (to avoid skipping failed siblings)
 	var filters []string
-	for level := range passedLevels {
-		// Only skip this level if no tests in the same group failed
-		if !failedGroups[level] {
-			// Escape special regex characters in test names
-			escapedName := regexp.QuoteMeta(level)
+	for level := range runLevelsWithPassedTests {
+		// Escape special regex characters in test names
+		escapedName := regexp.QuoteMeta(level)
 
-			// Match tests that start with this level
-			filters = append(filters, buildGoTestSkipFilter(escapedName)...)
-		}
+		// Match tests that start with this level
+		filters = append(filters, buildGoTestSkipFilter(escapedName)...)
 	}
 
 	if len(filters) == 0 {
