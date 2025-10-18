@@ -86,14 +86,12 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	ms := components.NormalizeManagementState(dsc.Spec.Components.Dashboard.ManagementState)
 
-	dsc.Status.InstalledComponents[LegacyComponentNameUpstream] = false
 	dsc.Status.Components.Dashboard.ManagementState = ms
 	dsc.Status.Components.Dashboard.DashboardCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	if s.IsEnabled(dsc) {
-		dsc.Status.InstalledComponents[LegacyComponentNameUpstream] = true
 		dsc.Status.Components.Dashboard.DashboardCommonStatus = c.Status.DashboardCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {

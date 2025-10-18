@@ -112,9 +112,6 @@ type DataScienceClusterStatus struct {
 	RelatedObjects []corev1.ObjectReference `json:"relatedObjects,omitempty"`
 	ErrorMessage   string                   `json:"errorMessage,omitempty"`
 
-	// List of components with status if installed or not
-	InstalledComponents map[string]bool `json:"installedComponents,omitempty"`
-
 	// Expose component's specific status
 	// +optional
 	Components ComponentsStatus `json:"components"`

@@ -26,10 +26,6 @@ func initialize(ctx context.Context, rr *odhtype.ReconciliationRequest) error {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	if instance.Status.InstalledComponents == nil {
-		instance.Status.InstalledComponents = make(map[string]bool)
-	}
-
 	// TODO: remove after https://issues.redhat.com/browse/RHOAIENG-15920
 	if controllerutil.RemoveFinalizer(instance, finalizerName) {
 		if err := rr.Client.Update(ctx, instance); err != nil {
@@ -77,10 +73,6 @@ func provisionComponents(_ context.Context, rr *odhtype.ReconciliationRequest) e
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
 	}
 
-	if instance.Status.InstalledComponents == nil {
-		instance.Status.InstalledComponents = make(map[string]bool)
-	}
-
 	// force gc to run
 	rr.Generated = true
 
@@ -108,10 +100,6 @@ func updateStatus(ctx context.Context, rr *odhtype.ReconciliationRequest) error 
 	instance, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a dscv2.DataScienceCluster)", rr.Instance)
-	}
-
-	if instance.Status.InstalledComponents == nil {
-		instance.Status.InstalledComponents = make(map[string]bool)
 	}
 
 	instance.Status.Release = rr.Release

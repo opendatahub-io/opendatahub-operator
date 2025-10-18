@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
@@ -279,11 +280,9 @@ func TestDataScienceClusterV1V2_ConversionWebhook(t *testing.T) {
 				dscV2.Spec.Components.AIPipelines.ManagementState = operatorv1.Managed
 				g.Expect(k8sClient.Create(ctx, dscV2)).To(Succeed(), "should create v2 DSC")
 
-				// Update status with aipipelines
-				dscV2.Status.InstalledComponents = map[string]bool{
-					"aipipelines": true,
-					"dashboard":   true,
-				}
+				// Update v2 status with AIPipelines component management state (v2 doesn't have InstalledComponents)
+				dscV2.Status.Components.AIPipelines.ManagementState = operatorv1.Managed
+				dscV2.Status.Components.Dashboard.ManagementState = operatorv1.Managed
 				g.Expect(k8sClient.Status().Update(ctx, dscV2)).To(Succeed())
 
 				// Fetch as v1 and verify InstalledComponents is converted
@@ -293,8 +292,8 @@ func TestDataScienceClusterV1V2_ConversionWebhook(t *testing.T) {
 						return false
 					}
 					// Check if aipipelines was converted to data-science-pipelines-operator
-					return dscV1.Status.InstalledComponents["data-science-pipelines-operator"] == true
-				}, "10s", "1s").Should(BeTrue(), "aipipelines should be converted to data-science-pipelines-operator when fetched as v1")
+					return dscV1.Status.InstalledComponents[dscv1.LegacyDataScienceComponentName] == true
+				}, "10s", "1s").Should(BeTrue(), "v2 AIPipelines.ManagementState=Managed should create v1 InstalledComponents['data-science-pipelines-operator']=true")
 
 				// Verify no aipipelines exists in v1 view
 				g.Expect(dscV1.Status.InstalledComponents).NotTo(HaveKey("aipipelines"), "v1 should not have aipipelines")
@@ -313,27 +312,27 @@ func TestDataScienceClusterV1V2_ConversionWebhook(t *testing.T) {
 				dscV1Another.Spec.Components.DataSciencePipelines.ManagementState = operatorv1.Managed
 				g.Expect(k8sClient.Create(ctx, dscV1Another)).To(Succeed(), "should create v1 DSC")
 
-				// Update status with data-science-pipelines-operator
+				// Update v1 status with component management states (v1 has both component status AND InstalledComponents)
+				dscV1Another.Status.Components.DataSciencePipelines.ManagementState = operatorv1.Managed
+				dscV1Another.Status.Components.Workbenches.ManagementState = operatorv1.Managed
 				dscV1Another.Status.InstalledComponents = map[string]bool{
-					"data-science-pipelines-operator": true,
-					"workbenches":                     true,
+					dscv1.LegacyDataScienceComponentName:  true,
+					componentApi.WorkbenchesComponentName: true,
 				}
 				g.Expect(k8sClient.Status().Update(ctx, dscV1Another)).To(Succeed())
 
-				// Fetch as v2 and verify InstalledComponents is converted
+				// Fetch as v2 and verify data-science-pipelines-operator InstalledComponents is converted to AIPipelines component status
 				dscV2Another := &dscv2.DataScienceCluster{}
 				g.Eventually(func() bool {
 					if err := k8sClient.Get(ctx, types.NamespacedName{Name: "dsc-installed-v1-to-v2", Namespace: ns}, dscV2Another); err != nil {
 						return false
 					}
-					// Check if data-science-pipelines-operator was converted to aipipelines
-					return dscV2Another.Status.InstalledComponents["aipipelines"] == true
-				}, "10s", "1s").Should(BeTrue(), "data-science-pipelines-operator should be converted to aipipelines when fetched as v2")
+					// v2 should have AIPipelines component status, not InstalledComponents
+					return dscV2Another.Status.Components.AIPipelines.ManagementState == operatorv1.Managed
+				}, "10s", "1s").Should(BeTrue(), "v1 InstalledComponents['data-science-pipelines-operator']=true should be converted to v2 AIPipelines.ManagementState=Managed")
 
-				// Verify no data-science-pipelines-operator exists in v2 view
-				g.Expect(dscV2Another.Status.InstalledComponents).NotTo(HaveKey("data-science-pipelines-operator"), "v2 should not have data-science-pipelines-operator")
-				// Verify other components are preserved
-				g.Expect(dscV2Another.Status.InstalledComponents["workbenches"]).To(BeTrue(), "other components should be preserved")
+				// Verify v2 doesn't have InstalledComponents field and has proper component status
+				g.Expect(dscV2Another.Status.Components.Workbenches.ManagementState).To(Equal(operatorv1.Managed), "other components should be preserved in component status")
 			},
 		},
 	}

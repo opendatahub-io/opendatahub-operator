@@ -87,14 +87,12 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	ms := components.NormalizeManagementState(dsc.Spec.Components.AIPipelines.ManagementState)
 
-	dsc.Status.InstalledComponents[InstalledComponentName] = false
 	dsc.Status.Components.AIPipelines.ManagementState = ms
 	dsc.Status.Components.AIPipelines.DataSciencePipelinesCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	if s.IsEnabled(dsc) {
-		dsc.Status.InstalledComponents[InstalledComponentName] = true
 		dsc.Status.Components.AIPipelines.DataSciencePipelinesCommonStatus = c.Status.DataSciencePipelinesCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {

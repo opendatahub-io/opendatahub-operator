@@ -81,14 +81,12 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	ms := components.NormalizeManagementState(dsc.Spec.Components.ModelRegistry.ManagementState)
 
-	dsc.Status.InstalledComponents[LegacyComponentName] = false
 	dsc.Status.Components.ModelRegistry.ManagementState = ms
 	dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	if s.IsEnabled(dsc) {
-		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.ModelRegistry.ModelRegistryCommonStatus = c.Status.ModelRegistryCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {

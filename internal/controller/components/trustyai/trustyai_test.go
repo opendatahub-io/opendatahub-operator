@@ -231,7 +231,6 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.installedComponents."%s" == true`, LegacyComponentName),
 			jq.Match(`.status.components.trustyai.managementState == "%s"`, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.ReadyReason),
@@ -259,7 +258,6 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.installedComponents."%s" == true`, LegacyComponentName),
 			jq.Match(`.status.components.trustyai.managementState == "%s"`, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.NotReadyReason),
@@ -286,7 +284,6 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.installedComponents."%s" == false`, LegacyComponentName),
 			jq.Match(`.status.components.trustyai.managementState == "%s"`, operatorv1.Removed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, operatorv1.Removed),
@@ -313,7 +310,6 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.installedComponents."%s" == false`, LegacyComponentName),
 			jq.Match(`.status.components.trustyai.managementState == "%s"`, operatorv1.Removed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, operatorv1.Removed),
@@ -329,7 +325,6 @@ func createDSCWithTrustyAI(managementState operatorv1.ManagementState) *dscv2.Da
 	dsc.SetName("test-dsc")
 
 	dsc.Spec.Components.TrustyAI.ManagementState = managementState
-	dsc.Status.InstalledComponents = make(map[string]bool)
 
 	return &dsc
 }
