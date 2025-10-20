@@ -1799,11 +1799,6 @@ spec:
                 x-kubernetes-list-type: atomic
               errorMessage:
                 type: string
-              installedComponents:
-                additionalProperties:
-                  type: boolean
-                description: List of components with status if installed or not
-                type: object
               observedGeneration:
                 description: The generation observed by the resource controller.
                 format: int64

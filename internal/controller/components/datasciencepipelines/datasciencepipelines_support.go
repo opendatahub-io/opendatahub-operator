@@ -25,10 +25,6 @@ const (
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "data-science-pipelines-operator"
 
-	// InstalledComponentName is the name used for tracking installation status in DSC.
-	// This reflects the new component name (aipipelines) for status reporting.
-	InstalledComponentName = "aipipelines"
-
 	platformVersionParamsKey          = "PLATFORMVERSION"
 	fipsEnabledParamsKey              = "FIPSENABLED"
 	argoWorkflowsControllersParamsKey = "ARGOWORKFLOWSCONTROLLERS"
