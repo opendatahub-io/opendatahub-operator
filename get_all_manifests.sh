@@ -11,19 +11,19 @@ GITHUB_URL="https://github.com"
 # 2. "tag" - immutable reference (e.g., v1.0.0)
 # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
 declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@e356f9630874efe5cd1b2c96fddc15b1cdfdf8bd:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@cabc95f1ace05c9b0713388aa59b27ee22139e7f:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@bf6b20b5a4cf689c0c3fa06f99dfbdcf6674d51f:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@bf6b20b5a4cf689c0c3fa06f99dfbdcf6674d51f:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@40a15f26ca1f3af8135ddbadee43708501cd19b1:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15@1381fab8f77e7d5b211f634506a7a09e97345655:config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@9af1da673fc9ef370424a3381fa791981e74979a:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.15@9aef15a7ac2935b294b352a2a04a145627100af3:config"
     ["ray"]="opendatahub-io:kuberay:dev@d751b14faddf13b141d0d26f6ced640ec23030b3:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@7f21761643ea756480f0a43f55ff8817458559a4:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main@b3a24d0cdf336dac7e584fa054147cd4c7680007:config"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main@cbc48624a6343d895f2722959cca3888eb2569fc:config"
     ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
-    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@1aec8b555de9213ffb6db52ff5ec8ad84d5cf23a:config"
-    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@b6f93228505d15862a3085fe03a719d0c7ea6c6a:config"
-    ["feastoperator"]="opendatahub-io:feast:stable@4a738d9af833f02a44ae37de5562214d366b014d:infra/feast-operator/config"
-    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@c99ed0472cfd4e709e8722dcc38e0a52f0e37141:config"
+    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@cb50b89fa8cc1239e6e54265dd8243de009762f1:config"
+    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@b6af0080034f6c1a5e8de20eb596bdfc77bfc42e:config"
+    ["feastoperator"]="opendatahub-io:feast:stable@d5895be388475745287e0ca9bc99e3e9ed8335d0:infra/feast-operator/config"
+    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@acea5ea51010177f15a03d17b13f944f10ea298f:config"
 )
 
 # PLATFORM_MANIFESTS is a list of manifests that are contained in the operator repository. Please also add them to the

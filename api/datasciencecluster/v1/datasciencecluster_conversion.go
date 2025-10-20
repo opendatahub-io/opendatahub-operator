@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"strings"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -25,12 +26,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
+const (
+	LegacyDataScienceComponentName   = "data-science-pipelines-operator"
+	LegacyModelRegistryComponentName = "model-registry-operator"
+)
+
 var componentNameMapping = map[string]string{
 	"DataSciencePipelines": "AIPipelines",
 }
 
-var installedComponentsMapping = map[string]string{
-	"data-science-pipelines-operator": "aipipelines",
+// Mapping for components where v1 and v2 names differ
+var componentV2ToV1NameMapping = map[string]string{
+	componentApi.DataSciencePipelinesComponentName: LegacyDataScienceComponentName,
+	componentApi.ModelRegistryComponentName:        LegacyModelRegistryComponentName,
+	// Add others if they differ in the future
 }
 
 // convertConditions converts condition types by replacing component names.
@@ -56,33 +65,31 @@ func convertConditions(conditions []common.Condition, v1ToV2 bool) []common.Cond
 	return converted
 }
 
-// convertInstalledComponents converts the InstalledComponents map by replacing component names.
-// If v1ToV2 is true, uses the map as-is (v1->v2), otherwise reverses it (v2->v1).
-func convertInstalledComponents(installedComponents map[string]bool, v1ToV2 bool) map[string]bool {
-	if installedComponents == nil {
-		return nil
+// getV1ComponentName returns the v1 component name for a given v2 component name.
+// Handles cases where component names differ between versions.
+func getV1ComponentName(v2ComponentName string) string {
+	if v1Name, exists := componentV2ToV1NameMapping[v2ComponentName]; exists {
+		return v1Name
 	}
-	converted := make(map[string]bool, len(installedComponents))
-	for oldName, installed := range installedComponents {
-		newName := oldName
-		// Check if this component needs conversion
-		if v1ToV2 {
-			// v1 -> v2: use map directly (key is v1, value is v2)
-			if v2Name, exists := installedComponentsMapping[oldName]; exists {
-				newName = v2Name
-			}
-		} else {
-			// v2 -> v1: reverse lookup (find key where value matches)
-			for v1Name, v2Name := range installedComponentsMapping {
-				if v2Name == oldName {
-					newName = v1Name
-					break
-				}
-			}
-		}
-		converted[newName] = installed
+	return v2ComponentName // Most components have the same name in v1 and v2
+}
+
+// constructInstalledComponentsFromV2Status constructs the InstalledComponents map for v1
+// based on the component management states in v2 status
+func constructInstalledComponentsFromV2Status(v2Status dscv2.DataScienceClusterStatus) map[string]bool {
+	return map[string]bool{
+		getV1ComponentName(componentApi.DashboardComponentName):            v2Status.Components.Dashboard.ManagementState == operatorv1.Managed,
+		getV1ComponentName(componentApi.DataSciencePipelinesComponentName): v2Status.Components.AIPipelines.ManagementState == operatorv1.Managed,
+		getV1ComponentName(componentApi.KserveComponentName):               v2Status.Components.Kserve.ManagementState == operatorv1.Managed,
+		getV1ComponentName(componentApi.KueueComponentName):                v2Status.Components.Kueue.ManagementState == operatorv1.Managed,
+		getV1ComponentName(componentApi.RayComponentName):                  v2Status.Components.Ray.ManagementState == operatorv1.Managed,
+		getV1ComponentName(componentApi.TrustyAIComponentName):             v2Status.Components.TrustyAI.ManagementState == operatorv1.Managed,
+		getV1ComponentName(componentApi.ModelRegistryComponentName):        v2Status.Components.ModelRegistry.ManagementState == operatorv1.Managed,
+		getV1ComponentName(componentApi.TrainingOperatorComponentName):     v2Status.Components.TrainingOperator.ManagementState == operatorv1.Managed,
+		getV1ComponentName(componentApi.FeastOperatorComponentName):        v2Status.Components.FeastOperator.ManagementState == operatorv1.Managed,
+		getV1ComponentName(componentApi.LlamaStackOperatorComponentName):   v2Status.Components.LlamaStackOperator.ManagementState == operatorv1.Managed,
+		getV1ComponentName(componentApi.WorkbenchesComponentName):          v2Status.Components.Workbenches.ManagementState == operatorv1.Managed,
 	}
-	return converted
 }
 
 // ConvertTo converts this DataScienceCluster (v1) to the Hub version (v2).
@@ -115,16 +122,14 @@ func (c *DataScienceCluster) ConvertTo(dstRaw conversion.Hub) error {
 
 	// Convert status with field renaming: DataSciencePipelines -> AIPipelines
 	// and condition type renaming: DataSciencePipelinesReady -> AIPipelinesReady
-	// and installed component name renaming: data-science-pipelines-operator -> aipipelines
 	dst.Status = dscv2.DataScienceClusterStatus{
 		Status: common.Status{
 			Phase:              c.Status.Phase,
 			ObservedGeneration: c.Status.ObservedGeneration,
 			Conditions:         convertConditions(c.Status.Conditions, true),
 		},
-		RelatedObjects:      c.Status.RelatedObjects,
-		ErrorMessage:        c.Status.ErrorMessage,
-		InstalledComponents: convertInstalledComponents(c.Status.InstalledComponents, true),
+		RelatedObjects: c.Status.RelatedObjects,
+		ErrorMessage:   c.Status.ErrorMessage,
 		Components: dscv2.ComponentsStatus{
 			Dashboard:          c.Status.Components.Dashboard,
 			Workbenches:        c.Status.Components.Workbenches,
@@ -183,7 +188,7 @@ func (c *DataScienceCluster) ConvertFrom(srcRaw conversion.Hub) error {
 		},
 		RelatedObjects:      src.Status.RelatedObjects,
 		ErrorMessage:        src.Status.ErrorMessage,
-		InstalledComponents: convertInstalledComponents(src.Status.InstalledComponents, false),
+		InstalledComponents: constructInstalledComponentsFromV2Status(src.Status),
 		Components: ComponentsStatus{
 			Dashboard:            src.Status.Components.Dashboard,
 			Workbenches:          src.Status.Components.Workbenches,
