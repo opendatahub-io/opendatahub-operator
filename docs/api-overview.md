@@ -1879,7 +1879,6 @@ _Appears in:_
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `relatedObjects` _[ObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#objectreference-v1-core) array_ | RelatedObjects is a list of objects created and maintained by this operator.<br />Object references will be added to this list after they have been created AND found in the cluster. |  |  |
 | `errorMessage` _string_ |  |  |  |
-| `installedComponents` _object (keys:string, values:boolean)_ | List of components with status if installed or not |  |  |
 | `components` _[ComponentsStatus](#componentsstatus)_ | Expose component's specific status |  |  |
 | `release` _[Release](#release)_ | Version and release type |  |  |
 

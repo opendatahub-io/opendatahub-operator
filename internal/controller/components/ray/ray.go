@@ -79,14 +79,12 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	ms := components.NormalizeManagementState(dsc.Spec.Components.Ray.ManagementState)
 
-	dsc.Status.InstalledComponents[LegacyComponentName] = false
 	dsc.Status.Components.Ray.ManagementState = ms
 	dsc.Status.Components.Ray.RayCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	if s.IsEnabled(dsc) {
-		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.Ray.RayCommonStatus = c.Status.RayCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {

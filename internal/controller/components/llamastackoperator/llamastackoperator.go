@@ -79,14 +79,12 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	ms := components.NormalizeManagementState(dsc.Spec.Components.LlamaStackOperator.ManagementState)
 
-	dsc.Status.InstalledComponents[ComponentName] = false
 	dsc.Status.Components.LlamaStackOperator.ManagementState = ms
 	dsc.Status.Components.LlamaStackOperator.LlamaStackOperatorCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	if s.IsEnabled(dsc) {
-		dsc.Status.InstalledComponents[ComponentName] = true
 		dsc.Status.Components.LlamaStackOperator.LlamaStackOperatorCommonStatus = c.Status.LlamaStackOperatorCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {

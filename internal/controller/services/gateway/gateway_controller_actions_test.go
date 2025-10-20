@@ -398,9 +398,15 @@ func TestValidateOIDCConfig(t *testing.T) {
 		description string
 	}{
 		{
-			name:        "OIDC mode with valid config",
-			authMode:    AuthModeOIDC,
-			oidcConfig:  &serviceApi.OIDCConfig{IssuerURL: testOIDCIssuerURL},
+			name:     "OIDC mode with valid config",
+			authMode: AuthModeOIDC,
+			oidcConfig: &serviceApi.OIDCConfig{
+				IssuerURL: testOIDCIssuerURL,
+				ClientID:  "test-client",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "test-secret"},
+				},
+			},
 			expectError: false,
 			description: "should pass when OIDC mode has valid configuration",
 		},
@@ -410,6 +416,32 @@ func TestValidateOIDCConfig(t *testing.T) {
 			oidcConfig:  nil,
 			expectError: true,
 			description: "should fail when OIDC mode has no configuration",
+		},
+		{
+			name:     "OIDC mode with empty clientID",
+			authMode: AuthModeOIDC,
+			oidcConfig: &serviceApi.OIDCConfig{
+				IssuerURL: testOIDCIssuerURL,
+				ClientID:  "",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "test-secret"},
+				},
+			},
+			expectError: true,
+			description: "should fail when clientID is empty",
+		},
+		{
+			name:     "OIDC mode with all fields empty",
+			authMode: AuthModeOIDC,
+			oidcConfig: &serviceApi.OIDCConfig{
+				IssuerURL: "",
+				ClientID:  "",
+				ClientSecretRef: corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: ""},
+				},
+			},
+			expectError: true,
+			description: "should fail when all required fields are empty",
 		},
 		{
 			name:        "IntegratedOAuth mode",
