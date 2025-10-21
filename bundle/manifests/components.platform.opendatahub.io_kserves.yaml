@@ -48,6 +48,17 @@ spec:
           spec:
             description: KserveSpec defines the desired state of Kserve
             properties:
+              llm-d:
+                description: Configures and enables LLMD integration
+                properties:
+                  managementState:
+                    default: Removed
+                    enum:
+                    - Managed
+                    - Removed
+                    pattern: ^(Managed|Unmanaged|Force|Removed)$
+                    type: string
+                type: object
               nim:
                 description: Configures and enables NVIDIA NIM integration
                 properties:

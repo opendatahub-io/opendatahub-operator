@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/go-multierror"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -12,9 +14,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
@@ -72,7 +78,7 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	k, ok := rr.Instance.(*componentApi.Kserve)
 	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.Kserve)", rr.Instance)
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
 	}
 
 	kserveConfigMap := corev1.ConfigMap{}
@@ -110,6 +116,56 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 	if err = replaceResourceAtIndex(rr.Resources, deployidx, &kserveDeployment); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	k, ok := rr.Instance.(*componentApi.Kserve)
+	if !ok {
+		return fmt.Errorf("resource instance %v is not a componentApi.Kserve", rr.Instance)
+	}
+
+	rr.Conditions.MarkUnknown(status.ConditionLLMDAvailable)
+
+	if k.Spec.LLMD.ManagementState != operatorv1.Managed {
+		rr.Conditions.MarkFalse(
+			status.ConditionLLMDAvailable,
+			conditions.WithSeverity(common.ConditionSeverityInfo),
+			conditions.WithReason(string(k.Spec.LLMD.ManagementState)),
+			conditions.WithMessage("Kserve LLM-D management state is set to: %s", string(k.Spec.LLMD.ManagementState)))
+
+		return nil
+	}
+
+	var operatorsErr error
+
+	if found, err := cluster.OperatorExists(ctx, rr.Client, leaderWorkerSetOperator); err != nil || !found {
+		if err != nil {
+			return odherrors.NewStopErrorW(err)
+		}
+
+		operatorsErr = multierror.Append(operatorsErr, ErrLeaderWorkerSetOperatorNotInstalled)
+	}
+
+	if found, err := cluster.OperatorExists(ctx, rr.Client, kuadrantOperator); err != nil || !found {
+		if err != nil {
+			return odherrors.NewStopErrorW(err)
+		}
+		operatorsErr = multierror.Append(operatorsErr, ErrRHCLNotInstalled)
+	}
+
+	if operatorsErr != nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionLLMDAvailable,
+			conditions.WithObservedGeneration(rr.Instance.GetGeneration()),
+			conditions.WithError(operatorsErr),
+		)
+
+		return odherrors.NewStopErrorW(operatorsErr)
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionLLMDAvailable)
 
 	return nil
 }

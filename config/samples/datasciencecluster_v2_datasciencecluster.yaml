@@ -12,6 +12,9 @@ spec:
       managementState: "Managed"
     kserve: {
       managementState: "Managed",
+      llm-d: {
+        managementState: "Removed"
+      },
       nim: {
         managementState: "Managed"
       },
