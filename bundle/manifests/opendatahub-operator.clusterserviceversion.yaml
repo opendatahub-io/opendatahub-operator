@@ -1443,7 +1443,7 @@ spec:
                 - name: ODH_PLATFORM_TYPE
                   value: OpenDataHub
                 - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
-                  value: quay.io/jtanner/kube-auth-proxy:latest
+                  value: quay.io/opendatahub/odh-kube-auth-proxy:latest
                 image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
@@ -1529,7 +1529,7 @@ spec:
   provider:
     name: ODH
   relatedImages:
-  - image: quay.io/jtanner/kube-auth-proxy:latest
+  - image: quay.io/opendatahub/odh-kube-auth-proxy:latest
     name: odh-kube-auth-proxy-image
   selector:
     matchLabels:
