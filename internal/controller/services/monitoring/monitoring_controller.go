@@ -101,6 +101,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.PrometheusRule, reconciler.Dynamic(reconciler.CrdExists(gvk.PrometheusRule))).
 		OwnsGVK(gvk.ThanosQuerier, reconciler.Dynamic(reconciler.CrdExists(gvk.ThanosQuerier))).
 		OwnsGVK(gvk.Perses, reconciler.Dynamic(reconciler.CrdExists(gvk.Perses))).
+		OwnsGVK(gvk.PersesDatasource, reconciler.Dynamic(reconciler.CrdExists(gvk.PersesDatasource))).
 		// operands - watched
 		//
 		// By default the Watches functions adds:
@@ -134,6 +135,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deployAlerting).
 		WithAction(deployOpenTelemetryCollector).
 		WithAction(deployPerses).
+		WithAction(deployPersesDatasource).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).

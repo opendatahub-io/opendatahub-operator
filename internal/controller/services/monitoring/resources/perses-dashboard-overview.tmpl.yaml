@@ -1,0 +1,127 @@
+apiVersion: perses.dev/v1alpha1
+kind: PersesDashboard
+metadata:
+  name: data-science-overview
+  namespace: {{.Namespace}}
+  labels:
+    app.kubernetes.io/part-of: data-science-monitoring
+spec:
+  display:
+    name: "Data Science Platform Overview"
+    description: "Overview dashboard for OpenShift AI / Open Data Hub platform"
+  duration: 1h
+  refreshInterval: 30s
+  panels:
+    component-reconciliations:
+      kind: Panel
+      spec:
+        display:
+          name: "Component Reconciliations"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+            yAxis:
+              show: true
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: "sum by (controller) (rate(controller_runtime_reconcile_total[5m]))"
+    reconciliation-errors:
+      kind: Panel
+      spec:
+        display:
+          name: "Reconciliation Errors"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+            yAxis:
+              show: true
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: "sum by (controller) (rate(controller_runtime_reconcile_errors_total[5m]))"
+    prometheus-memory:
+      kind: Panel
+      spec:
+        display:
+          name: "Prometheus Memory Usage"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+            yAxis:
+              show: true
+              label: "Bytes"
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: 'process_resident_memory_bytes{job="prometheus-self"}'
+    collector-cpu:
+      kind: Panel
+      spec:
+        display:
+          name: "Collector CPU Usage"
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+            yAxis:
+              show: true
+              label: "CPU seconds/sec"
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: "rate(otelcol_process_cpu_seconds_total[5m])"
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: "Platform Health"
+        items:
+          - x: 0
+            "y": 0
+            width: 12
+            height: 10
+            content:
+              $ref: "#/spec/panels/component-reconciliations"
+          - x: 12
+            "y": 0
+            width: 12
+            height: 10
+            content:
+              $ref: "#/spec/panels/reconciliation-errors"
+    - kind: Grid
+      spec:
+        display:
+          title: "Resource Usage"
+        items:
+          - x: 0
+            "y": 0
+            width: 12
+            height: 10
+            content:
+              $ref: "#/spec/panels/prometheus-memory"
+          - x: 12
+            "y": 0
+            width: 12
+            height: 10
+            content:
+              $ref: "#/spec/panels/collector-cpu"

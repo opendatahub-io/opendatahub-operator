@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -236,6 +237,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"ApplicationNamespace": appNamespace,
 		"MetricsExporters":     make(map[string]string),
 		"MetricsExporterNames": []string{},
+		"PersesImage":          getPersesImage(),
 	}
 
 	// Add metrics-related data if metrics are configured
@@ -900,4 +902,16 @@ func contains(slice []string, item string) bool {
 
 func intPtr(i int) *int {
 	return &i
+}
+
+// getPersesImage returns the Perses container image to use.
+// For ODH: uses publicly accessible image from quay.io/opendatahub
+// For RHOAI: uses registry.redhat.io image (can be overridden via RELATED_IMAGE_ODH_PERSES_IMAGE)
+// Can be overridden for all platforms via RELATED_IMAGE_ODH_PERSES_IMAGE environment variable.
+func getPersesImage() string {
+	if image := os.Getenv("RELATED_IMAGE_ODH_PERSES_IMAGE"); image != "" {
+		return image
+	}
+
+	return "registry.redhat.io/cluster-observability-operator/perses-0-50-rhel9:1.2.2-1752686994"
 }
