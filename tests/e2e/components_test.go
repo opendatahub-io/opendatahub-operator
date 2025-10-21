@@ -136,6 +136,17 @@ func (tc *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 	)
 }
 
+func (tc *ComponentTestCtx) ValidateS3SecretCheckBucketExist(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ValidatingAdmissionPolicy, types.NamespacedName{Name: "s3-secret-check-bucket-exist"}),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ValidatingAdmissionPolicyBinding, types.NamespacedName{Name: "s3-secret-check-bucket-exist-binding"}),
+	)
+}
+
 // ValidateUpdateDeploymentsResources verifies the update of deployment replicas for the component.
 func (tc *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 	t.Helper()
