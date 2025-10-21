@@ -836,6 +836,31 @@ rules:
   - update
   - watch
 - apiGroups:
+  - observability.openshift.io
+  resources:
+  - uiplugins
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - observability.openshift.io
+  resources:
+  - uiplugins/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - observability.openshift.io
+  resources:
+  - uiplugins/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - opendatahub.io
   resources:
   - odhdashboardconfigs
@@ -880,6 +905,16 @@ rules:
   - operator.openshift.io
   resources:
   - consoles
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operator.openshift.io
+  resources:
   - ingresscontrollers
   verbs:
   - delete
@@ -928,6 +963,8 @@ rules:
   - perses.dev
   resources:
   - perses
+  - persesdashboards
+  - persesdatasources
   verbs:
   - create
   - delete
@@ -940,12 +977,16 @@ rules:
   - perses.dev
   resources:
   - perses/finalizers
+  - persesdashboards/finalizers
+  - persesdatasources/finalizers
   verbs:
   - update
 - apiGroups:
   - perses.dev
   resources:
   - perses/status
+  - persesdashboards/status
+  - persesdatasources/status
   verbs:
   - get
   - patch

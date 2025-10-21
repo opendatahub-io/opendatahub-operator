@@ -547,6 +547,24 @@ var (
 		Kind:    "Perses",
 	}
 
+	PersesDatasource = schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha1",
+		Kind:    "PersesDatasource",
+	}
+
+	PersesDashboard = schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha1",
+		Kind:    "PersesDashboard",
+	}
+
+	UIPlugin = schema.GroupVersionKind{
+		Group:   "observability.openshift.io",
+		Version: "v1alpha1",
+		Kind:    "UIPlugin",
+	}
+
 	ServiceMesh = schema.GroupVersionKind{
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,
