@@ -2,6 +2,7 @@
 set -e
 
 GITHUB_URL="https://github.com"
+DST_MANIFESTS_DIR="./opt/manifests"
 
 # COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
 # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
@@ -16,7 +17,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@121a467690d03514277a7d30c16c311815b1877f:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main@a256bc33a6977d2a8e04ab492ff289db41624a3e:manifests"
     ["kserve"]="opendatahub-io:kserve:release-v0.15@d77e8ebefc5eb1de6ac2e9269d5bef0f9bea18fa:config"
-    ["ray"]="opendatahub-io:kuberay:dev@e2daa7e658f66f14fa2279b3c054ac54384ae2ca:ray-operator/config"
+    ["ray"]="opendatahub-io:kuberay:dev@d751b14faddf13b141d0d26f6ced640ec23030b3:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@7f21761643ea756480f0a43f55ff8817458559a4:config"
     ["modelregistry"]="opendatahub-io:model-registry-operator:main@cbc48624a6343d895f2722959cca3888eb2569fc:config"
     ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
@@ -146,8 +147,8 @@ download_manifest() {
 
     if [[ -v USE_LOCAL ]] && [[ -e ../${repo_name} ]]; then
         echo "copying from adjacent checkout ..."
-        mkdir -p ./opt/manifests/${target_path}
-        cp -rf "../${repo_name}/${source_path}"/* ./opt/manifests/${target_path}
+        mkdir -p ${DST_MANIFESTS_DIR}/${target_path}
+        cp -rf "../${repo_name}/${source_path}"/* ${DST_MANIFESTS_DIR}/${target_path}
         return
     fi
 
@@ -156,9 +157,12 @@ download_manifest() {
         return 1
     fi
 
-    mkdir -p ./opt/manifests/${target_path}
-    cp -rf ${repo_dir}/${source_path}/* ./opt/manifests/${target_path}
+    mkdir -p ${DST_MANIFESTS_DIR}/${target_path}
+    cp -rf ${repo_dir}/${source_path}/* ${DST_MANIFESTS_DIR}/${target_path}
 }
+
+# Cleanup existing manifests
+rm -rf ${DST_MANIFESTS_DIR}/*
 
 # Track background job PIDs +declare -a pids=()
 # Use parallel processing
@@ -182,8 +186,8 @@ for key in "${!PLATFORM_MANIFESTS[@]}"; do
     source_path="${PLATFORM_MANIFESTS[$key]}"
     target_path="${key}"
 
-    if [[ -d ${source_path} && ! -L ./opt/manifests/${target_path} ]]; then
+    if [[ -d ${source_path} && ! -L ${DST_MANIFESTS_DIR}/${target_path} ]]; then
         echo -e "\033[32mSymlinking local manifest \033[33m${key}\033[32m:\033[0m ${source_path}"
-        ln -s $(pwd)/${source_path} ./opt/manifests/${target_path}
+        ln -s $(pwd)/${source_path} ${DST_MANIFESTS_DIR}/${target_path}
     fi
 done
