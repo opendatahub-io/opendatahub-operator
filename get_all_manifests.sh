@@ -34,6 +34,7 @@ declare -A PLATFORM_MANIFESTS=(
     ["osd-configs"]="config/osd-configs"
     ["monitoring"]="config/monitoring"
     ["hardwareprofiles"]="config/hardwareprofiles"
+    ["connectionAPI"]="config/connectionAPI"
 )
 
 # Allow overwriting repo using flags component=repo
