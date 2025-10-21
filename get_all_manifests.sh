@@ -161,9 +161,6 @@ download_manifest() {
     cp -rf ${repo_dir}/${source_path}/* ${DST_MANIFESTS_DIR}/${target_path}
 }
 
-# Cleanup existing manifests
-rm -rf ${DST_MANIFESTS_DIR}/*
-
 # Track background job PIDs +declare -a pids=()
 # Use parallel processing
 for key in "${!COMPONENT_MANIFESTS[@]}"; do
