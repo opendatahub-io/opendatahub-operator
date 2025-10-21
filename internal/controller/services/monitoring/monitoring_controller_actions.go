@@ -38,6 +38,7 @@ const (
 	PersesTemplate                          = "resources/perses.tmpl.yaml"
 	PersesTempoDatasourceTemplate           = "resources/perses-tempo-datasource.tmpl.yaml"
 	PersesTempoDashboardTemplate            = "resources/perses-tempo-dashboard.tmpl.yaml"
+	PersesDatasourcePrometheusTemplate      = "resources/perses-datasource-prometheus.tmpl.yaml"
 
 	// Resource names.
 	PersesTempoDatasourceName = "tempo-datasource"
@@ -435,14 +436,12 @@ func deployPerses(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		return nil
 	}
 
-	persesExists, err := cluster.HasCRD(ctx, rr.Client, gvk.Perses)
-	if err != nil {
-		return fmt.Errorf("failed to check if CRD Perses exists: %w", err)
+	// Check for required CRDs
+	requirements := []CRDRequirement{
+		{GVK: gvk.Perses, ConditionType: status.ConditionPersesAvailable},
 	}
-	if !persesExists {
-		setConditionFalse(rr, status.ConditionPersesAvailable,
-			gvk.Perses.Kind+"CRDNotFoundReason",
-			fmt.Sprintf("%s CRD Not Found", gvk.Perses.Kind))
+
+	if !validateRequiredCRDs(ctx, rr, requirements) {
 		return nil
 	}
 
@@ -459,7 +458,7 @@ func deployPerses(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	return nil
 }
 
-func deployPersesDatasource(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func deployPersesTempoIntegration(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
@@ -544,6 +543,43 @@ func deployPersesDatasource(ctx context.Context, rr *odhtypes.ReconciliationRequ
 		})
 	}
 
+	rr.Templates = append(rr.Templates, templates...)
+
+	return nil
+}
+
+func deployPersesPrometheusIntegration(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil {
+		setConditionFalse(rr, status.ConditionPersesPrometheusDataSourceAvailable,
+			status.MetricsNotConfiguredReason,
+			"Prometheus datasource requires metrics configuration")
+		return nil
+	}
+
+	datasourceExists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDatasource)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD PersesDatasource exists: %w", err)
+	}
+	if !datasourceExists {
+		setConditionFalse(rr, status.ConditionPersesPrometheusDataSourceAvailable,
+			gvk.PersesDatasource.Kind+"CRDNotFoundReason",
+			fmt.Sprintf("%s CRD Not Found", gvk.PersesDatasource.Kind))
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesPrometheusDataSourceAvailable)
+
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesDatasourcePrometheusTemplate,
+		},
+	}
 	rr.Templates = append(rr.Templates, templates...)
 
 	return nil
