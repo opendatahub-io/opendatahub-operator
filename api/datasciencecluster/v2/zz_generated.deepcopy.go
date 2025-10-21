@@ -161,13 +161,6 @@ func (in *DataScienceClusterStatus) DeepCopyInto(out *DataScienceClusterStatus) 
 		*out = make([]v1.ObjectReference, len(*in))
 		copy(*out, *in)
 	}
-	if in.InstalledComponents != nil {
-		in, out := &in.InstalledComponents, &out.InstalledComponents
-		*out = make(map[string]bool, len(*in))
-		for key, val := range *in {
-			(*out)[key] = val
-		}
-	}
 	in.Components.DeepCopyInto(&out.Components)
 	in.Release.DeepCopyInto(&out.Release)
 }
