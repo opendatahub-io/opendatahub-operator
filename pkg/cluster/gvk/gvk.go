@@ -558,4 +558,34 @@ var (
 		Version: "v1",
 		Kind:    "ValidatingAdmissionPolicyBinding",
 	}
+
+	LeaderWorkerSetOperator = schema.GroupVersionKind{
+		Group:   "operator.openshift.io",
+		Version: "v1",
+		Kind:    "LeaderWorkerSetOperator",
+	}
+
+	AuthPolicyv1 = schema.GroupVersionKind{
+		Group:   "kuadrant.io",
+		Version: "v1",
+		Kind:    "AuthPolicy",
+	}
+
+	RateLimitPolicyv1 = schema.GroupVersionKind{
+		Group:   "kuadrant.io",
+		Version: "v1",
+		Kind:    "RateLimitPolicy",
+	}
+
+	AuthConfigv1beta3 = schema.GroupVersionKind{
+		Group:   "authorino.kuadrant.io",
+		Version: "v1beta3",
+		Kind:    "AuthConfig",
+	}
+
+	Kuadrantv1beta1 = schema.GroupVersionKind{
+		Group:   "kuadrant.io",
+		Version: "v1beta1",
+		Kind:    "Kuadrant",
+	}
 )
