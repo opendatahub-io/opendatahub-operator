@@ -34,9 +34,6 @@ var _ common.PlatformObject = (*ModelRegistry)(nil)
 
 // ModelRegistryCommonSpec spec defines the shared desired state of ModelRegistry
 type ModelRegistryCommonSpec struct {
-	// model registry spec exposed to DSC api
-	common.DevFlagsSpec `json:",inline"`
-
 	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries"
 	// +kubebuilder:default="odh-model-registries"
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
@@ -77,10 +74,6 @@ type ModelRegistry struct {
 
 	Spec   ModelRegistrySpec   `json:"spec,omitempty"`
 	Status ModelRegistryStatus `json:"status,omitempty"`
-}
-
-func (c *ModelRegistry) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *ModelRegistry) GetStatus() *common.Status {

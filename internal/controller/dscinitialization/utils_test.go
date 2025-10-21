@@ -10,7 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/dscinitialization"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -29,11 +29,11 @@ func TestPatchMonitoringNS(t *testing.T) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dscInit := &dsciv1.DSCInitialization{
+	dscInit := &dsciv2.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-dsc",
 		},
-		Spec: dsciv1.DSCInitializationSpec{
+		Spec: dsciv2.DSCInitializationSpec{
 			Monitoring: serviceApi.DSCIMonitoring{
 				ManagementSpec: common.ManagementSpec{
 					ManagementState: operatorv1.Managed,
@@ -76,11 +76,11 @@ func TestPatchExistingMonitoringNS(t *testing.T) {
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dscInit := &dsciv1.DSCInitialization{
+	dscInit := &dsciv2.DSCInitialization{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-dsc",
 		},
-		Spec: dsciv1.DSCInitializationSpec{
+		Spec: dsciv2.DSCInitializationSpec{
 			Monitoring: serviceApi.DSCIMonitoring{
 				ManagementSpec: common.ManagementSpec{
 					ManagementState: operatorv1.Managed,

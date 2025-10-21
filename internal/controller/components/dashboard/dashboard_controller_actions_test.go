@@ -4,13 +4,14 @@ package dashboard
 import (
 	"testing"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	infraAPI "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -34,7 +35,18 @@ func TestMigrateHardwareProfiles(t *testing.T) {
 
 	fakeSchema.AddKnownTypeWithName(gvk.DashboardHardwareProfile, &unstructured.Unstructured{})
 	fakeSchema.AddKnownTypeWithName(dashboardHardwareProfileListGVK, &unstructured.UnstructuredList{})
-	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile, &infraAPI.HardwareProfile{})
+	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile, &infrav1.HardwareProfile{})
+	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile.GroupVersion().WithKind("HardwareProfileList"), &infrav1.HardwareProfileList{})
+
+	// Create a CRD for Dashboard HardwareProfile to make HasCRD check pass
+	dashboardHWPCRD := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "hardwareprofiles.dashboard.opendatahub.io",
+		},
+		Status: apiextensionsv1.CustomResourceDefinitionStatus{
+			StoredVersions: []string{gvk.DashboardHardwareProfile.Version},
+		},
+	}
 
 	mockDashboardHardwareProfile := &unstructured.Unstructured{
 		Object: map[string]any{
@@ -56,7 +68,7 @@ func TestMigrateHardwareProfiles(t *testing.T) {
 	}
 
 	cli, err := fakeclient.New(
-		fakeclient.WithObjects(mockDashboardHardwareProfile),
+		fakeclient.WithObjects(mockDashboardHardwareProfile, dashboardHWPCRD),
 		fakeclient.WithScheme(fakeSchema),
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -67,7 +79,7 @@ func TestMigrateHardwareProfiles(t *testing.T) {
 	err = reconcileHardwareProfiles(ctx, rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	var createdInfraHWProfile infraAPI.HardwareProfile
+	var createdInfraHWProfile infrav1.HardwareProfile
 	err = cli.Get(ctx, client.ObjectKey{
 		Name:      "test-name",
 		Namespace: "test-namespace",
@@ -76,7 +88,7 @@ func TestMigrateHardwareProfiles(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(createdInfraHWProfile.Name).Should(Equal("test-name"))
 	g.Expect(createdInfraHWProfile.Namespace).Should(Equal("test-namespace"))
-	g.Expect(createdInfraHWProfile.Spec.SchedulingSpec.SchedulingType).Should(Equal(infraAPI.NodeScheduling))
+	g.Expect(createdInfraHWProfile.Spec.SchedulingSpec.SchedulingType).Should(Equal(infrav1.NodeScheduling))
 	g.Expect(createdInfraHWProfile.GetAnnotations()["opendatahub.io/display-name"]).Should(Equal("Test Display Name"))
 	g.Expect(createdInfraHWProfile.GetAnnotations()["opendatahub.io/description"]).Should(Equal("Test Description"))
 	g.Expect(createdInfraHWProfile.GetAnnotations()["opendatahub.io/disabled"]).Should(Equal("false"))
@@ -89,8 +101,8 @@ func TestCreateInfraHardwareProfile(t *testing.T) {
 	fakeSchema, err := scheme.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile, &infraAPI.HardwareProfile{})
-
+	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile, &infrav1.HardwareProfile{})
+	fakeSchema.AddKnownTypeWithName(gvk.HardwareProfile.GroupVersion().WithKind("HardwareProfileList"), &infrav1.HardwareProfileList{})
 	cli, err := fakeclient.New(
 		fakeclient.WithObjects(),
 		fakeclient.WithScheme(fakeSchema),
@@ -118,7 +130,7 @@ func TestCreateInfraHardwareProfile(t *testing.T) {
 		},
 	}
 
-	var receivedHardwareProfile infraAPI.HardwareProfile
+	var receivedHardwareProfile infrav1.HardwareProfile
 
 	err = createInfraHWP(ctx, rr, logger, mockDashboardHardwareProfile)
 	g.Expect(err).ShouldNot(HaveOccurred())

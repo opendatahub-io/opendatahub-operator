@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	kueuewebhook "github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/kueue"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -31,8 +31,8 @@ const (
 )
 
 // createDSCWithKueueState creates a DSC with the specified Kueue management state for testing.
-func createDSCWithKueueState(state operatorv1.ManagementState) *dscv1.DataScienceCluster {
-	dsc := envtestutil.NewDSC("default", "")
+func createDSCWithKueueState(state operatorv1.ManagementState) *dscv2.DataScienceCluster {
+	dsc := envtestutil.NewDSC("default")
 	dsc.Status.Components.Kueue = componentApi.DSCKueueStatus{
 		KueueManagementSpec: componentApi.KueueManagementSpec{
 			ManagementState: state,
@@ -240,6 +240,20 @@ func TestKueueWebhook_AcceptsExpectedKinds(t *testing.T) {
 			},
 			objFunc: func() client.Object {
 				return envtestutil.NewNotebook("test-inferenceservice", testNamespace, func(obj client.Object) {
+					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
+				})
+			},
+		},
+		{
+			name: "LLMInferenceService",
+			gvk:  gvk.LLMInferenceServiceV1Alpha1,
+			resource: metav1.GroupVersionResource{
+				Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+				Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+				Resource: "llminferenceservices",
+			},
+			objFunc: func() client.Object {
+				return envtestutil.NewNotebook("test-llmisvc", testNamespace, func(obj client.Object) {
 					obj.SetLabels(map[string]string{objLabelQueueName: validQueueName})
 				})
 			},

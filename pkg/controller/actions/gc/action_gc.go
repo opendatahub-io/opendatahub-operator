@@ -35,7 +35,7 @@ type Action struct {
 	objectPredicateFn ObjectPredicateFn
 	typePredicateFn   TypePredicateFn
 	onlyOwned         bool
-	namespaceFn       actions.StringGetter
+	namespaceFn       actions.Getter[string]
 }
 
 func WithLabel(name string, value string) ActionOpts {
@@ -102,7 +102,7 @@ func InNamespace(ns string) ActionOpts {
 	}
 }
 
-func InNamespaceFn(fn actions.StringGetter) ActionOpts {
+func InNamespaceFn(fn actions.Getter[string]) ActionOpts {
 	return func(action *Action) {
 		if fn == nil {
 			return

@@ -48,31 +48,31 @@ spec:
           spec:
             description: TrustyAISpec defines the desired state of TrustyAI
             properties:
-              devFlags:
-                description: Add developer fields
+              eval:
+                description: Eval configuration for TrustyAI evaluations
                 properties:
-                  manifests:
-                    description: List of custom manifests for the given component
-                    items:
-                      properties:
-                        contextDir:
-                          default: manifests
-                          description: contextDir is the relative path to the folder
-                            containing manifests in a repository, default value "manifests"
-                          type: string
-                        sourcePath:
-                          default: ""
-                          description: 'sourcePath is the subpath within contextDir
-                            where kustomize builds start. Examples include any sub-folder
-                            or path: `base`, `overlays/dev`, `default`, `odh` etc.'
-                          type: string
-                        uri:
-                          default: ""
-                          description: uri is the URI point to a git repo with tag/branch.
-                            e.g.  https://github.com/org/repo/tarball/<tag/branch>
-                          type: string
-                      type: object
-                    type: array
+                  lmeval:
+                    description: LMEval configuration for model evaluations
+                    properties:
+                      permitCodeExecution:
+                        default: deny
+                        description: PermitCodeExecution controls whether code execution
+                          is allowed during evaluations
+                        enum:
+                        - allow
+                        - deny
+                        type: string
+                      permitOnline:
+                        default: deny
+                        description: PermitOnline controls whether online access is
+                          allowed during evaluations
+                        enum:
+                        - allow
+                        - deny
+                        type: string
+                    type: object
+                required:
+                - lmeval
                 type: object
             type: object
           status:

@@ -16,12 +16,12 @@
 // createReporter initializes a new status reporter for a DSCInitialization resource.
 // It encapsulates the logic for updating the condition based on errors encountered during the resource's lifecycle operations.
 //
-//	func createReporter(cli client.GetClient, object *dsciv1.DSCInitialization, condition *conditionsv1.Condition) *status.Reporter[*dsciv1.DSCInitialization] {
-//		return status.NewStatusReporter[*dsciv1.DSCInitialization](
+//	func createReporter(cli client.GetClient, object *dsciv2.DSCInitialization, condition *conditionsv1.Condition) *status.Reporter[*dsciv2.DSCInitialization] {
+//		return status.NewStatusReporter[*dsciv2.DSCInitialization](
 //			cli,
 //			object,
-//			func(err error) status.SaveStatusFunc[*dsciv1.DSCInitialization] {
-//				return func(saved *dsciv1.DSCInitialization) {
+//			func(err error) status.SaveStatusFunc[*dsciv2.DSCInitialization] {
+//				return func(saved *dsciv2.DSCInitialization) {
 //					if err != nil {
 //						condition.Status = corev1.ConditionFalse
 //						condition.Message = err.Error()
@@ -35,22 +35,5 @@
 //				}
 //			},
 //		)
-//	}
-//
-// doServiceMeshStuff manages the Service Mesh configuration process during DSCInitialization reconcile.
-// It creates a reporter and reports any conditions derived from the service mesh configuration process.
-//
-//	func (r *DSCInitializationReconciler) doStdoServiceMeshStuffff(instance *dsciv1.DSCInitialization) error {
-//		reporter := createReporter(r.GetClient, instance, &conditionsv1.Condition{
-//			Type:    status.CapabilityServiceMesh,
-//			Status:  corev1.ConditionTrue,
-//			Reason:  status.ConfiguredReason,
-//			Message: "Service Mesh configured",
-//		})
-//
-//		serviceMeshErr := createServiceMesh(instance)
-//		_, reportError := reporter.ReportCondition(serviceMeshErr)
-//
-//		return multierror.Append(serviceMeshErr, reportError) // return all errors
 //	}
 package status

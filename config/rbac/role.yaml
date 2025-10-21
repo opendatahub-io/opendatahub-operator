@@ -8,6 +8,7 @@ rules:
   - ""
   resources:
   - clusterversions
+  - nodes
   - rhmis
   verbs:
   - get
@@ -161,12 +162,6 @@ rules:
   - create
   - get
 - apiGroups:
-  - authorino.kuadrant.io
-  resources:
-  - authconfigs
-  verbs:
-  - '*'
-- apiGroups:
   - authorization.k8s.io
   resources:
   - subjectaccessreviews
@@ -251,6 +246,19 @@ rules:
   - components.platform.opendatahub.io
   resources:
   - codeflares
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
+  - codeflares/status
+  verbs:
+  - get
+- apiGroups:
+  - components.platform.opendatahub.io
+  resources:
   - dashboards
   - datasciencepipelines
   - feastoperators
@@ -275,25 +283,18 @@ rules:
 - apiGroups:
   - components.platform.opendatahub.io
   resources:
-  - codeflares/finalizers
-  - datasciencepipelines/finalizers
-  - feastoperators/finalizers
-  - kserves/finalizers
-  - kueues/finalizers
-  - llamastackoperators/finalizers
-  - modelcontrollers/finalizers
-  - modelmeshservings/finalizers
-  - modelregistries/finalizers
-  - rays/finalizers
-  - trainingoperators/finalizers
-  - trustyais/finalizers
-  - workbenches/finalizers
+  - dashboards/finalizers
   verbs:
+  - create
+  - get
+  - list
+  - patch
   - update
+  - use
+  - watch
 - apiGroups:
   - components.platform.opendatahub.io
   resources:
-  - codeflares/status
   - dashboards/status
   - datasciencepipelines/status
   - feastoperators/status
@@ -314,15 +315,20 @@ rules:
 - apiGroups:
   - components.platform.opendatahub.io
   resources:
-  - dashboards/finalizers
+  - datasciencepipelines/finalizers
+  - feastoperators/finalizers
+  - kserves/finalizers
+  - kueues/finalizers
+  - llamastackoperators/finalizers
+  - modelcontrollers/finalizers
+  - modelmeshservings/finalizers
+  - modelregistries/finalizers
+  - rays/finalizers
+  - trainingoperators/finalizers
+  - trustyais/finalizers
+  - workbenches/finalizers
   verbs:
-  - create
-  - get
-  - list
-  - patch
   - update
-  - use
-  - watch
 - apiGroups:
   - config.openshift.io
   resources:
@@ -524,6 +530,20 @@ rules:
   - patch
   - update
 - apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - gatewayclasses
+  - gateways
+  - httproutes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - image.openshift.io
   resources:
   - imagestreams
@@ -542,6 +562,15 @@ rules:
   - registry/metrics
   verbs:
   - get
+- apiGroups:
+  - inference.networking.x-k8s.io
+  resources:
+  - inferencemodels
+  - inferencepools
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - infrastructure.opendatahub.io
   resources:
@@ -591,6 +620,18 @@ rules:
   - update
   - watch
 - apiGroups:
+  - kubeflow.org
+  resources:
+  - notebooks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - kueue.openshift.io
   resources:
   - kueues
@@ -615,6 +656,7 @@ rules:
   resources:
   - clusterqueues
   - localqueues
+  - resourceflavors
   verbs:
   - create
   - delete
@@ -638,33 +680,6 @@ rules:
   - seldondeployments
   verbs:
   - '*'
-- apiGroups:
-  - maistra.io
-  resources:
-  - servicemeshcontrolplanes
-  - servicemeshmemberrolls
-  - servicemeshmembers/finalizers
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - use
-  - watch
-- apiGroups:
-  - maistra.io
-  resources:
-  - servicemeshmembers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - use
-  - watch
 - apiGroups:
   - metrics.k8s.io
   resources:
@@ -753,6 +768,7 @@ rules:
   - monitoringstacks
   - prometheusrules
   - servicemonitors
+  - thanosqueriers
   verbs:
   - create
   - delete
@@ -767,6 +783,7 @@ rules:
   - monitoringstacks/finalizers
   - prometheusrules/finalizers
   - servicemonitors/finalizers
+  - thanosqueriers/finalizers
   verbs:
   - update
 - apiGroups:
@@ -775,6 +792,7 @@ rules:
   - monitoringstacks/status
   - prometheusrules/status
   - servicemonitors/status
+  - thanosqueriers/status
   verbs:
   - get
   - patch
@@ -782,15 +800,8 @@ rules:
 - apiGroups:
   - networking.istio.io
   resources:
+  - destinationrules
   - envoyfilters
-  - gateways
-  - virtualservices
-  verbs:
-  - '*'
-- apiGroups:
-  - networking.istio.io
-  resources:
-  - virtualservices/finalizers
   verbs:
   - create
   - delete
@@ -799,15 +810,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - networking.istio.io
-  resources:
-  - virtualservices/status
-  verbs:
-  - delete
-  - get
-  - patch
-  - update
 - apiGroups:
   - networking.k8s.io
   resources:
@@ -870,26 +872,6 @@ rules:
   resources:
   - instrumentations/status
   - opentelemetrycollectors/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - operator.authorino.kuadrant.io
-  resources:
-  - authorinos
-  verbs:
-  - '*'
-- apiGroups:
-  - operator.knative.dev
-  resources:
-  - knativeservings
-  verbs:
-  - '*'
-- apiGroups:
-  - operator.knative.dev
-  resources:
-  - knativeservings/finalizers
   verbs:
   - get
   - patch
@@ -994,12 +976,6 @@ rules:
   - update
   - watch
 - apiGroups:
-  - security.istio.io
-  resources:
-  - authorizationpolicies
-  verbs:
-  - '*'
-- apiGroups:
   - security.openshift.io
   resources:
   - securitycontextconstraints
@@ -1038,6 +1014,7 @@ rules:
   - services.platform.opendatahub.io
   resources:
   - auths/finalizers
+  - gatewayconfigs/finalizers
   - monitorings/finalizers
   verbs:
   - update
@@ -1045,33 +1022,23 @@ rules:
   - services.platform.opendatahub.io
   resources:
   - auths/status
+  - gatewayconfigs/status
   - monitorings/status
   verbs:
   - get
   - patch
   - update
 - apiGroups:
-  - serving.knative.dev
+  - services.platform.opendatahub.io
   resources:
-  - services
-  - services/finalizers
+  - gatewayconfigs
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
   - update
   - watch
-- apiGroups:
-  - serving.knative.dev
-  resources:
-  - services/status
-  verbs:
-  - delete
-  - get
-  - patch
-  - update
 - apiGroups:
   - serving.kserve.io
   resources:
@@ -1115,6 +1082,15 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - serving.kserve.io
+  resources:
+  - llminferenceservices
+  - llminferenceservices/status
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - serving.kserve.io
   resources:

@@ -13,7 +13,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -48,7 +48,7 @@ func (s *componentHandler) Init(_ common.Platform) error {
 	return nil
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
 	return &componentApi.DataSciencePipelines{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.DataSciencePipelinesKind,
@@ -57,17 +57,17 @@ func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 		ObjectMeta: metav1.ObjectMeta{
 			Name: componentApi.DataSciencePipelinesInstanceName,
 			Annotations: map[string]string{
-				annotations.ManagementStateAnnotation: string(dsc.Spec.Components.DataSciencePipelines.ManagementState),
+				annotations.ManagementStateAnnotation: string(dsc.Spec.Components.AIPipelines.ManagementState),
 			},
 		},
 		Spec: componentApi.DataSciencePipelinesSpec{
-			DataSciencePipelinesCommonSpec: dsc.Spec.Components.DataSciencePipelines.DataSciencePipelinesCommonSpec,
+			DataSciencePipelinesCommonSpec: dsc.Spec.Components.AIPipelines.DataSciencePipelinesCommonSpec,
 		},
 	}
 }
 
-func (s *componentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool {
-	return dsc.Spec.Components.DataSciencePipelines.ManagementState == operatorv1.Managed
+func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
+	return dsc.Spec.Components.AIPipelines.ManagementState == operatorv1.Managed
 }
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
@@ -80,22 +80,20 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, nil
 	}
 
-	dsc, ok := rr.Instance.(*dscv1.DataScienceCluster)
+	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
-	ms := components.NormalizeManagementState(dsc.Spec.Components.DataSciencePipelines.ManagementState)
+	ms := components.NormalizeManagementState(dsc.Spec.Components.AIPipelines.ManagementState)
 
-	dsc.Status.InstalledComponents[LegacyComponentName] = false
-	dsc.Status.Components.DataSciencePipelines.ManagementState = ms
-	dsc.Status.Components.DataSciencePipelines.DataSciencePipelinesCommonStatus = nil
+	dsc.Status.Components.AIPipelines.ManagementState = ms
+	dsc.Status.Components.AIPipelines.DataSciencePipelinesCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	if s.IsEnabled(dsc) {
-		dsc.Status.InstalledComponents[LegacyComponentName] = true
-		dsc.Status.Components.DataSciencePipelines.DataSciencePipelinesCommonStatus = c.Status.DataSciencePipelinesCommonStatus.DeepCopy()
+		dsc.Status.Components.AIPipelines.DataSciencePipelinesCommonStatus = c.Status.DataSciencePipelinesCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
 			rr.Conditions.MarkFrom(ReadyConditionType, *rc)

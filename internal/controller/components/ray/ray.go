@@ -12,7 +12,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -32,7 +32,7 @@ func (s *componentHandler) GetName() string {
 	return componentApi.RayComponentName
 }
 
-func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
 	return &componentApi.Ray{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.RayKind,
@@ -58,7 +58,7 @@ func (s *componentHandler) Init(_ common.Platform) error {
 	return nil
 }
 
-func (s *componentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool {
+func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 	return dsc.Spec.Components.Ray.ManagementState == operatorv1.Managed
 }
 
@@ -72,21 +72,19 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, nil
 	}
 
-	dsc, ok := rr.Instance.(*dscv1.DataScienceCluster)
+	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
 
 	ms := components.NormalizeManagementState(dsc.Spec.Components.Ray.ManagementState)
 
-	dsc.Status.InstalledComponents[LegacyComponentName] = false
 	dsc.Status.Components.Ray.ManagementState = ms
 	dsc.Status.Components.Ray.RayCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	if s.IsEnabled(dsc) {
-		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.Ray.RayCommonStatus = c.Status.RayCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {

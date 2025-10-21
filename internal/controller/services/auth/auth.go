@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 
 	configv1 "github.com/openshift/api/config/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -24,7 +23,7 @@ const (
 func IsDefaultAuthMethod(ctx context.Context, cli client.Client) (bool, error) {
 	authenticationobj := &configv1.Authentication{}
 	if err := cli.Get(ctx, client.ObjectKey{Name: cluster.ClusterAuthenticationObj, Namespace: ""}, authenticationobj); err != nil {
-		if errors.Is(err, &meta.NoKindMatchError{}) { // when CRD is missing, convert error type
+		if meta.IsNoMatchError(err) { // when CRD is missing, convert error type
 			return false, k8serr.NewNotFound(schema.GroupResource{Group: gvk.Auth.Group}, cluster.ClusterAuthenticationObj)
 		}
 		return false, err

@@ -1,4 +1,4 @@
-//nolint:testpackage,dupl
+//nolint:testpackage
 package trustyai
 
 import (
@@ -8,14 +8,16 @@ import (
 	gt "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
@@ -46,6 +48,27 @@ func TestNewCRObject(t *testing.T) {
 		jq.Match(`.kind == "%s"`, componentApi.TrustyAIKind),
 		jq.Match(`.apiVersion == "%s"`, componentApi.GroupVersion),
 		jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.ManagementStateAnnotation, operatorv1.Managed),
+	)))
+}
+
+func TestEvalCRObjectSerialization(t *testing.T) {
+	g := NewWithT(t)
+	handler := &componentHandler{}
+
+	// Create DSC with no eval fields specified
+	dsc := createDSCWithTrustyAI(operatorv1.Managed)
+
+	cr := handler.NewCRObject(dsc)
+	g.Expect(cr).ShouldNot(BeNil())
+
+	// Test JSON serialization to ensure required fields are present
+	trustyaiCR, ok := cr.(*componentApi.TrustyAI)
+	g.Expect(ok).Should(BeTrue(), "Expected cr to be of type *componentApi.TrustyAI")
+	g.Expect(trustyaiCR).Should(WithTransform(json.Marshal, And(
+		jq.Match(`.spec.eval.lmeval.permitCodeExecution == "%s"`, EvalPermissionDeny),
+		jq.Match(`.spec.eval.lmeval.permitOnline == "%s"`, EvalPermissionDeny),
+		jq.Match(`.spec.eval.lmeval | has("permitCodeExecution")`),
+		jq.Match(`.spec.eval.lmeval | has("permitOnline")`),
 	)))
 }
 
@@ -88,6 +111,78 @@ func TestIsEnabled(t *testing.T) {
 	}
 }
 
+func TestCreateConfigMap(t *testing.T) {
+	t.Run("should create ConfigMap when configuration is provided", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		// Create TrustyAI CR with configuration
+		trustyai := createTrustyAICRWithConfig(true, true)
+		dsc := createDSCWithTrustyAI(operatorv1.Managed)
+		dsciObj := createDSCI("test-namespace")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsciObj))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:   cli,
+			Instance: trustyai,
+			DSCI:     dsciObj,
+		}
+
+		err = createConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify ConfigMap was added to resources
+		g.Expect(rr.Resources).Should(HaveLen(1))
+		configMapResource := rr.Resources[0]
+		g.Expect(configMapResource.GetName()).Should(Equal("trustyai-dsc-config"))
+		g.Expect(configMapResource.GetNamespace()).Should(Equal("test-namespace"))
+
+		// Verify ConfigMap data
+		data, found, err := unstructured.NestedStringMap(configMapResource.Object, "data")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(data["eval.lmeval.permitCodeExecution"]).Should(Equal("true"))
+		g.Expect(data["eval.lmeval.permitOnline"]).Should(Equal("true"))
+	})
+
+	t.Run("should handle partial configuration", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		// Create TrustyAI CR with partial configuration
+		trustyai := createTrustyAICRWithPartialConfig(true)
+		dsc := createDSCWithTrustyAI(operatorv1.Managed)
+		dsciObj := createDSCI("test-namespace")
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dsciObj))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		rr := &odhtypes.ReconciliationRequest{
+			Client:   cli,
+			Instance: trustyai,
+			DSCI:     dsciObj,
+		}
+
+		err = createConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify ConfigMap was added to resources with partial configuration
+		g.Expect(rr.Resources).Should(HaveLen(1))
+		configMapResource := rr.Resources[0]
+		g.Expect(configMapResource.GetName()).Should(Equal("trustyai-dsc-config"))
+		g.Expect(configMapResource.GetNamespace()).Should(Equal("test-namespace"))
+
+		// Verify only permitCodeExecution is set to true, permitOnline defaults to false
+		data, found, err := unstructured.NestedStringMap(configMapResource.Object, "data")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(data["eval.lmeval.permitCodeExecution"]).Should(Equal("true"))
+		g.Expect(data["eval.lmeval.permitOnline"]).Should(Equal("false"))
+	})
+}
+
 func TestUpdateDSCStatus(t *testing.T) {
 	handler := &componentHandler{}
 
@@ -97,11 +192,36 @@ func TestUpdateDSCStatus(t *testing.T) {
 
 		dsc := createDSCWithTrustyAI(operatorv1.Managed)
 		trustyai := createTrustyAICR(true)
+		dsciObj := createDSCI("test-namespace")
 
-		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, trustyai))
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, trustyai, dsciObj))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		// Test ConfigMap creation with default values
+		rr := &odhtypes.ReconciliationRequest{
+			Client:   cli,
+			Instance: trustyai,
+			DSCI:     dsciObj,
+		}
+
+		err = createConfigMap(ctx, rr)
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		// Verify ConfigMap was added to resources with default values
+		g.Expect(rr.Resources).Should(HaveLen(1))
+		configMapResource := rr.Resources[0]
+		g.Expect(configMapResource.GetName()).Should(Equal("trustyai-dsc-config"))
+		g.Expect(configMapResource.GetNamespace()).Should(Equal("test-namespace"))
+
+		// Verify ConfigMap data has default values (false)
+		data, found, err := unstructured.NestedStringMap(configMapResource.Object, "data")
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(found).Should(BeTrue())
+		g.Expect(data["eval.lmeval.permitCodeExecution"]).Should(Equal("false"))
+		g.Expect(data["eval.lmeval.permitOnline"]).Should(Equal("false"))
+
+		// Test DSC status update
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -111,7 +231,6 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.installedComponents."%s" == true`, LegacyComponentName),
 			jq.Match(`.status.components.trustyai.managementState == "%s"`, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.ReadyReason),
@@ -129,7 +248,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, trustyai))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -139,7 +258,6 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.installedComponents."%s" == true`, LegacyComponentName),
 			jq.Match(`.status.components.trustyai.managementState == "%s"`, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.NotReadyReason),
@@ -156,7 +274,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -166,7 +284,6 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.installedComponents."%s" == false`, LegacyComponentName),
 			jq.Match(`.status.components.trustyai.managementState == "%s"`, operatorv1.Removed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, operatorv1.Removed),
@@ -183,7 +300,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		cs, err := handler.UpdateDSCStatus(ctx, &odhtypes.ReconciliationRequest{
 			Client:     cli,
 			Instance:   dsc,
 			Conditions: conditions.NewManager(dsc, ReadyConditionType),
@@ -193,7 +310,6 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.installedComponents."%s" == false`, LegacyComponentName),
 			jq.Match(`.status.components.trustyai.managementState == "%s"`, operatorv1.Removed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, operatorv1.Removed),
@@ -203,15 +319,22 @@ func TestUpdateDSCStatus(t *testing.T) {
 	})
 }
 
-func createDSCWithTrustyAI(managementState operatorv1.ManagementState) *dscv1.DataScienceCluster {
-	dsc := dscv1.DataScienceCluster{}
+func createDSCWithTrustyAI(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {
+	dsc := dscv2.DataScienceCluster{}
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 	dsc.SetName("test-dsc")
 
 	dsc.Spec.Components.TrustyAI.ManagementState = managementState
-	dsc.Status.InstalledComponents = make(map[string]bool)
 
 	return &dsc
+}
+
+func createDSCI(applicationsNamespace string) *dsciv2.DSCInitialization {
+	dsciObj := dsciv2.DSCInitialization{}
+	dsciObj.SetGroupVersionKind(gvk.DSCInitialization)
+	dsciObj.SetName("test-dsci")
+	dsciObj.Spec.ApplicationsNamespace = applicationsNamespace
+	return &dsciObj
 }
 
 func createTrustyAICR(ready bool) *componentApi.TrustyAI {
@@ -236,4 +359,29 @@ func createTrustyAICR(ready bool) *componentApi.TrustyAI {
 	}
 
 	return &c
+}
+
+func createTrustyAICRWithConfig(permitCodeExecution, permitOnline bool) *componentApi.TrustyAI {
+	c := createTrustyAICR(true)
+	if permitCodeExecution {
+		c.Spec.Eval.LMEval.PermitCodeExecution = EvalPermissionAllow
+	} else {
+		c.Spec.Eval.LMEval.PermitCodeExecution = EvalPermissionDeny
+	}
+	if permitOnline {
+		c.Spec.Eval.LMEval.PermitOnline = EvalPermissionAllow
+	} else {
+		c.Spec.Eval.LMEval.PermitOnline = EvalPermissionDeny
+	}
+	return c
+}
+
+func createTrustyAICRWithPartialConfig(allowCodeExecution bool) *componentApi.TrustyAI {
+	c := createTrustyAICR(true)
+	if allowCodeExecution {
+		c.Spec.Eval.LMEval.PermitCodeExecution = EvalPermissionAllow
+	} else {
+		c.Spec.Eval.LMEval.PermitCodeExecution = EvalPermissionDeny
+	}
+	return c
 }

@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
@@ -36,8 +36,8 @@ func TestInitialize(t *testing.T) {
 	// Verify templates were added
 	g.Expect(rr.Templates).To(HaveLen(3))
 	g.Expect(rr.Templates[0].Path).To(Equal(AdminGroupRoleTemplate))
-	g.Expect(rr.Templates[1].Path).To(Equal(AllowedGroupRoleTemplate))
-	g.Expect(rr.Templates[2].Path).To(Equal(AdminGroupClusterRoleTemplate))
+	g.Expect(rr.Templates[1].Path).To(Equal(AdminGroupClusterRoleTemplate))
+	g.Expect(rr.Templates[2].Path).To(Equal(AllowedGroupClusterRoleTemplate))
 }
 
 // TestBindRoleValidation validates the security filtering logic in the bindRole function.
@@ -99,8 +99,8 @@ func TestBindRoleValidation(t *testing.T) {
 			// Create reconciliation request
 			rr := &odhtypes.ReconciliationRequest{
 				Client: fakeClient,
-				DSCI: &dsciv1.DSCInitialization{
-					Spec: dsciv1.DSCInitializationSpec{
+				DSCI: &dsciv2.DSCInitialization{
+					Spec: dsciv2.DSCInitializationSpec{
 						ApplicationsNamespace: "test-namespace",
 					},
 				},
@@ -161,8 +161,8 @@ func TestManagePermissionsBasic(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   fakeClient,
 		Instance: auth,
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{
 				ApplicationsNamespace: "test-namespace",
 			},
 		},
@@ -172,7 +172,7 @@ func TestManagePermissionsBasic(t *testing.T) {
 	err := managePermissions(ctx, rr)
 	g.Expect(err).ToNot(HaveOccurred(), "Should create all required RBAC resources")
 
-	// Verify resources were created (3 total: 2 RoleBindings + 1 ClusterRoleBinding)
+	// Verify resources were created (3 total: 1 RoleBindings + 2 ClusterRoleBinding)
 	g.Expect(rr.Resources).To(HaveLen(3), "Should create 3 RBAC resources")
 
 	// Count different resource types
@@ -188,8 +188,8 @@ func TestManagePermissionsBasic(t *testing.T) {
 		}
 	}
 
-	g.Expect(roleBindings).To(Equal(2), "Should create 2 RoleBindings")
-	g.Expect(clusterRoleBindings).To(Equal(1), "Should create 1 ClusterRoleBinding")
+	g.Expect(roleBindings).To(Equal(1), "Should create 1 RoleBindings")
+	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBinding")
 }
 
 // TestManagePermissionsInvalidInstance validates error handling when the controller
@@ -217,8 +217,8 @@ func TestManagePermissionsInvalidInstance(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   fakeClient,
 		Instance: &serviceApi.Monitoring{}, // Wrong type
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{
 				ApplicationsNamespace: "test-namespace",
 			},
 		},
@@ -262,8 +262,8 @@ func TestCreateDefaultGroupBasic(t *testing.T) {
 		Release: common.Release{
 			Name: "test-platform",
 		},
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
+		DSCI: &dsciv2.DSCInitialization{
+			Spec: dsciv2.DSCInitializationSpec{
 				ApplicationsNamespace: "test-namespace",
 			},
 		},

@@ -54,8 +54,27 @@ type TrustyAISpec struct {
 	TrustyAICommonSpec `json:",inline"`
 }
 
+// TrustyAIEvalSpec defines evaluation configuration for TrustyAI
+type TrustyAIEvalSpec struct {
+	// LMEval configuration for model evaluations
+	LMEval TrustyAILMEvalSpec `json:"lmeval"`
+}
+
+// TrustyAILMEvalSpec defines configuration for LMEval evaluations
+type TrustyAILMEvalSpec struct {
+	// PermitCodeExecution controls whether code execution is allowed during evaluations
+	// +kubebuilder:default="deny"
+	// +kubebuilder:validation:Enum=allow;deny
+	PermitCodeExecution string `json:"permitCodeExecution,omitempty"`
+	// PermitOnline controls whether online access is allowed during evaluations
+	// +kubebuilder:default="deny"
+	// +kubebuilder:validation:Enum=allow;deny
+	PermitOnline string `json:"permitOnline,omitempty"`
+}
+
 type TrustyAICommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
+	// Eval configuration for TrustyAI evaluations
+	Eval TrustyAIEvalSpec `json:"eval,omitempty"`
 }
 
 // TrustyAICommonStatus defines the shared observed state of TrustyAI
@@ -79,10 +98,6 @@ type TrustyAIList struct {
 
 func init() {
 	SchemeBuilder.Register(&TrustyAI{}, &TrustyAIList{})
-}
-
-func (c *TrustyAI) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *TrustyAI) GetStatus() *common.Status {

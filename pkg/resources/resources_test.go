@@ -22,8 +22,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -167,8 +167,8 @@ func TestRemoveOwnerRef(t *testing.T) {
 	utilruntime.Must(appsv1.AddToScheme(s))
 	utilruntime.Must(apiextensionsv1.AddToScheme(s))
 	utilruntime.Must(componentApi.AddToScheme(s))
-	utilruntime.Must(dsciv1.AddToScheme(s))
-	utilruntime.Must(dscv1.AddToScheme(s))
+	utilruntime.Must(dsciv2.AddToScheme(s))
+	utilruntime.Must(dscv2.AddToScheme(s))
 	utilruntime.Must(rbacv1.AddToScheme(s))
 
 	projectDir, err := envtestutil.FindProjectRoot()
@@ -312,6 +312,35 @@ func TestObjectFromUnstructured(t *testing.T) {
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(err.Error()).To(ContainSubstring("unable to create object for GVK"))
 	})
+}
+
+func TestFormatObjectReference(t *testing.T) {
+	cases := []struct {
+		name      string
+		gvk       schema.GroupVersionKind
+		namespace string
+		objName   string
+		expected  string
+	}{
+		{name: "namespaced", gvk: gvk.Deployment, namespace: "myns", objName: "mydeploy", expected: "apps/v1, Kind=Deployment myns/mydeploy"},
+		{name: "cluster-scoped", gvk: gvk.ClusterRole, namespace: "", objName: "cluster-admin", expected: "rbac.authorization.k8s.io/v1, Kind=ClusterRole cluster-admin"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := &unstructured.Unstructured{}
+			u.SetGroupVersionKind(tc.gvk)
+			if tc.namespace != "" {
+				u.SetNamespace(tc.namespace)
+			}
+			u.SetName(tc.objName)
+
+			actual := resources.FormatObjectReference(u)
+			if actual != tc.expected {
+				t.Fatalf("unexpected reference: got %q, want %q", actual, tc.expected)
+			}
+		})
+	}
 }
 
 func TestHasCRD(t *testing.T) {

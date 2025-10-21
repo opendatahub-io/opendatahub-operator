@@ -5,12 +5,14 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
+
+	. "github.com/onsi/gomega"
 )
 
 type DataSciencePipelinesTestCtx struct {
@@ -34,13 +36,10 @@ func dataSciencePipelinesTestSuite(t *testing.T) {
 		{"Validate operands have OwnerReferences", componentCtx.ValidateOperandsOwnerReferences},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
-		{"Validate deployment deletion recovery", componentCtx.ValidateDeploymentDeletionRecovery},
-		{"Validate configmap deletion recovery", componentCtx.ValidateConfigMapDeletionRecovery},
-		{"Validate service deletion recovery", componentCtx.ValidateServiceDeletionRecovery},
-		// {"Validate rbac deletion recovery", componentCtx.ValidateRBACDeletionRecovery},
-		{"Validate serviceaccount deletion recovery", componentCtx.ValidateServiceAccountDeletionRecovery},
+		{"Validate argoWorkflowsControllers options v1", componentCtx.ValidateArgoWorkflowsControllersOptionsV1},
+		{"Validate argoWorkflowsControllers options v2", componentCtx.ValidateArgoWorkflowsControllersOptionsV2},
+		{"Validate resource deletion recovery", componentCtx.ValidateAllDeletionRecovery},
 		{"Validate component disabled", componentCtx.ValidateComponentDisabled},
-		{"Validate argoWorkflowsControllers options", componentCtx.ValidateArgoWorkflowsControllersOptions},
 	}
 
 	// Run the test suite.
@@ -59,24 +58,40 @@ func (tc *DataSciencePipelinesTestCtx) ValidateConditions(t *testing.T) {
 	)
 }
 
-// ValidateArgoWorkflowsControllersOptions ensures the DataSciencePipelines component is ready if the
-// argoWorkflowsControllersSpec options are set to "Removed".
-func (tc *DataSciencePipelinesTestCtx) ValidateArgoWorkflowsControllersOptions(t *testing.T) {
+// ValidateArgoWorkflowsControllersOptionsV1 ensures the DataSciencePipelines component is ready if the
+// argoWorkflowsControllersSpec options are set to "Removed" when using v1 API (datasciencepipelines field).
+func (tc *DataSciencePipelinesTestCtx) ValidateArgoWorkflowsControllersOptionsV1(t *testing.T) {
 	t.Helper()
 
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(
-			func(obj *unstructured.Unstructured) error {
-				err := unstructured.SetNestedField(obj.Object, string(operatorv1.Managed), "spec", "components", "datasciencepipelines", "managementState")
-				if err != nil {
-					return err
-				}
-
-				return unstructured.SetNestedField(obj.Object, string(operatorv1.Removed), "spec", "components", "datasciencepipelines", "argoWorkflowsControllers", "managementState")
-			}),
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceClusterV1, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.datasciencepipelines.argoWorkflowsControllers.managementState = "%s"`, operatorv1.Removed)),
 		WithCondition(
-			jq.Match(`.status.conditions[] | select(.type == "DataSciencePipelinesReady") | .status == "True"`),
+			And(
+				// Verify v1 condition type exists
+				jq.Match(`.status.conditions[] | select(.type == "DataSciencePipelinesReady") | .status == "True"`),
+				// Verify v2 condition type does NOT exist
+				jq.Match(`[.status.conditions[] | select(.type == "AIPipelinesReady")] | length == 0`),
+			),
+		),
+	)
+}
+
+// ValidateArgoWorkflowsControllersOptionsV2 ensures the DataSciencePipelines component is ready if the
+// argoWorkflowsControllersSpec options are set to "Removed" when using v2 API (aipipelines field).
+func (tc *DataSciencePipelinesTestCtx) ValidateArgoWorkflowsControllersOptionsV2(t *testing.T) {
+	t.Helper()
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.aipipelines.argoWorkflowsControllers.managementState = "%s"`, operatorv1.Removed)),
+		WithCondition(
+			And(
+				// Verify v2 condition type exists
+				jq.Match(`.status.conditions[] | select(.type == "AIPipelinesReady") | .status == "True"`),
+				// Verify v1 condition type does NOT exist
+				jq.Match(`[.status.conditions[] | select(.type == "DataSciencePipelinesReady")] | length == 0`),
+			),
 		),
 	)
 }

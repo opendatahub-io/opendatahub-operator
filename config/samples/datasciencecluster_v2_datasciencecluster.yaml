@@ -1,0 +1,36 @@
+apiVersion: datasciencecluster.opendatahub.io/v2
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+  labels:
+    app.kubernetes.io/name: datasciencecluster
+spec:
+  components:
+    dashboard:
+      managementState: "Managed"
+    aipipelines:
+      managementState: "Managed"
+    kserve: {
+      managementState: "Managed",
+      nim: {
+        managementState: "Managed"
+      },
+      rawDeploymentServiceConfig: "Headed",
+    }
+    kueue:
+      managementState: "Removed"
+    trainingoperator:
+      managementState: "Managed"
+    ray:
+      managementState: "Managed"
+    workbenches:
+      managementState: "Managed"
+    trustyai:
+      managementState: "Managed"
+    modelregistry:
+      managementState: "Managed"
+      registriesNamespace: "odh-model-registries"
+    feastoperator:
+      managementState: "Managed"
+    llamastackoperator:
+      managementState: "Removed"

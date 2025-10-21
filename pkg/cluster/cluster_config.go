@@ -183,9 +183,7 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 		}
 	}
 
-	return nil, k8serr.NewNotFound(
-		schema.GroupResource{Group: gvk.ClusterServiceVersion.Group},
-		gvk.ClusterServiceVersion.Kind)
+	return nil, k8serr.NewNotFound(schema.GroupResource{Group: gvk.ClusterServiceVersion.Group}, gvk.ClusterServiceVersion.Kind)
 }
 
 // detectSelfManaged detects if it is Self Managed Rhoai or OpenDataHub.
@@ -330,14 +328,11 @@ func setManagedMonitoringNamespace(ctx context.Context, cli client.Client) error
 	if err != nil {
 		return err
 	}
-	ok := viper.IsSet("dsc-monitoring-namespace")
-	if !ok {
-		switch platform {
-		case ManagedRhoai, SelfManagedRhoai:
-			viper.Set("dsc-monitoring-namespace", DefaultMonitoringNamespaceRHOAI)
-		default:
-			viper.Set("dsc-monitoring-namespace", DefaultMonitoringNamespaceODH)
-		}
+	switch platform {
+	case ManagedRhoai, SelfManagedRhoai:
+		viper.SetDefault("dsc-monitoring-namespace", DefaultMonitoringNamespaceRHOAI)
+	case OpenDataHub:
+		viper.SetDefault("dsc-monitoring-namespace", DefaultMonitoringNamespaceODH)
 	}
 	return nil
 }

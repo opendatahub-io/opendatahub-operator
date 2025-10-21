@@ -44,8 +44,6 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 			PrometheusYML          string `yaml:"prometheus.yml"`
 			OperatorRules          string `yaml:"operator-recording.rules"`
 			DeadManSnitchRules     string `yaml:"deadmanssnitch-alerting.rules"`
-			CFRRules               string `yaml:"codeflare-recording.rules"`
-			CRARules               string `yaml:"codeflare-alerting.rules"`
 			DashboardRRules        string `yaml:"rhods-dashboard-recording.rules"`
 			DashboardARules        string `yaml:"rhods-dashboard-alerting.rules"`
 			DSPRRules              string `yaml:"data-science-pipelines-operator-recording.rules"`

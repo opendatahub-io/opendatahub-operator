@@ -47,6 +47,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -61,13 +62,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	ctrlwebhook "sigs.k8s.io/controller-runtime/pkg/webhook"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
-	infrastructurev1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	dscctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/datasciencecluster"
@@ -82,7 +87,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/flags"
 
-	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/codeflare"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/datasciencepipelines"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/feastoperator"
@@ -90,7 +94,6 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kueue"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/llamastackoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
-	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelmeshserving"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
@@ -98,9 +101,9 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/certconfigmapgenerator"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/monitoring"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/secretgenerator"
-	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/servicemesh"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/setup"
 )
 
@@ -112,11 +115,14 @@ var (
 func init() { //nolint:gochecknoinits
 	utilruntime.Must(componentApi.AddToScheme(scheme))
 	utilruntime.Must(serviceApi.AddToScheme(scheme))
-	utilruntime.Must(infrastructurev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(infrav1alpha1.AddToScheme(scheme))
+	utilruntime.Must(infrav1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(dsciv1.AddToScheme(scheme))
+	utilruntime.Must(dsciv2.AddToScheme(scheme))
 	utilruntime.Must(dscv1.AddToScheme(scheme))
+	utilruntime.Must(dscv2.AddToScheme(scheme))
 	utilruntime.Must(featurev1.AddToScheme(scheme))
 	utilruntime.Must(networkingv1.AddToScheme(scheme))
 	utilruntime.Must(rbacv1.AddToScheme(scheme))
@@ -137,6 +143,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(consolev1.AddToScheme(scheme))
 	utilruntime.Must(securityv1.Install(scheme))
 	utilruntime.Must(templatev1.Install(scheme))
+	utilruntime.Must(gwapiv1.Install(scheme))
 }
 
 func initComponents(_ context.Context, p common.Platform) error {
@@ -348,7 +355,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 				DisableFor: []client.Object{
 					resources.GvkToUnstructured(gvk.OpenshiftIngress),
 					&ofapiv1alpha1.Subscription{},
-					resources.GvkToUnstructured(gvk.ServiceMeshControlPlane),
 					&authorizationv1.SelfSubjectRulesReview{},
 					&corev1.Pod{},
 					&userv1.Group{},
@@ -432,18 +438,42 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		}
 	}
 
-	// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
-	var patchODCFunc manager.RunnableFunc = func(ctx context.Context) error {
-		if err := upgrade.PatchOdhDashboardConfig(ctx, setupClient, oldReleaseVersion, release); err != nil {
-			setupLog.Error(err, "Unable to patch the odhdashboardconfig")
-			return err
+	var createDefaultGatewayFunc manager.RunnableFunc = func(ctx context.Context) error {
+		defaultGateway := &serviceApi.GatewayConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: serviceApi.GatewayInstanceName,
+			},
+			Spec: serviceApi.GatewayConfigSpec{
+				Certificate: &infrav1.CertificateSpec{
+					Type:       infrav1.OpenshiftDefaultIngress,
+					SecretName: "default-gateway-tls",
+				},
+			},
 		}
+
+		existingGateway := &serviceApi.GatewayConfig{}
+		err := setupClient.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, existingGateway)
+		if err != nil {
+			if client.IgnoreNotFound(err) == nil {
+				if createErr := setupClient.Create(ctx, defaultGateway); createErr != nil {
+					setupLog.Error(createErr, "unable to create default Gateway CR")
+					return createErr
+				}
+				setupLog.Info("Created default Gateway CR", "name", serviceApi.GatewayInstanceName)
+			} else {
+				setupLog.Error(err, "error checking for existing Gateway CR")
+				return err
+			}
+		} else {
+			setupLog.Info("Default Gateway CR already exists", "name", serviceApi.GatewayInstanceName)
+		}
+
 		return nil
 	}
-
-	err = mgr.Add(patchODCFunc)
+	err = mgr.Add(createDefaultGatewayFunc)
 	if err != nil {
-		setupLog.Error(err, "Error patching odhdashboardconfig")
+		setupLog.Error(err, "error scheduling Gateway creation")
+		os.Exit(1)
 	}
 
 	// Cleanup resources from previous v2 releases
@@ -524,7 +554,6 @@ func createSecretCacheConfig(ctx context.Context, cli client.Client, platform co
 		return nil, err
 	}
 
-	namespaceConfigs["istio-system"] = cache.Config{} // for both knative-serving-cert and default-modelregistry-cert, as an easy workarond, to watch both in this namespace
 	namespaceConfigs["openshift-ingress"] = cache.Config{}
 
 	return namespaceConfigs, nil
@@ -536,8 +565,8 @@ func createODHGeneralCacheConfig(ctx context.Context, cli client.Client, platfor
 		return nil, err
 	}
 
-	namespaceConfigs["istio-system"] = cache.Config{}        // for serivcemonitor: data-science-smcp-pilot-monitor
 	namespaceConfigs["openshift-operators"] = cache.Config{} // for dependent operators installed namespace
+	namespaceConfigs["openshift-ingress"] = cache.Config{}   // for gateway auth proxy resources
 
 	return namespaceConfigs, nil
 }

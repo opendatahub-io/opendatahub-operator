@@ -12,6 +12,28 @@ spec:
       {{- if .Size }}
       size: "{{.Size}}"
       {{- end }}
+  {{- if .TempoTLSEnabled }}
+  ingestion:
+    otlp:
+      grpc:
+        tls:
+          enabled: true
+          {{- if .TempoCertificateSecret }}
+          certificateSecret: {{.TempoCertificateSecret}}
+          {{- end }}
+          {{- if .TempoCAConfigMap }}
+          caConfigMap: {{.TempoCAConfigMap}}
+          {{- end }}
+      http:
+        tls:
+          enabled: true
+          {{- if .TempoCertificateSecret }}
+          certificateSecret: {{.TempoCertificateSecret}}
+          {{- end }}
+          {{- if .TempoCAConfigMap }}
+          caConfigMap: {{.TempoCAConfigMap}}
+          {{- end }}
+  {{- end }}
   extraConfig:
     tempo:
       compactor:

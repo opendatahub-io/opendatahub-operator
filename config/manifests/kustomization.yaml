@@ -15,6 +15,23 @@ patches:
   target:
     group: operators.coreos.com
     kind: ClusterServiceVersion
+# Remove inject-cabundle annotation from specific CRDs for OLM bundle
+- patch: |-
+    - op: remove
+      path: /metadata/annotations/service.beta.openshift.io~1inject-cabundle
+  target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: dscinitializations.dscinitialization.opendatahub.io
+- patch: |-
+    - op: remove
+      path: /metadata/annotations/service.beta.openshift.io~1inject-cabundle
+  target:
+    group: apiextensions.k8s.io
+    version: v1
+    kind: CustomResourceDefinition
+    name: datascienceclusters.datasciencecluster.opendatahub.io
 
 # [WEBHOOK] To enable webhooks, uncomment all the sections with [WEBHOOK] prefix.
 # Do NOT uncomment sections with prefix [CERTMANAGER], as OLM does not support cert-manager.

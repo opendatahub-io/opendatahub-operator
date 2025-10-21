@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	hwpv1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/envtestutil"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -27,11 +27,13 @@ import (
 )
 
 const (
-	testNamespace        = "test-ns"
-	testNotebook         = "test-notebook"
-	testInferenceService = "test-inference-service"
-	testHardwareProfile  = "test-hardware-profile"
-	testQueue            = "test-queue"
+	testNamespace           = "test-ns"
+	hwpNamespace            = "hwp-ns"
+	testNotebook            = "test-notebook"
+	testInferenceService    = "test-isvc"
+	testLLMInferenceService = "test-llmisvc"
+	testHardwareProfile     = "test-hardware-profile"
+	testQueue               = "test-queue"
 )
 
 // setupTestEnvironment creates the common test environment for webhook tests.
@@ -40,7 +42,7 @@ func setupTestEnvironment(t *testing.T) (*runtime.Scheme, context.Context) {
 	sch, err := scheme.New()
 	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
-	err = hwpv1alpha1.AddToScheme(sch)
+	err = infrav1.AddToScheme(sch)
 	NewWithT(t).Expect(err).ShouldNot(HaveOccurred())
 
 	return sch, t.Context()
@@ -58,37 +60,9 @@ func createWebhookInjector(cli client.Client, sch *runtime.Scheme) *hardwareprof
 
 // Helper functions for test simplification.
 
-// WorkloadTestConfig holds configuration for testing different workload types.
-type WorkloadTestConfig struct {
-	CreateWorkload func(name, namespace string, options ...envtestutil.ObjectOption) client.Object
-	ContainersPath []string
-	GVK            schema.GroupVersionKind
-	ResourceName   string
-}
-
-// getNotebookConfig returns test configuration for Notebook workloads.
-func getNotebookConfig() WorkloadTestConfig {
-	return WorkloadTestConfig{
-		CreateWorkload: envtestutil.NewNotebook,
-		ContainersPath: []string{"spec", "template", "spec", "containers"},
-		GVK:            gvk.Notebook,
-		ResourceName:   "notebooks",
-	}
-}
-
-// getInferenceServiceConfig returns test configuration for InferenceService workloads.
-func getInferenceServiceConfig() WorkloadTestConfig {
-	return WorkloadTestConfig{
-		CreateWorkload: envtestutil.NewInferenceService,
-		ContainersPath: []string{"spec", "predictor", "podSpec", "containers"},
-		GVK:            gvk.InferenceServices,
-		ResourceName:   "inferenceservices",
-	}
-}
-
-// setContainerResourcesForWorkload sets container resources for any workload type using the provided container path.
-func setContainerResourcesForWorkload(workload *unstructured.Unstructured, containersPath []string, resourceType, resourceKey, value string) {
-	containers, _, err := unstructured.NestedSlice(workload.Object, containersPath...)
+// setContainerResources sets container resources for notebook workloads.
+func setContainerResources(notebook *unstructured.Unstructured, resourceType, resourceKey, value string) {
+	containers, _, err := unstructured.NestedSlice(notebook.Object, "spec", "template", "spec", "containers")
 	if err != nil {
 		return
 	}
@@ -104,17 +78,7 @@ func setContainerResourcesForWorkload(workload *unstructured.Unstructured, conta
 			resourceKey: value,
 		},
 	}
-	_ = unstructured.SetNestedSlice(workload.Object, containers, containersPath...)
-}
-
-// setMultipleContainersForWorkload sets multiple containers for any workload type using the provided container path.
-func setMultipleContainersForWorkload(workload *unstructured.Unstructured, containersPath []string, containers []interface{}) {
-	_ = unstructured.SetNestedSlice(workload.Object, containers, containersPath...)
-}
-
-// setContainerResources is kept for backward compatibility with existing notebook tests.
-func setContainerResources(notebook *unstructured.Unstructured, resourceType, resourceKey, value string) {
-	setContainerResourcesForWorkload(notebook, []string{"spec", "template", "spec", "containers"}, resourceType, resourceKey, value)
+	_ = unstructured.SetNestedSlice(notebook.Object, containers, "spec", "template", "spec", "containers")
 }
 
 func hasResourcePatches(patches []jsonpatch.JsonPatchOperation) bool {
@@ -234,182 +198,7 @@ func TestHardwareProfile_DeniesWhenProfileNotFound(t *testing.T) {
 
 	resp := injector.Handle(ctx, req)
 	g.Expect(resp.Allowed).Should(BeFalse())
-	g.Expect(resp.Result.Message).Should(ContainSubstring("failed to get hardware profile 'nonexistent'"))
-}
-
-// TestHardwareProfile_ResourceInjection tests that hardware profiles with resource requirements are applied correctly to both Notebook and InferenceService workloads.
-func TestHardwareProfile_ResourceInjection(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	sch, ctx := setupTestEnvironment(t)
-
-	// Create hardware profile with CPU and memory identifiers
-	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
-		envtestutil.WithCPUIdentifier("0", "4"),
-		envtestutil.WithMemoryIdentifier("0", "8Gi"),
-	)
-
-	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
-	injector := createWebhookInjector(cli, sch)
-
-	workloadConfigs := []WorkloadTestConfig{
-		getNotebookConfig(),
-		getInferenceServiceConfig(),
-	}
-
-	for _, config := range workloadConfigs {
-		t.Run(config.ResourceName, func(t *testing.T) {
-			t.Parallel()
-
-			testCases := []struct {
-				name                string
-				setupWorkload       func() *unstructured.Unstructured
-				expectResourcePatch bool
-			}{
-				{
-					name: "applies resources when none exist",
-					setupWorkload: func() *unstructured.Unstructured {
-						workload := config.CreateWorkload(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
-						workloadUnstructured, ok := workload.(*unstructured.Unstructured)
-						if !ok {
-							return nil
-						}
-						return workloadUnstructured
-					},
-					expectResourcePatch: true,
-				},
-				{
-					name: "preserves existing resources",
-					setupWorkload: func() *unstructured.Unstructured {
-						workload, ok := config.CreateWorkload(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-						g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-
-						// Set existing resources that should be preserved
-						containers, _, _ := unstructured.NestedSlice(workload.Object, config.ContainersPath...)
-						containerMap, ok := containers[0].(map[string]interface{})
-						g.Expect(ok).Should(BeTrue(), "container should be a map")
-						containerMap["resources"] = map[string]interface{}{
-							"requests": map[string]interface{}{
-								"cpu":    "2",
-								"memory": "4Gi",
-							},
-							"limits": map[string]interface{}{
-								"cpu":    "4",
-								"memory": "8Gi",
-							},
-						}
-						_ = unstructured.SetNestedSlice(workload.Object, containers, config.ContainersPath...)
-						return workload
-					},
-					expectResourcePatch: false,
-				},
-				{
-					name: "applies only missing resources when single container has partial resources",
-					setupWorkload: func() *unstructured.Unstructured {
-						workload, ok := config.CreateWorkload(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-						g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-
-						// Set only CPU request, memory should be applied from HWP
-						containers, _, _ := unstructured.NestedSlice(workload.Object, config.ContainersPath...)
-						containerMap, ok := containers[0].(map[string]interface{})
-						g.Expect(ok).Should(BeTrue(), "container should be a map")
-						containerMap["resources"] = map[string]interface{}{
-							"requests": map[string]interface{}{
-								"cpu": "1",
-							},
-						}
-						_ = unstructured.SetNestedSlice(workload.Object, containers, config.ContainersPath...)
-						return workload
-					},
-					expectResourcePatch: true,
-				},
-				{
-					name: "applies resources to containers without them when multiple containers exist",
-					setupWorkload: func() *unstructured.Unstructured {
-						workload, ok := config.CreateWorkload(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-						g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-
-						// Create two containers - first has CPU, second has memory, both should get missing resources
-						var containers []interface{}
-						if config.GVK.Kind == gvk.Notebook.Kind {
-							containers = []interface{}{
-								map[string]interface{}{
-									"name":  "main-container",
-									"image": "notebook:latest",
-									"resources": map[string]interface{}{
-										"requests": map[string]interface{}{
-											"cpu": "1",
-											// Missing memory - should get HWP memory
-										},
-									},
-								},
-								map[string]interface{}{
-									"name":  "sidecar-container",
-									"image": "sidecar:latest",
-									"resources": map[string]interface{}{
-										"requests": map[string]interface{}{
-											"memory": "2Gi",
-											// Missing CPU - should get HWP CPU
-										},
-									},
-								},
-							}
-						} else {
-							containers = []interface{}{
-								map[string]interface{}{
-									"name":  "main-container",
-									"image": "tensorflow/serving:latest",
-									"resources": map[string]interface{}{
-										"requests": map[string]interface{}{
-											"cpu": "1",
-											// Missing memory - should get HWP memory
-										},
-									},
-								},
-								map[string]interface{}{
-									"name":  "sidecar-container",
-									"image": "istio/proxyv2:latest",
-									"resources": map[string]interface{}{
-										"requests": map[string]interface{}{
-											"memory": "2Gi",
-											// Missing CPU - should get HWP CPU
-										},
-									},
-								},
-							}
-						}
-						setMultipleContainersForWorkload(workload, config.ContainersPath, containers)
-						return workload
-					},
-					expectResourcePatch: true,
-				},
-			}
-
-			for _, tc := range testCases {
-				t.Run(tc.name, func(t *testing.T) {
-					t.Parallel()
-
-					workload := tc.setupWorkload()
-
-					req := envtestutil.NewAdmissionRequest(
-						t,
-						admissionv1.Create,
-						workload,
-						config.GVK,
-						metav1.GroupVersionResource{
-							Group:    config.GVK.Group,
-							Version:  config.GVK.Version,
-							Resource: config.ResourceName,
-						},
-					)
-
-					resp := injector.Handle(ctx, req)
-					g.Expect(resp.Allowed).Should(BeTrue())
-					g.Expect(hasResourcePatches(resp.Patches)).Should(Equal(tc.expectResourcePatch))
-				})
-			}
-		})
-	}
+	g.Expect(resp.Result.Message).Should(ContainSubstring("hardware profile 'nonexistent' not found"))
 }
 
 // TestHardwareProfile_AppliesKueueConfiguration tests that hardware profiles with Kueue configuration are applied correctly.
@@ -450,7 +239,7 @@ func TestHardwareProfile_SetsNamespaceAnnotation(t *testing.T) {
 	sch, ctx := setupTestEnvironment(t)
 
 	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
-		envtestutil.WithResourceIdentifiers(hwpv1alpha1.HardwareIdentifier{
+		envtestutil.WithResourceIdentifiers(infrav1.HardwareIdentifier{
 			DisplayName:  "Test Resource",
 			Identifier:   "test.com/resource",
 			MinCount:     intstr.FromString("1"),
@@ -476,183 +265,6 @@ func TestHardwareProfile_SetsNamespaceAnnotation(t *testing.T) {
 	resp := injector.Handle(ctx, req)
 	g.Expect(resp.Allowed).Should(BeTrue())
 	g.Expect(resp.Patches).Should(Not(BeEmpty()))
-}
-
-// TestHardwareProfile_SchedulingConfiguration tests that hardware profiles with different
-// scheduling configurations are applied correctly to both Notebook and InferenceService workloads.
-func TestHardwareProfile_SchedulingConfiguration(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	sch, ctx := setupTestEnvironment(t)
-
-	workloadConfigs := []WorkloadTestConfig{
-		getNotebookConfig(),
-		getInferenceServiceConfig(),
-	}
-
-	for _, config := range workloadConfigs {
-		t.Run(config.ResourceName, func(t *testing.T) {
-			t.Parallel()
-
-			testCases := []struct {
-				name          string
-				hwpOptions    []envtestutil.ObjectOption
-				setupWorkload func() *unstructured.Unstructured
-				expectPatches bool
-			}{
-				{
-					name: "applies node scheduling to clean workload",
-					hwpOptions: []envtestutil.ObjectOption{
-						envtestutil.WithCPUIdentifier("2", "2"),
-						envtestutil.WithNodeScheduling(
-							map[string]string{"node-type": "gpu-node"},
-							[]corev1.Toleration{{
-								Key:      "nvidia.com/gpu",
-								Operator: corev1.TolerationOpEqual,
-								Value:    "true",
-								Effect:   corev1.TaintEffectNoSchedule,
-							}},
-						),
-					},
-					setupWorkload: func() *unstructured.Unstructured {
-						workload, ok := config.CreateWorkload(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-						g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-						return workload
-					},
-					expectPatches: true,
-				},
-				{
-					name: "applies kueue scheduling to clean workload",
-					hwpOptions: []envtestutil.ObjectOption{
-						envtestutil.WithMemoryIdentifier("4Gi", "4Gi"),
-						envtestutil.WithKueueScheduling(testQueue, "high-priority"),
-					},
-					setupWorkload: func() *unstructured.Unstructured {
-						workload, ok := config.CreateWorkload(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-						g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-						return workload
-					},
-					expectPatches: true,
-				},
-			}
-
-			// Add notebook-specific test case for existing resources
-			if config.GVK.Kind == gvk.Notebook.Kind {
-				testCases = append(testCases, struct {
-					name          string
-					hwpOptions    []envtestutil.ObjectOption
-					setupWorkload func() *unstructured.Unstructured
-					expectPatches bool
-				}{
-					name: "applies kueue scheduling even when resources exist",
-					hwpOptions: []envtestutil.ObjectOption{
-						envtestutil.WithCPUIdentifier("4", "4"),
-						envtestutil.WithKueueScheduling(testQueue),
-					},
-					setupWorkload: func() *unstructured.Unstructured {
-						workload, ok := config.CreateWorkload(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
-						g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
-						// Add existing CPU requests (this should prevent resource injection but allow scheduling)
-						setContainerResources(workload, "requests", "cpu", "2")
-						return workload
-					},
-					expectPatches: true,
-				})
-			}
-
-			for _, tc := range testCases {
-				t.Run(tc.name, func(t *testing.T) {
-					t.Parallel()
-
-					hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace, tc.hwpOptions...)
-					cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
-					injector := createWebhookInjector(cli, sch)
-
-					workload := tc.setupWorkload()
-
-					req := envtestutil.NewAdmissionRequest(
-						t,
-						admissionv1.Create,
-						workload,
-						config.GVK,
-						metav1.GroupVersionResource{
-							Group:    config.GVK.Group,
-							Version:  config.GVK.Version,
-							Resource: config.ResourceName,
-						},
-					)
-
-					resp := injector.Handle(ctx, req)
-					g.Expect(resp.Allowed).Should(BeTrue())
-					g.Expect(resp.Patches).Should(Not(BeEmpty()))
-				})
-			}
-		})
-	}
-}
-
-// TestHardwareProfile_SupportsCrossNamespaceAccess tests that hardware profiles can be accessed from different namespaces for both Notebook and InferenceService workloads.
-func TestHardwareProfile_SupportsCrossNamespaceAccess(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	sch, ctx := setupTestEnvironment(t)
-
-	hwpNamespace := "hwp-namespace"
-	workloadNamespace := "workload-namespace"
-
-	// Create hardware profile in different namespace
-	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, hwpNamespace,
-		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "1", "1"),
-	)
-
-	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
-	injector := createWebhookInjector(cli, sch)
-
-	workloadConfigs := []WorkloadTestConfig{
-		getNotebookConfig(),
-		getInferenceServiceConfig(),
-	}
-
-	for _, config := range workloadConfigs {
-		t.Run(config.ResourceName, func(t *testing.T) {
-			t.Parallel()
-
-			var workload client.Object
-			if config.GVK.Kind == gvk.Notebook.Kind {
-				workload = config.CreateWorkload(testNotebook, workloadNamespace,
-					envtestutil.WithHardwareProfile(testHardwareProfile),
-					envtestutil.WithHardwareProfileNamespace(hwpNamespace),
-				)
-			} else {
-				// InferenceService uses a different pattern for cross-namespace annotation
-				workload = config.CreateWorkload(testInferenceService, workloadNamespace, func(obj client.Object) {
-					annotations := obj.GetAnnotations()
-					if annotations == nil {
-						annotations = make(map[string]string)
-					}
-					annotations["opendatahub.io/hardware-profile-name"] = testHardwareProfile
-					annotations["opendatahub.io/hardware-profile-namespace"] = hwpNamespace
-					obj.SetAnnotations(annotations)
-				})
-			}
-
-			req := envtestutil.NewAdmissionRequest(
-				t,
-				admissionv1.Create,
-				workload,
-				config.GVK,
-				metav1.GroupVersionResource{
-					Group:    config.GVK.Group,
-					Version:  config.GVK.Version,
-					Resource: config.ResourceName,
-				},
-			)
-
-			resp := injector.Handle(ctx, req)
-			g.Expect(resp.Allowed).Should(BeTrue())
-			g.Expect(resp.Patches).Should(Not(BeEmpty()))
-		})
-	}
 }
 
 // TestHardwareProfile_HandlesUpdateOperations tests that update operations are handled correctly.
@@ -737,7 +349,7 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 				notebook.SetName(testNotebook)
 				// No namespace set
 				notebook.SetAnnotations(map[string]string{
-					"opendatahub.io/hardware-profile-name": testHardwareProfile,
+					hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
 				})
 				return notebook
 			}(),
@@ -749,7 +361,7 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 			injector:      createWebhookInjector(fake.NewClientBuilder().WithScheme(sch).Build(), sch),
 			workload:      envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile("non-existent")),
 			expectAllowed: false,
-			expectMessage: "failed to get hardware profile 'non-existent'",
+			expectMessage: "hardware profile 'non-existent' not found",
 		},
 		{
 			name: "empty hardware profile configuration",
@@ -761,7 +373,7 @@ func TestHardwareProfile_ErrorPaths(t *testing.T) {
 			}(),
 			workload:      envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)),
 			expectAllowed: true,
-			expectMessage: "Hardware profile has no configuration to apply",
+			expectMessage: "HardwareProfile has no configuration to apply",
 		},
 	}
 
@@ -839,7 +451,7 @@ func TestHardwareProfile_ConvertIntOrStringToQuantity(t *testing.T) {
 			// We need to test this through the webhook since the function is not exported
 			// Create a hardware profile with the test value
 			hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
-				envtestutil.WithResourceIdentifiers(hwpv1alpha1.HardwareIdentifier{
+				envtestutil.WithResourceIdentifiers(infrav1.HardwareIdentifier{
 					DisplayName:  "Test Resource",
 					Identifier:   "test.com/resource",
 					DefaultCount: tc.input,
@@ -856,7 +468,7 @@ func TestHardwareProfile_ConvertIntOrStringToQuantity(t *testing.T) {
 			notebook.SetName(testNotebook)
 			notebook.SetNamespace(testNamespace)
 			notebook.SetAnnotations(map[string]string{
-				"opendatahub.io/hardware-profile-name": testHardwareProfile,
+				hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
 			})
 			// Set minimal spec structure without containers so resources will be injected
 			err := unstructured.SetNestedMap(notebook.Object, map[string]interface{}{
@@ -940,7 +552,7 @@ func TestHardwareProfile_UnsupportedWorkloadKind(t *testing.T) {
 	notebookUnstructured.SetName(testNotebook)
 	notebookUnstructured.SetNamespace(testNamespace)
 	notebookUnstructured.SetAnnotations(map[string]string{
-		"opendatahub.io/hardware-profile-name": testHardwareProfile,
+		hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
 	})
 
 	// Set malformed spec that will cause container access to fail
@@ -967,4 +579,1037 @@ func TestHardwareProfile_UnsupportedWorkloadKind(t *testing.T) {
 	// The webhook should fail when trying to access containers in the malformed structure
 	g.Expect(resp.Allowed).Should(BeFalse())
 	g.Expect(resp.Result.Code).Should(Equal(int32(500)))
+}
+
+// test base on different workload types:
+// - Notebook
+
+// TestHardwareProfile_SchedulingConfiguration_Notebook tests that hardware profiles with different
+// scheduling configurations are applied correctly to Notebook workloads.
+func TestHardwareProfile_SchedulingConfiguration_Notebook(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	testCases := []struct {
+		name          string
+		hwpOptions    []envtestutil.ObjectOption
+		setupWorkload func() *unstructured.Unstructured
+		expectPatches bool
+	}{
+		{
+			name: "applies node scheduling to clean workload",
+			hwpOptions: []envtestutil.ObjectOption{
+				envtestutil.WithCPUIdentifier("2", "2"),
+				envtestutil.WithNodeScheduling(
+					map[string]string{"node-type": "gpu-node"},
+					[]corev1.Toleration{{
+						Key:      "nvidia.com/gpu",
+						Operator: corev1.TolerationOpEqual,
+						Value:    "true",
+						Effect:   corev1.TaintEffectNoSchedule,
+					}},
+				),
+			},
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+				return workload
+			},
+			expectPatches: true,
+		},
+		{
+			name: "applies kueue scheduling to clean workload",
+			hwpOptions: []envtestutil.ObjectOption{
+				envtestutil.WithMemoryIdentifier("4Gi", "4Gi"),
+				envtestutil.WithKueueScheduling(testQueue, "high-priority"),
+			},
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+				return workload
+			},
+			expectPatches: true,
+		},
+		{
+			name: "applies kueue scheduling even when resources exist",
+			hwpOptions: []envtestutil.ObjectOption{
+				envtestutil.WithCPUIdentifier("4", "4"),
+				envtestutil.WithKueueScheduling(testQueue),
+			},
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+				// Add existing CPU requests (this should prevent resource injection but allow scheduling)
+				setContainerResources(workload, "requests", "cpu", "2")
+				return workload
+			},
+			expectPatches: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace, tc.hwpOptions...)
+			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+			injector := createWebhookInjector(cli, sch)
+
+			workload := tc.setupWorkload()
+
+			req := envtestutil.NewAdmissionRequest(
+				t,
+				admissionv1.Create,
+				workload,
+				gvk.Notebook,
+				metav1.GroupVersionResource{
+					Group:    gvk.Notebook.Group,
+					Version:  gvk.Notebook.Version,
+					Resource: "notebooks",
+				},
+			)
+
+			resp := injector.Handle(ctx, req)
+			g.Expect(resp.Allowed).Should(BeTrue())
+			g.Expect(resp.Patches).Should(Not(BeEmpty()))
+		})
+	}
+}
+
+// TestHardwareProfile_ResourceInjection_Notebook tests that hardware profiles with resource requirements are applied correctly to Notebook workloads.
+func TestHardwareProfile_ResourceInjection_Notebook(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create hardware profile with CPU and memory identifiers (including limits)
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("0", "4", "8"),         // min: 0, default: 4, max: 8
+		envtestutil.WithMemoryIdentifier("0", "8Gi", "16Gi"), // min: 0, default: 8Gi, max: 16Gi
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	testCases := []struct {
+		name                string
+		setupWorkload       func() *unstructured.Unstructured
+		expectResourcePatch bool
+	}{
+		{
+			name: "applies resources when none exist",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+				workloadUnstructured, ok := workload.(*unstructured.Unstructured)
+				if !ok {
+					return nil
+				}
+				return workloadUnstructured
+			},
+			expectResourcePatch: true,
+		},
+		{
+			name: "preserves existing resources",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+				// Set existing resources that should be preserved
+				containers, _, _ := unstructured.NestedSlice(workload.Object, "spec", "template", "spec", "containers")
+				containerMap, ok := containers[0].(map[string]interface{})
+				g.Expect(ok).Should(BeTrue(), "container should be a map")
+				containerMap["resources"] = map[string]interface{}{
+					"requests": map[string]interface{}{
+						"cpu":    "2",
+						"memory": "4Gi",
+					},
+					"limits": map[string]interface{}{
+						"cpu":    "4",
+						"memory": "8Gi",
+					},
+				}
+				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "spec", "containers")
+				return workload
+			},
+			expectResourcePatch: false,
+		},
+		{
+			name: "applies only missing resources when single container has partial resources",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+				// Set only CPU request, memory should be applied from HWP
+				containers, _, _ := unstructured.NestedSlice(workload.Object, "spec", "template", "spec", "containers")
+				containerMap, ok := containers[0].(map[string]interface{})
+				g.Expect(ok).Should(BeTrue(), "container should be a map")
+				containerMap["resources"] = map[string]interface{}{
+					"requests": map[string]interface{}{
+						"cpu": "1",
+					},
+				}
+				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "spec", "containers")
+				return workload
+			},
+			expectResourcePatch: true,
+		},
+		{
+			name: "applies resources to containers without them when multiple containers exist",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+				// For Notebooks, create two containers - first has CPU, second has memory, both should get missing resources
+				containers := []interface{}{
+					map[string]interface{}{
+						"name":  "main-container",
+						"image": "notebook:latest",
+						"resources": map[string]interface{}{
+							"requests": map[string]interface{}{
+								"cpu": "1",
+								// Missing memory - should get HWP memory
+							},
+						},
+					},
+					map[string]interface{}{
+						"name":  "sidecar-container",
+						"image": "sidecar:latest",
+						"resources": map[string]interface{}{
+							"requests": map[string]interface{}{
+								"memory": "2Gi",
+								// Missing CPU - should get HWP CPU
+							},
+						},
+					},
+				}
+				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "spec", "containers")
+				return workload
+			},
+			expectResourcePatch: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			workload := tc.setupWorkload()
+
+			req := envtestutil.NewAdmissionRequest(
+				t,
+				admissionv1.Create,
+				workload,
+				gvk.Notebook,
+				metav1.GroupVersionResource{
+					Group:    gvk.Notebook.Group,
+					Version:  gvk.Notebook.Version,
+					Resource: "notebooks",
+				},
+			)
+
+			resp := injector.Handle(ctx, req)
+			g.Expect(resp.Allowed).Should(BeTrue())
+			g.Expect(hasResourcePatches(resp.Patches)).Should(Equal(tc.expectResourcePatch))
+		})
+	}
+}
+
+// TestHardwareProfile_SupportsCrossNamespaceAccess_Notebook tests that hardware profiles can be accessed from different namespaces for Notebook workloads.
+func TestHardwareProfile_SupportsCrossNamespaceAccess_Notebook(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create hardware profile in different namespace
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, hwpNamespace,
+		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "1", "1"),
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	workload := envtestutil.NewNotebook(testNotebook, testNamespace,
+		envtestutil.WithHardwareProfile(testHardwareProfile),
+		envtestutil.WithHardwareProfileNamespace(hwpNamespace),
+	)
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Create,
+		workload,
+		gvk.Notebook,
+		metav1.GroupVersionResource{
+			Group:    gvk.Notebook.Group,
+			Version:  gvk.Notebook.Version,
+			Resource: "notebooks",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+	g.Expect(resp.Patches).Should(Not(BeEmpty()))
+}
+
+// TestHardwareProfile_ResourceLimits_Notebook tests that hardware profiles with MaxCount are applied as limits for Notebook workloads.
+func TestHardwareProfile_ResourceLimits_Notebook(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create hardware profile with CPU and memory identifiers that include limits
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("1", "2", "4"),                   // min: 1, default: 2, max: 4
+		envtestutil.WithMemoryIdentifier("1Gi", "2Gi", "4Gi"),          // min: 1Gi, default: 2Gi, max: 4Gi
+		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "0", "1", "2"), // min: 0, default: 1, max: 2
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	workload := envtestutil.NewNotebook(testNotebook, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	workloadUnstructured, ok := workload.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Create,
+		workloadUnstructured,
+		gvk.Notebook,
+		metav1.GroupVersionResource{
+			Group:    gvk.Notebook.Group,
+			Version:  gvk.Notebook.Version,
+			Resource: "notebooks",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+	g.Expect(resp.Patches).Should(Not(BeEmpty()))
+
+	// Verify that resources were applied
+	hasResourcesPatch := false
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "/resources") {
+			hasResourcesPatch = true
+
+			// Check if the patch value contains both requests and limits
+			if resourcesMap, ok := patch.Value.(map[string]interface{}); ok {
+				hasRequests := false
+				hasLimits := false
+
+				if requests, ok := resourcesMap["requests"].(map[string]interface{}); ok && len(requests) > 0 {
+					hasRequests = true
+				}
+				if limits, ok := resourcesMap["limits"].(map[string]interface{}); ok && len(limits) > 0 {
+					hasLimits = true
+				}
+
+				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
+				g.Expect(hasLimits).Should(BeTrue(), "Resources patch should contain limits")
+			}
+			break
+		}
+	}
+
+	g.Expect(hasResourcesPatch).Should(BeTrue(), "Should have resources patch")
+}
+
+// - InferenceService
+
+// TestHardwareProfile_ResourceInjection_InferenceService tests that hardware profiles with resource requirements are applied correctly to InferenceService workloads.
+func TestHardwareProfile_ResourceInjection_InferenceService(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create hardware profile with CPU and memory identifiers (including limits)
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("0", "4", "8"),         // min: 0, default: 4, max: 8
+		envtestutil.WithMemoryIdentifier("0", "8Gi", "16Gi"), // min: 0, default: 8Gi, max: 16Gi
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	testCases := []struct {
+		name                string
+		setupWorkload       func() *unstructured.Unstructured
+		expectResourcePatch bool
+	}{
+		{
+			name: "applies resources when none exist",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload := envtestutil.NewInferenceService(testInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+				workloadUnstructured, ok := workload.(*unstructured.Unstructured)
+				if !ok {
+					return nil
+				}
+				return workloadUnstructured
+			},
+			expectResourcePatch: true,
+		},
+		{
+			name: "preserves existing resources",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewInferenceService(testInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+				// Set existing resources that should be preserved
+				model, _, _ := unstructured.NestedMap(workload.Object, "spec", "predictor", "model")
+				if model == nil {
+					model = make(map[string]interface{})
+				}
+				model["resources"] = map[string]interface{}{
+					"requests": map[string]interface{}{
+						"cpu":    "2",
+						"memory": "4Gi",
+					},
+					"limits": map[string]interface{}{
+						"cpu":    "4",
+						"memory": "8Gi",
+					},
+				}
+				_ = unstructured.SetNestedMap(workload.Object, model, "spec", "predictor", "model")
+				return workload
+			},
+			expectResourcePatch: false,
+		},
+		{
+			name: "applies only missing resources when model has partial resources",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewInferenceService(testInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+				// Set only CPU request, memory should be applied from HWP
+				model, _, _ := unstructured.NestedMap(workload.Object, "spec", "predictor", "model")
+				if model == nil {
+					model = make(map[string]interface{})
+				}
+				model["resources"] = map[string]interface{}{
+					"requests": map[string]interface{}{
+						"cpu": "1",
+					},
+				}
+				_ = unstructured.SetNestedMap(workload.Object, model, "spec", "predictor", "model")
+				return workload
+			},
+			expectResourcePatch: true,
+		},
+		{
+			name: "applies resources to model without them",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewInferenceService(testInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+				// For InferenceServices, work with the model object - set partial resources
+				model := map[string]interface{}{
+					"name":  "test-model",
+					"image": "tensorflow/serving:latest",
+					"resources": map[string]interface{}{
+						"requests": map[string]interface{}{
+							"cpu": "1",
+							// Missing memory - should get HWP memory
+						},
+					},
+				}
+				_ = unstructured.SetNestedMap(workload.Object, model, "spec", "predictor", "model")
+				return workload
+			},
+			expectResourcePatch: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			workload := tc.setupWorkload()
+
+			req := envtestutil.NewAdmissionRequest(
+				t,
+				admissionv1.Create,
+				workload,
+				gvk.InferenceServices,
+				metav1.GroupVersionResource{
+					Group:    gvk.InferenceServices.Group,
+					Version:  gvk.InferenceServices.Version,
+					Resource: "inferenceservices",
+				},
+			)
+
+			resp := injector.Handle(ctx, req)
+			g.Expect(resp.Allowed).Should(BeTrue())
+			g.Expect(hasResourcePatches(resp.Patches)).Should(Equal(tc.expectResourcePatch))
+		})
+	}
+}
+
+// TestHardwareProfile_SchedulingConfiguration_InferenceService tests that hardware profiles with different
+// scheduling configurations are applied correctly to InferenceService workloads.
+func TestHardwareProfile_SchedulingConfiguration_InferenceService(t *testing.T) { //nolint:dupl
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	testCases := []struct {
+		name          string
+		hwpOptions    []envtestutil.ObjectOption
+		setupWorkload func() *unstructured.Unstructured
+		expectPatches bool
+	}{
+		{
+			name: "applies node scheduling to clean workload",
+			hwpOptions: []envtestutil.ObjectOption{
+				envtestutil.WithCPUIdentifier("2", "2"),
+				envtestutil.WithNodeScheduling(
+					map[string]string{"node-type": "gpu-node"},
+					[]corev1.Toleration{{
+						Key:      "nvidia.com/gpu",
+						Operator: corev1.TolerationOpEqual,
+						Value:    "true",
+						Effect:   corev1.TaintEffectNoSchedule,
+					}},
+				),
+			},
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewInferenceService(testInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+				return workload
+			},
+			expectPatches: true,
+		},
+		{
+			name: "applies kueue scheduling to clean workload",
+			hwpOptions: []envtestutil.ObjectOption{
+				envtestutil.WithMemoryIdentifier("4Gi", "4Gi"),
+				envtestutil.WithKueueScheduling(testQueue, "high-priority"),
+			},
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewInferenceService(testInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+				return workload
+			},
+			expectPatches: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace, tc.hwpOptions...)
+			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+			injector := createWebhookInjector(cli, sch)
+
+			workload := tc.setupWorkload()
+
+			req := envtestutil.NewAdmissionRequest(
+				t,
+				admissionv1.Create,
+				workload,
+				gvk.InferenceServices,
+				metav1.GroupVersionResource{
+					Group:    gvk.InferenceServices.Group,
+					Version:  gvk.InferenceServices.Version,
+					Resource: "inferenceservices",
+				},
+			)
+
+			resp := injector.Handle(ctx, req)
+			g.Expect(resp.Allowed).Should(BeTrue())
+			g.Expect(resp.Patches).Should(Not(BeEmpty()))
+		})
+	}
+}
+
+// TestHardwareProfile_SupportsCrossNamespaceAccess_InferenceService tests that hardware profiles can be accessed from different namespaces for InferenceService workloads.
+func TestHardwareProfile_SupportsCrossNamespaceAccess_InferenceService(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create hardware profile in different namespace
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, hwpNamespace,
+		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "1", "1"),
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// InferenceService uses a different pattern for cross-namespace annotation
+	workload := envtestutil.NewInferenceService(testInferenceService, testNamespace, func(obj client.Object) {
+		annotations := obj.GetAnnotations()
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		annotations[hardwareprofile.HardwareProfileNameAnnotation] = testHardwareProfile
+		annotations[hardwareprofile.HardwareProfileNamespaceAnnotation] = hwpNamespace
+		obj.SetAnnotations(annotations)
+	})
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Create,
+		workload,
+		gvk.InferenceServices,
+		metav1.GroupVersionResource{
+			Group:    gvk.InferenceServices.Group,
+			Version:  gvk.InferenceServices.Version,
+			Resource: "inferenceservices",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+	g.Expect(resp.Patches).Should(Not(BeEmpty()))
+}
+
+// TestHardwareProfile_ResourceLimits_InferenceService tests that hardware profiles with MaxCount are applied as limits for InferenceService workloads.
+func TestHardwareProfile_ResourceLimits_InferenceService(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create hardware profile with CPU and memory identifiers without limits
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("1", "2"),                // min: 1, default: 2 (no max)
+		envtestutil.WithMemoryIdentifier("1Gi", "2Gi"),         // min: 1Gi, default: 2Gi (no max)
+		envtestutil.WithGPUIdentifier("adm.com/gpu", "0", "1"), // min: 0, default: 1 (no max)
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	workload := envtestutil.NewInferenceService(testInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	workloadUnstructured, ok := workload.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Create,
+		workloadUnstructured,
+		gvk.InferenceServices,
+		metav1.GroupVersionResource{
+			Group:    gvk.InferenceServices.Group,
+			Version:  gvk.InferenceServices.Version,
+			Resource: "inferenceservices",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+	g.Expect(resp.Patches).Should(Not(BeEmpty()))
+
+	// Verify that resources were applied
+	hasResourcesPatch := false
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "/resources") {
+			hasResourcesPatch = true
+
+			// Check if the patch value contains both requests and limits
+			if resourcesMap, ok := patch.Value.(map[string]interface{}); ok {
+				hasRequests := false
+				hasLimits := false
+
+				if requests, ok := resourcesMap["requests"].(map[string]interface{}); ok && len(requests) > 0 {
+					hasRequests = true
+				}
+				if limits, ok := resourcesMap["limits"].(map[string]interface{}); ok && len(limits) > 0 {
+					hasLimits = true
+				}
+
+				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
+				g.Expect(hasLimits).Should(BeFalse(), "Resources patch should not contain limits when max values are not set")
+			}
+			break
+		}
+	}
+
+	g.Expect(hasResourcesPatch).Should(BeTrue(), "Should have resources patch")
+}
+
+// - LLMInferenceService
+// TestHardwareProfile_ResourceInjection_LLMInferenceService tests that hardware profiles with resource requirements are applied correctly to LlmInferenceService workloads.
+func TestHardwareProfile_ResourceInjection_LLMInferenceService(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create hardware profile with CPU and memory identifiers (including limits)
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("0", "4", "8"),         // min: 0, default: 4, max: 8
+		envtestutil.WithMemoryIdentifier("0", "8Gi", "16Gi"), // min: 0, default: 8Gi, max: 16Gi
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	testCases := []struct {
+		name                string
+		setupWorkload       func() *unstructured.Unstructured
+		expectResourcePatch bool
+	}{
+		{
+			name: "applies resources when none exist in .spec.template.containers",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+				workloadUnstructured, ok := workload.(*unstructured.Unstructured)
+				if !ok {
+					return nil
+				}
+				return workloadUnstructured
+			},
+			expectResourcePatch: true,
+		},
+		{
+			name: "preserves existing resources in .spec.template.containers",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+				// Set existing resources that should be preserved
+				containers := []interface{}{
+					map[string]interface{}{
+						"name":  "llm-container",
+						"image": "opendatahub/llm-model-server:latest",
+						"resources": map[string]interface{}{
+							"requests": map[string]interface{}{
+								"cpu":    "2",
+								"memory": "4Gi",
+							},
+							"limits": map[string]interface{}{
+								"cpu":    "4",
+								"memory": "8Gi",
+							},
+						},
+					},
+				}
+				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "containers")
+				return workload
+			},
+			expectResourcePatch: false,
+		},
+		{
+			name: "applies only missing resources when .spec.template.containers has partial resources",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+				// Set only CPU request, memory should be applied from HWP
+				containers := []interface{}{
+					map[string]interface{}{
+						"name":  "llm-container",
+						"image": "opendatahub/llm-model-server:latest",
+						"resources": map[string]interface{}{
+							"requests": map[string]interface{}{
+								"cpu": "1",
+							},
+						},
+					},
+				}
+				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "containers")
+				return workload
+			},
+			expectResourcePatch: true,
+		},
+		{
+			name: "applies resources to .spec.template.containers without them",
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+				containers := []interface{}{
+					map[string]interface{}{
+						"name":  "llm-container",
+						"image": "opendatahub/llm-model-server:latest",
+						"resources": map[string]interface{}{
+							"requests": map[string]interface{}{
+								"cpu": "1",
+								// Missing memory - should get HWProfile memory
+							},
+						},
+					},
+				}
+				_ = unstructured.SetNestedSlice(workload.Object, containers, "spec", "template", "containers")
+				return workload
+			},
+			expectResourcePatch: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			workload := tc.setupWorkload()
+
+			req := envtestutil.NewAdmissionRequest(
+				t,
+				admissionv1.Create,
+				workload,
+				gvk.LLMInferenceServiceV1Alpha1,
+				metav1.GroupVersionResource{
+					Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+					Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+					Resource: "llminferenceservices",
+				},
+			)
+
+			resp := injector.Handle(ctx, req)
+			g.Expect(resp.Allowed).Should(BeTrue())
+
+			g.Expect(hasResourcePatches(resp.Patches)).Should(Equal(tc.expectResourcePatch))
+		})
+	}
+}
+
+// TestHardwareProfile_CreatesContainerStructure_LLMInferenceService tests is specical for LLMInferenceService if user set .spec:{}.
+func TestHardwareProfile_CreatesContainerStructure_LLMInferenceService(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create hardware profile with CPU and memory identifiers (including limits)
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("0", "4", "8"),         // min: 0, default: 4, max: 8
+		envtestutil.WithMemoryIdentifier("0", "8Gi", "16Gi"), // min: 0, default: 8Gi, max: 16Gi
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create LLMInferenceService with empty spec: {}
+	workload := &unstructured.Unstructured{}
+	workload.SetAPIVersion(gvk.LLMInferenceServiceV1Alpha1.GroupVersion().String())
+	workload.SetKind(gvk.LLMInferenceServiceV1Alpha1.Kind)
+	workload.SetName(testLLMInferenceService)
+	workload.SetNamespace(testNamespace)
+	workload.SetAnnotations(map[string]string{
+		hardwareprofile.HardwareProfileNameAnnotation: testHardwareProfile,
+	})
+	// Set spec: {}
+	workload.Object["spec"] = map[string]interface{}{}
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Create,
+		workload,
+		gvk.LLMInferenceServiceV1Alpha1,
+		metav1.GroupVersionResource{
+			Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+			Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+			Resource: "llminferenceservices",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+
+	// Verify that we have patches that create the container structure and inject resources
+	hasContainerPatches := false
+	hasResourcePatches := false
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "/spec/template") {
+			if patchValue, ok := patch.Value.(map[string]interface{}); ok {
+				if containers, ok := patchValue["containers"].([]interface{}); ok && len(containers) > 0 {
+					if container, ok := containers[0].(map[string]interface{}); ok {
+						// Verify the container has the expected name "main"
+						if name, ok := container["name"].(string); ok && name == "main" {
+							hasContainerPatches = true
+						}
+						if _, hasResources := container["resources"]; hasResources {
+							hasResourcePatches = true
+						}
+					}
+				}
+			}
+		}
+	}
+	g.Expect(hasContainerPatches).Should(BeTrue(), "should create container default name as main")
+	g.Expect(hasResourcePatches).Should(BeTrue(), "should inject resources into created container")
+}
+
+// TestHardwareProfile_SchedulingConfiguration_LLMInferenceService tests that hardware profiles with different
+// scheduling configurations are applied correctly to LlmInferenceService workloads.
+func TestHardwareProfile_SchedulingConfiguration_LLMInferenceService(t *testing.T) { //nolint:dupl
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	testCases := []struct {
+		name          string
+		hwpOptions    []envtestutil.ObjectOption
+		setupWorkload func() *unstructured.Unstructured
+		expectPatches bool
+	}{
+		{
+			name: "applies node scheduling to clean workload",
+			hwpOptions: []envtestutil.ObjectOption{
+				envtestutil.WithCPUIdentifier("2", "2"),
+				envtestutil.WithNodeScheduling(
+					map[string]string{"node-type": "gpu-node"},
+					[]corev1.Toleration{{
+						Key:      "nvidia.com/gpu",
+						Operator: corev1.TolerationOpEqual,
+						Value:    "true",
+						Effect:   corev1.TaintEffectNoSchedule,
+					}},
+				),
+			},
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+				return workload
+			},
+			expectPatches: true,
+		},
+		{
+			name: "applies kueue scheduling to clean workload",
+			hwpOptions: []envtestutil.ObjectOption{
+				envtestutil.WithMemoryIdentifier("4Gi", "4Gi"),
+				envtestutil.WithKueueScheduling(testQueue, "high-priority"),
+			},
+			setupWorkload: func() *unstructured.Unstructured {
+				workload, ok := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile)).(*unstructured.Unstructured)
+				g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+				return workload
+			},
+			expectPatches: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace, tc.hwpOptions...)
+			cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+			injector := createWebhookInjector(cli, sch)
+
+			workload := tc.setupWorkload()
+
+			req := envtestutil.NewAdmissionRequest(
+				t,
+				admissionv1.Create,
+				workload,
+				gvk.LLMInferenceServiceV1Alpha1,
+				metav1.GroupVersionResource{
+					Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+					Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+					Resource: "llminferenceservices",
+				},
+			)
+
+			resp := injector.Handle(ctx, req)
+			g.Expect(resp.Allowed).Should(BeTrue())
+			g.Expect(resp.Patches).Should(Not(BeEmpty()))
+		})
+	}
+}
+
+// TestHardwareProfile_SupportsCrossNamespaceAccess_LLMInferenceService tests that hardware profiles can be accessed from different namespaces for LlmInferenceService workloads.
+func TestHardwareProfile_SupportsCrossNamespaceAccess_LLMInferenceService(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create hardware profile in different namespace
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, hwpNamespace,
+		envtestutil.WithGPUIdentifier("nvidia.com/gpu", "1", "1"),
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// InferenceService uses a different pattern for cross-namespace annotation
+	workload := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, func(obj client.Object) {
+		annotations := obj.GetAnnotations()
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		annotations[hardwareprofile.HardwareProfileNameAnnotation] = testHardwareProfile
+		annotations[hardwareprofile.HardwareProfileNamespaceAnnotation] = hwpNamespace
+		obj.SetAnnotations(annotations)
+	})
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Create,
+		workload,
+		gvk.LLMInferenceServiceV1Alpha1,
+		metav1.GroupVersionResource{
+			Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+			Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+			Resource: "llminferenceservices",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+	g.Expect(resp.Patches).Should(Not(BeEmpty()))
+}
+
+// TestHardwareProfile_ResourceLimits_LLMInferenceService tests that hardware profiles with MaxCount are applied as limits for LlmInferenceService workloads.
+func TestHardwareProfile_ResourceLimits_LLMInferenceService(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create hardware profile with CPU and memory identifiers without limits
+	hwp := envtestutil.NewHardwareProfile(testHardwareProfile, testNamespace,
+		envtestutil.WithCPUIdentifier("1", "2"),                // min: 1, default: 2 (no max)
+		envtestutil.WithMemoryIdentifier("1Gi", "2Gi"),         // min: 1Gi, default: 2Gi (no max)
+		envtestutil.WithGPUIdentifier("adm.com/gpu", "0", "1"), // min: 0, default: 1 (no max)
+	)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(hwp).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	workload := envtestutil.NewLLMInferenceService(testLLMInferenceService, testNamespace, envtestutil.WithHardwareProfile(testHardwareProfile))
+	workloadUnstructured, ok := workload.(*unstructured.Unstructured)
+	g.Expect(ok).Should(BeTrue(), "workload should be unstructured")
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Create,
+		workloadUnstructured,
+		gvk.LLMInferenceServiceV1Alpha1,
+		metav1.GroupVersionResource{
+			Group:    gvk.LLMInferenceServiceV1Alpha1.Group,
+			Version:  gvk.LLMInferenceServiceV1Alpha1.Version,
+			Resource: "llminferenceservices",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+	g.Expect(resp.Patches).Should(Not(BeEmpty()))
+
+	// Verify that resources were applied
+	hasResourcesPatch := false
+	for _, patch := range resp.Patches {
+		if strings.Contains(patch.Path, "/resources") {
+			hasResourcesPatch = true
+
+			// Check if the patch value contains both requests and limits
+			if resourcesMap, ok := patch.Value.(map[string]interface{}); ok {
+				hasRequests := false
+				hasLimits := false
+
+				if requests, ok := resourcesMap["requests"].(map[string]interface{}); ok && len(requests) > 0 {
+					hasRequests = true
+				}
+				if limits, ok := resourcesMap["limits"].(map[string]interface{}); ok && len(limits) > 0 {
+					hasLimits = true
+				}
+
+				g.Expect(hasRequests).Should(BeTrue(), "Resources patch should contain requests")
+				g.Expect(hasLimits).Should(BeFalse(), "Resources patch should not contain limits when max values are not set")
+			}
+			break
+		}
+	}
+
+	g.Expect(hasResourcesPatch).Should(BeTrue(), "Should have resources patch")
 }

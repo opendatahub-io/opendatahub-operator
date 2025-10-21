@@ -21,9 +21,8 @@ rules:
   verbs:
   - get
 - apiGroups:
-  - dashboard.opendatahub.io
+  - infrastructure.opendatahub.io
   resources:
-  - acceleratorprofiles
   - hardwareprofiles
   verbs:
   - create

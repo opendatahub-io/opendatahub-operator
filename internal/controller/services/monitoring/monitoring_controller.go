@@ -28,8 +28,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -60,7 +60,7 @@ func (h *serviceHandler) GetName() string {
 	return ServiceName
 }
 
-func (h *serviceHandler) GetManagementState(platform common.Platform, dsci *dsciv1.DSCInitialization) operatorv1.ManagementState {
+func (h *serviceHandler) GetManagementState(platform common.Platform, dsci *dsciv2.DSCInitialization) operatorv1.ManagementState {
 	// Managed cluster must have monitoring enabled even if user manually turns it off
 	if platform == cluster.ManagedRhoai {
 		return operatorv1.Managed
@@ -99,6 +99,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.OpenTelemetryCollector, reconciler.Dynamic(reconciler.CrdExists(gvk.OpenTelemetryCollector))).
 		OwnsGVK(gvk.ServiceMonitor, reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMonitor))).
 		OwnsGVK(gvk.PrometheusRule, reconciler.Dynamic(reconciler.CrdExists(gvk.PrometheusRule))).
+		OwnsGVK(gvk.ThanosQuerier, reconciler.Dynamic(reconciler.CrdExists(gvk.ThanosQuerier))).
 		// operands - watched
 		//
 		// By default the Watches functions adds:
@@ -109,7 +110,7 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		// or services.platform.opendatahub.io/part-of set to the current owner
 		//
 		Watches(
-			&dscv1.DataScienceCluster{},
+			&dscv2.DataScienceCluster{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.MonitoringInstanceName)),
 			reconciler.WithPredicates(resources.DSCComponentUpdatePredicate),
 		).
@@ -127,11 +128,10 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(updatePrometheusConfigMap).
 		// These are only for new monitoring stack dependent Operators
 		WithAction(addMonitoringCapability).
-		WithAction(deployMonitoringStack).
+		WithAction(deployMonitoringStackWithQuerier).
+		WithAction(deployTracingStack).
 		WithAction(deployAlerting).
-		WithAction(deployTempo).
 		WithAction(deployOpenTelemetryCollector).
-		WithAction(deployInstrumentation).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).

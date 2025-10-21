@@ -10,9 +10,10 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-datasciencecluster
+      path: /mutate-datasciencecluster-v1
   failurePolicy: Fail
-  name: datasciencecluster-defaulter.opendatahub.io
+  matchPolicy: Exact
+  name: datasciencecluster-v1-defaulter.opendatahub.io
   rules:
   - apiGroups:
     - datasciencecluster.opendatahub.io
@@ -30,9 +31,30 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /mutate-datasciencecluster-v2
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: datasciencecluster-v2-defaulter.opendatahub.io
+  rules:
+  - apiGroups:
+    - datasciencecluster.opendatahub.io
+    apiVersions:
+    - v2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - datascienceclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /mutate-hardware-profile
   failurePolicy: Fail
-  name: hardwareprofile-kserve-injector.opendatahub.io
+  name: hardwareprofile-isvc-injector.opendatahub.io
   rules:
   - apiGroups:
     - serving.kserve.io
@@ -52,7 +74,47 @@ webhooks:
       namespace: system
       path: /mutate-hardware-profile
   failurePolicy: Fail
+  name: hardwareprofile-llmisvc-injector.opendatahub.io
+  rules:
+  - apiGroups:
+    - serving.kserve.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - llminferenceservices
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-hardware-profile
+  failurePolicy: Fail
   name: hardwareprofile-notebook-injector.opendatahub.io
+  rules:
+  - apiGroups:
+    - kubeflow.org
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - notebooks
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /platform-connection-notebook
+  failurePolicy: Fail
+  name: connection-notebook.opendatahub.io
   rules:
   - apiGroups:
     - kubeflow.org
@@ -83,27 +145,27 @@ webhooks:
     - UPDATE
     resources:
     - inferenceservices
-  sideEffects: None
+  sideEffects: NoneOnDryRun
 - admissionReviewVersions:
   - v1
   clientConfig:
     service:
       name: webhook-service
       namespace: system
-      path: /platform-connection-notebook
+      path: /platform-connection-llmisvc
   failurePolicy: Fail
-  name: connection-notebook.opendatahub.io
+  name: connection-llmisvc.opendatahub.io
   rules:
   - apiGroups:
-    - kubeflow.org
+    - serving.kserve.io
     apiVersions:
-    - v1
+    - v1alpha1
     operations:
     - CREATE
     - UPDATE
     resources:
-    - notebooks
-  sideEffects: None
+    - llminferenceservices
+  sideEffects: NoneOnDryRun
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -116,14 +178,76 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-datasciencecluster
+      path: /validate-dashboard-acceleratorprofile
   failurePolicy: Fail
-  name: datasciencecluster-validator.opendatahub.io
+  name: dashboard-acceleratorprofile-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - dashboard.opendatahub.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - acceleratorprofiles
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-dashboard-hardwareprofile
+  failurePolicy: Fail
+  name: dashboard-hardwareprofile-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - dashboard.opendatahub.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - hardwareprofiles
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-datasciencecluster-v1
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: datasciencecluster-v1-validator.opendatahub.io
   rules:
   - apiGroups:
     - datasciencecluster.opendatahub.io
     apiVersions:
     - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - datascienceclusters
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-datasciencecluster-v2
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: datasciencecluster-v2-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - datasciencecluster.opendatahub.io
+    apiVersions:
+    - v2
     operations:
     - CREATE
     resources:
@@ -135,9 +259,10 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-dscinitialization
+      path: /validate-dscinitialization-v1
   failurePolicy: Fail
-  name: dscinitialization-validator.opendatahub.io
+  matchPolicy: Exact
+  name: dscinitialization-v1-validator.opendatahub.io
   rules:
   - apiGroups:
     - dscinitialization.opendatahub.io
@@ -155,9 +280,30 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /validate-dscinitialization-v2
+  failurePolicy: Fail
+  matchPolicy: Exact
+  name: dscinitialization-v2-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - dscinitialization.opendatahub.io
+    apiVersions:
+    - v2
+    operations:
+    - CREATE
+    - DELETE
+    resources:
+    - dscinitializations
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /validate-kueue
   failurePolicy: Fail
-  name: kserve-kueuelabels-validator.opendatahub.io
+  name: kserve-isvc-kueuelabels-validator.opendatahub.io
   rules:
   - apiGroups:
     - serving.kserve.io
@@ -168,6 +314,26 @@ webhooks:
     - UPDATE
     resources:
     - inferenceservices
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-kueue
+  failurePolicy: Fail
+  name: kserve-llmisvc-kueuelabels-validator.opendatahub.io
+  rules:
+  - apiGroups:
+    - serving.kserve.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - llminferenceservices
   sideEffects: None
 - admissionReviewVersions:
   - v1

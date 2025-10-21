@@ -63,7 +63,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		WithAction(checkPreConditions).
 		WithAction(initialize).
-		WithAction(devFlags).
 		WithAction(argoWorkflowsControllersOptions).
 		WithAction(releases.NewAction()).
 		WithAction(kustomize.NewAction(

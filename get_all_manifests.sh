@@ -5,23 +5,25 @@ GITHUB_URL="https://github.com"
 
 # COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
 # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
+# ref-name can be a branch name, tag name, or a commit SHA (7-40 hex characters)
+# Supports three ref-name formats:
+# 1. "branch" - tracks latest commit on branch (e.g., main)
+# 2. "tag" - immutable reference (e.g., v1.0.0)
+# 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
 declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main:manifests"
-    ["modelmeshserving"]="opendatahub-io:modelmesh-serving:release-0.12.0-rc0:config"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15:config"
-    ["kueue"]="opendatahub-io:kueue:dev:config"
-    ["codeflare"]="opendatahub-io:codeflare-operator:main:config"
-    ["ray"]="opendatahub-io:kuberay:dev:ray-operator/config"
-    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main:config"
-    ["trainingoperator"]="opendatahub-io:training-operator:dev:manifests"
-    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main:config"
-    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating:config"
-    ["feastoperator"]="opendatahub-io:feast:stable:infra/feast-operator/config"
-    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh:config"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@ef1a8e53b04629cef73fc097edc9e874ad1d89a4:manifests"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@121a467690d03514277a7d30c16c311815b1877f:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@121a467690d03514277a7d30c16c311815b1877f:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@a256bc33a6977d2a8e04ab492ff289db41624a3e:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.15@d77e8ebefc5eb1de6ac2e9269d5bef0f9bea18fa:config"
+    ["ray"]="opendatahub-io:kuberay:dev@e2daa7e658f66f14fa2279b3c054ac54384ae2ca:ray-operator/config"
+    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@7f21761643ea756480f0a43f55ff8817458559a4:config"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main@cbc48624a6343d895f2722959cca3888eb2569fc:config"
+    ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
+    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@bdf7dcc340bee0ad3bfe0c17d857e090cd06243b:config"
+    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@e7a91e0ef907ade1b2503b439a2a2cdbc986058d:config"
+    ["feastoperator"]="opendatahub-io:feast:stable@d5895be388475745287e0ca9bc99e3e9ed8335d0:infra/feast-operator/config"
+    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@6806c3f428bb140609d6fe4801d6c66a25977804:config"
 )
 
 # PLATFORM_MANIFESTS is a list of manifests that are contained in the operator repository. Please also add them to the
@@ -31,11 +33,12 @@ declare -A COMPONENT_MANIFESTS=(
 declare -A PLATFORM_MANIFESTS=(
     ["osd-configs"]="config/osd-configs"
     ["monitoring"]="config/monitoring"
-    ["kueue-configs"]="config/kueue-configs"
+    ["hardwareprofiles"]="config/hardwareprofiles"
 )
 
 # Allow overwriting repo using flags component=repo
-pattern="^[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:[a-zA-Z0-9_./-]+$"
+# Updated pattern to accept commit SHAs (7-40 hex chars) and branch@sha format in addition to branches/tags
+pattern="^[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+:([a-zA-Z0-9_./-]+|[a-zA-Z0-9_./-]+@[a-f0-9]{7,40}):[a-zA-Z0-9_./-]+$"
 if [ "$#" -ge 1 ]; then
     for arg in "$@"; do
         if [[ $arg == --* ]]; then
@@ -61,22 +64,68 @@ fi
 TMP_DIR=$(mktemp -d -t "odh-manifests.XXXXXXXXXX")
 trap '{ rm -rf -- "$TMP_DIR"; }' EXIT
 
+function try_fetch_ref()
+{
+    local repo=$1
+    local ref_type=$2  # "tags" or "heads"
+    local ref=$3
+
+    local git_ref="refs/$ref_type/$ref"
+    local ref_name=$([[ $ref_type == "tags" ]] && echo "tag" || echo "branch")
+
+    if git ls-remote --exit-code "$repo" "$git_ref" &>/dev/null; then
+        if git fetch -q --depth 1 "$repo" "$git_ref" && git reset -q --hard FETCH_HEAD; then
+            return 0
+        else
+            echo "ERROR: Failed to fetch $ref_name $ref from $repo"
+            return 1
+        fi
+    fi
+    return 1
+}
+
 function git_fetch_ref()
 {
-
     local repo=$1
     local ref=$2
     local dir=$3
-    local git_fetch="git fetch -q --depth 1 $repo"
 
     mkdir -p $dir
     pushd $dir &>/dev/null
     git init -q
-    # try tag first, avoid printing fatal: couldn't find remote ref
-    if ! $git_fetch refs/tags/$ref 2>/dev/null ; then
-        $git_fetch refs/heads/$ref
+
+    # Check if ref is in tracking format: branch@sha
+    if [[ $ref =~ ^([a-zA-Z0-9_./-]+)@([a-f0-9]{7,40})$ ]]; then
+        local commit_sha="${BASH_REMATCH[2]}"
+
+        # For tracking format, fetch the specific commit SHA
+        git remote add origin $repo
+        if ! git fetch --depth 1 -q origin $commit_sha; then
+            echo "ERROR: Failed to fetch from repository $repo"
+            popd &>/dev/null
+            return 1
+        fi
+        if ! git reset -q --hard $commit_sha 2>/dev/null; then
+            echo "ERROR: Commit SHA $commit_sha not found in repository $repo"
+            popd &>/dev/null
+            return 1
+        fi
+    else
+        # Original logic for branches, tags, and plain commit SHAs
+        # Try to fetch as tag first, then as branch
+        if try_fetch_ref "$repo" "tags" "$ref" || try_fetch_ref "$repo" "heads" "$ref"; then
+            # Successfully fetched tag or branch
+            :  # no-op, we're done
+        else
+            echo "ERROR: '$ref' is not a valid branch, tag, or commit SHA in repository $repo"
+            echo "You can check available refs with:"
+            echo "  git ls-remote --heads $repo  # for branches"
+            echo "  git ls-remote --tags $repo   # for tags"
+            popd &>/dev/null
+            return 1
+        fi
     fi
-    git reset -q --hard FETCH_HEAD
+
     popd &>/dev/null
 }
 
@@ -102,7 +151,10 @@ download_manifest() {
         return
     fi
 
-    git_fetch_ref ${repo_url} ${repo_ref} ${repo_dir}
+    if ! git_fetch_ref ${repo_url} ${repo_ref} ${repo_dir}; then
+        echo "ERROR: Failed to fetch ref '${repo_ref}' from '${repo_url}' for component '${key}'"
+        return 1
+    fi
 
     mkdir -p ./opt/manifests/${target_path}
     cp -rf ${repo_dir}/${source_path}/* ./opt/manifests/${target_path}

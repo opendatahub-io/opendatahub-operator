@@ -4,9 +4,10 @@ package upgrade
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
+	"strings"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -23,126 +24,20 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-)
-
-// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
-var (
-	NotebookSizesData = []any{
-		map[string]any{
-			"name": "Small",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "1",
-					"memory": "8Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "2",
-					"memory": "8Gi",
-				},
-			},
-		},
-		map[string]any{
-			"name": "Medium",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "3",
-					"memory": "24Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "6",
-					"memory": "24Gi",
-				},
-			},
-		},
-		map[string]any{
-			"name": "Large",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "7",
-					"memory": "56Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "14",
-					"memory": "56Gi",
-				},
-			},
-		},
-		map[string]any{
-			"name": "X Large",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "15",
-					"memory": "120Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "30",
-					"memory": "120Gi",
-				},
-			},
-		},
-	}
-	ModelServerSizeData = []any{
-		map[string]any{
-			"name": "Small",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "1",
-					"memory": "4Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "2",
-					"memory": "8Gi",
-				},
-			},
-		},
-		map[string]any{
-			"name": "Medium",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "4",
-					"memory": "8Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "8",
-					"memory": "10Gi",
-				},
-			},
-		},
-		map[string]any{
-			"name": "Large",
-			"resources": map[string]any{
-				"requests": map[string]any{
-					"cpu":    "6",
-					"memory": "16Gi",
-				},
-				"limits": map[string]any{
-					"cpu":    "10",
-					"memory": "20Gi",
-				},
-			},
-		},
-		map[string]any{
-			"name": "Custom",
-			"resources": map[string]any{
-				"requests": map[string]any{},
-				"limits":   map[string]any{},
-			},
-		},
-	}
 )
 
 type ResourceSpec struct {
@@ -154,36 +49,50 @@ type ResourceSpec struct {
 	Values []string
 }
 
+const (
+	defaultMinMemory                   = "1Mi"
+	defaultMinCpu                      = "1"
+	odhDashboardConfigPath             = "/dashboard/rhoai/shared/odhdashboardconfig/odhdashboardconfig.yaml"
+	serving                            = "serving"
+	notebooks                          = "notebooks"
+	acceleratorNameAnnotation          = "opendatahub.io/accelerator-name"
+	lastSizeSelectionAnnotation        = "notebooks.opendatahub.io/last-size-selection"
+	hardwareProfileNameAnnotation      = "opendatahub.io/hardware-profile-name"
+	hardwareProfileNamespaceAnnotation = "opendatahub.io/hardware-profile-namespace"
+	containerSizeHWPPrefix             = "containersize-"
+)
+
+var defaultResourceLimits = map[string]string{
+	"maxMemory": "120Gi",
+	"minMemory": "8Gi",
+	"maxCpu":    "30",
+	"minCpu":    "1",
+}
+
 // CreateDefaultDSC creates a default instance of DSC.
 // Note: When the platform is not Managed, and a DSC instance already exists, the function doesn't re-create/update the resource.
 func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 	// Set the default DSC name depending on the platform
-	releaseDataScienceCluster := &dscv1.DataScienceCluster{
+	releaseDataScienceCluster := &dscv2.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
-			APIVersion: "datasciencecluster.opendatahub.io/v1",
+			APIVersion: "datasciencecluster.opendatahub.io/v2",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default-dsc",
 		},
-		Spec: dscv1.DataScienceClusterSpec{
-			Components: dscv1.Components{
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
 				Dashboard: componentApi.DSCDashboard{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				Workbenches: componentApi.DSCWorkbenches{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
-				ModelMeshServing: componentApi.DSCModelMeshServing{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
+				AIPipelines: componentApi.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				Kserve: componentApi.DSCKserve{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
-				},
-				CodeFlare: componentApi.DSCCodeFlare{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				Ray: componentApi.DSCRay{
@@ -202,7 +111,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 				},
 				FeastOperator: componentApi.DSCFeastOperator{
-					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
+					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
 				},
 				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
 					ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Removed},
@@ -222,7 +131,7 @@ func CreateDefaultDSC(ctx context.Context, cli client.Client) error {
 // Note: DSCI CR modifcations are not supported, as it is the initial prereq setting for the components.
 func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform, monNamespace string) error {
 	log := logf.FromContext(ctx)
-	defaultDsciSpec := &dsciv1.DSCInitializationSpec{
+	defaultDsciSpec := &dsciv2.DSCInitializationSpec{
 		Monitoring: serviceApi.DSCIMonitoring{
 			ManagementSpec: common.ManagementSpec{ManagementState: operatorv1.Managed},
 			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
@@ -230,23 +139,15 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform
 				Metrics:   &serviceApi.Metrics{},
 			},
 		},
-		ServiceMesh: &infrav1.ServiceMeshSpec{
-			ManagementState: "Managed",
-			ControlPlane: infrav1.ControlPlaneSpec{
-				Name:              "data-science-smcp",
-				Namespace:         "istio-system",
-				MetricsCollection: "Istio",
-			},
-		},
-		TrustedCABundle: &dsciv1.TrustedCABundleSpec{
+		TrustedCABundle: &dsciv2.TrustedCABundleSpec{
 			ManagementState: "Managed",
 		},
 	}
 
-	defaultDsci := &dsciv1.DSCInitialization{
+	defaultDsci := &dsciv2.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
-			APIVersion: "dscinitialization.opendatahub.io/v1",
+			APIVersion: "dscinitialization.opendatahub.io/v2",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "default-dsci",
@@ -254,7 +155,7 @@ func CreateDefaultDSCI(ctx context.Context, cli client.Client, _ common.Platform
 		Spec: *defaultDsciSpec,
 	}
 
-	instances := &dsciv1.DSCInitializationList{}
+	instances := &dsciv2.DSCInitializationList{}
 	if err := cli.List(ctx, instances); err != nil {
 		return err
 	}
@@ -324,7 +225,7 @@ func CleanupExistingResource(ctx context.Context,
 ) error {
 	var multiErr *multierror.Error
 	// get DSCI CR to get application namespace
-	dsciList := &dsciv1.DSCInitializationList{}
+	dsciList := &dsciv2.DSCInitializationList{}
 	if err := cli.List(ctx, dsciList); err != nil {
 		return err
 	}
@@ -377,6 +278,12 @@ func CleanupExistingResource(ctx context.Context,
 	// cleanup deprecated kueue ValidatingAdmissionPolicyBinding
 	multiErr = multierror.Append(multiErr, cleanupDeprecatedKueueVAPB(ctx, cli))
 
+	// HardwareProfile migration as described in RHOAIENG-33158 and RHOAIENG-33159
+	// This includes creating HardwareProfile resources and updating annotations on Notebooks and InferenceServices
+	if cluster.GetRelease().Version.Major == 3 && oldReleaseVersion.Version.Major == 2 {
+		multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, d.Spec.ApplicationsNamespace))
+	}
+
 	return multiErr.ErrorOrNil()
 }
 
@@ -398,7 +305,7 @@ func deleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) e
 
 	err := c.List(ctx, list, client.InNamespace(res.Namespace))
 	if err != nil {
-		if errors.Is(err, &meta.NoKindMatchError{}) {
+		if meta.IsNoMatchError(err) {
 			log.Info("CRD not found, will not delete", "gvk", res.Gvk.String())
 			return nil
 		}
@@ -684,7 +591,7 @@ func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease co
 // When upgrading from version 2.16 to 2.17, the odh-model-controller
 // fails to be provisioned due to the immutability of the deployment's
 // label selectors. In RHOAI ≤ 2.16, the model controller was deployed
-// independently by both kserve and modelmesh, leading to variations
+// independently by both kserve and modelmesh components, leading to variations
 // in label assignments depending on the deployment order. During a
 // redeployment or upgrade, this error was ignored, and the model
 // controller would eventually be reconciled by the appropriate component.
@@ -760,81 +667,333 @@ func cleanupDeprecatedKueueVAPB(ctx context.Context, cli client.Client) error {
 	return nil
 }
 
-// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
-func PatchOdhDashboardConfig(ctx context.Context, cli client.Client, prevVersion, currVersion common.Release) error {
-	log := logf.FromContext(ctx).WithValues(
-		"prevVersion", prevVersion.Version.Version,
-		"currVersion", currVersion.Version.Version,
-		"action", "migration logic for dashboard",
-		"kind", "OdhDashboardConfig",
-	)
-
-	if !prevVersion.Version.LT(currVersion.Version.Version) {
-		log.Info("Skipping patch as current version is not greater than previous version")
+// MigrateToInfraHardwareProfiles orchestrates all HardwareProfile migrations including resource creation and annotation updates.
+// This is the parent function that gets OdhDashboardConfig once and calls all child migration functions.
+func MigrateToInfraHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string) error {
+	var multiErr *multierror.Error
+	log := logf.FromContext(ctx)
+	// If application namespace is empty, it means dsci is not available or not initialized properly with application namespace.
+	// In this case, we skip the HardwareProfile migration.
+	if applicationNS == "" {
+		log.Info("Application namespace is empty, skipping HardwareProfile migrations")
 		return nil
 	}
 
-	dashboardConfig := resources.GvkToUnstructured(gvk.OdhDashboardConfig)
-
-	if err := cluster.GetSingleton(ctx, cli, dashboardConfig); err != nil {
-		if meta.IsNoMatchError(err) {
-			log.Info("OdhDashboardConfig CRD is not installed, skipping patch")
-			return nil
-		}
-		if k8serr.IsNotFound(err) {
-			log.Info("no odhdashboard instance available, hence skipping patch", "namespace", dashboardConfig.GetNamespace(), "name", dashboardConfig.GetName())
-			return nil
-		}
-		return fmt.Errorf("failed to retrieve odhdashboardconfg instance: %w", err)
-	}
-	log = log.WithValues(
-		"namespace", dashboardConfig.GetNamespace(),
-		"name", dashboardConfig.GetName(),
-	)
-	log.Info("Found CR, applying patch")
-
-	patch := dashboardConfig.DeepCopy()
-	updates := map[string][]any{
-		"notebookSizes":    NotebookSizesData,
-		"modelServerSizes": ModelServerSizeData,
-	}
-
-	updated, err := updateSpecFields(patch, updates)
+	// Get OdhDashboardConfig once for all migration functions
+	odhConfig, found, err := getOdhDashboardConfig(ctx, cli, applicationNS)
 	if err != nil {
-		return fmt.Errorf("failed to update odhdashboardconfig spec fields: %w", err)
+		return fmt.Errorf("failed to get OdhDashboardConfig: %w", err)
 	}
-
-	if !updated {
-		log.Info("No changes needed, skipping patch")
+	if !found {
+		log.Info("OdhDashboardConfig not found, skipping HardwareProfile migrations")
 		return nil
 	}
 
-	if err := cli.Patch(ctx, patch, client.MergeFrom(dashboardConfig)); err != nil {
-		return fmt.Errorf("failed to patch CR %s in namespace %s: %w", dashboardConfig.GetName(), dashboardConfig.GetNamespace(), err)
+	// 1. Create 2 HardwareProfiles for each AcceleratorProfile (notebooks and serving)
+	multiErr = multierror.Append(multiErr, MigrateAcceleratorProfilesToHardwareProfiles(ctx, cli, odhConfig))
+
+	// 2. Create 1 HardwareProfile for each container size (notebook and model server sizes)
+	multiErr = multierror.Append(multiErr, MigrateContainerSizesToHardwareProfiles(ctx, cli, applicationNS, odhConfig))
+
+	// 3. Attach HardwareProfile annotations to existing Notebooks
+	multiErr = multierror.Append(multiErr, AttachHardwareProfileToNotebooks(ctx, cli, applicationNS, odhConfig))
+
+	// 4. Attach HardwareProfile annotations to existing InferenceServices but create custom-serving HWP first.
+	multiErr = multierror.Append(multiErr, CreateCustomServingHardwareProfile(ctx, cli, applicationNS))
+	multiErr = multierror.Append(multiErr, AttachHardwareProfileToInferenceServices(ctx, cli, applicationNS, odhConfig))
+
+	return multiErr.ErrorOrNil()
+}
+
+// MigrateAcceleratorProfilesToHardwareProfiles migrates AcceleratorProfiles to HardwareProfiles
+// as described in RHOAIENG-33158. This creates 2 HardwareProfiles for each AP (notebooks and serving).
+func MigrateAcceleratorProfilesToHardwareProfiles(ctx context.Context, cli client.Client, odhConfig *unstructured.Unstructured) error {
+	log := logf.FromContext(ctx)
+
+	apList, err := getAcceleratorProfiles(ctx, cli)
+	if err != nil {
+		return fmt.Errorf("failed to get AcceleratorProfile list: %w", err)
+	}
+	if len(apList) == 0 {
+		log.Info("No AcceleratorProfiles found, skipping migration")
+		return nil
 	}
 
-	log.Info("Patched odhdashboardconfig successfully")
+	// Get notebooks-only toleration if applicable
+	notebooksOnlyToleration, err := getNotebooksOnlyToleration(odhConfig)
+	if err != nil {
+		return fmt.Errorf("failed to get notebooks-only toleration: %w", err)
+	}
 
+	// Calculate container resource limits
+	notebookContainerCounts, err := FindContainerCpuMemoryMinMaxCount(odhConfig, "notebookSizes")
+	if err != nil {
+		return fmt.Errorf("failed to calculate notebook container limits: %w", err)
+	}
+	// default min limits only for serving HardwareProfile, max limits are not set
+	servingContainerCounts := map[string]string{
+		"minMemory": "1Gi",
+		"minCpu":    "1",
+	}
+
+	var multiErr *multierror.Error
+
+	// Create 2 HardwareProfiles for each AcceleratorProfile
+	for _, ap := range apList {
+		// Create notebooks HardwareProfile
+		if err := createHardwareProfileFromAcceleratorProfile(ctx, cli, ap, notebooks, notebookContainerCounts, notebooksOnlyToleration); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create notebooks HardwareProfile for AP %s: %w", ap.GetName(), err))
+			continue
+		}
+
+		// Create serving HardwareProfile
+		if err := createHardwareProfileFromAcceleratorProfile(ctx, cli, ap, serving, servingContainerCounts, nil); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create serving HardwareProfile for AP %s: %w", ap.GetName(), err))
+			continue
+		}
+	}
+
+	return multiErr.ErrorOrNil()
+}
+
+// MigrateContainerSizesToHardwareProfiles migrates container sizes to HardwareProfiles
+// as described in RHOAIENG-33158. This creates 1 HardwareProfile for each container size.
+func MigrateContainerSizesToHardwareProfiles(ctx context.Context, cli client.Client, applicationNS string, odhConfig *unstructured.Unstructured) error {
+	var multiErr *multierror.Error
+
+	// Get notebooks-only toleration if applicable
+	notebooksOnlyToleration, err := getNotebooksOnlyToleration(odhConfig)
+	if err != nil {
+		return fmt.Errorf("failed to get notebooks-only toleration: %w", err)
+	}
+
+	// Create HardwareProfiles for notebook container sizes
+	notebookSizes, err := getContainerSizes(odhConfig, "notebookSizes")
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to get notebook sizes: %w", err))
+	}
+	if err == nil {
+		for _, size := range notebookSizes {
+			if err := createHardwareProfileFromContainerSize(ctx, cli, size, notebooks, notebooksOnlyToleration, applicationNS); err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create HardwareProfile for notebook size %s: %w", size.Name, err))
+				continue
+			}
+		}
+	}
+
+	// Create HardwareProfiles for model server container sizes
+	modelServerSizes, err := getContainerSizes(odhConfig, "modelServerSizes")
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("failed to get model server sizes: %w", err))
+	}
+	if err == nil {
+		for _, size := range modelServerSizes {
+			if err := createHardwareProfileFromContainerSize(ctx, cli, size, serving, nil, applicationNS); err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to create HardwareProfile for model server size %s: %w", size.Name, err))
+				continue
+			}
+		}
+	}
+
+	return multiErr.ErrorOrNil()
+}
+
+// AttachHardwareProfileToNotebooks migrates AcceleratorProfile and container size annotations
+// on Notebooks to HardwareProfile annotations as described in RHOAIENG-33158.
+func AttachHardwareProfileToNotebooks(ctx context.Context, cli client.Client, applicationNS string, odhConfig *unstructured.Unstructured) error {
+	log := logf.FromContext(ctx)
+	var multiErr *multierror.Error
+
+	notebooks, err := getNotebooks(ctx, cli)
+	if err != nil {
+		return fmt.Errorf("failed to get notebooks: %w", err)
+	}
+
+	if len(notebooks) == 0 {
+		log.Info("No Notebooks found, skipping annotation migration")
+		return nil
+	}
+
+	// get the size once for all notebooks.
+	containerSizes, err := getContainerSizes(odhConfig, "notebookSizes")
+	if err != nil {
+		return fmt.Errorf("failed to get container sizes: %w", err)
+	}
+
+	for _, notebook := range notebooks {
+		// Get annotations once for efficiency
+		annotations := notebook.GetAnnotations()
+		if annotations == nil {
+			annotations = map[string]string{}
+		}
+
+		// Skip if already has HardwareProfile annotation
+		if annotations[hardwareProfileNameAnnotation] != "" {
+			continue
+		}
+
+		var hwpName string
+		var migrationSource string
+
+		// Check for AcceleratorProfile annotation first (higher priority)
+		if apName := annotations[acceleratorNameAnnotation]; apName != "" {
+			// Convert to lowercase and replace spaces with dashes to comply with the hardwareprofile CRD validation
+			hwpName = fmt.Sprintf("%s-notebooks", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
+			migrationSource = "AcceleratorProfile annotation"
+		} else if sizeSelection := annotations[lastSizeSelectionAnnotation]; sizeSelection != "" && containerSizeExists(containerSizes, sizeSelection) {
+			// Handle container size annotation migration
+			// If size doesn't exist in OdhDashboardConfig, leave annotation as-is (per requirements)
+			hwpName = fmt.Sprintf("%s%s-notebooks", containerSizeHWPPrefix, strings.ReplaceAll(strings.ToLower(sizeSelection), " ", "-"))
+			migrationSource = "container size annotation"
+		}
+
+		// Set HardwareProfile annotation if we found a migration source
+		if hwpName != "" {
+			if err := setHardwareProfileAnnotation(ctx, cli, notebook, hwpName, applicationNS); err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for notebook %s: %w", notebook.GetName(), err))
+				continue
+			}
+			log.Info("Migrated annotation to HardwareProfile for Notebook", "notebook", notebook.GetName(), "migrationSource", migrationSource, "hardwareProfile", hwpName)
+		}
+	}
+
+	return multiErr.ErrorOrNil()
+}
+
+func CreateCustomServingHardwareProfile(ctx context.Context, cli client.Client, namespace string) error {
+	log := logf.FromContext(ctx)
+	// Check if custom-serving HardwareProfile CR already exists
+	_, customServingError := cluster.GetHardwareProfile(ctx, cli, "custom-serving", namespace)
+	if client.IgnoreNotFound(customServingError) != nil {
+		return fmt.Errorf("failed to check HardwareProfile CR: custom-serving %w", customServingError)
+	}
+	if k8serr.IsNotFound(customServingError) {
+		// Create custom-serving HardwareProfile programmatically
+		hwp := &infrav1.HardwareProfile{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: infrav1.GroupVersion.String(),
+				Kind:       "HardwareProfile",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "custom-serving",
+				Namespace: namespace,
+				Annotations: map[string]string{
+					"opendatahub.io/dashboard-feature-visibility": `["model-serving"]`,
+					"opendatahub.io/modified-date":                time.Now().Format(time.RFC3339),
+					"opendatahub.io/display-name":                 "custom-serving",
+					"opendatahub.io/description":                  "",
+					"opendatahub.io/disabled":                     "false",
+					"opendatahub.io/managed":                      "false",
+				},
+			},
+			Spec: infrav1.HardwareProfileSpec{
+				Identifiers: []infrav1.HardwareIdentifier{
+					{
+						Identifier:   "cpu",
+						DisplayName:  "cpu",
+						ResourceType: "CPU",
+						MinCount:     intstr.FromInt(1),
+						DefaultCount: intstr.FromInt(1),
+					},
+					{
+						Identifier:   "memory",
+						DisplayName:  "memory",
+						ResourceType: "Memory",
+						MinCount:     intstr.FromString("1Gi"),
+						DefaultCount: intstr.FromString("1Gi"),
+					},
+				},
+			},
+		}
+
+		if err := cli.Create(ctx, hwp); err != nil {
+			if !k8serr.IsAlreadyExists(err) {
+				return fmt.Errorf("failed to create custom-serving HardwareProfile v1: %w", err)
+			}
+		}
+		log.Info("Successfully created custom-serving HardwareProfile", "namespace", namespace)
+	}
 	return nil
 }
 
-// TODO: to be removed: https://issues.redhat.com/browse/RHOAIENG-21080
-func updateSpecFields(obj *unstructured.Unstructured, updates map[string][]any) (bool, error) {
-	updated := false
+// AttachHardwareProfileToInferenceServices migrates AcceleratorProfile annotations from ServingRuntimes
+// and matches container sizes on InferenceServices to HardwareProfile annotations as described in RHOAIENG-33158.
+func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Client, applicationNamespace string, odhConfig *unstructured.Unstructured) error {
+	log := logf.FromContext(ctx)
+	var multiErr *multierror.Error
 
-	for field, newData := range updates {
-		existingField, exists, err := unstructured.NestedSlice(obj.Object, "spec", field)
-		if err != nil {
-			return false, fmt.Errorf("failed to get field '%s': %w", field, err)
+	inferenceServices, err := getInferenceServices(ctx, cli)
+	if err != nil {
+		return fmt.Errorf("failed to get InferenceServices: %w", err)
+	}
+
+	if len(inferenceServices) == 0 {
+		log.Info("No InferenceServices found, skipping annotation migration")
+		return nil
+	}
+
+	// get the size once for all inference services.
+	containerSizes, err := getContainerSizes(odhConfig, "modelServerSizes")
+	if err != nil {
+		return fmt.Errorf("failed to get model server sizes: %w", err)
+	}
+
+	for _, isvc := range inferenceServices {
+		// Get annotations once for efficiency
+		isvcAnnotations := isvc.GetAnnotations()
+		if isvcAnnotations == nil {
+			isvcAnnotations = map[string]string{}
 		}
 
-		if !exists || len(existingField) == 0 {
-			if err := unstructured.SetNestedSlice(obj.Object, newData, "spec", field); err != nil {
-				return false, fmt.Errorf("failed to set field '%s': %w", field, err)
+		// Skip if already has HardwareProfile annotation
+		if isvcAnnotations[hardwareProfileNameAnnotation] != "" {
+			continue
+		}
+
+		// Check ServingRuntime for AcceleratorProfile annotation and apply to InferenceService
+		servingRuntime, err := getSRFromISVC(ctx, cli, isvc)
+		if err == nil {
+			runtimeAnnotations := servingRuntime.GetAnnotations()
+			if runtimeAnnotations == nil {
+				runtimeAnnotations = map[string]string{}
 			}
-			updated = true
+			if apName := runtimeAnnotations[acceleratorNameAnnotation]; apName != "" {
+				hwpName := fmt.Sprintf("%s-serving", strings.ReplaceAll(strings.ToLower(apName), " ", "-"))
+				if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
+					multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
+					continue
+				}
+				log.Info("Migrated ServingRuntime AP annotation to HardwareProfile annotation for InferenceService",
+					"isvc", isvc.GetName(), "runtime", servingRuntime.GetName(), "hwp", hwpName)
+				continue
+			}
+		}
+
+		// No AP found, try container size matching
+		// Default usign HWProfile CR "custom-serving", update only if we find a matching size
+		hwpName := "custom-serving"
+		var matchedSize string
+
+		resources, err := getInferenceServiceResources(isvc)
+		if err == nil {
+			// Try to match resources to a container size
+			matchedSize = findContainerSizeByResources(containerSizes, resources)
+			if matchedSize != "" {
+				hwpName = fmt.Sprintf("%s%s-serving", containerSizeHWPPrefix, strings.ReplaceAll(strings.ToLower(matchedSize), " ", "-"))
+			}
+		}
+
+		if err := setHardwareProfileAnnotation(ctx, cli, isvc, hwpName, applicationNamespace); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to set HardwareProfile annotation for InferenceService %s: %w", isvc.GetName(), err))
+		} else {
+			// Log after successful annotation setting
+			if matchedSize != "" {
+				log.Info("Set HardwareProfile annotation for InferenceService based on container size match", "isvc", isvc.GetName(), "size", matchedSize, "hardwareProfile", hwpName)
+			} else {
+				log.Info("Set HardwareProfile annotation for InferenceService with custom-serving HardwareProfile", "isvc", isvc.GetName(), "hardwareProfile", hwpName)
+			}
 		}
 	}
 
-	return updated, nil
+	return multiErr.ErrorOrNil()
 }

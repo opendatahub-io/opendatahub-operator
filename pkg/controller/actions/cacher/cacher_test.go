@@ -18,6 +18,7 @@ import (
 
 type testCacher struct {
 	mock.Mock
+
 	cacher *cacher.Cacher[resources.UnstructuredList]
 	rr     *types.ReconciliationRequest
 	ctx    context.Context //nolint:containedctx

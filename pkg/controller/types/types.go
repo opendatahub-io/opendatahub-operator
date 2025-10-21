@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -77,7 +77,7 @@ type ReconciliationRequest struct {
 	Controller Controller
 	Conditions *conditions.Manager
 	Instance   common.PlatformObject
-	DSCI       *dsciv1.DSCInitialization
+	DSCI       *dsciv2.DSCInitialization
 	Release    common.Release
 	Manifests  []ManifestInfo
 

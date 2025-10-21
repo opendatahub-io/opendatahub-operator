@@ -19,14 +19,17 @@ package dscinitialization
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -42,8 +45,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -111,7 +116,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
 
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			newInstance := &dsciv1.DSCInitialization{}
+			newInstance := &dsciv2.DSCInitialization{}
 			if err := r.Client.Get(ctx, client.ObjectKeyFromObject(instance), newInstance); err != nil {
 				return err
 			}
@@ -135,7 +140,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if instance.Status.Conditions == nil {
 		reason := status.ReconcileInit
 		message := "Initializing DSCInitialization resource"
-		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
+		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
 			status.SetProgressingCondition(&saved.Status.Conditions, reason, message)
 			saved.Status.Phase = status.PhaseProgressing
 			saved.Status.Release = currentOperatorRelease
@@ -152,7 +157,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// upgrade case to update release version in status
 	if !instance.Status.Release.Version.Equals(currentOperatorRelease.Version.Version) {
 		message := "Updating DSCInitialization status"
-		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
+		instance, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
 			saved.Status.Release = currentOperatorRelease
 		})
 		if err != nil {
@@ -165,7 +170,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Deal with application namespace, configmap, networpolicy etc
 	if err := r.createOperatorResource(ctx, instance, platform); err != nil {
-		if _, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
+		if _, err := status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
 			status.SetProgressingCondition(&saved.Status.Conditions, status.ReconcileFailed, err.Error())
 			saved.Status.Phase = status.PhaseError
 		}); err != nil {
@@ -261,14 +266,44 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 
+		// legacy ServiceMesh FeatureTracker cleanup, retained from the remove ServiceMesh controller
+		// TODO where exactly to put this logic ?
+		ftNames := []string{
+			instance.Spec.ApplicationsNamespace + "-mesh-shared-configmap",
+			instance.Spec.ApplicationsNamespace + "-mesh-control-plane-creation",
+			instance.Spec.ApplicationsNamespace + "-mesh-metrics-collection",
+			instance.Spec.ApplicationsNamespace + "-enable-proxy-injection-in-authorino-deployment",
+			instance.Spec.ApplicationsNamespace + "-mesh-control-plane-external-authz",
+		}
+		for _, name := range ftNames {
+			ft := featuresv1.FeatureTracker{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}
+
+			err := r.Client.Delete(ctx, &ft, client.PropagationPolicy(metav1.DeletePropagationForeground))
+			if k8serr.IsNotFound(err) {
+				continue
+			} else if err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to delete FeatureTracker %s: %w", ft.GetName(), err)
+			}
+		}
+
 		// Create Auth
 		if err = r.CreateAuth(ctx, platform); err != nil {
 			log.Info("failed to create Auth")
 			return ctrl.Result{}, err
 		}
 
+		// Create default HWProfile CR
+		if err = r.ManageDefaultAndCustomHWProfileCR(ctx, instance, platform); err != nil {
+			log.Info("failed to manage default and custom HardwareProfile CR")
+			return ctrl.Result{}, err
+		}
+
 		// Finish reconciling
-		_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv1.DSCInitialization) {
+		_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
 			saved.Status.Phase = status.PhaseReady
 		})
@@ -287,7 +322,7 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 		// add predicates prevents meaningless reconciliations from being triggered
 		// not use WithEventFilter() because it conflict with secret and configmap predicate
 		For(
-			&dsciv1.DSCInitialization{},
+			&dsciv2.DSCInitialization{},
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})),
 		).
 		Owns(
@@ -328,8 +363,17 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.PersistentVolumeClaim{},
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
+		Owns( // ensure always have default one for AcceleratorProfile/HardwareProfile blocking
+			&admissionregistrationv1.ValidatingAdmissionPolicy{},
+		).
+		Owns( // ensure always have default one for AcceleratorProfile/HardwareProfile blocking
+			&admissionregistrationv1.ValidatingAdmissionPolicyBinding{},
+		).
+		Owns( // ensure always have one platform's HardwareProfile in the cluster.
+			&infrav1.HardwareProfile{},
+			builder.WithPredicates(rp.Deleted())).
 		Watches(
-			&dscv1.DataScienceCluster{},
+			&dscv2.DataScienceCluster{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, a client.Object) []reconcile.Request {
 				return r.watchDSCResource(ctx)
 			}),
@@ -348,6 +392,14 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 		Watches(
 			&serviceApi.Auth{},
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
+		).
+		Watches( // TODO: this might not be needed after v3.0.
+			&apiextensionsv1.CustomResourceDefinition{},
+			handler.EnqueueRequestsFromMapFunc(r.watchHWProfileCRDResource),
+			builder.WithPredicates(predicate.Or(
+				rp.CreatedOrUpdatedName("acceleratorprofiles.dashboard.opendatahub.io"),
+				rp.CreatedOrUpdatedName("hardwareprofiles.dashboard.opendatahub.io"),
+			)),
 		).
 		Complete(r)
 }
@@ -379,7 +431,7 @@ func (r *DSCInitializationReconciler) watchMonitoringSecretResource(ctx context.
 
 func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) []reconcile.Request {
 	log := logf.FromContext(ctx)
-	instanceList := &dscv1.DataScienceClusterList{}
+	instanceList := &dscv2.DataScienceClusterList{}
 	if err := r.Client.List(ctx, instanceList); err != nil {
 		// do not handle if cannot get list
 		log.Error(err, "Failed to get DataScienceClusterList")
@@ -424,7 +476,7 @@ func (r *DSCInitializationReconciler) deleteMonitoringCR(ctx context.Context) er
 	return nil
 }
 
-func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci *dsciv1.DSCInitialization) error {
+func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci *dsciv2.DSCInitialization) error {
 	// Create Monitoring CR singleton
 	defaultMonitoring := &serviceApi.Monitoring{
 		TypeMeta: metav1.TypeMeta{
@@ -441,17 +493,30 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		},
 	}
 
-	if dsci.Spec.Monitoring.Metrics != nil {
-		// when metrics has values set in resoures or storage. skip replicas since it cannot be 0 from CEL validation
-		if dsci.Spec.Monitoring.Metrics.Storage != nil || dsci.Spec.Monitoring.Metrics.Resources != nil {
-			defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
-		} else { // if metrics is set to metrics:{} to avoid  invalid value "null" to Apply() existing Monitoring CR
-			defaultMonitoring.Spec.Metrics = nil // explictliy set to nil, same as not set but for better readability
-		}
+	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && (dsci.Spec.Monitoring.Metrics.Storage != nil || dsci.Spec.Monitoring.Metrics.Resources != nil)
+	tracesEnabled := dsci.Spec.Monitoring.Traces != nil
+
+	if metricsEnabled {
+		defaultMonitoring.Spec.Metrics = dsci.Spec.Monitoring.Metrics
+	} else {
+		defaultMonitoring.Spec.Metrics = nil
 	}
 
-	defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
+	if tracesEnabled {
+		defaultMonitoring.Spec.Traces = dsci.Spec.Monitoring.Traces
+	} else {
+		defaultMonitoring.Spec.Traces = nil
+	}
+
 	defaultMonitoring.Spec.Alerting = dsci.Spec.Monitoring.Alerting
+
+	if metricsEnabled || tracesEnabled {
+		if dsci.Spec.Monitoring.CollectorReplicas != 0 {
+			defaultMonitoring.Spec.CollectorReplicas = dsci.Spec.Monitoring.CollectorReplicas
+		} else {
+			defaultMonitoring.Spec.CollectorReplicas = 2
+		}
+	}
 
 	if err := controllerutil.SetOwnerReference(dsci, defaultMonitoring, r.Client.Scheme()); err != nil {
 		return err
@@ -469,4 +534,28 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		return err
 	}
 	return nil
+}
+
+// watchHWProfileCRDResource triggers DSCI reconciliation when Dashboard AcceleratorProfile/HWProfile CRDs are created.
+// This ensures VAP/VAPB resources can be created when Dashboard CRDs become available.
+// TODO: this is a temporary solution to ensure VAP/VAPB resources are created when Dashboard CRDs become available, it should be removed in v3.0.
+func (r *DSCInitializationReconciler) watchHWProfileCRDResource(ctx context.Context, a client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
+
+	log.V(1).Info("Dashboard CRD change detected, triggering DSCI reconciliation for VAP/VAPB resources", "CRD", a.GetName())
+
+	instanceList := &dsciv2.DSCInitializationList{}
+	if err := r.Client.List(ctx, instanceList); err != nil {
+		log.Error(err, "Failed to get DSCInitializationList")
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
+	}
+
+	if len(instanceList.Items) == 0 {
+		// No DSCI found, but trigger anyway for default name in case of race conditions
+		// If no DSCI actually exists, the reconcile request will be ignored
+		log.V(1).Info("No DSCI instances found, triggering default-dsci reconciliation as fallback to create VAP/VAPB")
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
+	}
+
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: instanceList.Items[0].Name}}}
 }

@@ -10,20 +10,6 @@ package dscinitialization
 /* Auth */
 // +kubebuilder:rbac:groups="config.openshift.io",resources=authentications,verbs=get;watch;list
 
-/* Service Mesh Integration */
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshcontrolplanes,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmemberrolls,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers/finalizers,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/status,verbs=update;patch;delete;get
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/finalizers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices,verbs=*
-// +kubebuilder:rbac:groups="networking.istio.io",resources=gateways,verbs=*
-// +kubebuilder:rbac:groups="networking.istio.io",resources=envoyfilters,verbs=*
-// +kubebuilder:rbac:groups="security.istio.io",resources=authorizationpolicies,verbs=*
-// +kubebuilder:rbac:groups="authorino.kuadrant.io",resources=authconfigs,verbs=*
-// +kubebuilder:rbac:groups="operator.authorino.kuadrant.io",resources=authorinos,verbs=*
-
 // TODO: move to monitoring own file
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routers/metrics,verbs=get
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routers/federate,verbs=get
@@ -60,6 +46,9 @@ package dscinitialization
 //+kubebuilder:rbac:groups=monitoring.rhobs,resources=prometheusrules,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=monitoring.rhobs,resources=prometheusrules/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=monitoring.rhobs,resources=prometheusrules/finalizers,verbs=update
+//+kubebuilder:rbac:groups=monitoring.rhobs,resources=thanosqueriers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=monitoring.rhobs,resources=thanosqueriers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=monitoring.rhobs,resources=thanosqueriers/finalizers,verbs=update
 
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=opentelemetrycollectors,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=opentelemetrycollectors/status,verbs=get;update;patch

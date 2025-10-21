@@ -26,17 +26,20 @@ func fetchResource(ro *ResourceOptions) (*unstructured.Unstructured, error) {
 
 	ro.tc.g.Eventually(func(g Gomega) {
 		// Fetch the resource
+		// For NotFound: u = nil, fetchErr = nil
 		u, fetchErr = ro.tc.g.Get(ro.GVK, ro.NN).Get()
 
-		// Check if ExpectedErr is provided and match it if encountered
-		if ro.ExpectedErr != nil && fetchErr != nil {
-			g.Expect(fetchErr).To(MatchError(ro.ExpectedErr), unexpectedErrorMismatchMsg, ro.ExpectedErr, fetchErr, ro.GVK.Kind)
+		// Check if AcceptableErr is provided and match it if encountered
+		if ro.AcceptableErrMatcher != nil && fetchErr != nil {
+			g.Expect(fetchErr).To(ro.AcceptableErrMatcher, unexpectedErrorMismatchMsg, ro.AcceptableErrMatcher, fetchErr, ro.GVK.Kind)
+			return // Acceptable error matched, exit successfully
 		}
 
-		// If the resource is not found, we set the object to nil
-		if errors.IsNotFound(fetchErr) {
-			u = nil
-		}
+		// For any other errors, retry
+		g.Expect(fetchErr).NotTo(
+			HaveOccurred(),
+			defaultErrorMessageIfNone(resourceFetchErrorMsg, []any{ro.ResourceID, ro.GVK.Kind, fetchErr}, ro.CustomErrorArgs)...,
+		)
 	}).Should(Succeed())
 
 	return u, fetchErr
@@ -61,17 +64,55 @@ func fetchResources(ro *ResourceOptions) ([]unstructured.Unstructured, error) {
 		// Attempt to retrieve the list of resources
 		resourcesList, fetchErr = ro.tc.g.List(ro.GVK, ro.ListOptions).Get()
 
-		// Check if ExpectedErr is provided and match it if encountered
-		if ro.ExpectedErr != nil && fetchErr != nil {
-			g.Expect(fetchErr).To(MatchError(ro.ExpectedErr), unexpectedErrorMismatchMsg, ro.ExpectedErr, fetchErr, ro.GVK.Kind)
+		// Check if AcceptableErr is provided and match it if encountered
+		if ro.AcceptableErrMatcher != nil && fetchErr != nil {
+			g.Expect(fetchErr).To(ro.AcceptableErrMatcher, unexpectedErrorMismatchMsg, ro.AcceptableErrMatcher, fetchErr, ro.GVK.Kind)
+			return // Acceptable error matched, exit successfully
 		}
 
-		// Ensure no unexpected errors occurred during retrieval
-		g.Expect(fetchErr).NotTo(
-			HaveOccurred(),
-			defaultErrorMessageIfNone(resourceFetchErrorMsg, []any{ro.ResourceID, ro.GVK.Kind, fetchErr}, ro.CustomErrorArgs)...,
-		)
+		// For transient errors that aren't "not found", retry
+		// "Not found" errors will be handled by the caller based on IgnoreNotFound
+		if !errors.IsNotFound(fetchErr) {
+			g.Expect(fetchErr).NotTo(
+				HaveOccurred(),
+				defaultErrorMessageIfNone(resourceFetchErrorMsg, []any{ro.ResourceID, ro.GVK.Kind, fetchErr}, ro.CustomErrorArgs)...,
+			)
+		}
 	}).Should(Succeed())
 
 	return resourcesList, fetchErr
+}
+
+// fetchResourceSync attempts to retrieve a single Kubernetes resource synchronously without Eventually wrapper.
+//
+// This is the synchronous version of fetchResource that should be used inside Eventually blocks
+// to avoid nested Eventually calls and timeout compounding.
+//
+// Parameters:
+//   - ro (*ResourceOptions): Contains details about the resource, including GVK, NamespacedName (NN),
+//     expected error conditions, and custom assertion messages.
+//
+// Returns:
+//   - *unstructured.Unstructured: The retrieved resource if found; otherwise, nil.
+//   - error: The error encountered during retrieval, if any.
+func fetchResourceSync(ro *ResourceOptions) (*unstructured.Unstructured, error) {
+	// Direct client call without Eventually wrapper - let caller handle errors and assertions
+	return ro.tc.g.Get(ro.GVK, ro.NN).Get()
+}
+
+// fetchResourcesSync retrieves a list of Kubernetes resources synchronously without Eventually wrapper.
+//
+// This is the synchronous version of fetchResources that should be used inside Eventually blocks
+// to avoid nested Eventually calls and timeout compounding.
+//
+// Parameters:
+//   - ro (*ResourceOptions): Contains details about the resources, including GVK, NamespacedName (NN),
+//     list filtering options, and custom assertion messages.
+//
+// Returns:
+//   - []unstructured.Unstructured: A list of retrieved resources, which may be empty if none exist.
+//   - error: The error encountered during retrieval, if any.
+func fetchResourcesSync(ro *ResourceOptions) ([]unstructured.Unstructured, error) {
+	// Direct client call without Eventually wrapper - let caller handle errors and assertions
+	return ro.tc.g.List(ro.GVK, ro.ListOptions).Get()
 }
