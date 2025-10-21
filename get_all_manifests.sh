@@ -11,13 +11,13 @@ GITHUB_URL="https://github.com"
 # 2. "tag" - immutable reference (e.g., v1.0.0)
 # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
 declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@ef1a8e53b04629cef73fc097edc9e874ad1d89a4:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@a8e1d4f0bc8fb819d3b13b5dda85ad4d7997335d:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@121a467690d03514277a7d30c16c311815b1877f:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@121a467690d03514277a7d30c16c311815b1877f:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@a256bc33a6977d2a8e04ab492ff289db41624a3e:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15@d77e8ebefc5eb1de6ac2e9269d5bef0f9bea18fa:config"
-    ["ray"]="opendatahub-io:kuberay:dev@e2daa7e658f66f14fa2279b3c054ac54384ae2ca:ray-operator/config"
-    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@7f21761643ea756480f0a43f55ff8817458559a4:config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@8adf444fa4f489cd5b34d7fce14f94795812393b:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.15@2ec429d30c2ba71f9122446603694f3dbec82946:config"
+    ["ray"]="opendatahub-io:kuberay:dev@b9e26fa34f9128594841fcd1df079ee2e9269fb2:ray-operator/config"
+    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@932a0671e775e2d105217d2be66587379be0f194:config"
     ["modelregistry"]="opendatahub-io:model-registry-operator:main@cbc48624a6343d895f2722959cca3888eb2569fc:config"
     ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@bdf7dcc340bee0ad3bfe0c17d857e090cd06243b:config"
