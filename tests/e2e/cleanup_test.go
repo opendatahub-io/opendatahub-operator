@@ -35,7 +35,7 @@ func CleanupPreviousTestResources(t *testing.T) {
 	)
 
 	// Cleanup Kueue cluster-scoped resources
-	cleanupKueueTestResources(t, tc)
+	cleanupKueueOperatorAndResources(t, tc)
 
 	// Cleanup CodeFlare resources
 	cleanupCodeFlareTestResources(t, tc)
@@ -60,6 +60,16 @@ func cleanupCoreOperatorResources(t *testing.T, tc *TestContext) {
 
 	// Delete Auth CR (cluster-scoped, not affected by namespace deletion)
 	deleteResources(gvk.Auth)
+}
+
+func cleanupKueueOperatorAndResources(t *testing.T, tc *TestContext) {
+	t.Helper()
+
+	cleanupKueueTestResources(t, tc)
+
+	// Uninstall ocp kueue operator if present
+	t.Logf("Uninstalling kueue operator")
+	tc.UninstallOperator(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace})
 }
 
 // cleanupKueueTestResources cleans up Kueue test resources including ClusterQueue, LocalQueue, and test namespace.
@@ -100,10 +110,6 @@ func cleanupKueueTestResources(t *testing.T, tc *TestContext) {
 		)
 		t.Logf("Successfully processed deletion of %s %s/%s", resource.gvk.Kind, resource.namespacedName.Namespace, resource.namespacedName.Name)
 	}
-
-	// Uninstall ocp kueue operator if present
-	t.Logf("Uninstalling kueue operator")
-	tc.UninstallOperator(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace})
 }
 
 func cleanupCodeFlareTestResources(t *testing.T, tc *TestContext) {
