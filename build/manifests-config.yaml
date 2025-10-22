@@ -17,15 +17,9 @@ map:
   odh-data-science-pipelines-operator-controller:
     src: config
     dest: datasciencepipelines
-  odh-codeflare-operator:
-    src: config
-    dest: codeflare
   odh-kuberay-operator-controller:
     src: ray-operator/config
     dest: ray
-  odh-kueue-controller:
-    src: config
-    dest: kueue
   odh-trustyai-service-operator:
     src: config
     dest: trustyai
@@ -35,9 +29,6 @@ map:
   odh-model-registry-operator:
     src: config
     dest: modelregistry
-  odh-modelmesh-serving-controller:
-    src: config
-    dest: modelmeshserving
   odh-dashboard:
     src: manifests
     dest: dashboard
