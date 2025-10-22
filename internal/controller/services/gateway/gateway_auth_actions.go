@@ -2,6 +2,8 @@ package gateway
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -35,6 +37,17 @@ const (
 	AuthModeOIDC            AuthMode = "OIDC"
 	AuthModeNone            AuthMode = "None"
 )
+
+// make secrete data into sha256 as hash.
+func calculateSecretHash(secretData map[string][]byte) string {
+	clientID := string(secretData[EnvClientID])
+	clientSecret := string(secretData[EnvClientSecret])
+	cookieSecret := string(secretData[EnvCookieSecret])
+
+	configData := clientID + clientSecret + cookieSecret
+	hash := sha256.Sum256([]byte(configData))
+	return hex.EncodeToString(hash[:])
+}
 
 func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	l := logf.FromContext(ctx).WithName("createAuthProxy")
@@ -241,7 +254,7 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return err
 	}
 
-	err = createKubeAuthProxyDeployment(rr, oidcConfig, cookieConfig, domain)
+	err = createKubeAuthProxyDeployment(ctx, rr, oidcConfig, cookieConfig, domain)
 	if err != nil {
 		return err
 	}
@@ -316,7 +329,25 @@ func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationR
 	return nil
 }
 
-func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig, cookieConfig *serviceApi.CookieConfig, domain string) error {
+func createKubeAuthProxyDeployment(
+	ctx context.Context, rr *odhtypes.ReconciliationRequest,
+	oidcConfig *serviceApi.OIDCConfig,
+	cookieConfig *serviceApi.CookieConfig,
+	domain string) error {
+	// secret doesn't exist use empty string.
+	secret := &corev1.Secret{}
+	secretHash := ""
+	err := rr.Client.Get(ctx, types.NamespacedName{
+		Name:      KubeAuthProxySecretsName,
+		Namespace: GatewayNamespace,
+	}, secret)
+	if err == nil {
+		// Secret exists, calculate its hash
+		secretHash = calculateSecretHash(secret.Data)
+	} else if !k8serr.IsNotFound(err) {
+		return fmt.Errorf("failed to get secret: %w", err)
+	}
+
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      KubeAuthProxyName,
@@ -330,6 +361,9 @@ func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfi
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: KubeAuthProxyLabels,
+					Annotations: map[string]string{
+						"opendatahub.io/secret-hash": secretHash,
+					},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
