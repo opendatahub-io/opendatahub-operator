@@ -1,0 +1,13 @@
+apiVersion: perses.dev/v1alpha1
+kind: Perses
+metadata:
+  name: data-science-perses
+  namespace: {{.Namespace}}
+spec:
+  containerPort: 8080
+  image: registry.redhat.io/cluster-observability-operator/perses-0-50-rhel9:1.2.2-1752686994
+  config:
+    database:
+      file:
+        extension: "yaml"
+        folder: "/var/lib/perses"
