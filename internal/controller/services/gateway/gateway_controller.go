@@ -22,6 +22,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
@@ -32,6 +33,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 )
 
@@ -90,7 +92,14 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	if isIntegratedOAuth, err := auth.IsDefaultAuthMethod(ctx, mgr.GetClient()); err == nil && isIntegratedOAuth {
 		reconcilerBuilder = reconcilerBuilder.OwnsGVK(gvk.OAuthClient) // OpenShift OAuth integration
 	}
-	// Note: Dashboard HTTPRoute and ReferenceGrant are user's responsibility
+
+	// Watch DSCInitialization to trigger reconciliation when DSCI becomes available
+	reconcilerBuilder = reconcilerBuilder.
+		Watches(
+			&dsciv2.DSCInitialization{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayInstanceName)),
+			reconciler.WithPredicates(predicate.GenerationChangedPredicate{}),
+		)
 
 	// Configure action chain for resource lifecycle
 	reconcilerBuilder = reconcilerBuilder.
