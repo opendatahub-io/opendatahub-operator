@@ -24,11 +24,12 @@ var (
 		"caikit-tgis-image":       "RELATED_IMAGE_ODH_CAIKIT_TGIS_SERVING_IMAGE",
 		"caikit-standalone-image": "RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE",
 		"ovms-image":              "RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE",
-		"vllm-cuda-image":         "RELATED_IMAGE_ODH_VLLM_CUDA_IMAGE",
+		"vllm-cuda-image":         "RELATED_IMAGE_RHAIIS_VLLM_CUDA_IMAGE",
 		"vllm-cpu-image":          "RELATED_IMAGE_ODH_VLLM_CPU_IMAGE",
 		"vllm-gaudi-image":        "RELATED_IMAGE_ODH_VLLM_GAUDI_IMAGE",
-		"vllm-rocm-image":         "RELATED_IMAGE_ODH_VLLM_ROCM_IMAGE",
-		"vllm-spyre-image":        "RELATED_IMAGE_RHAIIS_VLLM_SPYRE_IMAGE",
+		"vllm-rocm-image":         "RELATED_IMAGE_RHAIIS_VLLM_ROCM_IMAGE",
+		"vllm-spyre-x86-image":    "RELATED_IMAGE_RHAIIS_VLLM_AMD64_SPYRE_IMAGE",
+		"vllm-spyre-s390x-image":  "RELATED_IMAGE_RHAIIS_VLLM_S390X_SPYRE_IMAGE",
 		"guardrails-detector-huggingface-runtime-image": "RELATED_IMAGE_ODH_GUARDRAILS_DETECTOR_HUGGINGFACE_RUNTIME_IMAGE",
 	}
 
