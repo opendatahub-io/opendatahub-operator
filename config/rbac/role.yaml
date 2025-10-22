@@ -1001,6 +1001,7 @@ rules:
   - services.platform.opendatahub.io
   resources:
   - auths
+  - gatewayconfigs
   - monitorings
   verbs:
   - create
@@ -1028,17 +1029,6 @@ rules:
   - get
   - patch
   - update
-- apiGroups:
-  - services.platform.opendatahub.io
-  resources:
-  - gatewayconfigs
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-  - watch
 - apiGroups:
   - serving.kserve.io
   resources:
