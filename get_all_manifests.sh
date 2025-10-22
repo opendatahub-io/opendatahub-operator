@@ -11,17 +11,17 @@ GITHUB_URL="https://github.com"
 # 2. "tag" - immutable reference (e.g., v1.0.0)
 # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
 declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@a8e1d4f0bc8fb819d3b13b5dda85ad4d7997335d:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@cb7eff5b75e431b93cfb0764b8fbd13cc2f184a5:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@121a467690d03514277a7d30c16c311815b1877f:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@121a467690d03514277a7d30c16c311815b1877f:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@8adf444fa4f489cd5b34d7fce14f94795812393b:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15@2ec429d30c2ba71f9122446603694f3dbec82946:config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@e4acafd86d100269c58b808545100a0517e3faa7:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.15@196e668c5f1f1c5aefdc3ab6e3f66bd724ad162f:config"
     ["ray"]="opendatahub-io:kuberay:dev@b9e26fa34f9128594841fcd1df079ee2e9269fb2:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@932a0671e775e2d105217d2be66587379be0f194:config"
     ["modelregistry"]="opendatahub-io:model-registry-operator:main@cbc48624a6343d895f2722959cca3888eb2569fc:config"
     ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@bdf7dcc340bee0ad3bfe0c17d857e090cd06243b:config"
-    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@e7a91e0ef907ade1b2503b439a2a2cdbc986058d:config"
+    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@0127a4910c8c6bfa1845b97a9205278999b3205a:config"
     ["feastoperator"]="opendatahub-io:feast:stable@d5895be388475745287e0ca9bc99e3e9ed8335d0:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@6806c3f428bb140609d6fe4801d6c66a25977804:config"
 )
