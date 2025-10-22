@@ -44,7 +44,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-// NewComponentReconciler creates a ComponentReconciler for the Dashboard API.
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.Kserve{}).
 		// operands - owned
@@ -71,7 +70,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		OwnsGVK(gvk.InferenceModelV1alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.InferenceModelV1alpha2))).
 		OwnsGVK(gvk.LLMInferenceServiceConfigV1Alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.LLMInferenceServiceConfigV1Alpha1))).
 		OwnsGVK(gvk.LLMInferenceServiceV1Alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.LLMInferenceServiceV1Alpha1))).
-
 		// operands - watched
 		//
 		// By default the Watches functions adds:
@@ -88,8 +86,18 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			),
 		).
-
+		// reconcile if found lws or rhcl(kuadrant) operators get installed.
+		WatchesGVK(
+			gvk.OperatorCondition,
+			reconciler.WithEventHandler(handlers.ToNamed(componentApi.KserveInstanceName)),
+			reconciler.WithPredicates(isRequiredOperators),
+		).
+		WatchesGVK(gvk.LeaderWorkerSetOperator,
+			reconciler.Dynamic(reconciler.CrdExists(gvk.LeaderWorkerSetOperator))).
+		WatchesGVK(gvk.Kuadrantv1beta1,
+			reconciler.Dynamic(reconciler.CrdExists(gvk.Kuadrantv1beta1))).
 		// actions
+		WithAction(checkPreConditions).
 		WithAction(initialize).
 		WithAction(releases.NewAction()).
 		WithAction(removeOwnershipFromUnmanagedResources).
@@ -104,7 +112,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			// Additional labels/annotations MUST be added by the deploy action
 			// so they would affect only objects metadata without side effects
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),
-			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
+			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName), // TODO: is this needed for v3?
 		)).
 		WithAction(customizeKserveConfigMap).
 		WithAction(deploy.NewAction(

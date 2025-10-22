@@ -76,11 +76,15 @@ const (
 	ConditionTypeReconcileComplete = "ReconcileComplete"
 
 	// Component-specific condition types.
-	ConditionTypeProvisioningSucceeded       = "ProvisioningSucceeded"
-	ConditionDeploymentsNotAvailableReason   = "DeploymentsNotReady"
-	ConditionDeploymentsAvailable            = "DeploymentsAvailable"
-	ConditionArgoWorkflowAvailable           = "ArgoWorkflowAvailable"
-	ConditionTypeComponentsReady             = "ComponentsReady"
+	ConditionTypeProvisioningSucceeded     = "ProvisioningSucceeded"
+	ConditionDeploymentsNotAvailableReason = "DeploymentsNotReady"
+	ConditionDeploymentsAvailable          = "DeploymentsAvailable"
+	ConditionTypeComponentsReady           = "ComponentsReady"
+	// llm-d.
+	ConditionLLMDAvailable = "LLMDAvailable"
+	// aipipelines: TODO: do we still need this?
+	ConditionArgoWorkflowAvailable = "ArgoWorkflowAvailable"
+	// monitoring.
 	ConditionMonitoringAvailable             = "MonitoringAvailable"
 	ConditionMonitoringStackAvailable        = "MonitoringStackAvailable"
 	ConditionTempoAvailable                  = "TempoAvailable"
@@ -90,6 +94,7 @@ const (
 	ConditionThanosQuerierAvailable          = "ThanosQuerierAvailable"
 )
 
+// TODO: do we still need this?
 const (
 	CapabilityDSPv2Argo string = "CapabilityDSPv2Argo"
 )
@@ -99,7 +104,6 @@ const (
 	ConfiguredReason          string = "Configured"
 	RemovedReason             string = "Removed"
 	UnmanagedReason           string = "Unmanaged"
-	CapabilityFailed          string = "CapabilityFailed"
 	ArgoWorkflowExist         string = "ArgoWorkflowExist"
 	NoManagedComponentsReason        = "NoManagedComponents"
 
@@ -169,6 +173,12 @@ const (
 	AuthProxyOIDCIssuerURLEmptyMessage       = "OIDC issuerURL cannot be empty"
 	AuthProxyOIDCSecretRefNameEmptyMessage   = "OIDC clientSecretRef.name cannot be empty" //nolint:gosec // This is an error message, not a credential
 	AuthProxyExternalAuthNoDeploymentMessage = "Cluster uses external authentication, no gateway auth proxy deployed"
+)
+
+// llm-d.
+const (
+	LeaderWorkerSetOperatorNotInstalledMessage = "LeaderWorkerSet operator not installed"
+	RHCLOperatorNotInstalledMessage            = "Red Hat Connectivity Link operator (Kuadrant Operator) not installed"
 )
 
 // For v3 upgrade sanity checks.
