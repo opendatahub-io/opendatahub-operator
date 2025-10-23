@@ -38,7 +38,7 @@ const (
 	AuthModeNone            AuthMode = "None"
 )
 
-// make secrete data into sha256 as hash.
+// make secret data into sha256 as hash.
 func calculateSecretHash(secretData map[string][]byte) string {
 	clientID := string(secretData[EnvClientID])
 	clientSecret := string(secretData[EnvClientSecret])
