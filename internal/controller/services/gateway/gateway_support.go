@@ -22,8 +22,8 @@ const (
 	DefaultGatewayName    = "data-science-gateway"               // Default gateway name used across all platforms
 
 	// Authentication constants.
-	AuthClientID        = "odh"       // OAuth client ID
-	OpenShiftOAuthScope = "user:full" // OAuth client scope
+	AuthClientID        = "data-science" // OAuth client ID
+	OpenShiftOAuthScope = "user:full"    // OAuth client scope
 
 	// OAuth2 proxy infrastructure.
 	KubeAuthProxyName        = "kube-auth-proxy"
