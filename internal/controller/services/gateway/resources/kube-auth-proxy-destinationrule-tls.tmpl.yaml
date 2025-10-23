@@ -1,0 +1,32 @@
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: {{.DestinationRuleName}}
+  namespace: {{.GatewayNamespace}}
+  labels:
+    app: {{.KubeAuthProxyServiceName}}
+spec:
+  host: "{{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local"
+  trafficPolicy:
+    portLevelSettings:
+    - port: # only on 8443 no need 443 as no service is open on that port
+        number: {{.GatewayHTTPSPort}}
+      tls:
+        mode: SIMPLE
+        insecureSkipVerify: true
+
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: data-science-components
+  namespace: {{.ApplicationNamespace}}
+spec:
+  host: "*.{{.ApplicationNamespace}}.svc.cluster.local" # for all service in application namespace
+  trafficPolicy:
+    portLevelSettings:
+    - port:
+        number: {{.GatewayHTTPSPort}}
+      tls:
+        mode: SIMPLE
+        insecureSkipVerify: true

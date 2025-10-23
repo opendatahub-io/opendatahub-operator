@@ -880,12 +880,19 @@ rules:
   - operator.openshift.io
   resources:
   - consoles
-  - ingresscontrollers
   verbs:
   - delete
   - get
   - list
   - patch
+  - watch
+- apiGroups:
+  - operator.openshift.io
+  resources:
+  - ingresscontrollers
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - operators.coreos.com
@@ -1001,7 +1008,6 @@ rules:
   - services.platform.opendatahub.io
   resources:
   - auths
-  - gatewayconfigs
   - monitorings
   verbs:
   - create
@@ -1029,6 +1035,17 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - services.platform.opendatahub.io
+  resources:
+  - gatewayconfigs
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - serving.kserve.io
   resources:

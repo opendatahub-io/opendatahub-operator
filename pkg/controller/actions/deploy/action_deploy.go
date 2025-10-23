@@ -469,6 +469,13 @@ func (a *Action) apply(
 		if found {
 			unstructured.RemoveNestedField(obj.Object, "rules")
 		}
+	case gvk.Route:
+		// For OpenShift Routes, spec.host is immutable after creation.
+		// The admission controller rejects any update that includes spec.host,
+		// even if the value is unchanged. Remove it on updates to avoid this error.
+		if old != nil {
+			unstructured.RemoveNestedField(obj.Object, "spec", "host")
+		}
 	default:
 		// do nothing
 		break
