@@ -4255,7 +4255,7 @@ spec:
                                                       description: Tenant owning the given Quobyte volume in the Backend Used with dynamically provisioned Quobyte volumes, value is set by the plugin
                                                       type: string
                                                     user:
-                                                      description: User to map volume access to Defaults to serivceaccount user
+                                                      description: User to map volume access to Defaults to serviceaccount user
                                                       type: string
                                                     volume:
                                                       description: Volume is a string that references an already created Quobyte volume by name.
