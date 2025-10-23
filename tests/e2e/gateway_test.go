@@ -42,7 +42,6 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate Gateway infrastructure creation", componentCtx.ValidateGatewayInfrastructure},
 		{"Validate HTTPRoute creation for oauth call back", componentCtx.ValidateHTTPRouteCreation},
 		{"Validate Dashboard HTTPRoute dynamic creation", componentCtx.ValidateDashboardHTTPRouteCreation},
-		{"Validate DNS Map Route creation", componentCtx.ValidateDNSMapRouteCreation},
 		{"Validate EnvoyFilter creation", componentCtx.ValidateEnvoyFilterCreation},
 		{"Validate DestinationRule creation", componentCtx.ValidateDestinationRuleCreation},
 		{"Validate kube-auth-proxy deployment with secret hash annotation", componentCtx.ValidateAuthConfigHashAnnotation},
@@ -266,29 +265,6 @@ func (tc *GatewayTestCtx) ValidateDashboardHTTPRouteCreation(t *testing.T) {
 		)
 		t.Log("Dashboard HTTPRoute validation completed successfully - Dashboard CR doesn't exist, HTTPRoute not created")
 	}
-}
-
-func (tc *GatewayTestCtx) ValidateDNSMapRouteCreation(t *testing.T) {
-	t.Helper()
-
-	// Validate DNS Map Route (OpenShift Route) is created
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.Route, types.NamespacedName{
-			Name:      gateway.DefaultGatewayName,
-			Namespace: gateway.GatewayNamespace,
-		}),
-		WithCondition(And(
-			jq.Match(`.spec.port.targetPort == "https"`),
-			jq.Match(`.spec.tls.termination == "passthrough"`),
-			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
-			jq.Match(`.spec.to.kind == "Service"`),
-			jq.Match(`.spec.to.name | contains("%s")`, gateway.DefaultGatewayName),
-			jq.Match(`.spec.wildcardPolicy == "None"`),
-		)),
-		WithCustomErrorMsg(gateway.DefaultGatewayName+" Route should be created with correct DNS mapping configuration"),
-	)
-
-	t.Log("DNS Map Route validation completed successfully")
 }
 
 // Helper function to check if Dashboard CR exists.

@@ -241,13 +241,6 @@ func createComponentResources(ctx context.Context, rr *odhtypes.ReconciliationRe
 		}
 	}
 
-	// add dns-map-route template even it is often on PSI.
-	dnsMapRouteTemplate := odhtypes.TemplateInfo{
-		FS:   gatewayResources,
-		Path: componentHttpRouteTemplatePath + "/dns-map-route.tmpl.yaml",
-	}
-	componentHttpRouteTemplate = append(componentHttpRouteTemplate, dnsMapRouteTemplate)
-
 	rr.Templates = append(rr.Templates, componentHttpRouteTemplate...)
 	return nil
 }
