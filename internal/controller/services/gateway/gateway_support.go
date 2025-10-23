@@ -24,7 +24,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/secretgenerator"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -416,14 +415,14 @@ func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationReques
 
 	var clientSecretValue string
 	if authMode == AuthModeIntegratedOAuth {
-		clientSecretGen, err := secretgenerator.NewSecret("client-secret", "random", ClientSecretLength)
+		clientSecretGen, err := cluster.NewSecret("client-secret", "random", ClientSecretLength)
 		if err != nil {
 			return "", "", fmt.Errorf("failed to generate client secret: %w", err)
 		}
 		clientSecretValue = clientSecretGen.Value
 	}
 
-	cookieSecretGen, err := secretgenerator.NewSecret("cookie-secret", "random", CookieSecretLength)
+	cookieSecretGen, err := cluster.NewSecret("cookie-secret", "random", CookieSecretLength)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate cookie secret: %w", err)
 	}

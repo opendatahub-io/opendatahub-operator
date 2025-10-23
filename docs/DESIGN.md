@@ -116,9 +116,9 @@ The currently used accessory controllers are listed below:
 - Cert ConfigMap Generator controller
   - responsible for generating the ConfigMap with certificates (`odh-trusted-ca-bundle`), which includes cluster-wide trusted-ca bundle and custom ca bundle in every new namespace created.
   - controller implementation located in `internal/controller/services/certconfigmapgenerator`.
-- Secret Generator controller
-  - responsible for generating Secret used by the ODH Dashboard.
-  - controller implementation located in `internal/controller/services/secretgenerator`.
+- Secret Generator
+  - responsible for generating Secrets used by the ODH components (e.g., Gateway authentication).
+  - implementation located in `pkg/cluster` (see `secret.go`).
 - Setup controller
   - responsible for managing the ConfigMap that triggers the cleanup/uninstallation of ODH.
   - handles the cleanup logic itself.
