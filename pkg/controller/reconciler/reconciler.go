@@ -291,11 +291,20 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 
 	dsci, dscilErr := cluster.GetDSCI(ctx, r.Client)
 	switch {
-	case dscilErr != nil:
+	case dscilErr != nil && !k8serr.IsNotFound(dscilErr):
+		// Failed to fetch DSCI due to an actual error (e.g., API server issues, permissions).
+		// This is different from DSCI simply not existing yet, which is handled below.
 		provisionErr = fmt.Errorf("failed to get DSCInitialization: %w", dscilErr)
 	default:
+		// DSCI either exists or doesn't exist (NotFound). Both cases are acceptable.
+		// Services can check rr.DSCI != nil before accessing DSCI-specific fields.
+		if dscilErr == nil {
+			rr.DSCI = dsci.DeepCopy()
+		} else {
+			l.V(1).Info("DSCInitialization not found, proceeding without it")
+		}
+
 		provisionErr = nil
-		rr.DSCI = dsci.DeepCopy()
 
 		// Execute actions
 		for _, action := range r.Actions {
