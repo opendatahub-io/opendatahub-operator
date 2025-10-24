@@ -68,6 +68,8 @@ func (s *componentHandler) Init(platform common.Platform) error {
 
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 	switch dsc.Spec.Components.Kueue.ManagementState {
+	case operatorv1.Managed:
+		return true
 	case operatorv1.Unmanaged:
 		return true
 	default:
