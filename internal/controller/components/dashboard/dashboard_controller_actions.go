@@ -1,3 +1,4 @@
+// +kubebuilder:skip
 package dashboard
 
 import (
@@ -25,7 +26,6 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/validation"
@@ -34,7 +34,8 @@ import (
 type DashboardHardwareProfile struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              DashboardHardwareProfileSpec `json:"spec"`
+
+	Spec DashboardHardwareProfileSpec `json:"spec"`
 }
 
 type DashboardHardwareProfileSpec struct {
@@ -49,7 +50,8 @@ type DashboardHardwareProfileSpec struct {
 type DashboardHardwareProfileList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []DashboardHardwareProfile `json:"items"`
+
+	Items []DashboardHardwareProfile `json:"items"`
 }
 
 func Initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -73,46 +75,8 @@ func Initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-func DevFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	dashboard, ok := rr.Instance.(*componentApi.Dashboard)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.Dashboard", rr.Instance)
-	}
-
-	if dashboard.Spec.DevFlags == nil {
-		return nil
-	}
-	// Implement devflags support logic
-	// If dev flags are set, update default manifests path
-	if len(dashboard.Spec.DevFlags.Manifests) != 0 {
-		manifestConfig := dashboard.Spec.DevFlags.Manifests[0]
-		if err := odhdeploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
-			return err
-		}
-		if manifestConfig.SourcePath != "" {
-			rr.Manifests[0].Path = odhdeploy.DefaultManifestPath
-			rr.Manifests[0].ContextDir = ComponentName
-			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
-		}
-	}
-
-	return nil
-}
-
-func CustomizeResources(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	for i := range rr.Resources {
-		if rr.Resources[i].GroupVersionKind() == gvk.OdhDashboardConfig {
-			// mark the resource as not supposed to be managed by the operator
-			resources.SetAnnotation(&rr.Resources[i], annotations.ManagedByODHOperator, "false")
-			break
-		}
-	}
-
-	return nil
-}
-
-func SetKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	extraParamsMap, err := ComputeKustomizeVariable(ctx, rr.Client, rr.Release.Name, &rr.DSCI.Spec)
+func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name)
 	if err != nil {
 		return fmt.Errorf("failed to set variable for url, section-title etc: %w", err)
 	}

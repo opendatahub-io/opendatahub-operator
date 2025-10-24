@@ -22,11 +22,6 @@ func AddOperatorFlagsAndEnvvars(envvarPrefix string) error {
 	if err := viper.BindEnv("leader-elect", envvarPrefix+"_LEADER_ELECT"); err != nil {
 		return err
 	}
-	pflag.String("dsc-monitoring-namespace", "opendatahub", "The namespace where data science cluster "+
-		"monitoring stack will be deployed")
-	if err := viper.BindEnv("dsc-monitoring-namespace", envvarPrefix+"_DSC_MONITORING_NAMESPACE"); err != nil {
-		return err
-	}
 	pflag.String("log-mode", "", "Log mode ('', prod, devel), default to ''")
 	if err := viper.BindEnv("log-mode", envvarPrefix+"_LOG_MODE"); err != nil {
 		return err

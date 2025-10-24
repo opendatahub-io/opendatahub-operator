@@ -29,7 +29,8 @@ var (
 		"guardrails-orchestrator-image":      "RELATED_IMAGE_ODH_FMS_GUARDRAILS_ORCHESTRATOR_IMAGE",
 		"guardrails-sidecar-gateway-image":   "RELATED_IMAGE_ODH_TRUSTYAI_VLLM_ORCHESTRATOR_GATEWAY_IMAGE",
 		"guardrails-built-in-detector-image": "RELATED_IMAGE_ODH_BUILT_IN_DETECTOR_IMAGE",
-		"oauthProxyImage":                    "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
+		"ragas-provider-image":               "RELATED_IMAGE_ODH_TRUSTYAI_RAGAS_LLS_PROVIDER_DSP_IMAGE",
+		"kube-rbac-proxy":                    "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
 
 	overlaysSourcePaths = map[common.Platform]string{

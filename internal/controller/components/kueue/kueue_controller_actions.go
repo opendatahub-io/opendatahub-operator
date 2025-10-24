@@ -13,12 +13,10 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -27,36 +25,16 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 		return fmt.Errorf("resource instance %v is not a componentApi.Kueue)", rr.Instance)
 	}
 
-	rConfig, err := cluster.HasCRD(ctx, rr.Client, gvk.MultiKueueConfigV1Alpha1)
-	if err != nil {
-		return odherrors.NewStopError("failed to check %s CRDs version: %w", gvk.MultiKueueConfigV1Alpha1, err)
-	}
-
-	rCluster, err := cluster.HasCRD(ctx, rr.Client, gvk.MultikueueClusterV1Alpha1)
-	if err != nil {
-		return odherrors.NewStopError("failed to check %s CRDs version: %w", gvk.MultikueueClusterV1Alpha1, err)
-	}
-
-	if rConfig || rCluster {
-		return odherrors.NewStopError(status.MultiKueueCRDMessage)
-	}
-
 	switch kueueCRInstance.Spec.ManagementState {
 	case operatorv1.Managed:
-		if found, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator); err != nil || found {
-			if err != nil {
-				return odherrors.NewStopErrorW(err)
-			}
-
-			return odherrors.NewStopErrorW(ErrKueueOperatorAlreadyInstalled)
-		}
+		return ErrKueueStateManagedNotSupported
 	case operatorv1.Unmanaged:
 		if found, err := cluster.OperatorExists(ctx, rr.Client, kueueOperator); err != nil || !found {
 			if err != nil {
 				return odherrors.NewStopErrorW(err)
 			}
 
-			return odherrors.NewStopErrorW(ErrKueueOperatorNotInstalled)
+			return ErrKueueOperatorNotInstalled
 		}
 	default:
 		return nil
@@ -66,42 +44,9 @@ func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 }
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	kueueCRInstance, ok := rr.Instance.(*componentApi.Kueue)
+	_, ok := rr.Instance.(*componentApi.Kueue)
 	if !ok {
 		return fmt.Errorf("resource instance %v is not a componentApi.Kueue)", rr.Instance)
-	}
-
-	if kueueCRInstance.Spec.ManagementState == operatorv1.Managed {
-		rr.Manifests = append(rr.Manifests, manifestsPath())
-	}
-	rr.Manifests = append(rr.Manifests, kueueConfigManifestsPath())
-
-	return nil
-}
-
-func devFlags(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	kueue, ok := rr.Instance.(*componentApi.Kueue)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.Kueue)", rr.Instance)
-	}
-
-	if kueue.Spec.DevFlags == nil {
-		return nil
-	}
-
-	// Implement devflags support logic
-	// If dev flags are set, update default manifests path
-	if len(kueue.Spec.DevFlags.Manifests) != 0 {
-		manifestConfig := kueue.Spec.DevFlags.Manifests[0]
-		if err := odhdeploy.DownloadManifests(ctx, ComponentName, manifestConfig); err != nil {
-			return err
-		}
-
-		if manifestConfig.SourcePath != "" {
-			rr.Manifests[0].Path = odhdeploy.DefaultManifestPath
-			rr.Manifests[0].ContextDir = ComponentName
-			rr.Manifests[0].SourcePath = manifestConfig.SourcePath
-		}
 	}
 
 	return nil
@@ -188,12 +133,12 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 		return fmt.Errorf("resource instance %v is not a componentApi.Kueue)", rr.Instance)
 	}
 
-	// Only proceed if Kueue is in Managed or Unmanaged state.
+	// Don't proceed if kueue is in Removed state.
 	if kueueCRInstance.Spec.ManagementState == operatorv1.Removed {
 		return nil
 	}
 
-	// In Unmanaged case create HBoK Kueue CR 'default'.
+	// In Unmanaged case create RHBoK Kueue CR 'default'.
 	if kueueCRInstance.Spec.ManagementState == operatorv1.Unmanaged {
 		defaultKueueConfig, err := createKueueCR(ctx, rr)
 		if err != nil {
@@ -216,7 +161,7 @@ func manageDefaultKueueResourcesAction(ctx context.Context, rr *odhtypes.Reconci
 	clusterQueue := createDefaultClusterQueue(kueueCRInstance.Spec.DefaultClusterQueueName, clusterInfo)
 	rr.Resources = append(rr.Resources, *clusterQueue)
 
-	// Get all managed namespaces (i.e. the one opterd in with the addition of the proper labels).
+	// Get all managed namespaces (i.e. the one opted in with the addition of the proper labels).
 	managedNamespaces, err := getManagedNamespaces(ctx, rr.Client)
 	if err != nil {
 		return fmt.Errorf("failed to get managed namespaces: %w", err)

@@ -62,7 +62,7 @@ spec:
               local access_token = request_handle:headers():get("x-auth-request-access-token")
               if access_token then
                 request_handle:headers():add("x-forwarded-access-token", access_token)
-                request_handle:headers():add("authorization", "Bearer " .. access_token)
+                request_handle:headers():replace("authorization", "Bearer " .. access_token)
               end
             end
   - applyTo: CLUSTER

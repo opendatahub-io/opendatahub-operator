@@ -56,8 +56,9 @@ spec:
                 description: Alerting configuration for Prometheus
                 type: object
               collectorReplicas:
-                description: CollectorReplicas specifies the number of replicas in
-                  opentelemetry-collector, default is 2 if not set
+                description: |-
+                  CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults
+                  to 1 on single-node clusters and 2 on multi-node clusters.
                 format: int32
                 type: integer
               metrics:
@@ -65,11 +66,14 @@ spec:
                 properties:
                   exporters:
                     additionalProperties:
-                      type: string
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
                     description: |-
                       Exporters defines custom metrics exporters for sending metrics to external observability tools.
-                      Each key-value pair represents an exporter name and its configuration.
+                      Each key represents the exporter name, and the value contains the exporter configuration.
+                      The configuration follows the OpenTelemetry Collector exporter format.
                       Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.
+                      Maximum 10 exporters allowed, each config must be less than 10KB (enforced at reconciliation time).
                     type: object
                     x-kubernetes-validations:
                     - message: exporter name 'prometheus' is reserved and cannot be
@@ -78,8 +82,8 @@ spec:
                     - message: exporter name 'otlp/tempo' is reserved and cannot be
                         used
                       rule: '!(''otlp/tempo'' in self)'
-                    - message: exporter configuration values must be non-empty strings
-                      rule: self.all(k, self[k] != '')
+                    - message: maximum 10 exporters allowed
+                      rule: size(self) <= 10
                   replicas:
                     description: |-
                       Replicas specifies the number of replicas in monitoringstack. If not set, it defaults

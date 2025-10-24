@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/resourcecacher"
@@ -21,6 +20,7 @@ import (
 
 type testCacher struct {
 	mock.Mock
+
 	cacher    *resourcecacher.ResourceCacher
 	rr        *types.ReconciliationRequest
 	ctx       context.Context //nolint:containedctx
@@ -61,16 +61,6 @@ func (s *testCacher) resetGenerated() {
 
 func (s *testCacher) setResources(r []unstructured.Unstructured) {
 	s.rr.Resources = r
-}
-
-func (s *testCacher) setDevFlags(f *common.DevFlags) {
-	d := s.rr.Instance.(*componentApi.Dashboard) //nolint:errcheck,forcetypeassert
-	d.Spec.DevFlags = f
-}
-
-func (s *testCacher) GetDevFlags() common.DevFlags {
-	args := s.Called()
-	return args.Get(0).(common.DevFlags) //nolint:errcheck,forcetypeassert
 }
 
 func (s *testCacher) hash(rr *types.ReconciliationRequest) ([]byte, error) {
@@ -195,25 +185,6 @@ func TestCacherShouldErrorIfRenderError(t *testing.T) {
 	m.AssertExpectations(t)
 }
 
-func TestCacherShouldRenderIfDevFlags(t *testing.T) {
-	g := NewWithT(t)
-	m := newTestCacher()
-	devFlags := common.DevFlags{}
-
-	m.On("hash", m.rr).Return(newHash(), nil).Twice()
-	m.On("render", m.ctx, m.rr).Return(m.r, nil).Twice()
-
-	m.setDevFlags(&devFlags)
-	_ = m.cacher.Render(m.ctx, m.rr, m.render)
-	m.resetGenerated()
-	err := m.cacher.Render(m.ctx, m.rr, m.render)
-
-	g.Expect(err).ShouldNot(HaveOccurred())
-	g.Expect(m.rr.Resources).Should(BeEquivalentTo(m.doubleRes))
-	g.Expect(m.rr.Generated).Should(BeTrue())
-
-	m.AssertExpectations(t)
-}
 func TestCacherShouldAddResources(t *testing.T) {
 	g := NewWithT(t)
 	m := newTestCacher()

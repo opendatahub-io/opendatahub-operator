@@ -26,8 +26,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
@@ -39,7 +39,7 @@ import (
 func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	componentsPredicate := dependent.New(dependent.WithWatchStatus(true))
 
-	_, err := reconciler.ReconcilerFor(mgr, &dscv1.DataScienceCluster{}).
+	_, err := reconciler.ReconcilerFor(mgr, &dscv2.DataScienceCluster{}).
 		Owns(&componentApi.Dashboard{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Workbenches{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Ray{}, reconciler.WithPredicates(componentsPredicate)).
@@ -49,12 +49,11 @@ func NewDataScienceClusterReconciler(ctx context.Context, mgr ctrl.Manager) erro
 		Owns(&componentApi.TrainingOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.DataSciencePipelines{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.Kserve{}, reconciler.WithPredicates(componentsPredicate)).
-		Owns(&componentApi.ModelMeshServing{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.ModelController{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.FeastOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Owns(&componentApi.LlamaStackOperator{}, reconciler.WithPredicates(componentsPredicate)).
 		Watches(
-			&dsciv1.DSCInitialization{},
+			&dsciv2.DSCInitialization{},
 			reconciler.WithEventMapper(func(ctx context.Context, _ client.Object) []reconcile.Request {
 				return watchDataScienceClusters(ctx, mgr.GetClient())
 			})).

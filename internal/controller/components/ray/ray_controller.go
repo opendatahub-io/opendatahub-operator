@@ -65,7 +65,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		WatchesGVK(gvk.CodeFlare, reconciler.Dynamic(reconciler.CrdExists(gvk.CodeFlare))).
 		WithAction(sanitycheck.NewAction(sanitycheck.WithUnwantedResource(gvk.CodeFlare, status.CodeFlarePresentMessage))).
 		WithAction(initialize).
-		WithAction(devFlags).
 		WithAction(releases.NewAction()).
 		WithAction(kustomize.NewAction(
 			kustomize.WithLabel(labels.ODH.Component(LegacyComponentName), labels.True),

@@ -12,7 +12,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -52,7 +52,7 @@ func (s *ComponentHandler) Init(platform common.Platform) error {
 	return nil
 }
 
-func (s *ComponentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject {
+func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
 	return &componentApi.Dashboard{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       componentApi.DashboardKind,
@@ -70,7 +70,7 @@ func (s *ComponentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.Pla
 	}
 }
 
-func (s *ComponentHandler) IsEnabled(dsc *dscv1.DataScienceCluster) bool {
+func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 	return dsc.Spec.Components.Dashboard.ManagementState == operatorv1.Managed
 }
 
@@ -85,7 +85,7 @@ func (s *ComponentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 		return cs, errors.New("DSCI is nil")
 	}
 
-	dsc, ok := rr.Instance.(*dscv1.DataScienceCluster)
+	dsc, ok := rr.Instance.(*dscv2.DataScienceCluster)
 	if !ok {
 		return cs, errors.New("failed to convert to DataScienceCluster")
 	}
@@ -98,37 +98,14 @@ func (s *ComponentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 	ms := components.NormalizeManagementState(dsc.Spec.Components.Dashboard.ManagementState)
 	s.updateDSCStatusFields(dsc, ms)
 
-	rr.Conditions.MarkFalse(ReadyConditionType)
-
-	if s.IsEnabled(dsc) && dashboardCRExists {
-		return s.handleEnabledDashboard(dsc, c, rr)
-	}
-
-	return s.handleDisabledDashboard(ms, rr)
-}
-
-func (s *ComponentHandler) getDashboardCR(ctx context.Context, rr *types.ReconciliationRequest) (bool, componentApi.Dashboard, error) {
-	c := componentApi.Dashboard{}
-	c.Name = componentApi.DashboardInstanceName
-
-	if err := rr.Client.Get(ctx, client.ObjectKey{Name: c.Name, Namespace: rr.DSCI.Spec.ApplicationsNamespace}, &c); err != nil {
-		if k8serr.IsNotFound(err) {
-			return false, c, nil
-		}
-		return false, c, fmt.Errorf("failed to get Dashboard CR: %w", err)
-	}
-	return true, c, nil
-}
-
-func (s *ComponentHandler) updateDSCStatusFields(dsc *dscv1.DataScienceCluster, ms operatorv1.ManagementState) {
-	dsc.Status.InstalledComponents[LegacyComponentNameUpstream] = false
 	dsc.Status.Components.Dashboard.ManagementState = ms
 	dsc.Status.Components.Dashboard.DashboardCommonStatus = nil
 }
 
-func (s *ComponentHandler) handleEnabledDashboard(dsc *dscv1.DataScienceCluster, c componentApi.Dashboard, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
-	dsc.Status.InstalledComponents[LegacyComponentNameUpstream] = true
-	dsc.Status.Components.Dashboard.DashboardCommonStatus = c.Status.DashboardCommonStatus.DeepCopy()
+	rr.Conditions.MarkFalse(ReadyConditionType)
+
+	if s.IsEnabled(dsc) {
+		dsc.Status.Components.Dashboard.DashboardCommonStatus = c.Status.DashboardCommonStatus.DeepCopy()
 
 	if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
 		rr.Conditions.MarkFrom(ReadyConditionType, *rc)

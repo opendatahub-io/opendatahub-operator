@@ -12,13 +12,14 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -29,8 +30,11 @@ import (
 
 // Namespace and Operator Constants.
 const (
-	// Namespaces for various components.
-	knativeServingNamespace = "knative-serving" // Namespace for Knative Serving components
+
+	// Component API field name constants for v1 <-> v2 conversion.
+	dataSciencePipelinesKind          = "DataSciencePipelines" // Kind name for DataSciencePipelines component
+	dataSciencePipelinesComponentName = "datasciencepipelines" // v1 API component name for DataSciencePipelines
+	aiPipelinesFieldName              = "aipipelines"          // v2 API field name for DataSciencePipelines component
 
 	// Test timing constants.
 	// controllerCacheRefreshDelay is the time to wait for controller-runtime
@@ -39,27 +43,22 @@ const (
 	controllerCacheRefreshDelay = 5 * time.Second
 
 	// Operators constants.
-	defaultOperatorChannel       = "stable"                           // The default channel to install/check operators
-	serviceMeshOpName            = "servicemeshoperator"              // Name of the Service Mesh Operator
-	serverlessOpName             = "serverless-operator"              // Name of the Serverless Operator
-	authorinoOpName              = "authorino-operator"               // Name of the Serverless Operator
-	kueueOpName                  = "kueue-operator"                   // Name of the Kueue Operator
-	telemetryOpName              = "opentelemetry-product"            // Name of the Telemetry Operator
-	openshiftOperatorsNamespace  = "openshift-operators"              // Namespace for OpenShift Operators
-	serverlessOperatorNamespace  = "openshift-serverless"             // Namespace for the Serverless Operator
-	telemetryOpNamespace         = "openshift-opentelemetry-operator" // Namespace for the Telemetry Operator
-	serviceMeshControlPlane      = "data-science-smcp"                // Service Mesh control plane name
-	serviceMeshNamespace         = "istio-system"                     // Namespace for Istio Service Mesh control plane
-	serviceMeshMetricsCollection = "Istio"                            // Metrics collection for Service Mesh (e.g., Istio)
-	serviceMeshMemberName        = "default"
-	observabilityOpName          = "cluster-observability-operator"           // Name of the Cluster Observability Operator
-	observabilityOpNamespace     = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
-	tempoOpName                  = "tempo-product"                            // Name of the Tempo Operator
-	tempoOpNamespace             = "openshift-tempo-operator"                 // Namespace for the Tempo Operator
-	opentelemetryOpName          = "opentelemetry-product"                    // Name of the OpenTelemetry Operator
-	opentelemetryOpNamespace     = "openshift-opentelemetry-operator"         // Namespace for the OpenTelemetry Operator
-	controllerDeploymentODH      = "opendatahub-operator-controller-manager"  // Name of the ODH deployment
-	controllerDeploymentRhoai    = "rhods-operator"                           // Name of the Rhoai deployment
+	defaultOperatorChannel      = "stable"                                   // The default channel to install/check operators
+	kueueOpName                 = "kueue-operator"                           // Name of the Kueue Operator
+	certManagerOpName           = "openshift-cert-manager-operator"          // Name of the cert-manager Operator
+	certManagerOpNamespace      = "cert-manager-operator"                    // Name of the cert-manager Namespace
+	certManagerOpChannel        = "stable-v1"                                // Name of cert-manager operator stable channel
+	telemetryOpName             = "opentelemetry-product"                    // Name of the Telemetry Operator
+	openshiftOperatorsNamespace = "openshift-operators"                      // Namespace for OpenShift Operators
+	telemetryOpNamespace        = "openshift-opentelemetry-operator"         // Namespace for the Telemetry Operator
+	observabilityOpName         = "cluster-observability-operator"           // Name of the Cluster Observability Operator
+	observabilityOpNamespace    = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
+	tempoOpName                 = "tempo-product"                            // Name of the Tempo Operator
+	tempoOpNamespace            = "openshift-tempo-operator"                 // Namespace for the Tempo Operator
+	opentelemetryOpName         = "opentelemetry-product"                    // Name of the OpenTelemetry Operator
+	opentelemetryOpNamespace    = "openshift-opentelemetry-operator"         // Namespace for the OpenTelemetry Operator
+	controllerDeploymentODH     = "opendatahub-operator-controller-manager"  // Name of the ODH deployment
+	controllerDeploymentRhoai   = "rhods-operator"                           // Name of the Rhoai deployment
 )
 
 // Configuration and Miscellaneous Constants.
@@ -148,16 +147,16 @@ func ExtractAndExpectValue[T any](g Gomega, in any, expression string, matchers 
 }
 
 // CreateDSCI creates a DSCInitialization CR.
-func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv1.DSCInitialization {
-	return &dsciv1.DSCInitialization{
+func CreateDSCI(name, groupVersion string, appNamespace, monitoringNamespace string) *dsciv2.DSCInitialization {
+	return &dsciv2.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DSCInitialization",
-			APIVersion: dsciv1.GroupVersion.String(),
+			APIVersion: groupVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: dsciv1.DSCInitializationSpec{
+		Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: appNamespace,
 			Monitoring: serviceApi.DSCIMonitoring{
 				ManagementSpec: common.ManagementSpec{
@@ -167,34 +166,26 @@ func CreateDSCI(name, appNamespace, monitoringNamespace string) *dsciv1.DSCIniti
 					Namespace: monitoringNamespace,
 				},
 			},
-			TrustedCABundle: &dsciv1.TrustedCABundleSpec{
+			TrustedCABundle: &dsciv2.TrustedCABundleSpec{
 				ManagementState: operatorv1.Managed,
 				CustomCABundle:  "",
-			},
-			ServiceMesh: &infrav1.ServiceMeshSpec{
-				ManagementState: operatorv1.Managed,
-				ControlPlane: infrav1.ControlPlaneSpec{
-					Name:              serviceMeshControlPlane,
-					Namespace:         serviceMeshNamespace,
-					MetricsCollection: serviceMeshMetricsCollection,
-				},
 			},
 		},
 	}
 }
 
 // CreateDSC creates a DataScienceCluster CR.
-func CreateDSC(name string) *dscv1.DataScienceCluster {
-	return &dscv1.DataScienceCluster{
+func CreateDSC(name string) *dscv2.DataScienceCluster {
+	return &dscv2.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
-			APIVersion: dscv1.GroupVersion.String(),
+			APIVersion: dscv2.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: dscv1.DataScienceClusterSpec{
-			Components: dscv1.Components{
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
 				// keep dashboard as enabled, because other test is rely on this
 				Dashboard: componentApi.DSCDashboard{
 					ManagementSpec: common.ManagementSpec{
@@ -206,12 +197,7 @@ func CreateDSC(name string) *dscv1.DataScienceCluster {
 						ManagementState: operatorv1.Removed,
 					},
 				},
-				ModelMeshServing: componentApi.DSCModelMeshServing{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
-				},
-				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
+				AIPipelines: componentApi.DSCDataSciencePipelines{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
@@ -220,23 +206,7 @@ func CreateDSC(name string) *dscv1.DataScienceCluster {
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
-					KserveCommonSpec: componentApi.KserveCommonSpec{
-						DefaultDeploymentMode: componentApi.Serverless,
-						Serving: infrav1.ServingSpec{
-							ManagementState: operatorv1.Managed,
-							Name:            knativeServingNamespace,
-							IngressGateway: infrav1.GatewaySpec{
-								Certificate: infrav1.CertificateSpec{
-									Type: infrav1.OpenshiftDefaultIngress,
-								},
-							},
-						},
-					},
-				},
-				CodeFlare: componentApi.DSCCodeFlare{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
-					},
+					KserveCommonSpec: componentApi.KserveCommonSpec{},
 				},
 				Ray: componentApi.DSCRay{
 					ManagementSpec: common.ManagementSpec{
@@ -281,6 +251,138 @@ func CreateDSC(name string) *dscv1.DataScienceCluster {
 	}
 }
 
+func CreateDSCv1(name string) *dscv1.DataScienceCluster {
+	return &dscv1.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DataScienceCluster",
+			APIVersion: dscv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: dscv1.DataScienceClusterSpec{
+			Components: dscv1.Components{
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Workbenches: componentApi.DSCWorkbenches{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				ModelMeshServing: componentApi.DSCModelMeshServing{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				DataSciencePipelines: componentApi.DSCDataSciencePipelines{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Kserve: componentApi.DSCKserve{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+					KserveCommonSpec: componentApi.KserveCommonSpec{},
+				},
+				CodeFlare: componentApi.DSCCodeFlare{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Ray: componentApi.DSCRay{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				TrustyAI: componentApi.DSCTrustyAI{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				ModelRegistry: componentApi.DSCModelRegistry{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+					ModelRegistryCommonSpec: componentApi.ModelRegistryCommonSpec{
+						RegistriesNamespace: modelregistryctrl.DefaultModelRegistriesNamespace,
+					},
+				},
+				TrainingOperator: componentApi.DSCTrainingOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				FeastOperator: componentApi.DSCFeastOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Kueue: dscv1.DSCKueueV1{
+					KueueManagementSpecV1: dscv1.KueueManagementSpecV1{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+			},
+		},
+	}
+}
+
+func CreateHardwareProfile(name, namespace, apiVersion string) *unstructured.Unstructured {
+	minCount := intstr.FromInt32(1)
+	maxCount := intstr.FromInt32(4)
+	defaultCount := intstr.FromInt32(2)
+
+	hwProfile := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": apiVersion,
+			"kind":       "HardwareProfile",
+			"metadata": map[string]interface{}{
+				"name":      name,
+				"namespace": namespace,
+			},
+			"spec": map[string]interface{}{
+				"identifiers": []map[string]interface{}{
+					{
+						"displayName":  "GPU",
+						"identifier":   "nvidia.com/gpu",
+						"minCount":     minCount.IntVal,
+						"maxCount":     maxCount.IntVal,
+						"defaultCount": defaultCount.IntVal,
+						"resourceType": "Accelerator",
+					},
+				},
+				"scheduling": map[string]interface{}{
+					"type": "Node",
+					"node": map[string]interface{}{
+						"nodeSelector": map[string]interface{}{
+							"kubernetes.io/arch":             "amd64",
+							"node-role.kubernetes.io/worker": "",
+						},
+						"tolerations": []map[string]interface{}{
+							{
+								"key":      "nvidia.com/gpu",
+								"operator": "Exists",
+								"effect":   "NoSchedule",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return hwProfile
+}
+
 // CreateNamespaceWithLabels creates a namespace manifest with optional labels for use with WithObjectToCreate.
 func CreateNamespaceWithLabels(name string, labels map[string]string) *corev1.Namespace {
 	ns := &corev1.Namespace{
@@ -320,22 +422,13 @@ func ParseTestFlags() error {
 	return flag.CommandLine.Parse(testFlags)
 }
 
-// getOperatorSelector returns selector based on platform.
-func (tc *TestContext) getOperatorPodSelector() labels.Selector {
-	platform := tc.FetchPlatformRelease()
-	switch platform {
-	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
-		return labels.SelectorFromSet(labels.Set{"name": "rhods-operator"})
-	case cluster.OpenDataHub:
-		return labels.SelectorFromSet(labels.Set{"control-plane": "controller-manager"})
-	default:
-		return labels.SelectorFromSet(labels.Set{"control-plane": "controller-manager"})
-	}
-}
-
 // getControllerDeploymentName returns deployment name based on platform.
 func (tc *TestContext) getControllerDeploymentName() string {
 	platform := tc.FetchPlatformRelease()
+	return getControllerDeploymentNameByPlatform(platform)
+}
+
+func getControllerDeploymentNameByPlatform(platform common.Platform) string {
 	switch platform {
 	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
 		return controllerDeploymentRhoai

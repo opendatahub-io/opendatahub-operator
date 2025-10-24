@@ -5,27 +5,20 @@ metadata:
     alm-examples: |-
       [
         {
-          "apiVersion": "datasciencecluster.opendatahub.io/v1",
+          "apiVersion": "datasciencecluster.opendatahub.io/v2",
           "kind": "DataScienceCluster",
           "metadata": {
             "labels": {
-              "app.kubernetes.io/created-by": "opendatahub-operator",
-              "app.kubernetes.io/instance": "default",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "datasciencecluster",
-              "app.kubernetes.io/part-of": "opendatahub-operator"
+              "app.kubernetes.io/name": "datasciencecluster"
             },
             "name": "default-dsc"
           },
           "spec": {
             "components": {
-              "codeflare": {
+              "aipipelines": {
                 "managementState": "Managed"
               },
               "dashboard": {
-                "managementState": "Managed"
-              },
-              "datasciencepipelines": {
                 "managementState": "Managed"
               },
               "feastoperator": {
@@ -36,25 +29,13 @@ metadata:
                 "nim": {
                   "managementState": "Managed"
                 },
-                "rawDeploymentServiceConfig": "Headed",
-                "serving": {
-                  "ingressGateway": {
-                    "certificate": {
-                      "type": "OpenshiftDefaultIngress"
-                    }
-                  },
-                  "managementState": "Unmanaged",
-                  "name": "knative-serving"
-                }
+                "rawDeploymentServiceConfig": "Headed"
               },
               "kueue": {
-                "managementState": "Managed"
+                "managementState": "Removed"
               },
               "llamastackoperator": {
                 "managementState": "Removed"
-              },
-              "modelmeshserving": {
-                "managementState": "Managed"
               },
               "modelregistry": {
                 "managementState": "Managed",
@@ -76,15 +57,11 @@ metadata:
           }
         },
         {
-          "apiVersion": "dscinitialization.opendatahub.io/v1",
+          "apiVersion": "dscinitialization.opendatahub.io/v2",
           "kind": "DSCInitialization",
           "metadata": {
             "labels": {
-              "app.kubernetes.io/created-by": "opendatahub-operator",
-              "app.kubernetes.io/instance": "default",
-              "app.kubernetes.io/managed-by": "kustomize",
-              "app.kubernetes.io/name": "dscinitialization",
-              "app.kubernetes.io/part-of": "opendatahub-operator"
+              "app.kubernetes.io/name": "dscinitialization"
             },
             "name": "default-dsci"
           },
@@ -94,14 +71,6 @@ metadata:
               "managementState": "Managed",
               "metrics": {},
               "namespace": "opendatahub"
-            },
-            "serviceMesh": {
-              "controlPlane": {
-                "metricsCollection": "Istio",
-                "name": "data-science-smcp",
-                "namespace": "istio-system"
-              },
-              "managementState": "Unmanaged"
             },
             "trustedCABundle": {
               "customCABundle": "",
@@ -114,18 +83,16 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.0.0
-    createdAt: "2025-09-25T15:33:43Z"
+    createdAt: "2025-10-23T10:24:07Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
-      "codeflares.components.platform.opendatahub.io", "dashboards.components.platform.opendatahub.io",
-      "datasciencepipelines.components.platform.opendatahub.io", "kserves.components.platform.opendatahub.io",
-      "kueues.components.platform.opendatahub.io", "modelmeshservings.components.platform.opendatahub.io",
+      "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
+      "kserves.components.platform.opendatahub.io", "kueues.components.platform.opendatahub.io",
       "modelregistries.components.platform.opendatahub.io", "rays.components.platform.opendatahub.io",
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
       "workbenches.components.platform.opendatahub.io", "gatewayconfigs.services.platform.opendatahub.io",
-      "monitorings.services.platform.opendatahub.io", "servicemeshes.services.platform.opendatahub.io",
-      "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
-      "llamastackoperators.components.platform.opendatahub.io"]'
+      "monitorings.services.platform.opendatahub.io", "modelcontrollers.components.platform.opendatahub.io",
+      "feastoperators.components.platform.opendatahub.io", "llamastackoperators.components.platform.opendatahub.io"]'
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/opendatahub-io/opendatahub-operator
   name: opendatahub-operator.v3.0.0
@@ -139,11 +106,6 @@ spec:
       kind: Auth
       name: auths.services.platform.opendatahub.io
       version: v1alpha1
-    - description: CodeFlare is the Schema for the codeflares API
-      displayName: Code Flare
-      kind: CodeFlare
-      name: codeflares.components.platform.opendatahub.io
-      version: v1alpha1
     - description: Dashboard is the Schema for the dashboards API
       displayName: Dashboard
       kind: Dashboard
@@ -154,6 +116,11 @@ spec:
       kind: DataScienceCluster
       name: datascienceclusters.datasciencecluster.opendatahub.io
       version: v1
+    - description: DataScienceCluster is the Schema for the datascienceclusters API.
+      displayName: Data Science Cluster
+      kind: DataScienceCluster
+      name: datascienceclusters.datasciencecluster.opendatahub.io
+      version: v2
     - description: DataSciencePipelines is the Schema for the datasciencepipelines
         API
       displayName: Data Science Pipelines
@@ -165,6 +132,11 @@ spec:
       kind: DSCInitialization
       name: dscinitializations.dscinitialization.opendatahub.io
       version: v1
+    - description: DSCInitialization is the Schema for the dscinitializations API.
+      displayName: DSCInitialization
+      kind: DSCInitialization
+      name: dscinitializations.dscinitialization.opendatahub.io
+      version: v2
     - description: FeastOperator is the Schema for the FeastOperator API
       displayName: Feast Operator
       kind: FeastOperator
@@ -178,7 +150,9 @@ spec:
       kind: GatewayConfig
       name: gatewayconfigs.services.platform.opendatahub.io
       version: v1alpha1
-    - kind: HardwareProfile
+    - description: HardwareProfile is the Schema for the hardwareprofiles API.
+      displayName: Hardware Profile
+      kind: HardwareProfile
       name: hardwareprofiles.infrastructure.opendatahub.io
       version: v1
     - description: HardwareProfile is the Schema for the hardwareprofiles API.
@@ -204,11 +178,6 @@ spec:
     - kind: ModelController
       name: modelcontrollers.components.platform.opendatahub.io
       version: v1alpha1
-    - description: ModelMeshServing is the Schema for the modelmeshservings API
-      displayName: Model Mesh Serving
-      kind: ModelMeshServing
-      name: modelmeshservings.components.platform.opendatahub.io
-      version: v1alpha1
     - description: ModelRegistry is the Schema for the modelregistries API
       displayName: Model Registry
       kind: ModelRegistry
@@ -223,11 +192,6 @@ spec:
       displayName: Ray
       kind: Ray
       name: rays.components.platform.opendatahub.io
-      version: v1alpha1
-    - description: ServiceMesh is the Schema for the servicemesh API
-      displayName: Service Mesh
-      kind: ServiceMesh
-      name: servicemeshes.services.platform.opendatahub.io
       version: v1alpha1
     - description: TrainingOperator is the Schema for the trainingoperators API
       displayName: Training Operator
@@ -262,11 +226,11 @@ spec:
     Serving is the Controller for managing ModelMesh, a general-purpose model serving
     management/routing layer\n* Distributed Workloads(Incubation) - Stack built to
     make managing distributed compute infrastructure in the cloud easy and intuitive
-    for Data Scientists. This stack consists of three components \n                                      Codeflare
-    , KubeRay and Kueue.\n* Kserve - Kserve is the Controller for for serving machine
-    learning (ML) models on arbitrary frameworks\n* Feast - Feature Store is the fastest
-    path to manage existing infrastructure to productionize analytic data for model
-    training and online inference.\n* Llama Stack – unified open‑source APIs for inference,
+    for Data Scientists. This stack consists of two components\n                                      KubeRay
+    and Kueue.\n* Kserve - Kserve is the Controller for for serving machine learning
+    (ML) models on arbitrary frameworks\n* Feast - Feature Store is the fastest path
+    to manage existing infrastructure to productionize analytic data for model training
+    and online inference.\n* Llama Stack – unified open‑source APIs for inference,
     RAG, agents, safety, evals & telemetry"
   displayName: Open Data Hub Operator
   icon:
@@ -434,12 +398,6 @@ spec:
           - create
           - get
         - apiGroups:
-          - authorino.kuadrant.io
-          resources:
-          - authconfigs
-          verbs:
-          - '*'
-        - apiGroups:
           - authorization.k8s.io
           resources:
           - subjectaccessreviews
@@ -531,24 +489,6 @@ spec:
         - apiGroups:
           - components.platform.opendatahub.io
           resources:
-          - codeflares/finalizers
-          - datasciencepipelines/finalizers
-          - feastoperators/finalizers
-          - kserves/finalizers
-          - kueues/finalizers
-          - llamastackoperators/finalizers
-          - modelcontrollers/finalizers
-          - modelmeshservings/finalizers
-          - modelregistries/finalizers
-          - rays/finalizers
-          - trainingoperators/finalizers
-          - trustyais/finalizers
-          - workbenches/finalizers
-          verbs:
-          - update
-        - apiGroups:
-          - components.platform.opendatahub.io
-          resources:
           - codeflares/status
           verbs:
           - get
@@ -607,6 +547,23 @@ spec:
           verbs:
           - get
           - patch
+          - update
+        - apiGroups:
+          - components.platform.opendatahub.io
+          resources:
+          - datasciencepipelines/finalizers
+          - feastoperators/finalizers
+          - kserves/finalizers
+          - kueues/finalizers
+          - llamastackoperators/finalizers
+          - modelcontrollers/finalizers
+          - modelmeshservings/finalizers
+          - modelregistries/finalizers
+          - rays/finalizers
+          - trainingoperators/finalizers
+          - trustyais/finalizers
+          - workbenches/finalizers
+          verbs:
           - update
         - apiGroups:
           - config.openshift.io
@@ -899,6 +856,18 @@ spec:
           - update
           - watch
         - apiGroups:
+          - kubeflow.org
+          resources:
+          - notebooks
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
           - kueue.openshift.io
           resources:
           - kueues
@@ -947,33 +916,6 @@ spec:
           - seldondeployments
           verbs:
           - '*'
-        - apiGroups:
-          - maistra.io
-          resources:
-          - servicemeshcontrolplanes
-          - servicemeshmembers
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - use
-          - watch
-        - apiGroups:
-          - maistra.io
-          resources:
-          - servicemeshmemberrolls
-          - servicemeshmembers/finalizers
-          verbs:
-          - create
-          - get
-          - list
-          - patch
-          - update
-          - use
-          - watch
         - apiGroups:
           - metrics.k8s.io
           resources:
@@ -1096,14 +1038,6 @@ spec:
           resources:
           - destinationrules
           - envoyfilters
-          - gateways
-          - virtualservices
-          verbs:
-          - '*'
-        - apiGroups:
-          - networking.istio.io
-          resources:
-          - virtualservices/finalizers
           verbs:
           - create
           - delete
@@ -1112,15 +1046,6 @@ spec:
           - patch
           - update
           - watch
-        - apiGroups:
-          - networking.istio.io
-          resources:
-          - virtualservices/status
-          verbs:
-          - delete
-          - get
-          - patch
-          - update
         - apiGroups:
           - networking.k8s.io
           resources:
@@ -1183,26 +1108,6 @@ spec:
           resources:
           - instrumentations/status
           - opentelemetrycollectors/status
-          verbs:
-          - get
-          - patch
-          - update
-        - apiGroups:
-          - operator.authorino.kuadrant.io
-          resources:
-          - authorinos
-          verbs:
-          - '*'
-        - apiGroups:
-          - operator.knative.dev
-          resources:
-          - knativeservings
-          verbs:
-          - '*'
-        - apiGroups:
-          - operator.knative.dev
-          resources:
-          - knativeservings/finalizers
           verbs:
           - get
           - patch
@@ -1307,12 +1212,6 @@ spec:
           - update
           - watch
         - apiGroups:
-          - security.istio.io
-          resources:
-          - authorizationpolicies
-          verbs:
-          - '*'
-        - apiGroups:
           - security.openshift.io
           resources:
           - securitycontextconstraints
@@ -1338,8 +1237,8 @@ spec:
           - services.platform.opendatahub.io
           resources:
           - auths
+          - gatewayconfigs
           - monitorings
-          - servicemeshes
           verbs:
           - create
           - delete
@@ -1354,7 +1253,6 @@ spec:
           - auths/finalizers
           - gatewayconfigs/finalizers
           - monitorings/finalizers
-          - servicemeshes/finalizers
           verbs:
           - update
         - apiGroups:
@@ -1363,41 +1261,7 @@ spec:
           - auths/status
           - gatewayconfigs/status
           - monitorings/status
-          - servicemeshes/status
           verbs:
-          - get
-          - patch
-          - update
-        - apiGroups:
-          - services.platform.opendatahub.io
-          resources:
-          - gatewayconfigs
-          verbs:
-          - create
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - serving.knative.dev
-          resources:
-          - services
-          - services/finalizers
-          verbs:
-          - create
-          - delete
-          - get
-          - list
-          - patch
-          - update
-          - watch
-        - apiGroups:
-          - serving.knative.dev
-          resources:
-          - services/status
-          verbs:
-          - delete
           - get
           - patch
           - update
@@ -1568,6 +1432,8 @@ spec:
                   value: /opt/manifests
                 - name: ODH_PLATFORM_TYPE
                   value: OpenDataHub
+                - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
+                  value: quay.io/opendatahub/odh-kube-auth-proxy:latest
                 image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
@@ -1631,7 +1497,6 @@ spec:
   - serving
   - training
   - pipelines
-  - modelmesh
   - workbenches
   - dashboard
   - kserve
@@ -1647,17 +1512,33 @@ spec:
   - name: Open Data Hub Community
     url: https://github.com/opendatahub-io/opendatahub-community
   maintainers:
-  - email: opendatahub@redhat.com
+  - email: ai-core-platform@redhat.com
     name: Open Data Hub Maintainers
   maturity: stable
   minKubeVersion: 1.25.0
   provider:
     name: ODH
+  relatedImages:
+  - image: quay.io/opendatahub/odh-kube-auth-proxy:latest
+    name: odh-kube-auth-proxy-image
   selector:
     matchLabels:
       component: opendatahub-operator
   version: 3.0.0
   webhookdefinitions:
+  - admissionReviewVersions:
+    - v1
+    - v2
+    containerPort: 443
+    conversionCRDs:
+    - datascienceclusters.datasciencecluster.opendatahub.io
+    - dscinitializations.dscinitialization.opendatahub.io
+    deploymentName: opendatahub-operator-controller-manager
+    generateName: cdatascienceclustersdscinitializations.kb.io
+    sideEffects: None
+    targetPort: 9443
+    type: ConversionWebhook
+    webhookPath: /convert
   - admissionReviewVersions:
     - v1
     containerPort: 443
@@ -1683,6 +1564,26 @@ spec:
     containerPort: 443
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
+    generateName: connection-llmisvc.opendatahub.io
+    rules:
+    - apiGroups:
+      - serving.kserve.io
+      apiVersions:
+      - v1alpha1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - llminferenceservices
+    sideEffects: NoneOnDryRun
+    targetPort: 9443
+    type: MutatingAdmissionWebhook
+    webhookPath: /platform-connection-llmisvc
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
     generateName: connection-notebook.opendatahub.io
     rules:
     - apiGroups:
@@ -1703,7 +1604,48 @@ spec:
     containerPort: 443
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
-    generateName: datasciencecluster-defaulter.opendatahub.io
+    generateName: dashboard-acceleratorprofile-validator.opendatahub.io
+    rules:
+    - apiGroups:
+      - dashboard.opendatahub.io
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - acceleratorprofiles
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-dashboard-acceleratorprofile
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: dashboard-hardwareprofile-validator.opendatahub.io
+    rules:
+    - apiGroups:
+      - dashboard.opendatahub.io
+      apiVersions:
+      - v1alpha1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - hardwareprofiles
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-dashboard-hardwareprofile
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: datasciencecluster-v1-defaulter.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -1717,13 +1659,14 @@ spec:
     sideEffects: None
     targetPort: 9443
     type: MutatingAdmissionWebhook
-    webhookPath: /mutate-datasciencecluster
+    webhookPath: /mutate-datasciencecluster-v1
   - admissionReviewVersions:
     - v1
     containerPort: 443
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
-    generateName: datasciencecluster-validator.opendatahub.io
+    generateName: datasciencecluster-v1-validator.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - datasciencecluster.opendatahub.io
@@ -1731,18 +1674,61 @@ spec:
       - v1
       operations:
       - CREATE
+      - UPDATE
       resources:
       - datascienceclusters
     sideEffects: None
     targetPort: 9443
     type: ValidatingAdmissionWebhook
-    webhookPath: /validate-datasciencecluster
+    webhookPath: /validate-datasciencecluster-v1
   - admissionReviewVersions:
     - v1
     containerPort: 443
     deploymentName: opendatahub-operator-controller-manager
     failurePolicy: Fail
-    generateName: dscinitialization-validator.opendatahub.io
+    generateName: datasciencecluster-v2-defaulter.opendatahub.io
+    matchPolicy: Exact
+    rules:
+    - apiGroups:
+      - datasciencecluster.opendatahub.io
+      apiVersions:
+      - v2
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - datascienceclusters
+    sideEffects: None
+    targetPort: 9443
+    type: MutatingAdmissionWebhook
+    webhookPath: /mutate-datasciencecluster-v2
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: datasciencecluster-v2-validator.opendatahub.io
+    matchPolicy: Exact
+    rules:
+    - apiGroups:
+      - datasciencecluster.opendatahub.io
+      apiVersions:
+      - v2
+      operations:
+      - CREATE
+      resources:
+      - datascienceclusters
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-datasciencecluster-v2
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: dscinitialization-v1-validator.opendatahub.io
+    matchPolicy: Exact
     rules:
     - apiGroups:
       - dscinitialization.opendatahub.io
@@ -1756,7 +1742,28 @@ spec:
     sideEffects: None
     targetPort: 9443
     type: ValidatingAdmissionWebhook
-    webhookPath: /validate-dscinitialization
+    webhookPath: /validate-dscinitialization-v1
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: opendatahub-operator-controller-manager
+    failurePolicy: Fail
+    generateName: dscinitialization-v2-validator.opendatahub.io
+    matchPolicy: Exact
+    rules:
+    - apiGroups:
+      - dscinitialization.opendatahub.io
+      apiVersions:
+      - v2
+      operations:
+      - CREATE
+      - DELETE
+      resources:
+      - dscinitializations
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-dscinitialization-v2
   - admissionReviewVersions:
     - v1
     containerPort: 443

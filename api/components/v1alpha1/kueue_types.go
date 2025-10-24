@@ -57,9 +57,7 @@ type KueueSpec struct {
 	KueueDefaultQueueSpec `json:",inline"`
 }
 
-type KueueCommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
-}
+type KueueCommonSpec struct{}
 
 // KueueCommonStatus defines the shared observed state of Kueue
 type KueueCommonStatus struct {
@@ -82,10 +80,6 @@ type KueueList struct {
 
 func init() {
 	SchemeBuilder.Register(&Kueue{}, &KueueList{})
-}
-
-func (c *Kueue) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *Kueue) GetStatus() *common.Status {
@@ -111,17 +105,12 @@ func (c *Kueue) SetReleaseStatus(releases []common.ComponentRelease) {
 type KueueManagementSpec struct {
 	// Set to one of the following values:
 	//
-	// - "Managed"   : the operator is actively managing the component and trying to keep it active.
-	//                 It will only upgrade the component if it is safe to do so
-	//
-	//
-	// - "Unmanaged" : the operator is actively managing the component and trying to keep it active.
-	//                 It will only upgrade the component if it is safe to do so
+	// - "Unmanaged" : the operator will not deploy or manage the component's lifecycle, but may create supporting configuration resources.
 	//
 	// - "Removed"   : the operator is actively managing the component and will not install it,
 	//                 or if it is installed, the operator will try to remove it
 	//
-	// +kubebuilder:validation:Enum=Managed;Unmanaged;Removed
+	// +kubebuilder:validation:Enum=Unmanaged;Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
