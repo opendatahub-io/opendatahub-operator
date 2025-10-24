@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: cluster-monitor-rhods-reader
+  name: data-science-cluster-monitor-reader
   namespace: redhat-ods-monitoring
 roleRef:
   apiGroup: rbac.authorization.k8s.io
