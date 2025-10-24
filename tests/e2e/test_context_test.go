@@ -10,6 +10,7 @@ import (
 	"github.com/onsi/gomega/gstruct"
 	gTypes "github.com/onsi/gomega/types"
 	configv1 "github.com/openshift/api/config/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -742,6 +743,49 @@ func (tc *TestContext) EnsureCRDEstablished(name string) {
 				"Status": Equal(apiextv1.ConditionTrue),
 			}),
 		), "Expected CRD condition 'Established' to be True for CRD %s", name)
+}
+
+// UpdateComponentStateInDataScienceClusterWithKind updates the management state of a specified component kind in the DataScienceCluster.
+//
+// This function updates the component's management state in the DataScienceCluster and validates
+// that both the spec and status are updated correctly, including the component's Ready condition.
+//
+// Parameters:
+//   - state (operatorv1.ManagementState): The desired management state (e.g., Managed, Removed).
+//   - kind (string): The component kind (e.g., "Dashboard", "Workbenches").
+func (tc *TestContext) UpdateComponentStateInDataScienceClusterWithKind(state operatorv1.ManagementState, kind string) {
+	componentName := strings.ToLower(kind)
+
+	// Map DataSciencePipelines to aipipelines for v2 API
+	componentFieldName := componentName
+	conditionKind := kind
+	const dataSciencePipelinesKind = "DataSciencePipelines"
+	const aiPipelinesFieldName = "aipipelines"
+	if kind == dataSciencePipelinesKind {
+		componentFieldName = aiPipelinesFieldName
+		conditionKind = "AIPipelines"
+	}
+
+	readyCondition := metav1.ConditionFalse
+	if state == operatorv1.Managed {
+		readyCondition = metav1.ConditionTrue
+	}
+
+	// Define common conditions to match.
+	conditions := []gTypes.GomegaMatcher{
+		// Validate that the component's management state is updated correctly
+		jq.Match(`.spec.components.%s.managementState == "%s"`, componentFieldName, state),
+
+		// Validate the "Ready" condition for the component
+		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, conditionKind, readyCondition),
+	}
+
+	// Update the management state of the component in the DataScienceCluster.
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentFieldName, state)),
+		WithCondition(And(conditions...)),
+	)
 }
 
 // EnsureResourceIsUnique ensures that creating a second instance of a given resource fails.
