@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -13,7 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	modelregistryctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -55,8 +55,6 @@ func dscManagementTestSuite(t *testing.T) {
 		{"Ensure required operators are installed", dscTestCtx.ValidateOperatorsInstallation},
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
-		{"Validate ServiceMeshSpec in DSCInitialization instance", dscTestCtx.ValidateServiceMeshSpecInDSCI},
-		{"Validate Knative resource", dscTestCtx.ValidateKnativeSpecInDSC},
 		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
 		{"Validate owned namespaces exist", dscTestCtx.ValidateOwnedNamespacesAllExist},
 		{"Validate default NetworkPolicy exist", dscTestCtx.ValidateDefaultNetworkPolicyExists},
@@ -83,7 +81,7 @@ func dscManagementTestSuite(t *testing.T) {
 	RunTestCases(t, testCases)
 }
 
-// ValidateOperatorsInstallation ensures the Service Mesh and Serverless operators are installed.
+// ValidateOperatorsInstallation ensures the required operators are installed.
 func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	t.Helper()
 
@@ -91,14 +89,12 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	operators := []struct {
 		nn                types.NamespacedName
 		skipOperatorGroup bool
+		channel           string
 	}{
-		{nn: types.NamespacedName{Name: serviceMeshOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
-		{nn: types.NamespacedName{Name: serverlessOpName, Namespace: serverlessOperatorNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: authorinoOpName, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true},
-		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false},
-		{nn: types.NamespacedName{Name: opentelemetryOpName, Namespace: opentelemetryOpNamespace}, skipOperatorGroup: false},
+		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, channel: certManagerOpChannel},
+		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
 	}
 
 	// Create and run test cases in parallel.
@@ -108,7 +104,7 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
 			testFn: func(t *testing.T) {
 				t.Helper()
-				tc.EnsureOperatorInstalled(op.nn, op.skipOperatorGroup)
+				tc.EnsureOperatorInstalledWithChannel(op.nn, op.skipOperatorGroup, op.channel)
 			},
 		}
 	}
@@ -121,7 +117,7 @@ func (tc *DSCTestCtx) ValidateDSCICreation(t *testing.T) {
 	t.Helper()
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, tc.AppsNamespace, tc.MonitoringNamespace)),
+		WithObjectToCreate(CreateDSCI(tc.DSCInitializationNamespacedName.Name, dsciv2.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DSCInitialization resource %s", tc.DSCInitializationNamespacedName.Name),
 
@@ -162,65 +158,6 @@ func (tc *DSCTestCtx) validateSpecWithJQ(t *testing.T, expectedSpec interface{},
 		WithCustomErrorMsg(errorMsg),
 	)
 }
-
-// ValidateServiceMeshSpecInDSCI validates the ServiceMeshSpec within a DSCInitialization instance.
-func (tc *DSCTestCtx) ValidateServiceMeshSpecInDSCI(t *testing.T) {
-	t.Helper()
-
-	// expected ServiceMeshSpec.
-	expServiceMeshSpec := &infrav1.ServiceMeshSpec{
-		ManagementState: operatorv1.Managed,
-		ControlPlane: infrav1.ControlPlaneSpec{
-			Name:              serviceMeshControlPlane,
-			Namespace:         serviceMeshNamespace,
-			MetricsCollection: serviceMeshMetricsCollection,
-		},
-		Auth: infrav1.AuthSpec{
-			Audiences: []string{"https://kubernetes.default.svc"},
-		},
-	}
-
-	// Use the generic helper function to validate the spec.
-	tc.validateSpecWithJQ(
-		t,
-		expServiceMeshSpec,
-		`.spec.serviceMesh == %s`,
-		gvk.DSCInitialization,
-		tc.DSCInitializationNamespacedName,
-		"Error validating DSCInitialization instance: Service Mesh spec mismatch",
-	)
-
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)))
-}
-
-// ValidateKnativeSpecInDSC validates that the Kserve serving spec in the DataScienceCluster matches the expected spec.
-func (tc *DSCTestCtx) ValidateKnativeSpecInDSC(t *testing.T) {
-	t.Helper()
-
-	// expected ServingSpec
-	expServingSpec := &infrav1.ServingSpec{
-		ManagementState: operatorv1.Managed,
-		Name:            knativeServingNamespace,
-		IngressGateway: infrav1.GatewaySpec{
-			Certificate: infrav1.CertificateSpec{
-				Type: infrav1.OpenshiftDefaultIngress,
-			},
-		},
-	}
-
-	// Use the generic helper function to validate the spec.
-	tc.validateSpecWithJQ(
-		t,
-		expServingSpec,
-		`.spec.components.kserve.serving == %s`,
-		gvk.DataScienceCluster,
-		tc.DataScienceClusterNamespacedName,
-		"Error validating DataScienceCluster instance: Knative Serving spec mismatch",
-	)
-}
-
 // ValidateOwnedNamespacesAllExist verifies that the owned namespaces exist.
 func (tc *DSCTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
 	t.Helper()
@@ -256,16 +193,22 @@ func (tc *DSCTestCtx) ValidateDefaultNetworkPolicyExists(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCIDuplication(t *testing.T) {
 	t.Helper()
 
-	dup := CreateDSCI(dsciInstanceNameDuplicate, tc.AppsNamespace, tc.MonitoringNamespace)
-	tc.EnsureResourceIsUnique(dup)
+	dup := CreateDSCI(dsciInstanceNameDuplicate, dsciv2.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)
+	tc.EnsureResourceIsUnique(dup, "Error validating DSCInitialization duplication")
+
+	dup = CreateDSCI(dsciInstanceNameDuplicate, dsciv1.GroupVersion.String(), tc.AppsNamespace, tc.MonitoringNamespace)
+	tc.EnsureResourceIsUnique(dup, "Error validating DSCInitialization duplication v1")
 }
 
 // ValidateDSCDuplication ensures that no duplicate DataScienceCluster resource can be created.
 func (tc *DSCTestCtx) ValidateDSCDuplication(t *testing.T) {
 	t.Helper()
 
-	dup := CreateDSC(dscInstanceNameDuplicate)
-	tc.EnsureResourceIsUnique(dup, "Error validating DataScienceCluster duplication")
+	dsc := CreateDSC(dscInstanceNameDuplicate)
+	tc.EnsureResourceIsUnique(dsc, "Error validating DataScienceCluster duplication")
+
+	dsv1 := CreateDSCv1(dscInstanceNameDuplicate)
+	tc.EnsureResourceIsUnique(dsv1, "Error validating DataScienceCluster duplication v1")
 }
 
 // ValidateModelRegistryConfig validates the ModelRegistry configuration changes based on ManagementState.
@@ -305,7 +248,7 @@ func (tc *DSCTestCtx) UpdateRegistriesNamespace(targetNamespace, expectedValue s
 	}
 
 	// Update the registriesNamespace field.
-	tc.EventuallyResourceCreatedOrUpdated(
+	tc.EventuallyResourcePatched(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithMutateFunc(testf.Transform(`.spec.components.modelregistry.registriesNamespace = "%s"`, targetNamespace)),
 		WithCondition(expectedCondition),
@@ -328,7 +271,7 @@ func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
 	)
 
 	// update default hardwareprofile to different value and check it is updated.
-	tc.EnsureResourceCreatedOrPatched(
+	tc.EventuallyResourceCreatedOrUpdated(
 		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: defaultHardwareProfileName, Namespace: tc.AppsNamespace}),
 		WithMutateFunc(testf.Transform(`
 			.spec.identifiers[0].defaultCount = 4 |

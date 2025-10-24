@@ -22,7 +22,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook/hardwareprofile"
@@ -90,6 +92,7 @@ func createAndWaitForCRD(ctx context.Context, env *envt.EnvT, crd *apiextensions
 func SetupEnvAndClient(
 	t *testing.T,
 	registerWebhooks []envt.RegisterWebhooksFn,
+	registerControllers []envt.RegisterControllersFn,
 	timeout time.Duration,
 ) (context.Context, *envt.EnvT, func()) {
 	t.Helper()
@@ -98,6 +101,7 @@ func SetupEnvAndClient(
 
 	env, err := envt.New(
 		envt.WithRegisterWebhooks(registerWebhooks...),
+		envt.WithRegisterControllers(registerControllers...),
 	)
 	if err != nil {
 		t.Fatalf("failed to start envtest: %v", err)
@@ -116,7 +120,7 @@ func SetupEnvAndClient(
 	}()
 
 	t.Log("Waiting for webhook server to be ready...")
-	if err := env.WaitForWebhookServer(timeout); err != nil {
+	if err := env.WaitForWebhookServer(ctx, timeout); err != nil {
 		t.Fatalf("webhook server not ready: %v", err)
 	}
 
@@ -143,6 +147,7 @@ func SetupEnvAndClient(
 // Parameters:
 //   - t: The testing.T object for logging and fatal errors.
 //   - registerWebhooks: Functions to register webhooks with the manager.
+//   - registerControllers: Functions to register controllers with the manager.
 //   - timeout: The maximum duration to wait for the server to become ready.
 //   - opts: Setup options to configure which CRDs to register.
 //
@@ -153,13 +158,14 @@ func SetupEnvAndClient(
 func SetupEnvAndClientWithCRDs(
 	t *testing.T,
 	registerWebhooks []envt.RegisterWebhooksFn,
+	registerControllers []envt.RegisterControllersFn,
 	timeout time.Duration,
 	opts ...CRDSetupOption,
 ) (context.Context, *envt.EnvT, func()) {
 	t.Helper()
 
 	// Use the standard envtestutil setup
-	ctx, env, teardown := SetupEnvAndClient(t, registerWebhooks, timeout)
+	ctx, env, teardown := SetupEnvAndClient(t, registerWebhooks, registerControllers, timeout)
 
 	// Register HardwareProfile types (always needed for hardware profile webhook tests)
 	if err := infrav1.AddToScheme(env.Scheme()); err != nil {
@@ -237,11 +243,49 @@ func WithLlmInferenceService() CRDSetupOption {
 	}
 }
 
+// WithDashboardAcceleratorProfile enables AcceleratorProfile CRD registration in the test environment.
+func WithDashboardAcceleratorProfile() CRDSetupOption {
+	return func(ctx context.Context, t *testing.T, env *envt.EnvT) error {
+		t.Helper()
+
+		// Register AcceleratorProfile types
+		env.Scheme().AddKnownTypeWithName(gvk.DashboardAcceleratorProfile, &unstructured.Unstructured{})
+		env.Scheme().AddKnownTypeWithName(gvk.DashboardAcceleratorProfile.GroupVersion().WithKind("AcceleratorProfileList"), &unstructured.UnstructuredList{})
+
+		// Create AcceleratorProfile CRD
+		crd := MockAcceleratorProfileCRD()
+		if err := createAndWaitForCRD(ctx, env, crd); err != nil {
+			return fmt.Errorf("failed to create and wait for AcceleratorProfile CRD: %w", err)
+		}
+
+		return nil
+	}
+}
+
+// WithDashboardHardwareProfile enables Dashboard HardwareProfile CRD registration in the test environment.
+func WithDashboardHardwareProfile() CRDSetupOption {
+	return func(ctx context.Context, t *testing.T, env *envt.EnvT) error {
+		t.Helper()
+
+		// Register Dashboard HardwareProfile types
+		env.Scheme().AddKnownTypeWithName(gvk.DashboardHardwareProfile, &unstructured.Unstructured{})
+		env.Scheme().AddKnownTypeWithName(gvk.DashboardHardwareProfile.GroupVersion().WithKind("HardwareProfileList"), &unstructured.UnstructuredList{})
+
+		// Create Dashboard HardwareProfile CRD
+		crd := MockDashboardHardwareProfileCRD()
+		if err := createAndWaitForCRD(ctx, env, crd); err != nil {
+			return fmt.Errorf("failed to create and wait for Dashboard HardwareProfile CRD: %w", err)
+		}
+
+		return nil
+	}
+}
+
 // =============================================================================
 // Object Creation Functions
 // =============================================================================
 
-// NewDSCI creates a DSCInitialization object with the given name and namespace for use in tests.
+// NewDSCI creates a DSCInitialization v2 object with the given name and namespace for use in tests.
 //
 // Parameters:
 //   - name: The name of the DSCInitialization object.
@@ -249,16 +293,15 @@ func WithLlmInferenceService() CRDSetupOption {
 //   - opts: Optional functional options to mutate the object.
 //
 // Returns:
-//   - *dsciv1.DSCInitialization: The constructed DSCInitialization object.
-func NewDSCI(name, namespace string, opts ...func(*dsciv1.DSCInitialization)) *dsciv1.DSCInitialization {
-	dsci := &dsciv1.DSCInitialization{
+//   - *dsciv2.DSCInitialization: The constructed DSCInitialization object.
+func NewDSCI(name string, opts ...func(*dsciv2.DSCInitialization)) *dsciv2.DSCInitialization {
+	dsci := &dsciv2.DSCInitialization{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       gvk.DSCInitialization.Kind,
-			APIVersion: dsciv1.GroupVersion.String(),
+			APIVersion: dsciv2.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name: name,
 		},
 	}
 	for _, opt := range opts {
@@ -267,7 +310,57 @@ func NewDSCI(name, namespace string, opts ...func(*dsciv1.DSCInitialization)) *d
 	return dsci
 }
 
-// NewDSC creates a DataScienceCluster object with the given name and namespace for use in tests.
+// NewDSCIV1 creates a DSCInitialization v1 object with the given name and namespace for use in tests.
+//
+// Parameters:
+//   - name: The name of the DSCInitialization object.
+//   - namespace: The namespace for the object.
+//   - opts: Optional functional options to mutate the object.
+//
+// Returns:
+//   - *dsciv1.DSCInitialization: The constructed DSCInitialization object.
+func NewDSCIV1(name string, opts ...func(*dsciv1.DSCInitialization)) *dsciv1.DSCInitialization {
+	dsci := &dsciv1.DSCInitialization{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       gvk.DSCInitialization.Kind,
+			APIVersion: dsciv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+	for _, opt := range opts {
+		opt(dsci)
+	}
+	return dsci
+}
+
+// NewDSC creates a DataScienceCluster v2 object with the given name and namespace for use in tests.
+//
+// Parameters:
+//   - name: The name of the DataScienceCluster object.
+//   - namespace: The namespace for the object.
+//   - opts: Optional functional options to mutate the object.
+//
+// Returns:
+//   - *dscv2.DataScienceCluster: The constructed DataScienceCluster object.
+func NewDSC(name string, opts ...func(*dscv2.DataScienceCluster)) *dscv2.DataScienceCluster {
+	dsc := &dscv2.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       gvk.DataScienceCluster.Kind,
+			APIVersion: dscv2.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+	for _, opt := range opts {
+		opt(dsc)
+	}
+	return dsc
+}
+
+// NewDSCV1 creates a DataScienceCluster v1 object with the given name and namespace for use in tests.
 //
 // Parameters:
 //   - name: The name of the DataScienceCluster object.
@@ -276,15 +369,14 @@ func NewDSCI(name, namespace string, opts ...func(*dsciv1.DSCInitialization)) *d
 //
 // Returns:
 //   - *dscv1.DataScienceCluster: The constructed DataScienceCluster object.
-func NewDSC(name, namespace string, opts ...func(*dscv1.DataScienceCluster)) *dscv1.DataScienceCluster {
+func NewDSCV1(name string, opts ...func(*dscv1.DataScienceCluster)) *dscv1.DataScienceCluster {
 	dsc := &dscv1.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       gvk.DataScienceCluster.Kind,
 			APIVersion: dscv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name: name,
 		},
 	}
 	for _, opt := range opts {
@@ -449,14 +541,13 @@ func NewLLMInferenceService(name, namespace string, opts ...ObjectOption) client
 	llmInferenceService.SetName(name)
 	llmInferenceService.SetNamespace(namespace)
 
-	// Set basic spec structure needed for webhook testing
+	// this is set in case HWprofile require resource changes, it is not necessary for Connection API
 	containers := []interface{}{
 		map[string]interface{}{
 			"name":  "llm-container",
-			"image": "opendatahub/llm-model-server:latest",
+			"image": "kserve/llm-container:latest",
 		},
 	}
-	// Use the correct path that matches the webhook configuration
 	if err := unstructured.SetNestedSlice(llmInferenceService.Object, containers, "spec", "template", "containers"); err != nil {
 		panic(fmt.Sprintf("failed to set LLMInferenceService containers: %v", err))
 	}
@@ -871,6 +962,68 @@ func MockLlmInferenceServiceCRD() *apiextensionsv1.CustomResourceDefinition {
 					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 						Type: "object",
 						// This allows any structure
+						XPreserveUnknownFields: &preserveUnknownFields,
+					},
+				},
+			}},
+		},
+	}
+}
+
+// MockAcceleratorProfileCRD creates a mock AcceleratorProfile CRD for testing.
+func MockAcceleratorProfileCRD() *apiextensionsv1.CustomResourceDefinition {
+	preserveUnknownFields := true
+
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "acceleratorprofiles.dashboard.opendatahub.io",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: gvk.DashboardAcceleratorProfile.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Plural:   "acceleratorprofiles",
+				Singular: "acceleratorprofile",
+				Kind:     gvk.DashboardAcceleratorProfile.Kind,
+			},
+			Scope: "Namespaced",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    "v1",
+				Served:  true,
+				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+						Type:                   "object",
+						XPreserveUnknownFields: &preserveUnknownFields,
+					},
+				},
+			}},
+		},
+	}
+}
+
+// MockDashboardHardwareProfileCRD creates a mock Dashboard HardwareProfile CRD for testing.
+func MockDashboardHardwareProfileCRD() *apiextensionsv1.CustomResourceDefinition {
+	preserveUnknownFields := true
+
+	return &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "hardwareprofiles.dashboard.opendatahub.io",
+		},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: gvk.DashboardHardwareProfile.Group,
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Plural:   "hardwareprofiles",
+				Singular: "hardwareprofile",
+				Kind:     gvk.DashboardHardwareProfile.Kind,
+			},
+			Scope: "Namespaced",
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:    "v1alpha1",
+				Served:  true,
+				Storage: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+						Type:                   "object",
 						XPreserveUnknownFields: &preserveUnknownFields,
 					},
 				},

@@ -40,24 +40,9 @@ func (w *conditionsWrapper) SetConditions(conditions []common.Condition) {
 
 // These constants represent the overall Phase as used by .Status.Phase.
 const (
-	// PhaseIgnored is used when a resource is ignored
-	// is an example of a constant that is not used anywhere in the code.
-	PhaseIgnored = "Ignored"
 	// PhaseNotReady is used when waiting for system to be ready after reconcile is successful
 	// is an example of a constant that is not used anywhere in the code.
 	PhaseNotReady = "Not Ready"
-	// PhaseClusterExpanding is used when cluster is expanding capacity
-	// is an example of a constant that is not used anywhere in the code.
-	PhaseClusterExpanding = "Expanding Capacity"
-	// PhaseDeleting is used when cluster is deleting
-	// is an example of a constant that is not used anywhere in the code.
-	PhaseDeleting = "Deleting"
-	// PhaseConnecting is used when cluster is connecting to external cluster
-	// is an example of a constant that is not used anywhere in the code.
-	PhaseConnecting = "Connecting"
-	// PhaseOnboarding is used when consumer is Onboarding
-	// is an example of a constant that is not used anywhere in the code.
-	PhaseOnboarding = "Onboarding"
 
 	// PhaseProgressing is used when SetProgressingCondition() is called.
 	PhaseProgressing = "Progressing"
@@ -70,11 +55,10 @@ const (
 // List of constants to show different reconciliation messages and statuses.
 const (
 	// ReconcileFailed is used when multiple DSCI instance exists or DSC reconcile failed/removal failed.
-	ReconcileFailed                       = "ReconcileFailed"
-	ReconcileInit                         = "ReconcileInit"
-	ReconcileCompleted                    = "ReconcileCompleted"
-	ReconcileCompletedWithComponentErrors = "ReconcileCompletedWithComponentErrors"
-	ReconcileCompletedMessage             = "Reconcile completed successfully"
+	ReconcileFailed           = "ReconcileFailed"
+	ReconcileInit             = "ReconcileInit"
+	ReconcileCompleted        = "ReconcileCompleted"
+	ReconcileCompletedMessage = "Reconcile completed successfully"
 )
 
 const (
@@ -95,11 +79,8 @@ const (
 	ConditionTypeProvisioningSucceeded       = "ProvisioningSucceeded"
 	ConditionDeploymentsNotAvailableReason   = "DeploymentsNotReady"
 	ConditionDeploymentsAvailable            = "DeploymentsAvailable"
-	ConditionServerlessAvailable             = "ServerlessAvailable"
-	ConditionServiceMeshAvailable            = "ServiceMeshAvailable"
 	ConditionArgoWorkflowAvailable           = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady             = "ComponentsReady"
-	ConditionServingAvailable                = "ServingAvailable"
 	ConditionMonitoringAvailable             = "MonitoringAvailable"
 	ConditionMonitoringStackAvailable        = "MonitoringStackAvailable"
 	ConditionTempoAvailable                  = "TempoAvailable"
@@ -110,9 +91,7 @@ const (
 )
 
 const (
-	CapabilityServiceMesh              string = "CapabilityServiceMesh"
-	CapabilityServiceMeshAuthorization string = "CapabilityServiceMeshAuthorization"
-	CapabilityDSPv2Argo                string = "CapabilityDSPv2Argo"
+	CapabilityDSPv2Argo string = "CapabilityDSPv2Argo"
 )
 
 const (
@@ -124,11 +103,8 @@ const (
 	ArgoWorkflowExist         string = "ArgoWorkflowExist"
 	NoManagedComponentsReason        = "NoManagedComponents"
 
-	DegradedReason  = "Degraded"
 	AvailableReason = "Available"
-	UnknownReason   = "Unknown"
 	NotReadyReason  = "NotReady"
-	ErrorReason     = "Error"
 	ReadyReason     = "Ready"
 )
 
@@ -137,28 +113,12 @@ const (
 )
 
 const (
-	ServiceMeshNotConfiguredReason   = "ServiceMeshNotConfigured"
-	ServiceMeshNotReadyReason        = "ServiceMeshNotReady"
-	ServiceMeshNeedConfiguredMessage = "ServiceMesh needs to be set to 'Managed' in DSCI CR"
-	ServiceMeshNotConfiguredMessage  = "ServiceMesh is not configured in DSCI CR"
-	ServiceMeshNotReadyMessage       = "ServiceMesh is not ready"
-
-	ServiceMeshOperatorNotInstalledReason  = "ServiceMeshOperatorNotInstalled"
-	ServiceMeshOperatorNotInstalledMessage = "ServiceMesh operator must be installed for this component's configuration"
-
-	ServerlessOperatorNotInstalledReason  = "ServerlessOperatorNotInstalled"
-	ServerlessOperatorNotInstalledMessage = "Serverless operator must be installed for this component's configuration"
-
-	ServerlessUnsupportedCertMessage = "Serverless certificate type is not supported"
-)
-
-const (
 	DataSciencePipelinesDoesntOwnArgoCRDReason        = "DataSciencePipelinesDoesntOwnArgoCRD"
 	DataSciencePipelinesArgoWorkflowsNotManagedReason = "DataSciencePipelinesArgoWorkflowsNotManaged"
 	DataSciencePipelinesArgoWorkflowsCRDMissingReason = "DataSciencePipelinesArgoWorkflowsCRDMissing"
 
 	DataSciencePipelinesDoesntOwnArgoCRDMessage = "Failed upgrade: workflows.argoproj.io CRD already exists but not deployed by this operator " +
-		"remove existing Argo workflows or set `spec.components.datasciencepipelines.managementState` to Removed to proceed"
+		"remove existing Argo workflows or set `spec.components.aipipelines.managementState` to Removed to proceed"
 	DataSciencePipelinesArgoWorkflowsNotManagedMessage = "Argo Workflows controllers are not managed by this operator"
 	DataSciencePipelinesArgoWorkflowsCRDMissingMessage = "Argo Workflows controllers are not managed by this operator, but the CRD is missing"
 )
@@ -168,8 +128,8 @@ const (
 	MultiKueueCRDReason  = "MultiKueueCRDV1Alpha1Exist"
 	MultiKueueCRDMessage = "Kueue CRDs MultiKueueConfig v1alpha1 and/or MultiKueueCluster v1alpha1 exist, please remove them to proceed"
 
-	KueueOperatorAlreadyInstalleReason   = "KueueOperatorAlreadyInstalled"
-	KueueOperatorAlreadyInstalledMessage = "Kueue operator already installed, uninstall it or change kueue component state to Unmanaged"
+	KueueStateManagedNotSupported        = "KueueStateManagedNotSupported"
+	KueueStateManagedNotSupportedMessage = "Kueue managementState Managed is not supported, please use Removed or Unmanaged"
 	KueueOperatorNotInstalleReason       = "KueueOperatorNotInstalleReason"
 	KueueOperatorNotInstalledMessage     = "Kueue operator not installed, install it or change kueue component state to Managed"
 )
@@ -205,6 +165,9 @@ const (
 	AuthProxyFailedCallbackRouteMessage      = "Failed to create auth callback route"
 	AuthProxyFailedGenerateSecretMessage     = "Failed to generate client secret"
 	AuthProxyOIDCModeWithoutConfigMessage    = "Cluster is in OIDC mode but GatewayConfig has no OIDC configuration"
+	AuthProxyOIDCClientIDEmptyMessage        = "OIDC clientID cannot be empty"
+	AuthProxyOIDCIssuerURLEmptyMessage       = "OIDC issuerURL cannot be empty"
+	AuthProxyOIDCSecretRefNameEmptyMessage   = "OIDC clientSecretRef.name cannot be empty" //nolint:gosec // This is an error message, not a credential
 	AuthProxyExternalAuthNoDeploymentMessage = "Cluster uses external authentication, no gateway auth proxy deployed"
 )
 

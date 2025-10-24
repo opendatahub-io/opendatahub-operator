@@ -114,27 +114,17 @@ EOF
 
 ```console
 cat <<EOF | oc apply -f -
-apiVersion: datasciencecluster.opendatahub.io/v1
+apiVersion: datasciencecluster.opendatahub.io/v2
 kind: DataScienceCluster
 metadata:
   name: example
 spec:
   components:
-    codeflare:
-      managementState: Managed
     dashboard:
       managementState: Managed
-    datasciencepipelines:
+    aipipelines:
       managementState: Managed
     kserve:
-      managementState: Managed
-      serving:
-        ingressGateway:
-          certificate:
-            type: OpenshiftDefaultIngress
-        managementState: Managed
-        name: knative-serving
-    modelmeshserving:
       managementState: Managed
     modelregistry:
       managementState: Managed

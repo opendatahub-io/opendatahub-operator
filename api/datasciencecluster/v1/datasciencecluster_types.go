@@ -18,6 +18,7 @@ package v1
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -28,6 +29,33 @@ import (
 type DataScienceClusterSpec struct {
 	// Override and fine tune specific component configurations.
 	Components Components `json:"components,omitempty"`
+}
+
+// DSCKueueV1 contains all the configuration exposed in DSC v1 instance for Kueue component
+
+type DSCKueueV1 struct {
+	KueueManagementSpecV1 `json:",inline"`
+	// configuration fields common across components
+	componentApi.KueueCommonSpec       `json:",inline"`
+	componentApi.KueueDefaultQueueSpec `json:",inline"`
+}
+
+// KueueManagementSpec struct defines the component's management configuration.
+// +kubebuilder:object:generate=true
+type KueueManagementSpecV1 struct {
+	// Set to one of the following values:
+	//
+	// - "Managed"   : the operator is actively managing the component and trying to keep it active.
+	//                 It will only upgrade the component if it is safe to do so
+	//
+	//
+	// - "Unmanaged" : the operator will not deploy or manage the component's lifecycle, but may create supporting configuration resources.
+	//
+	// - "Removed"   : the operator is actively managing the component and will not install it,
+	//                 or if it is installed, the operator will try to remove it
+	//
+	// +kubebuilder:validation:Enum=Managed;Unmanaged;Removed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
 type Components struct {
@@ -41,16 +69,14 @@ type Components struct {
 	ModelMeshServing componentApi.DSCModelMeshServing `json:"modelmeshserving,omitempty"`
 
 	// DataSciencePipeline component configuration.
-	// Requires OpenShift Pipelines Operator to be installed before enable component
 	DataSciencePipelines componentApi.DSCDataSciencePipelines `json:"datasciencepipelines,omitempty"`
 
 	// Kserve component configuration.
-	// Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
-	// Does not support enabled ModelMeshServing at the same time
+	// Only RawDeployment mode is supported.
 	Kserve componentApi.DSCKserve `json:"kserve,omitempty"`
 
 	// Kueue component configuration.
-	Kueue componentApi.DSCKueue `json:"kueue,omitempty"`
+	Kueue DSCKueueV1 `json:"kueue,omitempty"`
 
 	// CodeFlare component configuration.
 	// If CodeFlare Operator has been installed in the cluster, it should be uninstalled first before enabling component.
@@ -149,7 +175,6 @@ func (s *DataScienceClusterStatus) SetConditions(conditions []common.Condition) 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster,shortName=dsc
-// +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
 

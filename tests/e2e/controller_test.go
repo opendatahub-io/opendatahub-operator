@@ -27,8 +27,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	featurev1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -82,6 +82,7 @@ type TestContextConfig struct {
 	operatorResilienceTest bool
 	webhookTest            bool
 	v2tov3upgradeTest      bool
+	hardwareProfileTest    bool
 	TestTimeouts           TestTimeouts
 }
 
@@ -125,7 +126,6 @@ var (
 			componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
 			componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 			componentApi.KserveComponentName:               kserveTestSuite,
-			componentApi.ModelMeshServingComponentName:     modelMeshServingTestSuite,
 			componentApi.ModelControllerComponentName:      modelControllerTestSuite,
 			componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
 			componentApi.LlamaStackOperatorComponentName:   llamastackOperatorTestSuite,
@@ -259,16 +259,20 @@ func TestOdhOperator(t *testing.T) {
 	mustRun(t, Components.String(), Components.Run)
 	mustRun(t, Services.String(), Services.Run)
 
-	// Run V2 to V3 upgrade test suites
-	if testOpts.v2tov3upgradeTest {
-		mustRun(t, "V2 to V3 upgrade E2E Tests", v2Tov3UpgradeTestSuite)
-	}
-
 	// Run operator resilience test suites after functional tests
 	if testOpts.operatorResilienceTest {
 		mustRun(t, "Operator Resilience E2E Tests", operatorResilienceTestSuite)
 	}
 
+	// Run V2 to V3 upgrade test suites
+	if testOpts.v2tov3upgradeTest {
+		mustRun(t, "V2 to V3 upgrade E2E Tests", v2Tov3UpgradeTestSuite)
+	}
+
+	// Run hardware profile test suites
+	if testOpts.hardwareProfileTest {
+		mustRun(t, "Hardware Profile E2E Tests", hardwareProfileTestSuite)
+	}
 	// Deletion logic based on deletionPolicy
 	switch testOpts.deletionPolicy {
 	case DeletionPolicyAlways:
@@ -279,6 +283,11 @@ func TestOdhOperator(t *testing.T) {
 			mustRun(t, "Deletion ConfigMap E2E Tests", cfgMapDeletionTestSuite)
 		}
 		mustRun(t, "DataScienceCluster/DSCInitialization Deletion E2E Tests", deletionTestSuite)
+
+		// Run V2 to V3 upgrade test suites that needs to delete DSC and DSCI
+		if testOpts.v2tov3upgradeTest {
+			mustRun(t, "upgrade DSC and DSCI v1 API", v2Tov3UpgradeDeletingDscDsciTestSuite)
+		}
 
 		// Always perform cleanup after failure
 		handleCleanup(t)
@@ -314,7 +323,7 @@ func TestMain(m *testing.M) {
 	viper.SetDefault("shortEventuallyTimeout", "10s")         // Timeout used for Eventually; overrides Gomega's default of 1 second.
 	viper.SetDefault("mediumEventuallyTimeout", "7m")         // Medium timeout: for readiness checks (e.g., ClusterServiceVersion, DataScienceCluster).
 	viper.SetDefault("longEventuallyTimeout", "10m")          // Long timeout: for more complex readiness (e.g., DSCInitialization, KServe).
-	viper.SetDefault("defaultEventuallyPollInterval", "5s")   // Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.
+	viper.SetDefault("defaultEventuallyPollInterval", "10s")  // Polling interval for Eventually; overrides Gomega's default of 10 milliseconds.
 	viper.SetDefault("defaultConsistentlyTimeout", "20s")     // Duration used for Consistently; overrides Gomega's default of 2 seconds.
 	viper.SetDefault("defaultConsistentlyPollInterval", "5s") // Polling interval for Consistently; overrides Gomega's default of 50 milliseconds.
 
@@ -335,6 +344,8 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("test-operator-resilience", viper.GetEnvPrefix()+"_OPERATOR_RESILIENCE"))
 	pflag.Bool("test-operator-v2tov3upgrade", true, "run V2 to V3 upgrade tests")
 	checkEnvVarBindingError(viper.BindEnv("test-operator-v2tov3upgrade", viper.GetEnvPrefix()+"_OPERATOR_V2TOV3UPGRADE"))
+	pflag.Bool("test-hardware-profile", true, "run hardware profile tests")
+	checkEnvVarBindingError(viper.BindEnv("test-hardware-profile", viper.GetEnvPrefix()+"_HARDWARE_PROFILE"))
 	pflag.Bool("test-webhook", true, "run webhook tests")
 	checkEnvVarBindingError(viper.BindEnv("test-webhook", viper.GetEnvPrefix()+"_WEBHOOK"))
 
@@ -386,6 +397,7 @@ func TestMain(m *testing.M) {
 	testOpts.operatorControllerTest = viper.GetBool("test-operator-controller")
 	testOpts.operatorResilienceTest = viper.GetBool("test-operator-resilience")
 	testOpts.v2tov3upgradeTest = viper.GetBool("test-operator-v2tov3upgrade")
+	testOpts.hardwareProfileTest = viper.GetBool("test-hardware-profile")
 	testOpts.webhookTest = viper.GetBool("test-webhook")
 	Components.enabled = viper.GetBool("test-components")
 	Components.flags = viper.GetStringSlice("test-component")
@@ -413,8 +425,8 @@ func registerSchemes() {
 		routev1.AddToScheme,
 		apiextv1.AddToScheme,
 		autoscalingv1.AddToScheme,
-		dsciv1.AddToScheme,
-		dscv1.AddToScheme,
+		dsciv2.AddToScheme,
+		dscv2.AddToScheme,
 		featurev1.AddToScheme,
 		monitoringv1.AddToScheme,
 		ofapi.AddToScheme,

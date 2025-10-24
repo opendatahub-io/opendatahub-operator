@@ -100,10 +100,9 @@ func (s *ComponentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			GenericFunc: func(tge event.TypedGenericEvent[client.Object]) bool { return false },
 			DeleteFunc:  func(tde event.TypedDeleteEvent[client.Object]) bool { return false },
 		}), reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardHardwareProfile))).
-		WithAction(Initialize).
-		WithAction(DevFlags).
-		WithAction(SetKustomizedParams).
-		WithAction(ConfigureDependencies).
+		WithAction(initialize).
+		WithAction(setKustomizedParams).
+		WithAction(configureDependencies).
 		WithAction(kustomize.NewAction(
 			// Those are the default labels added by the legacy deploy method
 			// and should be preserved as the original plugin were affecting
@@ -116,7 +115,6 @@ func (s *ComponentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
-		WithAction(CustomizeResources).
 		WithAction(deploy.NewAction()).
 		WithAction(deployments.NewAction()).
 		WithAction(ReconcileHardwareProfiles).

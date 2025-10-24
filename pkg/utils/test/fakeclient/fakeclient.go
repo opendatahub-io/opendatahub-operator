@@ -74,6 +74,10 @@ func New(opts ...ClientOpts) (client.Client, error) {
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
 		case gvk.DSCInitialization:
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
+		case gvk.DataScienceClusterV1:
+			fakeMapper.Add(kt, meta.RESTScopeRoot)
+		case gvk.DSCInitializationV1:
+			fakeMapper.Add(kt, meta.RESTScopeRoot)
 		case gvk.Auth:
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
 		case gvk.DashboardHardwareProfile:
