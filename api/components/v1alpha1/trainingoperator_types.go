@@ -54,9 +54,7 @@ type TrainingOperatorSpec struct {
 	TrainingOperatorCommonSpec `json:",inline"`
 }
 
-type TrainingOperatorCommonSpec struct {
-	common.DevFlagsSpec `json:",inline"`
-}
+type TrainingOperatorCommonSpec struct{}
 
 // TrainingOperatorCommonStatus defines the shared observed state of TrainingOperator
 type TrainingOperatorCommonStatus struct {
@@ -79,10 +77,6 @@ type TrainingOperatorList struct {
 
 func init() {
 	SchemeBuilder.Register(&TrainingOperator{}, &TrainingOperatorList{})
-}
-
-func (c *TrainingOperator) GetDevFlags() *common.DevFlags {
-	return c.Spec.DevFlags
 }
 
 func (c *TrainingOperator) GetStatus() *common.Status {

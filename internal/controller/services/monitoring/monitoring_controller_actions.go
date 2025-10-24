@@ -23,16 +23,17 @@ import (
 
 const (
 	// Template files.
-	MonitoringStackTemplate          = "resources/monitoring-stack.tmpl.yaml"
-	TempoMonolithicTemplate          = "resources/tempo-monolithic.tmpl.yaml"
-	TempoStackTemplate               = "resources/tempo-stack.tmpl.yaml"
-	OpenTelemetryCollectorTemplate   = "resources/opentelemetry-collector.tmpl.yaml"
-	CollectorServiceMonitorsTemplate = "resources/collector-servicemonitors.tmpl.yaml"
-	CollectorRBACTemplate            = "resources/collector-rbac.tmpl.yaml"
-	PrometheusRouteTemplate          = "resources/prometheus-route.tmpl.yaml"
-	InstrumentationTemplate          = "resources/instrumentation.tmpl.yaml"
-	ThanosQuerierTemplate            = "resources/thanos-querier-cr.tmpl.yaml"
-	ThanosQuerierRouteTemplate       = "resources/thanos-querier-route.tmpl.yaml"
+	MonitoringStackTemplate                 = "resources/monitoring-stack.tmpl.yaml"
+	MonitoringStackAlertmanagerRBACTemplate = "resources/monitoringstack-alertmanager-rbac.tmpl.yaml"
+	TempoMonolithicTemplate                 = "resources/tempo-monolithic.tmpl.yaml"
+	TempoStackTemplate                      = "resources/tempo-stack.tmpl.yaml"
+	OpenTelemetryCollectorTemplate          = "resources/opentelemetry-collector.tmpl.yaml"
+	CollectorServiceMonitorsTemplate        = "resources/collector-servicemonitors.tmpl.yaml"
+	CollectorRBACTemplate                   = "resources/collector-rbac.tmpl.yaml"
+	PrometheusRouteTemplate                 = "resources/prometheus-route.tmpl.yaml"
+	InstrumentationTemplate                 = "resources/instrumentation.tmpl.yaml"
+	ThanosQuerierTemplate                   = "resources/thanos-querier-cr.tmpl.yaml"
+	ThanosQuerierRouteTemplate              = "resources/thanos-querier-route.tmpl.yaml"
 )
 
 // CRDRequirement defines a required CRD and its associated condition for monitoring components.
@@ -73,22 +74,31 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-// validateRequiredCRDs checks multiple CRDs and sets conditions consistently.
+// validateRequiredCRDs checks multiple CRDs for atomic deployment.
+// For atomic deployment: if ANY CRD is missing, ALL conditions are set to False.
 // Returns true if all CRDs exist, false otherwise.
 func validateRequiredCRDs(ctx context.Context, rr *odhtypes.ReconciliationRequest, requirements []CRDRequirement) bool {
 	allExist := true
+
 	for _, req := range requirements {
 		exists, err := cluster.HasCRD(ctx, rr.Client, req.GVK)
 		if err != nil {
 			return false // or handle error appropriately
 		}
 		if !exists {
-			setConditionFalse(rr, req.ConditionType,
-				req.GVK.Kind+"CRDNotFoundReason",
-				fmt.Sprintf("%s CRD Not Found", req.GVK.Kind))
 			allExist = false
 		}
 	}
+
+	// If any CRD is missing, set ALL conditions to False (atomic deployment)
+	if !allExist {
+		for _, req := range requirements {
+			setConditionFalse(rr, req.ConditionType,
+				req.GVK.Kind+"CRDNotFoundReason",
+				fmt.Sprintf("%s CRD Not Found (atomic deployment requires all CRDs)", req.GVK.Kind))
+		}
+	}
+
 	return allExist
 }
 
@@ -173,6 +183,7 @@ func deployMonitoringStackWithQuerier(ctx context.Context, rr *odhtypes.Reconcil
 	// Prepare and deploy both component templates atomically
 	templates := []odhtypes.TemplateInfo{
 		{FS: resourcesFS, Path: MonitoringStackTemplate},
+		{FS: resourcesFS, Path: MonitoringStackAlertmanagerRBACTemplate},
 		{FS: resourcesFS, Path: PrometheusRouteTemplate},
 		{FS: resourcesFS, Path: ThanosQuerierTemplate},
 		{FS: resourcesFS, Path: ThanosQuerierRouteTemplate},

@@ -3,6 +3,8 @@ on:
   pull_request_target:
     # action steps require 'run-integration-tests' label to be present, otherwise it's skipped
     types: [ synchronize, reopened ]
+    branches:
+      - main
     paths:
       - 'bundle/**'
       - 'config/**'

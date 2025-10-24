@@ -122,16 +122,10 @@ spec:
   components:
     dashboard:
       managementState: Managed
-    datasciencepipelines:
+    aipipelines:
       managementState: Managed
     kserve:
       managementState: Managed
-      serving:
-        ingressGateway:
-          certificate:
-            type: OpenshiftDefaultIngress
-        managementState: Managed
-        name: knative-serving
     modelregistry:
       managementState: Managed
       registriesNamespace: "odh-model-registries"

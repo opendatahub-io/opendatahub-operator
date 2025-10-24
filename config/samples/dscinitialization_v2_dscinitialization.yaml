@@ -3,10 +3,6 @@ kind: DSCInitialization
 metadata:
   labels:
     app.kubernetes.io/name: dscinitialization
-    app.kubernetes.io/instance: default
-    app.kubernetes.io/part-of: opendatahub-operator
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: opendatahub-operator
   name: default-dsci
 spec:
   monitoring:
@@ -14,12 +10,6 @@ spec:
     namespace: 'opendatahub'
     metrics: {}
   applicationsNamespace: 'opendatahub'
-  serviceMesh:
-    controlPlane:
-      metricsCollection: Istio
-      name: data-science-smcp
-      namespace: istio-system
-    managementState: "Unmanaged"
   trustedCABundle:
     managementState: "Managed"
     customCABundle: ""

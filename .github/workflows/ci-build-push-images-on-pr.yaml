@@ -2,6 +2,8 @@ name: Build and push operator images on PR update
 on:
   pull_request_target:
     types: [ opened, synchronize, reopened ]
+    branches:
+      - main
     paths:
       - 'bundle/**'
       - 'config/**'

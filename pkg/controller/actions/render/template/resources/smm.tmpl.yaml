@@ -1,11 +1,9 @@
-apiVersion: maistra.io/v1
-kind: ServiceMeshMember
+apiVersion: v1
+kind: ConfigMap
 metadata:
-  name: default
+  name: test-config
   namespace: {{.DSCI.Spec.ApplicationsNamespace}}
   annotations:
     instance-name: {{.Component.Name}}
-spec:
-  controlPlaneRef:
-    namespace: {{ .DSCI.Spec.ServiceMesh.ControlPlane.Namespace }}
-    name: {{ .DSCI.Spec.ServiceMesh.ControlPlane.Name }}
+data:
+  app-namespace: {{.DSCI.Spec.ApplicationsNamespace}}

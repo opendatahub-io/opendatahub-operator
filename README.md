@@ -41,14 +41,6 @@ and configure these applications.
 
 ## Usage
 
-### Prerequisites
-If `single model serving configuration` is used or if `Kserve` component is used then please make sure to install the following operators before proceeding to create a DSCI and DSC instances.
- - [Authorino operator](https://github.com/Kuadrant/authorino)
- - [Service Mesh operator](https://github.com/Maistra/istio-operator)
- - [Serverless operator](https://github.com/openshift-knative/serverless-operator)
-
-Additionally installing `Authorino operator` & `Service Mesh operator` enhances user-experience by providing a single sign on experience.
-
 ### Installation
 
 - The latest version of operator can be installed from the `community-operators` catalog on `OperatorHub`.
@@ -290,9 +282,9 @@ e.g `make image-build USE_LOCAL=true"`
 
 There are 2 ways to test your changes with modification:
 
-1. Each component in the `DataScienceCluster` CR has `devFlags.manifests` field, which can be used to pull down the manifests from the remote git repos of the respective components. By using this method, it overwrites manifests and creates customized resources for the respective components.
+1. Using custom manifests in OLM operator. See [custom manifest](hack/component-dev/README.md) for more details.
 
-2. [Under implementation] build operator image with local manifests.
+2. Build operator image with local manifests, running `make image-build USE_LOCAL=true`
 
 ### Update API docs
 
@@ -308,7 +300,7 @@ Log level can be changed at runtime by DSCI devFlags by setting
 `.spec.devFlags.logLevel`. It accepts the same values as `--zap-log-level` flag or `ZAP_LOG_LEVEL` env variable. See example :
 
 ```console
-apiVersion: dscinitialization.opendatahub.io/v1
+apiVersion: dscinitialization.opendatahub.io/v2
 kind: DSCInitialization
 metadata:
   name: default-dsci
@@ -324,7 +316,7 @@ Below is the default DSCI CR config
 
 ```console
 kind: DSCInitialization
-apiVersion: dscinitialization.opendatahub.io/v1
+apiVersion: dscinitialization.opendatahub.io/v2
 metadata:
   name: default-dsci
 spec:
@@ -347,12 +339,6 @@ spec:
         backend: pv
         size: 5Gi
         retention: 2160h
-  serviceMesh:
-    controlPlane:
-      metricsCollection: Istio
-      name: data-science-smcp
-      namespace: istio-system
-    managementState: Unmanaged
   trustedCABundle:
     customCABundle: ''
     managementState: Managed
@@ -369,7 +355,7 @@ components. At a given time, ODH supports only **one** instance of the CR, which
 1. Enable all components
 
 ```console
-apiVersion: datasciencecluster.opendatahub.io/v1
+apiVersion: datasciencecluster.opendatahub.io/v2
 kind: DataScienceCluster
 metadata:
   name: default-dsc
@@ -377,21 +363,15 @@ spec:
   components:
     dashboard:
       managementState: Managed
-    datasciencepipelines:
+    aipipelines:
       managementState: Managed
     kserve:
       managementState: Managed
       nim:
         managementState: Managed
       rawDeploymentServiceConfig: Headed
-      serving:
-        ingressGateway:
-          certificate:
-            type: OpenshiftDefaultIngress
-        managementState: Unmanaged
-        name: knative-serving
     kueue:
-      managementState: Managed
+      managementState: Unmanaged
     modelregistry:
       managementState: Managed
       registriesNamespace: "odh-model-registries"
@@ -412,7 +392,7 @@ spec:
 2. Enable only Dashboard and Workbenches
 
 ```console
-apiVersion: datasciencecluster.opendatahub.io/v1
+apiVersion: datasciencecluster.opendatahub.io/v2
 kind: DataScienceCluster
 metadata:
   name: example
@@ -477,6 +457,7 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_SERVICES               | Enable testing of individual services specified by --test-service flag                                                                                                       | `true`                        |
 | E2E_TEST_SERVICE                | A comma separated configuration to control which services should be tested, by default all service specific test are executed                                                | `all services`                |
 | E2E_TEST_OPERATOR_V2TOV3UPGRADE | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                       | `true`                        |
+| E2E_TEST_HARDWARE_PROFILE       | To configure the execution of hardware profile tests, useful for testing hardware profile functionality for v1 and v1alpha1                                              | `true`                        |
 |                                 |                                                                                                                                                                              |                               |
 | E2E_TEST_FLAGS                  | Alternatively the above configurations can be passed to e2e-tests as flags using this env var (see flags table below)                                                        |                               |
 
@@ -495,6 +476,7 @@ Alternatively the above configurations can be passed to e2e-tests as flags by se
 | --test-services               | Enable testing of individual services specified by --test-service flag                                                                                                       | `true`                        |
 | --test-service                | A repeatable (or comma separated no spaces) flag that control which services should be tested, by default all service specific test are executed                             | `all services`                |
 | --test-operator-v2tov3upgrade | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                       | `true`                        |
+| --test-hardware-profile       | To configure the execution of hardware profile tests, useful for testing hardware profile functionality between v1 and v1alpah1                                               | `true`                        |
 
 Example command to run full test suite skipping the DataScienceCluster deletion (useful to troubleshooting tests failures):
 

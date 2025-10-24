@@ -2,8 +2,11 @@ package gateway
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
@@ -35,11 +38,15 @@ const (
 	AuthModeNone            AuthMode = "None"
 )
 
-// setErrorConditionAndReturn is a helper to set error condition and return error.
-func setErrorConditionAndReturn(gatewayConfig *serviceApi.GatewayConfig, message string, err error) error {
-	condition := CreateErrorCondition(message, err)
-	gatewayConfig.SetConditions([]common.Condition{condition})
-	return err
+// make secret data into sha256 as hash.
+func calculateSecretHash(secretData map[string][]byte) string {
+	clientID := string(secretData[EnvClientID])
+	clientSecret := string(secretData[EnvClientSecret])
+	cookieSecret := string(secretData[EnvCookieSecret])
+
+	configData := clientID + clientSecret + cookieSecret
+	hash := sha256.Sum256([]byte(configData))
+	return hex.EncodeToString(hash[:])
 }
 
 func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -63,16 +70,12 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return fmt.Errorf("failed to detect cluster authentication mode: %w", err)
 	}
 
-	l.V(1).Info("detected cluster authentication mode", "mode", authMode)
-
 	if errorCondition := validateOIDCConfig(authMode, gatewayConfig.Spec.OIDC); errorCondition != nil {
-		gatewayConfig.SetConditions([]common.Condition{*errorCondition})
-		return nil
+		return fmt.Errorf("%s", errorCondition.Message)
 	}
 
 	if condition := checkAuthModeNone(authMode); condition != nil {
-		gatewayConfig.SetConditions([]common.Condition{*condition})
-		return nil
+		return fmt.Errorf("%s", condition.Message)
 	}
 
 	var oidcConfig *serviceApi.OIDCConfig
@@ -83,31 +86,22 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	// get or generate secrets for kube-auth-proxy (handles OAuth and OIDC modes)
 	clientSecret, cookieSecret, err := getOrGenerateSecrets(ctx, rr, authMode)
 	if err != nil {
-		return setErrorConditionAndReturn(gatewayConfig, "Failed to get or generate secrets", err)
+		return fmt.Errorf("failed to get or generate secrets: %w", err)
 	}
 
-	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, clientSecret, cookieSecret, domain); err != nil {
-		return setErrorConditionAndReturn(gatewayConfig, "Failed to deploy auth proxy", err)
+	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, gatewayConfig.Spec.Cookie, clientSecret, cookieSecret, domain); err != nil {
+		return fmt.Errorf("failed to deploy auth proxy: %w", err)
 	}
 
 	if authMode == AuthModeIntegratedOAuth {
 		if err := createOAuthClient(ctx, rr, clientSecret); err != nil {
-			return setErrorConditionAndReturn(gatewayConfig, "Failed to create OAuth client", err)
+			return fmt.Errorf("failed to create OAuth client: %w", err)
 		}
 	}
 
 	if err := createOAuthCallbackRoute(rr); err != nil {
-		return setErrorConditionAndReturn(gatewayConfig, "Failed to create OAuth callback route", err)
+		return fmt.Errorf("failed to create OAuth callback route: %w", err)
 	}
-
-	// Dashboard routing is now user's responsibility - removed createDashboardRoute and createReferenceGrant
-
-	gatewayConfig.SetConditions([]common.Condition{{
-		Type:    status.ConditionTypeReady,
-		Status:  metav1.ConditionTrue,
-		Reason:  status.ReadyReason,
-		Message: "Auth proxy deployed successfully",
-	}})
 
 	return nil
 }
@@ -134,14 +128,38 @@ func detectClusterAuthMode(ctx context.Context, rr *odhtypes.ReconciliationReque
 }
 
 func validateOIDCConfig(authMode AuthMode, oidcConfig *serviceApi.OIDCConfig) *common.Condition {
-	if authMode == AuthModeOIDC && oidcConfig == nil {
-		return &common.Condition{
-			Type:    status.ConditionTypeReady,
-			Status:  metav1.ConditionFalse,
-			Reason:  status.NotReadyReason,
-			Message: "Cluster is in OIDC mode but GatewayConfig has no OIDC configuration",
-		}
+	if authMode != AuthModeOIDC {
+		return nil
 	}
+
+	condition := &common.Condition{
+		Type:   status.ConditionTypeReady,
+		Status: metav1.ConditionFalse,
+		Reason: status.NotReadyReason,
+	}
+
+	if oidcConfig == nil {
+		condition.Message = status.AuthProxyOIDCModeWithoutConfigMessage
+		return condition
+	}
+
+	var validationErrors []string
+
+	if oidcConfig.ClientID == "" {
+		validationErrors = append(validationErrors, status.AuthProxyOIDCClientIDEmptyMessage)
+	}
+	if oidcConfig.IssuerURL == "" {
+		validationErrors = append(validationErrors, status.AuthProxyOIDCIssuerURLEmptyMessage)
+	}
+	if oidcConfig.ClientSecretRef.Name == "" {
+		validationErrors = append(validationErrors, status.AuthProxyOIDCSecretRefNameEmptyMessage)
+	}
+
+	if len(validationErrors) > 0 {
+		condition.Message = strings.Join(validationErrors, ", ")
+		return condition
+	}
+
 	return nil
 }
 
@@ -210,7 +228,9 @@ func createSecretKeySelector(key string) *corev1.EnvVarSource {
 }
 
 // deployKubeAuthProxy deploys the complete OAuth2 proxy infrastructure including secret, service and deployment.
-func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig, clientSecret, cookieSecret string, domain string) error {
+func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest,
+	oidcConfig *serviceApi.OIDCConfig, cookieConfig *serviceApi.CookieConfig,
+	clientSecret, cookieSecret string, domain string) error {
 	l := logf.FromContext(ctx).WithName("deployAuthProxy")
 
 	if oidcConfig != nil {
@@ -234,7 +254,7 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return err
 	}
 
-	err = createKubeAuthProxyDeployment(rr, oidcConfig, domain)
+	err = createKubeAuthProxyDeployment(ctx, rr, oidcConfig, cookieConfig, domain)
 	if err != nil {
 		return err
 	}
@@ -309,7 +329,25 @@ func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationR
 	return nil
 }
 
-func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfig *serviceApi.OIDCConfig, domain string) error {
+func createKubeAuthProxyDeployment(
+	ctx context.Context, rr *odhtypes.ReconciliationRequest,
+	oidcConfig *serviceApi.OIDCConfig,
+	cookieConfig *serviceApi.CookieConfig,
+	domain string) error {
+	// secret doesn't exist use empty string.
+	secret := &corev1.Secret{}
+	secretHash := ""
+	err := rr.Client.Get(ctx, types.NamespacedName{
+		Name:      KubeAuthProxySecretsName,
+		Namespace: GatewayNamespace,
+	}, secret)
+	if err == nil {
+		// Secret exists, calculate its hash
+		secretHash = calculateSecretHash(secret.Data)
+	} else if !k8serr.IsNotFound(err) {
+		return fmt.Errorf("failed to get secret: %w", err)
+	}
+
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      KubeAuthProxyName,
@@ -323,12 +361,15 @@ func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfi
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: KubeAuthProxyLabels,
+					Annotations: map[string]string{
+						"opendatahub.io/secret-hash": secretHash,
+					},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
 							Name:  KubeAuthProxyName,
-							Image: KubeAuthProxyImage,
+							Image: getKubeAuthProxyImage(),
 							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: AuthProxyHTTPPort,
@@ -338,12 +379,17 @@ func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfi
 									ContainerPort: AuthProxyHTTPSPort,
 									Name:          "https",
 								},
+								{
+									ContainerPort: AuthProxyMetricsPort,
+									Name:          "metrics",
+								},
 							},
-							Args: buildOAuth2ProxyArgs(oidcConfig, domain),
+							Args: buildOAuth2ProxyArgs(oidcConfig, cookieConfig, domain),
 							Env: []corev1.EnvVar{
 								{Name: EnvClientID, ValueFrom: createSecretKeySelector(EnvClientID)},
 								{Name: EnvClientSecret, ValueFrom: createSecretKeySelector(EnvClientSecret)},
 								{Name: EnvCookieSecret, ValueFrom: createSecretKeySelector(EnvCookieSecret)},
+								{Name: "PROXY_MODE", Value: "auth"},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -372,9 +418,9 @@ func createKubeAuthProxyDeployment(rr *odhtypes.ReconciliationRequest, oidcConfi
 	return rr.AddResources(deployment)
 }
 
-func buildOAuth2ProxyArgs(oidcConfig *serviceApi.OIDCConfig, domain string) []string {
+func buildOAuth2ProxyArgs(oidcConfig *serviceApi.OIDCConfig, cookieConfig *serviceApi.CookieConfig, domain string) []string {
 	// OAuth2 proxy acts as auth service only - no upstream needed
-	baseArgs := buildBaseOAuth2ProxyArgs(domain)
+	baseArgs := buildBaseOAuth2ProxyArgs(cookieConfig, domain)
 
 	if oidcConfig != nil {
 		return append(baseArgs, buildOIDCArgs(oidcConfig)...)
@@ -383,12 +429,33 @@ func buildOAuth2ProxyArgs(oidcConfig *serviceApi.OIDCConfig, domain string) []st
 	return append(baseArgs, buildOpenShiftOAuthArgs()...)
 }
 
-func buildBaseOAuth2ProxyArgs(domain string) []string {
+// getCookieSettings returns cookie expire and refresh durations with defaults.
+func getCookieSettings(cookieConfig *serviceApi.CookieConfig) (string, string) {
+	// Set defaults
+	expire, refresh := "24h", "1h"
+
+	// Override with user configuration if provided
+	if cookieConfig != nil {
+		if cookieConfig.Expire != "" {
+			expire = cookieConfig.Expire
+		}
+		if cookieConfig.Refresh != "" {
+			refresh = cookieConfig.Refresh
+		}
+	}
+
+	return expire, refresh
+}
+
+func buildBaseOAuth2ProxyArgs(cookieConfig *serviceApi.CookieConfig, domain string) []string {
+	cookieExpire, cookieRefresh := getCookieSettings(cookieConfig)
+
 	return []string{
 		fmt.Sprintf("--http-address=0.0.0.0:%d", AuthProxyHTTPPort),
 		"--email-domain=*",
 		"--upstream=static://200", // Static response - real routing handled by EnvoyFilter
 		"--skip-provider-button",
+		"--skip-jwt-bearer-tokens=true", // Allow bearer tokens to bypass OAuth login flow
 		"--pass-access-token=true",
 		"--set-xauthrequest=true",
 		fmt.Sprintf("--redirect-url=https://%s/oauth2/callback", domain),
@@ -396,6 +463,14 @@ func buildBaseOAuth2ProxyArgs(domain string) []string {
 		"--tls-key-file=" + TLSCertsMountPath + "/tls.key",
 		"--use-system-trust-store=true",
 		fmt.Sprintf("--https-address=0.0.0.0:%d", AuthProxyHTTPSPort),
+		"--cookie-expire=" + cookieExpire,                                 // Configurable cookie expiration
+		"--cookie-refresh=" + cookieRefresh,                               // Configurable cookie refresh interval
+		"--cookie-secure=true",                                            // HTTPS only
+		"--cookie-httponly=true",                                          // XSS protection
+		"--cookie-samesite=lax",                                           // CSRF protection
+		"--cookie-name=_oauth2_proxy",                                     // Custom cookie name
+		"--cookie-domain=" + domain,                                       // Cookie domain is the domain of the gateway
+		fmt.Sprintf("--metrics-address=0.0.0.0:%d", AuthProxyMetricsPort), // Expose metrics on unauthenticated port
 	}
 }
 
@@ -403,6 +478,7 @@ func buildOIDCArgs(oidcConfig *serviceApi.OIDCConfig) []string {
 	return []string{
 		"--provider=oidc",
 		"--oidc-issuer-url=" + oidcConfig.IssuerURL,
+		"--skip-oidc-discovery=false", // Enable OIDC discovery
 	}
 }
 
@@ -430,6 +506,11 @@ func createKubeAuthProxyService(rr *odhtypes.ReconciliationRequest) error {
 					Name:       "https",
 					Port:       AuthProxyHTTPSPort,
 					TargetPort: intstr.FromInt(AuthProxyHTTPSPort),
+				},
+				{
+					Name:       "metrics",
+					Port:       AuthProxyMetricsPort,
+					TargetPort: intstr.FromInt(AuthProxyMetricsPort),
 				},
 			},
 		},

@@ -96,7 +96,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			DeleteFunc:  func(tde event.TypedDeleteEvent[client.Object]) bool { return false },
 		}), reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardHardwareProfile))).
 		WithAction(initialize).
-		WithAction(devFlags).
 		WithAction(setKustomizedParams).
 		WithAction(configureDependencies).
 		WithAction(kustomize.NewAction(
@@ -111,7 +110,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
 		)).
-		WithAction(customizeResources).
 		WithAction(deploy.NewAction()).
 		WithAction(deployments.NewAction()).
 		WithAction(reconcileHardwareProfiles).

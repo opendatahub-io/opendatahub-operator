@@ -42,7 +42,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		).
 		// Add LlamaStackOperator-specific actions
 		WithAction(initialize).
-		WithAction(devFlags).
 		WithAction(releases.NewAction()).
 		WithAction(kustomize.NewAction(
 			kustomize.WithLabel(labels.ODH.Component(ComponentName), labels.True),

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -14,8 +15,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
 
-// deploy hardware profile CR with dsci as owner, but allow user change by annotation set to false.
-func (r *DSCInitializationReconciler) ManageDefaultHWProfileCR(ctx context.Context, dscInit *dsciv2.DSCInitialization, platform common.Platform) error {
+// deploy default hardware profile CR with dsci as owner, but allow user change by annotation set to false.
+func (r *DSCInitializationReconciler) ManageDefaultAndCustomHWProfileCR(ctx context.Context, dscInit *dsciv2.DSCInitialization, platform common.Platform) error {
 	log := logf.FromContext(ctx)
 
 	if platform == "" { // this is for test to skip creation.
@@ -23,22 +24,20 @@ func (r *DSCInitializationReconciler) ManageDefaultHWProfileCR(ctx context.Conte
 		return nil
 	}
 
-	// Check if default HardwareProfile CR already exists
-	_, err := cluster.GetHardwareProfile(ctx, r.Client, "default-profile", dscInit.Spec.ApplicationsNamespace)
-	if err == nil {
-		log.V(1).Info("HardwareProfile CR 'default-profile' already exists")
-		return nil
-	}
-	if client.IgnoreNotFound(err) != nil {
-		return fmt.Errorf("failed to check default HardwareProfile CR: %w", err)
+	// Check if default HardwareProfile CR already exists.
+	_, defaultProfileError := cluster.GetHardwareProfile(ctx, r.Client, "default-profile", dscInit.Spec.ApplicationsNamespace)
+
+	if client.IgnoreNotFound(defaultProfileError) != nil {
+		return fmt.Errorf("failed to check HardwareProfile CR: default-profile %w", defaultProfileError)
 	}
 
-	// deploy hardware profile CR with dsci as owner, but allow user change by have annotation in the default.
-	hwProfilePath := filepath.Join(deploy.DefaultManifestPath, "hardwareprofiles")
-	if err := deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, hwProfilePath, dscInit.Spec.ApplicationsNamespace, "hardwareprofile", true); err != nil {
-		return fmt.Errorf("failed to deploy HardwareProfile CR from path %s: %w", hwProfilePath, err)
+	if k8serr.IsNotFound(defaultProfileError) {
+		// deploy default hardware profile CR with dsci as owner, but allow user change by have annotation in the default.
+		defaultProfilePath := filepath.Join(deploy.DefaultManifestPath, "hardwareprofiles")
+		if err := deploy.DeployManifestsFromPath(ctx, r.Client, dscInit, defaultProfilePath, dscInit.Spec.ApplicationsNamespace, "hardwareprofile", true); err != nil {
+			return fmt.Errorf("failed to deploy default-profile HardwareProfile CR from path %s: %w", defaultProfilePath, err)
+		}
+		log.V(1).Info("Successfully deployed default-profile HardwareProfile CR")
 	}
-
-	log.V(1).Info("Successfully deployed HardwareProfile CR default-profile")
 	return nil
 }

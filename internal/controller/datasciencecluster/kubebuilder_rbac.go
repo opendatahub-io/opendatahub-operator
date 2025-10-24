@@ -178,7 +178,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=modelregistry.opendatahub.io,resources=modelregistries,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=modelregistry.opendatahub.io,resources=modelregistries/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=modelregistry.opendatahub.io,resources=modelregistries/finalizers,verbs=update;get
-// +kubebuilder:rbac:groups=maistra.io,resources=servicemeshmembers,verbs=get;list;watch;create;update;patch;delete
 
 // Kueue
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=kueues,verbs=get;list;watch;create;update;patch;delete
@@ -201,6 +200,7 @@ package datasciencecluster
 //+kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=codeflares/status,verbs=get
 
 // Kserve
+// +kubebuilder:rbac:groups="kubeflow.org",resources=notebooks,verbs=create;delete;list;update;watch;patch;get
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=kserves,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=kserves/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=kserves/finalizers,verbs=update
@@ -221,13 +221,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=clusterservingruntimes/finalizers,verbs=create;delete;list;update;watch;patch;get
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=clusterservingruntimes,verbs=create;delete;list;update;watch;patch;get
 // +kubebuilder:rbac:groups="template.openshift.io",resources=templates,verbs=*
-// +kubebuilder:rbac:groups="serving.knative.dev",resources=services/status,verbs=update;patch;delete;get
-// +kubebuilder:rbac:groups="serving.knative.dev",resources=services/finalizers,verbs=create;delete;list;watch;update;patch;get
-// +kubebuilder:rbac:groups="serving.knative.dev",resources=services,verbs=create;delete;list;watch;update;patch;get
-/* Serverless prerequisite */
-// +kubebuilder:rbac:groups="networking.istio.io",resources=gateways,verbs=*
-// +kubebuilder:rbac:groups="operator.knative.dev",resources=knativeservings,verbs=*
-// +kubebuilder:rbac:groups="operator.knative.dev",resources=knativeservings/finalizers,verbs=update;patch;get
 // +kubebuilder:rbac:groups="config.openshift.io",resources=ingresses,verbs=get
 /* KEDA (CMA) InferenceService autoscaling */
 // +kubebuilder:rbac:groups=keda.sh,resources=triggerauthentications,verbs=get;list;watch;create;update;patch;delete
@@ -280,19 +273,6 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelcontrollers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelcontrollers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelcontrollers/finalizers,verbs=update
-
-// Auth
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths/finalizers,verbs=update
-
-// Gateway
-// CR management
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs,verbs=get;list;watch;create;update;patch
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs/finalizers,verbs=update
-// Gateway API resources (what the controller actually creates)
-// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;gatewayclasses;httproutes,verbs=get;list;watch;create;update;patch;delete
 
 // FeastOperator
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=feastoperators,verbs=get;list;watch;create;update;patch;delete

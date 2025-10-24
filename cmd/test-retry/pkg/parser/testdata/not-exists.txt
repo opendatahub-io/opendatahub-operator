@@ -1,0 +1,6 @@
+{"ImportPath":"./pkg/not-exists","Action":"build-output","Output":"# ./pkg/not-exists\n"}
+{"ImportPath":"./pkg/not-exists","Action":"build-output","Output":"stat opendatahub-operator/cmd/test-retry/pkg/not-exists: directory not found\n"}
+{"ImportPath":"./pkg/not-exists","Action":"build-fail"}
+{"Time":"2025-10-02T23:41:03.379537+02:00","Action":"start","Package":"./pkg/not-exists"}
+{"Time":"2025-10-02T23:41:03.37964+02:00","Action":"output","Package":"./pkg/not-exists","Output":"FAIL\t./pkg/not-exists [setup failed]\n"}
+{"Time":"2025-10-02T23:41:03.379645+02:00","Action":"fail","Package":"./pkg/not-exists","Elapsed":0,"FailedBuild":"./pkg/not-exists"}

@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -29,6 +30,8 @@ const (
 	TempoMonolithicName        = "data-science-tempomonolithic"
 	TempoStackName             = "data-science-tempostack"
 	InstrumentationName        = "data-science-instrumentation"
+	ThanosQuerierName          = "data-science-thanos-querier"
+	ThanosQuerierRouteName     = "data-science-thanos-querier-route"
 )
 
 // Constants for common test values.
@@ -42,8 +45,6 @@ const (
 	OtlpTempoExporter      = "otlp/tempo"
 	MetricsCPURequest      = "50m"
 	MetricsMemoryRequest   = "128Mi"
-	MetricsDefaultReplicas = 2
-
 	// TracesStorage backend types for testing.
 	TracesStorageBackendPV  = "pv"
 	TracesStorageBackendS3  = "s3"
@@ -60,6 +61,9 @@ var monitoringOwnerReferencesCondition = And(
 
 type MonitoringTestCtx struct {
 	*TestContext
+
+	// expectedDefaultReplicas stores the expected replica count based on cluster size, 1 for single-node clusters, 2 for multi-node.
+	expectedDefaultReplicas int
 }
 
 func monitoringTestSuite(t *testing.T) {
@@ -69,9 +73,17 @@ func monitoringTestSuite(t *testing.T) {
 	tc, err := NewTestContext(t)
 	require.NoError(t, err)
 
+	// Detect cluster size once for all tests
+	isSNO := cluster.IsSingleNodeCluster(tc.Context(), tc.Client())
+	expectedReplicas := 2 // Default for multi-node
+	if isSNO {
+		expectedReplicas = 1
+	}
+
 	// Create an instance of test context.
 	monitoringServiceCtx := MonitoringTestCtx{
-		TestContext: tc,
+		TestContext:             tc,
+		expectedDefaultReplicas: expectedReplicas,
 	}
 
 	// Increase the global eventually timeout for monitoring tests involve complex operator dependencies (OpenTelemetry, Tempo, etc.)
@@ -94,6 +106,8 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test OpenTelemetry Collector replicas", monitoringServiceCtx.ValidateMonitoringCRCollectorReplicas},
 		{"Test Instrumentation CR Traces lifecycle", monitoringServiceCtx.ValidateInstrumentationCRTracesLifecycle},
 		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
+		{"Test ThanosQuerier deployment with metrics", monitoringServiceCtx.ValidateThanosQuerierDeployment},
+		{"Test ThanosQuerier not deployed without metrics", monitoringServiceCtx.ValidateThanosQuerierNotDeployedWithoutMetrics},
 		{"Validate CEL blocks invalid monitoring configs", monitoringServiceCtx.ValidateCELBlocksInvalidMonitoringConfigs},
 		{"Validate CEL allows valid monitoring configs", monitoringServiceCtx.ValidateCELAllowsValidMonitoringConfigs},
 		{"Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled},
@@ -153,7 +167,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsWhenSet(t *testing.
 	// Update DSCI to set metrics - ensure managementState remains Managed
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
-		withMetricsConfig(),
+		tc.withMetricsConfig(),
 	)
 
 	// Wait for the Monitoring resource to be updated by DSCInitialization controller
@@ -186,8 +200,8 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *te
 			jq.Match(`.spec.resources.requests.cpu == "%s"`, MetricsCPURequest),
 			// Validate memory request is set to MetricsMemoryRequest
 			jq.Match(`.spec.resources.requests.memory == "%s"`, MetricsMemoryRequest),
-			// Validate replicas is set to MetricsDefaultReplicas when it was not specified in DSCI
-			jq.Match(`.spec.prometheusConfig.replicas == %d`, MetricsDefaultReplicas),
+			// Validate replicas is set to the cluster-appropriate default value (1 for SNO, 2 for multi-node)
+			jq.Match(`.spec.prometheusConfig.replicas == %d`, tc.expectedDefaultReplicas),
 			// Validate owner references
 			monitoringOwnerReferencesCondition,
 		)),
@@ -300,7 +314,7 @@ func (tc *MonitoringTestCtx) ValidateCELAllowsValidMonitoringConfigs(t *testing.
 		{
 			name: "replicas_with_storage",
 			transforms: []testf.TransformFn{
-				withMetricsConfig(),
+				tc.withMetricsConfig(),
 			},
 			description: "Non-zero replicas should be allowed with storage",
 		},
@@ -334,7 +348,7 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 			name: "Custom Metrics Exporters",
 			transforms: []testf.TransformFn{
 				withManagementState(operatorv1.Managed),
-				withMetricsConfig(),
+				tc.withMetricsConfig(),
 				withCustomMetricsExporters(),
 			},
 			validation: jq.Match(`
@@ -391,15 +405,13 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 func (tc *MonitoringTestCtx) ValidateMonitoringCRCollectorReplicas(t *testing.T) {
 	t.Helper()
 
-	const (
-		defaultReplicas = 2
-		testReplicas    = 3
-	)
+	defaultReplicas := tc.expectedDefaultReplicas
+	testReplicas := defaultReplicas + 1 // Test with one more replica than default
 
 	// Setup monitoring configuration to allow collectorReplicas testing
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
-		withMetricsConfig(),
+		tc.withMetricsConfig(),
 	)
 
 	monitoringCR := WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName})
@@ -606,7 +618,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRulesLifecycle(t *testing.T) {
 	// Enable alerting + dashboard → Prometheus rules created
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
-		withMetricsConfig(),
+		tc.withMetricsConfig(),
 		withEmptyAlerting(),
 	)
 	tc.EventuallyResourcePatched(
@@ -880,7 +892,7 @@ func withManagementState(state operatorv1.ManagementState) testf.TransformFn {
 }
 
 // withMetricsConfig returns a single transform for setting up metrics configuration using pipeline.
-func withMetricsConfig() testf.TransformFn {
+func (tc *MonitoringTestCtx) withMetricsConfig() testf.TransformFn {
 	return testf.Transform(`.spec.monitoring.metrics = {
         "storage": {
             "size": "%s",
@@ -891,7 +903,7 @@ func withMetricsConfig() testf.TransformFn {
             "memoryrequest": "%s"
         },
         "replicas": %d
-    }`, MetricsStorageSize, MetricsRetention, MetricsCPURequest, MetricsMemoryRequest, MetricsDefaultReplicas)
+    }`, MetricsStorageSize, MetricsRetention, MetricsCPURequest, MetricsMemoryRequest, tc.expectedDefaultReplicas)
 }
 
 // withMetricsReplicas returns a transform that sets metrics replicas.
@@ -937,8 +949,15 @@ func withNoCollectorReplicas() testf.TransformFn {
 // withCustomMetricsExporters returns a transform that sets custom metrics exporters.
 func withCustomMetricsExporters() testf.TransformFn {
 	return testf.Transform(`.spec.monitoring.metrics.exporters = {
-		"debug": "verbosity: detailed",
-        "%s": "endpoint: http://custom-backend:4317\ntls:\n  insecure: true"
+		"debug": {
+			"verbosity": "detailed"
+		},
+        "%s": {
+			"endpoint": "http://custom-backend:4317",
+			"tls": {
+				"insecure": true
+			}
+		}
 	}`, OtlpCustomExporter)
 }
 
@@ -994,4 +1013,102 @@ func withMonitoringTraces(backend, secret, size, retention string) testf.Transfo
 	}
 
 	return testf.TransformPipeline(transforms...)
+}
+
+// ValidateThanosQuerierDeployment tests that ThanosQuerier CR and Route are created when metrics are configured and ThanosQuerier CRD is available.
+func (tc *MonitoringTestCtx) ValidateThanosQuerierDeployment(t *testing.T) {
+	t.Helper()
+
+	// Ensure clean slate before starting
+	tc.ensureMonitoringCleanSlate(t, "")
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionThanosQuerierAvailable, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be updated with metrics configuration and ThanosQuerier should be available"),
+	)
+
+	// Ensure the ThanosQuerier CR is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ThanosQuerier, types.NamespacedName{Name: ThanosQuerierName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			jq.Match(`.spec.selector.matchLabels."platform.opendatahub.io/part-of" == "monitoring"`),
+			jq.Match(`.spec.namespaceSelector.matchNames | contains(["%s"])`, tc.MonitoringNamespace),
+			jq.Match(`.spec.replicaLabels | contains(["prometheus_replica", "rule_replica"])`),
+			monitoringOwnerReferencesCondition,
+		)),
+		WithCustomErrorMsg("ThanosQuerier CR should be created when metrics are configured"),
+	)
+
+	// Ensure the ThanosQuerier Route is created (OpenShift specific)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Route, types.NamespacedName{Name: ThanosQuerierRouteName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			// Validate route points to correct service
+			jq.Match(`.spec.to.name == "thanos-querier-data-science-thanos-querier"`),
+			jq.Match(`.spec.tls.termination == "edge"`),
+			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
+			jq.Match(`.metadata.labels.app == "thanos-querier"`),
+			jq.Match(`.metadata.labels."app.kubernetes.io/name" == "thanos-querier"`),
+			jq.Match(`.metadata.labels."app.kubernetes.io/component" == "querier"`),
+			jq.Match(`.metadata.labels."app.kubernetes.io/part-of" == "data-science-monitoring"`),
+			monitoringOwnerReferencesCondition,
+		)),
+		WithCustomErrorMsg("ThanosQuerier Route should be created when metrics are configured"),
+	)
+
+	// Cleanup: Reset monitoring configuration
+	tc.resetMonitoringConfigToManaged()
+}
+
+func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *testing.T) {
+	t.Helper()
+
+	// Ensure clean slate before starting
+	tc.ensureMonitoringCleanSlate(t, "")
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics == null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be created without metrics configuration"),
+	)
+
+	// Validate that ThanosQuerier condition is False with reason MetricsNotConfigured
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(
+			`[.status.conditions[] | select(.type=="%s" and .status=="False" and .reason=="%s")] | length==1`,
+			status.ConditionThanosQuerierAvailable,
+			status.MetricsNotConfiguredReason,
+		)),
+		WithCustomErrorMsg("ThanosQuerier condition should be False with reason MetricsNotConfigured when metrics are not configured"),
+	)
+
+	tc.EnsureResourceDoesNotExist(
+		WithMinimalObject(gvk.ThanosQuerier, types.NamespacedName{Name: ThanosQuerierName, Namespace: tc.MonitoringNamespace}),
+	)
+
+	tc.EnsureResourceDoesNotExist(
+		WithMinimalObject(gvk.Route, types.NamespacedName{Name: ThanosQuerierRouteName, Namespace: tc.MonitoringNamespace}),
+	)
+
+	// Cleanup: Reset monitoring configuration
+	tc.resetMonitoringConfigToManaged()
 }

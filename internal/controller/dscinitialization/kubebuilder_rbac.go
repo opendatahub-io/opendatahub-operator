@@ -10,22 +10,6 @@ package dscinitialization
 /* Auth */
 // +kubebuilder:rbac:groups="config.openshift.io",resources=authentications,verbs=get;watch;list
 
-/* Service Mesh Integration */
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshcontrolplanes,verbs=create;delete;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmemberrolls,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="maistra.io",resources=servicemeshmembers/finalizers,verbs=create;get;list;patch;update;use;watch
-// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/status,verbs=update;patch;delete;get
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices/finalizers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="networking.istio.io",resources=virtualservices,verbs=*
-// +kubebuilder:rbac:groups="networking.istio.io",resources=gateways,verbs=*
-// +kubebuilder:rbac:groups="networking.istio.io",resources=envoyfilters,verbs=*
-// +kubebuilder:rbac:groups="networking.istio.io",resources=destinationrules,verbs=*
-// +kubebuilder:rbac:groups="security.istio.io",resources=authorizationpolicies,verbs=*
-// +kubebuilder:rbac:groups="authorino.kuadrant.io",resources=authconfigs,verbs=*
-// +kubebuilder:rbac:groups="operator.authorino.kuadrant.io",resources=authorinos,verbs=*
-
 // TODO: move to monitoring own file
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routers/metrics,verbs=get
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routers/federate,verbs=get
@@ -50,6 +34,23 @@ package dscinitialization
 //+kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=monitorings/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=monitorings/finalizers,verbs=update
 
+// Auth
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=auths/finalizers,verbs=update
+
+// Gateway
+// CR management
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=gatewayconfigs/finalizers,verbs=update
+
+// Gateway API resources (what the controller actually creates)
+// +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gateways;gatewayclasses;httproutes,verbs=get;list;watch;create;update;patch;delete
+// Gateway controller creates and manages the following Istio resources
+// +kubebuilder:rbac:groups=networking.istio.io,resources=destinationrules,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=networking.istio.io,resources=envoyfilters,verbs=get;list;watch;create;update;patch;delete
+
 /* Observability */
 // +kubebuilder:rbac:groups=tempo.grafana.com,resources=tempostacks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=tempo.grafana.com,resources=tempomonolithics,verbs=get;list;watch;create;update;patch;delete
@@ -73,7 +74,3 @@ package dscinitialization
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=instrumentations,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=instrumentations/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=instrumentations/finalizers,verbs=update
-
-//+kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=servicemeshes,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=servicemeshes/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=services.platform.opendatahub.io,resources=servicemeshes/finalizers,verbs=update

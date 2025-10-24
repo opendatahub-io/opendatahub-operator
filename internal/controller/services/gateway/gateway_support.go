@@ -3,16 +3,14 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 )
 
@@ -24,20 +22,20 @@ const (
 	DefaultGatewayName    = "data-science-gateway"               // Default gateway name used across all platforms
 
 	// Authentication constants.
-	AuthClientID        = "odh"       // OAuth client ID
-	OpenShiftOAuthScope = "user:full" // OAuth client scope
+	AuthClientID        = "data-science" // OAuth client ID
+	OpenShiftOAuthScope = "user:full"    // OAuth client scope
 
 	// OAuth2 proxy infrastructure.
 	KubeAuthProxyName        = "kube-auth-proxy"
 	KubeAuthProxySecretsName = "kube-auth-proxy-creds" //nolint:gosec // This is a resource name, not actual credentials
 	KubeAuthProxyTLSName     = "kube-auth-proxy-tls"
 	OAuthCallbackRouteName   = "oauth-callback-route"
-	KubeAuthProxyImage       = "quay.io/jtanner/kube-auth-proxy@sha256:434580fd42d73727d62566ff6d8336219a31b322798b48096ed167daaec42f07"
 
 	// Network configuration.
-	AuthProxyHTTPPort   = 4180
-	AuthProxyHTTPSPort  = 8443
-	AuthProxyOAuth2Path = "/oauth2"
+	AuthProxyHTTPPort    = 4180
+	AuthProxyHTTPSPort   = 8443
+	AuthProxyMetricsPort = 9000
+	AuthProxyOAuth2Path  = "/oauth2"
 
 	// Volume and mount paths.
 	TLSCertsVolumeName = "tls-certs"
@@ -58,6 +56,18 @@ var (
 	// KubeAuthProxyLabels provides common labels for OAuth2 proxy resources.
 	KubeAuthProxyLabels = map[string]string{"app": KubeAuthProxyName}
 )
+
+// getKubeAuthProxyImage returns the kube-auth-proxy image from environment variable.
+// For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
+// For ODH deployments, this comes from config/manager/manager.yaml.
+// Falls back to a default image for local development/testing only.
+func getKubeAuthProxyImage() string {
+	if image := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); image != "" {
+		return image
+	}
+	// Fallback for local development only
+	return "quay.io/jtanner/kube-auth-proxy:latest"
+}
 
 // GetCertificateType returns a string representation of the certificate type.
 func GetCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
@@ -160,19 +170,4 @@ func CreateListeners(certSecretName string, domain string) []gwapiv1.Listener {
 
 	listeners = append(listeners, httpsListener)
 	return listeners
-}
-
-// CreateErrorCondition creates a standardized error condition for gateway operations.
-func CreateErrorCondition(message string, err error) common.Condition {
-	fullMessage := message
-	if err != nil {
-		fullMessage = fmt.Sprintf("%s: %v", message, err)
-	}
-
-	return common.Condition{
-		Type:    status.ConditionTypeReady,
-		Status:  metav1.ConditionFalse,
-		Reason:  status.NotReadyReason,
-		Message: fullMessage,
-	}
 }

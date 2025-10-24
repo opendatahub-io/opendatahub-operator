@@ -128,11 +128,14 @@ spec:
                     properties:
                       exporters:
                         additionalProperties:
-                          type: string
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
                         description: |-
                           Exporters defines custom metrics exporters for sending metrics to external observability tools.
-                          Each key-value pair represents an exporter name and its configuration.
+                          Each key represents the exporter name, and the value contains the exporter configuration.
+                          The configuration follows the OpenTelemetry Collector exporter format.
                           Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.
+                          Maximum 10 exporters allowed, each config must be less than 10KB (enforced at reconciliation time).
                         type: object
                         x-kubernetes-validations:
                         - message: exporter name 'prometheus' is reserved and cannot
@@ -141,9 +144,8 @@ spec:
                         - message: exporter name 'otlp/tempo' is reserved and cannot
                             be used
                           rule: '!(''otlp/tempo'' in self)'
-                        - message: exporter configuration values must be non-empty
-                            strings
-                          rule: self.all(k, self[k] != '')
+                        - message: maximum 10 exporters allowed
+                          rule: size(self) <= 10
                       replicas:
                         description: |-
                           Replicas specifies the number of replicas in monitoringstack. If not set, it defaults
@@ -600,21 +602,6 @@ spec:
                     description: Override Zap log level. Can be "debug", "info", "error"
                       or a number (more verbose).
                     type: string
-                  logmode:
-                    default: production
-                    description: '## DEPRECATED ##: Ignored, use LogLevel instead'
-                    enum:
-                    - devel
-                    - development
-                    - prod
-                    - production
-                    - default
-                    type: string
-                  manifestsUri:
-                    description: |-
-                      ## DEPRECATED ## : ManifestsUri set on DSCI is not maintained.
-                      Custom manifests uri for odh-manifests
-                    type: string
                 type: object
               monitoring:
                 description: Enable monitoring on specified namespace
@@ -646,11 +633,14 @@ spec:
                     properties:
                       exporters:
                         additionalProperties:
-                          type: string
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
                         description: |-
                           Exporters defines custom metrics exporters for sending metrics to external observability tools.
-                          Each key-value pair represents an exporter name and its configuration.
+                          Each key represents the exporter name, and the value contains the exporter configuration.
+                          The configuration follows the OpenTelemetry Collector exporter format.
                           Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.
+                          Maximum 10 exporters allowed, each config must be less than 10KB (enforced at reconciliation time).
                         type: object
                         x-kubernetes-validations:
                         - message: exporter name 'prometheus' is reserved and cannot
@@ -659,9 +649,8 @@ spec:
                         - message: exporter name 'otlp/tempo' is reserved and cannot
                             be used
                           rule: '!(''otlp/tempo'' in self)'
-                        - message: exporter configuration values must be non-empty
-                            strings
-                          rule: self.all(k, self[k] != '')
+                        - message: maximum 10 exporters allowed
+                          rule: size(self) <= 10
                       replicas:
                         description: |-
                           Replicas specifies the number of replicas in monitoringstack. If not set, it defaults
@@ -835,76 +824,6 @@ spec:
                   rule: '!has(self.collectorReplicas) || (self.collectorReplicas >
                     0 && ((self.metrics.resources != null || self.metrics.storage
                     != null) || self.traces != null))'
-              serviceMesh:
-                description: |-
-                  Configures Service Mesh as networking layer for Data Science Clusters components.
-                  The Service Mesh is a mandatory prerequisite for single model serving (KServe) and
-                  you should review this configuration if you are planning to use KServe.
-                  For other components, it enhances user experience; e.g. it provides unified
-                  authentication giving a Single Sign On experience.
-                properties:
-                  auth:
-                    description: |-
-                      Auth holds configuration of authentication and authorization services
-                      used by Service Mesh in Opendatahub.
-                    properties:
-                      audiences:
-                        default:
-                        - https://kubernetes.default.svc
-                        description: |-
-                          Audiences is a list of the identifiers that the resource server presented
-                          with the token identifies as. Audience-aware token authenticators will verify
-                          that the token was intended for at least one of the audiences in this list.
-                          If no audiences are provided, the audience will default to the audience of the
-                          Kubernetes apiserver (kubernetes.default.svc).
-                        items:
-                          type: string
-                        type: array
-                      namespace:
-                        description: |-
-                          Namespace where it is deployed. If not provided, the default is to
-                          use '-auth-provider' suffix on the ApplicationsNamespace of the DSCI.
-                        maxLength: 63
-                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
-                        type: string
-                    type: object
-                  controlPlane:
-                    description: ControlPlane holds configuration of Service Mesh
-                      used by Opendatahub.
-                    properties:
-                      metricsCollection:
-                        default: Istio
-                        description: |-
-                          MetricsCollection specifies if metrics from components on the Mesh namespace
-                          should be collected. Setting the value to "Istio" will collect metrics from the
-                          control plane and any proxies on the Mesh namespace (like gateway pods). Setting
-                          to "None" will disable metrics collection.
-                        enum:
-                        - Istio
-                        - None
-                        type: string
-                      name:
-                        default: data-science-smcp
-                        description: Name is a name Service Mesh Control Plane. Defaults
-                          to "data-science-smcp".
-                        type: string
-                      namespace:
-                        default: istio-system
-                        description: Namespace is a namespace where Service Mesh is
-                          deployed. Defaults to "istio-system".
-                        maxLength: 63
-                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
-                        type: string
-                    type: object
-                  managementState:
-                    default: Removed
-                    enum:
-                    - Managed
-                    - Unmanaged
-                    - Removed
-                    pattern: ^(Managed|Unmanaged|Force|Removed)$
-                    type: string
-                type: object
               trustedCABundle:
                 description: |-
                   When set to `Managed`, adds odh-trusted-ca-bundle Configmap to all namespaces that includes
