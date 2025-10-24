@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -158,6 +159,7 @@ func (tc *DSCTestCtx) validateSpecWithJQ(t *testing.T, expectedSpec interface{},
 		WithCustomErrorMsg(errorMsg),
 	)
 }
+
 // ValidateOwnedNamespacesAllExist verifies that the owned namespaces exist.
 func (tc *DSCTestCtx) ValidateOwnedNamespacesAllExist(t *testing.T) {
 	t.Helper()
