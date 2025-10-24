@@ -105,8 +105,7 @@ func (c *Kueue) SetReleaseStatus(releases []common.ComponentRelease) {
 type KueueManagementSpec struct {
 	// Set to one of the following values:
 	//
-	// - "Unmanaged" : the operator is actively managing the component and trying to keep it active.
-	//                 It will only upgrade the component if it is safe to do so
+	// - "Unmanaged" : the operator will not deploy or manage the component's lifecycle, but may create supporting configuration resources.
 	//
 	// - "Removed"   : the operator is actively managing the component and will not install it,
 	//                 or if it is installed, the operator will try to remove it
