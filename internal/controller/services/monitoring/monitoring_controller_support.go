@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -44,6 +45,40 @@ const (
 
 var componentIDRE = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z0-9][A-Za-z0-9_-]*)?$`)
 
+// isLocalServiceEndpoint checks if an endpoint URL is for a local/in-cluster service.
+// Returns true for localhost, loopback IPs, cluster-local services, and single-label service names.
+func isLocalServiceEndpoint(endpoint string) bool {
+	// Parse URL first to check hostname only (not path or other components)
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Host == "" {
+		return false
+	}
+
+	host := strings.ToLower(u.Hostname()) // strips port and normalizes case
+	if host == "" {
+		return false
+	}
+
+	// Check for localhost and loopback IPs (on hostname only)
+	if host == "localhost" || host == "::1" || strings.HasPrefix(host, "127.") {
+		return true
+	}
+
+	// Check for cluster-local domain suffixes (only on hostname)
+	if strings.HasSuffix(host, ".svc.cluster.local") || strings.HasSuffix(host, ".svc") {
+		return true
+	}
+
+	// Single-label hostnames (no dots, no colons) are typically in-cluster services in the same namespace
+	// e.g., "custom-backend", "prometheus"
+	// Note: Must exclude IPv6 literals like [2001:4860:4860::8888] which contain colons
+	if !strings.Contains(host, ".") && !strings.Contains(host, ":") {
+		return true
+	}
+
+	return false
+}
+
 func isReservedName(n string) bool {
 	reservedNames := map[string]bool{
 		"otlp/tempo": true,
@@ -54,6 +89,27 @@ func isReservedName(n string) bool {
 
 func validateExporters(exporters map[string]runtime.RawExtension) (map[string]string, error) {
 	validatedExporters := make(map[string]string)
+
+	// Validate total size of all exporters combined
+	totalSize := 0
+	for _, rawConfig := range exporters {
+		var raw []byte
+		switch {
+		case len(rawConfig.Raw) > 0:
+			raw = rawConfig.Raw
+		case rawConfig.Object != nil:
+			b, err := yaml.Marshal(rawConfig.Object)
+			if err != nil {
+				continue // Skip malformed configs, they'll be caught in detailed validation
+			}
+			raw = b
+		}
+		totalSize += len(raw)
+	}
+	if totalSize > maxTotalExporterSize {
+		return nil, fmt.Errorf("total exporter config size exceeds maximum of %d bytes (actual: %d bytes)",
+			maxTotalExporterSize, totalSize)
+	}
 
 	for name, rawConfig := range exporters {
 		if isReservedName(name) {
@@ -83,10 +139,30 @@ func validateExporters(exporters map[string]runtime.RawExtension) (map[string]st
 			continue
 		}
 
+		// Validate individual exporter size (10KB limit)
+		if len(raw) > maxExporterSize {
+			return nil, fmt.Errorf("exporter '%s' config exceeds maximum size of %d bytes (actual: %d bytes)",
+				name, maxExporterSize, len(raw))
+		}
+
 		// Convert RawExtension to a map for validation and YAML conversion
 		var config map[string]interface{}
 		if err := yaml.Unmarshal(raw, &config); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal exporter config for '%s': %w", name, err)
+		}
+		// Treat empty/whitespace and YAML null as empty object for consistent rendering.
+		if config == nil {
+			config = map[string]interface{}{}
+		}
+
+		// Enhanced security validations
+		if err := validateExporterConfigSecurity(name, config); err != nil {
+			return nil, err
+		}
+
+		// Schema validation for known exporter types
+		if err := validateExporterSchema(name, config); err != nil {
+			return nil, err
 		}
 
 		// Convert config back to YAML string for template rendering
@@ -153,7 +229,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"Metrics":              monitoring.Spec.Metrics != nil,
 		"AcceleratorMetrics":   monitoring.Spec.Metrics != nil,
 		"ApplicationNamespace": rr.DSCI.Spec.ApplicationsNamespace,
-		"MetricsExporters":     make(map[string]interface{}),
+		"MetricsExporters":     make(map[string]string),
 		"MetricsExporterNames": []string{},
 	}
 
@@ -362,38 +438,32 @@ func addReplicasData(ctx context.Context, rr *odhtypes.ReconciliationRequest, me
 
 // addExportersData adds custom metrics exporters data to the template data map.
 func addExportersData(metrics *serviceApi.Metrics, templateData map[string]any) error {
-	if metrics.Exporters == nil {
+	// Always initialize to avoid template rendering failures (consistent with traces)
+	validatedExporters := make(map[string]string)
+	exporterNames := make([]string, 0)
+
+	// Early return if no exporters are configured
+	if len(metrics.Exporters) == 0 {
+		templateData["MetricsExporters"] = validatedExporters
+		templateData["MetricsExporterNames"] = exporterNames
 		return nil
 	}
 
-	validExporters := make(map[string]interface{})
-	exporterNames := make([]string, 0, len(metrics.Exporters))
-
-	for name, configYAML := range metrics.Exporters {
-		if isReservedExporterName(name) {
-			return fmt.Errorf("exporter name '%s' is reserved and cannot be used", name)
-		}
-
-		// Trim and parse YAML configuration string
-		cfgStr := strings.TrimSpace(configYAML)
-		var cfg interface{}
-		if err := yaml.Unmarshal([]byte(cfgStr), &cfg); err != nil {
-			return fmt.Errorf("invalid YAML configuration for exporter '%s': %w", name, err)
-		}
-
-		// Require a mapping/object to avoid invalid collector config
-		cfgMap, ok := cfg.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("exporter '%s' configuration must be a YAML mapping/object", name)
-		}
-
-		validExporters[name] = cfgMap
-		exporterNames = append(exporterNames, name)
+	// Validate exporters using the same function as traces
+	var err error
+	validatedExporters, err = validateExporters(metrics.Exporters)
+	if err != nil {
+		return err
 	}
 
-	// Ensure deterministic order in templates/pipelines
+	// Build exporter names list for deterministic ordering (consistent with traces)
+	for name := range validatedExporters {
+		exporterNames = append(exporterNames, name)
+	}
 	sort.Strings(exporterNames)
-	templateData["MetricsExporters"] = validExporters
+
+	// Always set template data, even if empty, to prevent template rendering failures
+	templateData["MetricsExporters"] = validatedExporters
 	templateData["MetricsExporterNames"] = exporterNames
 
 	return nil
@@ -459,12 +529,389 @@ func getStringValueOrDefault(value, defaultValue string) string {
 	return value
 }
 
-// isReservedExporterName checks if an exporter name conflicts with built-in exporters.
-func isReservedExporterName(name string) bool {
-	switch name {
-	case "prometheus", "otlp/tempo":
-		return true
-	default:
-		return false
+const (
+	// Security limits for exporter configurations.
+	maxConfigFields      = 50    // Maximum number of fields in an exporter config.
+	maxNestingDepth      = 10    // Maximum nesting depth to prevent deeply nested objects.
+	maxStringLength      = 1024  // Maximum length for string values.
+	maxArrayLength       = 100   // Maximum length for array values.
+	maxExporterSize      = 10240 // Maximum size per exporter config (10KB).
+	maxTotalExporterSize = 51200 // Maximum total size for all exporters combined (50KB).
+)
+
+// ExporterSchema defines the validation schema for an exporter type.
+type ExporterSchema struct {
+	RequiredFields []string
+	AllowedFields  []string
+	FieldTypes     map[string]FieldType
+	FieldRules     map[string][]ValidationRule
+}
+
+// FieldType defines the expected type and constraints for a field.
+type FieldType struct {
+	Type          string
+	Pattern       *regexp.Regexp
+	MinLength     *int
+	MaxLength     *int
+	AllowedValues []string
+}
+
+// ValidationRule defines custom validation logic.
+type ValidationRule struct {
+	Name     string
+	Validate func(field string, value interface{}) error
+}
+
+// Schema definitions for metrics exporters.
+var metricsExporterSchemas = map[string]ExporterSchema{
+	"otlp": {
+		RequiredFields: []string{"endpoint"},
+		AllowedFields: []string{
+			"endpoint", "headers", "tls", "compression", "timeout",
+			"retry_on_failure", "sending_queue", "balancer_name",
+		},
+		FieldTypes: map[string]FieldType{
+			"endpoint": {
+				Type:      "string",
+				Pattern:   regexp.MustCompile(`^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$`),
+				MinLength: intPtr(1),
+				MaxLength: intPtr(2048),
+			},
+			"headers": {
+				Type: "map[string]string",
+			},
+			"tls": {
+				Type: "object",
+			},
+			"compression": {
+				Type:          "string",
+				AllowedValues: []string{"gzip", "snappy", "zstd", "none"},
+			},
+			"timeout": {
+				Type:      "string",
+				Pattern:   regexp.MustCompile(`^\d+[smh]$`),
+				MaxLength: intPtr(10),
+			},
+		},
+		FieldRules: map[string][]ValidationRule{
+			"endpoint": {
+				{
+					Name: "secure_endpoint_check",
+					Validate: func(field string, value interface{}) error {
+						if str, ok := value.(string); ok {
+							if strings.HasPrefix(str, "http://") && !isLocalServiceEndpoint(str) {
+								return errors.New("insecure HTTP endpoints not allowed for external services")
+							}
+						}
+						return nil
+					},
+				},
+			},
+		},
+	},
+	"otlphttp": {
+		RequiredFields: []string{"endpoint"},
+		AllowedFields: []string{
+			"endpoint", "headers", "tls", "compression", "timeout",
+			"retry_on_failure", "sending_queue",
+		},
+		FieldTypes: map[string]FieldType{
+			"endpoint": {
+				Type:      "string",
+				Pattern:   regexp.MustCompile(`^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$`),
+				MinLength: intPtr(1),
+				MaxLength: intPtr(2048),
+			},
+			"headers": {
+				Type: "map[string]string",
+			},
+			"compression": {
+				Type:          "string",
+				AllowedValues: []string{"gzip", "none"},
+			},
+			"timeout": {
+				Type:      "string",
+				Pattern:   regexp.MustCompile(`^\d+[smh]$`),
+				MaxLength: intPtr(10),
+			},
+		},
+		FieldRules: map[string][]ValidationRule{
+			"endpoint": {
+				{
+					Name: "secure_endpoint_check",
+					Validate: func(field string, value interface{}) error {
+						if str, ok := value.(string); ok {
+							if strings.HasPrefix(str, "http://") && !isLocalServiceEndpoint(str) {
+								return errors.New("insecure HTTP endpoints not allowed for external services")
+							}
+						}
+						return nil
+					},
+				},
+			},
+		},
+	},
+	"debug": {
+		AllowedFields: []string{"verbosity", "sampling_initial", "sampling_thereafter"},
+		FieldTypes: map[string]FieldType{
+			"verbosity": {
+				Type:          "string",
+				AllowedValues: []string{"basic", "normal", "detailed"},
+			},
+			"sampling_initial": {
+				Type: "int",
+			},
+			"sampling_thereafter": {
+				Type: "int",
+			},
+		},
+	},
+	"prometheusremotewrite": {
+		RequiredFields: []string{"endpoint"},
+		AllowedFields: []string{
+			"endpoint", "headers", "tls", "remote_timeout", "retry_on_failure",
+			"sending_queue", "write_relabel_configs", "resource_to_telemetry_conversion",
+		},
+		FieldTypes: map[string]FieldType{
+			"endpoint": {
+				Type:      "string",
+				Pattern:   regexp.MustCompile(`^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$`),
+				MinLength: intPtr(1),
+				MaxLength: intPtr(2048),
+			},
+			"headers": {
+				Type: "map[string]string",
+			},
+			"tls": {
+				Type: "object",
+			},
+			"remote_timeout": {
+				Type:      "string",
+				Pattern:   regexp.MustCompile(`^\d+[smh]$`),
+				MaxLength: intPtr(10),
+			},
+		},
+		FieldRules: map[string][]ValidationRule{
+			"endpoint": {
+				{
+					Name: "secure_endpoint_check",
+					Validate: func(field string, value interface{}) error {
+						if str, ok := value.(string); ok {
+							if strings.HasPrefix(str, "http://") && !isLocalServiceEndpoint(str) {
+								return errors.New("insecure HTTP endpoints not allowed for external services")
+							}
+						}
+						return nil
+					},
+				},
+			},
+		},
+	},
+}
+
+// validateExporterConfigSecurity performs additional security validations on exporter configurations.
+func validateExporterConfigSecurity(name string, config map[string]interface{}) error {
+	// Check maximum number of fields
+	if len(config) > maxConfigFields {
+		return fmt.Errorf("exporter '%s' has too many fields (%d), maximum allowed is %d", name, len(config), maxConfigFields)
 	}
+
+	// Check nesting depth and validate types recursively
+	if err := validateConfigDepthAndTypes(config, 1, name); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateConfigDepthAndTypes recursively validates the depth and types of configuration values.
+func validateConfigDepthAndTypes(obj interface{}, depth int, exporterName string) error {
+	if depth > maxNestingDepth {
+		return fmt.Errorf("exporter '%s' config nesting too deep (max %d levels)", exporterName, maxNestingDepth)
+	}
+
+	switch v := obj.(type) {
+	case map[string]interface{}:
+		if len(v) > maxConfigFields {
+			return fmt.Errorf("exporter '%s' config object has too many fields at depth %d", exporterName, depth)
+		}
+		for key, value := range v {
+			// Validate key length
+			if len(key) > maxStringLength {
+				return fmt.Errorf("exporter '%s' config key too long at depth %d", exporterName, depth)
+			}
+			// Recursively validate nested values
+			if err := validateConfigDepthAndTypes(value, depth+1, exporterName); err != nil {
+				return err
+			}
+		}
+	case []interface{}:
+		if len(v) > maxArrayLength {
+			return fmt.Errorf("exporter '%s' config array too long (%d items) at depth %d", exporterName, len(v), depth)
+		}
+		for _, item := range v {
+			if err := validateConfigDepthAndTypes(item, depth+1, exporterName); err != nil {
+				return err
+			}
+		}
+	case string:
+		if len(v) > maxStringLength {
+			return fmt.Errorf("exporter '%s' config string value too long at depth %d", exporterName, depth)
+		}
+	case int, int32, int64, float32, float64, bool:
+		// These types are safe
+	case nil:
+		// Nil values are safe
+	default:
+		return fmt.Errorf("exporter '%s' config contains unsupported type %T at depth %d", exporterName, v, depth)
+	}
+
+	return nil
+}
+
+// validateExporterSchema validates an exporter config against its schema.
+func validateExporterSchema(exporterName string, config map[string]interface{}) error {
+	exporterType := getExporterType(exporterName)
+	schema, exists := metricsExporterSchemas[exporterType]
+
+	if !exists {
+		// For unknown exporters, schema validation is skipped
+		// Security validation already applied above
+		return nil
+	}
+
+	return schema.Validate(exporterName, config)
+}
+
+// getExporterType extracts the base exporter type from a name like "otlp/custom".
+func getExporterType(exporterName string) string {
+	if idx := strings.Index(exporterName, "/"); idx != -1 {
+		return exporterName[:idx]
+	}
+	return exporterName
+}
+
+// Validate validates an exporter config against the schema.
+func (s ExporterSchema) Validate(exporterName string, config map[string]interface{}) error {
+	// Check required fields
+	for _, required := range s.RequiredFields {
+		if _, exists := config[required]; !exists {
+			return fmt.Errorf("exporter '%s' missing required field: %s", exporterName, required)
+		}
+	}
+
+	// Check for disallowed fields
+	for field := range config {
+		if !contains(s.AllowedFields, field) {
+			return fmt.Errorf("exporter '%s' contains disallowed field: %s (allowed: %v)",
+				exporterName, field, s.AllowedFields)
+		}
+	}
+
+	// Validate field types and constraints
+	for field, value := range config {
+		if fieldType, exists := s.FieldTypes[field]; exists {
+			if err := validateFieldTypeAndConstraints(exporterName, field, value, fieldType); err != nil {
+				return err
+			}
+		}
+
+		// Apply custom validation rules
+		if rules, exists := s.FieldRules[field]; exists {
+			for _, rule := range rules {
+				if err := rule.Validate(field, value); err != nil {
+					return fmt.Errorf("exporter '%s' field '%s' failed rule '%s': %w",
+						exporterName, field, rule.Name, err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// validateFieldTypeAndConstraints validates field type and applies constraints.
+func validateFieldTypeAndConstraints(exporterName, field string, value interface{}, fieldType FieldType) error {
+	// Type validation
+	if err := validateFieldTypeStrict(field, value, fieldType.Type); err != nil {
+		return fmt.Errorf("exporter '%s' field '%s': %w", exporterName, field, err)
+	}
+
+	// String-specific constraints
+	if str, ok := value.(string); ok && fieldType.Type == "string" {
+		if fieldType.MinLength != nil && len(str) < *fieldType.MinLength {
+			return fmt.Errorf("exporter '%s' field '%s': minimum length %d, got %d",
+				exporterName, field, *fieldType.MinLength, len(str))
+		}
+		if fieldType.MaxLength != nil && len(str) > *fieldType.MaxLength {
+			return fmt.Errorf("exporter '%s' field '%s': maximum length %d, got %d",
+				exporterName, field, *fieldType.MaxLength, len(str))
+		}
+		if fieldType.Pattern != nil && !fieldType.Pattern.MatchString(str) {
+			return fmt.Errorf("exporter '%s' field '%s': does not match required pattern",
+				exporterName, field)
+		}
+		if len(fieldType.AllowedValues) > 0 && !contains(fieldType.AllowedValues, str) {
+			return fmt.Errorf("exporter '%s' field '%s': must be one of %v, got '%s'",
+				exporterName, field, fieldType.AllowedValues, str)
+		}
+	}
+
+	return nil
+}
+
+// validateFieldTypeStrict validates field types with enhanced error messages.
+func validateFieldTypeStrict(_ string, value interface{}, expectedType string) error {
+	switch expectedType {
+	case "string":
+		if _, ok := value.(string); !ok {
+			return fmt.Errorf("expected string, got %T", value)
+		}
+	case "int":
+		switch value.(type) {
+		case int, int32, int64, float64: // JSON unmarshals numbers as float64
+			// Valid numeric types
+		default:
+			return fmt.Errorf("expected int, got %T", value)
+		}
+	case "bool":
+		if _, ok := value.(bool); !ok {
+			return fmt.Errorf("expected bool, got %T", value)
+		}
+	case "object":
+		if _, ok := value.(map[string]interface{}); !ok {
+			return fmt.Errorf("expected object, got %T", value)
+		}
+	case "array":
+		if _, ok := value.([]interface{}); !ok {
+			return fmt.Errorf("expected array, got %T", value)
+		}
+	case "map[string]string":
+		if m, ok := value.(map[string]interface{}); ok {
+			for _, v := range m {
+				if _, ok := v.(string); !ok {
+					return fmt.Errorf("map value must be string, got %T", v)
+				}
+			}
+		} else {
+			return fmt.Errorf("expected map[string]string, got %T", value)
+		}
+	default:
+		return fmt.Errorf("unsupported field type: %s", expectedType)
+	}
+	return nil
+}
+
+// Helper functions.
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+func intPtr(i int) *int {
+	return &i
 }
