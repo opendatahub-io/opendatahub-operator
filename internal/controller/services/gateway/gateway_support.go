@@ -99,6 +99,11 @@ func calculateSecretHash(secretData map[string][]byte) string {
 // For ODH deployments, this comes from config/manager/manager.yaml.
 // Falls back to a default image for local development/testing only.
 func getKubeAuthProxyImage() string {
+	// For e2e tests, always use the ODH image
+	if os.Getenv("E2E_TEST_OPERATOR_NAMESPACE") != "" {
+		return "quay.io/opendatahub/odh-kube-auth-proxy:latest"
+	}
+
 	if image := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); image != "" {
 		return image
 	}
