@@ -83,7 +83,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.0.0
-    createdAt: "2025-10-23T10:24:07Z"
+    createdAt: "2025-10-23T13:29:58Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
@@ -1072,6 +1072,31 @@ spec:
           - update
           - watch
         - apiGroups:
+          - observability.openshift.io
+          resources:
+          - uiplugins
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - observability.openshift.io
+          resources:
+          - uiplugins/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - observability.openshift.io
+          resources:
+          - uiplugins/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
           - opendatahub.io
           resources:
           - odhdashboardconfigs
@@ -1116,6 +1141,16 @@ spec:
           - operator.openshift.io
           resources:
           - consoles
+          verbs:
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - operator.openshift.io
+          resources:
           - ingresscontrollers
           verbs:
           - delete
@@ -1160,6 +1195,38 @@ spec:
           - get
           - list
           - watch
+        - apiGroups:
+          - perses.dev
+          resources:
+          - perses
+          - persesdashboards
+          - persesdatasources
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - perses.dev
+          resources:
+          - perses/finalizers
+          - persesdashboards/finalizers
+          - persesdatasources/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - perses.dev
+          resources:
+          - perses/status
+          - persesdashboards/status
+          - persesdatasources/status
+          verbs:
+          - get
+          - patch
+          - update
         - apiGroups:
           - ray.io
           resources:
