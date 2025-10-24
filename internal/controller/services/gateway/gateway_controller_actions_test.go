@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -44,6 +45,7 @@ const (
 // setupTestClient creates a fake client with the required scheme for Gateway API tests.
 func setupTestClient() client.Client {
 	scheme := runtime.NewScheme()
+	utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(gwapiv1.Install(scheme))
 	utilruntime.Must(serviceApi.AddToScheme(scheme))
@@ -54,6 +56,7 @@ func setupTestClient() client.Client {
 // setupTestClientWithObjects creates a fake client with pre-existing objects.
 func setupTestClientWithObjects(objects ...client.Object) client.Client {
 	scheme := runtime.NewScheme()
+	utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(gwapiv1.Install(scheme))
 	utilruntime.Must(serviceApi.AddToScheme(scheme))
@@ -629,9 +632,7 @@ func TestBuildOAuth2ProxyArgsOpenShift(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	domain := "data-science-gateway.apps.example.com"
-
-	args := buildOAuth2ProxyArgs(nil, nil, domain) // nil OIDC = OpenShift mode, nil cookie = defaults
+	args := buildOAuth2ProxyArgs(nil, nil, expectedODHDomain) // nil OIDC = OpenShift mode, nil cookie = defaults
 
 	// Verify base arguments are present
 	g.Expect(args).To(ContainElement(ContainSubstring("--http-address=0.0.0.0:")))
@@ -659,13 +660,11 @@ func TestBuildOAuth2ProxyArgsOIDC(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	domain := "data-science-gateway.apps.example.com"
-
 	oidcConfig := &serviceApi.OIDCConfig{
 		IssuerURL: testOIDCIssuerURL,
 	}
 
-	args := buildOAuth2ProxyArgs(oidcConfig, nil, domain) // nil cookie = defaults
+	args := buildOAuth2ProxyArgs(oidcConfig, nil, expectedODHDomain) // nil cookie = defaults
 
 	// Verify base arguments are present
 	g.Expect(args).To(ContainElement(ContainSubstring("--http-address=0.0.0.0:")))
@@ -806,4 +805,103 @@ func TestGetOIDCClientSecretNotFound(t *testing.T) {
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(ContainSubstring("failed to get OIDC client secret"))
 	g.Expect(result).To(Equal(""))
+}
+
+// TestSecretHashAnnotationChangeTriggers tests that different secret values produce different annotations.
+func TestSecretHashAnnotationChangeTriggers(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	secretData1 := map[string]string{
+		EnvClientID:     "client1",
+		EnvClientSecret: "secret1",
+		EnvCookieSecret: "cookie1",
+	}
+	secretData2 := map[string]string{
+		EnvClientID:     "client2",
+		EnvClientSecret: "secret2",
+		EnvCookieSecret: "cookie2",
+	}
+
+	// Create first secret and deployment
+	secretDataBytes1 := make(map[string][]byte)
+	for k, v := range secretData1 {
+		secretDataBytes1[k] = []byte(v)
+	}
+	secret1 := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: secretDataBytes1,
+	}
+	client1 := setupTestClientWithObjects(secret1)
+	rr1 := &odhtypes.ReconciliationRequest{Client: client1}
+
+	// Create second secret and deployment
+	secretDataBytes2 := make(map[string][]byte)
+	for k, v := range secretData2 {
+		secretDataBytes2[k] = []byte(v)
+	}
+	secret2 := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Data: secretDataBytes2,
+	}
+	client2 := setupTestClientWithObjects(secret2)
+	rr2 := &odhtypes.ReconciliationRequest{Client: client2}
+
+	// Create two deployments with different secrets
+	err1 := createKubeAuthProxyDeployment(ctx, rr1, nil, nil, expectedODHDomain)
+	g.Expect(err1).NotTo(HaveOccurred())
+
+	err2 := createKubeAuthProxyDeployment(ctx, rr2, nil, nil, expectedODHDomain)
+	g.Expect(err2).NotTo(HaveOccurred())
+
+	// Convert both to typed Deployments
+	deployment1 := &appsv1.Deployment{}
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(rr1.Resources[0].Object, deployment1)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	deployment2 := &appsv1.Deployment{}
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr2.Resources[0].Object, deployment2)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Verify that the annotations are different
+	annotation1 := deployment1.Spec.Template.Annotations["opendatahub.io/secret-hash"]
+	annotation2 := deployment2.Spec.Template.Annotations["opendatahub.io/secret-hash"]
+
+	g.Expect(annotation1).ToNot(BeEmpty(), "first deployment should have hash annotation")
+	g.Expect(annotation2).ToNot(BeEmpty(), "second deployment should have hash annotation")
+	g.Expect(annotation1).NotTo(Equal(annotation2), "different secrets should produce different hash annotations")
+}
+
+// TestSecretHashAnnotationWithoutSecret tests that deployment is created with empty hash when secret doesn't exist.
+func TestSecretHashAnnotationWithoutSecret(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	// Create client without any secrets
+	client := setupTestClient()
+	rr := &odhtypes.ReconciliationRequest{Client: client}
+
+	// Create deployment without secret - should succeed with empty hash
+	err := createKubeAuthProxyDeployment(ctx, rr, nil, nil, expectedODHDomain)
+	g.Expect(err).NotTo(HaveOccurred(), "deployment creation should succeed even when secret doesn't exist")
+	g.Expect(rr.Resources).To(HaveLen(1))
+
+	// Convert to typed Deployment
+	deployment := &appsv1.Deployment{}
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, deployment)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	// Verify that the hash annotation exists but is empty
+	g.Expect(deployment.Spec.Template.Annotations).To(HaveKey("opendatahub.io/secret-hash"),
+		"pod template should have secret hash annotation even without secret")
+	hash := deployment.Spec.Template.Annotations["opendatahub.io/secret-hash"]
+	g.Expect(hash).To(BeEmpty(), "secret hash should be empty string when secret doesn't exist")
 }

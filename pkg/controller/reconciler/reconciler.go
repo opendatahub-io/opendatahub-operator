@@ -37,10 +37,10 @@ type gvkInfo struct {
 
 type ReconcilerOpt func(*Reconciler)
 
-func WithConditionsManagerFactory(happy string, dependants ...string) ReconcilerOpt {
+func WithConditionsManagerFactory(happy string, dependents ...string) ReconcilerOpt {
 	return func(reconciler *Reconciler) {
 		reconciler.conditionsManagerFactory = func(accessor common.ConditionsAccessor) *conditions.Manager {
-			return conditions.NewManager(accessor, happy, dependants...)
+			return conditions.NewManager(accessor, happy, dependents...)
 		}
 	}
 }
