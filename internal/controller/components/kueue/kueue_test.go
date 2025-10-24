@@ -35,7 +35,7 @@ func TestNewCRObject(t *testing.T) {
 	handler := &componentHandler{}
 
 	g := NewWithT(t)
-	dsc := createDSCWithKueue(operatorv1.Managed)
+	dsc := createDSCWithKueue(operatorv1.Unmanaged)
 
 	cr := handler.NewCRObject(dsc)
 	g.Expect(cr).ShouldNot(BeNil())
@@ -45,7 +45,7 @@ func TestNewCRObject(t *testing.T) {
 		jq.Match(`.metadata.name == "%s"`, componentApi.KueueInstanceName),
 		jq.Match(`.kind == "%s"`, componentApi.KueueKind),
 		jq.Match(`.apiVersion == "%s"`, componentApi.GroupVersion),
-		jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.ManagementStateAnnotation, operatorv1.Managed),
+		jq.Match(`.metadata.annotations["%s"] == "%s"`, annotations.ManagementStateAnnotation, operatorv1.Unmanaged),
 	)))
 }
 
@@ -58,9 +58,9 @@ func TestIsEnabled(t *testing.T) {
 		matcher gt.GomegaMatcher
 	}{
 		{
-			name:    "should return true when management state is Managed",
+			name:    "should return false when management state is Managed",
 			state:   operatorv1.Managed,
-			matcher: BeTrue(),
+			matcher: BeFalse(),
 		},
 		{
 			name:    "should return true when management state is Unmanaged",
@@ -95,7 +95,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		dsc := createDSCWithKueue(operatorv1.Managed)
+		dsc := createDSCWithKueue(operatorv1.Unmanaged)
 		kueue := createKueueComponentCR(true)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, kueue))
@@ -111,7 +111,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.components.kueue.managementState == "%s"`, operatorv1.Managed),
+			jq.Match(`.status.components.kueue.managementState == "%s"`, operatorv1.Unmanaged),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.ReadyReason),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Component is ready"`, ReadyConditionType)),
@@ -149,7 +149,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g := NewWithT(t)
 		ctx := t.Context()
 
-		dsc := createDSCWithKueue(operatorv1.Managed)
+		dsc := createDSCWithKueue(operatorv1.Unmanaged)
 		kueue := createKueueComponentCR(false)
 
 		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, kueue))
@@ -165,7 +165,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.components.kueue.managementState == "%s"`, operatorv1.Managed),
+			jq.Match(`.status.components.kueue.managementState == "%s"`, operatorv1.Unmanaged),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.NotReadyReason),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Component is not ready"`, ReadyConditionType)),
