@@ -31,9 +31,9 @@ func testNewComponentReconcilerWithNilManager(t *testing.T) {
 		t.Helper()
 		err := handler.NewComponentReconciler(ctx, nil)
 		if err == nil {
-			t.Error("Expected function to return error with nil manager, but got nil error")
+			t.Fatal("Expected function to return error with nil manager, but got nil error")
 		}
-		if err != nil && !strings.Contains(err.Error(), "could not create the dashboard controller") {
+		if !strings.Contains(err.Error(), "could not create the dashboard controller") {
 			t.Errorf("Expected error to contain 'could not create the dashboard controller', but got: %v", err)
 		}
 	})
@@ -111,42 +111,3 @@ func testComponentNameComputation(t *testing.T) {
 }
 
 // TestNewComponentReconcilerIntegration tests the NewComponentReconciler with proper error handling.
-func TestNewComponentReconcilerIntegration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ErrorHandling", func(t *testing.T) {
-		t.Parallel()
-		testNewComponentReconcilerErrorHandling(t)
-	})
-}
-
-func assertNilManagerError(t *testing.T, err error) {
-	t.Helper()
-	if err == nil {
-		t.Error("Expected NewComponentReconciler to return error with nil manager")
-	}
-	if err != nil && !strings.Contains(err.Error(), "could not create the dashboard controller") {
-		t.Errorf("Expected error to contain 'could not create the dashboard controller', but got: %v", err)
-	}
-}
-
-func testNewComponentReconcilerErrorHandling(t *testing.T) {
-	t.Helper()
-
-	// Test that the function handles various error conditions gracefully
-	handler := &dashboard.ComponentHandler{}
-	ctx := t.Context()
-
-	err := handler.NewComponentReconciler(ctx, nil)
-	assertNilManagerError(t, err)
-
-	// Test that the function doesn't panic with nil manager
-	defer func() {
-		if r := recover(); r != nil {
-			t.Errorf("NewComponentReconciler panicked with nil manager: %v", r)
-		}
-	}()
-
-	// This should not panic
-	_ = handler.NewComponentReconciler(ctx, nil)
-}

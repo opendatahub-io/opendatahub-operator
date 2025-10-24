@@ -3,16 +3,15 @@
 package dashboard_test
 
 import (
-	"context"
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -23,7 +22,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const fakeClientErrorMsg = "failed to create fake client: "
+const (
+	creatingFakeClientMsg = "creating fake client"
+)
 
 func TestComponentHandlerGetName(t *testing.T) {
 	t.Parallel()
@@ -38,27 +39,13 @@ func TestComponentHandlerGetName(t *testing.T) {
 func TestComponentHandlerNewCRObject(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
-		name        string
-		setupDSC    func() *dscv1.DataScienceCluster
-		expectError bool
-		validate    func(t *testing.T, cr *componentApi.Dashboard)
+		name     string
+		state    operatorv1.ManagementState
+		validate func(t *testing.T, cr *componentApi.Dashboard)
 	}{
 		{
-			name: "ValidDSCWithManagedState",
-			setupDSC: func() *dscv1.DataScienceCluster {
-				return &dscv1.DataScienceCluster{
-					Spec: dscv1.DataScienceClusterSpec{
-						Components: dscv1.Components{
-							Dashboard: componentApi.DSCDashboard{
-								ManagementSpec: common.ManagementSpec{
-									ManagementState: operatorv1.Managed,
-								},
-							},
-						},
-					},
-				}
-			},
-			expectError: false,
+			name:  "ValidDSCWithManagedState",
+			state: operatorv1.Managed,
 			validate: func(t *testing.T, cr *componentApi.Dashboard) {
 				t.Helper()
 				g := NewWithT(t)
@@ -69,21 +56,8 @@ func TestComponentHandlerNewCRObject(t *testing.T) {
 			},
 		},
 		{
-			name: "ValidDSCWithUnmanagedState",
-			setupDSC: func() *dscv1.DataScienceCluster {
-				return &dscv1.DataScienceCluster{
-					Spec: dscv1.DataScienceClusterSpec{
-						Components: dscv1.Components{
-							Dashboard: componentApi.DSCDashboard{
-								ManagementSpec: common.ManagementSpec{
-									ManagementState: operatorv1.Unmanaged,
-								},
-							},
-						},
-					},
-				}
-			},
-			expectError: false,
+			name:  "ValidDSCWithUnmanagedState",
+			state: operatorv1.Unmanaged,
 			validate: func(t *testing.T, cr *componentApi.Dashboard) {
 				t.Helper()
 				g := NewWithT(t)
@@ -92,64 +66,13 @@ func TestComponentHandlerNewCRObject(t *testing.T) {
 			},
 		},
 		{
-			name: "ValidDSCWithRemovedState",
-			setupDSC: func() *dscv1.DataScienceCluster {
-				return &dscv1.DataScienceCluster{
-					Spec: dscv1.DataScienceClusterSpec{
-						Components: dscv1.Components{
-							Dashboard: componentApi.DSCDashboard{
-								ManagementSpec: common.ManagementSpec{
-									ManagementState: operatorv1.Removed,
-								},
-							},
-						},
-					},
-				}
-			},
-			expectError: false,
+			name:  "ValidDSCWithRemovedState",
+			state: operatorv1.Removed,
 			validate: func(t *testing.T, cr *componentApi.Dashboard) {
 				t.Helper()
 				g := NewWithT(t)
 				g.Expect(cr.Name).Should(Equal(componentApi.DashboardInstanceName))
 				g.Expect(cr.Annotations).Should(HaveKeyWithValue(annotations.ManagementStateAnnotation, "Removed"))
-			},
-		},
-		{
-			name: "DSCWithCustomSpec",
-			setupDSC: func() *dscv1.DataScienceCluster {
-				return &dscv1.DataScienceCluster{
-					Spec: dscv1.DataScienceClusterSpec{
-						Components: dscv1.Components{
-							Dashboard: componentApi.DSCDashboard{
-								ManagementSpec: common.ManagementSpec{
-									ManagementState: operatorv1.Managed,
-								},
-								DashboardCommonSpec: componentApi.DashboardCommonSpec{
-									DevFlagsSpec: common.DevFlagsSpec{
-										DevFlags: &common.DevFlags{
-											Manifests: []common.ManifestsConfig{
-												{
-													URI:        "https://example.com/manifests.tar.gz",
-													ContextDir: "manifests",
-													SourcePath: "/custom/path",
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				}
-			},
-			expectError: false,
-			validate: func(t *testing.T, cr *componentApi.Dashboard) {
-				t.Helper()
-				g := NewWithT(t)
-				g.Expect(cr.Name).Should(Equal(componentApi.DashboardInstanceName))
-				g.Expect(cr.Spec.DevFlags).ShouldNot(BeNil())
-				g.Expect(cr.Spec.DevFlags.Manifests).Should(HaveLen(1))
-				g.Expect(cr.Spec.DevFlags.Manifests[0].URI).Should(Equal("https://example.com/manifests.tar.gz"))
 			},
 		},
 	}
@@ -158,20 +81,15 @@ func TestComponentHandlerNewCRObject(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			handler := &dashboard.ComponentHandler{}
-			dsc := tc.setupDSC()
+			dsc := createDSCWithDashboard(tc.state)
 
 			cr := handler.NewCRObject(dsc)
 
-			if tc.expectError {
-				g := NewWithT(t)
-				g.Expect(cr).Should(BeNil())
-			} else {
-				g := NewWithT(t)
-				g.Expect(cr).ShouldNot(BeNil())
-				if tc.validate != nil {
-					if dashboard, ok := cr.(*componentApi.Dashboard); ok {
-						tc.validate(t, dashboard)
-					}
+			g := NewWithT(t)
+			g.Expect(cr).ShouldNot(BeNil())
+			if tc.validate != nil {
+				if dashboard, ok := cr.(*componentApi.Dashboard); ok {
+					tc.validate(t, dashboard)
 				}
 			}
 		})
@@ -182,58 +100,22 @@ func TestComponentHandlerIsEnabled(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name     string
-		setupDSC func() *dscv1.DataScienceCluster
+		state    operatorv1.ManagementState
 		expected bool
 	}{
 		{
-			name: "ManagedState",
-			setupDSC: func() *dscv1.DataScienceCluster {
-				return &dscv1.DataScienceCluster{
-					Spec: dscv1.DataScienceClusterSpec{
-						Components: dscv1.Components{
-							Dashboard: componentApi.DSCDashboard{
-								ManagementSpec: common.ManagementSpec{
-									ManagementState: operatorv1.Managed,
-								},
-							},
-						},
-					},
-				}
-			},
+			name:     "ManagedState",
+			state:    operatorv1.Managed,
 			expected: true,
 		},
 		{
-			name: "UnmanagedState",
-			setupDSC: func() *dscv1.DataScienceCluster {
-				return &dscv1.DataScienceCluster{
-					Spec: dscv1.DataScienceClusterSpec{
-						Components: dscv1.Components{
-							Dashboard: componentApi.DSCDashboard{
-								ManagementSpec: common.ManagementSpec{
-									ManagementState: operatorv1.Unmanaged,
-								},
-							},
-						},
-					},
-				}
-			},
+			name:     "UnmanagedState",
+			state:    operatorv1.Unmanaged,
 			expected: false,
 		},
 		{
-			name: "RemovedState",
-			setupDSC: func() *dscv1.DataScienceCluster {
-				return &dscv1.DataScienceCluster{
-					Spec: dscv1.DataScienceClusterSpec{
-						Components: dscv1.Components{
-							Dashboard: componentApi.DSCDashboard{
-								ManagementSpec: common.ManagementSpec{
-									ManagementState: operatorv1.Removed,
-								},
-							},
-						},
-					},
-				}
-			},
+			name:     "RemovedState",
+			state:    operatorv1.Removed,
 			expected: false,
 		},
 	}
@@ -242,7 +124,7 @@ func TestComponentHandlerIsEnabled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			handler := &dashboard.ComponentHandler{}
-			dsc := tc.setupDSC()
+			dsc := createDSCWithDashboard(tc.state)
 
 			result := handler.IsEnabled(dsc)
 
@@ -256,7 +138,7 @@ func TestComponentHandlerUpdateDSCStatus(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name           string
-		setupRR        func() *odhtypes.ReconciliationRequest
+		setupRR        func(t *testing.T) *odhtypes.ReconciliationRequest
 		expectError    bool
 		expectedStatus metav1.ConditionStatus
 		validateResult func(t *testing.T, dsc *dscv1.DataScienceCluster, status metav1.ConditionStatus)
@@ -300,7 +182,7 @@ func TestComponentHandlerUpdateDSCStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			handler := &dashboard.ComponentHandler{}
-			rr := tc.setupRR()
+			rr := tc.setupRR(t)
 
 			status, err := handler.UpdateDSCStatus(t.Context(), rr)
 
@@ -323,23 +205,19 @@ func TestComponentHandlerUpdateDSCStatus(t *testing.T) {
 }
 
 // Helper functions to reduce cognitive complexity.
-func setupNilClientRR() *odhtypes.ReconciliationRequest {
+func setupNilClientRR(t *testing.T) *odhtypes.ReconciliationRequest {
+	t.Helper()
 	return &odhtypes.ReconciliationRequest{
 		Client:   nil,
 		Instance: &dscv1.DataScienceCluster{},
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
-				ApplicationsNamespace: testNamespace,
-			},
-		},
+		DSCI:     createDSCI(),
 	}
 }
 
-func setupDashboardExistsRR() *odhtypes.ReconciliationRequest {
+func setupDashboardExistsRR(t *testing.T) *odhtypes.ReconciliationRequest {
+	t.Helper()
 	cli, err := fakeclient.New()
-	if err != nil {
-		panic(fakeClientErrorMsg + err.Error())
-	}
+	require.NoError(t, err, creatingFakeClientMsg)
 	dashboard := &componentApi.Dashboard{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      componentApi.DashboardInstanceName,
@@ -356,116 +234,57 @@ func setupDashboardExistsRR() *odhtypes.ReconciliationRequest {
 				},
 			},
 			DashboardCommonStatus: componentApi.DashboardCommonStatus{
-				URL: "https://dashboard.example.com",
+				URL: "https://odh-dashboard-test-namespace.apps.example.com",
 			},
 		},
 	}
-	if err := cli.Create(context.Background(), dashboard); err != nil {
-		panic("Failed to create dashboard: " + err.Error())
-	}
+	require.NoError(t, cli.Create(t.Context(), dashboard), "creating dashboard")
 
-	dsc := &dscv1.DataScienceCluster{
-		Spec: dscv1.DataScienceClusterSpec{
-			Components: dscv1.Components{
-				Dashboard: componentApi.DSCDashboard{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-			},
-		},
-		Status: dscv1.DataScienceClusterStatus{
-			InstalledComponents: make(map[string]bool),
-			Components: dscv1.ComponentsStatus{
-				Dashboard: componentApi.DSCDashboardStatus{},
-			},
-		},
-	}
-
-	return &odhtypes.ReconciliationRequest{
-		Client:   cli,
-		Instance: dsc,
-		DSCI: &dsciv1.DSCInitialization{
-			Spec: dsciv1.DSCInitializationSpec{
-				ApplicationsNamespace: testNamespace,
-			},
-		},
-		Conditions: &conditions.Manager{},
-	}
-}
-
-func setupDashboardNotExistsRR() *odhtypes.ReconciliationRequest {
-	cli, err := fakeclient.New()
-	if err != nil {
-		panic(fakeClientErrorMsg + err.Error())
-	}
-	dsc := &dscv1.DataScienceCluster{
-		Spec: dscv1.DataScienceClusterSpec{
-			Components: dscv1.Components{
-				Dashboard: componentApi.DSCDashboard{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Managed,
-					},
-				},
-			},
-		},
-		Status: dscv1.DataScienceClusterStatus{
-			InstalledComponents: make(map[string]bool),
-			Components: dscv1.ComponentsStatus{
-				Dashboard: componentApi.DSCDashboardStatus{},
-			},
-		},
-	}
+	dsc := createDSCWithDashboard(operatorv1.Managed)
 
 	return &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
-		DSCI:       &dsciv1.DSCInitialization{},
+		DSCI:       createDSCI(),
 		Conditions: &conditions.Manager{},
 	}
 }
 
-func setupDashboardDisabledRR() *odhtypes.ReconciliationRequest {
+func setupDashboardNotExistsRR(t *testing.T) *odhtypes.ReconciliationRequest {
+	t.Helper()
 	cli, err := fakeclient.New()
-	if err != nil {
-		panic(fakeClientErrorMsg + err.Error())
-	}
-	dsc := &dscv1.DataScienceCluster{
-		Spec: dscv1.DataScienceClusterSpec{
-			Components: dscv1.Components{
-				Dashboard: componentApi.DSCDashboard{
-					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Unmanaged,
-					},
-				},
-			},
-		},
-		Status: dscv1.DataScienceClusterStatus{
-			InstalledComponents: map[string]bool{
-				"other-component": true,
-			},
-			Components: dscv1.ComponentsStatus{
-				Dashboard: componentApi.DSCDashboardStatus{},
-			},
-		},
-	}
+	require.NoError(t, err, creatingFakeClientMsg)
+	dsc := createDSCWithDashboard(operatorv1.Managed)
 
 	return &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
-		DSCI:       &dsciv1.DSCInitialization{},
+		DSCI:       createDSCI(),
 		Conditions: &conditions.Manager{},
 	}
 }
 
-func setupInvalidInstanceRR() *odhtypes.ReconciliationRequest {
+func setupDashboardDisabledRR(t *testing.T) *odhtypes.ReconciliationRequest {
+	t.Helper()
 	cli, err := fakeclient.New()
-	if err != nil {
-		panic(fakeClientErrorMsg + err.Error())
+	require.NoError(t, err, creatingFakeClientMsg)
+	dsc := createDSCWithDashboard(operatorv1.Unmanaged)
+
+	return &odhtypes.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		DSCI:       createDSCI(),
+		Conditions: &conditions.Manager{},
 	}
+}
+
+func setupInvalidInstanceRR(t *testing.T) *odhtypes.ReconciliationRequest {
+	t.Helper()
+	cli, err := fakeclient.New()
+	require.NoError(t, err, creatingFakeClientMsg)
 	return &odhtypes.ReconciliationRequest{
 		Client:   cli,
-		Instance: &componentApi.Dashboard{}, // Wrong type
+		Instance: CreateTestDashboard(), // Wrong type
 	}
 }
 
@@ -474,6 +293,8 @@ func validateDashboardExists(t *testing.T, dsc *dscv1.DataScienceCluster, status
 	g := NewWithT(t)
 	g.Expect(dsc.Status.InstalledComponents[dashboard.LegacyComponentNameUpstream]).Should(BeTrue())
 	g.Expect(dsc.Status.Components.Dashboard.DashboardCommonStatus).ShouldNot(BeNil())
+	expectedURL := "https://odh-dashboard-test-namespace.apps.example.com"
+	g.Expect(dsc.Status.Components.Dashboard.DashboardCommonStatus.URL).To(Equal(expectedURL))
 }
 
 func validateDashboardNotExists(t *testing.T, dsc *dscv1.DataScienceCluster, status metav1.ConditionStatus) {

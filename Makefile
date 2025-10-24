@@ -440,7 +440,7 @@ CLEANFILES += cover.out coverage.html
 
 .PHONY: test-coverage
 test-coverage: ## Generate HTML coverage report
-	$(MAKE) unit-test || true
+	$(MAKE) unit-test
 	@if [ ! -f cover.out ] || [ ! -s cover.out ]; then \
 		echo "Warning: cover.out is missing or empty. Skipping coverage report generation."; \
 		echo "Make sure unit tests are configured to generate coverage data."; \

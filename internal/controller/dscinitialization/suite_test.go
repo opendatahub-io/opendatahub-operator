@@ -72,6 +72,26 @@ const (
 	interval = 250 * time.Millisecond
 )
 
+// cleanupTestEnv performs nil-safe cancellation and testEnv stop logic.
+func cleanupTestEnv() {
+	By("cancelling context and tearing down test environment")
+	// Cancel context first to ensure proper shutdown order
+	if gCancel != nil {
+		gCancel()
+		gCancel = nil // Prevent double-cancellation
+	}
+	// Stop test environment with defensive error handling
+	if testEnv != nil {
+		By("tearing down the test environment")
+		err := testEnv.Stop()
+		if err != nil {
+			// Log but don't fail on cleanup errors (testEnv might already be stopped)
+			By("Warning: testEnv.Stop() returned error: " + err.Error())
+		}
+		testEnv = nil // Prevent double-stop
+	}
+}
+
 func TestDataScienceClusterInitialization(t *testing.T) {
 	RegisterFailHandler(Fail)
 
@@ -110,20 +130,7 @@ var _ = BeforeSuite(func() {
 
 	DeferCleanup(func() {
 		By("DeferCleanup: cancelling context and tearing down test environment")
-		// Cancel context first to ensure proper shutdown order
-		if gCancel != nil {
-			gCancel()
-			gCancel = nil // Prevent double-cancellation
-		}
-		// Stop test environment with defensive error handling
-		if testEnv != nil {
-			err := testEnv.Stop()
-			if err != nil {
-				// Log but don't fail on cleanup errors (testEnv might already be stopped)
-				By("Warning: testEnv.Stop() returned error: " + err.Error())
-			}
-			testEnv = nil // Prevent double-stop
-		}
+		cleanupTestEnv()
 	})
 
 	utilruntime.Must(clientgoscheme.AddToScheme(testScheme))
@@ -176,23 +183,4 @@ var _ = BeforeSuite(func() {
 		err = mgr.Start(gCtx)
 		Expect(err).ToNot(HaveOccurred(), "Failed to run manager")
 	}()
-})
-
-var _ = AfterSuite(func() {
-	By("AfterSuite: cancelling context and tearing down test environment")
-	// Cancel context first to ensure proper shutdown order
-	if gCancel != nil {
-		gCancel()
-		gCancel = nil // Prevent double-cancellation
-	}
-	// Stop test environment with defensive error handling
-	if testEnv != nil {
-		By("tearing down the test environment")
-		err := testEnv.Stop()
-		if err != nil {
-			// Log but don't fail on cleanup errors (testEnv might already be stopped)
-			By("Warning: testEnv.Stop() returned error: " + err.Error())
-		}
-		testEnv = nil // Prevent double-stop
-	}
 })

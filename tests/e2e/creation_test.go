@@ -9,6 +9,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -24,9 +25,11 @@ import (
 )
 
 const (
-	testNamespace             = "test-model-registries"   // Namespace used for model registry testing
-	dsciInstanceNameDuplicate = "e2e-test-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
-	dscInstanceNameDuplicate  = "e2e-test-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
+	testNamespace              = "test-model-registries"   // Namespace used for model registry testing
+	dsciInstanceNameDuplicate  = "e2e-test-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
+	dscInstanceNameDuplicate   = "e2e-test-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
+	defaultHardwareProfileName = "default-profile"         // Name of the default hardware profile used in tests
+	managedAnnotationKey       = "opendatahub.io/managed"  // Annotation key for managed resources
 )
 
 // DSCTestCtx holds the context for the DSCInitialization and DataScienceCluster management tests.
@@ -143,6 +146,23 @@ func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 	)
 }
 
+// validateSpecWithJQ is a generic helper function that validates a spec against an expected value using jq.Match.
+func (tc *DSCTestCtx) validateSpecWithJQ(t *testing.T, expectedSpec interface{}, jqPath string,
+	resourceGVK schema.GroupVersionKind, resourceName types.NamespacedName, errorMsg string) {
+	t.Helper()
+
+	// Marshal the expected spec to JSON.
+	expectedSpecJSON, err := json.Marshal(expectedSpec)
+	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Error marshaling expected spec")
+
+	// Assert that the actual spec matches the expected one.
+	tc.EnsureResourceExists(
+		WithMinimalObject(resourceGVK, resourceName),
+		WithCondition(jq.Match(jqPath, expectedSpecJSON)),
+		WithCustomErrorMsg(errorMsg),
+	)
+}
+
 // ValidateServiceMeshSpecInDSCI validates the ServiceMeshSpec within a DSCInitialization instance.
 func (tc *DSCTestCtx) ValidateServiceMeshSpecInDSCI(t *testing.T) {
 	t.Helper()
@@ -160,15 +180,14 @@ func (tc *DSCTestCtx) ValidateServiceMeshSpecInDSCI(t *testing.T) {
 		},
 	}
 
-	// Marshal the expected ServiceMeshSpec to JSON.
-	expServiceMeshSpecJSON, err := json.Marshal(expServiceMeshSpec)
-	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Error marshaling expected ServiceMeshSpec")
-
-	// Assert that the actual ServiceMeshSpec matches the expected one.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
-		WithCondition(jq.Match(`.spec.serviceMesh == %s`, expServiceMeshSpecJSON)),
-		WithCustomErrorMsg("Error validating DSCInitialization instance: Service Mesh spec mismatch"),
+	// Use the generic helper function to validate the spec.
+	tc.validateSpecWithJQ(
+		t,
+		expServiceMeshSpec,
+		`.spec.serviceMesh == %s`,
+		gvk.DSCInitialization,
+		tc.DSCInitializationNamespacedName,
+		"Error validating DSCInitialization instance: Service Mesh spec mismatch",
 	)
 
 	tc.EnsureResourceExists(
@@ -191,15 +210,14 @@ func (tc *DSCTestCtx) ValidateKnativeSpecInDSC(t *testing.T) {
 		},
 	}
 
-	// Marshal the expected ServingSpec to JSON
-	expServingSpecJSON, err := json.Marshal(expServingSpec)
-	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Error marshaling expected ServingSpec")
-
-	// Assert that the actual ServingSpec matches the expected one.
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(jq.Match(`.spec.components.kserve.serving == %s`, expServingSpecJSON)),
-		WithCustomErrorMsg("Error validating DSCInitialization instance: Knative Serving spec mismatch"),
+	// Use the generic helper function to validate the spec.
+	tc.validateSpecWithJQ(
+		t,
+		expServingSpec,
+		`.spec.components.kserve.serving == %s`,
+		gvk.DataScienceCluster,
+		tc.DataScienceClusterNamespacedName,
+		"Error validating DataScienceCluster instance: Knative Serving spec mismatch",
 	)
 }
 
@@ -300,10 +318,10 @@ func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
 
 	// verified default hardwareprofile exists and api version is correct on v1.
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: defaultHardwareProfileName, Namespace: tc.AppsNamespace}),
 		WithCondition(And(
 			jq.Match(`.spec.identifiers[0].defaultCount == 2`),
-			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
+			jq.Match(`.metadata.annotations["`+managedAnnotationKey+`"] == "false"`),
 			jq.Match(`.apiVersion == "infrastructure.opendatahub.io/v1"`),
 		)),
 		WithCustomErrorMsg("Default hardwareprofile should have defaultCount=2, managed=false, and use v1 API version"),
@@ -311,34 +329,34 @@ func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
 
 	// update default hardwareprofile to different value and check it is updated.
 	tc.EnsureResourceCreatedOrPatched(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: defaultHardwareProfileName, Namespace: tc.AppsNamespace}),
 		WithMutateFunc(testf.Transform(`
 			.spec.identifiers[0].defaultCount = 4 |
-			.metadata.annotations["opendatahub.io/managed"] = "false"
+			.metadata.annotations["`+managedAnnotationKey+`"] = "false"
 		`)),
 		WithCondition(And(
 			Succeed(),
 			jq.Match(`.spec.identifiers[0].defaultCount == 4`),
-			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
+			jq.Match(`.metadata.annotations["`+managedAnnotationKey+`"] == "false"`),
 		)),
 		WithCustomErrorMsg("Failed to update defaultCount from 2 to 4"),
 	)
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: defaultHardwareProfileName, Namespace: tc.AppsNamespace}),
 		WithCondition(jq.Match(`.spec.identifiers[0].defaultCount == 4`)),
 		WithCustomErrorMsg("Should have defaultCount to 4 but now got %s", jq.Match(`.spec.identifiers[0].defaultCount`)),
 	)
 
 	// delete default hardwareprofile and check it is recreated with default values.
 	tc.DeleteResource(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: defaultHardwareProfileName, Namespace: tc.AppsNamespace}),
 	)
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: defaultHardwareProfileName, Namespace: tc.AppsNamespace}),
 		WithCondition(And(
 			jq.Match(`.spec.identifiers[0].defaultCount == 2`),
-			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
+			jq.Match(`.metadata.annotations["`+managedAnnotationKey+`"] == "false"`),
 		)),
 		WithCustomErrorMsg("Hardware profile was not recreated with default values"),
 	)

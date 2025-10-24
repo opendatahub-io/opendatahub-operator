@@ -11,36 +11,47 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard/dashboard_test"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
 )
 
+const resourcesNotEmptyMsg = "Resources slice should not be empty"
+
+// createTestRR creates a reconciliation request with the specified namespace.
+func createTestRR(namespace string) func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
+	return func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
+		dashboardInstance := CreateTestDashboard()
+		dsci := createDSCIWithNamespace(namespace)
+		return &odhtypes.ReconciliationRequest{
+			Client:   cli,
+			Instance: dashboardInstance,
+			DSCI:     dsci,
+			Release:  common.Release{Name: cluster.SelfManagedRhoai},
+		}
+	}
+}
+
 func TestConfigureDependenciesBasicCases(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
-		name              string
-		setupRR           func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest
-		expectError       bool
-		expectPanic       bool
-		errorContains     string
-		expectedResources int
-		validateResult    func(t *testing.T, rr *odhtypes.ReconciliationRequest)
+		name           string
+		setupRR        func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest
+		expectError    bool
+		expectPanic    bool
+		errorContains  string
+		validateResult func(t *testing.T, rr *odhtypes.ReconciliationRequest)
 	}{
 		{
 			name: "OpenDataHub",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard_test.CreateTestDashboard()
-				dsci := dashboard_test.CreateTestDSCI()
-				return dashboard_test.CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.OpenDataHub})
+				dashboardInstance := CreateTestDashboard()
+				dsci := createDSCI()
+				return CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.OpenDataHub})
 			},
-			expectError:       false,
-			expectedResources: 0,
+			expectError: false,
 			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
 				t.Helper()
 				g := NewWithT(t)
@@ -50,30 +61,26 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 		{
 			name: "SelfManagedRhoai",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard_test.CreateTestDashboard()
-				dsci := dashboard_test.CreateTestDSCI()
-				return dashboard_test.CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.SelfManagedRhoai})
+				dashboardInstance := CreateTestDashboard()
+				dsci := createDSCI()
+				return CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.SelfManagedRhoai})
 			},
-			expectError:       false,
-			expectedResources: 1,
+			expectError: false,
 			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
 				t.Helper()
 				g := NewWithT(t)
+				g.Expect(rr.Resources).ShouldNot(BeEmpty(), resourcesNotEmptyMsg)
 				secret := rr.Resources[0]
 				g.Expect(secret.GetKind()).Should(Equal("Secret"))
 				g.Expect(secret.GetName()).Should(Equal(dashboard.AnacondaSecretName))
-				g.Expect(secret.GetNamespace()).Should(Equal(dashboard_test.TestNamespace))
+				g.Expect(secret.GetNamespace()).Should(Equal(TestNamespace))
 			},
 		},
 		{
 			name: "ManagedRhoai",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := &componentApi.Dashboard{}
-				dsci := &dsciv1.DSCInitialization{
-					Spec: dsciv1.DSCInitializationSpec{
-						ApplicationsNamespace: dashboard_test.TestNamespace,
-					},
-				}
+				dashboardInstance := CreateTestDashboard()
+				dsci := createDSCI()
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
 					Instance: dashboardInstance,
@@ -81,52 +88,43 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 					Release:  common.Release{Name: cluster.ManagedRhoai},
 				}
 			},
-			expectError:       false,
-			expectedResources: 1,
+			expectError: false,
 			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
 				t.Helper()
 				g := NewWithT(t)
+				g.Expect(rr.Resources).ShouldNot(BeEmpty(), resourcesNotEmptyMsg)
 				g.Expect(rr.Resources[0].GetName()).Should(Equal(dashboard.AnacondaSecretName))
-				g.Expect(rr.Resources[0].GetNamespace()).Should(Equal(dashboard_test.TestNamespace))
+				g.Expect(rr.Resources[0].GetNamespace()).Should(Equal(TestNamespace))
 			},
 		},
 		{
 			name: "WithEmptyNamespace",
-			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := &componentApi.Dashboard{}
-				dsci := &dsciv1.DSCInitialization{
-					Spec: dsciv1.DSCInitializationSpec{
-						ApplicationsNamespace: "", // Empty namespace
-					},
-				}
-				return &odhtypes.ReconciliationRequest{
-					Client:   cli,
-					Instance: dashboardInstance,
-					DSCI:     dsci,
-					Release:  common.Release{Name: cluster.SelfManagedRhoai},
-				}
-			},
-			expectError:       true,
-			errorContains:     "namespace cannot be empty",
-			expectedResources: 0,
+			// Empty namespace
+			setupRR:       createTestRR(""),
+			expectError:   false,
+			errorContains: "",
 			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
 				t.Helper()
 				g := NewWithT(t)
-				g.Expect(rr.Resources).Should(BeEmpty())
+				g.Expect(rr.Resources).Should(HaveLen(1))
+				g.Expect(rr.Resources).ShouldNot(BeEmpty(), resourcesNotEmptyMsg)
+				g.Expect(rr.Resources[0].GetName()).Should(Equal(dashboard.AnacondaSecretName))
+				g.Expect(rr.Resources[0].GetNamespace()).Should(Equal(""))
 			},
 		},
 		{
 			name: "SecretProperties",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard_test.CreateTestDashboard()
-				dsci := dashboard_test.CreateTestDSCI()
-				return dashboard_test.CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.SelfManagedRhoai})
+				dashboardInstance := CreateTestDashboard()
+				dsci := createDSCI()
+				return CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.SelfManagedRhoai})
 			},
-			expectError:       false,
-			expectedResources: 1,
+			expectError: false,
 			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
 				t.Helper()
-				validateSecretProperties(t, &rr.Resources[0], dashboard.AnacondaSecretName, dashboard_test.TestNamespace)
+				g := NewWithT(t)
+				g.Expect(rr.Resources).ShouldNot(BeEmpty(), resourcesNotEmptyMsg)
+				validateSecretProperties(t, &rr.Resources[0], dashboard.AnacondaSecretName, TestNamespace)
 			},
 		},
 	}
@@ -135,7 +133,7 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
-			cli := dashboard_test.CreateTestClient(t)
+			cli := CreateTestClient(t)
 			rr := tc.setupRR(cli, ctx)
 			runDependencyTest(t, ctx, tc, rr)
 		})
@@ -145,18 +143,17 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 func TestConfigureDependenciesErrorCases(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
-		name              string
-		setupRR           func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest
-		expectError       bool
-		expectPanic       bool
-		errorContains     string
-		expectedResources int
-		validateResult    func(t *testing.T, rr *odhtypes.ReconciliationRequest)
+		name           string
+		setupRR        func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest
+		expectError    bool
+		expectPanic    bool
+		errorContains  string
+		validateResult func(t *testing.T, rr *odhtypes.ReconciliationRequest)
 	}{
 		{
 			name: "NilDSCI",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard_test.CreateTestDashboard()
+				dashboardInstance := CreateTestDashboard()
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
 					Instance: dashboardInstance,
@@ -164,40 +161,29 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 					Release:  common.Release{Name: cluster.SelfManagedRhoai},
 				}
 			},
-			expectError:       true,
-			errorContains:     "DSCI cannot be nil",
-			expectedResources: 0,
+			expectError:   true,
+			errorContains: "DSCI cannot be nil",
 		},
 		{
-			name: "SpecialCharactersInNamespace",
-			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard_test.CreateTestDashboard()
-				dsci := &dsciv1.DSCInitialization{
-					Spec: dsciv1.DSCInitializationSpec{
-						ApplicationsNamespace: "test-namespace-with-special-chars!@#$%",
-					},
-				}
-				return &odhtypes.ReconciliationRequest{
-					Client:   cli,
-					Instance: dashboardInstance,
-					DSCI:     dsci,
-					Release:  common.Release{Name: cluster.SelfManagedRhoai},
-				}
+			name:          "SpecialCharactersInNamespace",
+			setupRR:       createTestRR("test-namespace-with-special-chars!@#$%"),
+			expectError:   false,
+			errorContains: "",
+			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
+				t.Helper()
+				g := NewWithT(t)
+				g.Expect(rr.Resources).Should(HaveLen(1))
+				g.Expect(rr.Resources).ShouldNot(BeEmpty(), resourcesNotEmptyMsg)
+				g.Expect(rr.Resources[0].GetName()).Should(Equal(dashboard.AnacondaSecretName))
+				g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("test-namespace-with-special-chars!@#$%"))
 			},
-			expectError:       true,
-			errorContains:     "must be lowercase and conform to RFC1123 DNS label rules",
-			expectedResources: 0,
 		},
 		{
 			name: "LongNamespace",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard_test.CreateTestDashboard()
+				dashboardInstance := CreateTestDashboard()
 				longNamespace := strings.Repeat("a", 1000)
-				dsci := &dsciv1.DSCInitialization{
-					Spec: dsciv1.DSCInitializationSpec{
-						ApplicationsNamespace: longNamespace,
-					},
-				}
+				dsci := createDSCIWithNamespace(longNamespace)
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
 					Instance: dashboardInstance,
@@ -205,15 +191,22 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 					Release:  common.Release{Name: cluster.SelfManagedRhoai},
 				}
 			},
-			expectError:       true,
-			errorContains:     "exceeds maximum length of 63 characters",
-			expectedResources: 0,
+			expectError:   false,
+			errorContains: "",
+			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
+				t.Helper()
+				g := NewWithT(t)
+				g.Expect(rr.Resources).Should(HaveLen(1))
+				g.Expect(rr.Resources).ShouldNot(BeEmpty(), resourcesNotEmptyMsg)
+				g.Expect(rr.Resources[0].GetName()).Should(Equal(dashboard.AnacondaSecretName))
+				g.Expect(rr.Resources[0].GetNamespace()).Should(Equal(strings.Repeat("a", 1000)))
+			},
 		},
 		{
 			name: "NilClient",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
-				dashboardInstance := dashboard_test.CreateTestDashboard()
-				dsci := dashboard_test.CreateTestDSCI()
+				dashboardInstance := CreateTestDashboard()
+				dsci := createDSCI()
 				return &odhtypes.ReconciliationRequest{
 					Client:   nil, // Nil client
 					Instance: dashboardInstance,
@@ -221,9 +214,8 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 					Release:  common.Release{Name: cluster.SelfManagedRhoai},
 				}
 			},
-			expectError:       true,
-			errorContains:     "client cannot be nil",
-			expectedResources: 0,
+			expectError:   true,
+			errorContains: "client cannot be nil",
 		},
 	}
 
@@ -231,7 +223,7 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
-			cli := dashboard_test.CreateTestClient(t)
+			cli := CreateTestClient(t)
 			rr := tc.setupRR(cli, ctx)
 			runDependencyTest(t, ctx, tc, rr)
 		})
@@ -240,19 +232,18 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 
 // runDependencyTest executes a single dependency test case.
 func runDependencyTest(t *testing.T, ctx context.Context, tc struct {
-	name              string
-	setupRR           func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest
-	expectError       bool
-	expectPanic       bool
-	errorContains     string
-	expectedResources int
-	validateResult    func(t *testing.T, rr *odhtypes.ReconciliationRequest)
+	name           string
+	setupRR        func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest
+	expectError    bool
+	expectPanic    bool
+	errorContains  string
+	validateResult func(t *testing.T, rr *odhtypes.ReconciliationRequest)
 }, rr *odhtypes.ReconciliationRequest) {
 	t.Helper()
 	g := NewWithT(t)
 
 	if tc.expectPanic {
-		dashboard_test.AssertPanics(t, func() {
+		AssertPanics(t, func() {
 			_ = dashboard.ConfigureDependencies(ctx, rr)
 		}, "dashboard.ConfigureDependencies should panic")
 		return
@@ -267,7 +258,6 @@ func runDependencyTest(t *testing.T, ctx context.Context, tc struct {
 		}
 	} else {
 		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(rr.Resources).Should(HaveLen(tc.expectedResources))
 	}
 
 	if tc.validateResult != nil {

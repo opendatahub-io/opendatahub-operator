@@ -55,6 +55,7 @@ const (
 	TracesStorageRetention        = "720h"
 	TracesStorageRetention24h     = "24h"
 	TracesStorageSize10Gi         = "10Gi"
+	monitoringTracesConfigMsg     = "Monitoring resource should be updated with traces configuration by DSCInitialization controller"
 )
 
 // monitoringOwnerReferencesCondition is a reusable condition for validating owner references.
@@ -481,7 +482,7 @@ func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRCreation(t *testing.T) {
 		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
 		WithCondition(jq.Match(`.spec.traces != null`)),
-		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
+		WithCustomErrorMsg(monitoringTracesConfigMsg),
 	)
 
 	// Ensure the TempoMonolithic CR is created (status conditions are set by external tempo operator).
@@ -528,7 +529,7 @@ func (tc *MonitoringTestCtx) ValidateTempoStackCRCreationWithCloudStorage(t *tes
 			backend:             TracesStorageBackendS3,
 			secretName:          TracesStorageBackendS3Secret,
 			monitoringCondition: jq.Match(`.spec.traces != null`),
-			monitoringErrorMsg:  "Monitoring resource should be updated with traces configuration by DSCInitialization controller",
+			monitoringErrorMsg:  monitoringTracesConfigMsg,
 		},
 		{
 			name:                "GCS backend",
@@ -577,7 +578,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesWhenSet(t *testing.T
 				jq.Match(`.spec.traces.storage.retention == "2160h0m0s"`),
 			),
 		),
-		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
+		WithCustomErrorMsg(monitoringTracesConfigMsg),
 	)
 
 	// Ensure the Instrumentation CR is created
@@ -1037,22 +1038,6 @@ func withCustomMetricsExporters() testf.TransformFn {
 		"debug": "verbosity: detailed",
         "%s": "endpoint: http://custom-backend:4317\ntls:\n  insecure: true"
 	}`, OtlpCustomExporter)
-}
-
-// withCustomTracesExporters returns a transform that sets custom traces exporters for testing.
-// TODO: remove the //nolint:unused when identified the issue with the related test.
-func withCustomTracesExporters() testf.TransformFn { //nolint:unused
-	return testf.Transform(`.spec.monitoring.traces.exporters = {
-        "debug": {
-            "verbosity": "detailed"
-        },
-        "%s": {
-            "endpoint": "http://custom-endpoint:4318",
-            "headers": {
-                "api-key": "secret-key"
-            }
-        }
-    }`, OtlpHttpCustomExporter)
 }
 
 // withReservedTracesExporter returns a transform that sets a reserved exporter name for validation testing.

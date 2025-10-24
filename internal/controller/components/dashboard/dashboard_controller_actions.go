@@ -28,7 +28,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/validation"
 )
 
 type DashboardHardwareProfile struct {
@@ -53,22 +52,11 @@ type DashboardHardwareProfileList struct {
 }
 
 func Initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	// Validate required fields
-	if rr.Client == nil {
-		return errors.New("client is required but was nil")
+	manifestInfo, err := DefaultManifestInfo(rr.Release.Name)
+	if err != nil {
+		return err
 	}
-
-	if rr.DSCI == nil {
-		return errors.New("DSCI is required but was nil")
-	}
-
-	// Validate Instance type
-	_, ok := rr.Instance.(*componentApi.Dashboard)
-	if !ok {
-		return fmt.Errorf("resource instance %v is not a componentApi.Dashboard", rr.Instance)
-	}
-
-	rr.Manifests = []odhtypes.ManifestInfo{DefaultManifestInfo(rr.Release.Name)}
+	rr.Manifests = []odhtypes.ManifestInfo{manifestInfo}
 
 	return nil
 }
@@ -162,11 +150,6 @@ func ConfigureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest
 	// Check for nil DSCI before accessing its properties
 	if rr.DSCI == nil {
 		return errors.New("DSCI cannot be nil")
-	}
-
-	// Validate namespace before attempting to create resources
-	if err := validation.ValidateNamespace(rr.DSCI.Spec.ApplicationsNamespace); err != nil {
-		return fmt.Errorf("invalid namespace: %w", err)
 	}
 
 	// Create the anaconda secret resource

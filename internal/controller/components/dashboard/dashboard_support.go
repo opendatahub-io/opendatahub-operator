@@ -28,22 +28,26 @@ const (
 	LegacyComponentNameUpstream   = "dashboard"
 	LegacyComponentNameDownstream = "rhods-dashboard"
 	ModularArchitectureSourcePath = "modular-architecture"
+
+	// Error message for unsupported platforms.
+	ErrUnsupportedPlatform = "unsupported platform: %s"
 )
 
 var (
-	SectionTitle = map[common.Platform]string{
+	// Private maps to reduce API surface and prevent direct access.
+	sectionTitle = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "OpenShift Self Managed Services",
 		cluster.ManagedRhoai:     "OpenShift Managed Services",
 		cluster.OpenDataHub:      "OpenShift Open Data Hub",
 	}
 
-	BaseConsoleURL = map[common.Platform]string{
+	baseConsoleURL = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "https://rhods-dashboard-",
 		cluster.ManagedRhoai:     "https://rhods-dashboard-",
 		cluster.OpenDataHub:      "https://odh-dashboard-",
 	}
 
-	OverlaysSourcePaths = map[common.Platform]string{
+	overlaysSourcePaths = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "/rhoai/onprem",
 		cluster.ManagedRhoai:     "/rhoai/addon",
 		cluster.OpenDataHub:      "/odh",
@@ -60,12 +64,47 @@ var (
 	}
 )
 
-func DefaultManifestInfo(p common.Platform) odhtypes.ManifestInfo {
+// GetSectionTitle returns the section title for the given platform.
+// Returns an error if the platform is not supported.
+func GetSectionTitle(platform common.Platform) (string, error) {
+	title, ok := sectionTitle[platform]
+	if !ok {
+		return "", fmt.Errorf(ErrUnsupportedPlatform, platform)
+	}
+	return title, nil
+}
+
+// GetBaseConsoleURL returns the base console URL for the given platform.
+// Returns an error if the platform is not supported.
+func GetBaseConsoleURL(platform common.Platform) (string, error) {
+	url, ok := baseConsoleURL[platform]
+	if !ok {
+		return "", fmt.Errorf(ErrUnsupportedPlatform, platform)
+	}
+	return url, nil
+}
+
+// GetOverlaysSourcePath returns the overlays source path for the given platform.
+// Returns an error if the platform is not supported.
+func GetOverlaysSourcePath(platform common.Platform) (string, error) {
+	path, ok := overlaysSourcePaths[platform]
+	if !ok {
+		return "", fmt.Errorf(ErrUnsupportedPlatform, platform)
+	}
+	return path, nil
+}
+
+func DefaultManifestInfo(p common.Platform) (odhtypes.ManifestInfo, error) {
+	sourcePath, err := GetOverlaysSourcePath(p)
+	if err != nil {
+		return odhtypes.ManifestInfo{}, err
+	}
+
 	return odhtypes.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
 		ContextDir: ComponentName,
-		SourcePath: OverlaysSourcePaths[p],
-	}
+		SourcePath: sourcePath,
+	}, nil
 }
 
 func BffManifestsPath() odhtypes.ManifestInfo {
@@ -83,12 +122,21 @@ func ComputeKustomizeVariable(ctx context.Context, cli client.Client, platform c
 
 	consoleLinkDomain, err := cluster.GetDomain(ctx, cli)
 	if err != nil {
-		return nil, fmt.Errorf("error getting console route URL %s : %w", consoleLinkDomain, err)
+		return nil, fmt.Errorf("error getting console route URL: %w", err)
+	}
+
+	baseURL, err := GetBaseConsoleURL(platform)
+	if err != nil {
+		return nil, err
+	}
+	sectionTitle, err := GetSectionTitle(platform)
+	if err != nil {
+		return nil, err
 	}
 
 	return map[string]string{
-		"dashboard-url": BaseConsoleURL[platform] + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
-		"section-title": SectionTitle[platform],
+		"dashboard-url": baseURL + dscispec.ApplicationsNamespace + "." + consoleLinkDomain,
+		"section-title": sectionTitle,
 	}, nil
 }
 

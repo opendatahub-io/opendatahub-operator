@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/onsi/gomega"
+	routev1 "github.com/openshift/api/route/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -15,6 +17,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
@@ -34,6 +37,7 @@ const (
 	NodeTypeKey             = "node-type"
 	NvidiaGPUKey            = "nvidia.com/gpu"
 	DashboardHWPCRDName     = "dashboardhardwareprofiles.dashboard.opendatahub.io"
+	NonExistentPlatform     = "non-existent-platform"
 )
 
 // ErrorMessages contains error message templates for test assertions.
@@ -118,13 +122,58 @@ func CreateTestDashboard() *componentApi.Dashboard {
 	}
 }
 
-// createTestDSCI creates a DSCI instance for testing.
-func CreateTestDSCI() *dsciv1.DSCInitialization {
-	return &dsciv1.DSCInitialization{
-		Spec: dsciv1.DSCInitializationSpec{
-			ApplicationsNamespace: TestNamespace,
+// createDSCI creates a DSCI instance for testing.
+func createDSCI() *dsciv1.DSCInitialization {
+	return createDSCIWithNamespace(TestNamespace)
+}
+
+// createDSCIWithNamespace creates a DSCI instance with a custom namespace for testing.
+func createDSCIWithNamespace(namespace string) *dsciv1.DSCInitialization {
+	dsciObj := dsciv1.DSCInitialization{}
+	dsciObj.SetGroupVersionKind(gvk.DSCInitialization)
+	dsciObj.SetName("test-dsci")
+	dsciObj.Spec.ApplicationsNamespace = namespace
+	return &dsciObj
+}
+
+// createRoute creates a Route instance for testing.
+func createRoute(name, host string, admitted bool) *routev1.Route {
+	labels := map[string]string{
+		"platform.opendatahub.io/part-of": "dashboard",
+	}
+	return createRouteWithLabels(name, host, admitted, labels)
+}
+
+// createRouteWithLabels creates a Route instance with custom labels for testing.
+func createRouteWithLabels(name, host string, admitted bool, labels map[string]string) *routev1.Route {
+	route := &routev1.Route{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: TestNamespace,
+			Labels:    labels,
+		},
+		Spec: routev1.RouteSpec{
+			Host: host,
 		},
 	}
+
+	if admitted {
+		route.Status = routev1.RouteStatus{
+			Ingress: []routev1.RouteIngress{
+				{
+					Host: host,
+					Conditions: []routev1.RouteIngressCondition{
+						{
+							Type:   routev1.RouteAdmitted,
+							Status: corev1.ConditionTrue,
+						},
+					},
+				},
+			},
+		}
+	}
+
+	return route
 }
 
 // createTestReconciliationRequest creates a basic reconciliation request for testing.
@@ -189,6 +238,6 @@ func SetupTestReconciliationRequestSimple(t *testing.T) *odhtypes.Reconciliation
 	t.Helper()
 	cli := CreateTestClient(t)
 	dashboard := CreateTestDashboard()
-	dsci := CreateTestDSCI()
+	dsci := createDSCI()
 	return CreateTestReconciliationRequest(cli, dashboard, dsci, common.Release{Name: cluster.OpenDataHub})
 }

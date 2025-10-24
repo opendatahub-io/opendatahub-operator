@@ -17,8 +17,8 @@ import (
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	dashboardctrl "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard/dashboard_test"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 )
 
@@ -28,6 +28,7 @@ const (
 	disabledKey    = "opendatahub.io/disabled"
 	customKey      = "custom-annotation"
 	customValue    = "custom-value"
+	invalidSpec    = "invalid-spec"
 )
 
 // createDashboardHWP creates a dashboardctrl.DashboardHardwareProfile unstructured object with the specified parameters.
@@ -44,13 +45,13 @@ func createDashboardHWP(tb testing.TB, name string, enabled bool, nodeType strin
 	dashboardHWP := &unstructured.Unstructured{}
 	dashboardHWP.SetGroupVersionKind(gvk.DashboardHardwareProfile)
 	dashboardHWP.SetName(name)
-	dashboardHWP.SetNamespace(dashboard_test.TestNamespace)
+	dashboardHWP.SetNamespace(TestNamespace)
 	dashboardHWP.Object["spec"] = map[string]interface{}{
 		"displayName": fmt.Sprintf("Display Name for %s", name),
 		"enabled":     enabled,
 		"description": fmt.Sprintf("Description for %s", name),
 		"nodeSelector": map[string]interface{}{
-			dashboard_test.NodeTypeKey: nodeType,
+			NodeTypeKey: nodeType,
 		},
 	}
 
@@ -58,166 +59,203 @@ func createDashboardHWP(tb testing.TB, name string, enabled bool, nodeType strin
 }
 
 func TestReconcileHardwareProfiles(t *testing.T) {
-	t.Run("CRDNotExists", testReconcileHardwareProfilesCRDNotExists)
-	t.Run("CRDCheckError", testReconcileHardwareProfilesCRDCheckError)
-	t.Run("WithValidProfiles", testReconcileHardwareProfilesWithValidProfiles)
-	t.Run("WithConversionError", testReconcileHardwareProfilesWithConversionError)
-	t.Run("WithCreateError", testReconcileHardwareProfilesWithCreateError)
-}
+	t.Parallel()
+	testCases := []struct {
+		name        string
+		setupRR     func(t *testing.T) *odhtypes.ReconciliationRequest
+		expectError bool
+		validate    func(t *testing.T, rr *odhtypes.ReconciliationRequest)
+	}{
+		{
+			name: "CRDNotExists",
+			setupRR: func(t *testing.T) *odhtypes.ReconciliationRequest {
+				t.Helper()
+				cli, err := fakeclient.New()
+				gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-func testReconcileHardwareProfilesCRDNotExists(t *testing.T) {
-	t.Helper()
-	cli, err := fakeclient.New()
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+				rr := SetupTestReconciliationRequestSimple(t)
+				rr.Client = cli
+				return rr
+			},
+			expectError: false,
+			validate: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
+				t.Helper()
+				// No specific validation needed for CRD not exists case
+			},
+		},
+		{
+			name: "WithValidProfiles",
+			setupRR: func(t *testing.T) *odhtypes.ReconciliationRequest {
+				t.Helper()
+				// Create multiple mock dashboard hardware profiles
+				profile1 := createDashboardHWP(t, "profile1", true, "gpu")
+				profile2 := createDashboardHWP(t, "profile2", true, "cpu")
+				profile3 := createDashboardHWP(t, "profile3", false, "cpu") // Disabled profile
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
-	rr.Client = cli
+				cli, err := fakeclient.New(fakeclient.WithObjects(profile1, profile2, profile3))
+				gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	ctx := t.Context()
-	err = dashboardctrl.ReconcileHardwareProfiles(ctx, rr)
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
-}
+				rr := SetupTestReconciliationRequestSimple(t)
+				rr.Client = cli
+				return rr
+			},
+			expectError: false,
+			validate: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
+				t.Helper()
+				// Test ProcessHardwareProfile directly for each profile to bypass CRD check
+				profile1 := createDashboardHWP(t, "profile1", true, "gpu")
+				profile2 := createDashboardHWP(t, "profile2", true, "cpu")
+				profile3 := createDashboardHWP(t, "profile3", false, "cpu")
 
-func testReconcileHardwareProfilesCRDCheckError(t *testing.T) {
-	t.Helper()
-	// Create a client that will fail on CRD check by using a nil client
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
-	rr.Client = nil // This will cause CRD check to fail
+				ctx := t.Context()
+				logger := log.FromContext(ctx)
 
-	ctx := t.Context()
-	err := dashboardctrl.ReconcileHardwareProfiles(ctx, rr)
-	gomega.NewWithT(t).Expect(err).Should(gomega.HaveOccurred()) // Should return error for nil client
-}
+				g := gomega.NewWithT(t)
+				err := dashboardctrl.ProcessHardwareProfile(ctx, rr, logger, *profile1)
+				g.Expect(err).ShouldNot(gomega.HaveOccurred())
 
-func testReconcileHardwareProfilesWithValidProfiles(t *testing.T) {
-	t.Helper()
-	// Create multiple mock dashboard hardware profiles
-	profile1 := createDashboardHWP(t, "profile1", true, "gpu")
-	profile2 := createDashboardHWP(t, "profile2", true, "cpu")
-	profile3 := createDashboardHWP(t, "profile3", false, "cpu") // Disabled profile
+				err = dashboardctrl.ProcessHardwareProfile(ctx, rr, logger, *profile2)
+				g.Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(profile1, profile2, profile3))
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+				// Disabled profile should not be processed
+				err = dashboardctrl.ProcessHardwareProfile(ctx, rr, logger, *profile3)
+				g.Expect(err).ShouldNot(gomega.HaveOccurred())
+			},
+		},
+		{
+			name: "WithConversionError",
+			setupRR: func(t *testing.T) *odhtypes.ReconciliationRequest {
+				t.Helper()
+				// This test verifies that ProcessHardwareProfile returns an error
+				// when the dashboard hardware profile has an invalid spec that cannot be converted.
+				// We test ProcessHardwareProfile directly to avoid CRD check issues.
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
-	rr.Client = cli
+				// Create a mock dashboard hardware profile with invalid spec
+				dashboardHWP := &unstructured.Unstructured{}
+				dashboardHWP.SetGroupVersionKind(gvk.DashboardHardwareProfile)
+				dashboardHWP.SetName("invalid-profile")
+				dashboardHWP.SetNamespace(TestNamespace)
+				dashboardHWP.Object["spec"] = invalidSpec // Invalid spec type
 
-	ctx := t.Context()
-	logger := log.FromContext(ctx)
+				cli, err := fakeclient.New(fakeclient.WithObjects(dashboardHWP))
+				gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	// Test ProcessHardwareProfile directly for each profile to bypass CRD check
-	err = dashboardctrl.ProcessHardwareProfile(ctx, rr, logger, *profile1)
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+				rr := SetupTestReconciliationRequestSimple(t)
+				rr.Client = cli
+				return rr
+			},
+			expectError: false, // ReconcileHardwareProfiles won't fail, but ProcessHardwareProfile will
+			validate: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
+				t.Helper()
+				// Test ProcessHardwareProfile directly to verify conversion error
+				dashboardHWP := &unstructured.Unstructured{}
+				dashboardHWP.SetGroupVersionKind(gvk.DashboardHardwareProfile)
+				dashboardHWP.SetName("invalid-profile")
+				dashboardHWP.SetNamespace(TestNamespace)
+				dashboardHWP.Object["spec"] = invalidSpec // Invalid spec type
 
-	err = dashboardctrl.ProcessHardwareProfile(ctx, rr, logger, *profile2)
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+				ctx := t.Context()
+				logger := log.FromContext(ctx)
 
-	err = dashboardctrl.ProcessHardwareProfile(ctx, rr, logger, *profile3)
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+				g := gomega.NewWithT(t)
+				err := dashboardctrl.ProcessHardwareProfile(ctx, rr, logger, *dashboardHWP)
+				g.Expect(err).Should(gomega.HaveOccurred())
+				g.Expect(err.Error()).Should(gomega.ContainSubstring("failed to convert dashboard hardware profile"))
+			},
+		},
+		{
+			name: "WithCreateError",
+			setupRR: func(t *testing.T) *odhtypes.ReconciliationRequest {
+				t.Helper()
+				// This test verifies that the hardware profile processing returns an error
+				// when the Create operation fails for HardwareProfile objects.
+				// We test the ProcessHardwareProfile function directly to avoid CRD check issues.
 
-	// Verify that enabled profiles created infrastructure HardwareProfiles
-	var infraHWP1 infrav1.HardwareProfile
-	err = cli.Get(ctx, client.ObjectKey{Name: "profile1", Namespace: dashboard_test.TestNamespace}, &infraHWP1)
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
-	gomega.NewWithT(t).Expect(infraHWP1.Annotations[displayNameKey]).Should(gomega.Equal("Display Name for profile1"))
-	gomega.NewWithT(t).Expect(infraHWP1.Annotations[disabledKey]).Should(gomega.Equal("false"))
+				// Create a mock dashboard hardware profile
+				dashboardHWP := &unstructured.Unstructured{}
+				dashboardHWP.SetGroupVersionKind(gvk.DashboardHardwareProfile)
+				dashboardHWP.SetName("test-profile")
+				dashboardHWP.SetNamespace(TestNamespace)
+				dashboardHWP.Object["spec"] = map[string]interface{}{
+					"displayName": TestDisplayName,
+					"enabled":     true,
+					"description": TestDescription,
+					"nodeSelector": map[string]interface{}{
+						NodeTypeKey: "gpu",
+					},
+				}
 
-	var infraHWP2 infrav1.HardwareProfile
-	err = cli.Get(ctx, client.ObjectKey{Name: "profile2", Namespace: dashboard_test.TestNamespace}, &infraHWP2)
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
-	gomega.NewWithT(t).Expect(infraHWP2.Annotations[displayNameKey]).Should(gomega.Equal("Display Name for profile2"))
-	gomega.NewWithT(t).Expect(infraHWP2.Annotations[disabledKey]).Should(gomega.Equal("false"))
+				// Create a mock client that will fail on Create operations for HardwareProfile objects
+				cli, err := fakeclient.New(
+					fakeclient.WithObjects(dashboardHWP),
+					fakeclient.WithInterceptorFuncs(interceptor.Funcs{
+						Create: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+							// Fail on Create operations for HardwareProfile objects
+							t.Logf("Create interceptor called for object: %s, type: %T", obj.GetName(), obj)
 
-	// Verify that disabled profiles created infrastructure HardwareProfiles with disabled annotation
-	var infraHWP3 infrav1.HardwareProfile
-	err = cli.Get(ctx, client.ObjectKey{Name: "profile3", Namespace: dashboard_test.TestNamespace}, &infraHWP3)
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
-	gomega.NewWithT(t).Expect(infraHWP3.Annotations[displayNameKey]).Should(gomega.Equal("Display Name for profile3"))
-	gomega.NewWithT(t).Expect(infraHWP3.Annotations[disabledKey]).Should(gomega.Equal("true"))
-}
+							// Check if it's an infrastructure HardwareProfile by type
+							if _, ok := obj.(*infrav1.HardwareProfile); ok {
+								t.Logf("Triggering create error for HardwareProfile")
+								return errors.New("simulated create error")
+							}
+							return client.Create(ctx, obj, opts...)
+						},
+					}),
+				)
+				gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-func testReconcileHardwareProfilesWithConversionError(t *testing.T) {
-	t.Helper()
-	// This test verifies that ProcessHardwareProfile returns an error
-	// when the dashboard hardware profile has an invalid spec that cannot be converted.
-	// We test ProcessHardwareProfile directly to avoid CRD check issues.
+				rr := SetupTestReconciliationRequestSimple(t)
+				rr.Client = cli
+				return rr
+			},
+			expectError: false, // ReconcileHardwareProfiles won't fail, but ProcessHardwareProfile will
+			validate: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
+				t.Helper()
+				// Test ProcessHardwareProfile directly to verify create error
+				dashboardHWP := &unstructured.Unstructured{}
+				dashboardHWP.SetGroupVersionKind(gvk.DashboardHardwareProfile)
+				dashboardHWP.SetName("test-profile")
+				dashboardHWP.SetNamespace(TestNamespace)
+				dashboardHWP.Object["spec"] = map[string]interface{}{
+					"displayName": TestDisplayName,
+					"enabled":     true,
+					"description": TestDescription,
+					"nodeSelector": map[string]interface{}{
+						NodeTypeKey: "gpu",
+					},
+				}
 
-	// Create a mock dashboard hardware profile with invalid spec
-	dashboardHWP := &unstructured.Unstructured{}
-	dashboardHWP.SetGroupVersionKind(gvk.DashboardHardwareProfile)
-	dashboardHWP.SetName(dashboard_test.TestProfile)
-	dashboardHWP.SetNamespace(dashboard_test.TestNamespace)
-	dashboardHWP.Object["spec"] = "invalid-spec" // Invalid spec type
+				ctx := t.Context()
+				logger := log.FromContext(ctx)
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(dashboardHWP))
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
-
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
-	rr.Client = cli
-
-	ctx := t.Context()
-	logger := log.FromContext(ctx)
-
-	// Test ProcessHardwareProfile directly to avoid CRD check issues
-	err = dashboardctrl.ProcessHardwareProfile(ctx, rr, logger, *dashboardHWP)
-
-	// The function should return an error because the conversion fails
-	gomega.NewWithT(t).Expect(err).Should(gomega.HaveOccurred())
-	gomega.NewWithT(t).Expect(err.Error()).Should(gomega.ContainSubstring("failed to convert dashboard hardware profile"))
-}
-
-func testReconcileHardwareProfilesWithCreateError(t *testing.T) {
-	t.Helper()
-	// This test verifies that the hardware profile processing returns an error
-	// when the Create operation fails for HardwareProfile objects.
-	// We test the ProcessHardwareProfile function directly to avoid CRD check issues.
-
-	// Create a mock dashboard hardware profile
-	dashboardHWP := &unstructured.Unstructured{}
-	dashboardHWP.SetGroupVersionKind(gvk.DashboardHardwareProfile)
-	dashboardHWP.SetName(dashboard_test.TestProfile)
-	dashboardHWP.SetNamespace(dashboard_test.TestNamespace)
-	dashboardHWP.Object["spec"] = map[string]interface{}{
-		"displayName": dashboard_test.TestDisplayName,
-		"enabled":     true,
-		"description": dashboard_test.TestDescription,
-		"nodeSelector": map[string]interface{}{
-			dashboard_test.NodeTypeKey: "gpu",
+				g := gomega.NewWithT(t)
+				err := dashboardctrl.ProcessHardwareProfile(ctx, rr, logger, *dashboardHWP)
+				t.Logf("ProcessHardwareProfile returned error: %v", err)
+				g.Expect(err).Should(gomega.HaveOccurred())
+				g.Expect(err.Error()).Should(gomega.ContainSubstring("simulated create error"))
+			},
 		},
 	}
 
-	// Create a mock client that will fail on Create operations for HardwareProfile objects
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(dashboardHWP),
-		fakeclient.WithInterceptorFuncs(interceptor.Funcs{
-			Create: func(ctx context.Context, client client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
-				// Fail on Create operations for HardwareProfile objects
-				t.Logf("Create interceptor called for object: %s, type: %T", obj.GetName(), obj)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := gomega.NewWithT(t)
 
-				// Check if it's an infrastructure HardwareProfile by type
-				if _, ok := obj.(*infrav1.HardwareProfile); ok {
-					t.Logf("Triggering create error for HardwareProfile")
-					return errors.New("simulated create error")
-				}
-				return client.Create(ctx, obj, opts...)
-			},
-		}),
-	)
-	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
+			rr := tc.setupRR(t)
+			ctx := t.Context()
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
-	rr.Client = cli
+			err := dashboardctrl.ReconcileHardwareProfiles(ctx, rr)
 
-	ctx := t.Context()
-	logger := log.FromContext(ctx)
+			if tc.expectError {
+				g.Expect(err).Should(gomega.HaveOccurred())
+			} else {
+				g.Expect(err).ShouldNot(gomega.HaveOccurred())
+			}
 
-	// Test ProcessHardwareProfile directly to avoid CRD check issues
-	err = dashboardctrl.ProcessHardwareProfile(ctx, rr, logger, *dashboardHWP)
-	t.Logf("ProcessHardwareProfile returned error: %v", err)
-
-	// The function should return an error because the Create operation fails
-	// and the function should propagate the Create error rather than returning nil
-	gomega.NewWithT(t).Expect(err).Should(gomega.HaveOccurred())
+			tc.validate(t, rr)
+		})
+	}
 }
 
 // Test dashboardctrl.ProcessHardwareProfile function directly.
@@ -230,20 +268,19 @@ func TestProcessHardwareProfile(t *testing.T) {
 }
 
 func testProcessHardwareProfileSuccessful(t *testing.T) {
-	t.Helper()
 	// Create a mock dashboard hardware profile
-	dashboardHWP := createDashboardHWP(t, dashboard_test.TestProfile, true, "gpu")
+	dashboardHWP := createDashboardHWP(t, TestProfile, true, "gpu")
 
 	// Create an existing infrastructure hardware profile
 	existingInfraHWP := &infrav1.HardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dashboard_test.TestProfile,
-			Namespace: dashboard_test.TestNamespace,
+			Name:      TestProfile,
+			Namespace: TestNamespace,
 		},
 		Spec: infrav1.HardwareProfileSpec{
 			Identifiers: []infrav1.HardwareIdentifier{
 				{
-					DisplayName:  dashboard_test.TestDisplayName,
+					DisplayName:  TestDisplayName,
 					Identifier:   "gpu",
 					MinCount:     intstr.FromInt32(1),
 					DefaultCount: intstr.FromInt32(1),
@@ -256,7 +293,7 @@ func testProcessHardwareProfileSuccessful(t *testing.T) {
 	cli, err := fakeclient.New(fakeclient.WithObjects(existingInfraHWP))
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+	rr := SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 
 	ctx := t.Context()
@@ -267,18 +304,17 @@ func testProcessHardwareProfileSuccessful(t *testing.T) {
 }
 
 func testProcessHardwareProfileConversionError(t *testing.T) {
-	t.Helper()
 	// Create a mock dashboard hardware profile with invalid spec
 	dashboardHWP := &unstructured.Unstructured{}
 	dashboardHWP.SetGroupVersionKind(gvk.DashboardHardwareProfile)
-	dashboardHWP.SetName(dashboard_test.TestProfile)
-	dashboardHWP.SetNamespace(dashboard_test.TestNamespace)
+	dashboardHWP.SetName(TestProfile)
+	dashboardHWP.SetNamespace(TestNamespace)
 	dashboardHWP.Object["spec"] = "invalid-spec" // Invalid spec type
 
 	cli, err := fakeclient.New()
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+	rr := SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 
 	ctx := t.Context()
@@ -290,14 +326,13 @@ func testProcessHardwareProfileConversionError(t *testing.T) {
 }
 
 func testProcessHardwareProfileCreateNew(t *testing.T) {
-	t.Helper()
 	// Create a mock dashboard hardware profile
-	dashboardHWP := createDashboardHWP(t, dashboard_test.TestProfile, true, "gpu")
+	dashboardHWP := createDashboardHWP(t, TestProfile, true, "gpu")
 
 	cli, err := fakeclient.New()
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+	rr := SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 
 	ctx := t.Context()
@@ -308,7 +343,6 @@ func testProcessHardwareProfileCreateNew(t *testing.T) {
 }
 
 func testProcessHardwareProfileUpdateExisting(t *testing.T) {
-	t.Helper()
 	// Create a mock dashboard hardware profile with different specs
 	dashboardHWP := createDashboardHWP(t, "updated-profile", true, "cpu")
 
@@ -316,7 +350,7 @@ func testProcessHardwareProfileUpdateExisting(t *testing.T) {
 	existingInfraHWP := &infrav1.HardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "updated-profile",
-			Namespace: dashboard_test.TestNamespace,
+			Namespace: TestNamespace,
 		},
 		Spec: infrav1.HardwareProfileSpec{
 			Identifiers: []infrav1.HardwareIdentifier{
@@ -334,7 +368,7 @@ func testProcessHardwareProfileUpdateExisting(t *testing.T) {
 	cli, err := fakeclient.New(fakeclient.WithObjects(existingInfraHWP))
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+	rr := SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 
 	ctx := t.Context()
@@ -346,9 +380,8 @@ func testProcessHardwareProfileUpdateExisting(t *testing.T) {
 }
 
 func testProcessHardwareProfileGetError(t *testing.T) {
-	t.Helper()
 	// Create a mock dashboard hardware profile
-	dashboardHWP := createDashboardHWP(t, dashboard_test.TestProfile, true, "gpu")
+	dashboardHWP := createDashboardHWP(t, TestProfile, true, "gpu")
 
 	// Create a mock client that returns a controlled Get error
 	expectedError := errors.New("mock client Get error")
@@ -362,7 +395,7 @@ func testProcessHardwareProfileGetError(t *testing.T) {
 	)
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+	rr := SetupTestReconciliationRequestSimple(t)
 	rr.Client = mockClient
 
 	ctx := t.Context()
@@ -384,18 +417,17 @@ func TestCreateInfraHWP(t *testing.T) {
 }
 
 func testCreateInfraHWPSuccessful(t *testing.T) {
-	t.Helper()
 	dashboardHWP := &dashboardctrl.DashboardHardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dashboard_test.TestProfile,
-			Namespace: dashboard_test.TestNamespace,
+			Name:      TestProfile,
+			Namespace: TestNamespace,
 		},
 		Spec: dashboardctrl.DashboardHardwareProfileSpec{
-			DisplayName: dashboard_test.TestDisplayName,
+			DisplayName: TestDisplayName,
 			Enabled:     true,
-			Description: dashboard_test.TestDescription,
+			Description: TestDescription,
 			NodeSelector: map[string]string{
-				dashboard_test.NodeTypeKey: "gpu",
+				NodeTypeKey: "gpu",
 			},
 		},
 	}
@@ -403,7 +435,7 @@ func testCreateInfraHWPSuccessful(t *testing.T) {
 	cli, err := fakeclient.New()
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+	rr := SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 
 	ctx := t.Context()
@@ -414,32 +446,31 @@ func testCreateInfraHWPSuccessful(t *testing.T) {
 
 	// Verify the created InfrastructureHardwareProfile
 	var infraHWP infrav1.HardwareProfile
-	err = cli.Get(ctx, client.ObjectKey{Name: dashboard_test.TestProfile, Namespace: dashboard_test.TestNamespace}, &infraHWP)
+	err = cli.Get(ctx, client.ObjectKey{Name: TestProfile, Namespace: TestNamespace}, &infraHWP)
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	// Assert the created object's fields match expectations
-	gomega.NewWithT(t).Expect(infraHWP.Annotations[displayNameKey]).Should(gomega.Equal(dashboard_test.TestDisplayName))
-	gomega.NewWithT(t).Expect(infraHWP.Annotations[descriptionKey]).Should(gomega.Equal(dashboard_test.TestDescription))
+	gomega.NewWithT(t).Expect(infraHWP.Annotations[displayNameKey]).Should(gomega.Equal(TestDisplayName))
+	gomega.NewWithT(t).Expect(infraHWP.Annotations[descriptionKey]).Should(gomega.Equal(TestDescription))
 	gomega.NewWithT(t).Expect(infraHWP.Annotations[disabledKey]).Should(gomega.Equal("false"))
-	gomega.NewWithT(t).Expect(infraHWP.Spec.SchedulingSpec.Node.NodeSelector).Should(gomega.Equal(map[string]string{dashboard_test.NodeTypeKey: "gpu"}))
+	gomega.NewWithT(t).Expect(infraHWP.Spec.SchedulingSpec.Node.NodeSelector).Should(gomega.Equal(map[string]string{NodeTypeKey: "gpu"}))
 }
 
 func testCreateInfraHWPWithAnnotations(t *testing.T) {
-	t.Helper()
 	dashboardHWP := &dashboardctrl.DashboardHardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dashboard_test.TestProfile,
-			Namespace: dashboard_test.TestNamespace,
+			Name:      TestProfile,
+			Namespace: TestNamespace,
 			Annotations: map[string]string{
 				customKey: customValue,
 			},
 		},
 		Spec: dashboardctrl.DashboardHardwareProfileSpec{
-			DisplayName: dashboard_test.TestDisplayName,
+			DisplayName: TestDisplayName,
 			Enabled:     true,
-			Description: dashboard_test.TestDescription,
+			Description: TestDescription,
 			NodeSelector: map[string]string{
-				dashboard_test.NodeTypeKey: "gpu",
+				NodeTypeKey: "gpu",
 			},
 		},
 	}
@@ -447,7 +478,7 @@ func testCreateInfraHWPWithAnnotations(t *testing.T) {
 	cli, err := fakeclient.New()
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+	rr := SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 
 	ctx := t.Context()
@@ -458,36 +489,35 @@ func testCreateInfraHWPWithAnnotations(t *testing.T) {
 
 	// Verify the created InfrastructureHardwareProfile
 	var infraHWP infrav1.HardwareProfile
-	err = cli.Get(ctx, client.ObjectKey{Name: dashboard_test.TestProfile, Namespace: dashboard_test.TestNamespace}, &infraHWP)
+	err = cli.Get(ctx, client.ObjectKey{Name: TestProfile, Namespace: TestNamespace}, &infraHWP)
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	// Assert the created object's fields match expectations
-	gomega.NewWithT(t).Expect(infraHWP.Annotations[displayNameKey]).Should(gomega.Equal(dashboard_test.TestDisplayName))
-	gomega.NewWithT(t).Expect(infraHWP.Annotations[descriptionKey]).Should(gomega.Equal(dashboard_test.TestDescription))
+	gomega.NewWithT(t).Expect(infraHWP.Annotations[displayNameKey]).Should(gomega.Equal(TestDisplayName))
+	gomega.NewWithT(t).Expect(infraHWP.Annotations[descriptionKey]).Should(gomega.Equal(TestDescription))
 	gomega.NewWithT(t).Expect(infraHWP.Annotations[disabledKey]).Should(gomega.Equal("false"))
-	gomega.NewWithT(t).Expect(infraHWP.Spec.SchedulingSpec.Node.NodeSelector).Should(gomega.Equal(map[string]string{dashboard_test.NodeTypeKey: "gpu"}))
+	gomega.NewWithT(t).Expect(infraHWP.Spec.SchedulingSpec.Node.NodeSelector).Should(gomega.Equal(map[string]string{NodeTypeKey: "gpu"}))
 
 	// Assert the custom annotation exists and equals customValue
 	gomega.NewWithT(t).Expect(infraHWP.Annotations[customKey]).Should(gomega.Equal(customValue))
 }
 
 func testCreateInfraHWPWithTolerations(t *testing.T) {
-	t.Helper()
 	dashboardHWP := &dashboardctrl.DashboardHardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dashboard_test.TestProfile,
-			Namespace: dashboard_test.TestNamespace,
+			Name:      TestProfile,
+			Namespace: TestNamespace,
 		},
 		Spec: dashboardctrl.DashboardHardwareProfileSpec{
-			DisplayName: dashboard_test.TestDisplayName,
+			DisplayName: TestDisplayName,
 			Enabled:     true,
-			Description: dashboard_test.TestDescription,
+			Description: TestDescription,
 			NodeSelector: map[string]string{
-				dashboard_test.NodeTypeKey: "gpu",
+				NodeTypeKey: "gpu",
 			},
 			Tolerations: []corev1.Toleration{
 				{
-					Key:    dashboard_test.NvidiaGPUKey,
+					Key:    NvidiaGPUKey,
 					Value:  "true",
 					Effect: corev1.TaintEffectNoSchedule,
 				},
@@ -498,7 +528,7 @@ func testCreateInfraHWPWithTolerations(t *testing.T) {
 	cli, err := fakeclient.New()
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+	rr := SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 
 	ctx := t.Context()
@@ -509,40 +539,39 @@ func testCreateInfraHWPWithTolerations(t *testing.T) {
 
 	// Verify the created InfrastructureHardwareProfile
 	var infraHWP infrav1.HardwareProfile
-	err = cli.Get(ctx, client.ObjectKey{Name: dashboard_test.TestProfile, Namespace: dashboard_test.TestNamespace}, &infraHWP)
+	err = cli.Get(ctx, client.ObjectKey{Name: TestProfile, Namespace: TestNamespace}, &infraHWP)
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	// Assert the created object's fields match expectations
-	gomega.NewWithT(t).Expect(infraHWP.Annotations[displayNameKey]).Should(gomega.Equal(dashboard_test.TestDisplayName))
-	gomega.NewWithT(t).Expect(infraHWP.Annotations[descriptionKey]).Should(gomega.Equal(dashboard_test.TestDescription))
+	gomega.NewWithT(t).Expect(infraHWP.Annotations[displayNameKey]).Should(gomega.Equal(TestDisplayName))
+	gomega.NewWithT(t).Expect(infraHWP.Annotations[descriptionKey]).Should(gomega.Equal(TestDescription))
 	gomega.NewWithT(t).Expect(infraHWP.Annotations[disabledKey]).Should(gomega.Equal("false"))
-	gomega.NewWithT(t).Expect(infraHWP.Spec.SchedulingSpec.Node.NodeSelector).Should(gomega.Equal(map[string]string{dashboard_test.NodeTypeKey: "gpu"}))
+	gomega.NewWithT(t).Expect(infraHWP.Spec.SchedulingSpec.Node.NodeSelector).Should(gomega.Equal(map[string]string{NodeTypeKey: "gpu"}))
 
-	// Assert the toleration with key dashboard_test.NvidiaGPUKey/value "true" and effect NoSchedule is present
+	// Assert the toleration with key NvidiaGPUKey/value "true" and effect NoSchedule is present
 	gomega.NewWithT(t).Expect(infraHWP.Spec.SchedulingSpec.Node.Tolerations).Should(gomega.HaveLen(1))
-	gomega.NewWithT(t).Expect(infraHWP.Spec.SchedulingSpec.Node.Tolerations[0].Key).Should(gomega.Equal(dashboard_test.NvidiaGPUKey))
+	gomega.NewWithT(t).Expect(infraHWP.Spec.SchedulingSpec.Node.Tolerations[0].Key).Should(gomega.Equal(NvidiaGPUKey))
 	gomega.NewWithT(t).Expect(infraHWP.Spec.SchedulingSpec.Node.Tolerations[0].Value).Should(gomega.Equal("true"))
 	gomega.NewWithT(t).Expect(infraHWP.Spec.SchedulingSpec.Node.Tolerations[0].Effect).Should(gomega.Equal(corev1.TaintEffectNoSchedule))
 }
 
 func testCreateInfraHWPWithIdentifiers(t *testing.T) {
-	t.Helper()
 	dashboardHWP := &dashboardctrl.DashboardHardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dashboard_test.TestProfile,
-			Namespace: dashboard_test.TestNamespace,
+			Name:      TestProfile,
+			Namespace: TestNamespace,
 		},
 		Spec: dashboardctrl.DashboardHardwareProfileSpec{
-			DisplayName: dashboard_test.TestDisplayName,
+			DisplayName: TestDisplayName,
 			Enabled:     true,
-			Description: dashboard_test.TestDescription,
+			Description: TestDescription,
 			NodeSelector: map[string]string{
-				dashboard_test.NodeTypeKey: "gpu",
+				NodeTypeKey: "gpu",
 			},
 			Identifiers: []infrav1.HardwareIdentifier{
 				{
 					DisplayName:  "GPU",
-					Identifier:   dashboard_test.NvidiaGPUKey,
+					Identifier:   NvidiaGPUKey,
 					ResourceType: "Accelerator",
 				},
 			},
@@ -552,7 +581,7 @@ func testCreateInfraHWPWithIdentifiers(t *testing.T) {
 	cli, err := fakeclient.New()
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+	rr := SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 
 	ctx := t.Context()
@@ -563,19 +592,19 @@ func testCreateInfraHWPWithIdentifiers(t *testing.T) {
 
 	// Verify the created InfrastructureHardwareProfile
 	var infraHWP infrav1.HardwareProfile
-	err = cli.Get(ctx, client.ObjectKey{Name: dashboard_test.TestProfile, Namespace: dashboard_test.TestNamespace}, &infraHWP)
+	err = cli.Get(ctx, client.ObjectKey{Name: TestProfile, Namespace: TestNamespace}, &infraHWP)
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	// Assert the created object's fields match expectations
-	gomega.NewWithT(t).Expect(infraHWP.Annotations[displayNameKey]).Should(gomega.Equal(dashboard_test.TestDisplayName))
-	gomega.NewWithT(t).Expect(infraHWP.Annotations[descriptionKey]).Should(gomega.Equal(dashboard_test.TestDescription))
+	gomega.NewWithT(t).Expect(infraHWP.Annotations[displayNameKey]).Should(gomega.Equal(TestDisplayName))
+	gomega.NewWithT(t).Expect(infraHWP.Annotations[descriptionKey]).Should(gomega.Equal(TestDescription))
 	gomega.NewWithT(t).Expect(infraHWP.Annotations[disabledKey]).Should(gomega.Equal("false"))
-	gomega.NewWithT(t).Expect(infraHWP.Spec.SchedulingSpec.Node.NodeSelector).Should(gomega.Equal(map[string]string{dashboard_test.NodeTypeKey: "gpu"}))
+	gomega.NewWithT(t).Expect(infraHWP.Spec.SchedulingSpec.Node.NodeSelector).Should(gomega.Equal(map[string]string{NodeTypeKey: "gpu"}))
 
 	// Assert the identifiers slice contains the expected HardwareIdentifier
 	gomega.NewWithT(t).Expect(infraHWP.Spec.Identifiers).Should(gomega.HaveLen(1))
 	gomega.NewWithT(t).Expect(infraHWP.Spec.Identifiers[0].DisplayName).Should(gomega.Equal("GPU"))
-	gomega.NewWithT(t).Expect(infraHWP.Spec.Identifiers[0].Identifier).Should(gomega.Equal(dashboard_test.NvidiaGPUKey))
+	gomega.NewWithT(t).Expect(infraHWP.Spec.Identifiers[0].Identifier).Should(gomega.Equal(NvidiaGPUKey))
 	gomega.NewWithT(t).Expect(infraHWP.Spec.Identifiers[0].ResourceType).Should(gomega.Equal("Accelerator"))
 }
 
@@ -587,31 +616,30 @@ func TestUpdateInfraHWP(t *testing.T) {
 }
 
 func testUpdateInfraHWPSuccessful(t *testing.T) {
-	t.Helper()
 	dashboardHWP := &dashboardctrl.DashboardHardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dashboard_test.TestProfile,
-			Namespace: dashboard_test.TestNamespace,
+			Name:      TestProfile,
+			Namespace: TestNamespace,
 		},
 		Spec: dashboardctrl.DashboardHardwareProfileSpec{
-			DisplayName: dashboard_test.TestDisplayName,
+			DisplayName: TestDisplayName,
 			Enabled:     true,
-			Description: dashboard_test.TestDescription,
+			Description: TestDescription,
 			NodeSelector: map[string]string{
-				dashboard_test.NodeTypeKey: "gpu",
+				NodeTypeKey: "gpu",
 			},
 		},
 	}
 
 	infraHWP := &infrav1.HardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dashboard_test.TestProfile,
-			Namespace: dashboard_test.TestNamespace,
+			Name:      TestProfile,
+			Namespace: TestNamespace,
 		},
 		Spec: infrav1.HardwareProfileSpec{
 			Identifiers: []infrav1.HardwareIdentifier{
 				{
-					DisplayName:  dashboard_test.TestDisplayName,
+					DisplayName:  TestDisplayName,
 					Identifier:   "gpu",
 					MinCount:     intstr.FromInt32(1),
 					DefaultCount: intstr.FromInt32(1),
@@ -624,7 +652,7 @@ func testUpdateInfraHWPSuccessful(t *testing.T) {
 	cli, err := fakeclient.New(fakeclient.WithObjects(infraHWP))
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+	rr := SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 
 	ctx := t.Context()
@@ -635,48 +663,47 @@ func testUpdateInfraHWPSuccessful(t *testing.T) {
 
 	// Fetch the updated HardwareProfile from the fake client
 	var updatedInfraHWP infrav1.HardwareProfile
-	err = cli.Get(ctx, client.ObjectKey{Name: dashboard_test.TestProfile, Namespace: dashboard_test.TestNamespace}, &updatedInfraHWP)
+	err = cli.Get(ctx, client.ObjectKey{Name: TestProfile, Namespace: TestNamespace}, &updatedInfraHWP)
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	// Assert spec fields reflect the dashboardctrl.DashboardHardwareProfile changes
 	gomega.NewWithT(t).Expect(updatedInfraHWP.Spec.SchedulingSpec.Node.NodeSelector).Should(gomega.Equal(dashboardHWP.Spec.NodeSelector))
 
 	// Assert annotations were properly set
-	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(displayNameKey, dashboard_test.TestDisplayName))
-	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(descriptionKey, dashboard_test.TestDescription))
+	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(displayNameKey, TestDisplayName))
+	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(descriptionKey, TestDescription))
 	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(disabledKey, "false"))
 
 	// Assert resource metadata remains correct
-	gomega.NewWithT(t).Expect(updatedInfraHWP.Name).Should(gomega.Equal(dashboard_test.TestProfile))
-	gomega.NewWithT(t).Expect(updatedInfraHWP.Namespace).Should(gomega.Equal(dashboard_test.TestNamespace))
+	gomega.NewWithT(t).Expect(updatedInfraHWP.Name).Should(gomega.Equal(TestProfile))
+	gomega.NewWithT(t).Expect(updatedInfraHWP.Namespace).Should(gomega.Equal(TestNamespace))
 }
 
 func testUpdateInfraHWPWithNilAnnotations(t *testing.T) {
-	t.Helper()
 	dashboardHWP := &dashboardctrl.DashboardHardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dashboard_test.TestProfile,
-			Namespace: dashboard_test.TestNamespace,
+			Name:      TestProfile,
+			Namespace: TestNamespace,
 		},
 		Spec: dashboardctrl.DashboardHardwareProfileSpec{
-			DisplayName: dashboard_test.TestDisplayName,
+			DisplayName: TestDisplayName,
 			Enabled:     true,
-			Description: dashboard_test.TestDescription,
+			Description: TestDescription,
 			NodeSelector: map[string]string{
-				dashboard_test.NodeTypeKey: "gpu",
+				NodeTypeKey: "gpu",
 			},
 		},
 	}
 
 	infraHWP := &infrav1.HardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dashboard_test.TestProfile,
-			Namespace: dashboard_test.TestNamespace,
+			Name:      TestProfile,
+			Namespace: TestNamespace,
 		},
 		Spec: infrav1.HardwareProfileSpec{
 			Identifiers: []infrav1.HardwareIdentifier{
 				{
-					DisplayName:  dashboard_test.TestDisplayName,
+					DisplayName:  TestDisplayName,
 					Identifier:   "gpu",
 					MinCount:     intstr.FromInt32(1),
 					DefaultCount: intstr.FromInt32(1),
@@ -690,7 +717,7 @@ func testUpdateInfraHWPWithNilAnnotations(t *testing.T) {
 	cli, err := fakeclient.New(fakeclient.WithObjects(infraHWP))
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+	rr := SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 
 	ctx := t.Context()
@@ -701,7 +728,7 @@ func testUpdateInfraHWPWithNilAnnotations(t *testing.T) {
 
 	// Fetch the updated HardwareProfile from the fake client
 	var updatedInfraHWP infrav1.HardwareProfile
-	err = cli.Get(ctx, client.ObjectKey{Name: dashboard_test.TestProfile, Namespace: dashboard_test.TestNamespace}, &updatedInfraHWP)
+	err = cli.Get(ctx, client.ObjectKey{Name: TestProfile, Namespace: TestNamespace}, &updatedInfraHWP)
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	// Assert spec fields reflect the dashboardctrl.DashboardHardwareProfile changes
@@ -709,39 +736,38 @@ func testUpdateInfraHWPWithNilAnnotations(t *testing.T) {
 
 	// Assert annotations were properly set (nil annotations become the dashboard annotations)
 	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).ShouldNot(gomega.BeNil())
-	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(displayNameKey, dashboard_test.TestDisplayName))
-	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(descriptionKey, dashboard_test.TestDescription))
+	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(displayNameKey, TestDisplayName))
+	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(descriptionKey, TestDescription))
 	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(disabledKey, "false"))
 
 	// Assert resource metadata remains correct
-	gomega.NewWithT(t).Expect(updatedInfraHWP.Name).Should(gomega.Equal(dashboard_test.TestProfile))
-	gomega.NewWithT(t).Expect(updatedInfraHWP.Namespace).Should(gomega.Equal(dashboard_test.TestNamespace))
+	gomega.NewWithT(t).Expect(updatedInfraHWP.Name).Should(gomega.Equal(TestProfile))
+	gomega.NewWithT(t).Expect(updatedInfraHWP.Namespace).Should(gomega.Equal(TestNamespace))
 }
 
 func testUpdateInfraHWPWithExistingAnnotations(t *testing.T) {
-	t.Helper()
 	dashboardHWP := &dashboardctrl.DashboardHardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dashboard_test.TestProfile,
-			Namespace: dashboard_test.TestNamespace,
+			Name:      TestProfile,
+			Namespace: TestNamespace,
 			Annotations: map[string]string{
 				customKey: customValue,
 			},
 		},
 		Spec: dashboardctrl.DashboardHardwareProfileSpec{
-			DisplayName: dashboard_test.TestDisplayName,
+			DisplayName: TestDisplayName,
 			Enabled:     true,
-			Description: dashboard_test.TestDescription,
+			Description: TestDescription,
 			NodeSelector: map[string]string{
-				dashboard_test.NodeTypeKey: "gpu",
+				NodeTypeKey: "gpu",
 			},
 		},
 	}
 
 	infraHWP := &infrav1.HardwareProfile{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dashboard_test.TestProfile,
-			Namespace: dashboard_test.TestNamespace,
+			Name:      TestProfile,
+			Namespace: TestNamespace,
 			Annotations: map[string]string{
 				"existing-annotation": "existing-value",
 			},
@@ -749,7 +775,7 @@ func testUpdateInfraHWPWithExistingAnnotations(t *testing.T) {
 		Spec: infrav1.HardwareProfileSpec{
 			Identifiers: []infrav1.HardwareIdentifier{
 				{
-					DisplayName:  dashboard_test.TestDisplayName,
+					DisplayName:  TestDisplayName,
 					Identifier:   "gpu",
 					MinCount:     intstr.FromInt32(1),
 					DefaultCount: intstr.FromInt32(1),
@@ -762,7 +788,7 @@ func testUpdateInfraHWPWithExistingAnnotations(t *testing.T) {
 	cli, err := fakeclient.New(fakeclient.WithObjects(infraHWP))
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
-	rr := dashboard_test.SetupTestReconciliationRequestSimple(t)
+	rr := SetupTestReconciliationRequestSimple(t)
 	rr.Client = cli
 
 	ctx := t.Context()
@@ -773,20 +799,20 @@ func testUpdateInfraHWPWithExistingAnnotations(t *testing.T) {
 
 	// Fetch the updated HardwareProfile from the fake client
 	var updatedInfraHWP infrav1.HardwareProfile
-	err = cli.Get(ctx, client.ObjectKey{Name: dashboard_test.TestProfile, Namespace: dashboard_test.TestNamespace}, &updatedInfraHWP)
+	err = cli.Get(ctx, client.ObjectKey{Name: TestProfile, Namespace: TestNamespace}, &updatedInfraHWP)
 	gomega.NewWithT(t).Expect(err).ShouldNot(gomega.HaveOccurred())
 
 	// Assert spec fields reflect the dashboardctrl.DashboardHardwareProfile changes
 	gomega.NewWithT(t).Expect(updatedInfraHWP.Spec.SchedulingSpec.Node.NodeSelector).Should(gomega.Equal(dashboardHWP.Spec.NodeSelector))
 
 	// Assert annotations were properly merged (existing annotations preserved and merged with dashboard annotations)
-	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(displayNameKey, dashboard_test.TestDisplayName))
-	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(descriptionKey, dashboard_test.TestDescription))
+	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(displayNameKey, TestDisplayName))
+	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(descriptionKey, TestDescription))
 	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(disabledKey, "false"))
 	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue("existing-annotation", "existing-value"))
 	gomega.NewWithT(t).Expect(updatedInfraHWP.Annotations).Should(gomega.HaveKeyWithValue(customKey, customValue))
 
 	// Assert resource metadata remains correct
-	gomega.NewWithT(t).Expect(updatedInfraHWP.Name).Should(gomega.Equal(dashboard_test.TestProfile))
-	gomega.NewWithT(t).Expect(updatedInfraHWP.Namespace).Should(gomega.Equal(dashboard_test.TestNamespace))
+	gomega.NewWithT(t).Expect(updatedInfraHWP.Name).Should(gomega.Equal(TestProfile))
+	gomega.NewWithT(t).Expect(updatedInfraHWP.Namespace).Should(gomega.Equal(TestNamespace))
 }
