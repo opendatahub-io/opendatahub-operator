@@ -55,6 +55,12 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []string, roleBindingName string, roleName string) error {
+	namespace, err := actions.ApplicationNamespace(ctx, rr)
+	if err != nil {
+		logf.Log.Error(err, "error getting application namespace")
+		return err
+	}
+
 	groupsToBind := []rbacv1.Subject{}
 	for _, e := range groups {
 		// we want to disallow adding system:authenticated to the adminGroups
@@ -74,7 +80,7 @@ func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []
 	rb := &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      roleBindingName,
-			Namespace: rr.DSCI.Spec.ApplicationsNamespace,
+			Namespace: namespace,
 		},
 		Subjects: groupsToBind,
 		RoleRef: rbacv1.RoleRef{
@@ -83,7 +89,7 @@ func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []
 			Name:     roleName,
 		},
 	}
-	err := rr.AddResources(rb)
+	err = rr.AddResources(rb)
 	if err != nil {
 		return errors.New("error creating RoleBinding for group")
 	}

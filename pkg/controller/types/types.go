@@ -189,7 +189,13 @@ func Hash(rr *ReconciliationRequest) ([]byte, error) {
 	hash := sha256.New()
 
 	dsciGeneration := make([]byte, binary.MaxVarintLen64)
-	binary.PutVarint(dsciGeneration, rr.DSCI.GetGeneration())
+	if rr.DSCI != nil {
+		binary.PutVarint(dsciGeneration, rr.DSCI.GetGeneration())
+	} else {
+		// DSCI is not available (service reconciling without platform initialization).
+		// Use -1 as a sentinel to ensure consistent hashing when DSCI is absent.
+		binary.PutVarint(dsciGeneration, -1)
+	}
 
 	instanceGeneration := make([]byte, binary.MaxVarintLen64)
 	binary.PutVarint(instanceGeneration, rr.Instance.GetGeneration())
