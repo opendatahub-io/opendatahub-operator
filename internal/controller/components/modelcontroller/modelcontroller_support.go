@@ -21,7 +21,6 @@ const (
 var (
 	imageParamMap = map[string]string{
 		"odh-model-controller":    "RELATED_IMAGE_ODH_MODEL_CONTROLLER_IMAGE",
-		"caikit-tgis-image":       "RELATED_IMAGE_ODH_CAIKIT_TGIS_SERVING_IMAGE",
 		"caikit-standalone-image": "RELATED_IMAGE_ODH_CAIKIT_NLP_IMAGE",
 		"ovms-image":              "RELATED_IMAGE_ODH_OPENVINO_MODEL_SERVER_IMAGE",
 		"vllm-cuda-image":         "RELATED_IMAGE_RHAIIS_VLLM_CUDA_IMAGE",
