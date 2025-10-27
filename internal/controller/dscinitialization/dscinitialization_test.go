@@ -3,6 +3,7 @@ package dscinitialization_test
 import (
 	"context"
 
+	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	userv1 "github.com/openshift/api/user/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -14,6 +15,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -35,6 +37,8 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		// must be default as instance name, or it will break
 
 		BeforeEach(func(ctx context.Context) {
+			createDefaultAuthenticationCR(ctx)
+
 			// when
 			foundApplicationNamespace := &corev1.Namespace{}
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: workingNamespace}, foundApplicationNamespace)).ShouldNot(Succeed())
@@ -91,6 +95,8 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		const monitoringNamespace2 = "test-monitoring-ns2"
 		const applicationName = "default-dsci"
 		It("Should not create monitoring namespace if monitoring is disabled", func(ctx context.Context) {
+			createDefaultAuthenticationCR(ctx)
+
 			// when
 			desiredDsci := createDSCI(operatorv1.Removed, operatorv1.Managed, monitoringNamespace2)
 			Expect(k8sClient.Create(ctx, desiredDsci)).Should(Succeed())
@@ -116,6 +122,8 @@ var _ = Describe("DataScienceCluster initialization", func() {
 		const applicationName = "default-dsci"
 
 		It("Should not update namespace if it exists", func(ctx context.Context) {
+			createDefaultAuthenticationCR(ctx)
+
 			anotherNamespace := "test-another-ns"
 
 			// given
@@ -156,6 +164,8 @@ var _ = Describe("DataScienceCluster initialization", func() {
 
 	Context("Creation of customized related resources", func() {
 		BeforeEach(func(ctx context.Context) {
+			createDefaultAuthenticationCR(ctx)
+
 			// when
 			Expect(k8sClient.Create(ctx, &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -218,6 +228,14 @@ func cleanupCustomizedResources(ctx context.Context) {
 			Name: customizedAppNs,
 		},
 	})).To(Succeed())
+
+	// Delete the Authentication CR created in BeforeEach
+	authCR := &configv1.Authentication{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cluster.ClusterAuthenticationObj,
+		},
+	}
+	Expect(k8sClient.Delete(ctx, authCR)).To(Succeed())
 }
 
 func cleanupResources(ctx context.Context) {
@@ -227,6 +245,14 @@ func cleanupResources(ctx context.Context) {
 
 	Expect(k8sClient.DeleteAllOf(ctx, &networkingv1.NetworkPolicy{}, appNamespace)).To(Succeed())
 	Expect(k8sClient.DeleteAllOf(ctx, &corev1.ConfigMap{}, appNamespace)).To(Succeed())
+
+	// Delete the Authentication CR created in BeforeEach
+	authCR := &configv1.Authentication{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cluster.ClusterAuthenticationObj,
+		},
+	}
+	Expect(k8sClient.Delete(ctx, authCR)).To(Succeed())
 
 	Eventually(noInstanceExistsIn(workingNamespace, &dsciv2.DSCInitializationList{})).
 		WithContext(ctx).
@@ -323,4 +349,17 @@ func dscInitializationIsReady(name string, namespace string, dsciObj *dsciv2.DSC
 
 		return dsciObj.Status.Phase == readyPhase
 	}
+}
+
+func createDefaultAuthenticationCR(ctx context.Context) {
+	// Create a default Authentication CR with IntegratedOAuth type just for unit-test now.
+	authCR := &configv1.Authentication{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cluster.ClusterAuthenticationObj,
+		},
+		Spec: configv1.AuthenticationSpec{
+			Type: configv1.AuthenticationTypeIntegratedOAuth,
+		},
+	}
+	Expect(k8sClient.Create(ctx, authCR)).Should(Succeed())
 }

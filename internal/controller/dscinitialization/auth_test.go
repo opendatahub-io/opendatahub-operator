@@ -87,34 +87,49 @@ func TestBuildDefaultAuth(t *testing.T) {
 	}
 }
 
-func TestCreateAuth(t *testing.T) {
+func TestManageAuthCR(t *testing.T) {
 	tests := []struct {
-		name         string
-		platform     common.Platform
-		existingAuth *serviceApi.Auth
-		expectError  bool
+		name              string
+		platform          common.Platform
+		isIntegratedOAuth bool
+		existingAuth      *serviceApi.Auth
+		expectAuthExists  bool
+		expectError       bool
 	}{
 		{
-			name:         "Creates Auth when none exists - OpenDataHub",
-			platform:     cluster.OpenDataHub,
-			existingAuth: nil,
-			expectError:  false,
+			name:              "IntegratedOAuth: creates Auth when not exists",
+			platform:          cluster.OpenDataHub,
+			isIntegratedOAuth: true,
+			existingAuth:      nil,
+			expectAuthExists:  true,
+			expectError:       false,
 		},
 		{
-			name:         "Creates Auth when none exists - SelfManagedRhoai",
-			platform:     cluster.SelfManagedRhoai,
-			existingAuth: nil,
-			expectError:  false,
+			name:              "IntegratedOAuth: keeps Auth when it exists",
+			platform:          cluster.OpenDataHub,
+			isIntegratedOAuth: true,
+			existingAuth: &serviceApi.Auth{
+				ObjectMeta: metav1.ObjectMeta{Name: serviceApi.AuthInstanceName},
+				Spec: serviceApi.AuthSpec{
+					AdminGroups:   []string{"odh-admins"},
+					AllowedGroups: []string{"system:authenticated"},
+				},
+			},
+			expectAuthExists: true,
+			expectError:      false,
 		},
 		{
-			name:         "Creates Auth when none exists - ManagedRhoai",
-			platform:     cluster.ManagedRhoai,
-			existingAuth: nil,
-			expectError:  false,
+			name:              "OIDC: do nothing when Auth does not exist",
+			platform:          cluster.OpenDataHub,
+			isIntegratedOAuth: false,
+			existingAuth:      nil,
+			expectAuthExists:  false,
+			expectError:       false,
 		},
 		{
-			name:     "Does nothing when Auth already exists",
-			platform: cluster.OpenDataHub,
+			name:              "OIDC: deletes Auth when it exists",
+			platform:          cluster.OpenDataHub,
+			isIntegratedOAuth: false,
 			existingAuth: &serviceApi.Auth{
 				ObjectMeta: metav1.ObjectMeta{Name: serviceApi.AuthInstanceName},
 				Spec: serviceApi.AuthSpec{
@@ -122,13 +137,32 @@ func TestCreateAuth(t *testing.T) {
 					AllowedGroups: []string{"existing-allowed"},
 				},
 			},
-			expectError: false,
+			expectAuthExists: false,
+			expectError:      false,
 		},
 		{
-			name:         "Handles empty platform gracefully",
-			platform:     "",
-			existingAuth: nil,
-			expectError:  false,
+			name:              "IntegratedOAuth: creates Auth with correct admin group for SelfManagedRhoai",
+			platform:          cluster.SelfManagedRhoai,
+			isIntegratedOAuth: true,
+			existingAuth:      nil,
+			expectAuthExists:  true,
+			expectError:       false,
+		},
+		{
+			name:              "IntegratedOAuth: creates Auth with correct admin group for ManagedRhoai",
+			platform:          cluster.ManagedRhoai,
+			isIntegratedOAuth: true,
+			existingAuth:      nil,
+			expectAuthExists:  true,
+			expectError:       false,
+		},
+		{
+			name:              "IntegratedOAuth: handles empty platform gracefully",
+			platform:          "",
+			isIntegratedOAuth: true,
+			existingAuth:      nil,
+			expectAuthExists:  true,
+			expectError:       false,
 		},
 	}
 
@@ -151,8 +185,8 @@ func TestCreateAuth(t *testing.T) {
 				Client: cli,
 			}
 
-			// Call CreateAuth
-			err = reconciler.CreateAuth(ctx, tt.platform)
+			// Call ManageAuthCR
+			err = reconciler.ManageAuthCR(ctx, tt.platform, tt.isIntegratedOAuth)
 
 			// Verify error expectation
 			if tt.expectError {
@@ -164,67 +198,20 @@ func TestCreateAuth(t *testing.T) {
 			// Verify Auth resource exists
 			auth := &serviceApi.Auth{}
 			err = cli.Get(ctx, client.ObjectKey{Name: serviceApi.AuthInstanceName}, auth)
-			g.Expect(err).ShouldNot(HaveOccurred())
 
-			if tt.existingAuth != nil {
-				// Should preserve existing Auth unchanged
-				g.Expect(auth.Spec.AdminGroups).Should(Equal(tt.existingAuth.Spec.AdminGroups))
-				g.Expect(auth.Spec.AllowedGroups).Should(Equal(tt.existingAuth.Spec.AllowedGroups))
+			if tt.expectAuthExists {
+				g.Expect(err).ShouldNot(HaveOccurred(), "Auth CR should exist")
+
+				// Verify correct admin group for new Auth CRs
+				if tt.existingAuth == nil {
+					expectedAdminGroup := expectedAdminGroupForPlatform(tt.platform)
+					g.Expect(auth.Spec.AdminGroups).Should(HaveLen(1))
+					g.Expect(auth.Spec.AdminGroups[0]).Should(Equal(expectedAdminGroup))
+					g.Expect(auth.Spec.AllowedGroups).Should(Equal([]string{"system:authenticated"}))
+				}
 			} else {
-				// Should create new Auth with correct admin group
-				expectedAdminGroup := expectedAdminGroupForPlatform(tt.platform)
-
-				g.Expect(auth.Spec.AdminGroups).Should(HaveLen(1))
-				g.Expect(auth.Spec.AdminGroups[0]).Should(Equal(expectedAdminGroup))
-				g.Expect(auth.Spec.AllowedGroups).Should(Equal([]string{"system:authenticated"}))
+				g.Expect(err).Should(HaveOccurred(), "Auth CR should not exist")
 			}
 		})
 	}
-}
-
-func TestCreateAuth_ErrorHandling(t *testing.T) {
-	t.Run("Succeeds with clean fakeclient", func(t *testing.T) {
-		g := NewWithT(t)
-		ctx := t.Context()
-
-		// Create a clean fakeclient for testing successful CreateAuth flow
-		cli, err := fakeclient.New()
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		// Note: For actual error testing, a mock client would be needed
-		// as fakeclient doesn't simulate Get/Create failures easily
-
-		reconciler := &dscinitialization.DSCInitializationReconciler{
-			Client: cli,
-		}
-
-		// This should succeed with a clean fakeclient
-		err = reconciler.CreateAuth(ctx, cluster.OpenDataHub)
-		g.Expect(err).ShouldNot(HaveOccurred())
-	})
-
-	t.Run("Maintains idempotency on multiple calls", func(t *testing.T) {
-		g := NewWithT(t)
-		ctx := t.Context()
-
-		cli, err := fakeclient.New()
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		reconciler := &dscinitialization.DSCInitializationReconciler{
-			Client: cli,
-		}
-
-		// First call should create the Auth
-		err = reconciler.CreateAuth(ctx, cluster.OpenDataHub)
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		// Second call should be idempotent and not cause errors
-		err = reconciler.CreateAuth(ctx, cluster.OpenDataHub)
-		g.Expect(err).ShouldNot(HaveOccurred())
-
-		// Verify only one Auth exists
-		auth := &serviceApi.Auth{}
-		err = cli.Get(ctx, client.ObjectKey{Name: serviceApi.AuthInstanceName}, auth)
-		g.Expect(err).ShouldNot(HaveOccurred())
-	})
 }

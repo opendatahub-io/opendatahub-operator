@@ -139,6 +139,7 @@ func init() { //nolint:gochecknoinits
 	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 	utilruntime.Must(admissionregistrationv1.AddToScheme(scheme))
 	utilruntime.Must(promv1.AddToScheme(scheme))
+	utilruntime.Must(configv1.Install(scheme))
 	utilruntime.Must(operatorv1.Install(scheme))
 	utilruntime.Must(consolev1.AddToScheme(scheme))
 	utilruntime.Must(securityv1.Install(scheme))

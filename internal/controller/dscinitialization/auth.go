@@ -31,27 +31,44 @@ var (
 	}
 )
 
-// CreateAuth ensures an Auth custom resource exists in the cluster.
+// ManageAuthCR manages the Auth custom resource based on authentication method.
+// For IntegratedOAuth: creates Auth CR with platform-specific admin groups if it doesn't exist.
+// For external OIDC: deletes Auth CR if it exists (cleanup).
 //
 // Parameters:
 //   - ctx: Context for the operation
 //   - platform: The target platform type used to determine admin group configuration
+//   - isIntegratedOAuth: true if using IntegratedOAuth, false for external OIDC
 //
 // Returns:
-//   - error: nil on success, error if Auth CR creation fails
-func (r *DSCInitializationReconciler) CreateAuth(ctx context.Context, platform common.Platform) error {
-	a := serviceApi.Auth{}
-	// Auth CR exists, we do nothing
-	err := r.Client.Get(ctx, client.ObjectKey{Name: serviceApi.AuthInstanceName}, &a)
-	if err == nil {
+//   - error: nil on success, error if creation or deletion fails
+func (r *DSCInitializationReconciler) ManageAuthCR(ctx context.Context, platform common.Platform, isIntegratedOAuth bool) error {
+	authCR := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.AuthInstanceName,
+		},
+	}
+
+	err := r.Client.Get(ctx, client.ObjectKey{Name: serviceApi.AuthInstanceName}, authCR)
+	if err != nil && !k8serr.IsNotFound(err) {
+		return err
+	}
+
+	// Auth CR does not exist
+	if k8serr.IsNotFound(err) {
+		if isIntegratedOAuth { // create Auth CR for IntegratedOAuth or do nothing.
+			if err := r.Client.Create(ctx, BuildDefaultAuth(platform)); err != nil && !k8serr.IsAlreadyExists(err) {
+				return err
+			}
+		}
 		return nil
 	}
 
-	if !k8serr.IsNotFound(err) {
-		return err
+	// Auth CR exists
+	if isIntegratedOAuth { // do nothing or delete Auth CR for OIDC.
+		return nil
 	}
-	// Auth CR not found, create default Auth CR
-	if err := r.Client.Create(ctx, BuildDefaultAuth(platform)); err != nil && !k8serr.IsAlreadyExists(err) {
+	if err := r.Client.Delete(ctx, authCR); err != nil && !k8serr.IsNotFound(err) {
 		return err
 	}
 	return nil

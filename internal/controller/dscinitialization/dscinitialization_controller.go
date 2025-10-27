@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -50,6 +51,7 @@ import (
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -290,9 +292,14 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 
-		// Create Auth
-		if err = r.CreateAuth(ctx, platform); err != nil {
-			log.Info("failed to create Auth")
+		// Manage Auth CR based on authentication method
+		isIntegratedOAuth, err := auth.IsDefaultAuthMethod(ctx, r.Client)
+		if err != nil {
+			log.Error(err, "failed to detect authentication method")
+			return ctrl.Result{}, err
+		}
+		if err = r.ManageAuthCR(ctx, platform, isIntegratedOAuth); err != nil {
+			log.Error(err, "failed to manage Auth CR(create or delete) based on authentication method")
 			return ctrl.Result{}, err
 		}
 
@@ -393,6 +400,10 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			&serviceApi.Auth{},
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
+		Watches(
+			&configv1.Authentication{},
+			handler.EnqueueRequestsFromMapFunc(r.watchAuthenticationResource),
+		).
 		Watches( // TODO: this might not be needed after v3.0.
 			&apiextensionsv1.CustomResourceDefinition{},
 			handler.EnqueueRequestsFromMapFunc(r.watchHWProfileCRDResource),
@@ -453,13 +464,35 @@ func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a c
 		log.Error(err, "Failed to get AuthList")
 		return nil
 	}
-	if len(instanceList.Items) == 0 {
-		log.Info("Found no Auth instance in cluster, reconciling to recreate")
 
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "auth"}}}
+	// create Auth CR if it's missing and cluster is IntegratedOAuth.
+	if len(instanceList.Items) == 0 {
+		isIntegratedOAuth, err := auth.IsDefaultAuthMethod(ctx, r.Client)
+		if err != nil {
+			log.Error(err, "Failed to detect authentication method")
+			return nil
+		}
+		if isIntegratedOAuth {
+			log.Info("Found no Auth instance in cluster with IntegratedOAuth, reconciling to recreate")
+			return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "auth"}}}
+		}
+		log.V(1).Info("Found no Auth instance but cluster is using external OIDC, skipping recreation")
 	}
 
 	return nil
+}
+
+func (r *DSCInitializationReconciler) watchAuthenticationResource(ctx context.Context, a client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
+
+	// Only watch the cluster Authentication resource
+	if a.GetName() != cluster.ClusterAuthenticationObj {
+		return nil
+	}
+
+	log.Info("Cluster Authentication CR 'cluster' changed, reconciling DSCInitialization")
+
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "default-dsci"}}}
 }
 
 func (r *DSCInitializationReconciler) deleteMonitoringCR(ctx context.Context) error {
