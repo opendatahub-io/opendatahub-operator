@@ -6,87 +6,50 @@ import (
 	"testing"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+
+	. "github.com/onsi/gomega"
 )
 
 // TestNewSecretWithRandomType tests the creation of a random-type secret.
 func TestNewSecretWithRandomType(t *testing.T) {
+	g := NewWithT(t)
+
 	secret, err := cluster.NewSecret("test-secret", "random", cluster.SecretDefaultComplexity)
-	if err != nil {
-		t.Errorf("NewSecret returned unexpected error: %v", err)
-	}
-
-	if secret == nil {
-		t.Errorf("NewSecret returned nil secret")
-		return
-	}
-
-	if secret.Name != "test-secret" {
-		t.Errorf("Expected secret name %q, got %q", "test-secret", secret.Name)
-	}
-
-	if secret.Type != "random" {
-		t.Errorf("Expected secret type %q, got %q", "random", secret.Type)
-	}
-
-	if secret.Complexity != cluster.SecretDefaultComplexity {
-		t.Errorf("Expected complexity %d, got %d", cluster.SecretDefaultComplexity, secret.Complexity)
-	}
-
-	if len(secret.Value) != cluster.SecretDefaultComplexity {
-		t.Errorf("Expected value length %d, got %d", cluster.SecretDefaultComplexity, len(secret.Value))
-	}
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(secret).ShouldNot(BeNil())
+	g.Expect(secret.Name).Should(Equal("test-secret"))
+	g.Expect(secret.Type).Should(Equal("random"))
+	g.Expect(secret.Complexity).Should(Equal(cluster.SecretDefaultComplexity))
+	g.Expect(secret.Value).Should(HaveLen(cluster.SecretDefaultComplexity))
 
 	// Check that value contains only valid characters (from LetterRunes)
 	for i, char := range secret.Value {
-		if !strings.ContainsRune(cluster.LetterRunes, char) {
-			t.Errorf("Invalid character %q at position %d in secret value", char, i)
-		}
+		g.Expect(strings.ContainsRune(cluster.LetterRunes, char)).Should(BeTrue(),
+			"Invalid character %q at position %d in secret value", char, i)
 	}
 }
 
 // TestNewSecretWithOAuthType tests the creation of an oauth-type secret.
 func TestNewSecretWithOAuthType(t *testing.T) {
+	g := NewWithT(t)
+
 	secret, err := cluster.NewSecret("oauth-secret", "oauth", cluster.SecretDefaultComplexity)
-	if err != nil {
-		t.Errorf("NewSecret returned unexpected error: %v", err)
-	}
-
-	if secret == nil {
-		t.Errorf("NewSecret returned nil secret")
-		return
-	}
-
-	if secret.Name != "oauth-secret" {
-		t.Errorf("Expected secret name %q, got %q", "oauth-secret", secret.Name)
-	}
-
-	if secret.Type != "oauth" {
-		t.Errorf("Expected secret type %q, got %q", "oauth", secret.Type)
-	}
-
-	if secret.Complexity != cluster.SecretDefaultComplexity {
-		t.Errorf("Expected complexity %d, got %d", cluster.SecretDefaultComplexity, secret.Complexity)
-	}
-
-	if secret.Value == "" {
-		t.Errorf("Expected non-empty secret value")
-	}
+	g.Expect(err).ShouldNot(HaveOccurred())
+	g.Expect(secret).ShouldNot(BeNil())
+	g.Expect(secret.Name).Should(Equal("oauth-secret"))
+	g.Expect(secret.Type).Should(Equal("oauth"))
+	g.Expect(secret.Complexity).Should(Equal(cluster.SecretDefaultComplexity))
+	g.Expect(secret.Value).ShouldNot(BeEmpty())
 
 	// Verify it's double base64 encoded
 	firstDecode, err := base64.StdEncoding.DecodeString(secret.Value)
-	if err != nil {
-		t.Errorf("Failed to decode first layer of base64: %v", err)
-	}
+	g.Expect(err).ShouldNot(HaveOccurred(), "Failed to decode first layer of base64")
 
 	secondDecode, err := base64.StdEncoding.DecodeString(string(firstDecode))
-	if err != nil {
-		t.Errorf("Failed to decode second layer of base64: %v", err)
-	}
+	g.Expect(err).ShouldNot(HaveOccurred(), "Failed to decode second layer of base64")
 
 	// The final decoded value should have the original complexity length
-	if len(secondDecode) != cluster.SecretDefaultComplexity {
-		t.Errorf("Expected decoded value length %d, got %d", cluster.SecretDefaultComplexity, len(secondDecode))
-	}
+	g.Expect(secondDecode).Should(HaveLen(cluster.SecretDefaultComplexity))
 }
 
 // TestNewSecretWithInvalidType tests error handling for invalid secret types.
@@ -119,26 +82,19 @@ func TestNewSecretWithInvalidType(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
 			secret, err := cluster.NewSecret(tc.secretName, tc.secretType, tc.complexity)
 
 			// Should return an error
-			if err == nil {
-				t.Error("Expected error for invalid secret type, got nil")
-			}
+			g.Expect(err).Should(HaveOccurred(), "Expected error for invalid secret type")
 
 			// Error message should mention unsupported type
-			if err != nil && err.Error() != cluster.ErrUnsupportedType {
-				t.Errorf("Expected error %q, got %q", cluster.ErrUnsupportedType, err.Error())
-			}
+			g.Expect(err.Error()).Should(Equal(cluster.ErrUnsupportedType))
 
 			// Secret should still be returned (but with empty value)
-			if secret == nil {
-				t.Error("Expected secret to be returned even on error")
-			}
-
-			if secret != nil && secret.Value != "" {
-				t.Error("Expected empty secret value on error")
-			}
+			g.Expect(secret).ShouldNot(BeNil(), "Expected secret to be returned even on error")
+			g.Expect(secret.Value).Should(BeEmpty(), "Expected empty secret value on error")
 		})
 	}
 }
