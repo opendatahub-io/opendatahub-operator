@@ -14,13 +14,13 @@ import (
 func TestNewSecretWithRandomType(t *testing.T) {
 	g := NewWithT(t)
 
-	secret, err := cluster.NewSecret("test-secret", "random", cluster.SecretDefaultComplexity)
+	secret, err := cluster.NewSecret("test-secret", "random", 16)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(secret).ShouldNot(BeNil())
 	g.Expect(secret.Name).Should(Equal("test-secret"))
 	g.Expect(secret.Type).Should(Equal("random"))
-	g.Expect(secret.Complexity).Should(Equal(cluster.SecretDefaultComplexity))
-	g.Expect(secret.Value).Should(HaveLen(cluster.SecretDefaultComplexity))
+	g.Expect(secret.Complexity).Should(Equal(16))
+	g.Expect(secret.Value).Should(HaveLen(16))
 
 	// Check that value contains only valid characters (from LetterRunes)
 	for i, char := range secret.Value {
@@ -33,12 +33,12 @@ func TestNewSecretWithRandomType(t *testing.T) {
 func TestNewSecretWithOAuthType(t *testing.T) {
 	g := NewWithT(t)
 
-	secret, err := cluster.NewSecret("oauth-secret", "oauth", cluster.SecretDefaultComplexity)
+	secret, err := cluster.NewSecret("oauth-secret", "oauth", 16)
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(secret).ShouldNot(BeNil())
 	g.Expect(secret.Name).Should(Equal("oauth-secret"))
 	g.Expect(secret.Type).Should(Equal("oauth"))
-	g.Expect(secret.Complexity).Should(Equal(cluster.SecretDefaultComplexity))
+	g.Expect(secret.Complexity).Should(Equal(16))
 	g.Expect(secret.Value).ShouldNot(BeEmpty())
 
 	// Verify it's double base64 encoded
@@ -49,34 +49,66 @@ func TestNewSecretWithOAuthType(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred(), "Failed to decode second layer of base64")
 
 	// The final decoded value should have the original complexity length
-	g.Expect(secondDecode).Should(HaveLen(cluster.SecretDefaultComplexity))
+	g.Expect(secondDecode).Should(HaveLen(16))
 }
 
-// TestNewSecretWithInvalidType tests error handling for invalid secret types.
-func TestNewSecretWithInvalidType(t *testing.T) {
+// TestNewSecretWithInvalidInputs tests error handling for invalid inputs.
+func TestNewSecretWithInvalidInputs(t *testing.T) {
 	testCases := []struct {
-		name       string
-		secretName string
-		secretType string
-		complexity int
+		name        string
+		secretName  string
+		secretType  string
+		complexity  int
+		expectedErr string
+		shouldBeNil bool
 	}{
 		{
-			name:       "Invalid type 'invalid'",
-			secretName: "test-secret",
-			secretType: "invalid",
-			complexity: 16,
+			name:        "Empty name",
+			secretName:  "",
+			secretType:  "random",
+			complexity:  16,
+			expectedErr: cluster.ErrEmptyName,
+			shouldBeNil: true,
 		},
 		{
-			name:       "Empty type",
-			secretName: "test-secret",
-			secretType: "",
-			complexity: 16,
+			name:        "Empty type",
+			secretName:  "test-secret",
+			secretType:  "",
+			complexity:  16,
+			expectedErr: cluster.ErrEmptyType,
+			shouldBeNil: true,
 		},
 		{
-			name:       "Unknown type 'jwt'",
-			secretName: "test-secret",
-			secretType: "jwt",
-			complexity: 16,
+			name:        "Zero complexity",
+			secretName:  "test-secret",
+			secretType:  "random",
+			complexity:  0,
+			expectedErr: cluster.ErrInvalidComplexity,
+			shouldBeNil: true,
+		},
+		{
+			name:        "Negative complexity",
+			secretName:  "test-secret",
+			secretType:  "random",
+			complexity:  -5,
+			expectedErr: cluster.ErrInvalidComplexity,
+			shouldBeNil: true,
+		},
+		{
+			name:        "Invalid type 'invalid'",
+			secretName:  "test-secret",
+			secretType:  "invalid",
+			complexity:  16,
+			expectedErr: cluster.ErrUnsupportedType,
+			shouldBeNil: false,
+		},
+		{
+			name:        "Unknown type 'jwt'",
+			secretName:  "test-secret",
+			secretType:  "jwt",
+			complexity:  16,
+			expectedErr: cluster.ErrUnsupportedType,
+			shouldBeNil: false,
 		},
 	}
 
@@ -87,14 +119,18 @@ func TestNewSecretWithInvalidType(t *testing.T) {
 			secret, err := cluster.NewSecret(tc.secretName, tc.secretType, tc.complexity)
 
 			// Should return an error
-			g.Expect(err).Should(HaveOccurred(), "Expected error for invalid secret type")
+			g.Expect(err).Should(HaveOccurred(), "Expected error for invalid input")
 
-			// Error message should mention unsupported type
-			g.Expect(err.Error()).Should(Equal(cluster.ErrUnsupportedType))
+			// Error message should match expected
+			g.Expect(err.Error()).Should(Equal(tc.expectedErr))
 
-			// Secret should still be returned (but with empty value)
-			g.Expect(secret).ShouldNot(BeNil(), "Expected secret to be returned even on error")
-			g.Expect(secret.Value).Should(BeEmpty(), "Expected empty secret value on error")
+			// Check if secret should be nil (validation errors) or not (generation errors)
+			if tc.shouldBeNil {
+				g.Expect(secret).Should(BeNil(), "Expected nil secret for validation error")
+			} else {
+				g.Expect(secret).ShouldNot(BeNil(), "Expected secret to be returned for generation error")
+				g.Expect(secret.Value).Should(BeEmpty(), "Expected empty secret value on error")
+			}
 		})
 	}
 }

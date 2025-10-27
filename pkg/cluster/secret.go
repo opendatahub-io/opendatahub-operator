@@ -37,11 +37,6 @@ import (
 )
 
 const (
-	// SecretDefaultComplexity defines the default complexity/length for generated secrets.
-	// This is used when no specific complexity is provided. The value of 16 provides
-	// a good balance between security and usability for most authentication scenarios.
-	SecretDefaultComplexity = 16
-
 	// LetterRunes defines the character set used for generating random secrets.
 	// It includes digits (0-9), uppercase letters (A-Z), and lowercase letters (a-z),
 	// providing a 62-character alphabet for random string generation.
@@ -49,6 +44,15 @@ const (
 
 	// ErrUnsupportedType is the error message returned when an unsupported secret type is requested.
 	ErrUnsupportedType = "secret type is not supported"
+
+	// ErrEmptyName is the error message returned when an empty secret name is provided.
+	ErrEmptyName = "secret name cannot be empty"
+
+	// ErrEmptyType is the error message returned when an empty secret type is provided.
+	ErrEmptyType = "secret type cannot be empty"
+
+	// ErrInvalidComplexity is the error message returned when complexity is less than 1.
+	ErrInvalidComplexity = "secret complexity must be integer and at least 1"
 )
 
 // Secret represents a generated secret with its properties.
@@ -78,13 +82,13 @@ type Secret struct {
 // It generates a cryptographically secure random value based on the specified type.
 //
 // Parameters:
-//   - name: An identifier for the secret (e.g., "client-secret")
-//   - secretType: The type of secret to generate ("random" or "oauth")
-//   - complexity: The length/complexity of the secret to generate
+//   - name: An identifier for the secret (e.g., "client-secret"). Cannot be empty.
+//   - secretType: The type of secret to generate ("random" or "oauth"). Cannot be empty.
+//   - complexity: The length/complexity of the secret to generate. Must be at least 1.
 //
 // Returns:
 //   - *Secret: A pointer to the generated Secret struct with the Value field populated
-//   - error: An error if the secret type is unsupported or random generation fails
+//   - error: An error if validation fails, the secret type is unsupported, or random generation fails
 //
 // Supported types:
 //   - "random": Generates an alphanumeric string of the specified length using
@@ -101,6 +105,17 @@ type Secret struct {
 //	}
 //	fmt.Println(secret.Value) // e.g., "aB3dE9gH2jK5mN8pQ1rS4tU7"
 func NewSecret(name, secretType string, complexity int) (*Secret, error) {
+	// Validate input parameters
+	if name == "" {
+		return nil, errors.New(ErrEmptyName)
+	}
+	if secretType == "" {
+		return nil, errors.New(ErrEmptyType)
+	}
+	if complexity < 1 {
+		return nil, errors.New(ErrInvalidComplexity)
+	}
+
 	secret := &Secret{
 		Name:       name,
 		Type:       secretType,
