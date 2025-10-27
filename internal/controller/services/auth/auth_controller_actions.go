@@ -30,7 +30,6 @@ import (
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
@@ -55,9 +54,9 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []string, roleBindingName string, roleName string) error {
-	namespace, err := actions.ApplicationNamespace(ctx, rr)
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
-		logf.Log.Error(err, "error getting application namespace")
 		return err
 	}
 
@@ -80,7 +79,7 @@ func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []
 	rb := &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      roleBindingName,
-			Namespace: namespace,
+			Namespace: appNamespace,
 		},
 		Subjects: groupsToBind,
 		RoleRef: rbacv1.RoleRef{
@@ -159,7 +158,7 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 }
 
 func addUserGroup(ctx context.Context, rr *odhtypes.ReconciliationRequest, userGroupName string) error {
-	namespace, err := actions.ApplicationNamespace(ctx, rr)
+	namespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
 		logf.Log.Error(err, "error getting application namespace")
 		return err

@@ -71,19 +71,25 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	return nil
 }
 
-func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if rr.Release.Name == cluster.OpenDataHub {
 		return nil
 	}
 
-	err := rr.AddResources(&corev1.Secret{
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to get applications namespace: %w", err)
+	}
+
+	err = rr.AddResources(&corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "anaconda-ce-access",
-			Namespace: rr.DSCI.Spec.ApplicationsNamespace,
+			Namespace: appNamespace,
 		},
 		Type: corev1.SecretTypeOpaque,
 	})
@@ -101,12 +107,18 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		return errors.New("instance is not of type *odhTypes.Dashboard")
 	}
 
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to get applications namespace: %w", err)
+	}
+
 	// url
 	rl := routev1.RouteList{}
-	err := rr.Client.List(
+	err = rr.Client.List(
 		ctx,
 		&rl,
-		client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace),
+		client.InNamespace(appNamespace),
 		client.MatchingLabels(map[string]string{
 			labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
 		}),

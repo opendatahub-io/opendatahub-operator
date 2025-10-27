@@ -2,9 +2,11 @@ package deleteresource
 
 import (
 	"context"
+	"fmt"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -50,7 +52,12 @@ func (r *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 		}
 
 		if namespaced {
-			opts = append(opts, client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace))
+			// Fetch application namespace from DSCI.
+			appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+			if err != nil {
+				return fmt.Errorf("failed to get applications namespace: %w", err)
+			}
+			opts = append(opts, client.InNamespace(appNamespace))
 		}
 
 		err = rr.Client.DeleteAllOf(ctx, r.types[i], opts...)

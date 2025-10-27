@@ -142,7 +142,6 @@ func TestHash_WithNilDSCI(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: instance,
-		DSCI:     nil,
 		Release: common.Release{
 			Name: "test-release",
 			Version: version.OperatorVersion{

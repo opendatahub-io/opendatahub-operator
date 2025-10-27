@@ -237,11 +237,6 @@ func (r *Reconciler) delete(ctx context.Context, res common.PlatformObject) erro
 		Conditions: r.conditionsManagerFactory(res),
 		Release:    r.Release,
 		Manifests:  make([]types.ManifestInfo, 0),
-
-		// The DSCI should not be required when deleting a component, if the
-		// component requires some additional info, then such info should be
-		// stored as part of the spec/status
-		DSCI: nil,
 	}
 
 	// Execute finalizers
@@ -289,39 +284,22 @@ func (r *Reconciler) apply(ctx context.Context, res common.PlatformObject) error
 
 	var provisionErr error
 
-	dsci, dscilErr := cluster.GetDSCI(ctx, r.Client)
-	switch {
-	case dscilErr != nil && !k8serr.IsNotFound(dscilErr):
-		// Failed to fetch DSCI due to an actual error (e.g., API server issues, permissions).
-		// This is different from DSCI simply not existing yet, which is handled below.
-		provisionErr = fmt.Errorf("failed to get DSCInitialization: %w", dscilErr)
-	default:
-		// DSCI either exists or doesn't exist (NotFound). Both cases are acceptable.
-		// Services can check rr.DSCI != nil before accessing DSCI-specific fields.
-		if dscilErr == nil {
-			rr.DSCI = dsci.DeepCopy()
-		} else {
-			l.V(1).Info("DSCInitialization not found, proceeding without it")
-		}
+	// Execute actions sequentially. Stop on first error and mark conditions accordingly.
+	for _, action := range r.Actions {
+		l.Info("Executing action", "action", action)
 
-		provisionErr = nil
+		actx := log.IntoContext(
+			ctx,
+			l.WithName(actions.ActionGroup).WithName(action.String()),
+		)
 
-		// Execute actions
-		for _, action := range r.Actions {
-			l.Info("Executing action", "action", action)
-
-			actx := log.IntoContext(
-				ctx,
-				l.WithName(actions.ActionGroup).WithName(action.String()),
-			)
-
-			provisionErr = action(actx, &rr)
-			if provisionErr != nil {
-				break
-			}
+		provisionErr = action(actx, &rr)
+		if provisionErr != nil {
+			break
 		}
 	}
 
+	// Set provisioning condition based on action execution result
 	if provisionErr != nil {
 		rr.Conditions.MarkFalse(
 			status.ConditionTypeProvisioningSucceeded,

@@ -14,6 +14,7 @@ import (
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -29,11 +30,17 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func deleteFeatureTrackers(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to get applications namespace: %w", err)
+	}
+
 	ftNames := []string{
-		rr.DSCI.Spec.ApplicationsNamespace + "-serverless-serving-deployment",
-		rr.DSCI.Spec.ApplicationsNamespace + "-serverless-net-istio-secret-filtering",
-		rr.DSCI.Spec.ApplicationsNamespace + "-serverless-serving-gateways",
-		rr.DSCI.Spec.ApplicationsNamespace + "-kserve-external-authz",
+		appNamespace + "-serverless-serving-deployment",
+		appNamespace + "-serverless-net-istio-secret-filtering",
+		appNamespace + "-serverless-serving-gateways",
+		appNamespace + "-kserve-external-authz",
 	}
 
 	for _, n := range ftNames {
