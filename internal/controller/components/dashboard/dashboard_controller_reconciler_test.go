@@ -24,7 +24,7 @@ func TestNewComponentReconcilerUnit(t *testing.T) {
 
 func testNewComponentReconcilerWithNilManager(t *testing.T) {
 	t.Helper()
-	handler := &dashboard.ComponentHandler{}
+	handler := getDashboardHandler()
 	ctx := t.Context()
 
 	t.Run("ReturnsErrorWithNilManager", func(t *testing.T) {

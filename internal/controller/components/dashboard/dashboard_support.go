@@ -32,7 +32,7 @@ const (
 	ErrUnsupportedPlatform = "unsupported platform: %s"
 
 	// Dashboard path on the gateway.
-	dashboardPath = "/"
+	// dashboardPath = "/" //nolint:unused.
 )
 
 var (
@@ -118,7 +118,7 @@ func BffManifestsPath() odhtypes.ManifestInfo {
 	}
 }
 
-func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform) (map[string]string, error) {
+func ComputeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform) (map[string]string, error) {
 	gatewayDomain, err := gateway.GetGatewayDomain(ctx, cli)
 	if err != nil {
 		return nil, fmt.Errorf("error getting gateway domain: %w", err)

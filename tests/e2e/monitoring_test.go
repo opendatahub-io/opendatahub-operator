@@ -54,6 +54,7 @@ const (
 	TracesStorageRetention        = "720h"
 	TracesStorageRetention24h     = "24h"
 	TracesStorageSize10Gi         = "10Gi"
+	TracesStorageSize1Gi          = "1Gi"
 	monitoringTracesConfigMsg     = "Monitoring resource should be updated with traces configuration by DSCInitialization controller"
 )
 

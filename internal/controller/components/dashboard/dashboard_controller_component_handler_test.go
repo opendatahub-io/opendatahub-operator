@@ -8,10 +8,12 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
@@ -26,11 +28,19 @@ const (
 	creatingFakeClientMsg = "creating fake client"
 )
 
+// createComponentTestScheme creates a scheme with the necessary types for testing.
+func createComponentTestScheme() *runtime.Scheme {
+	scheme := runtime.NewScheme()
+	_ = componentApi.AddToScheme(scheme)
+	_ = dscv2.AddToScheme(scheme)
+	return scheme
+}
+
 func TestComponentHandlerGetName(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
-	handler := &dashboard.ComponentHandler{}
+	handler := getDashboardHandler()
 	name := handler.GetName()
 
 	g.Expect(name).Should(Equal(componentApi.DashboardComponentName))
@@ -80,8 +90,8 @@ func TestComponentHandlerNewCRObject(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			handler := &dashboard.ComponentHandler{}
-			dsc := createDSCWithDashboard(tc.state)
+			handler := getDashboardHandler()
+			dsc := CreateDSCWithDashboard(tc.state)
 
 			cr := handler.NewCRObject(dsc)
 
@@ -123,8 +133,8 @@ func TestComponentHandlerIsEnabled(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			handler := &dashboard.ComponentHandler{}
-			dsc := createDSCWithDashboard(tc.state)
+			handler := getDashboardHandler()
+			dsc := CreateDSCWithDashboard(tc.state)
 
 			result := handler.IsEnabled(dsc)
 
@@ -181,7 +191,7 @@ func TestComponentHandlerUpdateDSCStatus(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			handler := &dashboard.ComponentHandler{}
+			handler := getDashboardHandler()
 			rr := tc.setupRR(t)
 
 			status, err := handler.UpdateDSCStatus(t.Context(), rr)
@@ -210,18 +220,18 @@ func setupNilClientRR(t *testing.T) *odhtypes.ReconciliationRequest {
 	return &odhtypes.ReconciliationRequest{
 		Client:   nil,
 		Instance: &dscv1.DataScienceCluster{},
-		DSCI:     createDSCI(),
+		DSCI:     createDSCIV2WithNamespace(TestNamespace),
 	}
 }
 
 func setupDashboardExistsRR(t *testing.T) *odhtypes.ReconciliationRequest {
 	t.Helper()
-	cli, err := fakeclient.New()
+	cli, err := fakeclient.New(fakeclient.WithScheme(createComponentTestScheme()))
 	require.NoError(t, err, creatingFakeClientMsg)
 	dashboard := &componentApi.Dashboard{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      componentApi.DashboardInstanceName,
-			Namespace: testNamespace,
+			Name: componentApi.DashboardInstanceName,
+			// Dashboard CR is cluster-scoped, so no namespace
 		},
 		Status: componentApi.DashboardStatus{
 			Status: common.Status{
@@ -240,47 +250,47 @@ func setupDashboardExistsRR(t *testing.T) *odhtypes.ReconciliationRequest {
 	}
 	require.NoError(t, cli.Create(t.Context(), dashboard), "creating dashboard")
 
-	dsc := createDSCWithDashboard(operatorv1.Managed)
+	dsc := CreateDSCWithDashboard(operatorv1.Managed)
 
 	return &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
-		DSCI:       createDSCI(),
+		DSCI:       createDSCIV2WithNamespace(TestNamespace),
 		Conditions: &conditions.Manager{},
 	}
 }
 
 func setupDashboardNotExistsRR(t *testing.T) *odhtypes.ReconciliationRequest {
 	t.Helper()
-	cli, err := fakeclient.New()
+	cli, err := fakeclient.New(fakeclient.WithScheme(createComponentTestScheme()))
 	require.NoError(t, err, creatingFakeClientMsg)
-	dsc := createDSCWithDashboard(operatorv1.Managed)
+	dsc := CreateDSCWithDashboard(operatorv1.Managed)
 
 	return &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
-		DSCI:       createDSCI(),
+		DSCI:       createDSCIV2WithNamespace(TestNamespace),
 		Conditions: &conditions.Manager{},
 	}
 }
 
 func setupDashboardDisabledRR(t *testing.T) *odhtypes.ReconciliationRequest {
 	t.Helper()
-	cli, err := fakeclient.New()
+	cli, err := fakeclient.New(fakeclient.WithScheme(createComponentTestScheme()))
 	require.NoError(t, err, creatingFakeClientMsg)
-	dsc := createDSCWithDashboard(operatorv1.Unmanaged)
+	dsc := CreateDSCWithDashboard(operatorv1.Unmanaged)
 
 	return &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
-		DSCI:       createDSCI(),
+		DSCI:       createDSCIV2WithNamespace(TestNamespace),
 		Conditions: &conditions.Manager{},
 	}
 }
 
 func setupInvalidInstanceRR(t *testing.T) *odhtypes.ReconciliationRequest {
 	t.Helper()
-	cli, err := fakeclient.New()
+	cli, err := fakeclient.New(fakeclient.WithScheme(createComponentTestScheme()))
 	require.NoError(t, err, creatingFakeClientMsg)
 	return &odhtypes.ReconciliationRequest{
 		Client:   cli,

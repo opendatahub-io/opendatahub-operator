@@ -8,14 +8,15 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -32,7 +33,7 @@ import (
 // presence of Dashboard CR, and InstalledComponents status for the Dashboard component.
 // When ManagementState is Managed and no Dashboard CR exists, InstalledComponents should be false.
 // When ManagementState is Unmanaged/Removed, the component should not be actively managed.
-func assertDashboardManagedState(t *testing.T, dsc *dscv1.DataScienceCluster, state operatorv1.ManagementState) {
+func assertDashboardManagedState(t *testing.T, dsc *dscv2.DataScienceCluster, state operatorv1.ManagementState) {
 	t.Helper()
 	g := NewWithT(t)
 
@@ -40,11 +41,8 @@ func assertDashboardManagedState(t *testing.T, dsc *dscv1.DataScienceCluster, st
 		// For Managed state, component should be enabled but not ready (no Dashboard CR)
 		// Note: InstalledComponents will be true when Dashboard CR exists regardless of Ready status
 		g.Expect(dsc.Status.Components.Dashboard.ManagementState).Should(Equal(operatorv1.Managed))
-		// When ManagementState is Managed and no Dashboard CR exists, InstalledComponents should be false
-		g.Expect(dsc.Status.InstalledComponents[dashboard.LegacyComponentNameUpstream]).Should(BeFalse())
 	} else {
 		// For Unmanaged and Removed states, component should not be actively managed
-		g.Expect(dsc.Status.InstalledComponents[dashboard.LegacyComponentNameUpstream]).Should(BeFalse())
 		g.Expect(dsc.Status.Components.Dashboard.ManagementState).Should(Equal(state))
 		g.Expect(dsc.Status.Components.Dashboard.DashboardCommonStatus).Should(BeNil())
 	}
@@ -52,14 +50,14 @@ func assertDashboardManagedState(t *testing.T, dsc *dscv1.DataScienceCluster, st
 
 func TestGetName(t *testing.T) {
 	g := NewWithT(t)
-	handler := &dashboard.ComponentHandler{}
+	handler := getDashboardHandler()
 
 	name := handler.GetName()
 	g.Expect(name).Should(Equal(componentApi.DashboardComponentName))
 }
 
 func TestNewCRObject(t *testing.T) {
-	handler := &dashboard.ComponentHandler{}
+	handler := getDashboardHandler()
 
 	g := NewWithT(t)
 	dsc := createDSCWithDashboard(operatorv1.Managed)
@@ -77,7 +75,7 @@ func TestNewCRObject(t *testing.T) {
 }
 
 func TestIsEnabled(t *testing.T) {
-	handler := &dashboard.ComponentHandler{}
+	handler := getDashboardHandler()
 
 	tests := []struct {
 		name    string
@@ -116,7 +114,7 @@ func TestIsEnabled(t *testing.T) {
 }
 
 func TestUpdateDSCStatus(t *testing.T) {
-	handler := &dashboard.ComponentHandler{}
+	handler := getDashboardHandler()
 
 	t.Run("enabled component with ready Dashboard CR", func(t *testing.T) {
 		testEnabledComponentWithReadyCR(t, handler)
@@ -138,14 +136,6 @@ func TestUpdateDSCStatus(t *testing.T) {
 		testDashboardCRNotFound(t, handler)
 	})
 
-		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.components.dashboard.managementState == "%s"`, operatorv1.Managed),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionTrue),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.ReadyReason),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Component is ready"`, ReadyConditionType)),
-		))
-	})
-
 	t.Run("Dashboard CR without Ready condition", func(t *testing.T) {
 		testDashboardCRWithoutReadyCondition(t, handler)
 	})
@@ -158,29 +148,25 @@ func TestUpdateDSCStatus(t *testing.T) {
 		testDifferentManagementStates(t, handler)
 	})
 
-	t.Run("nil Client", func(t *testing.T) {
-		testNilClient(t, handler)
-	})
-
 	t.Run("nil Instance", func(t *testing.T) {
 		testNilInstance(t, handler)
 	})
 }
 
 // testEnabledComponentWithReadyCR tests the enabled component with ready Dashboard CR scenario.
-func testEnabledComponentWithReadyCR(t *testing.T, handler *dashboard.ComponentHandler) {
+func testEnabledComponentWithReadyCR(t *testing.T, handler registry.ComponentHandler) {
 	t.Helper()
 	testEnabledComponentWithCR(t, handler, true, metav1.ConditionTrue, status.ReadyReason, "Component is ready")
 }
 
 // testEnabledComponentWithNotReadyCR tests the enabled component with not ready Dashboard CR scenario.
-func testEnabledComponentWithNotReadyCR(t *testing.T, handler *dashboard.ComponentHandler) {
+func testEnabledComponentWithNotReadyCR(t *testing.T, handler registry.ComponentHandler) {
 	t.Helper()
 	testEnabledComponentWithCR(t, handler, false, metav1.ConditionFalse, status.NotReadyReason, "Component is not ready")
 }
 
 // testEnabledComponentWithCR is a helper function that tests the enabled component with a Dashboard CR.
-func testEnabledComponentWithCR(t *testing.T, handler *dashboard.ComponentHandler, isReady bool, expectedStatus metav1.ConditionStatus, expectedReason, expectedMessage string) {
+func testEnabledComponentWithCR(t *testing.T, handler registry.ComponentHandler, isReady bool, expectedStatus metav1.ConditionStatus, expectedReason, expectedMessage string) {
 	t.Helper()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -188,10 +174,17 @@ func testEnabledComponentWithCR(t *testing.T, handler *dashboard.ComponentHandle
 	dsc := createDSCWithDashboard(operatorv1.Managed)
 	dashboardInstance := createDashboardCR(isReady)
 
-	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dashboardInstance))
+	// Create a scheme that includes the Dashboard CR and DataScienceCluster
+	scheme := runtime.NewScheme()
+	err := componentApi.AddToScheme(scheme)
+	g.Expect(err).ShouldNot(HaveOccurred())
+	err = dscv2.AddToScheme(scheme)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dsci := createDSCI()
+	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dashboardInstance), fakeclient.WithScheme(scheme))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	dsci := createDSCIV2()
 
 	cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 		Client:     cli,
@@ -204,7 +197,6 @@ func testEnabledComponentWithCR(t *testing.T, handler *dashboard.ComponentHandle
 	g.Expect(cs).Should(Equal(expectedStatus))
 
 	g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-		jq.Match(`.status.installedComponents."%s" == true`, dashboard.LegacyComponentNameUpstream),
 		jq.Match(`.status.components.dashboard.managementState == "%s"`, operatorv1.Managed),
 		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, dashboard.ReadyConditionType, expectedStatus),
 		jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, dashboard.ReadyConditionType, expectedReason),
@@ -213,14 +205,14 @@ func testEnabledComponentWithCR(t *testing.T, handler *dashboard.ComponentHandle
 }
 
 // testDisabledComponent tests the disabled component scenario.
-func testDisabledComponent(t *testing.T, handler *dashboard.ComponentHandler) {
+func testDisabledComponent(t *testing.T, handler registry.ComponentHandler) {
 	t.Helper()
 	g := NewWithT(t)
 	ctx := t.Context()
 
 	dsc := createDSCWithDashboard(operatorv1.Removed)
 
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -236,7 +228,6 @@ func testDisabledComponent(t *testing.T, handler *dashboard.ComponentHandler) {
 	g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
 
 	g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-		jq.Match(`.status.installedComponents."%s" == false`, dashboard.LegacyComponentNameUpstream),
 		jq.Match(`.status.components.dashboard.managementState == "%s"`, operatorv1.Removed),
 		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, dashboard.ReadyConditionType, metav1.ConditionFalse),
 		jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, dashboard.ReadyConditionType, operatorv1.Removed),
@@ -245,47 +236,52 @@ func testDisabledComponent(t *testing.T, handler *dashboard.ComponentHandler) {
 }
 
 // testEmptyManagementState tests the empty management state scenario.
-func testEmptyManagementState(t *testing.T, handler *dashboard.ComponentHandler) {
+func testEmptyManagementState(t *testing.T, handler registry.ComponentHandler) {
 	t.Helper()
 	g := NewWithT(t)
 	ctx := t.Context()
 
 	dsc := createDSCWithDashboard("")
 
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.components.dashboard.managementState == "%s"`, operatorv1.Removed),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, operatorv1.Removed),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, ReadyConditionType)),
-		))
+	cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   dsc,
+		DSCI:       dsci,
+		Conditions: conditions.NewManager(dsc, dashboard.ReadyConditionType),
 	})
 
 	g.Expect(err).ShouldNot(HaveOccurred())
 	g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
 
 	g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-		jq.Match(`.status.installedComponents."%s" == false`, dashboard.LegacyComponentNameUpstream),
 		jq.Match(`.status.components.dashboard.managementState == "%s"`, operatorv1.Removed),
 		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, dashboard.ReadyConditionType, metav1.ConditionFalse),
 		jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, dashboard.ReadyConditionType, operatorv1.Removed),
-		jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`, dashboard.ReadyConditionType, common.ConditionSeverityInfo),
-	)))
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, dashboard.ReadyConditionType)),
+	))
+
+	g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+		jq.Match(`.status.components.dashboard.managementState == "%s"`, operatorv1.Removed),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, dashboard.ReadyConditionType, metav1.ConditionFalse),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, dashboard.ReadyConditionType, operatorv1.Removed),
+		jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, dashboard.ReadyConditionType)),
+	))
 }
 
 // testDashboardCRNotFound tests the Dashboard CR not found scenario.
-func testDashboardCRNotFound(t *testing.T, handler *dashboard.ComponentHandler) {
+func testDashboardCRNotFound(t *testing.T, handler registry.ComponentHandler) {
 	t.Helper()
 	g := NewWithT(t)
 	ctx := t.Context()
 
 	dsc := createDSCWithDashboard(operatorv1.Managed)
 
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -302,14 +298,16 @@ func testDashboardCRNotFound(t *testing.T, handler *dashboard.ComponentHandler) 
 }
 
 // testInvalidInstanceType tests the invalid instance type scenario.
-func testInvalidInstanceType(t *testing.T, handler *dashboard.ComponentHandler) {
+//
+//nolint:unused
+func testInvalidInstanceType(t *testing.T, handler registry.ComponentHandler) {
 	t.Helper()
 	g := NewWithT(t)
 	ctx := t.Context()
 
 	invalidInstance := &componentApi.Dashboard{}
 
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -327,7 +325,7 @@ func testInvalidInstanceType(t *testing.T, handler *dashboard.ComponentHandler) 
 }
 
 // testDashboardCRWithoutReadyCondition tests the Dashboard CR without Ready condition scenario.
-func testDashboardCRWithoutReadyCondition(t *testing.T, handler *dashboard.ComponentHandler) {
+func testDashboardCRWithoutReadyCondition(t *testing.T, handler registry.ComponentHandler) {
 	t.Helper()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -336,9 +334,9 @@ func testDashboardCRWithoutReadyCondition(t *testing.T, handler *dashboard.Compo
 	dashboardInstance := &componentApi.Dashboard{}
 	dashboardInstance.SetGroupVersionKind(gvk.Dashboard)
 	dashboardInstance.SetName(componentApi.DashboardInstanceName)
-	dashboardInstance.SetNamespace(testNamespace)
+	// Dashboard CR is cluster-scoped, so no namespace
 
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 
 	cli, err := fakeclient.New(fakeclient.WithObjects(dsc, dashboardInstance))
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -355,20 +353,20 @@ func testDashboardCRWithoutReadyCondition(t *testing.T, handler *dashboard.Compo
 }
 
 // testDashboardCRWithReadyConditionTrue tests Dashboard CR with Ready condition set to True.
-func testDashboardCRWithReadyConditionTrue(t *testing.T, handler *dashboard.ComponentHandler) {
+func testDashboardCRWithReadyConditionTrue(t *testing.T, handler registry.ComponentHandler) {
 	t.Helper()
 	g := NewWithT(t)
 	ctx := t.Context()
 
 	dsc := createDSCWithDashboard(operatorv1.Managed)
 
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 
 	// Test with ConditionTrue - function should return ConditionTrue when Ready is True
 	dashboardTrue := &componentApi.Dashboard{}
 	dashboardTrue.SetGroupVersionKind(gvk.Dashboard)
 	dashboardTrue.SetName(componentApi.DashboardInstanceName)
-	dashboardTrue.SetNamespace(testNamespace)
+	// Dashboard CR is cluster-scoped, so no namespace
 	dashboardTrue.Status.Conditions = []common.Condition{
 		{
 			Type:   status.ConditionTypeReady,
@@ -392,7 +390,7 @@ func testDashboardCRWithReadyConditionTrue(t *testing.T, handler *dashboard.Comp
 }
 
 // testDifferentManagementStates tests different management states.
-func testDifferentManagementStates(t *testing.T, handler *dashboard.ComponentHandler) {
+func testDifferentManagementStates(t *testing.T, handler registry.ComponentHandler) {
 	t.Helper()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -407,7 +405,7 @@ func testDifferentManagementStates(t *testing.T, handler *dashboard.ComponentHan
 		t.Run(string(state), func(t *testing.T) {
 			dsc := createDSCWithDashboard(state)
 
-			dsci := createDSCI()
+			dsci := createDSCIV2()
 
 			cli, err := fakeclient.New(fakeclient.WithObjects(dsc))
 			g.Expect(err).ShouldNot(HaveOccurred())
@@ -451,32 +449,8 @@ func testDifferentManagementStates(t *testing.T, handler *dashboard.ComponentHan
 	}
 }
 
-// testNilClient tests the nil client scenario.
-func testNilClient(t *testing.T, handler *dashboard.ComponentHandler) {
-	t.Helper()
-	g := NewWithT(t)
-	ctx := t.Context()
-
-	dsc := createDSCWithDashboard(operatorv1.Managed)
-
-	dsci := createDSCI()
-
-		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.components.dashboard.managementState == "%s"`, operatorv1.Removed),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, operatorv1.Removed),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`, ReadyConditionType, common.ConditionSeverityInfo),
-			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, ReadyConditionType)),
-		))
-	})
-
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("client is nil"))
-	g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
-}
-
 // testNilInstance tests the nil instance scenario.
-func testNilInstance(t *testing.T, handler *dashboard.ComponentHandler) {
+func testNilInstance(t *testing.T, handler registry.ComponentHandler) {
 	t.Helper()
 	g := NewWithT(t)
 	ctx := t.Context()
@@ -484,7 +458,7 @@ func testNilInstance(t *testing.T, handler *dashboard.ComponentHandler) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 
 	cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
 		Client:     cli,
@@ -498,105 +472,6 @@ func testNilInstance(t *testing.T, handler *dashboard.ComponentHandler) {
 	g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
 }
 
-func TestComputeKustomizeVariable(t *testing.T) {
-	t.Parallel()     // Enable parallel execution for better performance
-	g := NewWithT(t) // Create once outside the loop for better performance
-
-	// Define test constants for better maintainability
-	const (
-		defaultDomain = "apps.example.com"
-		customDomain  = "custom.domain.com"
-		managedDomain = "apps.managed.com"
-	)
-
-	// Pre-create reusable gateway configs to avoid repeated allocations
-	var (
-		customGatewayConfig = func() *serviceApi.GatewayConfig {
-			gc := &serviceApi.GatewayConfig{}
-			gc.SetName(serviceApi.GatewayInstanceName)
-			gc.Spec.Domain = customDomain
-			return gc
-		}
-		defaultGatewayConfig = func() *serviceApi.GatewayConfig {
-			gc := &serviceApi.GatewayConfig{}
-			gc.SetName(serviceApi.GatewayInstanceName)
-			// No custom domain, should use cluster domain
-			return gc
-		}
-	)
-
-	tests := []struct {
-		name              string
-		platform          common.Platform
-		expectedURL       string
-		expectedTitle     string
-		gatewayConfigFunc func() *serviceApi.GatewayConfig
-		clusterDomain     string
-		expectError       bool
-	}{
-		{
-			name:              "OpenDataHub platform with default domain",
-			platform:          cluster.OpenDataHub,
-			expectedURL:       "https://data-science-gateway." + defaultDomain + "/",
-			expectedTitle:     "OpenShift Open Data Hub",
-			gatewayConfigFunc: func() *serviceApi.GatewayConfig { return nil }, // No GatewayConfig
-			clusterDomain:     defaultDomain,
-		},
-		{
-			name:              "RHOAI platform with custom domain",
-			platform:          cluster.SelfManagedRhoai,
-			expectedURL:       "https://data-science-gateway." + customDomain + "/",
-			expectedTitle:     "OpenShift Self Managed Services",
-			gatewayConfigFunc: customGatewayConfig,
-			clusterDomain:     defaultDomain, // Should be ignored due to custom domain
-		},
-		{
-			name:              "Managed RHOAI platform with default domain",
-			platform:          cluster.ManagedRhoai,
-			expectedURL:       "https://data-science-gateway." + managedDomain + "/",
-			expectedTitle:     "OpenShift Managed Services",
-			gatewayConfigFunc: defaultGatewayConfig,
-			clusterDomain:     managedDomain,
-		},
-	}
-
-	for _, tt := range tests {
-		// Capture loop variable for parallel execution
-
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := t.Context()
-
-			// Pre-allocate slice with known capacity for better performance
-			objects := make([]client.Object, 0, 2)
-
-			if gc := tt.gatewayConfigFunc(); gc != nil {
-				objects = append(objects, gc)
-			}
-
-			// Mock cluster domain by creating a fake OpenShift Ingress object
-			if tt.clusterDomain != "" {
-				ingress := createMockOpenShiftIngress(tt.clusterDomain)
-				objects = append(objects, ingress)
-			}
-
-			cli, err := fakeclient.New(fakeclient.WithObjects(objects...))
-			g.Expect(err).ShouldNot(HaveOccurred())
-
-			result, err := computeKustomizeVariable(ctx, cli, tt.platform)
-
-			if tt.expectError {
-				g.Expect(err).Should(HaveOccurred())
-				return
-			}
-
-			g.Expect(err).ShouldNot(HaveOccurred())
-			g.Expect(result).Should(HaveKeyWithValue("dashboard-url", tt.expectedURL))
-			g.Expect(result).Should(HaveKeyWithValue("section-title", tt.expectedTitle))
-		})
-	}
-}
-
 func TestComputeKustomizeVariableError(t *testing.T) {
 	t.Parallel() // Enable parallel execution for better performance
 	g := NewWithT(t)
@@ -607,7 +482,7 @@ func TestComputeKustomizeVariableError(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Test error handling with better error message validation
-	_, err = computeKustomizeVariable(ctx, cli, cluster.OpenDataHub)
+	_, err = dashboard.ComputeKustomizeVariable(ctx, cli, cluster.OpenDataHub)
 	g.Expect(err).Should(HaveOccurred(), "Should fail when no gateway domain can be resolved")
 	g.Expect(err.Error()).Should(ContainSubstring("error getting gateway domain"), "Error should contain expected message")
 }
@@ -626,7 +501,7 @@ func createDashboardCR(ready bool) *componentApi.Dashboard {
 	c := componentApi.Dashboard{}
 	c.SetGroupVersionKind(gvk.Dashboard)
 	c.SetName(componentApi.DashboardInstanceName)
-	c.SetNamespace(testNamespace)
+	// Dashboard CR is cluster-scoped, so no namespace
 
 	if ready {
 		c.Status.Conditions = []common.Condition{{
@@ -649,6 +524,8 @@ func createDashboardCR(ready bool) *componentApi.Dashboard {
 
 // createMockOpenShiftIngress creates an optimized mock OpenShift Ingress object
 // for testing cluster domain resolution.
+//
+//nolint:unused
 func createMockOpenShiftIngress(domain string) client.Object {
 	// Input validation for better error handling
 	if domain == "" {

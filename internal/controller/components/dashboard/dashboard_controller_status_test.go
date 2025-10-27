@@ -23,6 +23,7 @@ import (
 // mockClient implements client.Client interface for testing.
 type mockClient struct {
 	client.Client
+
 	listError error
 }
 
@@ -42,7 +43,7 @@ func TestUpdateStatusNoRoutes(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	dashboardInstance := CreateTestDashboard()
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   cli,
@@ -63,7 +64,7 @@ func TestUpdateStatusWithRoute(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	dashboardInstance := CreateTestDashboard()
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 
 	// Create a route with the expected label
 	route := createRoute("odh-dashboard", TestRouteHost, true)
@@ -92,7 +93,7 @@ func TestUpdateStatusInvalidInstance(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   cli,
 		Instance: &componentApi.Kserve{}, // Wrong type
-		DSCI:     createDSCI(),
+		DSCI:     createDSCIV2(),
 	}
 
 	err = dashboard.UpdateStatus(ctx, rr)
@@ -123,7 +124,7 @@ func TestUpdateStatusWithMultipleRoutes(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	dashboardInstance := CreateTestDashboard()
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   cli,
@@ -153,7 +154,7 @@ func TestUpdateStatusWithRouteNoIngress(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	dashboardInstance := CreateTestDashboard()
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   cli,
@@ -181,7 +182,7 @@ func TestUpdateStatusListError(t *testing.T) {
 	}
 
 	dashboardInstance := CreateTestDashboard()
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   mockCli,

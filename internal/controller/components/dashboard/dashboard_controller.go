@@ -46,7 +46,7 @@ import (
 )
 
 // NewComponentReconciler creates a ComponentReconciler for the Dashboard API.
-func (s *ComponentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
+func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	if mgr == nil {
 		return errors.New("could not create the dashboard controller: manager cannot be nil")
 	}
@@ -100,9 +100,10 @@ func (s *ComponentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			GenericFunc: func(tge event.TypedGenericEvent[client.Object]) bool { return false },
 			DeleteFunc:  func(tde event.TypedDeleteEvent[client.Object]) bool { return false },
 		}), reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardHardwareProfile))).
-		WithAction(initialize).
+		WithAction(Initialize).
 		WithAction(setKustomizedParams).
-		WithAction(configureDependencies).
+		WithAction(ConfigureDependencies).
+		WithAction(CustomizeResources).
 		WithAction(kustomize.NewAction(
 			// Those are the default labels added by the legacy deploy method
 			// and should be preserved as the original plugin were affecting

@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -9,7 +8,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/stretchr/testify/require"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -140,23 +138,6 @@ func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 		// Increase time required to get DSC created
 		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
 		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
-	)
-}
-
-// validateSpecWithJQ is a generic helper function that validates a spec against an expected value using jq.Match.
-func (tc *DSCTestCtx) validateSpecWithJQ(t *testing.T, expectedSpec interface{}, jqPath string,
-	resourceGVK schema.GroupVersionKind, resourceName types.NamespacedName, errorMsg string) {
-	t.Helper()
-
-	// Marshal the expected spec to JSON.
-	expectedSpecJSON, err := json.Marshal(expectedSpec)
-	tc.g.Expect(err).ShouldNot(HaveOccurred(), "Error marshaling expected spec")
-
-	// Assert that the actual spec matches the expected one.
-	tc.EnsureResourceExists(
-		WithMinimalObject(resourceGVK, resourceName),
-		WithCondition(jq.Match(jqPath, expectedSpecJSON)),
-		WithCustomErrorMsg(errorMsg),
 	)
 }
 

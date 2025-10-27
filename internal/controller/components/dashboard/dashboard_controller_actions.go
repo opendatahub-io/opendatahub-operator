@@ -26,6 +26,7 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -64,7 +65,7 @@ func Initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 }
 
 func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name)
+	extraParamsMap, err := ComputeKustomizeVariable(ctx, rr.Client, rr.Release.Name)
 	if err != nil {
 		return fmt.Errorf("failed to set variable for url, section-title etc: %w", err)
 	}
@@ -316,5 +317,34 @@ func UpdateInfraHWP(
 	}
 
 	logger.Info("successfully updated infrastructure hardware profile", "name", infrahwp.GetName())
+	return nil
+}
+
+func CustomizeResources(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr == nil {
+		return errors.New("reconciliation request is nil")
+	}
+
+	// Add the opendatahub.io/managed annotation to OdhDashboardConfig resources
+	for i := range rr.Resources {
+		resource := &rr.Resources[i]
+
+		// Check if this is an OdhDashboardConfig resource
+		if resource.GetObjectKind().GroupVersionKind() == gvk.OdhDashboardConfig {
+			// Get current annotations
+			currentAnnotations := resource.GetAnnotations()
+			if currentAnnotations == nil {
+				currentAnnotations = make(map[string]string)
+			}
+
+			// Set the managed annotation to false for OdhDashboardConfig resources
+			// This indicates that the resource should not be reconciled by the operator
+			currentAnnotations[annotations.ManagedByODHOperator] = "false"
+
+			// Set the annotations back
+			resource.SetAnnotations(currentAnnotations)
+		}
+	}
+
 	return nil
 }

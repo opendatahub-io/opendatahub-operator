@@ -99,8 +99,6 @@ func TestComputeKustomizeVariable(t *testing.T) {
 	cli, err := fakeclient.New(fakeclient.WithObjects(route, ingress))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dsci := createDSCI()
-
 	tests := []struct {
 		name     string
 		platform common.Platform
@@ -110,7 +108,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 			name:     "OpenDataHub platform",
 			platform: cluster.OpenDataHub,
 			expected: map[string]string{
-				dashboardURLKey: "https://odh-dashboard-test-namespace.apps.example.com",
+				dashboardURLKey: "https://odh-dashboard-data-science-gateway.apps.example.com",
 				sectionTitleKey: "OpenShift Open Data Hub",
 			},
 		},
@@ -118,7 +116,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 			name:     "SelfManagedRhoai platform",
 			platform: cluster.SelfManagedRhoai,
 			expected: map[string]string{
-				dashboardURLKey: "https://rhods-dashboard-test-namespace.apps.example.com",
+				dashboardURLKey: "https://rhods-dashboard-data-science-gateway.apps.example.com",
 				sectionTitleKey: "OpenShift Self Managed Services",
 			},
 		},
@@ -126,7 +124,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 			name:     "ManagedRhoai platform",
 			platform: cluster.ManagedRhoai,
 			expected: map[string]string{
-				dashboardURLKey: "https://rhods-dashboard-test-namespace.apps.example.com",
+				dashboardURLKey: "https://rhods-dashboard-data-science-gateway.apps.example.com",
 				sectionTitleKey: "OpenShift Managed Services",
 			},
 		},
@@ -135,7 +133,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
-			variables, err := dashboard.ComputeKustomizeVariable(ctx, cli, tt.platform, &dsci.Spec)
+			variables, err := dashboard.ComputeKustomizeVariable(ctx, cli, tt.platform)
 			g.Expect(err).ShouldNot(HaveOccurred())
 			g.Expect(variables).Should(Equal(tt.expected))
 		})
@@ -149,15 +147,13 @@ func TestComputeKustomizeVariableNoConsoleRoute(t *testing.T) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dsci := createDSCI()
-
-	_, err = dashboard.ComputeKustomizeVariable(ctx, cli, cluster.OpenDataHub, &dsci.Spec)
+	_, err = dashboard.ComputeKustomizeVariable(ctx, cli, cluster.OpenDataHub)
 	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("error getting console route URL"))
+	g.Expect(err.Error()).Should(ContainSubstring("error getting gateway domain"))
 }
 
 func TestInit(t *testing.T) {
-	handler := &dashboard.ComponentHandler{}
+	handler := getDashboardHandler()
 
 	// Test successful initialization for different platforms
 	platforms := []common.Platform{

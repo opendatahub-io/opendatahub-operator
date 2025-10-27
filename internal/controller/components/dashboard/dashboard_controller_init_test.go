@@ -9,6 +9,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -24,7 +25,7 @@ func TestInitialize(t *testing.T) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 
 	// Test success case
 	t.Run("success", func(t *testing.T) {
@@ -116,7 +117,7 @@ func TestInitialize(t *testing.T) {
 }
 
 func TestInitErrorPaths(t *testing.T) {
-	handler := &dashboard.ComponentHandler{}
+	handler := getDashboardHandler()
 
 	// Test with invalid platform that might cause errors
 	// This tests the error handling in the Init function
@@ -154,7 +155,7 @@ type InitResult struct {
 }
 
 // runInitWithPanicRecovery runs Init with panic recovery and returns the result.
-func runInitWithPanicRecovery(handler *dashboard.ComponentHandler, platform common.Platform) InitResult {
+func runInitWithPanicRecovery(handler registry.ComponentHandler, platform common.Platform) InitResult {
 	var panicRecovered interface{}
 	defer func() {
 		if r := recover(); r != nil {
@@ -267,7 +268,7 @@ func TestInitErrorCases(t *testing.T) {
 	t.Run("UnsupportedPlatforms", func(t *testing.T) {
 		for _, tc := range unsupportedPlatforms {
 			t.Run(tc.name, func(t *testing.T) {
-				handler := &dashboard.ComponentHandler{}
+				handler := getDashboardHandler()
 				result := runInitWithPanicRecovery(handler, tc.platform)
 				validateInitResult(t, tc, result)
 			})
@@ -282,7 +283,7 @@ func TestInitErrorCases(t *testing.T) {
 	t.Run("MissingManifestFixtures", func(t *testing.T) {
 		for _, tc := range missingManifestPlatforms {
 			t.Run(tc.name, func(t *testing.T) {
-				handler := &dashboard.ComponentHandler{}
+				handler := getDashboardHandler()
 				result := runInitWithPanicRecovery(handler, tc.platform)
 				validateInitResult(t, tc, result)
 			})
@@ -294,7 +295,7 @@ func TestInitErrorCases(t *testing.T) {
 func TestInitWithVariousPlatforms(t *testing.T) {
 	g := NewWithT(t)
 
-	handler := &dashboard.ComponentHandler{}
+	handler := getDashboardHandler()
 
 	// Define test cases with explicit expectations for each platform
 	testCases := []struct {
@@ -341,7 +342,7 @@ func TestInitWithVariousPlatforms(t *testing.T) {
 func TestInitWithInvalidPlatformNames(t *testing.T) {
 	g := NewWithT(t)
 
-	handler := &dashboard.ComponentHandler{}
+	handler := getDashboardHandler()
 
 	// Test cases are categorized by expected behavior:
 	// 1. Unsupported platforms (not in OverlaysSourcePaths map) - should succeed gracefully
@@ -524,7 +525,7 @@ func TestInitConsolidated(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a new handler for each test case to ensure isolation
-			handler := &dashboard.ComponentHandler{}
+			handler := getDashboardHandler()
 
 			// Test that Init handles platforms without panicking
 			defer func() {

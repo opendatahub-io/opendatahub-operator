@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/onsi/gomega"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,14 +15,30 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/dashboard"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/fakeclient"
 )
+
+// getDashboardHandler returns the dashboard component handler from the registry.
+//
+//nolint:ireturn
+func getDashboardHandler() registry.ComponentHandler {
+	var handler registry.ComponentHandler
+	_ = registry.ForEach(func(ch registry.ComponentHandler) error {
+		if ch.GetName() == componentApi.DashboardComponentName {
+			handler = ch
+		}
+		return nil
+	})
+	return handler
+}
 
 // TestData contains test fixtures and configuration values.
 const (
@@ -92,13 +109,7 @@ func CreateTestDashboard() *componentApi.Dashboard {
 			CreationTimestamp: metav1.Unix(1640995200, 0), // 2022-01-01T00:00:00Z
 		},
 		Spec: componentApi.DashboardSpec{
-			DashboardCommonSpec: componentApi.DashboardCommonSpec{
-				DevFlagsSpec: common.DevFlagsSpec{
-					DevFlags: &common.DevFlags{
-						Manifests: []common.ManifestsConfig{},
-					},
-				},
-			},
+			DashboardCommonSpec: componentApi.DashboardCommonSpec{},
 		},
 		Status: componentApi.DashboardStatus{
 			Status: common.Status{
@@ -122,18 +133,44 @@ func CreateTestDashboard() *componentApi.Dashboard {
 	}
 }
 
-// createDSCI creates a DSCI instance for testing.
-func createDSCI() *dsciv1.DSCInitialization {
-	return createDSCIWithNamespace(TestNamespace)
+// createDSCIV2 creates a v2 DSCI instance for testing.
+func createDSCIV2() *dsciv2.DSCInitialization {
+	dsciObj := dsciv2.DSCInitialization{}
+	dsciObj.SetGroupVersionKind(gvk.DSCInitialization)
+	dsciObj.SetName("test-dsci")
+	dsciObj.Spec.ApplicationsNamespace = TestNamespace
+	return &dsciObj
 }
 
-// createDSCIWithNamespace creates a DSCI instance with a custom namespace for testing.
-func createDSCIWithNamespace(namespace string) *dsciv1.DSCInitialization {
-	dsciObj := dsciv1.DSCInitialization{}
+// createDSCIV2WithNamespace creates a v2 DSCI instance with a custom namespace for testing.
+func createDSCIV2WithNamespace(namespace string) *dsciv2.DSCInitialization {
+	dsciObj := dsciv2.DSCInitialization{}
 	dsciObj.SetGroupVersionKind(gvk.DSCInitialization)
 	dsciObj.SetName("test-dsci")
 	dsciObj.Spec.ApplicationsNamespace = namespace
 	return &dsciObj
+}
+
+// CreateDSCWithDashboard creates a DSC with dashboard component enabled.
+func CreateDSCWithDashboard(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {
+	return &dscv2.DataScienceCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DataScienceCluster",
+			APIVersion: dscv2.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsc",
+		},
+		Spec: dscv2.DataScienceClusterSpec{
+			Components: dscv2.Components{
+				Dashboard: componentApi.DSCDashboard{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: managementState,
+					},
+				},
+			},
+		},
+	}
 }
 
 // createRoute creates a Route instance for testing.
@@ -177,7 +214,7 @@ func createRouteWithLabels(name, host string, admitted bool, labels map[string]s
 }
 
 // createTestReconciliationRequest creates a basic reconciliation request for testing.
-func CreateTestReconciliationRequest(cli client.Client, dashboard *componentApi.Dashboard, dsci *dsciv1.DSCInitialization, release common.Release) *odhtypes.ReconciliationRequest {
+func CreateTestReconciliationRequest(cli client.Client, dashboard *componentApi.Dashboard, dsci *dsciv2.DSCInitialization, release common.Release) *odhtypes.ReconciliationRequest {
 	return &odhtypes.ReconciliationRequest{
 		Client:   cli,
 		Instance: dashboard,
@@ -190,7 +227,7 @@ func CreateTestReconciliationRequest(cli client.Client, dashboard *componentApi.
 func CreateTestReconciliationRequestWithManifests(
 	cli client.Client,
 	dashboard *componentApi.Dashboard,
-	dsci *dsciv1.DSCInitialization,
+	dsci *dsciv2.DSCInitialization,
 	release common.Release,
 	manifests []odhtypes.ManifestInfo,
 ) *odhtypes.ReconciliationRequest {
@@ -238,6 +275,6 @@ func SetupTestReconciliationRequestSimple(t *testing.T) *odhtypes.Reconciliation
 	t.Helper()
 	cli := CreateTestClient(t)
 	dashboard := CreateTestDashboard()
-	dsci := createDSCI()
+	dsci := createDSCIV2()
 	return CreateTestReconciliationRequest(cli, dashboard, dsci, common.Release{Name: cluster.OpenDataHub})
 }
