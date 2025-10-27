@@ -78,7 +78,7 @@ dashboard-url=https://odh-dashboard-test.example.com
 section-title=Test Title
 `
 
-// setupTempManifestPath sets up a temporary directory for manifest downloads.
+// SetupTempManifestPath sets up a temporary directory for manifest downloads.
 func SetupTempManifestPath(t *testing.T) {
 	t.Helper()
 	oldDeployPath := odhdeploy.DefaultManifestPath
@@ -96,7 +96,7 @@ func CreateTestClient(t *testing.T) client.Client {
 	return cli
 }
 
-// createTestDashboard creates a basic dashboard instance for testing.
+// CreateTestDashboard creates a basic dashboard instance for testing.
 func CreateTestDashboard() *componentApi.Dashboard {
 	return &componentApi.Dashboard{
 		TypeMeta: metav1.TypeMeta{

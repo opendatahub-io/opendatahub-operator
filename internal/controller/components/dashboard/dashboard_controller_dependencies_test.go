@@ -173,7 +173,6 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 				t.Helper()
 				g := NewWithT(t)
 				g.Expect(rr.Resources).Should(HaveLen(1))
-				g.Expect(rr.Resources).ShouldNot(BeEmpty(), resourcesNotEmptyMsg)
 				g.Expect(rr.Resources[0].GetName()).Should(Equal(dashboard.AnacondaSecretName))
 				g.Expect(rr.Resources[0].GetNamespace()).Should(Equal("test-namespace-with-special-chars!@#$%"))
 			},

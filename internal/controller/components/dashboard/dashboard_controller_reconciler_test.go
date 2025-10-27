@@ -109,5 +109,3 @@ func testComponentNameComputation(t *testing.T) {
 		t.Error("Expected dashboard.ComputeComponentName to be deterministic, but got different results")
 	}
 }
-
-// TestNewComponentReconcilerIntegration tests the NewComponentReconciler with proper error handling.

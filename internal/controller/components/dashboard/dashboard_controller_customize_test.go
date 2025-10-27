@@ -131,9 +131,6 @@ func TestCustomizeResources(t *testing.T) {
 
 				// Verify no annotations were added to any resources (since there are none)
 				// This ensures the function handles empty resources gracefully
-				for _, resource := range rr.Resources {
-					g.Expect(resource.GetAnnotations()).ShouldNot(HaveKey(annotations.ManagedByODHOperator))
-				}
 			},
 		},
 		{

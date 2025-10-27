@@ -77,7 +77,10 @@ func setupSupportTestClientWithClusterIngress(domain string) client.Client {
 	clusterIngress.SetName("cluster")
 
 	// Set the spec.domain field
-	_ = unstructured.SetNestedField(clusterIngress.Object, domain, "spec", "domain")
+	err := unstructured.SetNestedField(clusterIngress.Object, domain, "spec", "domain")
+	if err != nil {
+		panic(err) // In test helper, panic is acceptable for setup errors
+	}
 
 	return fake.NewClientBuilder().WithScheme(createTestScheme()).WithObjects(clusterIngress).Build()
 }

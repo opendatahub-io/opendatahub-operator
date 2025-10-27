@@ -353,7 +353,7 @@ func TestInitWithInvalidPlatformNames(t *testing.T) {
 		categoryUnsupported            = "unsupported"
 		categoryValidFormatUnsupported = "valid-format-unsupported"
 		categoryEdgeCase               = "edge-case"
-		unsupportedPlatformErrorMsg    = unsupportedPlatformErrorMsg
+		unsupportedPlatformErrorMsg    = "unsupported platform"
 	)
 
 	testCases := []struct {

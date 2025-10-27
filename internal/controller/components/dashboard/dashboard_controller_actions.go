@@ -55,6 +55,10 @@ type DashboardHardwareProfileList struct {
 }
 
 func Initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr == nil {
+		return errors.New("nil ReconciliationRequest")
+	}
+
 	manifestInfo, err := DefaultManifestInfo(rr.Release.Name)
 	if err != nil {
 		return err
