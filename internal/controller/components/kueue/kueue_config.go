@@ -21,19 +21,18 @@ import (
 
 var (
 	frameworkMapping = map[string]string{
-		"pod":                                      "Pod",
-		"deployment":                               "Deployment",
-		"statefulset":                              "StatefulSet",
-		"batch/job":                                "BatchJob",
-		"ray.io/rayjob":                            "RayJob",
-		"ray.io/raycluster":                        "RayCluster",
-		"jobset.x-k8s.io/jobset":                   "JobSet",
-		"kubeflow.org/mpijob":                      "MPIJob",
-		"kubeflow.org/paddlejob":                   "PaddleJob",
-		"kubeflow.org/pytorchjob":                  "PyTorchJob",
-		"kubeflow.org/tfjob":                       "TFJob",
-		"kubeflow.org/xgboostjob":                  "XGBoostJob",
-		"workload.codeflare.dev/appwrapper":        "AppWrapper",
+		"pod":                     "Pod",
+		"deployment":              "Deployment",
+		"statefulset":             "StatefulSet",
+		"batch/job":               "BatchJob",
+		"ray.io/rayjob":           "RayJob",
+		"ray.io/raycluster":       "RayCluster",
+		"jobset.x-k8s.io/jobset":  "JobSet",
+		"kubeflow.org/mpijob":     "MPIJob",
+		"kubeflow.org/paddlejob":  "PaddleJob",
+		"kubeflow.org/pytorchjob": "PyTorchJob",
+		"kubeflow.org/tfjob":      "TFJob",
+		"kubeflow.org/xgboostjob": "XGBoostJob",
 		"leaderworkerset.x-k8s.io/leaderworkerset": "LeaderWorkerSet",
 	}
 )
