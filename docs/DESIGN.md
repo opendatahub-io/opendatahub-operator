@@ -33,7 +33,7 @@ The operator also watches [Feature Trackers](#feature-trackers) which are cluste
 
 Furthermore, there are dedicated [service CRs and controllers](#service-crs-and-controllers) for configuring authentication and monitoring.
 
-Lastly, the ODH operator also manages [accessory controllers](#accessory-controllers) responsible for helper tasks, such as secret generation and cleanup after uninstallation.
+Lastly, the ODH operator also manages [accessory controllers](#accessory-controllers) responsible for helper tasks, such as cleanup after uninstallation.
 
 A high-level diagram showcasing the majority of the above-mentioned CRs and their reconcilers is provided below.
 
@@ -116,9 +116,6 @@ The currently used accessory controllers are listed below:
 - Cert ConfigMap Generator controller
   - responsible for generating the ConfigMap with certificates (`odh-trusted-ca-bundle`), which includes cluster-wide trusted-ca bundle and custom ca bundle in every new namespace created.
   - controller implementation located in `internal/controller/services/certconfigmapgenerator`.
-- Secret Generator
-  - responsible for generating Secrets used by the ODH components (e.g., Gateway authentication).
-  - implementation located in `pkg/cluster` (see `secret.go`).
 - Setup controller
   - responsible for managing the ConfigMap that triggers the cleanup/uninstallation of ODH.
   - handles the cleanup logic itself.
