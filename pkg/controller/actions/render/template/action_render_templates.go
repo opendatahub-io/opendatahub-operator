@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/resourcecacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -19,9 +20,9 @@ import (
 )
 
 const (
-	rendererEngine = "template"
-	ComponentKey   = "Component"
-	DSCIKey        = "DSCI"
+	rendererEngine  = "template"
+	ComponentKey    = "Component"
+	AppNamespaceKey = "AppNamespace"
 )
 
 // Action takes a set of template locations and render them as Unstructured resources for
@@ -106,6 +107,11 @@ func (a *Action) decode(decoder runtime.Decoder, data []byte, info types.Templat
 }
 
 func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (resources.UnstructuredList, error) {
+	// Early return if no templates to render
+	if len(rr.Templates) == 0 {
+		return nil, nil
+	}
+
 	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
 
 	data := maps.Clone(a.data)
@@ -120,7 +126,13 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (r
 	}
 
 	data[ComponentKey] = rr.Instance
-	data[DSCIKey] = rr.DSCI
+
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get applications namespace: %w", err)
+	}
+	data[AppNamespaceKey] = appNamespace
 
 	result := make(resources.UnstructuredList, 0)
 

@@ -15,7 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -77,7 +76,6 @@ type ReconciliationRequest struct {
 	Controller Controller
 	Conditions *conditions.Manager
 	Instance   common.PlatformObject
-	DSCI       *dsciv2.DSCInitialization
 	Release    common.Release
 	Manifests  []ManifestInfo
 
@@ -188,23 +186,11 @@ func (rr *ReconciliationRequest) RemoveResources(predicate func(*unstructured.Un
 func Hash(rr *ReconciliationRequest) ([]byte, error) {
 	hash := sha256.New()
 
-	dsciGeneration := make([]byte, binary.MaxVarintLen64)
-	if rr.DSCI != nil {
-		binary.PutVarint(dsciGeneration, rr.DSCI.GetGeneration())
-	} else {
-		// DSCI is not available (service reconciling without platform initialization).
-		// Use -1 as a sentinel to ensure consistent hashing when DSCI is absent.
-		binary.PutVarint(dsciGeneration, -1)
-	}
-
 	instanceGeneration := make([]byte, binary.MaxVarintLen64)
 	binary.PutVarint(instanceGeneration, rr.Instance.GetGeneration())
 
 	if _, err := hash.Write([]byte(rr.Instance.GetUID())); err != nil {
 		return nil, fmt.Errorf("failed to hash instance: %w", err)
-	}
-	if _, err := hash.Write(dsciGeneration); err != nil {
-		return nil, fmt.Errorf("failed to hash dsci generation: %w", err)
 	}
 	if _, err := hash.Write(instanceGeneration); err != nil {
 		return nil, fmt.Errorf("failed to hash instance generation: %w", err)
