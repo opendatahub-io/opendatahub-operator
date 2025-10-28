@@ -5,6 +5,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 )
@@ -50,7 +51,12 @@ func (r *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 		}
 
 		if namespaced {
-			opts = append(opts, client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace))
+			// Fetch application namespace from DSCI.
+			appNamespace, nsErr := cluster.ApplicationNamespace(ctx, rr.Client)
+			if nsErr != nil {
+				return nsErr
+			}
+			opts = append(opts, client.InNamespace(appNamespace))
 		}
 
 		err = rr.Client.DeleteAllOf(ctx, r.types[i], opts...)
