@@ -3,7 +3,6 @@ package kueue
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -19,7 +18,6 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
@@ -65,10 +63,6 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {
-	if err := odhdeploy.ApplyParams(manifestsPath().String(), "params.env", imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", manifestsPath(), err)
-	}
-
 	return nil
 }
 

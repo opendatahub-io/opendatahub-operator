@@ -163,7 +163,7 @@ func ReconcileDefaultNetworkPolicy(
 	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
 		log := logf.FromContext(ctx)
 
-		// Get operator namepsace
+		// Get operator namespace
 		operatorNs, err := cluster.GetOperatorNamespace()
 		if err != nil {
 			log.Error(err, "error getting operator namespace for networkpolicy creation")

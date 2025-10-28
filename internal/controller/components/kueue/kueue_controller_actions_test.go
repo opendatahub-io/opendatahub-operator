@@ -537,11 +537,22 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 				},
 			}
 
+			// Create DSCI for ApplicationNamespace lookup
+			dsci := &dsciv2.DSCInitialization{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-dsci",
+				},
+				Spec: dsciv2.DSCInitializationSpec{
+					ApplicationsNamespace: xid.New().String(),
+				},
+			}
+
 			runtimeObjects := []client.Object{
 				managedNamespace,
 				legacyManagedNamespace,
 				bothManagedNamespace,
 				unmanagedNamespace,
+				dsci,
 			}
 
 			clusterNodes := getClusterNodes(t, test.withGPU)
@@ -553,12 +564,7 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 			g.Expect(err).ToNot(HaveOccurred())
 
 			rr := &types.ReconciliationRequest{
-				Instance: kueue,
-				DSCI: &dsciv2.DSCInitialization{
-					Spec: dsciv2.DSCInitializationSpec{
-						ApplicationsNamespace: xid.New().String(),
-					},
-				},
+				Instance:  kueue,
 				Client:    client,
 				Resources: []unstructured.Unstructured{}, // Initialize empty resources
 			}

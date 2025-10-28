@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -19,6 +20,45 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+// setupTestClient creates a fake client with DSCI pre-configured
+// Set includeMockAuth to true if the test needs OAuth authentication.
+func setupTestClient(g Gomega, includeMockAuth bool) client.Client {
+	scheme := runtime.NewScheme()
+	g.Expect(dsciv2.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(rbacv1.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(serviceApi.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(configv1.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(userv1.AddToScheme(scheme)).Should(Succeed())
+
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: "test-namespace",
+		},
+	}
+
+	objects := []client.Object{dsci}
+
+	if includeMockAuth {
+		mockAuth := &configv1.Authentication{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cluster",
+			},
+			Spec: configv1.AuthenticationSpec{
+				Type: configv1.AuthenticationTypeIntegratedOAuth,
+			},
+		}
+		objects = append(objects, mockAuth)
+	}
+
+	return fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objects...).
+		Build()
+}
 
 // - AdminGroupClusterRoleTemplate: ClusterRole for admin groups (cluster-wide access).
 func TestInitialize(t *testing.T) {
@@ -54,13 +94,9 @@ func TestInitialize(t *testing.T) {
 // to all authenticated users in the cluster, which is a major security vulnerability.
 func TestBindRoleValidation(t *testing.T) {
 	ctx := t.Context()
+	g := NewWithT(t)
 
-	// Create a fake client with proper scheme
-	scheme := runtime.NewScheme()
-	_ = rbacv1.AddToScheme(scheme)
-	_ = configv1.AddToScheme(scheme)
-	_ = userv1.AddToScheme(scheme)
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	fakeClient := setupTestClient(g, false)
 
 	tests := []struct {
 		name          string
@@ -98,12 +134,7 @@ func TestBindRoleValidation(t *testing.T) {
 
 			// Create reconciliation request
 			rr := &odhtypes.ReconciliationRequest{
-				Client: fakeClient,
-				DSCI: &dsciv2.DSCInitialization{
-					Spec: dsciv2.DSCInitializationSpec{
-						ApplicationsNamespace: "test-namespace",
-					},
-				},
+				Client:    fakeClient,
 				Resources: []unstructured.Unstructured{},
 			}
 
@@ -139,13 +170,7 @@ func TestManagePermissionsBasic(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
-	// Create a fake client with proper scheme
-	scheme := runtime.NewScheme()
-	_ = rbacv1.AddToScheme(scheme)
-	_ = serviceApi.AddToScheme(scheme)
-	_ = configv1.AddToScheme(scheme)
-	_ = userv1.AddToScheme(scheme)
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	fakeClient := setupTestClient(g, false)
 
 	auth := &serviceApi.Auth{
 		ObjectMeta: metav1.ObjectMeta{
@@ -159,13 +184,8 @@ func TestManagePermissionsBasic(t *testing.T) {
 
 	// Create reconciliation request
 	rr := &odhtypes.ReconciliationRequest{
-		Client:   fakeClient,
-		Instance: auth,
-		DSCI: &dsciv2.DSCInitialization{
-			Spec: dsciv2.DSCInitializationSpec{
-				ApplicationsNamespace: "test-namespace",
-			},
-		},
+		Client:    fakeClient,
+		Instance:  auth,
 		Resources: []unstructured.Unstructured{},
 	}
 
@@ -205,23 +225,12 @@ func TestManagePermissionsInvalidInstance(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
-	// Create a fake client with proper scheme
-	scheme := runtime.NewScheme()
-	_ = rbacv1.AddToScheme(scheme)
-	_ = serviceApi.AddToScheme(scheme)
-	_ = configv1.AddToScheme(scheme)
-	_ = userv1.AddToScheme(scheme)
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	fakeClient := setupTestClient(g, false)
 
 	// Test with wrong instance type
 	rr := &odhtypes.ReconciliationRequest{
-		Client:   fakeClient,
-		Instance: &serviceApi.Monitoring{}, // Wrong type
-		DSCI: &dsciv2.DSCInitialization{
-			Spec: dsciv2.DSCInitializationSpec{
-				ApplicationsNamespace: "test-namespace",
-			},
-		},
+		Client:    fakeClient,
+		Instance:  &serviceApi.Monitoring{}, // Wrong type
 		Resources: []unstructured.Unstructured{},
 	}
 
@@ -235,37 +244,13 @@ func TestCreateDefaultGroupBasic(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
-	// Create a fake client with proper scheme
-	scheme := runtime.NewScheme()
-	_ = rbacv1.AddToScheme(scheme)
-	_ = configv1.AddToScheme(scheme)
-	_ = userv1.AddToScheme(scheme)
-
-	// Create a mock Authentication object to satisfy isDefaultAuthMethod
-	mockAuth := &configv1.Authentication{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "cluster",
-		},
-		Spec: configv1.AuthenticationSpec{
-			Type: configv1.AuthenticationTypeIntegratedOAuth,
-		},
-	}
-
-	fakeClient := fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithObjects(mockAuth).
-		Build()
+	fakeClient := setupTestClient(g, true)
 
 	// Test with a basic reconciliation request
 	rr := &odhtypes.ReconciliationRequest{
 		Client: fakeClient,
 		Release: common.Release{
 			Name: "test-platform",
-		},
-		DSCI: &dsciv2.DSCInitialization{
-			Spec: dsciv2.DSCInitializationSpec{
-				ApplicationsNamespace: "test-namespace",
-			},
 		},
 		Resources: []unstructured.Unstructured{},
 	}

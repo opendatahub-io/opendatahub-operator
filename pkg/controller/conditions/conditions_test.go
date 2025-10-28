@@ -62,7 +62,7 @@ func TestManager_IsHappy(t *testing.T) {
 	g.Expect(manager.IsHappy()).To(BeTrue())
 }
 
-func TestManager_IsHappy_NoDependants(t *testing.T) {
+func TestManager_IsHappy_NoDependents(t *testing.T) {
 	g := NewWithT(t)
 
 	accessor := &fakeAccessor{}

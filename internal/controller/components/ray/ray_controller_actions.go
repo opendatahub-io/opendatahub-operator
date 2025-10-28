@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -27,8 +28,21 @@ import (
 func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = append(rr.Manifests, manifestPath())
 
-	if err := odhdeploy.ApplyParams(manifestPath().String(), "params.env", nil, map[string]string{"namespace": rr.DSCI.Spec.ApplicationsNamespace}); err != nil {
-		return fmt.Errorf("failed to update params.env from %s : %w", manifestPath(), err)
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return err
 	}
+
+	err = odhdeploy.ApplyParams(
+		manifestPath().String(),
+		"params.env",
+		nil,
+		map[string]string{"namespace": appNamespace},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update params.env: %w", err)
+	}
+
 	return nil
 }

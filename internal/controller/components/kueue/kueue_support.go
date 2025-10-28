@@ -16,8 +16,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -52,10 +50,6 @@ const (
 )
 
 var (
-	imageParamMap = map[string]string{
-		"odh-kueue-controller-image": "RELATED_IMAGE_ODH_KUEUE_CONTROLLER_IMAGE",
-	}
-
 	conditionTypes = []string{
 		status.ConditionDeploymentsAvailable,
 	}
@@ -65,14 +59,6 @@ var (
 		AMDGPUResourceKey:    AMDFlavorName,
 	}
 )
-
-func manifestsPath() odhtypes.ManifestInfo {
-	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: ComponentName,
-		SourcePath: "rhoai",
-	}
-}
 
 func getManagedNamespaces(ctx context.Context, c client.Client) ([]corev1.Namespace, error) {
 	// Deduped namespaces, since some might have both labels.

@@ -13,7 +13,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -23,34 +22,6 @@ import (
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = []odhtypes.ManifestInfo{
 		kserveManifestInfo(kserveManifestSourcePath),
-	}
-
-	return nil
-}
-
-func deleteFeatureTrackers(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	ftNames := []string{
-		rr.DSCI.Spec.ApplicationsNamespace + "-serverless-serving-deployment",
-		rr.DSCI.Spec.ApplicationsNamespace + "-serverless-net-istio-secret-filtering",
-		rr.DSCI.Spec.ApplicationsNamespace + "-serverless-serving-gateways",
-		rr.DSCI.Spec.ApplicationsNamespace + "-kserve-external-authz",
-	}
-
-	for _, n := range ftNames {
-		ft := featuresv1.FeatureTracker{}
-		err := rr.Client.Get(ctx, client.ObjectKey{Name: n}, &ft)
-		if k8serr.IsNotFound(err) {
-			continue
-		} else if err != nil {
-			return fmt.Errorf("failed to lookup FeatureTracker %s: %w", ft.GetName(), err)
-		}
-
-		err = rr.Client.Delete(ctx, &ft, client.PropagationPolicy(metav1.DeletePropagationForeground))
-		if k8serr.IsNotFound(err) {
-			continue
-		} else if err != nil {
-			return fmt.Errorf("failed to delete FeatureTracker %s: %w", ft.GetName(), err)
-		}
 	}
 
 	return nil

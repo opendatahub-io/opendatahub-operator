@@ -39,6 +39,7 @@ func gatewayTestSuite(t *testing.T) { //nolint:unused
 
 	testCases := []TestCase{
 		{"Validate Gateway infrastructure creation", componentCtx.ValidateGatewayInfrastructure},
+		{"Validate kube-auth-proxy deployment with secret hash annotation", componentCtx.ValidateKubeAuthProxySecretHash},
 	}
 
 	RunTestCases(t, testCases)
@@ -86,4 +87,22 @@ func (tc *GatewayTestCtx) ValidateGatewayInfrastructure(t *testing.T) {
 	)
 
 	t.Log("Gateway API resources validation completed successfully")
+}
+
+func (tc *GatewayTestCtx) ValidateKubeAuthProxySecretHash(t *testing.T) {
+	t.Helper()
+	// Validate kube-auth-proxy deployment exists and has the secret hash annotation
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "kube-auth-proxy",
+			Namespace: gatewayNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.template.metadata.annotations["opendatahub.io/secret-hash"] != null`),
+			jq.Match(`.spec.template.metadata.annotations["opendatahub.io/secret-hash"] | test("^[0-9a-f]{64}$|^$")`),
+		)),
+		WithCustomErrorMsg("kube-auth-proxy deployment should have 'opendatahub.io/secret-hash' annotation that is either empty or a 64-char hex SHA-256 hash"),
+	)
+
+	t.Log("kube-auth-proxy deployment secret hash annotation validation completed successfully")
 }

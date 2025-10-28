@@ -28,7 +28,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -49,6 +48,7 @@ func TestDeployAction(t *testing.T) {
 
 	ctx := t.Context()
 	ns := xid.New().String()
+
 	cl, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -74,7 +74,6 @@ func TestDeployAction(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		DSCI:   &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -163,7 +162,6 @@ func TestDeployNotOwnedSkip(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		DSCI:   &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -229,7 +227,6 @@ func TestDeployNotOwnedCreate(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cl,
-		DSCI:   &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -291,8 +288,6 @@ func TestDeployDeOwn(t *testing.T) {
 		Controller: mocks.NewMockController(func(m *mocks.MockController) {
 			m.On("Owns", mock.Anything).Return(true)
 		}),
-		DSCI: &dsciv2.DSCInitialization{
-			Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -443,9 +438,6 @@ func deployClusterRoles(t *testing.T, ctx context.Context, cli client.Client, ro
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		DSCI: &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{
-			ApplicationsNamespace: xid.New().String(),
-		}},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -510,9 +502,6 @@ func TestDeployCRD(t *testing.T) {
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		DSCI: &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{
-			ApplicationsNamespace: id,
-		}},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -575,7 +564,6 @@ func TestDeployOwnerRef(t *testing.T) {
 	s := runtime.NewScheme()
 
 	ctx := t.Context()
-	id := xid.New().String()
 	ns := xid.New().String()
 
 	utilruntime.Must(corev1.AddToScheme(s))
@@ -684,10 +672,7 @@ func TestDeployOwnerRef(t *testing.T) {
 	//
 
 	rr := types.ReconciliationRequest{
-		Client: cli,
-		DSCI: &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{
-			ApplicationsNamespace: id,
-		}},
+		Client:   cli,
 		Instance: instance,
 		Release: common.Release{
 			Name: cluster.OpenDataHub,

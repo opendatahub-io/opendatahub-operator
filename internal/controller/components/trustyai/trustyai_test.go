@@ -127,7 +127,6 @@ func TestCreateConfigMap(t *testing.T) {
 		rr := &odhtypes.ReconciliationRequest{
 			Client:   cli,
 			Instance: trustyai,
-			DSCI:     dsciObj,
 		}
 
 		err = createConfigMap(ctx, rr)
@@ -162,7 +161,6 @@ func TestCreateConfigMap(t *testing.T) {
 		rr := &odhtypes.ReconciliationRequest{
 			Client:   cli,
 			Instance: trustyai,
-			DSCI:     dsciObj,
 		}
 
 		err = createConfigMap(ctx, rr)
@@ -201,7 +199,6 @@ func TestUpdateDSCStatus(t *testing.T) {
 		rr := &odhtypes.ReconciliationRequest{
 			Client:   cli,
 			Instance: trustyai,
-			DSCI:     dsciObj,
 		}
 
 		err = createConfigMap(ctx, rr)

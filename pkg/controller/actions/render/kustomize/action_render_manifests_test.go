@@ -6,6 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/xid"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -111,7 +112,17 @@ func TestRenderResourcesAction(t *testing.T) {
 	_ = fs.WriteFile(path.Join(id, "test-resources-deployment-unmanaged.yaml"), []byte(testRenderResourcesUnmanaged))
 	_ = fs.WriteFile(path.Join(id, "test-resources-deployment-forced.yaml"), []byte(testRenderResourcesForced))
 
-	cl, err := fakeclient.New()
+	// Create DSCI in fake client for ApplicationNamespace lookup
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: ns,
+		},
+	}
+
+	cl, err := fakeclient.New(fakeclient.WithObjects(dsci))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := kustomize.NewAction(
@@ -134,7 +145,6 @@ func TestRenderResourcesAction(t *testing.T) {
 		rr := types.ReconciliationRequest{
 			Client:    cl,
 			Instance:  &componentApi.Dashboard{},
-			DSCI:      &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 			Release:   common.Release{Name: cluster.OpenDataHub},
 			Manifests: []types.ManifestInfo{{Path: id}},
 		}
@@ -198,7 +208,17 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 	_ = fs.WriteFile(path.Join(id, mk.DefaultKustomizationFileName), []byte(testRenderResourcesWithCacheKustomization))
 	_ = fs.WriteFile(path.Join(id, "test-resources-deployment.yaml"), []byte(testRenderResourcesWithCacheDeployment))
 
-	cl, err := fakeclient.New()
+	// Create DSCI in fake client for ApplicationNamespace lookup
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: ns,
+		},
+	}
+
+	cl, err := fakeclient.New(fakeclient.WithObjects(dsci))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := kustomize.NewAction(
@@ -224,7 +244,6 @@ func TestRenderResourcesWithCacheAction(t *testing.T) {
 		rr := types.ReconciliationRequest{
 			Client:    cl,
 			Instance:  &d,
-			DSCI:      &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 			Release:   common.Release{Name: cluster.OpenDataHub},
 			Manifests: []types.ManifestInfo{{Path: id}},
 		}

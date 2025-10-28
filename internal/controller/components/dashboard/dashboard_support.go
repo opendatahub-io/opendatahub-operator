@@ -48,7 +48,6 @@ var (
 		"odh-dashboard-image":     "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 		"model-registry-ui-image": "RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE",
 		"gen-ai-ui-image":         "RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE",
-		"oauth-proxy-image":       "RELATED_IMAGE_OSE_OAUTH_PROXY_IMAGE",
 		"kube-rbac-proxy":         "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
 

@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	odhTypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -343,7 +344,9 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 	action.objectPredicateFn = DefaultObjectPredicate
 	action.typePredicateFn = DefaultTypePredicate
 	action.onlyOwned = true
-	action.namespaceFn = actions.OperatorNamespace
+	action.namespaceFn = func(_ context.Context, _ *odhTypes.ReconciliationRequest) (string, error) {
+		return cluster.GetOperatorNamespace()
+	}
 	action.propagationPolicy = client.PropagationPolicy(metav1.DeletePropagationForeground)
 
 	// default unremovables
