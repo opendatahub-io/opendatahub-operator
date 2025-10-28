@@ -451,12 +451,6 @@ var (
 		Kind:    "InferenceModel",
 	}
 
-	OperatorCondition = schema.GroupVersionKind{
-		Group:   "operators.coreos.com",
-		Version: "v2",
-		Kind:    "OperatorCondition",
-	}
-
 	NetworkPolicy = schema.GroupVersionKind{
 		Group:   networkingv1.SchemeGroupVersion.Group,
 		Version: networkingv1.SchemeGroupVersion.Version,

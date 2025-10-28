@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/rs/xid"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -61,9 +61,15 @@ func TestCheckPreConditions_Managed_KueueOperatorAlreadyInstalled(t *testing.T) 
 
 	cli, err := fakeclient.New(
 		fakeclient.WithObjects(
-			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-				Name: kueueOperator,
-			}},
+			&ofapiv1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      kueueOperator,
+					Namespace: kueueOperatorNamespace,
+				},
+				Spec: &ofapiv1alpha1.SubscriptionSpec{
+					Package: kueueOperator,
+				},
+			},
 		),
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
