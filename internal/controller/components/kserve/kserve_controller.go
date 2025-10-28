@@ -111,8 +111,6 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			deploy.WithCache(),
 		)).
 		WithAction(deployments.NewAction()).
-		// TODO: can be removed after RHOAI 2.26 (next EUS)
-		WithAction(deleteFeatureTrackers).
 		// must be the final action
 		WithAction(gc.NewAction()).
 		// declares the list of additional, controller specific conditions that are

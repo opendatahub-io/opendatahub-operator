@@ -22,7 +22,6 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -145,9 +144,6 @@ func testResourceNotReDeployed(t *testing.T, cli client.Client, obj client.Objec
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		DSCI: &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{
-			ApplicationsNamespace: in.GetNamespace()},
-		},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -221,9 +217,6 @@ func testCacheTTL(t *testing.T, cli client.Client, obj client.Object) {
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		DSCI: &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{
-			ApplicationsNamespace: in.GetNamespace()},
-		},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
@@ -285,9 +278,6 @@ func testDeletionTimestampHandling(t *testing.T, cli client.Client, obj client.O
 
 	rr := types.ReconciliationRequest{
 		Client: cli,
-		DSCI: &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{
-			ApplicationsNamespace: in.GetNamespace()},
-		},
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Generation: 1,
