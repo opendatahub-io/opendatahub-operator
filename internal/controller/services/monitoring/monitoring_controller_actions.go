@@ -34,6 +34,10 @@ const (
 	InstrumentationTemplate                 = "resources/instrumentation.tmpl.yaml"
 	ThanosQuerierTemplate                   = "resources/thanos-querier-cr.tmpl.yaml"
 	ThanosQuerierRouteTemplate              = "resources/thanos-querier-route.tmpl.yaml"
+	PersesTemplate                          = "resources/perses.tmpl.yaml"
+	PersesDatasourcePrometheusTemplate      = "resources/perses-datasource-prometheus.tmpl.yaml"
+	PersesDashboardOverviewTemplate         = "resources/perses-dashboard-overview.tmpl.yaml"
+	PersesMonitoringUIPluginTemplate        = "resources/perses-monitoring-uiplugin.tmpl.yaml"
 )
 
 // CRDRequirement defines a required CRD and its associated condition for monitoring components.
@@ -410,6 +414,81 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 	if len(addErrors) > 0 || len(cleanupErrors) > 0 {
 		return errors.New("errors occurred while adding or cleaning up prometheus rules for components")
 	}
+
+	return nil
+}
+
+func deployPerses(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	_, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	// Check for required CRDs
+	requirements := []CRDRequirement{
+		{GVK: gvk.Perses, ConditionType: status.ConditionPersesAvailable},
+		{GVK: gvk.PersesDashboard, ConditionType: status.ConditionPersesAvailable},
+		{GVK: gvk.UIPlugin, ConditionType: status.ConditionPersesAvailable},
+	}
+
+	if !validateRequiredCRDs(ctx, rr, requirements) {
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesAvailable)
+
+	template := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: PersesDashboardOverviewTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: PersesMonitoringUIPluginTemplate,
+		},
+	}
+	rr.Templates = append(rr.Templates, template...)
+
+	return nil
+}
+
+func deployPersesDatasource(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil {
+		setConditionFalse(rr, status.ConditionPersesDatasourceAvailable,
+			status.MetricsNotConfiguredReason,
+			"Prometheus datasource requires metrics configuration")
+		return nil
+	}
+
+	datasourceExists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDatasource)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD PersesDatasource exists: %w", err)
+	}
+	if !datasourceExists {
+		setConditionFalse(rr, status.ConditionPersesDatasourceAvailable,
+			gvk.PersesDatasource.Kind+"CRDNotFoundReason",
+			fmt.Sprintf("%s CRD Not Found", gvk.PersesDatasource.Kind))
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesDatasourceAvailable)
+
+	template := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesDatasourcePrometheusTemplate,
+		},
+	}
+	rr.Templates = append(rr.Templates, template...)
 
 	return nil
 }
