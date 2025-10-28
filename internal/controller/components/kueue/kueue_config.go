@@ -45,7 +45,7 @@ func lookupKueueManagerConfig(ctx context.Context, rr *odhtypes.ReconciliationRe
 	// Fetch application namespace from DSCI.
 	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get applications namespace: %w", err)
+		return nil, err
 	}
 
 	err = rr.Client.Get(

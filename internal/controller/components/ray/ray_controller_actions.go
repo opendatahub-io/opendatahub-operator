@@ -31,7 +31,7 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	// Fetch application namespace from DSCI.
 	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
-		return fmt.Errorf("failed to get applications namespace: %w", err)
+		return err
 	}
 
 	err = odhdeploy.ApplyParams(

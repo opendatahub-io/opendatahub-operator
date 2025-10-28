@@ -130,7 +130,7 @@ func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (r
 	// Fetch application namespace from DSCI.
 	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get applications namespace: %w", err)
+		return nil, err
 	}
 	data[AppNamespaceKey] = appNamespace
 

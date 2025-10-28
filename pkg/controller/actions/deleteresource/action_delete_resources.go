@@ -2,7 +2,6 @@ package deleteresource
 
 import (
 	"context"
-	"fmt"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -53,9 +52,9 @@ func (r *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 
 		if namespaced {
 			// Fetch application namespace from DSCI.
-			appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
-			if err != nil {
-				return fmt.Errorf("failed to get applications namespace: %w", err)
+			appNamespace, nsErr := cluster.ApplicationNamespace(ctx, rr.Client)
+			if nsErr != nil {
+				return nsErr
 			}
 			opts = append(opts, client.InNamespace(appNamespace))
 		}
