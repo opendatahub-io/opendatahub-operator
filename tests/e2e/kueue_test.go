@@ -172,7 +172,7 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 		WithMinimalObject(gvk.KueueConfigV1, types.NamespacedName{Name: kueue.KueueCRName}),
 		WithCondition(And(
 			jq.Match(`([
-				"AppWrapper", "BatchJob", "Deployment", "JobSet", "LeaderWorkerSet", "MPIJob",
+				"BatchJob", "Deployment", "JobSet", "LeaderWorkerSet", "MPIJob",
 				"PaddleJob", "Pod", "PyTorchJob", "RayCluster", "RayJob", "StatefulSet", "TFJob",
 				"XGBoostJob"
 			] - .spec.config.integrations.frameworks) | length == 0`),
