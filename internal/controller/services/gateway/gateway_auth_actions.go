@@ -9,6 +9,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -29,7 +30,8 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return fmt.Errorf("failed to resolve domain: %w", err)
 	}
 
-	authMode, err := detectClusterAuthMode(ctx, rr)
+	// Use cluster package function instead of local detectClusterAuthMode
+	authMode, err := cluster.GetClusterAuthenticationMode(ctx, rr.Client)
 	if err != nil {
 		return fmt.Errorf("failed to detect cluster authentication mode: %w", err)
 	}
@@ -43,7 +45,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	}
 
 	var oidcConfig *serviceApi.OIDCConfig
-	if authMode == AuthModeOIDC {
+	if authMode == cluster.AuthModeOIDC {
 		oidcConfig = gatewayConfig.Spec.OIDC
 	}
 
@@ -57,7 +59,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return fmt.Errorf("failed to deploy auth proxy: %w", err)
 	}
 
-	if authMode == AuthModeIntegratedOAuth {
+	if authMode == cluster.AuthModeIntegratedOAuth {
 		if err := createOAuthClient(ctx, rr, clientSecret); err != nil {
 			return fmt.Errorf("failed to create OAuth client: %w", err)
 		}

@@ -184,12 +184,12 @@ func addUserGroup(ctx context.Context, rr *odhtypes.ReconciliationRequest, userG
 }
 
 func createDefaultGroup(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	ok, err := IsDefaultAuthMethod(ctx, rr.Client)
+	ok, err := cluster.IsIntegratedOAuth(ctx, rr.Client)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		logf.Log.Info("default auth method is not enabled")
+		logf.Log.Info("Integrated OAuth not detected; skipping default group creation")
 		return nil
 	}
 

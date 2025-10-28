@@ -63,8 +63,13 @@ func TestBuildDefaultAuth(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewWithT(t)
+			ctx := t.Context()
 
-			authObj := dscinitialization.BuildDefaultAuth(tt.platform)
+			// Create fake client (will be Oauth mode by default)
+			cli, err := fakeclient.New()
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			authObj := dscinitialization.BuildDefaultAuth(ctx, cli, tt.platform)
 			g.Expect(authObj).ShouldNot(BeNil(), "BuildDefaultAuth should not return nil")
 
 			auth, ok := authObj.(*serviceApi.Auth)
@@ -85,6 +90,19 @@ func TestBuildDefaultAuth(t *testing.T) {
 			g.Expect(auth.Spec.AllowedGroups[0]).Should(Equal("system:authenticated"))
 		})
 	}
+	t.Run("OIDC mode uses placeholder group", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+		cli, err := fakeclient.New(fakeclient.WithClusterAuthType(cluster.AuthModeOIDC))
+		g.Expect(err).ShouldNot(HaveOccurred())
+		obj := dscinitialization.BuildDefaultAuth(ctx, cli, cluster.OpenDataHub)
+		auth, ok := obj.(*serviceApi.Auth)
+		g.Expect(ok).To(BeTrue())
+		g.Expect(auth.Spec.AdminGroups).To(HaveLen(1))
+		g.Expect(auth.Spec.AdminGroups[0]).To(Equal("REPLACE-WITH-OIDC-ADMIN-GROUP"))
+		// AllowedGroups should remain unchanged
+		g.Expect(auth.Spec.AllowedGroups).To(Equal([]string{"system:authenticated"}))
+	})
 }
 
 func TestCreateAuth(t *testing.T) {

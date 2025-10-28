@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	configv1 "github.com/openshift/api/config/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -29,9 +28,6 @@ import (
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
-
-// AuthMode represents different authentication modes supported by the gateway.
-type AuthMode string
 
 const (
 	// Gateway infrastructure constants.
@@ -69,10 +65,6 @@ const (
 	EnvClientID     = "OAUTH2_PROXY_CLIENT_ID"
 	EnvClientSecret = "OAUTH2_PROXY_CLIENT_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 	EnvCookieSecret = "OAUTH2_PROXY_COOKIE_SECRET" //nolint:gosec // This is an environment variable name, not a secret
-
-	AuthModeIntegratedOAuth AuthMode = "IntegratedOAuth"
-	AuthModeOIDC            AuthMode = "OIDC"
-	AuthModeNone            AuthMode = "None"
 )
 
 var (
@@ -321,29 +313,8 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 	return rr.AddResources(gateway)
 }
 
-// detectClusterAuthMode determines the authentication mode from cluster configuration.
-func detectClusterAuthMode(ctx context.Context, rr *odhtypes.ReconciliationRequest) (AuthMode, error) {
-	auth := &configv1.Authentication{}
-	err := rr.Client.Get(ctx, types.NamespacedName{Name: "cluster"}, auth)
-	if err != nil {
-		return "", fmt.Errorf("failed to get cluster authentication config: %w", err)
-	}
-
-	switch auth.Spec.Type {
-	case "OIDC":
-		return AuthModeOIDC, nil
-	case "IntegratedOAuth", "":
-		// empty string is equivalent to IntegratedOAuth (default)
-		return AuthModeIntegratedOAuth, nil
-	case "None":
-		return AuthModeNone, nil
-	default:
-		return AuthModeIntegratedOAuth, nil
-	}
-}
-
-func validateOIDCConfig(authMode AuthMode, oidcConfig *serviceApi.OIDCConfig) *common.Condition {
-	if authMode != AuthModeOIDC {
+func validateOIDCConfig(authMode cluster.AuthenticationMode, oidcConfig *serviceApi.OIDCConfig) *common.Condition {
+	if authMode != cluster.AuthModeOIDC {
 		return nil
 	}
 
@@ -378,8 +349,8 @@ func validateOIDCConfig(authMode AuthMode, oidcConfig *serviceApi.OIDCConfig) *c
 	return nil
 }
 
-func checkAuthModeNone(authMode AuthMode) *common.Condition {
-	if authMode == AuthModeNone {
+func checkAuthModeNone(authMode cluster.AuthenticationMode) *common.Condition {
+	if authMode == cluster.AuthModeNone {
 		return &common.Condition{
 			Type:    status.ConditionTypeReady,
 			Status:  metav1.ConditionFalse,
@@ -391,7 +362,7 @@ func checkAuthModeNone(authMode AuthMode) *common.Condition {
 }
 
 // getOrGenerateSecrets retrieves existing secrets or generates new ones for OAuth2 proxy.
-func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationRequest, authMode AuthMode) (string, string, error) {
+func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationRequest, authMode cluster.AuthenticationMode) (string, string, error) {
 	existingSecret := &corev1.Secret{}
 	secretErr := rr.Client.Get(ctx, types.NamespacedName{
 		Name:      KubeAuthProxySecretsName,
@@ -414,7 +385,7 @@ func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationReques
 	}
 
 	var clientSecretValue string
-	if authMode == AuthModeIntegratedOAuth {
+	if authMode == cluster.AuthModeIntegratedOAuth {
 		clientSecretGen, err := cluster.NewSecret("client-secret", "random", ClientSecretLength)
 		if err != nil {
 			return "", "", fmt.Errorf("failed to generate client secret: %w", err)

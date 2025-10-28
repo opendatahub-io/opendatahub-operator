@@ -11,6 +11,7 @@ and configure these applications.
   - [Configuration](#configuration)
     - [Log mode values](#log-mode-values)
     - [Use custom application namespace](#use-custom-application-namespace)
+    - [OIDC Authentication Configuration](#oidc-authentication-configuration)
 - [Developer Guide](#developer-guide)
     - [Pre-requisites](#pre-requisites)
     - [Download manifests](#download-manifests)
@@ -116,6 +117,51 @@ To enable it:
   6. continue to create DSC CR
 - For cases in which ODH is already running in the cluster:
   - WARNING: Be aware that switching to a different application namespace can cause issues that require manual intervention to be fixed, therefore we suggest this to be done for new clusters only.
+
+#### OIDC Authentication Configuration
+
+When using OIDC authentication mode (e.g., with external identity providers like Keycloak or Auth0), the operator creates a default Auth CR with placeholder values that **must be configured** by cluster administrators.
+
+**Default Auth CR in OIDC mode:**
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: Auth
+metadata:
+  name: auth
+spec:
+  adminGroups:
+    - "REPLACE-WITH-OIDC-ADMIN-GROUP"  # MUST be replaced with your OIDC admin group
+  allowedGroups:
+    - "system:authenticated"
+```
+
+**To configure Auth for OIDC:**
+
+Replace the placeholder with your OIDC provider's group names:
+   ```yaml
+   apiVersion: services.platform.opendatahub.io/v1alpha1
+   kind: Auth
+   metadata:
+     name: auth
+   spec:
+     adminGroups:
+       - "my-oidc-admin-group"  # Your actual OIDC admin group from your provider
+     allowedGroups:
+       - "system:authenticated"
+       - "my-oidc-users-group"  # Optional: add specific OIDC user groups
+   ```
+
+**Important Notes:**
+- The groups must match the group names/claims from your OIDC provider (check your OIDC provider's configuration)
+- `adminGroups` grants full administrative access to ODH resources via:
+  - ClusterRoleBinding: `admingroupcluster-rolebinding` and ClusterRole: `admingroupcluster-role`
+  - RoleBinding: `admingroup-rolebinding` and Role: `admingroup-role`
+- `allowedGroups` grants read-only access to ODH resources via:
+  - ClusterRoleBinding: `allowedgroupcluster-rolebinding` and ClusterRole: `allowedgroupcluster-role`
+- OpenShift Groups are NOT needed in OIDC mode (RBAC is managed via Kubernetes RoleBindings/ClusterRoleBindings)
+- The groups are mapped from OIDC JWT tokens to Kubernetes RBAC automatically
+
+For OAuth mode (OpenShift's integrated authentication), the Auth CR is created with platform-specific defaults and typically does not require modification.
 
 ## Developer Guide
 

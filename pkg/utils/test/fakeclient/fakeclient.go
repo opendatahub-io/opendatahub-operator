@@ -3,12 +3,15 @@ package fakeclient
 import (
 	"fmt"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	clientFake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
@@ -36,6 +39,23 @@ func WithObjects(values ...client.Object) ClientOpts {
 func WithScheme(value *runtime.Scheme) ClientOpts {
 	return func(o *clientOptions) {
 		o.scheme = value
+	}
+}
+
+// WithClusterAuthType creates a fake OpenShift Authentication object with the specified type.
+// This is useful for testing authentication mode detection logic.
+// authType should be one of cluster.AuthModeOIDC, cluster.AuthModeIntegratedOAuth, or cluster.AuthModeNone constants.
+func WithClusterAuthType(authType cluster.AuthenticationMode) ClientOpts {
+	return func(o *clientOptions) {
+		auth := &configv1.Authentication{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: cluster.ClusterAuthenticationObj,
+			},
+			Spec: configv1.AuthenticationSpec{
+				Type: configv1.AuthenticationType(authType),
+			},
+		}
+		o.objects = append(o.objects, auth)
 	}
 }
 
