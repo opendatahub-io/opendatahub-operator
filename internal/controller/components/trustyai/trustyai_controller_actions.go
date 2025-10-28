@@ -59,7 +59,7 @@ func createConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 	// Fetch application namespace from DSCI.
 	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
-		return fmt.Errorf("failed to get applications namespace: %w", err)
+		return err
 	}
 
 	// Convert to boolean for configmap

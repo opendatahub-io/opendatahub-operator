@@ -346,7 +346,7 @@ func cleanupPrometheusRules(ctx context.Context, componentName string, rr *odhty
 			// No DSCI means no monitoring namespace configured, nothing to clean up
 			return nil
 		}
-		return fmt.Errorf("failed to get monitoring namespace: %w", err)
+		return err
 	}
 
 	pr := &unstructured.Unstructured{}

@@ -160,9 +160,9 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 func addUserGroup(ctx context.Context, rr *odhtypes.ReconciliationRequest, userGroupName string) error {
 	namespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
-		logf.Log.Error(err, "error getting application namespace")
 		return err
 	}
+
 	userGroup := &userv1.Group{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: userGroupName,

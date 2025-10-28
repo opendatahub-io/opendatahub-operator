@@ -79,7 +79,7 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 	// Fetch application namespace from DSCI.
 	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
-		return fmt.Errorf("failed to get applications namespace: %w", err)
+		return err
 	}
 
 	err = rr.AddResources(&corev1.Secret{
@@ -110,7 +110,7 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	// Fetch application namespace from DSCI.
 	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
 	if err != nil {
-		return fmt.Errorf("failed to get applications namespace: %w", err)
+		return err
 	}
 
 	// url
