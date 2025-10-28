@@ -2,7 +2,6 @@
 package gateway
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 
@@ -767,31 +766,4 @@ func TestGetOIDCClientSecretNotFound(t *testing.T) {
 	g.Expect(err).To(HaveOccurred())
 	g.Expect(err.Error()).To(ContainSubstring("failed to get OIDC client secret"))
 	g.Expect(result).To(Equal(""))
-}
-
-// TestSetErrorConditionAndReturn tests the error condition helper function.
-func TestSetErrorConditionAndReturn(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	gatewayConfig := &serviceApi.GatewayConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-gateway",
-		},
-	}
-
-	testError := errors.New("test error occurred")
-	resultErr := setErrorConditionAndReturn(gatewayConfig, "Test operation failed", testError)
-
-	// Verify the returned error is the same as input
-	g.Expect(resultErr).To(Equal(testError))
-
-	// Verify condition was set correctly
-	conditions := gatewayConfig.GetConditions()
-	g.Expect(conditions).To(HaveLen(1))
-	condition := conditions[0]
-	g.Expect(condition.Type).To(Equal(status.ConditionTypeReady))
-	g.Expect(condition.Status).To(Equal(metav1.ConditionFalse))
-	g.Expect(condition.Reason).To(Equal(status.NotReadyReason))
-	g.Expect(condition.Message).To(Equal("Test operation failed: test error occurred"))
 }

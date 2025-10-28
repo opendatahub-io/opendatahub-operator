@@ -3,10 +3,6 @@ kind: DSCInitialization
 metadata:
   labels:
     app.kubernetes.io/name: dscinitialization
-    app.kubernetes.io/instance: default
-    app.kubernetes.io/part-of: opendatahub-operator
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/created-by: opendatahub-operator
   name: default-dsci
 spec:
   monitoring:

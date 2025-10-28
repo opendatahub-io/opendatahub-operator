@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -19,6 +20,7 @@ import (
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	infrav1alpha1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1alpha1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -69,6 +71,27 @@ func v2Tov3UpgradeTestSuite(t *testing.T) {
 	)
 }
 
+func hardwareProfileTestSuite(t *testing.T) {
+	t.Helper()
+
+	tc, err := NewTestContext(t)
+	require.NoError(t, err)
+
+	// Create an instance of test context.
+	v2Tov3UpgradeTestCtx := V2Tov3UpgradeTestCtx{
+		TestContext: tc,
+	}
+
+	// Define hardware profile test cases.
+	testCases := []TestCase{
+		{"hardwareprofile v1alpha1 to v1 version upgrade", v2Tov3UpgradeTestCtx.HardwareProfileV1Alpha1ToV1VersionUpgrade},
+		{"hardwareprofile v1 to v1alpha1 version conversion", v2Tov3UpgradeTestCtx.HardwareProfileV1ToV1Alpha1VersionConversion},
+	}
+
+	// Run the hardware profile test suite.
+	RunTestCases(t, testCases)
+}
+
 func v2Tov3UpgradeDeletingDscDsciTestSuite(t *testing.T) {
 	t.Helper()
 
@@ -98,13 +121,13 @@ func v2Tov3UpgradeDeletingDscDsciTestSuite(t *testing.T) {
 func (tc *V2Tov3UpgradeTestCtx) ValidateCodeFlareResourcePreservation(t *testing.T) {
 	t.Helper()
 
-	tc.ValidateComponentResourcePreservation(t, gvk.CodeFlare, defaultCodeFlareComponentName)
+	tc.validateComponentResourcePreservation(t, gvk.CodeFlare, defaultCodeFlareComponentName)
 }
 
 func (tc *V2Tov3UpgradeTestCtx) ValidateModelMeshServingResourcePreservation(t *testing.T) {
 	t.Helper()
 
-	tc.ValidateComponentResourcePreservation(t, gvk.ModelMeshServing, defaultModelMeshServingComponentName)
+	tc.validateComponentResourcePreservation(t, gvk.ModelMeshServing, defaultModelMeshServingComponentName)
 }
 
 func (tc *V2Tov3UpgradeTestCtx) DatascienceclusterV1CreationAndRead(t *testing.T) {
@@ -237,7 +260,109 @@ func (tc *V2Tov3UpgradeTestCtx) DscinitializationV1CreationAndRead(t *testing.T)
 	)
 }
 
-func (tc *V2Tov3UpgradeTestCtx) ValidateComponentResourcePreservation(t *testing.T, componentGVK schema.GroupVersionKind, componentName string) {
+func (tc *V2Tov3UpgradeTestCtx) HardwareProfileV1Alpha1ToV1VersionUpgrade(t *testing.T) {
+	t.Helper()
+
+	hardwareProfileName := "test-hardware-profile-v1alpha1-to-v1"
+
+	// should be able to create v1alpha1 HWProfile resource.
+	hardwareProfileV1Alpha1 := CreateHardwareProfile(hardwareProfileName, tc.AppsNamespace, infrav1alpha1.GroupVersion.String())
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(hardwareProfileV1Alpha1),
+		WithCustomErrorMsg("Failed to create HardwareProfile v1alpha1 resource %s", hardwareProfileName),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	// read with v1alpha1 API version.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.HardwareProfileV1Alpha1, types.NamespacedName{Name: hardwareProfileName, Namespace: tc.AppsNamespace}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, hardwareProfileName),
+			jq.Match(`.apiVersion == "%s"`, infrav1alpha1.GroupVersion.String()),
+			jq.Match(`.kind == "HardwareProfile"`),
+			jq.Match(`.spec.identifiers[0].displayName == "GPU"`),
+			jq.Match(`.spec.identifiers[0].identifier == "nvidia.com/gpu"`),
+			jq.Match(`.spec.identifiers[0].resourceType == "Accelerator"`),
+			jq.Match(`.spec.scheduling.type == "Node"`),
+			jq.Match(`.spec.scheduling.node.nodeSelector["kubernetes.io/arch"] == "amd64"`),
+		)),
+		WithCustomErrorMsg("Failed to read HardwareProfile v1alpha1 resource %s", hardwareProfileName),
+		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
+	)
+
+	// read as v1 API version.
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: hardwareProfileName, Namespace: tc.AppsNamespace}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, hardwareProfileName),
+			jq.Match(`.apiVersion == "%s"`, infrav1.GroupVersion.String()),
+			jq.Match(`.kind == "HardwareProfile"`),
+			jq.Match(`.spec.identifiers[0].displayName == "GPU"`),
+			jq.Match(`.spec.identifiers[0].identifier == "nvidia.com/gpu"`),
+			jq.Match(`.spec.identifiers[0].resourceType == "Accelerator"`),
+			jq.Match(`.spec.scheduling.type == "Node"`),
+			jq.Match(`.spec.scheduling.node.nodeSelector["kubernetes.io/arch"] == "amd64"`),
+		)),
+		WithCustomErrorMsg("Failed to read HardwareProfile v1 resource %s after version conversion", hardwareProfileName),
+		WithEventuallyTimeout(10*time.Second),
+	)
+
+	// Cleanup - delete the test resource
+	tc.DeleteResource(
+		WithMinimalObject(gvk.HardwareProfileV1Alpha1, types.NamespacedName{Name: hardwareProfileName, Namespace: tc.AppsNamespace}),
+		WithWaitForDeletion(true),
+	)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) HardwareProfileV1ToV1Alpha1VersionConversion(t *testing.T) {
+	t.Helper()
+
+	hardwareProfileName := "test-hardware-profile-v1-to-v1alpha1"
+
+	// Create a HardwareProfile v1 resource (storage version)
+	hardwareProfileV1 := CreateHardwareProfile(hardwareProfileName, tc.AppsNamespace, infrav1.GroupVersion.String())
+
+	// Create the v1 HardwareProfile resource
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(hardwareProfileV1),
+		WithCustomErrorMsg("Failed to create HardwareProfile v1 resource %s", hardwareProfileName),
+		WithEventuallyTimeout(tc.TestTimeouts.mediumEventuallyTimeout),
+		WithEventuallyPollingInterval(tc.TestTimeouts.defaultEventuallyPollInterval),
+	)
+
+	// Read as v1 (storage version)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: hardwareProfileName, Namespace: tc.AppsNamespace}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, hardwareProfileName),
+			jq.Match(`.apiVersion == "%s"`, infrav1.GroupVersion.String()),
+			jq.Match(`.kind == "HardwareProfile"`),
+		)),
+		WithCustomErrorMsg("Failed to read HardwareProfile v1 resource %s", hardwareProfileName),
+		WithEventuallyTimeout(tc.TestTimeouts.shortEventuallyTimeout),
+	)
+
+	// read as v1alpha1 (conversion from storage version)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.HardwareProfileV1Alpha1, types.NamespacedName{Name: hardwareProfileName, Namespace: tc.AppsNamespace}),
+		WithCondition(And(
+			jq.Match(`.metadata.name == "%s"`, hardwareProfileName),
+			jq.Match(`.apiVersion == "%s"`, infrav1alpha1.GroupVersion.String()),
+			jq.Match(`.kind == "HardwareProfile"`),
+		)),
+		WithCustomErrorMsg("Failed to read HardwareProfile as v1alpha1 after creating as v1 %s", hardwareProfileName),
+		WithEventuallyTimeout(10*time.Second),
+	)
+
+	// Cleanup - delete the test resource
+	tc.DeleteResource(
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: hardwareProfileName, Namespace: tc.AppsNamespace}),
+		WithWaitForDeletion(true),
+	)
+}
+
+func (tc *V2Tov3UpgradeTestCtx) validateComponentResourcePreservation(t *testing.T, componentGVK schema.GroupVersionKind, componentName string) {
 	t.Helper()
 
 	// Create the specific CRD needed for this component (if not exists)
@@ -245,7 +370,11 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateComponentResourcePreservation(t *testing
 
 	dsc := tc.FetchDataScienceCluster()
 
-	tc.createOperatorManagedComponent(componentGVK, componentName, dsc)
+	componentToCreate := tc.operatorManagedComponent(componentGVK, componentName, dsc)
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(componentToCreate),
+		WithCustomErrorMsg("Failed to create existing %s component for preservation test", componentGVK.Kind),
+	)
 
 	tc.triggerDSCReconciliation(t)
 
@@ -266,7 +395,12 @@ func (tc *V2Tov3UpgradeTestCtx) ValidateRayRaiseErrorIfCodeFlarePresent(t *testi
 	t.Helper()
 
 	dsc := tc.FetchDataScienceCluster()
-	tc.createOperatorManagedComponent(gvk.CodeFlare, defaultCodeFlareComponentName, dsc)
+	existingComponent := tc.operatorManagedComponent(gvk.CodeFlare, defaultCodeFlareComponentName, dsc)
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(existingComponent),
+		WithCustomErrorMsg("Failed to create existing %s component", gvk.CodeFlare),
+	)
 
 	tc.updateComponentStateInDataScienceCluster(t, gvk.Ray.Kind, operatorv1.Managed)
 
@@ -318,7 +452,7 @@ func (tc *V2Tov3UpgradeTestCtx) triggerDSCReconciliation(t *testing.T) {
 	)
 }
 
-func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedComponent(componentGVK schema.GroupVersionKind, componentName string, dsc *dscv2.DataScienceCluster) {
+func (tc *V2Tov3UpgradeTestCtx) operatorManagedComponent(componentGVK schema.GroupVersionKind, componentName string, dsc *dscv2.DataScienceCluster) client.Object {
 	existingComponent := resources.GvkToUnstructured(componentGVK)
 	existingComponent.SetName(componentName)
 
@@ -339,10 +473,7 @@ func (tc *V2Tov3UpgradeTestCtx) createOperatorManagedComponent(componentGVK sche
 		"Failed to set owner reference from DataScienceCluster '%s' to %s component '%s'",
 		dsc.GetName(), componentGVK.Kind, componentName)
 
-	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(existingComponent),
-		WithCustomErrorMsg("Failed to create existing %s component for preservation test", componentGVK.Kind),
-	)
+	return existingComponent
 }
 
 func (tc *V2Tov3UpgradeTestCtx) updateComponentStateInDataScienceCluster(t *testing.T, kind string, managementState operatorv1.ManagementState) {

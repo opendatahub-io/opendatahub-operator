@@ -13,6 +13,8 @@ permissions:
 jobs:
   update-manifest-shas:
     runs-on: ubuntu-latest
+    # Job only runs if the current branch reference is 'refs/heads/main'.
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5

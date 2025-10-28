@@ -290,9 +290,9 @@ e.g `make image-build USE_LOCAL=true"`
 
 There are 2 ways to test your changes with modification:
 
-1. Each component in the `DataScienceCluster` CR has `devFlags.manifests` field, which can be used to pull down the manifests from the remote git repos of the respective components. By using this method, it overwrites manifests and creates customized resources for the respective components.
+1. Using custom manifests in OLM operator. See [custom manifest](hack/component-dev/README.md) for more details.
 
-2. [Under implementation] build operator image with local manifests.
+2. Build operator image with local manifests, running `make image-build USE_LOCAL=true`
 
 ### Update API docs
 
@@ -477,6 +477,7 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_SERVICES               | Enable testing of individual services specified by --test-service flag                                                                                                       | `true`                        |
 | E2E_TEST_SERVICE                | A comma separated configuration to control which services should be tested, by default all service specific test are executed                                                | `all services`                |
 | E2E_TEST_OPERATOR_V2TOV3UPGRADE | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                       | `true`                        |
+| E2E_TEST_HARDWARE_PROFILE       | To configure the execution of hardware profile tests, useful for testing hardware profile functionality for v1 and v1alpha1                                              | `true`                        |
 |                                 |                                                                                                                                                                              |                               |
 | E2E_TEST_FLAGS                  | Alternatively the above configurations can be passed to e2e-tests as flags using this env var (see flags table below)                                                        |                               |
 
@@ -495,6 +496,7 @@ Alternatively the above configurations can be passed to e2e-tests as flags by se
 | --test-services               | Enable testing of individual services specified by --test-service flag                                                                                                       | `true`                        |
 | --test-service                | A repeatable (or comma separated no spaces) flag that control which services should be tested, by default all service specific test are executed                             | `all services`                |
 | --test-operator-v2tov3upgrade | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                       | `true`                        |
+| --test-hardware-profile       | To configure the execution of hardware profile tests, useful for testing hardware profile functionality between v1 and v1alpah1                                               | `true`                        |
 
 Example command to run full test suite skipping the DataScienceCluster deletion (useful to troubleshooting tests failures):
 

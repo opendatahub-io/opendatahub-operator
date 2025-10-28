@@ -22,47 +22,12 @@ type ManagementSpec struct {
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 
-// DevFlags defines list of fields that can be used by developers to test customizations. This is not recommended
-// to be used in production environment.
-// +kubebuilder:object:generate=true
-type DevFlags struct {
-	// List of custom manifests for the given component
-	// +optional
-	Manifests []ManifestsConfig `json:"manifests,omitempty"`
-}
-
-// DevFlagsSpec struct defines the component's dev flags configuration.
-// +kubebuilder:object:generate=true
-type DevFlagsSpec struct {
-	// Add developer fields
-	// +optional
-	DevFlags *DevFlags `json:"devFlags,omitempty"`
-}
-
-type ManifestsConfig struct {
-	// uri is the URI point to a git repo with tag/branch. e.g.  https://github.com/org/repo/tarball/<tag/branch>
-	// +optional
-	// +kubebuilder:default=""
-	URI string `json:"uri,omitempty"`
-
-	// contextDir is the relative path to the folder containing manifests in a repository, default value "manifests"
-	// +optional
-	// +kubebuilder:default="manifests"
-	ContextDir string `json:"contextDir,omitempty"`
-
-	// sourcePath is the subpath within contextDir where kustomize builds start. Examples include any sub-folder or path: `base`, `overlays/dev`, `default`, `odh` etc.
-	// +optional
-	// +kubebuilder:default=""
-	SourcePath string `json:"sourcePath,omitempty"`
-}
-
 // ConditionSeverity expresses the severity of a Condition Type failing.
 type ConditionSeverity string
 
 const (
-	ConditionSeverityError   ConditionSeverity = ""
-	ConditionSeverityWarning ConditionSeverity = "Warning"
-	ConditionSeverityInfo    ConditionSeverity = "Info"
+	ConditionSeverityError ConditionSeverity = ""
+	ConditionSeverityInfo  ConditionSeverity = "Info"
 
 	ConditionReasonError = "Error"
 )
@@ -169,10 +134,6 @@ type ComponentReleaseStatus struct {
 
 type WithStatus interface {
 	GetStatus() *Status
-}
-
-type WithDevFlags interface {
-	GetDevFlags() *DevFlags
 }
 
 type ConditionsAccessor interface {

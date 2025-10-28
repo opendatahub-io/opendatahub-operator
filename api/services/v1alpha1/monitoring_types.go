@@ -199,10 +199,6 @@ type MonitoringList struct {
 	Items           []Monitoring `json:"items"`
 }
 
-func (m *Monitoring) GetDevFlags() *common.DevFlags {
-	return nil
-}
-
 func (m *Monitoring) GetStatus() *common.Status {
 	return &m.Status.Status
 }
