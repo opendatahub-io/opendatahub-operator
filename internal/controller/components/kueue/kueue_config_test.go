@@ -81,7 +81,6 @@ spec:
   config:
     integrations:
       frameworks:
-        - AppWrapper
         - BatchJob
         - Deployment
         - JobSet
