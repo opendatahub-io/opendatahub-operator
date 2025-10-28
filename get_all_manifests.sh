@@ -2,6 +2,7 @@
 set -e
 
 GITHUB_URL="https://github.com"
+DST_MANIFESTS_DIR="./opt/manifests"
 
 # COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
 # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
@@ -11,20 +12,19 @@ GITHUB_URL="https://github.com"
 # 2. "tag" - immutable reference (e.g., v1.0.0)
 # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
 declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@60d88908302c7dfb75087b851366c482f5a870b9:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@4c581eb93299dde716e7791ebe5f90d43919a52f:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@4c581eb93299dde716e7791ebe5f90d43919a52f:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@cb5907d7bda2e72fe10c380c7f07ecc46d4de331:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15@a18bc288ffb44db34f77329257ae0d0a2f13097f:config"
-    ["kueue"]="opendatahub-io:kueue:dev@c7e5105e597d92831decdd9e972dc9fdf940edf3:config"
-    ["ray"]="opendatahub-io:kuberay:dev@d751b14faddf13b141d0d26f6ced640ec23030b3:ray-operator/config"
-    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@7f21761643ea756480f0a43f55ff8817458559a4:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main@db2eadd13942a03e8c16498aeefd66e8a1c9ec22:config"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@99b121a20b85724f85a5e82755856ec6579bf0c2:manifests"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@909a62e24fae72e5bbb6ed255a322d692b629e15:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@909a62e24fae72e5bbb6ed255a322d692b629e15:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@11a6ba8118160961fee65d5986b28344f2d8a28f:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.15@196e668c5f1f1c5aefdc3ab6e3f66bd724ad162f:config"
+    ["ray"]="opendatahub-io:kuberay:dev@b9e26fa34f9128594841fcd1df079ee2e9269fb2:ray-operator/config"
+    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@02fc7ca7f3a7ff95ccac03d9a04b67acf5a3a050:config"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main@666be1bda3bad55e15c8c6c793d8d1faf86819d9:config"
     ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
-    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@1aec8b555de9213ffb6db52ff5ec8ad84d5cf23a:config"
-    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@cfc2fc4b4d2b268cec9effcb58b24a59c6345d00:config"
-    ["feastoperator"]="opendatahub-io:feast:stable@e11d2d585f0aebfa7ddedcd845382a3dbdb5ec61:infra/feast-operator/config"
-    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@c99ed0472cfd4e709e8722dcc38e0a52f0e37141:config"
+    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@bdf7dcc340bee0ad3bfe0c17d857e090cd06243b:config"
+    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@f926ab1de32764253519ec429efd7e647e8d5aec:config"
+    ["feastoperator"]="opendatahub-io:feast:stable@3c6fd777b7d5c9de4f7949ee7b9ee7f829dc8528:infra/feast-operator/config"
+    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@6806c3f428bb140609d6fe4801d6c66a25977804:config"
 )
 
 # PLATFORM_MANIFESTS is a list of manifests that are contained in the operator repository. Please also add them to the
@@ -147,8 +147,8 @@ download_manifest() {
 
     if [[ -v USE_LOCAL ]] && [[ -e ../${repo_name} ]]; then
         echo "copying from adjacent checkout ..."
-        mkdir -p ./opt/manifests/${target_path}
-        cp -rf "../${repo_name}/${source_path}"/* ./opt/manifests/${target_path}
+        mkdir -p ${DST_MANIFESTS_DIR}/${target_path}
+        cp -rf "../${repo_name}/${source_path}"/* ${DST_MANIFESTS_DIR}/${target_path}
         return
     fi
 
@@ -157,8 +157,8 @@ download_manifest() {
         return 1
     fi
 
-    mkdir -p ./opt/manifests/${target_path}
-    cp -rf ${repo_dir}/${source_path}/* ./opt/manifests/${target_path}
+    mkdir -p ${DST_MANIFESTS_DIR}/${target_path}
+    cp -rf ${repo_dir}/${source_path}/* ${DST_MANIFESTS_DIR}/${target_path}
 }
 
 # Track background job PIDs +declare -a pids=()
@@ -183,8 +183,8 @@ for key in "${!PLATFORM_MANIFESTS[@]}"; do
     source_path="${PLATFORM_MANIFESTS[$key]}"
     target_path="${key}"
 
-    if [[ -d ${source_path} && ! -L ./opt/manifests/${target_path} ]]; then
+    if [[ -d ${source_path} && ! -L ${DST_MANIFESTS_DIR}/${target_path} ]]; then
         echo -e "\033[32mSymlinking local manifest \033[33m${key}\033[32m:\033[0m ${source_path}"
-        ln -s $(pwd)/${source_path} ./opt/manifests/${target_path}
+        ln -s $(pwd)/${source_path} ${DST_MANIFESTS_DIR}/${target_path}
     fi
 done

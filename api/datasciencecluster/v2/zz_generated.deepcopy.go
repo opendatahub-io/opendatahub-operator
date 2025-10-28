@@ -30,7 +30,7 @@ func (in *Components) DeepCopyInto(out *Components) {
 	*out = *in
 	out.Dashboard = in.Dashboard
 	out.Workbenches = in.Workbenches
-	in.DataSciencePipelines.DeepCopyInto(&out.DataSciencePipelines)
+	in.AIPipelines.DeepCopyInto(&out.AIPipelines)
 	out.Kserve = in.Kserve
 	out.Kueue = in.Kueue
 	out.Ray = in.Ray
@@ -56,7 +56,7 @@ func (in *ComponentsStatus) DeepCopyInto(out *ComponentsStatus) {
 	*out = *in
 	in.Dashboard.DeepCopyInto(&out.Dashboard)
 	in.Workbenches.DeepCopyInto(&out.Workbenches)
-	in.DataSciencePipelines.DeepCopyInto(&out.DataSciencePipelines)
+	in.AIPipelines.DeepCopyInto(&out.AIPipelines)
 	in.Kserve.DeepCopyInto(&out.Kserve)
 	in.Kueue.DeepCopyInto(&out.Kueue)
 	in.Ray.DeepCopyInto(&out.Ray)
@@ -160,13 +160,6 @@ func (in *DataScienceClusterStatus) DeepCopyInto(out *DataScienceClusterStatus) 
 		in, out := &in.RelatedObjects, &out.RelatedObjects
 		*out = make([]v1.ObjectReference, len(*in))
 		copy(*out, *in)
-	}
-	if in.InstalledComponents != nil {
-		in, out := &in.InstalledComponents, &out.InstalledComponents
-		*out = make(map[string]bool, len(*in))
-		for key, val := range *in {
-			(*out)[key] = val
-		}
 	}
 	in.Components.DeepCopyInto(&out.Components)
 	in.Release.DeepCopyInto(&out.Release)

@@ -141,7 +141,7 @@ spec:
       {{- if .MetricsExporterNames }}
       {{- range .MetricsExporterNames }}
       {{ . }}:
-{{ index $.MetricsExporters . | toYaml | nindent 8 }}
+{{ index $.MetricsExporters . | indent 8 }}
       {{- end }}
       {{- end }}
       {{- end }}

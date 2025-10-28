@@ -33,7 +33,7 @@ The operator also watches [Feature Trackers](#feature-trackers) which are cluste
 
 Furthermore, there are dedicated [service CRs and controllers](#service-crs-and-controllers) for configuring authentication and monitoring.
 
-Lastly, the ODH operator also manages [accessory controllers](#accessory-controllers) responsible for helper tasks, such as secret generation and cleanup after uninstallation.
+Lastly, the ODH operator also manages [accessory controllers](#accessory-controllers) responsible for helper tasks, such as cleanup after uninstallation.
 
 A high-level diagram showcasing the majority of the above-mentioned CRs and their reconcilers is provided below.
 
@@ -47,7 +47,7 @@ Together, these CRs are responsible for configuration of ODH at the platform lev
 #### DSCInitialization (DSCI)
 
 - DSCI CR is managed by the ODH operator to perform initial setup that is common for all components.
-  - for example, DSCI defines the namespace for ODH component deployments, monitoring config, ServiceMesh config,...
+  - for example, DSCI defines the namespace for ODH component deployments, monitoring config,...
 - Some examples of initial setup include creating namespaces, network policies, common configmaps and secrets.
 - DSCI instance is a singleton in the cluster, i.e., only one instance of this CR can be present in the cluster.
 - DSCI controller implementation can be found in `internal/controller/dscinitialization` directory.
@@ -116,12 +116,6 @@ The currently used accessory controllers are listed below:
 - Cert ConfigMap Generator controller
   - responsible for generating the ConfigMap with certificates (`odh-trusted-ca-bundle`), which includes cluster-wide trusted-ca bundle and custom ca bundle in every new namespace created.
   - controller implementation located in `internal/controller/services/certconfigmapgenerator`.
-- Secret Generator controller
-  - responsible for generating Secret used by the ODH Dashboard.
-  - controller implementation located in `internal/controller/services/secretgenerator`.
-- ServiceMesh controller
-  - responsible for configuring ServiceMesh v2 and Authorino related resources.
-  - controller implementation located in `internal/controller/services/servicemesh`.
 - Setup controller
   - responsible for managing the ConfigMap that triggers the cleanup/uninstallation of ODH.
   - handles the cleanup logic itself.
@@ -146,12 +140,6 @@ spec:
       nim:
         managementState: Managed
       rawDeploymentServiceConfig: Headless
-      serving:
-        ingressGateway:
-          certificate:
-            type: OpenshiftDefaultIngress
-        managementState: Managed
-        name: knative-serving
     modelregistry:
       managementState: Managed
       registriesNamespace: "odh-model-registries"

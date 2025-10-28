@@ -19,6 +19,7 @@ package dscinitialization
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -46,6 +47,7 @@ import (
 
 	dscv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/datasciencecluster/v2"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
+	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -264,16 +266,27 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 
-		// handle changes to ServiceMesh section of DSCI spec
-		if err := r.handleServiceMesh(ctx, instance); err != nil {
-			log.Error(err, "failed to handle change to ServiceMesh spec in DSCI")
-			return ctrl.Result{}, err
+		// legacy ServiceMesh FeatureTracker cleanup, retained from the remove ServiceMesh controller
+		// TODO where exactly to put this logic ?
+		ftNames := []string{
+			instance.Spec.ApplicationsNamespace + "-mesh-shared-configmap",
+			instance.Spec.ApplicationsNamespace + "-mesh-control-plane-creation",
+			instance.Spec.ApplicationsNamespace + "-mesh-metrics-collection",
+			instance.Spec.ApplicationsNamespace + "-enable-proxy-injection-in-authorino-deployment",
+			instance.Spec.ApplicationsNamespace + "-mesh-control-plane-external-authz",
 		}
+		for _, name := range ftNames {
+			ft := featuresv1.FeatureTracker{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: name,
+				},
+			}
 
-		// Sync ServiceMesh conditions to DSCI status
-		if instance.Spec.ServiceMesh != nil && instance.Spec.ServiceMesh.ManagementState != operatorv1.Removed {
-			if err := r.syncServiceMeshConditions(ctx, instance); err != nil {
-				log.Error(err, "failed to sync ServiceMesh conditions to DSCI")
+			err := r.Client.Delete(ctx, &ft, client.PropagationPolicy(metav1.DeletePropagationForeground))
+			if k8serr.IsNotFound(err) {
+				continue
+			} else if err != nil {
+				return ctrl.Result{}, fmt.Errorf("failed to delete FeatureTracker %s: %w", ft.GetName(), err)
 			}
 		}
 
@@ -350,13 +363,6 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
 		Owns(&corev1.PersistentVolumeClaim{},
 			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{}))).
-		Owns(&serviceApi.ServiceMesh{},
-			builder.WithPredicates(
-				predicate.Or(
-					predicate.GenerationChangedPredicate{},
-					predicate.LabelChangedPredicate{},
-					rp.ServiceMeshStatusCondition,
-				))).
 		Owns( // ensure always have default one for AcceleratorProfile/HardwareProfile blocking
 			&admissionregistrationv1.ValidatingAdmissionPolicy{},
 		).
@@ -432,7 +438,7 @@ func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) []re
 		return nil
 	}
 	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(ctx, r.Client) {
-		log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
+		log.Info("Found no DSC instance in cluster but not in uninstallation process, reset monitoring stack config")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
 	}
@@ -508,7 +514,12 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		if dsci.Spec.Monitoring.CollectorReplicas != 0 {
 			defaultMonitoring.Spec.CollectorReplicas = dsci.Spec.Monitoring.CollectorReplicas
 		} else {
-			defaultMonitoring.Spec.CollectorReplicas = 2
+			isSNO := cluster.IsSingleNodeCluster(ctx, r.Client)
+			if isSNO {
+				defaultMonitoring.Spec.CollectorReplicas = 1
+			} else {
+				defaultMonitoring.Spec.CollectorReplicas = 2
+			}
 		}
 	}
 

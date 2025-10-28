@@ -111,8 +111,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.installedComponents."%s" == true`, LegacyComponentName),
-			jq.Match(`.status.components.datasciencepipelines.managementState == "%s"`, operatorv1.Managed),
+			jq.Match(`.status.components.aipipelines.managementState == "%s"`, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionTrue),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.ReadyReason),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Component is ready"`, ReadyConditionType)),
@@ -139,8 +138,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionFalse))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.installedComponents."%s" == true`, LegacyComponentName),
-			jq.Match(`.status.components.datasciencepipelines.managementState == "%s"`, operatorv1.Managed),
+			jq.Match(`.status.components.aipipelines.managementState == "%s"`, operatorv1.Managed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, status.NotReadyReason),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message == "Component is not ready"`, ReadyConditionType)),
@@ -166,8 +164,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.installedComponents."%s" == false`, LegacyComponentName),
-			jq.Match(`.status.components.datasciencepipelines.managementState == "%s"`, operatorv1.Removed),
+			jq.Match(`.status.components.aipipelines.managementState == "%s"`, operatorv1.Removed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, operatorv1.Removed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, ReadyConditionType)),
@@ -193,8 +190,7 @@ func TestUpdateDSCStatus(t *testing.T) {
 		g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
 
 		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-			jq.Match(`.status.installedComponents."%s" == false`, LegacyComponentName),
-			jq.Match(`.status.components.datasciencepipelines.managementState == "%s"`, operatorv1.Removed),
+			jq.Match(`.status.components.aipipelines.managementState == "%s"`, operatorv1.Removed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, ReadyConditionType, metav1.ConditionFalse),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, ReadyConditionType, operatorv1.Removed),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`, ReadyConditionType, common.ConditionSeverityInfo),
@@ -208,8 +204,7 @@ func createDSCWithDataSciencePipelines(managementState operatorv1.ManagementStat
 	dsc.SetGroupVersionKind(gvk.DataScienceCluster)
 	dsc.SetName("test-dsc")
 
-	dsc.Spec.Components.DataSciencePipelines.ManagementState = managementState
-	dsc.Status.InstalledComponents = make(map[string]bool)
+	dsc.Spec.Components.AIPipelines.ManagementState = managementState
 
 	return &dsc
 }

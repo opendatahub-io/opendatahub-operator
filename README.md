@@ -41,14 +41,6 @@ and configure these applications.
 
 ## Usage
 
-### Prerequisites
-If `single model serving configuration` is used or if `Kserve` component is used then please make sure to install the following operators before proceeding to create a DSCI and DSC instances.
- - [Authorino operator](https://github.com/Kuadrant/authorino)
- - [Service Mesh operator](https://github.com/Maistra/istio-operator)
- - [Serverless operator](https://github.com/openshift-knative/serverless-operator)
-
-Additionally installing `Authorino operator` & `Service Mesh operator` enhances user-experience by providing a single sign on experience.
-
 ### Installation
 
 - The latest version of operator can be installed from the `community-operators` catalog on `OperatorHub`.
@@ -308,7 +300,7 @@ Log level can be changed at runtime by DSCI devFlags by setting
 `.spec.devFlags.logLevel`. It accepts the same values as `--zap-log-level` flag or `ZAP_LOG_LEVEL` env variable. See example :
 
 ```console
-apiVersion: dscinitialization.opendatahub.io/v1
+apiVersion: dscinitialization.opendatahub.io/v2
 kind: DSCInitialization
 metadata:
   name: default-dsci
@@ -324,7 +316,7 @@ Below is the default DSCI CR config
 
 ```console
 kind: DSCInitialization
-apiVersion: dscinitialization.opendatahub.io/v1
+apiVersion: dscinitialization.opendatahub.io/v2
 metadata:
   name: default-dsci
 spec:
@@ -347,12 +339,6 @@ spec:
         backend: pv
         size: 5Gi
         retention: 2160h
-  serviceMesh:
-    controlPlane:
-      metricsCollection: Istio
-      name: data-science-smcp
-      namespace: istio-system
-    managementState: Unmanaged
   trustedCABundle:
     customCABundle: ''
     managementState: Managed
@@ -369,7 +355,7 @@ components. At a given time, ODH supports only **one** instance of the CR, which
 1. Enable all components
 
 ```console
-apiVersion: datasciencecluster.opendatahub.io/v1
+apiVersion: datasciencecluster.opendatahub.io/v2
 kind: DataScienceCluster
 metadata:
   name: default-dsc
@@ -377,21 +363,15 @@ spec:
   components:
     dashboard:
       managementState: Managed
-    datasciencepipelines:
+    aipipelines:
       managementState: Managed
     kserve:
       managementState: Managed
       nim:
         managementState: Managed
       rawDeploymentServiceConfig: Headed
-      serving:
-        ingressGateway:
-          certificate:
-            type: OpenshiftDefaultIngress
-        managementState: Unmanaged
-        name: knative-serving
     kueue:
-      managementState: Managed
+      managementState: Unmanaged
     modelregistry:
       managementState: Managed
       registriesNamespace: "odh-model-registries"
@@ -412,7 +392,7 @@ spec:
 2. Enable only Dashboard and Workbenches
 
 ```console
-apiVersion: datasciencecluster.opendatahub.io/v1
+apiVersion: datasciencecluster.opendatahub.io/v2
 kind: DataScienceCluster
 metadata:
   name: example

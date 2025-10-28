@@ -8,7 +8,7 @@ spec:
   components:
     dashboard:
       managementState: "Managed"
-    datasciencepipelines:
+    aipipelines:
       managementState: "Managed"
     kserve: {
       managementState: "Managed",
@@ -16,18 +16,9 @@ spec:
         managementState: "Managed"
       },
       rawDeploymentServiceConfig: "Headed",
-      serving: {
-        ingressGateway: {
-          certificate: {
-            type: OpenshiftDefaultIngress
-          }
-        },
-        name: "knative-serving",
-        managementState: "Unmanaged"
-      }
     }
     kueue:
-      managementState: "Managed"
+      managementState: "Removed"
     trainingoperator:
       managementState: "Managed"
     ray:

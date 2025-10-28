@@ -92,6 +92,7 @@ func createAndWaitForCRD(ctx context.Context, env *envt.EnvT, crd *apiextensions
 func SetupEnvAndClient(
 	t *testing.T,
 	registerWebhooks []envt.RegisterWebhooksFn,
+	registerControllers []envt.RegisterControllersFn,
 	timeout time.Duration,
 ) (context.Context, *envt.EnvT, func()) {
 	t.Helper()
@@ -100,6 +101,7 @@ func SetupEnvAndClient(
 
 	env, err := envt.New(
 		envt.WithRegisterWebhooks(registerWebhooks...),
+		envt.WithRegisterControllers(registerControllers...),
 	)
 	if err != nil {
 		t.Fatalf("failed to start envtest: %v", err)
@@ -145,6 +147,7 @@ func SetupEnvAndClient(
 // Parameters:
 //   - t: The testing.T object for logging and fatal errors.
 //   - registerWebhooks: Functions to register webhooks with the manager.
+//   - registerControllers: Functions to register controllers with the manager.
 //   - timeout: The maximum duration to wait for the server to become ready.
 //   - opts: Setup options to configure which CRDs to register.
 //
@@ -155,13 +158,14 @@ func SetupEnvAndClient(
 func SetupEnvAndClientWithCRDs(
 	t *testing.T,
 	registerWebhooks []envt.RegisterWebhooksFn,
+	registerControllers []envt.RegisterControllersFn,
 	timeout time.Duration,
 	opts ...CRDSetupOption,
 ) (context.Context, *envt.EnvT, func()) {
 	t.Helper()
 
 	// Use the standard envtestutil setup
-	ctx, env, teardown := SetupEnvAndClient(t, registerWebhooks, timeout)
+	ctx, env, teardown := SetupEnvAndClient(t, registerWebhooks, registerControllers, timeout)
 
 	// Register HardwareProfile types (always needed for hardware profile webhook tests)
 	if err := infrav1.AddToScheme(env.Scheme()); err != nil {

@@ -119,7 +119,6 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		componentApi.DataSciencePipelinesComponentName: "data-science-pipelines-operator-controller-manager",
 		componentApi.FeastOperatorComponentName:        "feast-operator-controller-manager",
 		componentApi.KserveComponentName:               "kserve-controller-manager",
-		componentApi.KueueComponentName:                "kueue-controller-manager",
 		componentApi.LlamaStackOperatorComponentName:   "llama-stack-k8s-operator-controller-manager",
 		componentApi.ModelRegistryComponentName:        "model-registry-operator-controller-manager",
 		componentApi.RayComponentName:                  "kuberay-operator",
@@ -140,12 +139,13 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 
 	expectedComponentCount := reflect.TypeOf(dscv2.Components{}).NumField()
 	// TrustyAI is excluded from quota failure testing due to InferenceServices CRD dependency
-	excludedComponents := 1 // TrustyAI
+	// Kueue is excluded because it does not have any deployment to manage anymore
+	excludedComponents := 2 // TrustyAI and Kueue
 	expectedTestableComponents := expectedComponentCount - excludedComponents
 	tc.g.Expect(componentsLength).Should(Equal(expectedTestableComponents),
 		"allComponents list is out of sync with DSC Components struct. "+
 			"Expected %d testable components but found %d. "+
-			"(Total DSC components: %d, Excluded: %d - TrustyAI due to InferenceServices CRD dependency)",
+			"(Total DSC components: %d, Excluded: %d - TrustyAI due to InferenceServices CRD dependency and Kueue because dose not manage any deployment)",
 		expectedTestableComponents, componentsLength, expectedComponentCount, excludedComponents)
 
 	// Ensure clean initial state by disabling all components first
@@ -191,8 +191,8 @@ func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentFailure(t *test
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(
 			jq.Match(
-				`any(.status.conditions[]; 
-            .type == "%s" and .status == "%s" and 
+				`any(.status.conditions[];
+            .type == "%s" and .status == "%s" and
             (.message as $msg | %s | all(.[]; ($msg | contains(.)))))`,
 				status.ConditionTypeComponentsReady,
 				metav1.ConditionFalse,
@@ -260,17 +260,17 @@ func (tc *OperatorResilienceTestCtx) ValidateMissingComponentsCRDHandling(t *tes
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
 		WithCondition(And(
-			jq.Match(`.status.conditions[] 
-			| select(.type == "%s") 
+			jq.Match(`.status.conditions[]
+			| select(.type == "%s")
 			| .status == "%s"`, "Ready", metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] 
-			| select(.type == "%s") 
+			jq.Match(`.status.conditions[]
+			| select(.type == "%s")
 			| .status == "%s"`, "ProvisioningSucceeded", metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] 
-			| select(.type == "%s") 
+			jq.Match(`.status.conditions[]
+			| select(.type == "%s")
 			| .status == "%s"`, "ComponentsReady", metav1.ConditionFalse),
-			jq.Match(`.status.conditions[] 
-			| select(.type == "%s") 
+			jq.Match(`.status.conditions[]
+			| select(.type == "%s")
 			| .status == "%s"`, componentKind+"Ready", metav1.ConditionFalse),
 		)),
 		WithCustomErrorMsg("DSC should be unhealthy due to missing CRD"),
@@ -298,8 +298,13 @@ func (tc *OperatorResilienceTestCtx) ValidateRBACRestrictionHandling(t *testing.
 	// Get the predictable ServiceAccount name based on deployment name
 	deploymentName := tc.getControllerDeploymentName()
 
+	operatorDeployment := tc.FetchResource(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{Namespace: tc.OperatorNamespace, Name: tc.getControllerDeploymentName()}),
+	)
+	tc.g.Expect(operatorDeployment).NotTo(BeNil(), "Operator deployment not found")
+
 	// Find the ClusterRoleBinding that references our ServiceAccount
-	crbBackups, crbNames := tc.findAndBackupAllCRBsForServiceAccount(deploymentName)
+	crbBackups, crbNames := tc.findAndBackupAllCRBsForServiceAccount(operatorDeployment)
 	if len(crbBackups) == 0 {
 		t.Fatalf("No ClusterRoleBinding found for ServiceAccount %s", deploymentName)
 	}
@@ -313,10 +318,9 @@ func (tc *OperatorResilienceTestCtx) ValidateRBACRestrictionHandling(t *testing.
 		tc.DeleteResource(WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{Name: crbName}))
 	}
 
-	// Extract the operator name from deployment name
-	// e.g., "opendatahub-operator-controller-manager" -> "opendatahub-operator"
-	// or "rhods-operator-controller-manager" -> "rhods-operator"
-	operatorName := strings.TrimSuffix(deploymentName, "-controller-manager")
+	// Extract the pods label name from operator deployment labels
+	operatorName, ok := operatorDeployment.GetLabels()["name"]
+	tc.g.Expect(ok).To(BeTrue(), "name not found in operator deployment")
 
 	// Delete the Operator Pods individually (API doesn't support bulk pod deletion)
 	t.Log("Deleting operator Pods to force a restart")
@@ -327,8 +331,7 @@ func (tc *OperatorResilienceTestCtx) ValidateRBACRestrictionHandling(t *testing.
 		WithListOptions(&client.ListOptions{
 			Namespace: tc.OperatorNamespace,
 			LabelSelector: labels.SelectorFromSet(map[string]string{
-				"control-plane": "controller-manager",
-				"name":          operatorName,
+				"name": operatorName,
 			}),
 		}),
 	)
@@ -512,17 +515,26 @@ func (tc *OperatorResilienceTestCtx) deleteZeroPodQuotaForOperator() {
 func updateAllComponentsTransform(components []string, state operatorv1.ManagementState) testf.TransformFn {
 	transformParts := make([]string, len(components))
 	for i, component := range components {
-		transformParts[i] = fmt.Sprintf(`.spec.components.%s.managementState = "%s"`, component, state)
+		// Map datasciencepipelines to aipipelines for v2 API
+		componentFieldName := component
+		if component == dataSciencePipelinesComponentName {
+			componentFieldName = aiPipelinesFieldName
+		}
+		transformParts[i] = fmt.Sprintf(`.spec.components.%s.managementState = "%s"`, componentFieldName, state)
 	}
 
 	return testf.Transform("%s", strings.Join(transformParts, " | "))
 }
 
 // findAndBackupAllCRBsForServiceAccount finds all ClusterRoleBindings referencing the given ServiceAccount and returns backup copies with their names.
-func (tc *OperatorResilienceTestCtx) findAndBackupAllCRBsForServiceAccount(expectedSAName string) ([]*unstructured.Unstructured, []string) {
+func (tc *OperatorResilienceTestCtx) findAndBackupAllCRBsForServiceAccount(operatorDeployment *unstructured.Unstructured) ([]*unstructured.Unstructured, []string) {
 	crbs := tc.FetchResources(
 		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{}),
 	)
+
+	saName, ok, err := unstructured.NestedString(operatorDeployment.Object, "spec", "template", "spec", "serviceAccountName")
+	tc.g.Expect(err).NotTo(HaveOccurred(), "Failed to get serviceAccountName from operator deployment")
+	tc.g.Expect(ok).To(BeTrue(), "serviceAccountName not found in operator deployment")
 
 	var crbBackups []*unstructured.Unstructured
 	var crbNames []string
@@ -550,7 +562,7 @@ func (tc *OperatorResilienceTestCtx) findAndBackupAllCRBsForServiceAccount(expec
 				continue
 			}
 
-			if name, _ := subj["name"].(string); name == expectedSAName {
+			if name, _ := subj["name"].(string); name == saName {
 				crbNames = append(crbNames, obj.GetName())
 				crbBackups = append(crbBackups, resources.StripServerMetadata(&obj))
 				break

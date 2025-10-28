@@ -36,12 +36,11 @@ type Components struct {
 	// Workbenches component configuration.
 	Workbenches componentApi.DSCWorkbenches `json:"workbenches,omitempty"`
 
-	// DataSciencePipeline component configuration.
-	// Requires OpenShift Pipelines Operator to be installed before enable component
-	DataSciencePipelines componentApi.DSCDataSciencePipelines `json:"datasciencepipelines,omitempty"`
+	// AIPipelines component configuration.
+	AIPipelines componentApi.DSCDataSciencePipelines `json:"aipipelines,omitempty"`
 
 	// Kserve component configuration.
-	// Requires OpenShift Serverless and OpenShift Service Mesh Operators to be installed before enable component
+	// Only RawDeployment mode is supported.
 	Kserve componentApi.DSCKserve `json:"kserve,omitempty"`
 
 	// Kueue component configuration.
@@ -74,8 +73,8 @@ type ComponentsStatus struct {
 	// Workbenches component status.
 	Workbenches componentApi.DSCWorkbenchesStatus `json:"workbenches,omitempty"`
 
-	// DataSciencePipeline component status.
-	DataSciencePipelines componentApi.DSCDataSciencePipelinesStatus `json:"datasciencepipelines,omitempty"`
+	// AIPipelines component status.
+	AIPipelines componentApi.DSCDataSciencePipelinesStatus `json:"aipipelines,omitempty"`
 
 	// Kserve component status.
 	Kserve componentApi.DSCKserveStatus `json:"kserve,omitempty"`
@@ -111,9 +110,6 @@ type DataScienceClusterStatus struct {
 	// +optional
 	RelatedObjects []corev1.ObjectReference `json:"relatedObjects,omitempty"`
 	ErrorMessage   string                   `json:"errorMessage,omitempty"`
-
-	// List of components with status if installed or not
-	InstalledComponents map[string]bool `json:"installedComponents,omitempty"`
 
 	// Expose component's specific status
 	// +optional

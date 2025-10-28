@@ -14,7 +14,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
-	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
@@ -34,11 +33,24 @@ func TestRenderTemplate(t *testing.T) {
 	ctx := t.Context()
 	ns := xid.New().String()
 
-	cl, err := fakeclient.New()
+	// Create DSCI for ApplicationNamespace lookup
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: ns,
+		},
+	}
+
+	cl, err := fakeclient.New(fakeclient.WithObjects(dsci))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := template.NewAction(
 		template.WithCache(false),
+		template.WithData(map[string]any{
+			template.AppNamespaceKey: ns,
+		}),
 	)
 
 	render.RenderedResourcesTotal.Reset()
@@ -53,17 +65,6 @@ func TestRenderTemplate(t *testing.T) {
 					Name: ns,
 				},
 			},
-			DSCI: &dsciv2.DSCInitialization{
-				Spec: dsciv2.DSCInitializationSpec{
-					ApplicationsNamespace: ns,
-					ServiceMesh: &infrav1.ServiceMeshSpec{
-						ControlPlane: infrav1.ControlPlaneSpec{
-							Name:      xid.New().String(),
-							Namespace: xid.New().String(),
-						},
-					},
-				},
-			},
 			Release:   common.Release{Name: cluster.OpenDataHub},
 			Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm.tmpl.yaml"}},
 		}
@@ -76,8 +77,6 @@ func TestRenderTemplate(t *testing.T) {
 			HaveLen(1),
 			HaveEach(And(
 				jq.Match(`.metadata.namespace == "%s"`, ns),
-				jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, rr.DSCI.Spec.ServiceMesh.ControlPlane.Namespace),
-				jq.Match(`.spec.controlPlaneRef.name == "%s"`, rr.DSCI.Spec.ServiceMesh.ControlPlane.Name),
 				jq.Match(`.metadata.annotations."instance-name" == "%s"`, rr.Instance.GetName()),
 			)),
 		))
@@ -95,7 +94,17 @@ func TestRenderTemplateWithData(t *testing.T) {
 	id := xid.New().String()
 	name := xid.New().String()
 
-	cl, err := fakeclient.New()
+	// Create DSCI for ApplicationNamespace lookup
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: ns,
+		},
+	}
+
+	cl, err := fakeclient.New(fakeclient.WithObjects(dsci))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := template.NewAction(
@@ -113,6 +122,9 @@ func TestRenderTemplateWithData(t *testing.T) {
 				"UID": rr.Instance.GetUID(),
 			}, nil
 		}),
+		template.WithData(map[string]any{
+			template.AppNamespaceKey: ns,
+		}),
 	)
 
 	rr := types.ReconciliationRequest{
@@ -121,17 +133,6 @@ func TestRenderTemplateWithData(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: ns,
 				UID:  apytypes.UID(xid.New().String()),
-			},
-		},
-		DSCI: &dsciv2.DSCInitialization{
-			Spec: dsciv2.DSCInitializationSpec{
-				ApplicationsNamespace: ns,
-				ServiceMesh: &infrav1.ServiceMeshSpec{
-					ControlPlane: infrav1.ControlPlaneSpec{
-						Name:      xid.New().String(),
-						Namespace: xid.New().String(),
-					},
-				},
 			},
 		},
 		Release:   common.Release{Name: cluster.OpenDataHub},
@@ -146,8 +147,6 @@ func TestRenderTemplateWithData(t *testing.T) {
 		HaveEach(And(
 			jq.Match(`.metadata.name == "%s"`, name),
 			jq.Match(`.metadata.namespace == "%s"`, ns),
-			jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, rr.DSCI.Spec.ServiceMesh.ControlPlane.Namespace),
-			jq.Match(`.spec.controlPlaneRef.name == "%s"`, rr.DSCI.Spec.ServiceMesh.ControlPlane.Name),
 			jq.Match(`.metadata.annotations."instance-name" == "%s"`, rr.Instance.GetName()),
 			jq.Match(`.metadata.annotations."instance-id" == "%s"`, id),
 			jq.Match(`.metadata.annotations."instance-uid" == "%s"`, rr.Instance.GetUID()),
@@ -179,7 +178,6 @@ func TestRenderTemplateWithDataErr(t *testing.T) {
 				Name: ns,
 			},
 		},
-		DSCI:      &dsciv2.DSCInitialization{},
 		Release:   common.Release{Name: cluster.OpenDataHub},
 		Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm-data.tmpl.yaml"}},
 	}
@@ -195,24 +193,26 @@ func TestRenderTemplateWithCache(t *testing.T) {
 	ctx := t.Context()
 	ns := xid.New().String()
 
-	cl, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	action := template.NewAction()
-
-	render.RenderedResourcesTotal.Reset()
-
-	dsci := dsciv2.DSCInitialization{
+	// Create DSCI for ApplicationNamespace lookup
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
+		},
 		Spec: dsciv2.DSCInitializationSpec{
 			ApplicationsNamespace: ns,
-			ServiceMesh: &infrav1.ServiceMeshSpec{
-				ControlPlane: infrav1.ControlPlaneSpec{
-					Name:      xid.New().String(),
-					Namespace: xid.New().String(),
-				},
-			},
 		},
 	}
+
+	cl, err := fakeclient.New(fakeclient.WithObjects(dsci))
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	action := template.NewAction(
+		template.WithData(map[string]any{
+			template.AppNamespaceKey: ns,
+		}),
+	)
+
+	render.RenderedResourcesTotal.Reset()
 
 	for i := range 3 {
 		d := componentApi.Dashboard{
@@ -228,7 +228,6 @@ func TestRenderTemplateWithCache(t *testing.T) {
 		rr := types.ReconciliationRequest{
 			Client:    cl,
 			Instance:  &d,
-			DSCI:      &dsci,
 			Release:   common.Release{Name: cluster.OpenDataHub},
 			Templates: []types.TemplateInfo{{FS: testFS, Path: "resources/smm.tmpl.yaml"}},
 		}
@@ -240,8 +239,6 @@ func TestRenderTemplateWithCache(t *testing.T) {
 			HaveLen(1),
 			HaveEach(And(
 				jq.Match(`.metadata.namespace == "%s"`, ns),
-				jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, rr.DSCI.Spec.ServiceMesh.ControlPlane.Namespace),
-				jq.Match(`.spec.controlPlaneRef.name == "%s"`, rr.DSCI.Spec.ServiceMesh.ControlPlane.Name),
 				jq.Match(`.metadata.annotations."instance-name" == "%s"`, rr.Instance.GetName()),
 			)),
 		))
@@ -269,11 +266,24 @@ func TestRenderTemplateWithGlob(t *testing.T) {
 	ns := xid.New().String()
 	id := xid.New().String()
 
-	cl, err := fakeclient.New()
+	// Create DSCI for ApplicationNamespace lookup
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: ns,
+		},
+	}
+
+	cl, err := fakeclient.New(fakeclient.WithObjects(dsci))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := template.NewAction(
 		template.WithCache(false),
+		template.WithData(map[string]any{
+			template.AppNamespaceKey: ns,
+		}),
 	)
 
 	rrRef := types.ReconciliationRequest{
@@ -281,11 +291,6 @@ func TestRenderTemplateWithGlob(t *testing.T) {
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: id,
-			},
-		},
-		DSCI: &dsciv2.DSCInitialization{
-			Spec: dsciv2.DSCInitializationSpec{
-				ApplicationsNamespace: ns,
 			},
 		},
 		Release: common.Release{Name: cluster.OpenDataHub},
@@ -303,9 +308,9 @@ func TestRenderTemplateWithGlob(t *testing.T) {
 		g.Expect(rr.Resources).Should(And(
 			HaveLen(2),
 			HaveEach(And(
-				jq.Match(`.metadata.namespace == "%s"`, rr.DSCI.Spec.ApplicationsNamespace),
-				jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, rr.DSCI.Spec.ApplicationsNamespace),
-				jq.Match(`.spec.controlPlaneRef.name == "%s"`, rr.Instance.GetName()),
+				jq.Match(`.metadata.namespace == "%s"`, ns),
+				jq.Match(`.data."app-namespace" == "%s"`, ns),
+				jq.Match(`.data."component-name" == "%s"`, rr.Instance.GetName()),
 			)),
 		))
 	})
@@ -322,9 +327,9 @@ func TestRenderTemplateWithGlob(t *testing.T) {
 		g.Expect(rr.Resources).Should(And(
 			HaveLen(1),
 			HaveEach(And(
-				jq.Match(`.metadata.namespace == "%s"`, rr.DSCI.Spec.ApplicationsNamespace),
-				jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, rr.DSCI.Spec.ApplicationsNamespace),
-				jq.Match(`.spec.controlPlaneRef.name == "%s"`, rr.Instance.GetName()),
+				jq.Match(`.metadata.namespace == "%s"`, ns),
+				jq.Match(`.data."app-namespace" == "%s"`, ns),
+				jq.Match(`.data."component-name" == "%s"`, rr.Instance.GetName()),
 			)),
 		))
 	})
@@ -337,7 +342,17 @@ func TestRenderTemplateWithCustomInfo(t *testing.T) {
 	ns := xid.New().String()
 	id := xid.New().String()
 
-	cl, err := fakeclient.New()
+	// Create DSCI for ApplicationNamespace lookup
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: ns,
+		},
+	}
+
+	cl, err := fakeclient.New(fakeclient.WithObjects(dsci))
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	action := template.NewAction(
@@ -348,6 +363,9 @@ func TestRenderTemplateWithCustomInfo(t *testing.T) {
 		template.WithAnnotation("annotation-foo", "foo-annotation"),
 		template.WithAnnotations(map[string]string{"annotations-foo": "foo-annotations"}),
 		template.WithAnnotation("annotation-override", "foo-override"),
+		template.WithData(map[string]any{
+			template.AppNamespaceKey: ns,
+		}),
 	)
 
 	rr := types.ReconciliationRequest{
@@ -355,11 +373,6 @@ func TestRenderTemplateWithCustomInfo(t *testing.T) {
 		Instance: &componentApi.Dashboard{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: id,
-			},
-		},
-		DSCI: &dsciv2.DSCInitialization{
-			Spec: dsciv2.DSCInitializationSpec{
-				ApplicationsNamespace: ns,
 			},
 		},
 		Release: common.Release{Name: cluster.OpenDataHub},
@@ -387,9 +400,9 @@ func TestRenderTemplateWithCustomInfo(t *testing.T) {
 	g.Expect(rr.Resources).Should(And(
 		HaveLen(2),
 		HaveEach(And(
-			jq.Match(`.metadata.namespace == "%s"`, rr.DSCI.Spec.ApplicationsNamespace),
-			jq.Match(`.spec.controlPlaneRef.namespace == "%s"`, rr.DSCI.Spec.ApplicationsNamespace),
-			jq.Match(`.spec.controlPlaneRef.name == "%s"`, rr.Instance.GetName()),
+			jq.Match(`.metadata.namespace == "%s"`, ns),
+			jq.Match(`.data."app-namespace" == "%s"`, ns),
+			jq.Match(`.data."component-name" == "%s"`, rr.Instance.GetName()),
 			jq.Match(`.metadata.labels."label-foo" == "foo-label"`),
 			jq.Match(`.metadata.labels."labels-foo" == "foo-labels"`),
 			jq.Match(`.metadata.labels | has("label-override")`),

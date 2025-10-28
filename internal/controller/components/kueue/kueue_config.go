@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -21,19 +22,18 @@ import (
 
 var (
 	frameworkMapping = map[string]string{
-		"pod":                                      "Pod",
-		"deployment":                               "Deployment",
-		"statefulset":                              "StatefulSet",
-		"batch/job":                                "BatchJob",
-		"ray.io/rayjob":                            "RayJob",
-		"ray.io/raycluster":                        "RayCluster",
-		"jobset.x-k8s.io/jobset":                   "JobSet",
-		"kubeflow.org/mpijob":                      "MPIJob",
-		"kubeflow.org/paddlejob":                   "PaddleJob",
-		"kubeflow.org/pytorchjob":                  "PyTorchJob",
-		"kubeflow.org/tfjob":                       "TFJob",
-		"kubeflow.org/xgboostjob":                  "XGBoostJob",
-		"workload.codeflare.dev/appwrapper":        "AppWrapper",
+		"pod":                     "Pod",
+		"deployment":              "Deployment",
+		"statefulset":             "StatefulSet",
+		"batch/job":               "BatchJob",
+		"ray.io/rayjob":           "RayJob",
+		"ray.io/raycluster":       "RayCluster",
+		"jobset.x-k8s.io/jobset":  "JobSet",
+		"kubeflow.org/mpijob":     "MPIJob",
+		"kubeflow.org/paddlejob":  "PaddleJob",
+		"kubeflow.org/pytorchjob": "PyTorchJob",
+		"kubeflow.org/tfjob":      "TFJob",
+		"kubeflow.org/xgboostjob": "XGBoostJob",
 		"leaderworkerset.x-k8s.io/leaderworkerset": "LeaderWorkerSet",
 	}
 )
@@ -42,9 +42,15 @@ func lookupKueueManagerConfig(ctx context.Context, rr *odhtypes.ReconciliationRe
 	cm := corev1.ConfigMap{}
 	config := map[string]any{}
 
-	err := rr.Client.Get(
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return nil, err
+	}
+
+	err = rr.Client.Get(
 		ctx,
-		client.ObjectKey{Name: KueueConfigMapName, Namespace: rr.DSCI.Spec.ApplicationsNamespace},
+		client.ObjectKey{Name: KueueConfigMapName, Namespace: appNamespace},
 		&cm,
 	)
 

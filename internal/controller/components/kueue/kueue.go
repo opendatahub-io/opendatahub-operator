@@ -3,7 +3,6 @@ package kueue
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
@@ -19,7 +18,6 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
-	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
@@ -30,7 +28,7 @@ const (
 )
 
 var (
-	ErrKueueOperatorAlreadyInstalled = odherrors.NewStopError(status.KueueOperatorAlreadyInstalledMessage)
+	ErrKueueStateManagedNotSupported = odherrors.NewStopError(status.KueueStateManagedNotSupportedMessage)
 	ErrKueueOperatorNotInstalled     = odherrors.NewStopError(status.KueueOperatorNotInstalledMessage)
 )
 
@@ -65,10 +63,6 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {
-	if err := odhdeploy.ApplyParams(manifestsPath().String(), "params.env", imageParamMap); err != nil {
-		return fmt.Errorf("failed to update images on path %s: %w", manifestsPath(), err)
-	}
-
 	return nil
 }
 
@@ -100,14 +94,12 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	ms := components.NormalizeManagementState(dsc.Spec.Components.Kueue.ManagementState)
 
-	dsc.Status.InstalledComponents[LegacyComponentName] = false
 	dsc.Status.Components.Kueue.ManagementState = ms
 	dsc.Status.Components.Kueue.KueueCommonStatus = nil
 
 	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	if s.IsEnabled(dsc) {
-		dsc.Status.InstalledComponents[LegacyComponentName] = true
 		dsc.Status.Components.Kueue.KueueCommonStatus = c.Status.KueueCommonStatus.DeepCopy()
 
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {

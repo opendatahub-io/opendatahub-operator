@@ -73,7 +73,7 @@ spec:
           # Kube-auth-proxy image configuration
           # For RHOAI: Overridden by CSV. For ODH: Uses jtanner's public image
           - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
-            value: "quay.io/jtanner/kube-auth-proxy:latest"
+            value: quay.io/opendatahub/odh-kube-auth-proxy:latest
         args:
         - --leader-elect
         - --operator-name=opendatahub

@@ -27,6 +27,8 @@ const (
 	// value should match whats set in the XValidation below
 	DataSciencePipelinesInstanceName = "default-" + DataSciencePipelinesComponentName
 	DataSciencePipelinesKind         = "DataSciencePipelines"
+	// AIPipelinesKind is the user-facing name for DataSciencePipelines in v2
+	AIPipelinesKind = "AIPipelines"
 )
 
 // Check that the component implements common.PlatformObject.
