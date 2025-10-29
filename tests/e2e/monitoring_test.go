@@ -1027,7 +1027,7 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierDeployment(t *testing.T) {
 
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
-		withMetricsConfig(),
+		tc.withMetricsConfig(),
 	)
 
 	tc.EnsureResourceExists(
