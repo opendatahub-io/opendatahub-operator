@@ -5,6 +5,7 @@ import (
 
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/resourcecacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -73,13 +74,19 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 	return a.cacher.Render(ctx, rr, a.render)
 }
 
-func (a *Action) render(_ context.Context, rr *types.ReconciliationRequest) (resources.UnstructuredList, error) {
+func (a *Action) render(ctx context.Context, rr *types.ReconciliationRequest) (resources.UnstructuredList, error) {
 	result := make(resources.UnstructuredList, 0)
+
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return nil, err
+	}
 
 	for i := range rr.Manifests {
 		renderedResources, err := a.ke.Render(
 			rr.Manifests[i].String(),
-			kustomize.WithNamespace(rr.DSCI.Spec.ApplicationsNamespace),
+			kustomize.WithNamespace(appNamespace),
 		)
 
 		if err != nil {

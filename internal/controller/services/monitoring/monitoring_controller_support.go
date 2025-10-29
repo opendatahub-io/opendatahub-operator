@@ -29,10 +29,12 @@ import (
 )
 
 const (
-	// Dependent operators names. match the one in the operatorcondition..
-	opentelemetryOperator        = "opentelemetry-operator"
+	// Dependent operator package names used to detect if operators are installed via OLM Subscriptions.
+	// These values match the subscription package name (spec.name field in subscription YAML).
+	// Updated for OLMv1 compatibility (no longer using OperatorConditions).
+	opentelemetryOperator        = "opentelemetry-product"
 	clusterObservabilityOperator = "cluster-observability-operator"
-	tempoOperator                = "tempo-operator"
+	tempoOperator                = "tempo-product"
 
 	defaultCPULimit      = "500m"
 	defaultMemoryLimit   = "512Mi"
@@ -222,12 +224,18 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		return nil, errors.New("instance is not of type services.Monitoring")
 	}
 
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return nil, err
+	}
+
 	templateData := map[string]any{
 		"Namespace":            monitoring.Spec.Namespace,
 		"Traces":               monitoring.Spec.Traces != nil,
 		"Metrics":              monitoring.Spec.Metrics != nil,
 		"AcceleratorMetrics":   monitoring.Spec.Metrics != nil,
-		"ApplicationNamespace": rr.DSCI.Spec.ApplicationsNamespace,
+		"ApplicationNamespace": appNamespace,
 		"MetricsExporters":     make(map[string]string),
 		"MetricsExporterNames": []string{},
 	}
@@ -333,10 +341,20 @@ func addPrometheusRules(componentName string, rr *odhtypes.ReconciliationRequest
 // if a component is disabled, we need to delete the prometheus rules. If the DSCI is deleted
 // the rules will be gc'd automatically.
 func cleanupPrometheusRules(ctx context.Context, componentName string, rr *odhtypes.ReconciliationRequest) error {
+	// Fetch monitoring namespace from DSCI
+	monitoringNamespace, err := cluster.MonitoringNamespace(ctx, rr.Client)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			// No DSCI means no monitoring namespace configured, nothing to clean up
+			return nil
+		}
+		return err
+	}
+
 	pr := &unstructured.Unstructured{}
 	pr.SetGroupVersionKind(gvk.PrometheusRule)
 	pr.SetName(fmt.Sprintf("%s-prometheusrules", componentName))
-	pr.SetNamespace(rr.DSCI.Spec.Monitoring.Namespace)
+	pr.SetNamespace(monitoringNamespace)
 
 	if err := rr.Client.Delete(ctx, pr); err != nil {
 		if k8serr.IsNotFound(err) {

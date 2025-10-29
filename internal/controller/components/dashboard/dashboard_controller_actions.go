@@ -84,52 +84,25 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	return nil
 }
 
-// resourceExists checks if a resource with the same Group/Version/Kind/Namespace/Name
-// already exists in the ReconciliationRequest's Resources slice.
-func resourceExists(resources []unstructured.Unstructured, candidate client.Object) bool {
-	if candidate == nil {
-		return false
-	}
-
-	candidateName := candidate.GetName()
-	candidateNamespace := candidate.GetNamespace()
-	candidateGVK := candidate.GetObjectKind().GroupVersionKind()
-
-	for _, existing := range resources {
-		if existing.GetName() == candidateName &&
-			existing.GetNamespace() == candidateNamespace &&
-			existing.GroupVersionKind() == candidateGVK {
-			return true
-		}
-	}
-
-	return false
-}
-
-func ConfigureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if rr.Release.Name == cluster.OpenDataHub {
 		return nil
 	}
 
-	// Check for nil client before proceeding
-	if rr.Client == nil {
-		return errors.New("client cannot be nil")
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return err
 	}
 
-	// Check for nil DSCI before accessing its properties
-	if rr.DSCI == nil {
-		return errors.New("DSCI cannot be nil")
-	}
-
-	// Create the anaconda secret resource
-	anacondaSecret := &corev1.Secret{
+	err = rr.AddResources(&corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      AnacondaSecretName,
-			Namespace: rr.DSCI.Spec.ApplicationsNamespace,
+			Name:      "anaconda-ce-access",
+			Namespace: appNamespace,
 		},
 		Type: corev1.SecretTypeOpaque,
 	}
@@ -169,12 +142,18 @@ func UpdateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		return errors.New("instance is not of type *componentApi.Dashboard")
 	}
 
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return err
+	}
+
 	// url
 	rl := routev1.RouteList{}
-	err := rr.Client.List(
+	err = rr.Client.List(
 		ctx,
 		&rl,
-		client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace),
+		client.InNamespace(appNamespace),
 		client.MatchingLabels(map[string]string{
 			labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
 		}),
