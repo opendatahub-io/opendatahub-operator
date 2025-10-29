@@ -233,7 +233,7 @@ lint-fix: golangci-lint ## Run golangci-lint against code.
 .PHONY: kube-lint
 kube-lint: prepare ## Run kube-linter against rendered manifests.
 	@TMP_FILE=$$(mktemp /tmp/kube-lint.XXXXXX.yaml) && \
-	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/manifests > $$TMP_FILE && \
+	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone $(CONFIG_DIR)/manifests > $$TMP_FILE && \
 	go run golang.stackrox.io/kube-linter/cmd/kube-linter@$(KUBE_LINTER_VERSION) lint --config .kube-linter.yaml $$TMP_FILE && \
 	rm -f $$TMP_FILE
 
