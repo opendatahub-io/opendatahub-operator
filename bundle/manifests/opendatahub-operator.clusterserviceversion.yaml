@@ -1473,6 +1473,8 @@ spec:
                   readOnly: true
               securityContext:
                 runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
               serviceAccountName: opendatahub-operator-controller-manager
               terminationGracePeriodSeconds: 10
               volumes:
