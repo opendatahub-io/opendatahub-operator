@@ -220,7 +220,6 @@ func setupNilClientRR(t *testing.T) *odhtypes.ReconciliationRequest {
 	return &odhtypes.ReconciliationRequest{
 		Client:   nil,
 		Instance: &dscv1.DataScienceCluster{},
-		DSCI:     createDSCIV2WithNamespace(TestNamespace),
 	}
 }
 
@@ -255,7 +254,6 @@ func setupDashboardExistsRR(t *testing.T) *odhtypes.ReconciliationRequest {
 	return &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
-		DSCI:       createDSCIV2WithNamespace(TestNamespace),
 		Conditions: &conditions.Manager{},
 	}
 }
@@ -269,7 +267,6 @@ func setupDashboardNotExistsRR(t *testing.T) *odhtypes.ReconciliationRequest {
 	return &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
-		DSCI:       createDSCIV2WithNamespace(TestNamespace),
 		Conditions: &conditions.Manager{},
 	}
 }
@@ -283,7 +280,6 @@ func setupDashboardDisabledRR(t *testing.T) *odhtypes.ReconciliationRequest {
 	return &odhtypes.ReconciliationRequest{
 		Client:     cli,
 		Instance:   dsc,
-		DSCI:       createDSCIV2WithNamespace(TestNamespace),
 		Conditions: &conditions.Manager{},
 	}
 }

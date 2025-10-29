@@ -56,7 +56,8 @@ func (f *MockManager) GetConfig() *rest.Config        { return &rest.Config{} }
 
 func (f *MockManager) GetFieldIndexer() client.FieldIndexer { return nil } //nolint:ireturn
 
-func (f *MockManager) GetEventRecorderFor(name string) record.EventRecorder { return nil } //nolint:ireturn
+//nolint:ireturn
+func (f *MockManager) GetEventRecorderFor(name string) record.EventRecorder { return nil }
 
 //nolint:ireturn
 func (f *MockManager) GetCache() cache.Cache                                    { return nil }

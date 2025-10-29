@@ -23,12 +23,14 @@ const resourcesNotEmptyMsg = "Resources slice should not be empty"
 // createTestRR creates a reconciliation request with the specified namespace.
 func createTestRR(namespace string) func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
 	return func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
+		// Create DSCI resource
+		dsci := CreateTestDSCI(namespace)
+		_ = cli.Create(ctx, dsci) // Ignore error - test will catch it later if needed
+
 		dashboardInstance := CreateTestDashboard()
-		dsci := createDSCIV2WithNamespace(namespace)
 		return &odhtypes.ReconciliationRequest{
 			Client:   cli,
 			Instance: dashboardInstance,
-			DSCI:     dsci,
 			Release:  common.Release{Name: cluster.SelfManagedRhoai},
 		}
 	}
@@ -48,8 +50,7 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 			name: "OpenDataHub",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
 				dashboardInstance := CreateTestDashboard()
-				dsci := createDSCIV2WithNamespace(TestNamespace)
-				return CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.OpenDataHub})
+				return CreateTestReconciliationRequest(cli, dashboardInstance, common.Release{Name: cluster.OpenDataHub})
 			},
 			expectError: false,
 			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
@@ -61,9 +62,12 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 		{
 			name: "SelfManagedRhoai",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
+				// Create DSCI resource
+				dsci := CreateTestDSCI(TestNamespace)
+				_ = cli.Create(ctx, dsci) // Ignore error - test will catch it later if needed
+
 				dashboardInstance := CreateTestDashboard()
-				dsci := createDSCIV2WithNamespace(TestNamespace)
-				return CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.SelfManagedRhoai})
+				return CreateTestReconciliationRequest(cli, dashboardInstance, common.Release{Name: cluster.SelfManagedRhoai})
 			},
 			expectError: false,
 			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
@@ -79,12 +83,14 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 		{
 			name: "ManagedRhoai",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
+				// Create DSCI resource
+				dsci := CreateTestDSCI(TestNamespace)
+				_ = cli.Create(ctx, dsci) // Ignore error - test will catch it later if needed
+
 				dashboardInstance := CreateTestDashboard()
-				dsci := createDSCIV2WithNamespace(TestNamespace)
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
 					Instance: dashboardInstance,
-					DSCI:     dsci,
 					Release:  common.Release{Name: cluster.ManagedRhoai},
 				}
 			},
@@ -115,9 +121,12 @@ func TestConfigureDependenciesBasicCases(t *testing.T) {
 		{
 			name: "SecretProperties",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
+				// Create DSCI resource
+				dsci := CreateTestDSCI(TestNamespace)
+				_ = cli.Create(ctx, dsci) // Ignore error - test will catch it later if needed
+
 				dashboardInstance := CreateTestDashboard()
-				dsci := createDSCIV2WithNamespace(TestNamespace)
-				return CreateTestReconciliationRequest(cli, dashboardInstance, dsci, common.Release{Name: cluster.SelfManagedRhoai})
+				return CreateTestReconciliationRequest(cli, dashboardInstance, common.Release{Name: cluster.SelfManagedRhoai})
 			},
 			expectError: false,
 			validateResult: func(t *testing.T, rr *odhtypes.ReconciliationRequest) {
@@ -157,12 +166,11 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
 					Instance: dashboardInstance,
-					DSCI:     nil, // Nil DSCI
 					Release:  common.Release{Name: cluster.SelfManagedRhoai},
 				}
 			},
 			expectError:   true,
-			errorContains: "DSCI cannot be nil",
+			errorContains: "DSCI not found",
 		},
 		{
 			name:          "SpecialCharactersInNamespace",
@@ -180,13 +188,14 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 		{
 			name: "LongNamespace",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
+				// Create DSCI resource
+				dsci := CreateTestDSCI(strings.Repeat("a", 1000))
+				_ = cli.Create(ctx, dsci) // Ignore error - test will catch it later if needed
+
 				dashboardInstance := CreateTestDashboard()
-				longNamespace := strings.Repeat("a", 1000)
-				dsci := createDSCIV2WithNamespace(longNamespace)
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
 					Instance: dashboardInstance,
-					DSCI:     dsci,
 					Release:  common.Release{Name: cluster.SelfManagedRhoai},
 				}
 			},
@@ -205,11 +214,9 @@ func TestConfigureDependenciesErrorCases(t *testing.T) {
 			name: "NilClient",
 			setupRR: func(cli client.Client, ctx context.Context) *odhtypes.ReconciliationRequest {
 				dashboardInstance := CreateTestDashboard()
-				dsci := createDSCIV2WithNamespace(TestNamespace)
 				return &odhtypes.ReconciliationRequest{
 					Client:   nil, // Nil client
 					Instance: dashboardInstance,
-					DSCI:     dsci,
 					Release:  common.Release{Name: cluster.SelfManagedRhoai},
 				}
 			},

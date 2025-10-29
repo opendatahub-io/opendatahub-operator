@@ -25,14 +25,11 @@ func TestInitialize(t *testing.T) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	dsci := createDSCIV2()
-
 	// Test success case
 	t.Run("success", func(t *testing.T) {
 		rr := &odhtypes.ReconciliationRequest{
 			Client:   cli,
 			Instance: CreateTestDashboard(),
-			DSCI:     dsci,
 			Release:  common.Release{Name: cluster.OpenDataHub},
 		}
 
@@ -55,7 +52,6 @@ func TestInitialize(t *testing.T) {
 				return &odhtypes.ReconciliationRequest{
 					Client:   nil,
 					Instance: CreateTestDashboard(),
-					DSCI:     dsci,
 					Release:  common.Release{Name: cluster.OpenDataHub},
 				}
 			},
@@ -68,7 +64,6 @@ func TestInitialize(t *testing.T) {
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
 					Instance: CreateTestDashboard(),
-					DSCI:     nil,
 					Release:  common.Release{Name: cluster.OpenDataHub},
 				}
 			},
@@ -83,7 +78,6 @@ func TestInitialize(t *testing.T) {
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
 					Instance: invalidInstance,
-					DSCI:     dsci,
 					Release:  common.Release{Name: cluster.OpenDataHub},
 				}
 			},

@@ -84,9 +84,14 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	return nil
 }
 
-func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func ConfigureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if rr.Release.Name == cluster.OpenDataHub {
 		return nil
+	}
+
+	// Check for nil client
+	if rr.Client == nil {
+		return errors.New("client cannot be nil")
 	}
 
 	// Fetch application namespace from DSCI.
@@ -95,7 +100,7 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return err
 	}
 
-	err = rr.AddResources(&corev1.Secret{
+	anacondaSecret := &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
 			Kind:       "Secret",
@@ -112,7 +117,7 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return nil
 	}
 
-	err := rr.AddResources(anacondaSecret)
+	err = rr.AddResources(anacondaSecret)
 	if err != nil {
 		return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 	}
@@ -133,8 +138,8 @@ func UpdateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		return errors.New("client is nil")
 	}
 
-	if rr.DSCI == nil {
-		return errors.New("DSCI is nil")
+	if rr.Instance == nil {
+		return errors.New("instance is nil")
 	}
 
 	d, ok := rr.Instance.(*componentApi.Dashboard)
@@ -330,4 +335,25 @@ func CustomizeResources(ctx context.Context, rr *odhtypes.ReconciliationRequest)
 	}
 
 	return nil
+}
+
+// resourceExists checks if a resource with the same name, namespace, and kind already exists in the Resources slice.
+func resourceExists(resources []unstructured.Unstructured, obj client.Object) bool {
+	if obj == nil {
+		return false
+	}
+
+	objName := obj.GetName()
+	objNamespace := obj.GetNamespace()
+	objKind := obj.GetObjectKind().GroupVersionKind().Kind
+
+	for _, resource := range resources {
+		if resource.GetName() == objName &&
+			resource.GetNamespace() == objNamespace &&
+			resource.GetKind() == objKind {
+			return true
+		}
+	}
+
+	return false
 }

@@ -42,13 +42,16 @@ func TestUpdateStatusNoRoutes(t *testing.T) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
+	// Create DSCI resource
+	dsci := CreateTestDSCI(TestNamespace)
+	err = cli.Create(ctx, dsci)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
 	dashboardInstance := CreateTestDashboard()
-	dsci := createDSCIV2()
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   cli,
 		Instance: dashboardInstance,
-		DSCI:     dsci,
 	}
 
 	err = dashboard.UpdateStatus(ctx, rr)
@@ -63,8 +66,12 @@ func TestUpdateStatusWithRoute(t *testing.T) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
+	// Create DSCI resource
+	dsci := CreateTestDSCI(TestNamespace)
+	err = cli.Create(ctx, dsci)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
 	dashboardInstance := CreateTestDashboard()
-	dsci := createDSCIV2()
 
 	// Create a route with the expected label
 	route := createRoute("odh-dashboard", TestRouteHost, true)
@@ -75,7 +82,6 @@ func TestUpdateStatusWithRoute(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   cli,
 		Instance: dashboardInstance,
-		DSCI:     dsci,
 	}
 
 	err = dashboard.UpdateStatus(ctx, rr)
@@ -93,7 +99,6 @@ func TestUpdateStatusInvalidInstance(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   cli,
 		Instance: &componentApi.Kserve{}, // Wrong type
-		DSCI:     createDSCIV2(),
 	}
 
 	err = dashboard.UpdateStatus(ctx, rr)
@@ -106,6 +111,11 @@ func TestUpdateStatusWithMultipleRoutes(t *testing.T) {
 	g := NewWithT(t)
 
 	cli, err := fakeclient.New()
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Create DSCI resource
+	dsci := CreateTestDSCI(TestNamespace)
+	err = cli.Create(ctx, dsci)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Create multiple routes with the same label
@@ -124,12 +134,10 @@ func TestUpdateStatusWithMultipleRoutes(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	dashboardInstance := CreateTestDashboard()
-	dsci := createDSCIV2()
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   cli,
 		Instance: dashboardInstance,
-		DSCI:     dsci,
 	}
 
 	// When there are multiple routes, the URL should be empty
@@ -145,6 +153,11 @@ func TestUpdateStatusWithRouteNoIngress(t *testing.T) {
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
+	// Create DSCI resource
+	dsci := CreateTestDSCI(TestNamespace)
+	err = cli.Create(ctx, dsci)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
 	// Create a route without ingress status
 	route := createRouteWithLabels("odh-dashboard", "odh-dashboard-test-namespace.apps.example.com", false, map[string]string{
 		labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
@@ -154,12 +167,10 @@ func TestUpdateStatusWithRouteNoIngress(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	dashboardInstance := CreateTestDashboard()
-	dsci := createDSCIV2()
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   cli,
 		Instance: dashboardInstance,
-		DSCI:     dsci,
 	}
 
 	err = dashboard.UpdateStatus(ctx, rr)
@@ -175,6 +186,11 @@ func TestUpdateStatusListError(t *testing.T) {
 	baseCli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
+	// Create DSCI resource
+	dsci := CreateTestDSCI(TestNamespace)
+	err = baseCli.Create(ctx, dsci)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
 	// Inject a List error for Route objects to simulate a failing route list operation
 	mockCli := &mockClient{
 		Client:    baseCli,
@@ -182,12 +198,10 @@ func TestUpdateStatusListError(t *testing.T) {
 	}
 
 	dashboardInstance := CreateTestDashboard()
-	dsci := createDSCIV2()
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   mockCli,
 		Instance: dashboardInstance,
-		DSCI:     dsci,
 	}
 
 	// Test the case where list fails
