@@ -57,6 +57,7 @@ func operatorResilienceTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Validate operator deployment health", resilienceTestCtx.ValidateOperatorDeployment},
 		{"Validate leader election behavior", resilienceTestCtx.ValidateLeaderElectionBehavior},
+		{"Validate components deployment success", resilienceTestCtx.ValidateComponentsDeploymentSuccess},
 		{"Validate components deployment failure", resilienceTestCtx.ValidateComponentsDeploymentFailure},
 		{"Validate missing CRD handling", resilienceTestCtx.ValidateMissingComponentsCRDHandling},
 		{"Validate RBAC restriction handling", resilienceTestCtx.ValidateRBACRestrictionHandling},
@@ -107,6 +108,21 @@ func (tc *OperatorResilienceTestCtx) ValidateLeaderElectionBehavior(t *testing.T
 	// Ensure system still works
 	tc.validateDeploymentHealth(t)
 	tc.validateSystemHealth(t)
+}
+
+func (tc *OperatorResilienceTestCtx) ValidateComponentsDeploymentSuccess(t *testing.T) {
+	t.Helper()
+
+	componentName := componentApi.DashboardComponentName
+
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentName, operatorv1.Managed)),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeComponentsReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, metav1.ConditionTrue),
+		)),
+	)
 }
 
 // ValidateComponentsDeploymentFailure simulates component deployment failure using restrictive resource quota.

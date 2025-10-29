@@ -692,7 +692,10 @@ func (tc *MonitoringTestCtx) ensureMonitoringCleanSlate(t *testing.T, secretName
 	tc.resetMonitoringConfigToRemoved()
 
 	// Wait for all monitoring resources to be cleaned up
-	tc.EnsureResourcesGone(WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}))
+	tc.EnsureResourcesGone(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithWaitForDeletion(true),
+	)
 
 	// Clean up TempoStack and associated secret (if provided)
 	tc.cleanupTempoStackAndSecret(secretName)
@@ -1101,11 +1104,11 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *t
 		WithCustomErrorMsg("ThanosQuerier condition should be False with reason MetricsNotConfigured when metrics are not configured"),
 	)
 
-	tc.EnsureResourceDoesNotExist(
+	tc.EnsureResourceGone(
 		WithMinimalObject(gvk.ThanosQuerier, types.NamespacedName{Name: ThanosQuerierName, Namespace: tc.MonitoringNamespace}),
 	)
 
-	tc.EnsureResourceDoesNotExist(
+	tc.EnsureResourceGone(
 		WithMinimalObject(gvk.Route, types.NamespacedName{Name: ThanosQuerierRouteName, Namespace: tc.MonitoringNamespace}),
 	)
 
