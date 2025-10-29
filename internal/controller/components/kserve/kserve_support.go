@@ -45,14 +45,11 @@ func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 }
 
 func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool) error {
-	deployData, err := getDeployConfig(inferenceServiceConfigMap)
-	if err != nil {
-		return err
-	}
-
 	// deploy
 	// RawDeployment mode is the only supported mode
-	deployData.DefaultDeploymentMode = "RawDeployment"
+	deployData := map[string]interface{}{
+		"defaultDeploymentMode": "RawDeployment",
+	}
 	deployDataBytes, err := json.MarshalIndent(deployData, "", " ")
 	if err != nil {
 		return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
