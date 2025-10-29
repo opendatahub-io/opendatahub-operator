@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/operator-framework/api/pkg/operators/v1alpha1"
+	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -54,28 +55,17 @@ func DeleteExistingSubscription(ctx context.Context, cli client.Client, operator
 	return nil
 }
 
-// OperatorExists checks if an Operator with 'operatorPrefix' is installed by looking for OLM Subscriptions.
-// It searches for subscriptions where the package name (Spec.Package) starts with the given prefix.
-//
-// This function uses Subscriptions instead of OperatorConditions for OLMv1 compatibility,
-// as OperatorConditions were deprecated and removed in OLMv1.
-//
-// Note: This function only checks if an operator is installed, not which version any more.
-//
-// Parameters:
-//   - operatorPrefix: The prefix to match against subscription package names (spec.name in YAML)
-//
-// Returns:
-//   - bool: true if a matching subscription is found, false otherwise
-//   - error: any error encountered while listing subscriptions
+// OperatorExists checks if an Operator with 'operatorPrefix' is installed.
+// Return true if found it, false if not.
+// if we need to check exact version of the operator installed, can append vX.Y.Z later.
 func OperatorExists(ctx context.Context, cli client.Client, operatorPrefix string) (bool, error) {
-	subscriptionList := &v1alpha1.SubscriptionList{}
-	err := cli.List(ctx, subscriptionList)
+	opConditionList := &ofapiv2.OperatorConditionList{}
+	err := cli.List(ctx, opConditionList)
 	if err != nil {
 		return false, err
 	}
-	for _, sub := range subscriptionList.Items {
-		if strings.HasPrefix(sub.Spec.Package, operatorPrefix) {
+	for _, opCondition := range opConditionList.Items {
+		if strings.HasPrefix(opCondition.Name, operatorPrefix) {
 			return true, nil
 		}
 	}
