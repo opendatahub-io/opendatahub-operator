@@ -1539,7 +1539,7 @@ spec:
                 runAsNonRoot: true
                 seccompProfile:
                   type: RuntimeDefault
-              serviceAccountName: opendatahub-operator-controller-manager
+              serviceAccountName: redhat-ods-operator-controller-manager
               terminationGracePeriodSeconds: 10
               volumes:
               - name: cert
