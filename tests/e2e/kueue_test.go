@@ -253,11 +253,6 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) 
 		WithCondition(And(conditionsRemovedReady...)),
 	)
 
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithCondition(And(conditionsRemovedReady...)),
-	)
-
 	// Validate default resources are still there
 	tc.ensureClusterAndLocalQueueExist(kueueTestManagedNamespace)
 
@@ -273,14 +268,14 @@ func (tc *KueueTestCtx) ValidateWebhookValidations(t *testing.T) {
 	// Enable Workbenches component to ensure Notebook CRD is available for webhook tests
 	// This is required because webhook tests use Notebook objects which need the Notebook CRD
 	// installed by the Workbenches component
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, "Workbenches")
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Managed, componentApi.WorkbenchesKind)
 
 	// Run webhook validation tests as subtests
 	t.Run("Kueue webhook validation", tc.ValidateKueueWebhookValidation)
 	t.Run("Hardware profile webhook validation", tc.ValidateHardwareProfileWebhookValidation)
 
 	// Ensure Workbenches is disabled after tests, even if they fail
-	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, "Workbenches")
+	tc.UpdateComponentStateInDataScienceClusterWithKind(operatorv1.Removed, componentApi.WorkbenchesKind)
 
 	// Remove Kueue test resources
 	cleanupKueueTestResources(t, tc.TestContext)
