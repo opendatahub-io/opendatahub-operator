@@ -83,7 +83,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: quay.io/opendatahub/opendatahub-operator:v3.0.0
-    createdAt: "2025-10-28T16:23:58Z"
+    createdAt: "2025-10-27T16:45:27Z"
     operators.operatorframework.io/builder: operator-sdk-v1.39.2
     operators.operatorframework.io/internal-objects: '["featuretrackers.features.opendatahub.io",
       "dashboards.components.platform.opendatahub.io", "datasciencepipelines.components.platform.opendatahub.io",
@@ -1127,7 +1127,6 @@ spec:
           - operators.coreos.com
           resources:
           - catalogsources
-          - operatorconditions
           verbs:
           - get
           - list

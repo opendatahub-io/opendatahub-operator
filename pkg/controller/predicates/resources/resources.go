@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 
+	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -191,6 +192,40 @@ func CreatedOrUpdatedOrDeletedNamePrefixed(namePrefix string) predicate.Predicat
 		},
 		DeleteFunc: func(e event.TypedDeleteEvent[client.Object]) bool {
 			return strings.HasPrefix(e.Object.GetName(), namePrefix)
+		},
+	}
+}
+
+// SubscriptionPackagePrefixed creates a predicate that matches Subscriptions based on their package name (.spec.name).
+// which identifies the actual operator being installed.
+//
+// Parameters:
+//   - packagePrefix: The prefix to match against the subscription's package name.
+//
+// Returns:
+//   - A predicate that filters Create/Update/Delete events for Subscriptions with matching package names
+func SubscriptionPackagePrefixed(packagePrefix string) predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.TypedCreateEvent[client.Object]) bool {
+			sub, ok := e.Object.(*ofapiv1alpha1.Subscription)
+			if !ok {
+				return false
+			}
+			return strings.HasPrefix(sub.Spec.Package, packagePrefix)
+		},
+		UpdateFunc: func(e event.TypedUpdateEvent[client.Object]) bool {
+			sub, ok := e.ObjectNew.(*ofapiv1alpha1.Subscription)
+			if !ok {
+				return false
+			}
+			return strings.HasPrefix(sub.Spec.Package, packagePrefix)
+		},
+		DeleteFunc: func(e event.TypedDeleteEvent[client.Object]) bool {
+			sub, ok := e.Object.(*ofapiv1alpha1.Subscription)
+			if !ok {
+				return false
+			}
+			return strings.HasPrefix(sub.Spec.Package, packagePrefix)
 		},
 	}
 }
