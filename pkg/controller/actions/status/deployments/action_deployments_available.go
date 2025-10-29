@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -117,8 +118,10 @@ func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error
 
 func NewAction(opts ...ActionOpts) actions.Fn {
 	action := Action{
-		labels:      map[string]string{},
-		namespaceFn: actions.ApplicationNamespace,
+		labels: map[string]string{},
+		namespaceFn: func(ctx context.Context, rr *types.ReconciliationRequest) (string, error) {
+			return cluster.ApplicationNamespace(ctx, rr.Client)
+		},
 	}
 
 	for _, opt := range opts {

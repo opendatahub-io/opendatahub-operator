@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,6 +23,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	testScheme "github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/scheme"
+
+	. "github.com/onsi/gomega"
 )
 
 // stringToRawExtension converts a YAML string to a runtime.RawExtension for testing.
@@ -66,6 +66,18 @@ func generateLargeSizeConfig(targetSize int) string {
 	return fmt.Sprintf("endpoint: https://example.com\nlarge_field: %s", largeValue)
 }
 
+// setupTestClient creates a fake client with the required scheme.
+func setupTestClient(g Gomega, objects ...client.Object) client.Client {
+	scheme := runtime.NewScheme()
+	g.Expect(dsciv2.AddToScheme(scheme)).Should(Succeed())
+	g.Expect(serviceApi.AddToScheme(scheme)).Should(Succeed())
+
+	return fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objects...).
+		Build()
+}
+
 func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 	ctx := t.Context()
 
@@ -103,6 +115,8 @@ func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
 			// Create DSCI
 			dsci := &dsciv2.DSCInitialization{
 				ObjectMeta: metav1.ObjectMeta{
@@ -137,32 +151,26 @@ func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 			}
 
 			// Create fake client
-			scheme := runtime.NewScheme()
-			require.NoError(t, dsciv2.AddToScheme(scheme))
-			require.NoError(t, serviceApi.AddToScheme(scheme))
-
-			fakeClient := fake.NewClientBuilder().
-				WithScheme(scheme).
-				WithObjects(dsci, monitoring).
-				Build()
+			fakeClient := setupTestClient(g, dsci, monitoring)
 
 			// Create reconciliation request
 			rr := &odhtypes.ReconciliationRequest{
 				Client:   fakeClient,
 				Instance: monitoring,
-				DSCI:     dsci,
 			}
 
 			// Test getTemplateData function
 			templateData, err := getTemplateData(ctx, rr)
-			require.NoError(t, err)
+			g.Expect(err).ShouldNot(HaveOccurred())
 
 			// Verify accelerator metrics result
 			acceleratorMetrics, exists := templateData["AcceleratorMetrics"]
-			require.True(t, exists)
+			g.Expect(exists).Should(BeTrue())
+
 			acceleratorMetricsBool, ok := acceleratorMetrics.(bool)
-			require.True(t, ok, "AcceleratorMetrics should be a boolean")
-			assert.Equal(t, tt.expectedAccelerator, acceleratorMetricsBool)
+			g.Expect(ok).Should(BeTrue(), "AcceleratorMetrics should be a boolean")
+
+			g.Expect(acceleratorMetricsBool).Should(Equal(tt.expectedAccelerator))
 		})
 	}
 }
@@ -170,7 +178,20 @@ func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 // runMetricsExporterTest creates a test environment and runs getTemplateData.
 func runMetricsExporterTest(t *testing.T, exporters map[string]runtime.RawExtension) (map[string]interface{}, error) {
 	t.Helper()
-	mon := &serviceApi.Monitoring{
+	g := NewWithT(t)
+
+	// Create DSCI
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: "test-app-namespace",
+		},
+	}
+
+	// Create Monitoring object
+	monitoring := &serviceApi.Monitoring{
 		Spec: serviceApi.MonitoringSpec{
 			MonitoringCommonSpec: serviceApi.MonitoringCommonSpec{
 				Namespace: "test-namespace",
@@ -181,20 +202,12 @@ func runMetricsExporterTest(t *testing.T, exporters map[string]runtime.RawExtens
 		},
 	}
 
-	scheme := runtime.NewScheme()
-	require.NoError(t, dsciv2.AddToScheme(scheme))
-	require.NoError(t, serviceApi.AddToScheme(scheme))
-
-	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	// Create fake client
+	fakeClient := setupTestClient(g, dsci, monitoring)
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   fakeClient,
-		Instance: mon,
-		DSCI: &dsciv2.DSCInitialization{
-			Spec: dsciv2.DSCInitializationSpec{
-				ApplicationsNamespace: "test-app-namespace",
-			},
-		},
+		Instance: monitoring,
 	}
 
 	return getTemplateData(t.Context(), rr)
@@ -543,6 +556,7 @@ tls:
 
 func TestGetTemplateDataAcceleratorMetricsWithMetricsConfiguration(t *testing.T) {
 	ctx := t.Context()
+	g := NewWithT(t)
 
 	// Test with full metrics configuration
 	dsci := &dsciv2.DSCInitialization{
@@ -577,41 +591,33 @@ func TestGetTemplateDataAcceleratorMetricsWithMetricsConfiguration(t *testing.T)
 	}
 
 	// Create fake client
-	scheme := runtime.NewScheme()
-	require.NoError(t, dsciv2.AddToScheme(scheme))
-	require.NoError(t, serviceApi.AddToScheme(scheme))
-
-	fakeClient := fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithObjects(dsci, monitoring).
-		Build()
+	fakeClient := setupTestClient(g, dsci, monitoring)
 
 	// Create reconciliation request
 	rr := &odhtypes.ReconciliationRequest{
 		Client:   fakeClient,
 		Instance: monitoring,
-		DSCI:     dsci,
 	}
 
 	// Test getTemplateData function
 	templateData, err := getTemplateData(ctx, rr)
-	require.NoError(t, err)
+	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Verify accelerator metrics is enabled with full metrics config
 	acceleratorMetrics, exists := templateData["AcceleratorMetrics"]
-	require.True(t, exists)
+	g.Expect(exists).Should(BeTrue())
 	acceleratorMetricsBool, ok := acceleratorMetrics.(bool)
-	require.True(t, ok, "AcceleratorMetrics should be a boolean")
-	assert.True(t, acceleratorMetricsBool, "AcceleratorMetrics should be enabled with managed state and metrics config")
+	g.Expect(ok).Should(BeTrue(), "AcceleratorMetrics should be a boolean")
+	g.Expect(acceleratorMetricsBool).Should(BeTrue(), "AcceleratorMetrics should be enabled with managed state and metrics config")
 
 	// Verify metrics-related template data is populated
 	metricsValue, exists := templateData["Metrics"]
-	require.True(t, exists)
+	g.Expect(exists).Should(BeTrue())
 	metricsBool, ok := metricsValue.(bool)
-	require.True(t, ok, "Metrics should be a boolean")
-	assert.True(t, metricsBool)
-	assert.Contains(t, templateData, "Replicas")
-	assert.Contains(t, templateData, "StorageRetention")
+	g.Expect(ok).Should(BeTrue(), "Metrics should be a boolean")
+	g.Expect(metricsBool).Should(BeTrue())
+	g.Expect(templateData).Should(HaveKey("Replicas"))
+	g.Expect(templateData).Should(HaveKey("StorageRetention"))
 }
 
 type monitoringIntegrationTestCase struct {
@@ -771,27 +777,26 @@ func setupFakeClient(objects []client.Object, tt monitoringIntegrationTestCase) 
 		Build(), nil
 }
 
-func validateConditions(t *testing.T, rr *odhtypes.ReconciliationRequest, tt monitoringIntegrationTestCase) {
+func validateConditions(t *testing.T, g Gomega, rr *odhtypes.ReconciliationRequest, tt monitoringIntegrationTestCase) {
 	t.Helper()
 	msCondition := rr.Conditions.GetCondition(status.ConditionMonitoringStackAvailable)
-	assert.NotNil(t, msCondition, "MonitoringStack condition should always be set")
-	assert.Equal(t, tt.expectedMSConditionStatus, string(msCondition.Status),
-		"MonitoringStack condition status should match expected")
+	g.Expect(msCondition).ShouldNot(BeNil(), "MonitoringStack condition should always be set")
+	g.Expect(string(msCondition.Status)).Should(Equal(tt.expectedMSConditionStatus),
+		"MonitoringStack condition status should match")
 
 	thanosCondition := rr.Conditions.GetCondition(status.ConditionThanosQuerierAvailable)
-	assert.NotNil(t, thanosCondition,
+	g.Expect(thanosCondition).ShouldNot(BeNil(),
 		"ThanosQuerier condition should always be set (atomic deployment with MonitoringStack)")
-	assert.Equal(t, tt.expectedTQConditionStatus, string(thanosCondition.Status),
+	g.Expect(string(thanosCondition.Status)).Should(Equal(tt.expectedTQConditionStatus),
 		"ThanosQuerier condition status should match expected")
 }
 
-func validateTemplates(t *testing.T, rr *odhtypes.ReconciliationRequest, tt monitoringIntegrationTestCase, initialTemplateCount int) {
+func validateTemplates(t *testing.T, g Gomega, rr *odhtypes.ReconciliationRequest, tt monitoringIntegrationTestCase, initialTemplateCount int) {
 	t.Helper()
 	finalTemplateCount := len(rr.Templates)
 	expectedTotalTemplates := initialTemplateCount + tt.expectedMSTemplates + tt.expectedTQTemplates
-	assert.Equal(t, expectedTotalTemplates, finalTemplateCount,
-		"Expected %d total templates (%d initial + %d MS + %d TQ), got %d",
-		expectedTotalTemplates, initialTemplateCount, tt.expectedMSTemplates, tt.expectedTQTemplates, finalTemplateCount)
+	g.Expect(finalTemplateCount).Should(Equal(expectedTotalTemplates),
+		"Total template count should match expected value")
 
 	templatePaths := make([]string, 0, len(rr.Templates))
 	for _, template := range rr.Templates {
@@ -799,31 +804,31 @@ func validateTemplates(t *testing.T, rr *odhtypes.ReconciliationRequest, tt moni
 	}
 
 	if tt.expectedMSTemplates > 0 {
-		assert.Contains(t, templatePaths, MonitoringStackTemplate,
-			"MonitoringStack template should be added when MS condition is True")
-		assert.Contains(t, templatePaths, MonitoringStackAlertmanagerRBACTemplate,
-			"Alertmanager RBAC template should be added when MS condition is True")
-		assert.Contains(t, templatePaths, PrometheusRouteTemplate,
-			"PrometheusRoute template should be added when MS condition is True")
+		g.Expect(templatePaths).Should(ContainElement(MonitoringStackTemplate),
+			"MonitoringStack template should be included when enabled")
+		g.Expect(templatePaths).Should(ContainElement(MonitoringStackAlertmanagerRBACTemplate),
+			"Alertmanager RBAC template should be included when MonitoringStack enabled")
+		g.Expect(templatePaths).Should(ContainElement(PrometheusRouteTemplate),
+			"Prometheus route template should be included when MonitoringStack enabled")
 	} else {
-		assert.NotContains(t, templatePaths, MonitoringStackTemplate,
-			"MonitoringStack template should not be added when MS condition is not True")
-		assert.NotContains(t, templatePaths, MonitoringStackAlertmanagerRBACTemplate,
-			"Alertmanager RBAC template should not be added when MS condition is not True")
-		assert.NotContains(t, templatePaths, PrometheusRouteTemplate,
-			"PrometheusRoute template should not be added when MS condition is not True")
+		g.Expect(templatePaths).ShouldNot(ContainElement(MonitoringStackTemplate),
+			"MonitoringStack template should be excluded when disabled")
+		g.Expect(templatePaths).ShouldNot(ContainElement(MonitoringStackAlertmanagerRBACTemplate),
+			"Alertmanager RBAC template should be excluded when MonitoringStack disabled")
+		g.Expect(templatePaths).ShouldNot(ContainElement(PrometheusRouteTemplate),
+			"Prometheus route template should be excluded when MonitoringStack disabled")
 	}
 
 	if tt.expectedTQTemplates > 0 {
-		assert.Contains(t, templatePaths, ThanosQuerierTemplate,
-			"ThanosQuerier template should be added when TQ condition is True")
-		assert.Contains(t, templatePaths, ThanosQuerierRouteTemplate,
-			"ThanosQuerierRoute template should be added when TQ condition is True")
+		g.Expect(templatePaths).Should(ContainElement(ThanosQuerierTemplate),
+			"ThanosQuerier template should be included when enabled")
+		g.Expect(templatePaths).Should(ContainElement(ThanosQuerierRouteTemplate),
+			"ThanosQuerier route template should be included when enabled")
 	} else {
-		assert.NotContains(t, templatePaths, ThanosQuerierTemplate,
-			"ThanosQuerier template should not be added when TQ condition is not True")
-		assert.NotContains(t, templatePaths, ThanosQuerierRouteTemplate,
-			"ThanosQuerierRoute template should not be added when TQ condition is not True")
+		g.Expect(templatePaths).ShouldNot(ContainElement(ThanosQuerierTemplate),
+			"ThanosQuerier template should be excluded when disabled")
+		g.Expect(templatePaths).ShouldNot(ContainElement(ThanosQuerierRouteTemplate),
+			"ThanosQuerier route template should be excluded when disabled")
 	}
 }
 
@@ -890,13 +895,15 @@ func TestMonitoringStackThanosQuerierIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
 			objects := setupTestObjects(tt)
 
 			fakeClient, err := setupFakeClient(objects, tt)
-			require.NoError(t, err, "Failed to create fake client")
+			g.Expect(err).ShouldNot(HaveOccurred(), "Failed to create fake client")
 
 			monitoring, ok := objects[0].(*serviceApi.Monitoring)
-			require.True(t, ok, "First object should be monitoring instance")
+			g.Expect(ok).Should(BeTrue(), "First object should be monitoring instance")
 
 			rr := &odhtypes.ReconciliationRequest{
 				Client:     fakeClient,
@@ -908,10 +915,10 @@ func TestMonitoringStackThanosQuerierIntegration(t *testing.T) {
 			initialTemplateCount := len(rr.Templates)
 
 			err = deployMonitoringStackWithQuerier(ctx, rr)
-			require.NoError(t, err, "deployMonitoringStackWithQuerier should not return error")
+			g.Expect(err).ShouldNot(HaveOccurred(), "deployMonitoringStackWithQuerier should not return error")
 
-			validateConditions(t, rr, tt)
-			validateTemplates(t, rr, tt, initialTemplateCount)
+			validateConditions(t, g, rr, tt)
+			validateTemplates(t, g, rr, tt, initialTemplateCount)
 		})
 	}
 }

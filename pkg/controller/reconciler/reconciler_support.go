@@ -94,14 +94,14 @@ type ReconcilerBuilder[T common.PlatformObject] struct {
 	finalizers          []actions.Fn
 	errors              error
 	happyCondition      string
-	dependantConditions []string
+	dependentConditions []string
 }
 
 func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...builder.ForOption) *ReconcilerBuilder[T] {
 	crb := ReconcilerBuilder[T]{
 		mgr:                 mgr,
 		happyCondition:      status.ConditionTypeReady,
-		dependantConditions: []string{status.ConditionTypeProvisioningSucceeded},
+		dependentConditions: []string{status.ConditionTypeProvisioningSucceeded},
 	}
 
 	gvk, err := mgr.GetClient().GroupVersionKindFor(object)
@@ -125,8 +125,8 @@ func ReconcilerFor[T common.PlatformObject](mgr ctrl.Manager, object T, opts ...
 	return &crb
 }
 
-func (b *ReconcilerBuilder[T]) WithConditions(dependants ...string) *ReconcilerBuilder[T] {
-	b.dependantConditions = append(b.dependantConditions, dependants...)
+func (b *ReconcilerBuilder[T]) WithConditions(dependents ...string) *ReconcilerBuilder[T] {
+	b.dependentConditions = append(b.dependentConditions, dependents...)
 	return b
 }
 
@@ -228,7 +228,7 @@ func (b *ReconcilerBuilder[T]) Build(_ context.Context) (*Reconciler, error) {
 		return nil, errors.New("invalid type for object")
 	}
 
-	r, err := NewReconciler(b.mgr, name, obj, WithConditionsManagerFactory(b.happyCondition, b.dependantConditions...))
+	r, err := NewReconciler(b.mgr, name, obj, WithConditionsManagerFactory(b.happyCondition, b.dependentConditions...))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reconciler for component %s: %w", name, err)
 	}

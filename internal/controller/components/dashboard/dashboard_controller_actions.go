@@ -26,7 +26,6 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -60,18 +59,6 @@ func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	return nil
 }
 
-func customizeResources(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
-	for i := range rr.Resources {
-		if rr.Resources[i].GroupVersionKind() == gvk.OdhDashboardConfig {
-			// mark the resource as not supposed to be managed by the operator
-			resources.SetAnnotation(&rr.Resources[i], annotations.ManagedByODHOperator, "false")
-			break
-		}
-	}
-
-	return nil
-}
-
 func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name)
 	if err != nil {
@@ -84,19 +71,25 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	return nil
 }
 
-func configureDependencies(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
+func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if rr.Release.Name == cluster.OpenDataHub {
 		return nil
 	}
 
-	err := rr.AddResources(&corev1.Secret{
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return err
+	}
+
+	err = rr.AddResources(&corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "anaconda-ce-access",
-			Namespace: rr.DSCI.Spec.ApplicationsNamespace,
+			Namespace: appNamespace,
 		},
 		Type: corev1.SecretTypeOpaque,
 	})
@@ -114,12 +107,18 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		return errors.New("instance is not of type *odhTypes.Dashboard")
 	}
 
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return err
+	}
+
 	// url
 	rl := routev1.RouteList{}
-	err := rr.Client.List(
+	err = rr.Client.List(
 		ctx,
 		&rl,
-		client.InNamespace(rr.DSCI.Spec.ApplicationsNamespace),
+		client.InNamespace(appNamespace),
 		client.MatchingLabels(map[string]string{
 			labels.PlatformPartOf: strings.ToLower(componentApi.DashboardKind),
 		}),

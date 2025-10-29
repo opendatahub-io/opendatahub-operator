@@ -438,7 +438,7 @@ func (r *DSCInitializationReconciler) watchDSCResource(ctx context.Context) []re
 		return nil
 	}
 	if len(instanceList.Items) == 0 && !upgrade.HasDeleteConfigMap(ctx, r.Client) {
-		log.Info("Found no DSC instance in cluster but not in uninstalltion process, reset monitoring stack config")
+		log.Info("Found no DSC instance in cluster but not in uninstallation process, reset monitoring stack config")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "backup"}}}
 	}
@@ -514,7 +514,12 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		if dsci.Spec.Monitoring.CollectorReplicas != 0 {
 			defaultMonitoring.Spec.CollectorReplicas = dsci.Spec.Monitoring.CollectorReplicas
 		} else {
-			defaultMonitoring.Spec.CollectorReplicas = 2
+			isSNO := cluster.IsSingleNodeCluster(ctx, r.Client)
+			if isSNO {
+				defaultMonitoring.Spec.CollectorReplicas = 1
+			} else {
+				defaultMonitoring.Spec.CollectorReplicas = 2
+			}
 		}
 	}
 

@@ -30,8 +30,19 @@ func TestDeploymentsAvailableActionNotReady(t *testing.T) {
 	ctx := t.Context()
 	ns := xid.New().String()
 
+	// Create DSCI for ApplicationNamespace lookup
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: ns,
+		},
+	}
+
 	cl, err := fakeclient.New(
 		fakeclient.WithObjects(
+			dsci,
 			&appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-deployment",
@@ -69,7 +80,6 @@ func TestDeploymentsAvailableActionNotReady(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
-		DSCI:     &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
@@ -104,9 +114,20 @@ func TestDeploymentsAvailableActionReady(t *testing.T) {
 	ctx := t.Context()
 	ns := xid.New().String()
 
+	// Create DSCI for ApplicationNamespace lookup
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: ns,
+		},
+	}
+
 	cl, err := fakeclient.New(
 
 		fakeclient.WithObjects(
+			dsci,
 			&appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-deployment",
@@ -144,7 +165,6 @@ func TestDeploymentsAvailableActionReady(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
-		DSCI:     &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
@@ -178,8 +198,19 @@ func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 	ctx := t.Context()
 	ns := xid.New().String()
 
+	// Create DSCI for ApplicationNamespace lookup
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: ns,
+		},
+	}
+
 	cl, err := fakeclient.New(
 		fakeclient.WithObjects(
+			dsci,
 			&appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-deployment",
@@ -216,7 +247,6 @@ func TestDeploymentsAvailableReadyAutoSelector(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
-		DSCI:     &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 
@@ -250,8 +280,19 @@ func TestDeploymentsAvailableActionNotReadyNotFound(t *testing.T) {
 	ctx := t.Context()
 	ns := xid.New().String()
 
+	// Create DSCI for ApplicationNamespace lookup
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: ns,
+		},
+	}
+
 	cl, err := fakeclient.New(
 		fakeclient.WithObjects(
+			dsci,
 			&appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-deployment",
@@ -288,7 +329,6 @@ func TestDeploymentsAvailableActionNotReadyNotFound(t *testing.T) {
 	rr := types.ReconciliationRequest{
 		Client:   cl,
 		Instance: &componentApi.Dashboard{},
-		DSCI:     &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	}
 

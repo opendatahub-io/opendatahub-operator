@@ -81,7 +81,6 @@ spec:
   config:
     integrations:
       frameworks:
-        - AppWrapper
         - BatchJob
         - Deployment
         - JobSet
@@ -541,13 +540,19 @@ func runKueueCRTest(t *testing.T, configMapYAML string, expectedCRYAML string) {
 	fakeClient, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	rr := &odhtypes.ReconciliationRequest{
-		Client: fakeClient,
-		DSCI: &dsciv2.DSCInitialization{
-			Spec: dsciv2.DSCInitializationSpec{
-				ApplicationsNamespace: "test-namespace",
-			},
+	// Create DSCI in fake client so actions.ApplicationNamespace() can fetch it
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-dsci",
 		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: "test-namespace",
+		},
+	}
+	g.Expect(fakeClient.Create(ctx, dsci)).Should(Succeed())
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client:   fakeClient,
 		Instance: &componentApi.Kueue{},
 	}
 
@@ -555,7 +560,7 @@ func runKueueCRTest(t *testing.T, configMapYAML string, expectedCRYAML string) {
 		cm := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      KueueConfigMapName,
-				Namespace: rr.DSCI.Spec.ApplicationsNamespace,
+				Namespace: "test-namespace",
 			},
 			Data: map[string]string{
 				KueueConfigMapEntry: configMapYAML,
@@ -610,10 +615,10 @@ invalid: yaml: content: [
 			ApplicationsNamespace: "test-namespace",
 		},
 	}
+	g.Expect(fakeClient.Create(ctx, dsci)).Should(Succeed())
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client: fakeClient,
-		DSCI:   dsci,
 		Instance: &componentApi.Kueue{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "test-kueue",

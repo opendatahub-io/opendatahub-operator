@@ -61,7 +61,7 @@ func (s *componentHandler) GetName() string {
 	return componentName
 }
 
-// for DSC to get compoment Kserve's CR.
+// for DSC to get component Kserve's CR.
 func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
 	return &componentApi.Kserve{
 		TypeMeta: metav1.TypeMeta{

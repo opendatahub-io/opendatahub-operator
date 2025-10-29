@@ -2,6 +2,7 @@
 set -e
 
 GITHUB_URL="https://github.com"
+DST_MANIFESTS_DIR="./opt/manifests"
 
 # COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
 # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
@@ -11,18 +12,18 @@ GITHUB_URL="https://github.com"
 # 2. "tag" - immutable reference (e.g., v1.0.0)
 # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
 declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@a8e1d4f0bc8fb819d3b13b5dda85ad4d7997335d:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@121a467690d03514277a7d30c16c311815b1877f:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@121a467690d03514277a7d30c16c311815b1877f:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@8adf444fa4f489cd5b34d7fce14f94795812393b:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15@2ec429d30c2ba71f9122446603694f3dbec82946:config"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@9e13d062ee5524619504d4cf5ce2b385d888315c:manifests"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@909a62e24fae72e5bbb6ed255a322d692b629e15:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@909a62e24fae72e5bbb6ed255a322d692b629e15:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@310b26ea6e377cd84315af16dd31e252ba866f4d:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.15@c23a6d612b31a9dc8d63666a9267b26234861281:config"
     ["ray"]="opendatahub-io:kuberay:dev@b9e26fa34f9128594841fcd1df079ee2e9269fb2:ray-operator/config"
-    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@932a0671e775e2d105217d2be66587379be0f194:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main@cbc48624a6343d895f2722959cca3888eb2569fc:config"
+    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@02fc7ca7f3a7ff95ccac03d9a04b67acf5a3a050:config"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main@666be1bda3bad55e15c8c6c793d8d1faf86819d9:config"
     ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@bdf7dcc340bee0ad3bfe0c17d857e090cd06243b:config"
-    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@e7a91e0ef907ade1b2503b439a2a2cdbc986058d:config"
-    ["feastoperator"]="opendatahub-io:feast:stable@d5895be388475745287e0ca9bc99e3e9ed8335d0:infra/feast-operator/config"
+    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@761e9e794ffd36b6ec144ffece746eebb00cfe69:config"
+    ["feastoperator"]="opendatahub-io:feast:stable@3c6fd777b7d5c9de4f7949ee7b9ee7f829dc8528:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@6806c3f428bb140609d6fe4801d6c66a25977804:config"
 )
 
@@ -147,8 +148,8 @@ download_manifest() {
 
     if [[ -v USE_LOCAL ]] && [[ -e ../${repo_name} ]]; then
         echo "copying from adjacent checkout ..."
-        mkdir -p ./opt/manifests/${target_path}
-        cp -rf "../${repo_name}/${source_path}"/* ./opt/manifests/${target_path}
+        mkdir -p ${DST_MANIFESTS_DIR}/${target_path}
+        cp -rf "../${repo_name}/${source_path}"/* ${DST_MANIFESTS_DIR}/${target_path}
         return
     fi
 
@@ -157,8 +158,8 @@ download_manifest() {
         return 1
     fi
 
-    mkdir -p ./opt/manifests/${target_path}
-    cp -rf ${repo_dir}/${source_path}/* ./opt/manifests/${target_path}
+    mkdir -p ${DST_MANIFESTS_DIR}/${target_path}
+    cp -rf ${repo_dir}/${source_path}/* ${DST_MANIFESTS_DIR}/${target_path}
 }
 
 # Track background job PIDs +declare -a pids=()
@@ -183,8 +184,8 @@ for key in "${!PLATFORM_MANIFESTS[@]}"; do
     source_path="${PLATFORM_MANIFESTS[$key]}"
     target_path="${key}"
 
-    if [[ -d ${source_path} && ! -L ./opt/manifests/${target_path} ]]; then
+    if [[ -d ${source_path} && ! -L ${DST_MANIFESTS_DIR}/${target_path} ]]; then
         echo -e "\033[32mSymlinking local manifest \033[33m${key}\033[32m:\033[0m ${source_path}"
-        ln -s $(pwd)/${source_path} ./opt/manifests/${target_path}
+        ln -s $(pwd)/${source_path} ${DST_MANIFESTS_DIR}/${target_path}
     fi
 done

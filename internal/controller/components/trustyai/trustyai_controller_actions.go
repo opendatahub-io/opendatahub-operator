@@ -56,6 +56,12 @@ func createConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		return fmt.Errorf("resource instance %v is not a componentApi.TrustyAI)", rr.Instance)
 	}
 
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return err
+	}
+
 	// Convert to boolean for configmap
 	permitCodeExecution := trustyai.Spec.Eval.LMEval.PermitCodeExecution == EvalPermissionAllow
 	permitOnline := trustyai.Spec.Eval.LMEval.PermitOnline == EvalPermissionAllow
@@ -69,7 +75,7 @@ func createConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRequest) er
 		ObjectMeta: metav1.ObjectMeta{
 			// TrustyAI's own default ConfigMap name is "trustyai-service-operator-config"
 			Name:      "trustyai-dsc-config",
-			Namespace: rr.DSCI.Spec.ApplicationsNamespace,
+			Namespace: appNamespace,
 		},
 		Data: make(map[string]string),
 	}

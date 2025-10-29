@@ -138,6 +138,22 @@ func TestRunnerIntegration(t *testing.T) {
 				{Name: "TestDuplicated/two_of_me#01", HasFailure: true},
 			},
 		},
+		{
+			name:           "parallel tests",
+			testPath:       "./testdata/parallel",
+			skipAtPrefixes: []string{"TestParallel/"},
+			expectedResults: []testCaseOutput{
+				{Name: "TestParallel", HasFailure: true},
+				{Name: "TestParallel/Test1", HasFailure: false},
+				{Name: "TestParallel/Test2", HasFailure: true},
+				{Name: "TestParallel/Test3", HasFailure: false},
+				{Name: "TestParallel", HasFailure: true},
+				{Name: "TestParallel/Test2", HasFailure: true},
+				{Name: "TestParallel", HasFailure: true},
+				{Name: "TestParallel/Test2", HasFailure: true},
+			},
+			expectedError: "2 tests failed after retries",
+		},
 	}
 
 	for _, testCase := range testCases {
