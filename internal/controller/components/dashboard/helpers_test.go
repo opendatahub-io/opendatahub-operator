@@ -4,6 +4,7 @@
 package dashboard_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/onsi/gomega"
@@ -33,6 +34,7 @@ func getDashboardHandler() registry.ComponentHandler {
 	_ = registry.ForEach(func(ch registry.ComponentHandler) error {
 		if ch.GetName() == componentApi.DashboardComponentName {
 			handler = ch
+			return errors.New("found") // Use error to break iteration
 		}
 		return nil
 	})

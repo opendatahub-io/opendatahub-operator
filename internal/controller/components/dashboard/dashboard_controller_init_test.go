@@ -285,240 +285,153 @@ func TestInitErrorCases(t *testing.T) {
 	})
 }
 
-// TestInitWithVariousPlatforms tests the Init function with various platform types.
-func TestInitWithVariousPlatforms(t *testing.T) {
-	g := NewWithT(t)
-
-	handler := getDashboardHandler()
-
-	// Define test cases with explicit expectations for each platform
+// TestInitPlatforms tests the Init function with various platform scenarios.
+// This consolidated test replaces multiple redundant tests with a single table-driven test
+// that covers all platform validation scenarios in a maintainable way.
+func TestInitPlatforms(t *testing.T) {
 	testCases := []struct {
-		name        string
-		platform    common.Platform
-		expectedErr string // Empty string means no error expected, non-empty means error should contain this substring
+		name           string
+		platform       common.Platform
+		category       string // "supported", "unsupported", "edge-case"
+		expectError    bool
+		errorSubstring string
 	}{
-		// Supported platforms should succeed
-		{"SelfManagedRhoai", cluster.SelfManagedRhoai, ""},
-		{"ManagedRhoai", cluster.ManagedRhoai, ""},
-		{"OpenDataHub", cluster.OpenDataHub, ""},
-		// Unsupported platforms should fail with clear error messages
-		{"OpenShift", common.Platform("OpenShift"), unsupportedPlatformErrorMsg},
-		{"Kubernetes", common.Platform("Kubernetes"), unsupportedPlatformErrorMsg},
+		// Supported platforms - should succeed
+		{
+			name:           "supported-self-managed-rhoai",
+			platform:       cluster.SelfManagedRhoai,
+			category:       "supported",
+			expectError:    false,
+			errorSubstring: "",
+		},
+		{
+			name:           "supported-managed-rhoai",
+			platform:       cluster.ManagedRhoai,
+			category:       "supported",
+			expectError:    false,
+			errorSubstring: "",
+		},
+		{
+			name:           "supported-opendatahub",
+			platform:       cluster.OpenDataHub,
+			category:       "supported",
+			expectError:    false,
+			errorSubstring: "",
+		},
+
+		// Unsupported platforms - should fail with clear error messages
+		{
+			name:           "unsupported-openshift",
+			platform:       common.Platform("OpenShift"),
+			category:       "unsupported",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+		{
+			name:           "unsupported-kubernetes",
+			platform:       common.Platform("Kubernetes"),
+			category:       "unsupported",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+		{
+			name:           "unsupported-non-existent-platform",
+			platform:       common.Platform(NonExistentPlatform),
+			category:       "unsupported",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+		{
+			name:           "unsupported-test-platform",
+			platform:       common.Platform(TestPlatform),
+			category:       "unsupported",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+		{
+			name:           "unsupported-upstream",
+			platform:       common.Platform("upstream"),
+			category:       "unsupported",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+		{
+			name:           "unsupported-downstream",
+			platform:       common.Platform("downstream"),
+			category:       "unsupported",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+		{
+			name:           "unsupported-self-managed-test",
+			platform:       common.Platform(TestSelfManagedPlatform),
+			category:       "unsupported",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+		{
+			name:           "unsupported-managed",
+			platform:       common.Platform("managed"),
+			category:       "unsupported",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+
+		// Edge cases - should fail with clear error messages
+		{
+			name:           "edge-case-empty-platform",
+			platform:       common.Platform(""),
+			category:       "edge-case",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+		{
+			name:           "edge-case-nil-like-platform",
+			platform:       common.Platform("nil-test"),
+			category:       "edge-case",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+		{
+			name:           "edge-case-special-chars",
+			platform:       common.Platform("test-platform-with-special-chars!@#$%"),
+			category:       "edge-case",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+		{
+			name:           "edge-case-very-long-name",
+			platform:       common.Platform(strings.Repeat("a", 1000)),
+			category:       "edge-case",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+		{
+			name:           "edge-case-platform-with-dashes",
+			platform:       common.Platform("platform-with-dashes"),
+			category:       "edge-case",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+		{
+			name:           "edge-case-platform-with-underscores",
+			platform:       common.Platform("platform_with_underscores"),
+			category:       "edge-case",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
+		{
+			name:           "edge-case-platform-with-dots",
+			platform:       common.Platform("platform.with.dots"),
+			category:       "edge-case",
+			expectError:    true,
+			errorSubstring: unsupportedPlatformErrorMsg,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Test that Init handles platforms gracefully without panicking
-			defer func() {
-				if r := recover(); r != nil {
-					t.Errorf(ErrorInitPanicked, tc.platform, r)
-				}
-			}()
-
-			err := handler.Init(tc.platform)
-
-			if tc.expectedErr != "" {
-				// Platform should fail with specific error message
-				g.Expect(err).Should(HaveOccurred(), "Expected error for platform %s", tc.platform)
-				g.Expect(err.Error()).Should(ContainSubstring(tc.expectedErr),
-					"Expected error to contain '%s' for platform %s, got: %v", tc.expectedErr, tc.platform, err)
-			} else {
-				// Platform should succeed - Init is designed to be resilient
-				g.Expect(err).ShouldNot(HaveOccurred(), "Expected no error for platform %s, got: %v", tc.platform, err)
-			}
-		})
-	}
-}
-
-// TestInitWithInvalidPlatformNames tests the Init function with invalid platform names.
-// The Init function is designed to be resilient and handle missing manifests gracefully.
-// ApplyParams returns nil (no error) when params.env files don't exist, so invalid platforms should succeed.
-func TestInitWithInvalidPlatformNames(t *testing.T) {
-	g := NewWithT(t)
-
-	handler := getDashboardHandler()
-
-	// Test cases are categorized by expected behavior:
-	// 1. Unsupported platforms (not in OverlaysSourcePaths map) - should succeed gracefully
-	// 2. Valid string formats that happen to be unsupported - should succeed gracefully
-	// 3. Edge cases like empty strings - should succeed gracefully
-	// The Init function is designed to be resilient and not fail on missing manifests
-	const (
-		categoryUnsupported            = "unsupported"
-		categoryValidFormatUnsupported = "valid-format-unsupported"
-		categoryEdgeCase               = "edge-case"
-		unsupportedPlatformErrorMsg    = "unsupported platform"
-	)
-
-	testCases := []struct {
-		name        string
-		platform    common.Platform
-		category    string // "unsupported", "valid-format-unsupported", "edge-case"
-		description string
-	}{
-		// Unsupported platforms (not in OverlaysSourcePaths map)
-		{
-			name:        "unsupported-non-existent-platform",
-			platform:    common.Platform(NonExistentPlatform),
-			category:    categoryUnsupported,
-			description: "Platform not in OverlaysSourcePaths map should succeed gracefully (ApplyParams handles missing files)",
-		},
-		{
-			name:        "unsupported-test-platform",
-			platform:    common.Platform(TestPlatform),
-			category:    categoryUnsupported,
-			description: "Test platform not in OverlaysSourcePaths map should succeed gracefully (ApplyParams handles missing files)",
-		},
-		// Valid string formats that happen to be unsupported platforms
-		{
-			name:        "valid-format-platform-with-dashes",
-			platform:    common.Platform("platform-with-dashes"),
-			category:    categoryValidFormatUnsupported,
-			description: "Platform with dashes is valid string format - should succeed gracefully",
-		},
-		{
-			name:        "valid-format-platform-with-underscores",
-			platform:    common.Platform("platform_with_underscores"),
-			category:    categoryValidFormatUnsupported,
-			description: "Platform with underscores is valid string format - should succeed gracefully",
-		},
-		{
-			name:        "valid-format-platform-with-dots",
-			platform:    common.Platform("platform.with.dots"),
-			category:    categoryValidFormatUnsupported,
-			description: "Platform with dots is valid string format - should succeed gracefully",
-		},
-		{
-			name:        "valid-format-very-long-platform-name",
-			platform:    common.Platform("very-long-platform-name-that-exceeds-normal-limits-and-should-still-work-properly"),
-			category:    categoryValidFormatUnsupported,
-			description: "Long platform name is valid string format - should succeed gracefully",
-		},
-		// Edge cases
-		{
-			name:        "edge-case-empty-platform",
-			platform:    common.Platform(""),
-			category:    categoryEdgeCase,
-			description: "Empty platform string should succeed gracefully (ApplyParams handles missing files)",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Test that Init handles invalid platforms without panicking
-			defer func() {
-				if r := recover(); r != nil {
-					t.Errorf(ErrorInitPanicked, tc.platform, r)
-				}
-			}()
-
-			err := handler.Init(tc.platform)
-
-			// All unsupported platforms should now fail fast with clear error messages
-			// This is better behavior than silent failures or missing configuration
-			if tc.category == categoryUnsupported || tc.category == categoryValidFormatUnsupported || tc.category == categoryEdgeCase {
-				g.Expect(err).Should(HaveOccurred(), "Expected error for unsupported platform: %s", tc.description)
-				g.Expect(err.Error()).Should(ContainSubstring(unsupportedPlatformErrorMsg), "Expected 'unsupported platform' error for: %s", tc.description)
-			} else {
-				// Only truly supported platforms should succeed
-				g.Expect(err).ShouldNot(HaveOccurred(), "Expected no error for %s platform: %s", tc.category, tc.description)
-			}
-		})
-	}
-}
-
-// TestInitConsolidated tests the Init function with various platform scenarios.
-// This consolidated test replaces multiple near-duplicate tests with a single table-driven test.
-func TestInitConsolidated(t *testing.T) {
-	g := NewWithT(t)
-
-	// Define test case structure
-	type testCase struct {
-		name                   string
-		platform               common.Platform
-		expectedError          bool
-		expectedErrorSubstring string
-	}
-
-	// Define test cases covering all previously separate scenarios
-	testCases := []testCase{
-		// First apply error scenarios
-		{
-			name:                   "first-apply-error-test-platform",
-			platform:               common.Platform(TestPlatform),
-			expectedError:          true, // Unsupported platforms should fail fast
-			expectedErrorSubstring: unsupportedPlatformErrorMsg,
-		},
-
-		// Second apply error scenarios
-		{
-			name:                   "second-apply-error-upstream",
-			platform:               common.Platform("upstream"),
-			expectedError:          true, // Unsupported platforms should fail fast
-			expectedErrorSubstring: unsupportedPlatformErrorMsg,
-		},
-		{
-			name:                   "second-apply-error-downstream",
-			platform:               common.Platform("downstream"),
-			expectedError:          true, // Unsupported platforms should fail fast
-			expectedErrorSubstring: unsupportedPlatformErrorMsg,
-		},
-		{
-			name:                   "second-apply-error-self-managed",
-			platform:               common.Platform(TestSelfManagedPlatform),
-			expectedError:          true, // Unsupported platforms should fail fast
-			expectedErrorSubstring: unsupportedPlatformErrorMsg,
-		},
-		{
-			name:                   "second-apply-error-managed",
-			platform:               common.Platform("managed"),
-			expectedError:          true, // Unsupported platforms should fail fast
-			expectedErrorSubstring: unsupportedPlatformErrorMsg,
-		},
-
-		// Invalid platform scenarios
-		{
-			name:                   "invalid-empty-platform",
-			platform:               common.Platform(""),
-			expectedError:          true, // Unsupported platforms should fail fast
-			expectedErrorSubstring: unsupportedPlatformErrorMsg,
-		},
-		{
-			name:                   "invalid-special-chars-platform",
-			platform:               common.Platform("test-platform-with-special-chars!@#$%"),
-			expectedError:          true, // Unsupported platforms should fail fast
-			expectedErrorSubstring: unsupportedPlatformErrorMsg,
-		},
-
-		// Long platform scenario
-		{
-			name:                   "long-platform-name",
-			platform:               common.Platform(strings.Repeat("a", 1000)),
-			expectedError:          true, // Unsupported platforms should fail fast
-			expectedErrorSubstring: unsupportedPlatformErrorMsg,
-		},
-
-		// Nil-like platform scenario
-		{
-			name:                   "nil-like-platform",
-			platform:               common.Platform("nil-test"),
-			expectedError:          true, // Unsupported platforms should fail fast
-			expectedErrorSubstring: unsupportedPlatformErrorMsg,
-		},
-
-		// Multiple calls scenario (test consistency)
-		{
-			name:                   "multiple-calls-consistency",
-			platform:               common.Platform(TestPlatform),
-			expectedError:          true, // Unsupported platforms should fail fast
-			expectedErrorSubstring: unsupportedPlatformErrorMsg,
-		},
-	}
-
-	// Run table-driven tests
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Create a new handler for each test case to ensure isolation
+			g := NewWithT(t)
 			handler := getDashboardHandler()
 
 			// Test that Init handles platforms without panicking
@@ -532,14 +445,14 @@ func TestInitConsolidated(t *testing.T) {
 			err := handler.Init(tc.platform)
 
 			// Make deterministic assertions based on expected behavior
-			if tc.expectedError {
-				g.Expect(err).Should(HaveOccurred(), "Expected error for platform %s", tc.platform)
-				if tc.expectedErrorSubstring != "" {
-					g.Expect(err.Error()).Should(ContainSubstring(tc.expectedErrorSubstring),
-						"Expected error to contain '%s' for platform %s, got: %v", tc.expectedErrorSubstring, tc.platform, err)
+			if tc.expectError {
+				g.Expect(err).Should(HaveOccurred(), "Expected error for %s platform: %s", tc.category, tc.platform)
+				if tc.errorSubstring != "" {
+					g.Expect(err.Error()).Should(ContainSubstring(tc.errorSubstring),
+						"Expected error to contain '%s' for %s platform: %s, got: %v", tc.errorSubstring, tc.category, tc.platform, err)
 				}
 			} else {
-				g.Expect(err).ShouldNot(HaveOccurred(), "Expected no error for platform %s, got: %v", tc.platform, err)
+				g.Expect(err).ShouldNot(HaveOccurred(), "Expected no error for %s platform: %s, got: %v", tc.category, tc.platform, err)
 			}
 		})
 	}

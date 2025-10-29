@@ -7,9 +7,7 @@ import (
 	gt "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
@@ -284,29 +282,6 @@ func testDashboardCRNotFound(t *testing.T, handler registry.ComponentHandler) {
 	g.Expect(cs).Should(Equal(metav1.ConditionFalse))
 }
 
-// testInvalidInstanceType tests the invalid instance type scenario.
-//
-//nolint:unused
-func testInvalidInstanceType(t *testing.T, handler registry.ComponentHandler) {
-	t.Helper()
-	g := NewWithT(t)
-	ctx := t.Context()
-
-	invalidInstance := &componentApi.Dashboard{}
-	cli, err := fakeclient.New()
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   invalidInstance,
-		Conditions: conditions.NewManager(&dscv1.DataScienceCluster{}, dashboard.ReadyConditionType),
-	})
-
-	g.Expect(err).Should(HaveOccurred())
-	g.Expect(err.Error()).Should(ContainSubstring("failed to convert to DataScienceCluster"))
-	g.Expect(cs).Should(Equal(metav1.ConditionUnknown))
-}
-
 // testDashboardCRWithoutReadyCondition tests the Dashboard CR without Ready condition scenario.
 func testDashboardCRWithoutReadyCondition(t *testing.T, handler registry.ComponentHandler) {
 	t.Helper()
@@ -487,32 +462,4 @@ func createDashboardCR(ready bool) *componentApi.Dashboard {
 	}
 
 	return &c
-}
-
-// createMockOpenShiftIngress creates an optimized mock OpenShift Ingress object
-// for testing cluster domain resolution.
-//
-//nolint:unused
-func createMockOpenShiftIngress(domain string) client.Object {
-	// Input validation for better error handling
-	if domain == "" {
-		domain = "default.example.com" // Fallback domain
-	}
-
-	// Create OpenShift Ingress object (config.openshift.io/v1/Ingress)
-	// that cluster.GetDomain() looks for
-	obj := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "config.openshift.io/v1",
-			"kind":       "Ingress",
-			"metadata": map[string]interface{}{
-				"name": "cluster",
-			},
-			"spec": map[string]interface{}{
-				"domain": domain,
-			},
-		},
-	}
-
-	return obj
 }
