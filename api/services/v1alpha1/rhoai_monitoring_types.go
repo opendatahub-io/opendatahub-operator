@@ -1,4 +1,4 @@
-//go:build !rhoai
+//go:build rhoai
 
 /*
 Copyright 2023.
@@ -53,15 +53,13 @@ type Metrics struct {
 	// +kubebuilder:validation:Minimum=0
 	Replicas int32 `json:"replicas,omitempty"`
 	// Exporters defines custom metrics exporters for sending metrics to external observability tools.
-	// Each key represents the exporter name, and the value contains the exporter configuration.
-	// The configuration follows the OpenTelemetry Collector exporter format.
+	// Each key-value pair represents an exporter name and its configuration.
 	// Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.
-	// Maximum 10 exporters allowed, each config must be less than 10KB (enforced at reconciliation time).
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="!('prometheus' in self)",message="exporter name 'prometheus' is reserved and cannot be used"
 	// +kubebuilder:validation:XValidation:rule="!('otlp/tempo' in self)",message="exporter name 'otlp/tempo' is reserved and cannot be used"
-	// +kubebuilder:validation:XValidation:rule="size(self) <= 10",message="maximum 10 exporters allowed"
-	Exporters map[string]runtime.RawExtension `json:"exporters,omitempty"`
+	// +kubebuilder:validation:XValidation:rule="self.all(k, self[k] != '')",message="exporter configuration values must be non-empty strings"
+	Exporters map[string]string `json:"exporters,omitempty"`
 }
 
 // MetricsStorage defines the storage configuration for the monitoring service
@@ -179,7 +177,7 @@ type Monitoring struct {
 type MonitoringCommonSpec struct {
 	// monitoring spec exposed to DSCI api
 	// Namespace for monitoring if it is enabled
-	// +kubebuilder:default=opendatahub
+	// +kubebuilder:default=redhat-ods-monitoring
 	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="MonitoringNamespace is immutable"
@@ -190,8 +188,7 @@ type MonitoringCommonSpec struct {
 	Traces *Traces `json:"traces,omitempty"`
 	// Alerting configuration for Prometheus
 	Alerting *Alerting `json:"alerting,omitempty"`
-	// CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults
-	// to 1 on single-node clusters and 2 on multi-node clusters.
+	// CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set
 	CollectorReplicas int32 `json:"collectorReplicas,omitempty"`
 }
 

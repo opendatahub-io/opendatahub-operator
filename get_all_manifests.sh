@@ -4,28 +4,55 @@ set -e
 GITHUB_URL="https://github.com"
 DST_MANIFESTS_DIR="./opt/manifests"
 
-# COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
-# in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
-# ref-name can be a branch name, tag name, or a commit SHA (7-40 hex characters)
-# Supports three ref-name formats:
-# 1. "branch" - tracks latest commit on branch (e.g., main)
-# 2. "tag" - immutable reference (e.g., v1.0.0)
-# 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
-declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@618df67fdb6e6c3faa14031fe8b5affdb46210a7:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@909a62e24fae72e5bbb6ed255a322d692b629e15:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@909a62e24fae72e5bbb6ed255a322d692b629e15:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@8441b86dce58fd0b63136bf99a1995a06a864f2d:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15@7aa0dbd7c2c64c7fb8cf36fec92b9256f2d0d927:config"
-    ["ray"]="opendatahub-io:kuberay:dev@b9e26fa34f9128594841fcd1df079ee2e9269fb2:ray-operator/config"
-    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@02fc7ca7f3a7ff95ccac03d9a04b67acf5a3a050:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main@666be1bda3bad55e15c8c6c793d8d1faf86819d9:config"
-    ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
-    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@bdf7dcc340bee0ad3bfe0c17d857e090cd06243b:config"
-    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@761e9e794ffd36b6ec144ffece746eebb00cfe69:config"
-    ["feastoperator"]="opendatahub-io:feast:stable@3c6fd777b7d5c9de4f7949ee7b9ee7f829dc8528:infra/feast-operator/config"
-    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@6806c3f428bb140609d6fe4801d6c66a25977804:config"
-)
+if [ "${ODH_PLATFORM_TYPE:-OpenDataHub}" = "OpenDataHub" ]; then
+    echo "Cloning manifests for ODH"
+    # COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
+    # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
+    # ref-name can be a branch name, tag name, or a commit SHA (7-40 hex characters)
+    # Supports three ref-name formats:
+    # 1. "branch" - tracks latest commit on branch (e.g., main)
+    # 2. "tag" - immutable reference (e.g., v1.0.0)
+    # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
+    declare -A COMPONENT_MANIFESTS=(
+        ["dashboard"]="opendatahub-io:odh-dashboard:main@618df67fdb6e6c3faa14031fe8b5affdb46210a7:manifests"
+        ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@909a62e24fae72e5bbb6ed255a322d692b629e15:components/notebook-controller/config"
+        ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@909a62e24fae72e5bbb6ed255a322d692b629e15:components/odh-notebook-controller/config"
+        ["workbenches/notebooks"]="opendatahub-io:notebooks:main@8441b86dce58fd0b63136bf99a1995a06a864f2d:manifests"
+        ["kserve"]="opendatahub-io:kserve:release-v0.15@7aa0dbd7c2c64c7fb8cf36fec92b9256f2d0d927:config"
+        ["ray"]="opendatahub-io:kuberay:dev@b9e26fa34f9128594841fcd1df079ee2e9269fb2:ray-operator/config"
+        ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@02fc7ca7f3a7ff95ccac03d9a04b67acf5a3a050:config"
+        ["modelregistry"]="opendatahub-io:model-registry-operator:main@666be1bda3bad55e15c8c6c793d8d1faf86819d9:config"
+        ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
+        ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@bdf7dcc340bee0ad3bfe0c17d857e090cd06243b:config"
+        ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@761e9e794ffd36b6ec144ffece746eebb00cfe69:config"
+        ["feastoperator"]="opendatahub-io:feast:stable@3c6fd777b7d5c9de4f7949ee7b9ee7f829dc8528:infra/feast-operator/config"
+        ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@6806c3f428bb140609d6fe4801d6c66a25977804:config"
+    )
+else
+    echo "Cloning manifests for RHOAI using ref $DEFAULT_REF"
+    # COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
+    # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
+    # ref-name can be a branch name, tag name, or a commit SHA (7-40 hex characters)
+    # Supports three ref-name formats:
+    # 1. "branch" - tracks latest commit on branch (e.g., main)
+    # 2. "tag" - immutable reference (e.g., v1.0.0)
+    # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
+    declare -A COMPONENT_MANIFESTS=(
+        ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.0:manifests"
+        ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.0:components/notebook-controller/config"
+        ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.0:components/odh-notebook-controller/config"
+        ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.0:manifests"
+        ["kserve"]="red-hat-data-services:kserve:rhoai-3.0:config"
+        ["ray"]="red-hat-data-services:kuberay:rhoai-3.0:ray-operator/config"
+        ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.0:config
+        ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.0:config"
+        ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.0:manifests"
+        ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.0:config"
+        ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.0:config"
+        ["feastoperator"]="red-hat-data-services:feast:rhoai-3.0:infra/feast-operator/config"
+        ["llamastackoperator"]="red-hat-data-services:llama-stack-k8s-operator:rhoai-3.0:config"
+    )
+fi
 
 # PLATFORM_MANIFESTS is a list of manifests that are contained in the operator repository. Please also add them to the
 # Dockerfile COPY instructions. Declaring them here causes this script to create a symlink in the manifests folder, so
