@@ -52,12 +52,6 @@ func TestCustomizeKserveConfigMap(t *testing.T) {
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
 		g.Expect(err).ShouldNot(HaveOccurred())
 
-		// verify deploy config is set to RawDeployment
-		var deployConfig map[string]interface{}
-		err = json.Unmarshal([]byte(updatedConfigMap.Data[DeployConfigName]), &deployConfig)
-		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(deployConfig["defaultDeploymentMode"]).Should(Equal("RawDeployment"))
-
 		// verify ingress creation is disabled
 		var ingressData map[string]interface{}
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[IngressConfigKeyName]), &ingressData)
@@ -102,11 +96,6 @@ func TestCustomizeKserveConfigMap(t *testing.T) {
 		updatedConfigMap := &corev1.ConfigMap{}
 		err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, updatedConfigMap)
 		g.Expect(err).ShouldNot(HaveOccurred())
-
-		var deployConfig map[string]interface{}
-		err = json.Unmarshal([]byte(updatedConfigMap.Data[DeployConfigName]), &deployConfig)
-		g.Expect(err).ShouldNot(HaveOccurred())
-		g.Expect(deployConfig["defaultDeploymentMode"]).Should(Equal("RawDeployment"))
 
 		var ingressData map[string]interface{}
 		err = json.Unmarshal([]byte(updatedConfigMap.Data[IngressConfigKeyName]), &ingressData)
@@ -217,9 +206,6 @@ func createTestConfigMap() *corev1.ConfigMap {
 			Name: kserveConfigMapName,
 		},
 		Data: map[string]string{
-			DeployConfigName: `{
-				"defaultDeploymentMode": "RawDeployment"
-			}`,
 			IngressConfigKeyName: `{
 				"disableIngressCreation": false
 			}`,
