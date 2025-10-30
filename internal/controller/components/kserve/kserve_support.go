@@ -45,21 +45,10 @@ func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 }
 
 func updateInferenceCM(inferenceServiceConfigMap *corev1.ConfigMap, isHeadless bool) error {
-	// deploy
-	// RawDeployment mode is the only supported mode
-	deployData := map[string]interface{}{
-		"defaultDeploymentMode": "RawDeployment",
-	}
-	deployDataBytes, err := json.MarshalIndent(deployData, "", " ")
-	if err != nil {
-		return fmt.Errorf("could not set values in configmap %s. %w", kserveConfigMapName, err)
-	}
-	inferenceServiceConfigMap.Data[DeployConfigName] = string(deployDataBytes)
-
 	// ingress
 	// RawDeployment mode is the only supported mode, so always disable ingress creation
 	var ingressData map[string]interface{}
-	if err = json.Unmarshal([]byte(inferenceServiceConfigMap.Data[IngressConfigKeyName]), &ingressData); err != nil {
+	if err := json.Unmarshal([]byte(inferenceServiceConfigMap.Data[IngressConfigKeyName]), &ingressData); err != nil {
 		return fmt.Errorf("error retrieving value for key '%s' from configmap %s. %w", IngressConfigKeyName, kserveConfigMapName, err)
 	}
 	ingressData["disableIngressCreation"] = true
