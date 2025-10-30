@@ -66,6 +66,7 @@ const (
 	ErrorFailedToSetVariable         = "failed to set variable"
 	ErrorFailedToUpdateImages        = "failed to update images on path"
 	ErrorFailedToUpdateModularImages = "failed to update " + dashboard.ModularArchitectureSourcePath + " images on path"
+	ErrorUnsupportedPlatform         = "unsupported platform"
 )
 
 // LogMessages contains log message templates for test assertions.
@@ -106,7 +107,6 @@ func CreateTestDashboard() *componentApi.Dashboard {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              componentApi.DashboardInstanceName,
-			Namespace:         TestNamespace,
 			CreationTimestamp: metav1.Unix(1640995200, 0), // 2022-01-01T00:00:00Z
 		},
 		Spec: componentApi.DashboardSpec{

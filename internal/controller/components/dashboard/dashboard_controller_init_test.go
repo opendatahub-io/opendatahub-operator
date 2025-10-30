@@ -63,7 +63,7 @@ func TestInitialize(t *testing.T) {
 			setupRR: func() *odhtypes.ReconciliationRequest {
 				return &odhtypes.ReconciliationRequest{
 					Client:   cli,
-					Instance: CreateTestDashboard(),
+					Instance: nil,
 					Release:  common.Release{Name: cluster.OpenDataHub},
 				}
 			},
@@ -135,7 +135,7 @@ func TestInitErrorPaths(t *testing.T) {
 			}{
 				name:                 string(platform),
 				platform:             platform,
-				expectErrorSubstring: unsupportedPlatformErrorMsg,
+				expectErrorSubstring: ErrorUnsupportedPlatform,
 				expectPanic:          false,
 			}, result)
 		})
@@ -210,14 +210,14 @@ func TestInitErrorCases(t *testing.T) {
 		{
 			name:                 "unsupported-non-existent-platform",
 			platform:             common.Platform(NonExistentPlatform),
-			expectErrorSubstring: unsupportedPlatformErrorMsg,
+			expectErrorSubstring: ErrorUnsupportedPlatform,
 			expectPanic:          false,
 			category:             "unsupported", // This platform is intentionally not supported by the dashboard component
 		},
 		{
 			name:                 "test-platform-missing-manifests",
 			platform:             common.Platform(TestPlatform),
-			expectErrorSubstring: unsupportedPlatformErrorMsg,
+			expectErrorSubstring: ErrorUnsupportedPlatform,
 			expectPanic:          false,
 			category:             "missing-manifests", // This is a test platform that should be supported but lacks manifest fixtures
 		},
@@ -325,56 +325,56 @@ func TestInitPlatforms(t *testing.T) {
 			platform:       common.Platform("OpenShift"),
 			category:       "unsupported",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 		{
 			name:           "unsupported-kubernetes",
 			platform:       common.Platform("Kubernetes"),
 			category:       "unsupported",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 		{
 			name:           "unsupported-non-existent-platform",
 			platform:       common.Platform(NonExistentPlatform),
 			category:       "unsupported",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 		{
 			name:           "unsupported-test-platform",
 			platform:       common.Platform(TestPlatform),
 			category:       "unsupported",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 		{
 			name:           "unsupported-upstream",
 			platform:       common.Platform("upstream"),
 			category:       "unsupported",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 		{
 			name:           "unsupported-downstream",
 			platform:       common.Platform("downstream"),
 			category:       "unsupported",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 		{
 			name:           "unsupported-self-managed-test",
 			platform:       common.Platform(TestSelfManagedPlatform),
 			category:       "unsupported",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 		{
 			name:           "unsupported-managed",
 			platform:       common.Platform("managed"),
 			category:       "unsupported",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 
 		// Edge cases - should fail with clear error messages
@@ -383,49 +383,49 @@ func TestInitPlatforms(t *testing.T) {
 			platform:       common.Platform(""),
 			category:       "edge-case",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 		{
 			name:           "edge-case-nil-like-platform",
 			platform:       common.Platform("nil-test"),
 			category:       "edge-case",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 		{
 			name:           "edge-case-special-chars",
 			platform:       common.Platform("test-platform-with-special-chars!@#$%"),
 			category:       "edge-case",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 		{
 			name:           "edge-case-very-long-name",
 			platform:       common.Platform(strings.Repeat("a", 1000)),
 			category:       "edge-case",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 		{
 			name:           "edge-case-platform-with-dashes",
 			platform:       common.Platform("platform-with-dashes"),
 			category:       "edge-case",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 		{
 			name:           "edge-case-platform-with-underscores",
 			platform:       common.Platform("platform_with_underscores"),
 			category:       "edge-case",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 		{
 			name:           "edge-case-platform-with-dots",
 			platform:       common.Platform("platform.with.dots"),
 			category:       "edge-case",
 			expectError:    true,
-			errorSubstring: unsupportedPlatformErrorMsg,
+			errorSubstring: ErrorUnsupportedPlatform,
 		},
 	}
 

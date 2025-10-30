@@ -27,7 +27,6 @@ const (
 	managedRhoaiPlatformName     = "ManagedRhoai platform"
 	unsupportedPlatformName      = "Unsupported platform"
 	unsupportedPlatformValue     = "unsupported-platform"
-	unsupportedPlatformErrorMsg  = "unsupported platform"
 )
 
 func TestDefaultManifestInfo(t *testing.T) {
@@ -225,7 +224,7 @@ func runPlatformTest(t *testing.T, testName string, testFunc func(platform commo
 			result, err := testFunc(tt.platform)
 			if tt.hasError {
 				g.Expect(err).Should(HaveOccurred())
-				g.Expect(err.Error()).Should(ContainSubstring(unsupportedPlatformErrorMsg))
+				g.Expect(err.Error()).Should(ContainSubstring(ErrorUnsupportedPlatform))
 			} else {
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(result).Should(Equal(tt.expected))

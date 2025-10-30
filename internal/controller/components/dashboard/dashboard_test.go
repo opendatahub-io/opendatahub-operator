@@ -253,13 +253,6 @@ func testEmptyManagementState(t *testing.T, handler registry.ComponentHandler) {
 		jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, dashboard.ReadyConditionType, operatorv1.Removed),
 		jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, dashboard.ReadyConditionType)),
 	))
-
-	g.Expect(dsc).Should(WithTransform(json.Marshal, And(
-		jq.Match(`.status.components.dashboard.managementState == "%s"`, operatorv1.Removed),
-		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, dashboard.ReadyConditionType, metav1.ConditionFalse),
-		jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, dashboard.ReadyConditionType, operatorv1.Removed),
-		jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, dashboard.ReadyConditionType)),
-	))
 }
 
 // testDashboardCRNotFound tests the Dashboard CR not found scenario.
