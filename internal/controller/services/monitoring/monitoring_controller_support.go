@@ -29,12 +29,10 @@ import (
 )
 
 const (
-	// Dependent operator package names used to detect if operators are installed via OLM Subscriptions.
-	// These values match the subscription package name (spec.name field in subscription YAML).
-	// Updated for OLMv1 compatibility (no longer using OperatorConditions).
-	opentelemetryOperator        = "opentelemetry-product"
+	// Dependent operators names. match the one in the operatorcondition..
+	opentelemetryOperator        = "opentelemetry-operator"
 	clusterObservabilityOperator = "cluster-observability-operator"
-	tempoOperator                = "tempo-product"
+	tempoOperator                = "tempo-operator"
 
 	defaultCPULimit      = "500m"
 	defaultMemoryLimit   = "512Mi"

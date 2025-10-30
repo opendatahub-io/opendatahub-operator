@@ -96,11 +96,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				handlers.ToNamed(componentApi.KueueInstanceName),
 			),
 			reconciler.Dynamic(reconciler.CrdExists(gvk.KueueConfigV1))).
-		WatchesGVK(gvk.Subscription,
+		WatchesGVK(gvk.OperatorCondition,
 			reconciler.WithEventHandler(
 				handlers.ToNamed(componentApi.KueueInstanceName),
 			),
-			reconciler.WithPredicates(resources.SubscriptionPackagePrefixed(kueueOperator))).
+			reconciler.WithPredicates(resources.CreatedOrUpdatedOrDeletedNamePrefixed(kueueOperator))).
 		Watches(
 			&extv1.CustomResourceDefinition{},
 			reconciler.WithEventHandler(
