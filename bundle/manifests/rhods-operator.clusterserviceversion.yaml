@@ -1537,6 +1537,8 @@ spec:
                   readOnly: true
               securityContext:
                 runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
               serviceAccountName: redhat-ods-operator-controller-manager
               terminationGracePeriodSeconds: 10
               volumes:
