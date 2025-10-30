@@ -891,6 +891,7 @@ rules:
   - operators.coreos.com
   resources:
   - catalogsources
+  - operatorconditions
   verbs:
   - get
   - list
