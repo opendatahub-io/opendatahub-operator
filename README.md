@@ -474,9 +474,9 @@ Evn vars can be set to configure e2e tests:
 | E2E_TEST_WEBHOOK                | To configure the execution of tests related to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | `true`                        |
 | E2E_TEST_DELETION_POLICY        | Specify when to delete `DataScienceCluster`, `DSCInitialization`, and controllers. Valid options are: `always`, `on-failure`, and `never`.                                   | `always`                      |
 | E2E_TEST_COMPONENTS             | Enable testing of individual components specified by --test-component flag                                                                                                   | `true`                        |
-| E2E_TEST_COMPONENT              | A comma separated configuration to control which component should be tested, by default all component specific test are executed                                             | `all components`              |
+| E2E_TEST_COMPONENT              | A space separated configuration to control which component should be tested, by default all component specific test are executed                                             | `all components`              |
 | E2E_TEST_SERVICES               | Enable testing of individual services specified by --test-service flag                                                                                                       | `true`                        |
-| E2E_TEST_SERVICE                | A comma separated configuration to control which services should be tested, by default all service specific test are executed                                                | `all services`                |
+| E2E_TEST_SERVICE                | A space separated configuration to control which services should be tested, by default all service specific test are executed                                                | `all services`                |
 | E2E_TEST_OPERATOR_V2TOV3UPGRADE | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                       | `true`                        |
 |                                 |                                                                                                                                                                              |                               |
 | E2E_TEST_FLAGS                  | Alternatively the above configurations can be passed to e2e-tests as flags using this env var (see flags table below)                                                        |                               |
@@ -587,7 +587,7 @@ make e2e-test -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_WEBHOOK=false -e
 <summary>How do I run only tests for a specific component?</summary>
 
 ```shell
-make e2e-test -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_WEBHOOK=false -e E2E_TEST_COMPONENT=dashboard,workbenches -e E2E_TEST_SERVICES=false -e E2E_TEST_DELETION_POLICY=never
+make e2e-test -e E2E_TEST_OPERATOR_CONTROLLER=false -e E2E_TEST_WEBHOOK=false -e E2E_TEST_COMPONENT="dashboard workbenches" -e E2E_TEST_SERVICES=false -e E2E_TEST_DELETION_POLICY=never
 ```
 
 ##### Alternative using E2E\_TEST\_FLAGS
