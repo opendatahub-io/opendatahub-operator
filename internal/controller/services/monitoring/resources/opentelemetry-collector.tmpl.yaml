@@ -6,6 +6,13 @@ metadata:
 spec:
   replicas: {{.CollectorReplicas}}
   mode: deployment
+  resources:
+    limits:
+      cpu: {{.CollectorCPULimit}}
+      memory: {{.CollectorMemoryLimit}}
+    requests:
+      cpu: {{.CollectorCPURequest}}
+      memory: {{.CollectorMemoryRequest}}
   config:
     extensions:
       bearertokenauth:
