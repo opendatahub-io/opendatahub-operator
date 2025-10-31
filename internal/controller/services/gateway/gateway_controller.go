@@ -21,7 +21,9 @@ import (
 	"fmt"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -99,6 +101,27 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			&dsciv2.DSCInitialization{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayInstanceName)),
 			reconciler.WithPredicates(predicate.GenerationChangedPredicate{}),
+		)
+
+	// Watch ingress certificate secrets to trigger reconciliation when certificates are rotated
+	// This ensures gateway certificates are automatically updated when the source certificate changes
+	reconcilerBuilder = reconcilerBuilder.
+		Watches(
+			&corev1.Secret{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayInstanceName)),
+			reconciler.WithPredicates(
+				predicate.Funcs{
+					CreateFunc: func(e event.CreateEvent) bool {
+						return isIngressCertificateSecret(ctx, mgr.GetClient(), e.Object)
+					},
+					UpdateFunc: func(e event.UpdateEvent) bool {
+						return isIngressCertificateSecret(ctx, mgr.GetClient(), e.ObjectNew)
+					},
+					DeleteFunc: func(e event.DeleteEvent) bool {
+						return isIngressCertificateSecret(ctx, mgr.GetClient(), e.Object)
+					},
+				},
+			),
 		)
 
 	// Configure action chain for resource lifecycle
