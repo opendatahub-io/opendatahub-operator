@@ -79,6 +79,14 @@ const (
 var (
 	// KubeAuthProxyLabels provides common labels for OAuth2 proxy resources.
 	KubeAuthProxyLabels = map[string]string{"app": KubeAuthProxyName}
+
+	// baseConsoleURLPrefix provides platform-specific prefixes for default subdomain construction.
+	// Format: prefix + ApplicationsNamespace.
+	baseConsoleURLPrefix = map[common.Platform]string{
+		cluster.SelfManagedRhoai: "rhods-dashboard-",
+		cluster.ManagedRhoai:     "rhods-dashboard-",
+		cluster.OpenDataHub:      "odh-dashboard-",
+	}
 )
 
 // make secrete data into sha256 as hash.
@@ -115,10 +123,30 @@ func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
 	return string(gatewayConfig.Spec.Certificate.Type)
 }
 
-// buildGatewayDomain combines gateway name with base domain.
-func buildGatewayDomain(baseDomain string) string {
-	// Use string concatenation for better performance in frequently called function
-	return DefaultGatewayName + "." + baseDomain
+// getDefaultSubdomain returns the platform-specific default subdomain.
+// It constructs the subdomain as: baseConsoleURLPrefix[platform] + ApplicationsNamespace.
+func getDefaultSubdomain(ctx context.Context, cli client.Client) string {
+	// Get platform from cached Release (consistent with other components)
+	platform := cluster.GetRelease().Name
+
+	basePrefix, exists := baseConsoleURLPrefix[platform]
+	if !exists {
+		basePrefix = baseConsoleURLPrefix[cluster.OpenDataHub]
+	}
+
+	// Get ApplicationsNamespace from DSCI
+	appNamespace, err := cluster.ApplicationNamespace(ctx, cli)
+	if err != nil {
+		// If DSCI not found, fall back to default ODH namespace
+		appNamespace = cluster.DefaultNotebooksNamespaceODH
+	}
+
+	return basePrefix + appNamespace
+}
+
+// buildGatewayDomain combines subdomain with base domain.
+func buildGatewayDomain(subdomain, baseDomain string) string {
+	return subdomain + "." + baseDomain
 }
 
 // getClusterDomain gets cluster domain - extracted common logic.
@@ -127,24 +155,38 @@ func getClusterDomain(ctx context.Context, client client.Client) (string, error)
 	if err != nil {
 		return "", fmt.Errorf("failed to get cluster domain: %w", err)
 	}
-	return buildGatewayDomain(clusterDomain), nil
+	return clusterDomain, nil
 }
 
 func resolveDomain(ctx context.Context, client client.Client,
 	gatewayConfig *serviceApi.GatewayConfig) (string, error) {
-	// Input validation
-	if gatewayConfig == nil {
-		return getClusterDomain(ctx, client)
+	// Extract and trim domain/subdomain (handle nil gatewayConfig)
+	var customDomain, customSubdomain string
+	if gatewayConfig != nil {
+		customDomain = strings.TrimSpace(gatewayConfig.Spec.Domain)
+		customSubdomain = strings.TrimSpace(gatewayConfig.Spec.Subdomain)
 	}
 
-	// Check if user has overridden the domain
-	baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
-	if baseDomain != "" {
-		return buildGatewayDomain(baseDomain), nil
+	// Determine base domain: use custom domain if provided, otherwise use cluster domain
+	var baseDomain string
+	if customDomain != "" {
+		baseDomain = customDomain
+	} else {
+		var err error
+		baseDomain, err = getClusterDomain(ctx, client)
+		if err != nil {
+			return "", err
+		}
 	}
 
-	// No domain override, use cluster domain
-	return getClusterDomain(ctx, client)
+	// Determine subdomain: use custom subdomain if provided, otherwise use platform default
+	subdomain := customSubdomain
+	if subdomain == "" {
+		subdomain = getDefaultSubdomain(ctx, client)
+	}
+
+	// Construct final domain: subdomain + "." + baseDomain
+	return buildGatewayDomain(subdomain, baseDomain), nil
 }
 
 // GetGatewayDomain reads GatewayConfig and passes it to resolveDomain.
@@ -155,18 +197,11 @@ func GetGatewayDomain(ctx context.Context, cli client.Client) (string, error) {
 	gatewayConfig := &serviceApi.GatewayConfig{}
 	err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, gatewayConfig)
 	if err != nil {
-		// GatewayConfig doesn't exist, use cluster domain directly
-		return getClusterDomain(ctx, cli)
+		// GatewayConfig doesn't exist, use platform-specific default subdomain with cluster domain
+		return resolveDomain(ctx, cli, nil)
 	}
 
-	// Check if user has overridden the domain (inline ResolveDomain logic to avoid redundant calls)
-	baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
-	if baseDomain != "" {
-		return buildGatewayDomain(baseDomain), nil
-	}
-
-	// No domain override, use cluster domain
-	return getClusterDomain(ctx, cli)
+	return resolveDomain(ctx, cli, gatewayConfig)
 }
 
 // createListeners creates the Gateway listeners configuration.

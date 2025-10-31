@@ -32,8 +32,9 @@ const (
 	expectedHTTPSListenerName    = "https"
 	expectedHTTPSPortSupport     = gwapiv1.PortNumber(443)
 	expectedHTTPSProtocolSupport = gwapiv1.HTTPSProtocolType
-	expectedODHDomain            = "data-science-gateway.apps.example.com"
-	expectedClusterDomain        = "data-science-gateway.apps.cluster.example.com"
+	// Default subdomain includes ApplicationsNamespace (defaults to "opendatahub" when DSCI not found).
+	expectedODHDomain     = "odh-dashboard-opendatahub.apps.example.com"
+	expectedClusterDomain = "odh-dashboard-opendatahub.apps.cluster.example.com"
 )
 
 // TestCreateListeners tests the createListeners helper function.
@@ -167,7 +168,7 @@ func TestResolveDomain(t *testing.T) {
 			useClusterIngress: false,
 			expectedDomain:    expectedODHDomain,
 			expectError:       false,
-			description:       "should use user-provided domain and prepend gateway name",
+			description:       "should use user-provided domain and prepend subdomain",
 		},
 		{
 			name:              "empty domain falls back to cluster domain",
@@ -287,23 +288,37 @@ func TestResolveDomainEdgeCases(t *testing.T) {
 	testCases := []struct {
 		name             string
 		specDomain       string
-		gatewayName      string
+		subdomain        string
 		expectedContains string
 		description      string
 	}{
 		{
-			name:             "user domain with default gateway name",
+			name:             "user domain with default subdomain",
 			specDomain:       testUserDomain,
-			gatewayName:      DefaultGatewayName,
-			expectedContains: DefaultGatewayName,
-			description:      "should use default gateway name with user domain",
+			subdomain:        "",
+			expectedContains: "odh-dashboard-opendatahub",
+			description:      "should use platform default subdomain (with ApplicationsNamespace) with user domain",
 		},
 		{
-			name:             "domain with subdomain",
+			name:             "user domain with custom subdomain",
+			specDomain:       testUserDomain,
+			subdomain:        "custom-dashboard",
+			expectedContains: "custom-dashboard.apps.example.com",
+			description:      "should use custom subdomain when specified",
+		},
+		{
+			name:             "custom subdomain with custom domain",
+			specDomain:       testUserDomain,
+			subdomain:        "my-dashboard",
+			expectedContains: "my-dashboard.apps.example.com",
+			description:      "should use custom subdomain with custom domain",
+		},
+		{
+			name:             "domain with complex base domain",
 			specDomain:       "api.v1.apps.example.com",
-			gatewayName:      DefaultGatewayName,
-			expectedContains: "data-science-gateway.api.v1.apps.example.com",
-			description:      "should handle complex subdomain structures",
+			subdomain:        "",
+			expectedContains: "odh-dashboard-opendatahub.api.v1.apps.example.com",
+			description:      "should handle complex base domain structures",
 		},
 	}
 
@@ -313,12 +328,19 @@ func TestResolveDomainEdgeCases(t *testing.T) {
 			ctx := t.Context()
 
 			gatewayConfig := createTestGatewayConfigSupport(tc.specDomain, nil)
+			if tc.subdomain != "" {
+				gatewayConfig.Spec.Subdomain = tc.subdomain
+			}
 			client := setupSupportTestClient()
 
 			domain, err := resolveDomain(ctx, client, gatewayConfig)
 
 			g.Expect(err).ToNot(HaveOccurred(), tc.description)
-			g.Expect(domain).To(ContainSubstring(tc.expectedContains), tc.description)
+			if tc.subdomain != "" {
+				g.Expect(domain).To(Equal(tc.expectedContains), tc.description)
+			} else {
+				g.Expect(domain).To(ContainSubstring(tc.expectedContains), tc.description)
+			}
 		})
 	}
 }

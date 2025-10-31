@@ -136,6 +136,9 @@ spec:
                 - clientSecretRef
                 - issuerURL
                 type: object
+              subdomain:
+                description: Subdomain configuration for the GatewayConfig
+                type: string
             type: object
           status:
             description: GatewayConfigStatus defines the observed state of GatewayConfig

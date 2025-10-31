@@ -95,6 +95,11 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			GenericFunc: func(tge event.TypedGenericEvent[client.Object]) bool { return false },
 			DeleteFunc:  func(tde event.TypedDeleteEvent[client.Object]) bool { return false },
 		}), reconciler.Dynamic(reconciler.CrdExists(gvk.DashboardHardwareProfile))).
+		// Watch GatewayConfig to trigger reconciliation when domain or subdomain changes
+		WatchesGVK(gvk.GatewayConfig,
+			reconciler.WithEventHandler(handlers.ToNamed(componentApi.DashboardInstanceName)),
+			reconciler.WithPredicates(predicate.GenerationChangedPredicate{}),
+		).
 		WithAction(initialize).
 		WithAction(setKustomizedParams).
 		WithAction(configureDependencies).
@@ -109,7 +114,12 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			// so they would affect only objects metadata without side effects
 			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),
+			// Use custom cache key that includes GatewayConfig generation
+			// This ensures cache invalidation when GatewayConfig domain/subdomain changes
+			// without disabling caching entirely
+			kustomize.WithCustomKeyFn(hashWithGatewayConfig),
 		)).
+		WithAction(updateDashboardConfigMapHash). // Update deployment with ConfigMap hash to trigger restart on changes
 		WithAction(deploy.NewAction()).
 		WithAction(deployments.NewAction()).
 		WithAction(reconcileHardwareProfiles).
