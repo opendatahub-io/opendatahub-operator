@@ -64,6 +64,8 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 		Owns(&monitoringv1.ServiceMonitor{}).
 		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
+		Owns(&admissionregistrationv1.ValidatingAdmissionPolicy{}).
+		Owns(&admissionregistrationv1.ValidatingAdmissionPolicyBinding{}).
 		Owns(&appsv1.Deployment{}, reconciler.WithPredicates(resources.NewDeploymentPredicate())).
 
 		// operands - dynamically owned
