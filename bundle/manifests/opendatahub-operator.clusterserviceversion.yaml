@@ -25,6 +25,9 @@ metadata:
                 "managementState": "Managed"
               },
               "kserve": {
+                "llm-d": {
+                  "managementState": "Removed"
+                },
                 "managementState": "Managed",
                 "nim": {
                   "managementState": "Managed"
@@ -856,6 +859,14 @@ spec:
           - update
           - watch
         - apiGroups:
+          - kuadrant.io
+          resources:
+          - kuadrants
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
           - kubeflow.org
           resources:
           - notebooks
@@ -1122,6 +1133,14 @@ spec:
           - get
           - list
           - patch
+          - watch
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - leaderworkersetoperators
+          verbs:
+          - get
+          - list
           - watch
         - apiGroups:
           - operators.coreos.com

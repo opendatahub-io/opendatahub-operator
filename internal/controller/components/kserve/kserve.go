@@ -16,6 +16,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -27,6 +28,10 @@ const (
 	kserveConfigMapName      = "inferenceservice-config"
 	kserveManifestSourcePath = "overlays/odh"
 
+	// llm-d OperatorCondition name prefixes (not subscription package names).
+	leaderWorkerSetOperator = "leader-worker-set"
+	kuadrantOperator        = "kuadrant-operator"
+
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.
@@ -37,8 +42,14 @@ const (
 
 var (
 	conditionTypes = []string{
+		status.ConditionLLMDAvailable, // for rhcl, lws and authorino.
 		status.ConditionDeploymentsAvailable,
 	}
+)
+
+var (
+	ErrLeaderWorkerSetOperatorNotInstalled = odherrors.NewStopError(status.LeaderWorkerSetOperatorNotInstalledMessage)
+	ErrRHCLNotInstalled                    = odherrors.NewStopError(status.RHCLOperatorNotInstalledMessage)
 )
 
 type componentHandler struct{}

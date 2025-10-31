@@ -153,6 +153,17 @@ spec:
                       Kserve component configuration.
                       Only RawDeployment mode is supported.
                     properties:
+                      llm-d:
+                        description: Configures and enables LLMD integration
+                        properties:
+                          managementState:
+                            default: Removed
+                            enum:
+                            - Managed
+                            - Removed
+                            pattern: ^(Managed|Unmanaged|Force|Removed)$
+                            type: string
+                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:
@@ -1110,6 +1121,17 @@ spec:
                       Kserve component configuration.
                       Only RawDeployment mode is supported.
                     properties:
+                      llm-d:
+                        description: Configures and enables LLMD integration
+                        properties:
+                          managementState:
+                            default: Removed
+                            enum:
+                            - Managed
+                            - Removed
+                            pattern: ^(Managed|Unmanaged|Force|Removed)$
+                            type: string
+                        type: object
                       managementState:
                         description: |-
                           Set to one of the following values:

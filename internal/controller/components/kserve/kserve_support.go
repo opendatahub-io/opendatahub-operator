@@ -15,6 +15,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -35,6 +37,24 @@ var (
 		"kube-rbac-proxy":                  "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
 )
+
+// lws or rhcl(kuadrant).
+var isRequiredOperators = predicate.Funcs{
+	UpdateFunc: func(e event.UpdateEvent) bool {
+		return false
+	},
+	CreateFunc: func(e event.CreateEvent) bool {
+		return strings.HasPrefix(e.Object.GetName(), leaderWorkerSetOperator) ||
+			strings.HasPrefix(e.Object.GetName(), kuadrantOperator)
+	},
+	DeleteFunc: func(e event.DeleteEvent) bool {
+		return strings.HasPrefix(e.Object.GetName(), leaderWorkerSetOperator) ||
+			strings.HasPrefix(e.Object.GetName(), kuadrantOperator)
+	},
+	GenericFunc: func(e event.GenericEvent) bool {
+		return false
+	},
+}
 
 func kserveManifestInfo(sourcePath string) odhtypes.ManifestInfo {
 	return odhtypes.ManifestInfo{

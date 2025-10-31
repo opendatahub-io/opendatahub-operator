@@ -51,12 +51,21 @@ type KserveCommonSpec struct {
 	RawDeploymentServiceConfig RawServiceConfig `json:"rawDeploymentServiceConfig,omitempty"`
 	// Configures and enables NVIDIA NIM integration
 	NIM NimSpec `json:"nim,omitempty"`
+	// Configures and enables LLMD integration
+	LLMD LlmdSpec `json:"llm-d,omitempty"`
 }
 
 // nimSpec enables NVIDIA NIM integration
 type NimSpec struct {
 	// +kubebuilder:validation:Enum=Managed;Removed
 	// +kubebuilder:default=Managed
+	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
+}
+
+// controller llm-d e.g external operators should be installed or not.
+type LlmdSpec struct {
+	// +kubebuilder:validation:Enum=Managed;Removed
+	// +kubebuilder:default=Removed
 	ManagementState operatorv1.ManagementState `json:"managementState,omitempty"`
 }
 

@@ -371,6 +371,8 @@ spec:
       nim:
         managementState: Managed
       rawDeploymentServiceConfig: Headed
+      llm-d:
+        managementState: Managed
     kueue:
       managementState: Unmanaged
     modelregistry:
