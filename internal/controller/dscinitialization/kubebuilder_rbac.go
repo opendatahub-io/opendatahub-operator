@@ -54,6 +54,12 @@ package dscinitialization
 /* Observability */
 // +kubebuilder:rbac:groups=tempo.grafana.com,resources=tempostacks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=tempo.grafana.com,resources=tempomonolithics,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=perses.dev,resources=persesdashboards,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=perses.dev,resources=persesdashboards/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=perses.dev,resources=persesdashboards/finalizers,verbs=update
+//+kubebuilder:rbac:groups=perses.dev,resources=persesdatasources,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=perses.dev,resources=persesdatasources/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=perses.dev,resources=persesdatasources/finalizers,verbs=update
 //+kubebuilder:rbac:groups=monitoring.rhobs,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=monitoring.rhobs,resources=servicemonitors/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=monitoring.rhobs,resources=servicemonitors/finalizers,verbs=update
