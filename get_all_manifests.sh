@@ -12,11 +12,11 @@ DST_MANIFESTS_DIR="./opt/manifests"
 # 2. "tag" - immutable reference (e.g., v1.0.0)
 # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
 declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@9e13d062ee5524619504d4cf5ce2b385d888315c:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@618df67fdb6e6c3faa14031fe8b5affdb46210a7:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@909a62e24fae72e5bbb6ed255a322d692b629e15:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@909a62e24fae72e5bbb6ed255a322d692b629e15:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@310b26ea6e377cd84315af16dd31e252ba866f4d:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15@c23a6d612b31a9dc8d63666a9267b26234861281:config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@8441b86dce58fd0b63136bf99a1995a06a864f2d:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.15@7aa0dbd7c2c64c7fb8cf36fec92b9256f2d0d927:config"
     ["ray"]="opendatahub-io:kuberay:dev@b9e26fa34f9128594841fcd1df079ee2e9269fb2:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@02fc7ca7f3a7ff95ccac03d9a04b67acf5a3a050:config"
     ["modelregistry"]="opendatahub-io:model-registry-operator:main@666be1bda3bad55e15c8c6c793d8d1faf86819d9:config"
