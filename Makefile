@@ -3,21 +3,31 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 3.2.0
+ifeq ($(VERSION), )
+	VERSION = 3.2.0
+endif
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # opendatahub.io/opendatahub-operator-bundle:$VERSION and opendatahub.io/opendatahub-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= quay.io/opendatahub/opendatahub-operator
+ifeq ($(IMAGE_TAG_BASE), )
+	IMAGE_TAG_BASE = quay.io/opendatahub/opendatahub-operator
+endif
 
 # keep the name based on IMG which already used from command line
-IMG_TAG ?= latest
+ifeq ($(IMG_TAG), )
+	IMG_TAG = latest
+endif
 # Update IMG to a variable, to keep it consistent across versions for OpenShift CI
-IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
+ifeq ($(IMG), )
+	IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
+endif
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
+ifeq ($(BUNDLE_IMG), )
+	BUNDLE_IMG = $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
+endif
 
 IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
@@ -329,12 +339,21 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
-	mv bundle.Dockerfile Dockerfiles/
+	$(SED_COMMAND) -i 's#COPY #COPY --from=builder /workspace/#' bundle.Dockerfile
+	cat Dockerfiles/build-bundle.Dockerfile bundle.Dockerfile > Dockerfiles/bundle.Dockerfile
+	rm bundle.Dockerfile
 	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
 
+# The bundle image is multi-stage to preserve the ability to build without invoking make
+# We use build args to ensure the variables are passed to the underlying internal make invocation
 .PHONY: bundle-build
 bundle-build: bundle
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile --platform $(PLATFORM) -t $(BUNDLE_IMG) .
+	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile --platform $(PLATFORM) -t $(BUNDLE_IMG) \
+	--build-arg BUNDLE_IMG=$(BUNDLE_IMG) \
+	--build-arg IMAGE_TAG_BASE=$(IMAGE_TAG_BASE) \
+	--build-arg IMG_TAG=$(IMG_TAG) \
+	--build-arg OPERATOR_VERSION=$(VERSION) \
+	.
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
