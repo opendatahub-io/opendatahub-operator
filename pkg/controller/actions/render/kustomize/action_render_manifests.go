@@ -7,6 +7,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/cacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/resourcecacher"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/manifests/kustomize"
@@ -19,8 +20,9 @@ const rendererEngine = "kustomize"
 // further processing. The Action can eventually cache the results in memory to avoid doing
 // a full manifest rendering when not needed.
 type Action struct {
-	cacher resourcecacher.ResourceCacher
-	cache  bool
+	cacher    resourcecacher.ResourceCacher
+	cache     bool
+	customKey cacher.CachingKeyFn
 
 	keOpts []kustomize.EngineOptsFn
 	ke     *kustomize.Engine
@@ -70,6 +72,15 @@ func WithCache(enabled bool) ActionOpts {
 	}
 }
 
+// WithCustomKeyFn allows setting a custom hash function for cache key computation.
+// This is useful when you need to include external resources (like GatewayConfig)
+// in the cache key to invalidate cache when those resources change.
+func WithCustomKeyFn(keyFn cacher.CachingKeyFn) ActionOpts {
+	return func(action *Action) {
+		action.customKey = keyFn
+	}
+}
+
 func (a *Action) run(ctx context.Context, rr *types.ReconciliationRequest) error {
 	return a.cacher.Render(ctx, rr, a.render)
 }
@@ -110,7 +121,11 @@ func NewAction(opts ...ActionOpts) actions.Fn {
 	}
 
 	if action.cache {
-		action.cacher.SetKeyFn(types.Hash)
+		if action.customKey != nil {
+			action.cacher.SetKeyFn(action.customKey)
+		} else {
+			action.cacher.SetKeyFn(types.Hash)
+		}
 	}
 
 	action.ke = kustomize.NewEngine(action.keOpts...)
