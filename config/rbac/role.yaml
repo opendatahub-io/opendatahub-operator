@@ -334,6 +334,7 @@ rules:
   resources:
   - authentications
   - clusterversions
+  - infrastructures
   verbs:
   - get
   - list
