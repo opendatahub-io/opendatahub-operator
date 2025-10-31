@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/testf"
@@ -44,8 +45,6 @@ const (
 	OtlpTempoExporter      = "otlp/tempo"
 	MetricsCPURequest      = "50m"
 	MetricsMemoryRequest   = "128Mi"
-	MetricsDefaultReplicas = 2
-
 	// TracesStorage backend types for testing.
 	TracesStorageBackendPV  = "pv"
 	TracesStorageBackendS3  = "s3"
@@ -62,6 +61,9 @@ var monitoringOwnerReferencesCondition = And(
 
 type MonitoringTestCtx struct {
 	*TestContext
+
+	// expectedDefaultReplicas stores the expected replica count based on cluster size, 1 for single-node clusters, 2 for multi-node.
+	expectedDefaultReplicas int
 }
 
 func monitoringTestSuite(t *testing.T) {
@@ -71,9 +73,17 @@ func monitoringTestSuite(t *testing.T) {
 	tc, err := NewTestContext(t)
 	require.NoError(t, err)
 
+	// Detect cluster size once for all tests
+	isSNO := cluster.IsSingleNodeCluster(tc.Context(), tc.Client())
+	expectedReplicas := 2 // Default for multi-node
+	if isSNO {
+		expectedReplicas = 1
+	}
+
 	// Create an instance of test context.
 	monitoringServiceCtx := MonitoringTestCtx{
-		TestContext: tc,
+		TestContext:             tc,
+		expectedDefaultReplicas: expectedReplicas,
 	}
 
 	// Increase the global eventually timeout for monitoring tests involve complex operator dependencies (OpenTelemetry, Tempo, etc.)
@@ -157,7 +167,7 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsWhenSet(t *testing.
 	// Update DSCI to set metrics - ensure managementState remains Managed
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
-		withMetricsConfig(),
+		tc.withMetricsConfig(),
 	)
 
 	// Wait for the Monitoring resource to be updated by DSCInitialization controller
@@ -190,8 +200,8 @@ func (tc *MonitoringTestCtx) ValidateMonitoringStackCRMetricsConfiguration(t *te
 			jq.Match(`.spec.resources.requests.cpu == "%s"`, MetricsCPURequest),
 			// Validate memory request is set to MetricsMemoryRequest
 			jq.Match(`.spec.resources.requests.memory == "%s"`, MetricsMemoryRequest),
-			// Validate replicas is set to MetricsDefaultReplicas when it was not specified in DSCI
-			jq.Match(`.spec.prometheusConfig.replicas == %d`, MetricsDefaultReplicas),
+			// Validate replicas is set to the cluster-appropriate default value (1 for SNO, 2 for multi-node)
+			jq.Match(`.spec.prometheusConfig.replicas == %d`, tc.expectedDefaultReplicas),
 			// Validate owner references
 			monitoringOwnerReferencesCondition,
 		)),
@@ -304,7 +314,7 @@ func (tc *MonitoringTestCtx) ValidateCELAllowsValidMonitoringConfigs(t *testing.
 		{
 			name: "replicas_with_storage",
 			transforms: []testf.TransformFn{
-				withMetricsConfig(),
+				tc.withMetricsConfig(),
 			},
 			description: "Non-zero replicas should be allowed with storage",
 		},
@@ -338,7 +348,7 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 			name: "Custom Metrics Exporters",
 			transforms: []testf.TransformFn{
 				withManagementState(operatorv1.Managed),
-				withMetricsConfig(),
+				tc.withMetricsConfig(),
 				withCustomMetricsExporters(),
 			},
 			validation: jq.Match(`
@@ -395,15 +405,13 @@ func (tc *MonitoringTestCtx) ValidateOpenTelemetryCollectorConfigurations(t *tes
 func (tc *MonitoringTestCtx) ValidateMonitoringCRCollectorReplicas(t *testing.T) {
 	t.Helper()
 
-	const (
-		defaultReplicas = 2
-		testReplicas    = 3
-	)
+	defaultReplicas := tc.expectedDefaultReplicas
+	testReplicas := defaultReplicas + 1 // Test with one more replica than default
 
 	// Setup monitoring configuration to allow collectorReplicas testing
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
-		withMetricsConfig(),
+		tc.withMetricsConfig(),
 	)
 
 	monitoringCR := WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName})
@@ -610,7 +618,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRulesLifecycle(t *testing.T) {
 	// Enable alerting + dashboard → Prometheus rules created
 	tc.updateMonitoringConfig(
 		withManagementState(operatorv1.Managed),
-		withMetricsConfig(),
+		tc.withMetricsConfig(),
 		withEmptyAlerting(),
 	)
 	tc.EventuallyResourcePatched(
@@ -887,7 +895,7 @@ func withManagementState(state operatorv1.ManagementState) testf.TransformFn {
 }
 
 // withMetricsConfig returns a single transform for setting up metrics configuration using pipeline.
-func withMetricsConfig() testf.TransformFn {
+func (tc *MonitoringTestCtx) withMetricsConfig() testf.TransformFn {
 	return testf.Transform(`.spec.monitoring.metrics = {
         "storage": {
             "size": "%s",
@@ -898,7 +906,7 @@ func withMetricsConfig() testf.TransformFn {
             "memoryrequest": "%s"
         },
         "replicas": %d
-    }`, MetricsStorageSize, MetricsRetention, MetricsCPURequest, MetricsMemoryRequest, MetricsDefaultReplicas)
+    }`, MetricsStorageSize, MetricsRetention, MetricsCPURequest, MetricsMemoryRequest, tc.expectedDefaultReplicas)
 }
 
 // withMetricsReplicas returns a transform that sets metrics replicas.

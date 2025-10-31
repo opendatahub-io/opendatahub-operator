@@ -188,7 +188,8 @@ type MonitoringCommonSpec struct {
 	Traces *Traces `json:"traces,omitempty"`
 	// Alerting configuration for Prometheus
 	Alerting *Alerting `json:"alerting,omitempty"`
-	// CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set
+	// CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults
+	// to 1 on single-node clusters and 2 on multi-node clusters.
 	CollectorReplicas int32 `json:"collectorReplicas,omitempty"`
 }
 

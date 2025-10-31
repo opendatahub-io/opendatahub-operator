@@ -511,7 +511,12 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		if dsci.Spec.Monitoring.CollectorReplicas != 0 {
 			defaultMonitoring.Spec.CollectorReplicas = dsci.Spec.Monitoring.CollectorReplicas
 		} else {
-			defaultMonitoring.Spec.CollectorReplicas = 2
+			isSNO := cluster.IsSingleNodeCluster(ctx, r.Client)
+			if isSNO {
+				defaultMonitoring.Spec.CollectorReplicas = 1
+			} else {
+				defaultMonitoring.Spec.CollectorReplicas = 2
+			}
 		}
 	}
 
