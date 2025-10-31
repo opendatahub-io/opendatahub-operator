@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   labels:
     deployment: blackbox-exporter
-  name: blackbox-exporter
+  name: data-science-blackbox-exporter
 spec:
   replicas: 1
   selector:
@@ -26,7 +26,7 @@ spec:
         secret:
           defaultMode: 420
           secretName: prometheus-proxy
-      serviceAccountName: prometheus
+      serviceAccountName: data-science-prometheus
       containers:
       - name: oauth-proxy
         args:
@@ -35,7 +35,7 @@ spec:
         - -http-address=
         - -email-domain=*
         - -upstream=http://localhost:9115
-        - -openshift-service-account=prometheus
+        - -openshift-service-account=data-science-prometheus
         - '-openshift-sar={"resource": "namespaces", "verb": "get", "name": "redhat-ods-monitoring",
           "namespace": "redhat-ods-monitoring"}'
         - '-openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get",
@@ -46,7 +46,7 @@ spec:
         - -cookie-secret-file=/etc/proxy/secrets/session_secret
         - -openshift-ca=/etc/pki/tls/cert.pem
         - -openshift-ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        - -client-id=system:serviceaccount:redhat-ods-monitoring:prometheus
+        - -client-id=system:serviceaccount:redhat-ods-monitoring:data-science-prometheus
         - -skip-auth-regex=^/metrics
         image: registry.redhat.io/openshift4/ose-oauth-proxy@sha256:4bef31eb993feb6f1096b51b4876c65a6fb1f4401fee97fa4f4542b6b7c9bc46
         ports:

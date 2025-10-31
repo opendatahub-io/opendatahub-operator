@@ -3,7 +3,7 @@ kind: Service
 metadata:
   labels:
     app: blackbox-exporter
-  name: blackbox-exporter
+  name: data-science-blackbox-exporter
 spec:
   ports:
     - name: 9114-tcp
