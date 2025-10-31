@@ -67,6 +67,10 @@ package dscinitialization
 //+kubebuilder:rbac:groups=monitoring.rhobs,resources=thanosqueriers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=monitoring.rhobs,resources=thanosqueriers/finalizers,verbs=update
 
+//+kubebuilder:rbac:groups=perses.dev,resources=perses,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=perses.dev,resources=perses/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=perses.dev,resources=perses/finalizers,verbs=update
+
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=opentelemetrycollectors,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=opentelemetrycollectors/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=opentelemetry.io,resources=opentelemetrycollectors/finalizers,verbs=update
