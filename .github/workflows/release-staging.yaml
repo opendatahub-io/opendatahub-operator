@@ -61,11 +61,21 @@ jobs:
       with:
         script: |
           const script = require('./.github/scripts/get-release-branches.js')
-          script({github, core})
+          await script({github, core})
 
     - name: Update versions
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const script = require('./.github/scripts/update-manifests-tags.js')
+          script()
+
+    - name: Show changes summary
       shell: bash
-      run: ./.github/scripts/update-manifests-tags.sh
+      run: |
+        echo "Summary of changes to get_all_manifests.sh:"
+        echo ""
+        git diff get_all_manifests.sh || echo "No changes detected"
 
     - name: Push changes to release branch
       uses: actions-js/push@master
