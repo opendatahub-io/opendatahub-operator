@@ -29,6 +29,8 @@ const (
 	TempoMonolithicName        = "data-science-tempomonolithic"
 	TempoStackName             = "data-science-tempostack"
 	InstrumentationName        = "data-science-instrumentation"
+	ThanosQuerierName          = "data-science-thanos-querier"
+	ThanosQuerierRouteName     = "data-science-thanos-querier-route"
 )
 
 // Constants for common test values.
@@ -94,6 +96,8 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test OpenTelemetry Collector replicas", monitoringServiceCtx.ValidateMonitoringCRCollectorReplicas},
 		{"Test Instrumentation CR Traces lifecycle", monitoringServiceCtx.ValidateInstrumentationCRTracesLifecycle},
 		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
+		{"Test ThanosQuerier deployment with metrics", monitoringServiceCtx.ValidateThanosQuerierDeployment},
+		{"Test ThanosQuerier not deployed without metrics", monitoringServiceCtx.ValidateThanosQuerierNotDeployedWithoutMetrics},
 		{"Validate CEL blocks invalid monitoring configs", monitoringServiceCtx.ValidateCELBlocksInvalidMonitoringConfigs},
 		{"Validate CEL allows valid monitoring configs", monitoringServiceCtx.ValidateCELAllowsValidMonitoringConfigs},
 		{"Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled},
@@ -1001,4 +1005,109 @@ func withMonitoringTraces(backend, secret, size, retention string) testf.Transfo
 	}
 
 	return testf.TransformPipeline(transforms...)
+}
+
+// ValidateThanosQuerierDeployment tests that ThanosQuerier CR and Route are created when metrics are configured and ThanosQuerier CRD is available.
+func (tc *MonitoringTestCtx) ValidateThanosQuerierDeployment(t *testing.T) {
+	t.Helper()
+
+	// Ensure clean slate before starting
+	tc.ensureMonitoringCleanSlate(t, "")
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionThanosQuerierAvailable, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be updated with metrics configuration and ThanosQuerier should be available"),
+	)
+
+	// Ensure the ThanosQuerier CR is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ThanosQuerier, types.NamespacedName{Name: ThanosQuerierName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			jq.Match(`.spec.selector.matchLabels."platform.opendatahub.io/part-of" == "monitoring"`),
+			jq.Match(`.spec.namespaceSelector.matchNames | contains(["%s"])`, tc.MonitoringNamespace),
+			jq.Match(`.spec.replicaLabels | contains(["prometheus_replica", "rule_replica"])`),
+			monitoringOwnerReferencesCondition,
+		)),
+		WithCustomErrorMsg("ThanosQuerier CR should be created when metrics are configured"),
+	)
+
+	// Ensure the ThanosQuerier Route is created (OpenShift specific)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Route, types.NamespacedName{Name: ThanosQuerierRouteName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			// Validate route points to correct service
+			jq.Match(`.spec.to.name == "thanos-querier-data-science-thanos-querier"`),
+			jq.Match(`.spec.tls.termination == "edge"`),
+			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
+			jq.Match(`.metadata.labels.app == "thanos-querier"`),
+			jq.Match(`.metadata.labels."app.kubernetes.io/name" == "thanos-querier"`),
+			jq.Match(`.metadata.labels."app.kubernetes.io/component" == "querier"`),
+			jq.Match(`.metadata.labels."app.kubernetes.io/part-of" == "data-science-monitoring"`),
+			monitoringOwnerReferencesCondition,
+		)),
+		WithCustomErrorMsg("ThanosQuerier Route should be created when metrics are configured"),
+	)
+
+	tc.resetMonitoringConfigToManaged()
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.ThanosQuerier, types.NamespacedName{Name: ThanosQuerierName, Namespace: tc.MonitoringNamespace}),
+	)
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Route, types.NamespacedName{Name: ThanosQuerierRouteName, Namespace: tc.MonitoringNamespace}),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *testing.T) {
+	t.Helper()
+
+	// Ensure clean slate before starting
+	tc.ensureMonitoringCleanSlate(t, "")
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics == null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be created without metrics configuration"),
+	)
+
+	// Validate that ThanosQuerier condition is False with reason MetricsNotConfigured
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(
+			`[.status.conditions[] | select(.type=="%s" and .status=="False" and .reason=="%s")] | length==1`,
+			status.ConditionThanosQuerierAvailable,
+			status.MetricsNotConfiguredReason,
+		)),
+		WithCustomErrorMsg("ThanosQuerier condition should be False with reason MetricsNotConfigured when metrics are not configured"),
+	)
+
+	tc.EnsureResourceDoesNotExist(
+		WithMinimalObject(gvk.ThanosQuerier, types.NamespacedName{Name: ThanosQuerierName, Namespace: tc.MonitoringNamespace}),
+	)
+
+	tc.EnsureResourceDoesNotExist(
+		WithMinimalObject(gvk.Route, types.NamespacedName{Name: ThanosQuerierRouteName, Namespace: tc.MonitoringNamespace}),
+	)
+
+	// Cleanup: Reset monitoring configuration
+	tc.resetMonitoringConfigToManaged()
 }
