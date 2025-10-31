@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	configv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,6 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+
+	. "github.com/onsi/gomega"
 )
 
 // erroringClient is a wrapper around a client.Client that allows us to inject errors.
@@ -32,6 +35,7 @@ func (c *erroringClient) Get(ctx context.Context, key types.NamespacedName, obj 
 }
 
 func TestIsFipsEnabled(t *testing.T) {
+	t.Parallel()
 	var genericError = errors.New("generic client error")
 
 	// Define test cases
@@ -149,6 +153,9 @@ invalid: yaml`,
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+
 			// Create a fake client
 			var fakeClient client.Client
 			if tc.configMap != nil || tc.clientErr != nil {
@@ -169,30 +176,163 @@ invalid: yaml`,
 			}
 
 			// Call the function under test
-			ctx := t.Context()
+			ctx := context.Background()
 			result, err := cluster.IsFipsEnabled(ctx, fakeClient)
 
 			// Check the result
-			if result != tc.expectedResult {
-				t.Errorf("IsFIPSEnabled() = %v, want %v", result, tc.expectedResult)
+			g.Expect(result).To(Equal(tc.expectedResult))
+
+			// Check the error
+			if tc.expectedError != nil {
+				g.Expect(err).To(HaveOccurred())
+				if k8serr.IsNotFound(tc.expectedError) {
+					g.Expect(k8serr.IsNotFound(err)).To(BeTrue())
+				} else {
+					g.Expect(err.Error()).To(Equal(tc.expectedError.Error()))
+				}
+			} else {
+				g.Expect(err).ShouldNot(HaveOccurred())
+			}
+		})
+	}
+}
+
+// TestIsIntegratedOAuth validates the OpenShift authentication method detection logic.
+// This function determines whether the operator should create default admin groups
+// based on the cluster's authentication configuration. The test ensures:
+//
+// 1. IntegratedOAuth is correctly identified as integrated (should create groups)
+// 2. Empty auth type is correctly identified as integrated (should create groups)
+// 3. Custom auth types are correctly identified as non-integrated (should not create groups)
+// 4. Missing authentication objects are handled with proper errors
+//
+// Authentication Types and Behavior:
+// - IntegratedOAuth (default): Create default admin groups
+// - "" (empty, default): Create default admin groups
+// - "None": Do not create default admin groups
+// - "OIDC": Do not create default admin groups
+// - Custom types: Do not create default admin groups
+// - Missing object: Return error (cluster configuration issue)
+//
+// This is critical for security because it determines whether the operator will
+// automatically create admin groups that could grant elevated access.
+func TestIsIntegratedOAuth(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name           string
+		authObject     *configv1.Authentication
+		expectError    bool
+		expectedResult bool
+		description    string
+	}{
+		{
+			name: "should return true for IntegratedOAuth",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: configv1.AuthenticationTypeIntegratedOAuth,
+				},
+			},
+			expectError:    false,
+			expectedResult: true,
+			description:    "IntegratedOAuth should be considered integrated auth method",
+		},
+		{
+			name: "should return true for empty type",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: "",
+				},
+			},
+			expectError:    false,
+			expectedResult: true,
+			description:    "Empty type should be considered integrated auth method (default)",
+		},
+		{
+			name: "should return false for OIDC",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: "OIDC",
+				},
+			},
+			expectError:    false,
+			expectedResult: false,
+			description:    "OIDC should not be considered integrated auth method",
+		},
+		{
+			name: "should return false for None",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: configv1.AuthenticationTypeNone,
+				},
+			},
+			expectError:    false,
+			expectedResult: false,
+			description:    "None should not be considered integrated auth method",
+		},
+		{
+			name: "should return false for other auth types",
+			authObject: &configv1.Authentication{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cluster.ClusterAuthenticationObj,
+				},
+				Spec: configv1.AuthenticationSpec{
+					Type: "CustomAuth",
+				},
+			},
+			expectError:    false,
+			expectedResult: false,
+			description:    "Other auth types should not be considered integrated auth method",
+		},
+		{
+			name:           "should handle missing authentication object",
+			authObject:     nil,
+			expectError:    true,
+			expectedResult: false,
+			description:    "Should return error when authentication object doesn't exist",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+			var fakeClient client.Client
+
+			// Build scheme with OpenShift API types
+			scheme := runtime.NewScheme()
+			err := configv1.AddToScheme(scheme)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			if tt.authObject != nil {
+				fakeClient = fake.NewClientBuilder().
+					WithScheme(scheme).
+					WithRuntimeObjects(tt.authObject).
+					Build()
+			} else {
+				fakeClient = fake.NewClientBuilder().
+					WithScheme(scheme).
+					Build()
 			}
 
-			// Check the error.  We need to handle nil vs. non-nil errors carefully.
-			if tc.expectedError != nil {
-				switch {
-				case err == nil:
-					t.Errorf("IsFIPSEnabled() error = nil, want %v", tc.expectedError)
-				case k8serr.IsNotFound(tc.expectedError):
-					if !k8serr.IsNotFound(err) {
-						t.Errorf("IsFipsEnabled() error = %v, want NotFound error", err)
-					}
-				default:
-					if err.Error() != tc.expectedError.Error() {
-						t.Errorf("IsFIPSEnabled() error = %v, want %v", err, tc.expectedError)
-					}
-				}
-			} else if err != nil {
-				t.Errorf("IsFIPSEnabled() error = %v, want nil", err)
+			result, err := cluster.IsIntegratedOAuth(ctx, fakeClient)
+
+			if tt.expectError {
+				g.Expect(err).Should(HaveOccurred(), tt.description)
+			} else {
+				g.Expect(err).ShouldNot(HaveOccurred(), tt.description)
+				g.Expect(result).Should(Equal(tt.expectedResult), tt.description)
 			}
 		})
 	}

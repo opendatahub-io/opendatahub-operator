@@ -51,24 +51,38 @@ func (r *DSCInitializationReconciler) CreateAuth(ctx context.Context, platform c
 		return err
 	}
 	// Auth CR not found, create default Auth CR
-	if err := r.Client.Create(ctx, BuildDefaultAuth(platform)); err != nil && !k8serr.IsAlreadyExists(err) {
+	if err := r.Client.Create(ctx, BuildDefaultAuth(ctx, r.Client, platform)); err != nil && !k8serr.IsAlreadyExists(err) {
 		return err
 	}
 	return nil
 }
 
 // BuildDefaultAuth creates a default Auth custom resource with platform-specific configuration.
+// For OAuth mode, uses platform-specific admin groups (odh-admins, rhods-admins, etc.).
+// For OIDC mode, uses a placeholder that cluster admin must replace with actual OIDC group names.
 //
 // Parameters:
+//   - ctx: Context for the operation
+//   - cli: Kubernetes client to detect authentication mode
 //   - platform: The target platform type (OpenDataHub, SelfManagedRhoai, or ManagedRhoai)
 //
 // Returns:
-//   - client.Object: A serviceApi.Auth resource with platform-specific admin group and system:authenticated in allowed groups
-func BuildDefaultAuth(platform common.Platform) client.Object {
-	// Get admin group for the platform, with fallback to OpenDataHub admin group
-	adminGroup := adminGroups[platform]
-	if adminGroup == "" {
-		adminGroup = adminGroups[cluster.OpenDataHub]
+//   - client.Object: A serviceApi.Auth resource with appropriate admin group and system:authenticated in allowed groups
+func BuildDefaultAuth(ctx context.Context, cli client.Client, platform common.Platform) client.Object {
+	var adminGroup string
+
+	// Detect authentication mode
+	isOAuth, err := cluster.IsIntegratedOAuth(ctx, cli)
+
+	if err == nil && !isOAuth {
+		// OIDC mode: set an non-exist group that cluster admin should replace with actual OIDC group.
+		adminGroup = "REPLACE-WITH-OIDC-ADMIN-GROUP"
+	} else {
+		// OAuth mode: Use platform-specific admin group
+		adminGroup = adminGroups[platform]
+		if adminGroup == "" { // fallback to OpenDataHub admin group.
+			adminGroup = adminGroups[cluster.OpenDataHub]
+		}
 	}
 
 	return &serviceApi.Auth{
