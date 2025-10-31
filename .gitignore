@@ -70,4 +70,3 @@ config/crd/bases
 config/crd/external
 config/rbac/role.yaml
 config/webhook/manifests.yaml
-bundle/
