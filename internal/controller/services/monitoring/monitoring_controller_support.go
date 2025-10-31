@@ -34,12 +34,23 @@ const (
 	clusterObservabilityOperator = "cluster-observability-operator"
 	tempoOperator                = "tempo-operator"
 
-	defaultCPULimit      = "500m"
+	defaultStorageSize = "5Gi"
+	defaultRetention   = "90d"
+
+	defaultCPULimit      = "1"
 	defaultMemoryLimit   = "512Mi"
 	defaultCPURequest    = "100m"
 	defaultMemoryRequest = "256Mi"
-	defaultStorageSize   = "5Gi"
-	defaultRetention     = "90d"
+
+	defaultCollectorCPULimit      = "1"
+	defaultCollectorMemoryLimit   = "256Mi"
+	defaultCollectorCPURequest    = "100m"
+	defaultCollectorMemoryRequest = "256Mi"
+
+	defaultTempoCPULimit      = "1"
+	defaultTempoMemoryLimit   = "256Mi"
+	defaultTempoCPURequest    = "100m"
+	defaultTempoMemoryRequest = "256Mi"
 )
 
 var componentIDRE = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z0-9][A-Za-z0-9_-]*)?$`)
@@ -240,7 +251,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {
-		if err := addMetricsData(ctx, rr, metrics, templateData); err != nil {
+		if err := addMetricsData(ctx, rr, metrics, monitoring.Spec.Traces, templateData); err != nil {
 			return nil, err
 		}
 	}
@@ -365,15 +376,15 @@ func cleanupPrometheusRules(ctx context.Context, componentName string, rr *odhty
 }
 
 // addMetricsData adds metrics configuration data to the template data map.
-func addMetricsData(ctx context.Context, rr *odhtypes.ReconciliationRequest, metrics *serviceApi.Metrics, templateData map[string]any) error {
-	addResourceData(metrics, templateData)
+func addMetricsData(ctx context.Context, rr *odhtypes.ReconciliationRequest, metrics *serviceApi.Metrics, traces *serviceApi.Traces, templateData map[string]any) error {
+	addResourceData(metrics, traces, templateData)
 	addStorageData(metrics, templateData)
 	addReplicasData(ctx, rr, metrics, templateData)
 	return addExportersData(metrics, templateData)
 }
 
 // addResourceData adds resource configuration data to the template data map.
-func addResourceData(metrics *serviceApi.Metrics, templateData map[string]any) {
+func addResourceData(metrics *serviceApi.Metrics, traces *serviceApi.Traces, templateData map[string]any) {
 	if metrics.Resources != nil {
 		templateData["CPULimit"] = getResourceValueOrDefault(metrics.Resources.CPULimit.String(), defaultCPULimit)
 		templateData["MemoryLimit"] = getResourceValueOrDefault(metrics.Resources.MemoryLimit.String(), defaultMemoryLimit)
@@ -385,6 +396,20 @@ func addResourceData(metrics *serviceApi.Metrics, templateData map[string]any) {
 		templateData["MemoryLimit"] = defaultMemoryLimit
 		templateData["CPURequest"] = defaultCPURequest
 		templateData["MemoryRequest"] = defaultMemoryRequest
+	}
+
+	if metrics != nil || traces != nil {
+		templateData["CollectorCPULimit"] = defaultCollectorCPULimit
+		templateData["CollectorMemoryLimit"] = defaultCollectorMemoryLimit
+		templateData["CollectorCPURequest"] = defaultCollectorCPURequest
+		templateData["CollectorMemoryRequest"] = defaultCollectorMemoryRequest
+	}
+
+	if traces != nil {
+		templateData["TempoCPULimit"] = defaultTempoCPULimit
+		templateData["TempoMemoryLimit"] = defaultTempoMemoryLimit
+		templateData["TempoCPURequest"] = defaultTempoCPURequest
+		templateData["TempoMemoryRequest"] = defaultTempoMemoryRequest
 	}
 }
 
