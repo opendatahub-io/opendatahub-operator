@@ -14,6 +14,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -620,6 +621,16 @@ func createKubeAuthProxyDeployment(
 								{Name: EnvClientSecret, ValueFrom: createSecretKeySelector(EnvClientSecret)},
 								{Name: EnvCookieSecret, ValueFrom: createSecretKeySelector(EnvCookieSecret)},
 								{Name: "PROXY_MODE", Value: "auth"},
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("10m"),
+									corev1.ResourceMemory: resource.MustParse("32Mi"),
+								},
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("50m"),
+									corev1.ResourceMemory: resource.MustParse("64Mi"),
+								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
