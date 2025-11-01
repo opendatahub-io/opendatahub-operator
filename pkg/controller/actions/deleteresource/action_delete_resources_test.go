@@ -27,6 +27,15 @@ func TestDeleteResourcesAction(t *testing.T) {
 
 	cl, err := fakeclient.New(
 		fakeclient.WithObjects(
+			// Create DSCI so ApplicationNamespace() can fetch it
+			&dsciv2.DSCInitialization{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-dsci",
+				},
+				Spec: dsciv2.DSCInitializationSpec{
+					ApplicationsNamespace: ns,
+				},
+			},
 			&appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "my-deployment",
@@ -57,7 +66,6 @@ func TestDeleteResourcesAction(t *testing.T) {
 	err = action(ctx, &types.ReconciliationRequest{
 		Client:   cl,
 		Instance: nil,
-		DSCI:     &dsciv2.DSCInitialization{Spec: dsciv2.DSCInitializationSpec{ApplicationsNamespace: ns}},
 		Release:  common.Release{Name: cluster.OpenDataHub},
 	})
 

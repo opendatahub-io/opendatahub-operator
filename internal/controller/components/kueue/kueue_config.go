@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -41,9 +42,15 @@ func lookupKueueManagerConfig(ctx context.Context, rr *odhtypes.ReconciliationRe
 	cm := corev1.ConfigMap{}
 	config := map[string]any{}
 
-	err := rr.Client.Get(
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return nil, err
+	}
+
+	err = rr.Client.Get(
 		ctx,
-		client.ObjectKey{Name: KueueConfigMapName, Namespace: rr.DSCI.Spec.ApplicationsNamespace},
+		client.ObjectKey{Name: KueueConfigMapName, Namespace: appNamespace},
 		&cm,
 	)
 
