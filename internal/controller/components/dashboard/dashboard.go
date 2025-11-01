@@ -22,6 +22,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 )
 
+const (
+	// AnacondaSecretName is the name of the anaconda access secret.
+	AnacondaSecretName = "anaconda-ce-access" //nolint:gosec // This is a Kubernetes secret name, not a credential
+)
+
 type componentHandler struct{}
 
 func init() { //nolint:gochecknoinits
@@ -33,14 +38,17 @@ func (s *componentHandler) GetName() string {
 }
 
 func (s *componentHandler) Init(platform common.Platform) error {
-	mi := defaultManifestInfo(platform)
+	mi, err := DefaultManifestInfo(platform)
+	if err != nil {
+		return err
+	}
 
-	if err := odhdeploy.ApplyParams(mi.String(), "params.env", imagesMap); err != nil {
+	if err := odhdeploy.ApplyParams(mi.String(), "params.env", ImagesMap); err != nil {
 		return fmt.Errorf("failed to update images on path %s: %w", mi, err)
 	}
 
-	extra := bffManifestsPath()
-	if err := odhdeploy.ApplyParams(extra.String(), "params.env", imagesMap); err != nil {
+	extra := BffManifestsPath()
+	if err := odhdeploy.ApplyParams(extra.String(), "params.env", ImagesMap); err != nil {
 		return fmt.Errorf("failed to update modular-architecture images on path %s: %w", extra, err)
 	}
 
@@ -72,6 +80,10 @@ func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
 
+	if rr.Client == nil {
+		return cs, errors.New("client is nil")
+	}
+
 	c := componentApi.Dashboard{}
 	c.Name = componentApi.DashboardInstanceName
 
@@ -88,8 +100,6 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	dsc.Status.Components.Dashboard.ManagementState = ms
 	dsc.Status.Components.Dashboard.DashboardCommonStatus = nil
-
-	rr.Conditions.MarkFalse(ReadyConditionType)
 
 	if s.IsEnabled(dsc) {
 		dsc.Status.Components.Dashboard.DashboardCommonStatus = c.Status.DashboardCommonStatus.DeepCopy()

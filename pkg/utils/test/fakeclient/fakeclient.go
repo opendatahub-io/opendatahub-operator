@@ -80,6 +80,8 @@ func New(opts ...ClientOpts) (client.Client, error) {
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
 		case gvk.Auth:
 			fakeMapper.Add(kt, meta.RESTScopeRoot)
+		case gvk.DashboardHardwareProfile:
+			fakeMapper.Add(kt, meta.RESTScopeNamespace)
 		default:
 			fakeMapper.Add(kt, meta.RESTScopeNamespace)
 		}
