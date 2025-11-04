@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -280,8 +281,18 @@ func TestCreateGatewayInfrastructureWithProvidedCertificate(t *testing.T) {
 	gatewayConfig := createTestGatewayConfig("test-gateway", testDomain, infrav1.Provided)
 	gatewayConfig.Spec.Certificate.SecretName = testCertSecret
 
+	// Create mock DSCI object
+	dsci := &dsciv2.DSCInitialization{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "default-dsci",
+		},
+		Spec: dsciv2.DSCInitializationSpec{
+			ApplicationsNamespace: "opendatahub",
+		},
+	}
+
 	rr := &odhtypes.ReconciliationRequest{
-		Client:   setupTestClient(),
+		Client:   setupTestClientWithObjects(dsci),
 		Instance: gatewayConfig,
 	}
 

@@ -13,6 +13,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -35,6 +36,7 @@ func setupTestClient() client.Client {
 	utilruntime.Must(gwapiv1.Install(scheme))
 	utilruntime.Must(serviceApi.AddToScheme(scheme))
 	utilruntime.Must(dsciv1.AddToScheme(scheme))
+	utilruntime.Must(dsciv2.AddToScheme(scheme))
 	return fake.NewClientBuilder().WithScheme(scheme).Build()
 }
 
@@ -46,6 +48,7 @@ func setupTestClientWithObjects(objects ...client.Object) client.Client {
 	utilruntime.Must(gwapiv1.Install(scheme))
 	utilruntime.Must(serviceApi.AddToScheme(scheme))
 	utilruntime.Must(dsciv1.AddToScheme(scheme))
+	utilruntime.Must(dsciv2.AddToScheme(scheme))
 	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
 }
 
