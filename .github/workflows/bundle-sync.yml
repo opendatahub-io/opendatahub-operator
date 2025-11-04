@@ -55,6 +55,7 @@ jobs:
           echo "Updating bundle related files"
           rm -rf target_repo/to-be-processed/bundle/*
           cp -r source_repo/bundle/* target_repo/to-be-processed/bundle
+          sed -i -e "s|image: quay.io/opendatahub/opendatahub-operator:latest.*|image: REPLACE_IMAGE:latest|g" target_repo/to-be-processed/bundle/manifests/rhods-operator.clusterserviceversion.yaml
 #          echo "Updating Dockerfile"
 #          cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/to-be-processed/bundle/Dockerfile
 
