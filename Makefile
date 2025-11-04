@@ -146,10 +146,20 @@ endef
 
 # Using controller-gen to fetch external CRDs and put them in config/crd/external folder
 # They're used in tests, as they have to be created for controller to work
+# Usage: $(call fetch-external-crds,module,path[,kinds])
+#   module: Go module path (e.g., github.com/openshift/api)
+#   path: Path within module (e.g., config/v1)
+#   kinds: Optional space-separated list of specific kinds to fetch (e.g., authentication authorization)
+#          If not provided, fetches all CRDs from the path
+# Example: $(call fetch-external-crds,github.com/openshift/api,config/v1,authentication oauth)
 define fetch-external-crds
+mkdir -p config/crd/external/tmp
 GOFLAGS="-mod=readonly" $(CONTROLLER_GEN) crd \
 paths=$(shell go env GOPATH)/pkg/mod/$(1)@$(call go-mod-version,$(1))/$(2)/... \
-output:crd:artifacts:config=config/crd/external
+output:crd:artifacts:config=config/crd/external/tmp
+$(if $(3),$(foreach kind,$(3),find config/crd/external/tmp -type f -name '*_$(kind).yaml' -exec mv {} config/crd/external/ \;;))
+$(if $(3),,mv config/crd/external/tmp/*.yaml config/crd/external/)
+rm -rf config/crd/external/tmp
 endef
 
 .PHONY: manifests
@@ -157,6 +167,8 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	$(call fetch-external-crds,github.com/openshift/api,user/v1)
+	$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
+CLEANFILES += config/crd/bases config/crd/external config/rbac/role.yaml config/webhook/manifests.yaml
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -343,6 +355,7 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	cat Dockerfiles/build-bundle.Dockerfile bundle.Dockerfile > Dockerfiles/bundle.Dockerfile
 	rm bundle.Dockerfile
 	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
+CLEANFILES += $(BUNDLE_DIR)
 
 # The bundle image is multi-stage to preserve the ability to build without invoking make
 # We use build args to ensure the variables are passed to the underlying internal make invocation
@@ -450,6 +463,10 @@ test: unit-test e2e-test
 
 .PHONY: unit-test
 unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
+	@if [ ! -d "config/crd/bases" ]; then \
+		echo "Error: config/crd/bases folder does not exist. Please run 'make manifests' first."; \
+		exit 1; \
+	fi
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
     	${GINKGO} -r \
         		--procs=8 \
@@ -499,7 +516,7 @@ unit-test-cli:
 .PHONY: clean
 clean: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) cache clean
-	chmod u+w -R $(LOCALBIN) # envtest makes its dir RO
+	chmod -R u+w $(LOCALBIN) # envtest makes its dir RO
 	rm -rf $(CLEANFILES)
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
