@@ -842,3 +842,18 @@ func createOAuthCallbackRoute(rr *odhtypes.ReconciliationRequest) error {
 	)
 	return rr.AddResources(httpRoute)
 }
+
+// isIngressCertificateSecret returns true if obj is the certificate secret used by the default IngressController.
+func isIngressCertificateSecret(ctx context.Context, cli client.Client, obj client.Object) bool {
+	if obj.GetNamespace() != cluster.IngressNamespace {
+		return false
+	}
+
+	ingressCtrl, err := cluster.FindAvailableIngressController(ctx, cli)
+	if err != nil {
+		return false
+	}
+
+	ingressCertName := cluster.GetDefaultIngressCertSecretName(ingressCtrl)
+	return obj.GetName() == ingressCertName
+}
