@@ -110,7 +110,7 @@ metadata:
             "dashboard": {
               "managementState": "Managed"
             },
-            "datasciencepipelines": {
+            "aipipelines": {
               "managementState": "Managed"
             },
             "feastoperator": {
@@ -123,7 +123,7 @@ metadata:
               "managementState": "Removed"
             },
             "kueue": {
-              "managementState": "Managed"
+              "managementState": "Removed"
             },
             "modelregistry": {
               "managementState": "Managed",
