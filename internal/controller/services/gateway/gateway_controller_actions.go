@@ -63,7 +63,17 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		return fmt.Errorf("failed to handle certificates: %w", err)
 	}
 
-	if err := createGateway(rr, certSecretName, domain, DefaultGatewayName); err != nil {
+	// Get platform namespace for allowedRoutes configuration
+	platformNs, err := getPlatformNamespace(ctx, rr.Client)
+	if err != nil {
+		return fmt.Errorf("failed to get platform namespace: %w", err)
+	}
+
+	l.V(1).Info("Configuring gateway namespace restrictions",
+		"allowedNamespaces", []string{GatewayNamespace, platformNs})
+
+	// Pass platform namespace to createGateway
+	if err := createGateway(rr, certSecretName, domain, platformNs, DefaultGatewayName); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 

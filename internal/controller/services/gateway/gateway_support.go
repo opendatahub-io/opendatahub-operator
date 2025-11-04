@@ -23,6 +23,7 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -118,6 +119,23 @@ func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
 	return string(gatewayConfig.Spec.Certificate.Type)
 }
 
+// getPlatformNamespace retrieves the platform namespace from DSCI configuration.
+// Returns the applications namespace specified in DSCI, or defaults to "opendatahub".
+func getPlatformNamespace(ctx context.Context, cli client.Client) (string, error) {
+	dsci := &dsciv2.DSCInitialization{}
+	err := cli.Get(ctx, types.NamespacedName{Name: "default-dsci"}, dsci)
+	if err != nil {
+		return "", fmt.Errorf("failed to get DSCI: %w", err)
+	}
+
+	if dsci.Spec.ApplicationsNamespace != "" {
+		return dsci.Spec.ApplicationsNamespace, nil
+	}
+
+	// Fallback: use default for OpenDataHub
+	return "opendatahub", nil
+}
+
 // buildGatewayDomain combines subdomain with base domain.
 // If subdomain is empty or whitespace, uses DefaultGatewayName as fallback.
 func buildGatewayDomain(subdomain, baseDomain string) string {
@@ -184,8 +202,8 @@ func GetGatewayDomain(ctx context.Context, cli client.Client) (string, error) {
 	return getClusterDomain(ctx, cli, subdomain)
 }
 
-// createListeners creates the Gateway listeners configuration.
-func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
+// createListeners creates the Gateway listeners configuration with namespace restrictions.
+func createListeners(certSecretName string, domain string, platformNamespace string) []gwapiv1.Listener {
 	// Early return for empty certificate - avoid unnecessary allocations
 	if certSecretName == "" {
 		return nil
@@ -194,7 +212,7 @@ func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
 	// Pre-allocate slice with known capacity to avoid reallocations
 	listeners := make([]gwapiv1.Listener, 0, 1)
 
-	from := gwapiv1.NamespacesFromAll
+	selectorMode := gwapiv1.NamespacesFromSelector
 	httpsMode := gwapiv1.TLSModeTerminate
 	hostname := gwapiv1.Hostname(domain)
 
@@ -213,7 +231,19 @@ func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
 		},
 		AllowedRoutes: &gwapiv1.AllowedRoutes{
 			Namespaces: &gwapiv1.RouteNamespaces{
-				From: &from,
+				From: &selectorMode,
+				Selector: &metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "kubernetes.io/metadata.name",
+							Operator: metav1.LabelSelectorOpIn,
+							Values: []string{
+								GatewayNamespace,  // openshift-ingress
+								platformNamespace, // opendatahub or redhat-ods-applications
+							},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -307,7 +337,7 @@ func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.Reconciliatio
 	return secretName, nil
 }
 
-func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, gatewayName string) error {
+func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, platformNamespace string, gatewayName string) error {
 	// Input validation
 	if rr == nil {
 		return errors.New("reconciliation request cannot be nil")
@@ -319,8 +349,8 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		return errors.New("domain cannot be empty")
 	}
 
-	// Create listeners with validation
-	listeners := createListeners(certSecretName, domain)
+	// Create listeners with namespace restrictions
+	listeners := createListeners(certSecretName, domain, platformNamespace)
 
 	// Create gateway resource with optimized structure
 	gateway := &gwapiv1.Gateway{
