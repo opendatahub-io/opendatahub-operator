@@ -67,3 +67,10 @@ local.mk
 
 # Ignore catalog related files
 catalog/
+
+# Ignore generated files
+config/crd/bases
+config/crd/external
+config/rbac/role.yaml
+config/webhook/manifests.yaml
+bundle/
