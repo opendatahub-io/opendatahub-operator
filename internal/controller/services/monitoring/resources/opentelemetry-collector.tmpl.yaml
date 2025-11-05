@@ -13,15 +13,16 @@ spec:
     requests:
       cpu: {{.CollectorCPURequest}}
       memory: {{.CollectorMemoryRequest}}
+  {{- if .Metrics }}
   volumeMounts:
-    - name: tls-certs
-      mountPath: /etc/otel-collector/tls
-      readOnly: true
+  - name: tls-certs
+    mountPath: /etc/otel-collector/tls
+    readOnly: true
   volumes:
-    - name: tls-certs
-      secret:
-        secretName: data-science-collector-tls
-        optional: true
+  - name: tls-certs
+    secret:
+      secretName: data-science-collector-tls
+  {{- end }}
   config:
     extensions:
       bearertokenauth:
@@ -189,10 +190,12 @@ spec:
     service:
       telemetry:
         metrics:
-          address: 0.0.0.0:8888
-          tls:
-            cert_file: "/etc/otel-collector/tls/tls.crt"
-            key_file: "/etc/otel-collector/tls/tls.key"
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: '0.0.0.0'
+                    port: 8888
       extensions: [bearertokenauth]
       {{- if or .Traces .Metrics }}
       pipelines:
@@ -207,6 +210,5 @@ spec:
           receivers: [prometheus, otlp]
           processors: [memory_limiter, k8sattributes, resourcedetection, batch]
           exporters: [prometheus{{- if .MetricsExporterNames }}{{- range .MetricsExporterNames }}, {{ . }}{{- end }}{{- end }}]
-      {{- end }}
       {{- end }}
       {{- end }}
