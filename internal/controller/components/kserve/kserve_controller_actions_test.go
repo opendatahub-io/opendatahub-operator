@@ -600,3 +600,94 @@ func TestCleanUpTemplatedResources_DeletesResourcesWithoutKserveLabel(t *testing
 		})
 	}
 }
+
+func TestCleanUpTemplatedResources_DeletesResourcesWithoutKserveLabel_NoAuthorino(t *testing.T) {
+	// This test demonstrates the same bug in the second deletion loop (lines 311-326)
+	// when authorino is NOT installed. The code deletes servicemesh resources based on
+	// name/namespace alone without checking for Kserve OwnerReferences.
+
+	ctx := t.Context()
+	g := NewWithT(t)
+
+	// Create an external EnvoyFilter resource WITHOUT Kserve OwnerReference.
+	// This matches the name/namespace from the activator-envoyfilter.tmpl.yaml template.
+	// This simulates an EnvoyFilter that was created by the user or another controller.
+	externalEnvoyFilter := resources.GvkToUnstructured(gvk.EnvoyFilter)
+	externalEnvoyFilter.SetName("activator-host-header")
+	externalEnvoyFilter.SetNamespace("istio-system") // Matches ControlPlane.Namespace
+	// Intentionally not setting Kserve OwnerReference
+	externalEnvoyFilter.SetLabels(map[string]string{
+		"external-resource": "true",
+	})
+
+	cli, err := fakeclient.New(
+		fakeclient.WithObjects(
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serviceMeshOperator,
+			}},
+			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+				Name: serverlessOperator,
+			}},
+			// NO authorino-operator Subscription - this triggers the line 311 code path
+			externalEnvoyFilter,
+		),
+	)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	ks := componentApi.Kserve{}
+	ks.Spec.Serving.ManagementState = operatorv1.Managed
+	ks.Spec.Serving.Name = "knative-serving"
+
+	// ServiceMesh set to Managed (not Removed) to avoid the first deletion loop at line 288
+	dsci := dsciv1.DSCInitialization{}
+	dsci.Spec.ApplicationsNamespace = "opendatahub"
+	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
+		ManagementState: operatorv1.Managed,
+		ControlPlane: infrav1.ControlPlaneSpec{
+			Namespace: "istio-system",
+		},
+	}
+
+	rr := types.ReconciliationRequest{
+		Client:     cli,
+		Instance:   &ks,
+		DSCI:       &dsci,
+		Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
+	}
+
+	// Add template files which will generate an EnvoyFilter resource in rr.Resources.
+	// This template resource will have the platform.opendatahub.io/dependency: servicemesh label.
+	err = addTemplateFiles(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	err = template.NewAction(
+		template.WithDataFn(getTemplateData),
+	)(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// Verify the external EnvoyFilter exists before cleanup
+	envoyFilterBefore := resources.GvkToUnstructured(gvk.EnvoyFilter)
+	err = cli.Get(ctx, client.ObjectKey{Name: "activator-host-header", Namespace: "istio-system"}, envoyFilterBefore)
+	g.Expect(err).ShouldNot(HaveOccurred(), "EnvoyFilter should exist before cleanup")
+
+	// Execute the cleanup function
+	err = cleanUpTemplatedResources(ctx, &rr)
+	g.Expect(err).ShouldNot(HaveOccurred())
+
+	// BUG: The external EnvoyFilter resource gets deleted even though it doesn't have
+	// a Kserve OwnerReference.
+	//
+	// This happens on line 314 of kserve_controller_actions.go in the second deletion loop.
+	// When authorino is NOT installed (!authorinoInstalled), the code:
+	// 1. Iterates through rr.Resources (which contains the template resource with dependency: servicemesh label)
+	// 2. For each resource matching isForDependency("servicemesh"), it calls rr.Client.Delete(&res, ...)
+	// 3. The delete uses the name/namespace from the template resource (&res)
+	// 4. This deletes ANY cluster resource with that name/namespace, regardless of OwnerReferences
+	//
+	// The fix should be the same as for the first deletion loop: fetch the cluster resource
+	// first and check if it has a Kserve OwnerReference before deleting.
+	envoyFilterAfter := resources.GvkToUnstructured(gvk.EnvoyFilter)
+	err = cli.Get(ctx, client.ObjectKey{Name: "activator-host-header", Namespace: "istio-system"}, envoyFilterAfter)
+	g.Expect(err).Should(HaveOccurred(), "EnvoyFilter should have been deleted (demonstrates the bug)")
+	g.Expect(err.Error()).Should(ContainSubstring("not found"))
+}
