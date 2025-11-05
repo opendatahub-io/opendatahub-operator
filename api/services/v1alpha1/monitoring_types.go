@@ -60,6 +60,10 @@ type Metrics struct {
 	// +kubebuilder:validation:XValidation:rule="!('otlp/tempo' in self)",message="exporter name 'otlp/tempo' is reserved and cannot be used"
 	// +kubebuilder:validation:XValidation:rule="size(self) <= 10",message="maximum 10 exporters allowed"
 	Exporters map[string]runtime.RawExtension `json:"exporters,omitempty"`
+	// TLS configuration for securing the OpenTelemetry Collector's Prometheus exporter endpoint
+	// When enabled, the Prometheus exporter will serve metrics over HTTPS
+	// +optional
+	TLS *MetricsTLS `json:"tls,omitempty"`
 }
 
 // MetricsStorage defines the storage configuration for the monitoring service
@@ -86,6 +90,14 @@ type MetricsResources struct {
 	// MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi")
 	// +kubebuilder:default="256Mi"
 	MemoryRequest resource.Quantity `json:"memoryrequest,omitempty"`
+}
+
+// MetricsTLS defines TLS configuration for the OpenTelemetry Collector's Prometheus exporter endpoint.
+type MetricsTLS struct {
+	// Enabled controls whether TLS is enabled for the Prometheus exporter endpoint.
+	// When enabled, certificates will be automatically provisioned using OpenShift's service-ca.
+	// +kubebuilder:default=false
+	Enabled bool `json:"enabled,omitempty"`
 }
 
 // MonitoringStatus defines the observed state of Monitoring

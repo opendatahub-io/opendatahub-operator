@@ -29,6 +29,7 @@ const (
 	TempoStackTemplate                      = "resources/tempo-stack.tmpl.yaml"
 	OpenTelemetryCollectorTemplate          = "resources/opentelemetry-collector.tmpl.yaml"
 	CollectorServiceMonitorsTemplate        = "resources/collector-servicemonitors.tmpl.yaml"
+	CollectorPrometheusServiceTemplate      = "resources/collector-prometheus-service.tmpl.yaml"
 	CollectorRBACTemplate                   = "resources/collector-rbac.tmpl.yaml"
 	PrometheusRouteTemplate                 = "resources/prometheus-route.tmpl.yaml"
 	InstrumentationTemplate                 = "resources/instrumentation.tmpl.yaml"
@@ -297,6 +298,10 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 		{
 			FS:   resourcesFS,
 			Path: CollectorServiceMonitorsTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: CollectorPrometheusServiceTemplate,
 		},
 	}
 	rr.Templates = append(rr.Templates, template...)

@@ -253,6 +253,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"ApplicationNamespace": appNamespace,
 		"MetricsExporters":     make(map[string]string),
 		"MetricsExporterNames": []string{},
+		"MetricsTLSEnabled":    false,
 		"PersesImage":          getPersesImage(),
 	}
 
@@ -387,6 +388,7 @@ func addMetricsData(ctx context.Context, rr *odhtypes.ReconciliationRequest, met
 	addResourceData(metrics, templateData)
 	addStorageData(metrics, templateData)
 	addReplicasData(ctx, rr, metrics, templateData)
+	addMetricsTLSData(metrics, templateData)
 	return addExportersData(metrics, templateData)
 }
 
@@ -438,6 +440,15 @@ func addReplicasData(ctx context.Context, rr *odhtypes.ReconciliationRequest, me
 	default:
 		// Don't set replicas, let MonitoringStack CRD use its defaults
 	}
+}
+
+// addMetricsTLSData adds metrics TLS configuration data to the template data map.
+func addMetricsTLSData(metrics *serviceApi.Metrics, templateData map[string]any) {
+	tlsEnabled := false
+	if metrics.TLS != nil {
+		tlsEnabled = metrics.TLS.Enabled
+	}
+	templateData["MetricsTLSEnabled"] = tlsEnabled
 }
 
 // addExportersData adds custom metrics exporters data to the template data map.

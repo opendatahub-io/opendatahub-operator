@@ -6,10 +6,7 @@ metadata:
 spec:
   endpoints:
     - port: monitoring
-      scheme: https
-      tlsConfig:
-        caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
-        serverName: "data-science-collector-collector-monitoring.{{.Namespace}}.svc"
+      scheme: http
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
   namespaceSelector:
     matchNames:
@@ -31,18 +28,26 @@ metadata:
 spec:
   endpoints:
     - port: prometheus
+      {{- if .MetricsTLSEnabled }}
       scheme: https
       tlsConfig:
         caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
-        serverName: "data-science-collector-collector-monitoring.{{.Namespace}}.svc"
+        serverName: "data-science-collector-prometheus.{{.Namespace}}.svc"
+      {{- else }}
+      scheme: http
+      {{- end }}
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
   namespaceSelector:
     matchNames:
       - {{.Namespace}}
   selector:
     matchLabels:
+      {{- if .MetricsTLSEnabled }}
+      app.kubernetes.io/name: data-science-collector-prometheus
+      {{- else }}
       app.kubernetes.io/component: opentelemetry-collector
       app.kubernetes.io/instance: {{.Namespace}}.data-science-collector
       app.kubernetes.io/managed-by: opentelemetry-operator
       app.kubernetes.io/part-of: opentelemetry
       operator.opentelemetry.io/collector-service-type: base
+      {{- end }}

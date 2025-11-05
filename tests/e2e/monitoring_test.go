@@ -105,6 +105,7 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test TempoStack CR Creation with Cloud Storage", monitoringServiceCtx.ValidateTempoStackCRCreationWithCloudStorage},
 		{"Test OpenTelemetry Collector Configurations", monitoringServiceCtx.ValidateOpenTelemetryCollectorConfigurations},
 		{"Test OpenTelemetry Collector replicas", monitoringServiceCtx.ValidateMonitoringCRCollectorReplicas},
+		{"Test Metrics TLS for Prometheus exporter", monitoringServiceCtx.ValidateMetricsTLSForPrometheusExporter},
 		{"Test Instrumentation CR Traces lifecycle", monitoringServiceCtx.ValidateInstrumentationCRTracesLifecycle},
 		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
 		{"Test ThanosQuerier deployment with metrics", monitoringServiceCtx.ValidateThanosQuerierDeployment},
@@ -440,6 +441,82 @@ func (tc *MonitoringTestCtx) ValidateMonitoringCRCollectorReplicas(t *testing.T)
 
 	// Cleanup: Reset collectorReplicas to default to prevent test contamination
 	tc.updateMonitoringConfig(testf.Transform(`.spec.monitoring.collectorReplicas = %d`, defaultReplicas))
+}
+
+// ValidateMetricsTLSForPrometheusExporter validates TLS configuration for the OpenTelemetry Collector Prometheus exporter.
+func (tc *MonitoringTestCtx) ValidateMetricsTLSForPrometheusExporter(t *testing.T) {
+	t.Helper()
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+		testf.Transform(`.spec.monitoring.metrics.tls = {"enabled": true}`),
+	)
+
+	// Wait for Monitoring CR to reflect TLS configuration
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(`.spec.metrics.tls.enabled == true`)),
+		WithCustomErrorMsg("Monitoring CR should have metrics TLS enabled"),
+	)
+
+	tc.ensureOpenTelemetryCollectorReady(t)
+
+	// Validate TLS Service exists with service-ca annotation
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      "data-science-collector-prometheus",
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "data-science-collector-tls"`),
+			jq.Match(`.spec.ports[0].name == "prometheus"`),
+			jq.Match(`.spec.ports[0].port == 8889`),
+		)),
+		WithCustomErrorMsg("TLS Service should exist with service-ca annotation for certificate provisioning"),
+	)
+
+	// Validate TLS Secret is created by service-ca
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.Secret, types.NamespacedName{
+			Name:      "data-science-collector-tls",
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.type == "kubernetes.io/tls"`),
+			jq.Match(`.data."tls.crt" != null`),
+			jq.Match(`.data."tls.key" != null`),
+		)),
+		WithCustomErrorMsg("TLS Secret should be created by service-ca with certificate and key"),
+	)
+
+	// Validate OpenTelemetryCollector has TLS configuration
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.OpenTelemetryCollector, types.NamespacedName{
+			Name:      OpenTelemetryCollectorName,
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.config.exporters.prometheus.tls.cert_file == "/etc/otel-collector/tls/tls.crt"`),
+			jq.Match(`.spec.config.exporters.prometheus.tls.key_file == "/etc/otel-collector/tls/tls.key"`),
+			jq.Match(`.spec.volumes[0].secret.secretName == "data-science-collector-tls"`),
+		)),
+		WithCustomErrorMsg("OpenTelemetryCollector should have TLS configured for Prometheus exporter"),
+	)
+
+	// Validate ServiceMonitor uses HTTPS
+	tc.EventuallyResourcePatched(
+		WithMinimalObject(gvk.ServiceMonitor, types.NamespacedName{
+			Name:      "data-science-prometheus-monitor",
+			Namespace: tc.MonitoringNamespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.endpoints[0].scheme == "https"`),
+			jq.Match(`.spec.endpoints[0].tlsConfig.serverName == "data-science-collector-prometheus.%s.svc"`, tc.MonitoringNamespace),
+		)),
+		WithCustomErrorMsg("ServiceMonitor should use HTTPS to scrape Prometheus exporter when TLS is enabled"),
+	)
+
+	tc.resetMonitoringConfigToManaged()
 }
 
 // ValidateMonitoringCRDefaultTracesContent validates that traces stanza is omitted by default.
