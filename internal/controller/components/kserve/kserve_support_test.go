@@ -126,8 +126,6 @@ func TestGetAndRemoveOwnerReferences_CRDNotInstalled(t *testing.T) {
 	res.SetNamespace("knative-serving")
 
 	// Call getAndRemoveOwnerReferences - should not error for missing CRDs
-	// This currently FAILS but should pass after the fix
 	err = getAndRemoveOwnerReferences(ctx, cli, res, isKserveOwnerRef)
-	g.Expect(err).Should(HaveOccurred()) // Current behavior: fails
-	g.Expect(err.Error()).Should(ContainSubstring("no matches for kind"))
+	g.Expect(err).ShouldNot(HaveOccurred())
 }

@@ -5,13 +5,15 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"strings"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -133,7 +135,7 @@ func getKnativeCertSecretName(k *componentApi.Kserve) string {
 func getDefaultDeploymentMode(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) (string, error) {
 	kserveConfigMap := corev1.ConfigMap{}
 	err := cli.Get(ctx, client.ObjectKey{Name: kserveConfigMapName, Namespace: dscispec.ApplicationsNamespace}, &kserveConfigMap)
-	if errors.IsNotFound(err) {
+	if k8serrors.IsNotFound(err) {
 		return "", nil
 	}
 	if err != nil {
@@ -269,7 +271,10 @@ func getAndRemoveOwnerReferences(
 	current := resources.GvkToUnstructured(res.GroupVersionKind())
 
 	lookupErr := cli.Get(ctx, client.ObjectKeyFromObject(&res), current)
-	if errors.IsNotFound(lookupErr) {
+	if k8serrors.IsNotFound(lookupErr) {
+		return nil
+	}
+	if errors.Is(lookupErr, &meta.NoKindMatchError{}) {
 		return nil
 	}
 	if lookupErr != nil {
