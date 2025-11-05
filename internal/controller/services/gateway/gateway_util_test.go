@@ -121,12 +121,18 @@ func createTestGatewayConfig(name, domain string, certType infrav1.CertType) *se
 
 // createTestGatewayConfigSupport creates a GatewayConfig for support function testing.
 func createTestGatewayConfigSupport(domain string, certSpec *infrav1.CertificateSpec) *serviceApi.GatewayConfig {
+	return createTestGatewayConfigSupportWithSubdomain(domain, "", certSpec)
+}
+
+// createTestGatewayConfigSupportWithSubdomain creates a GatewayConfig with subdomain for support function testing.
+func createTestGatewayConfigSupportWithSubdomain(domain, subdomain string, certSpec *infrav1.CertificateSpec) *serviceApi.GatewayConfig {
 	return &serviceApi.GatewayConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: serviceApi.GatewayInstanceName,
 		},
 		Spec: serviceApi.GatewayConfigSpec{
 			Domain:      domain,
+			Subdomain:   subdomain,
 			Certificate: certSpec,
 		},
 	}
