@@ -140,10 +140,10 @@ func (tc *ComponentTestCtx) ValidateS3SecretCheckBucketExist(t *testing.T) {
 	t.Helper()
 
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ValidatingAdmissionPolicy, types.NamespacedName{Name: "s3-secret-check-bucket-exist"}),
+		WithMinimalObject(gvk.ValidatingAdmissionPolicy, types.NamespacedName{Name: "connectionapi-check-s3-bucket"}),
 	)
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.ValidatingAdmissionPolicyBinding, types.NamespacedName{Name: "s3-secret-check-bucket-exist-binding"}),
+		WithMinimalObject(gvk.ValidatingAdmissionPolicyBinding, types.NamespacedName{Name: "connectionapi-check-s3-bucket-binding"}),
 	)
 }
 
