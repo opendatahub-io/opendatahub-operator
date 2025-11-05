@@ -12,17 +12,17 @@ DST_MANIFESTS_DIR="./opt/manifests"
 # 2. "tag" - immutable reference (e.g., v1.0.0)
 # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
 declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@a0fdb8d4e092c376f6e1d504edec60e4f5b62d89:manifests"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@79c716b8777d34ec7513c8e9613f0f868c8f0fa2:manifests"
     ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@909a62e24fae72e5bbb6ed255a322d692b629e15:components/notebook-controller/config"
     ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@909a62e24fae72e5bbb6ed255a322d692b629e15:components/odh-notebook-controller/config"
     ["workbenches/notebooks"]="opendatahub-io:notebooks:main@731c89f50926c51cf8afe857705a7a3ad4d9872e:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15@57e3509b6d0e5fa9fdbd5dc70e0565817cb193c9:config"
-    ["ray"]="opendatahub-io:kuberay:dev@b9e26fa34f9128594841fcd1df079ee2e9269fb2:ray-operator/config"
+    ["kserve"]="opendatahub-io:kserve:release-v0.15@95b737f413719210d08fba9ded508ba1d83af6c9:config"
+    ["ray"]="opendatahub-io:kuberay:dev@48d4f5382adb2ed5ad23980b69dcf7e1b04cbe77:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@02fc7ca7f3a7ff95ccac03d9a04b67acf5a3a050:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main@725527652263ab04fc110d02acc6a56a99e33b09:config"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main@9d150b275705b0bbc452c6aa9fc3267003c81420:config"
     ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@324ddef9c98d74865a98ceb1a9470f1fdc7d1240:config"
-    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@761e9e794ffd36b6ec144ffece746eebb00cfe69:config"
+    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@72e15dba5217e7ffb76995fd75720d806808616d:config"
     ["feastoperator"]="opendatahub-io:feast:stable@3c6fd777b7d5c9de4f7949ee7b9ee7f829dc8528:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@226e911cca9bf7efa1e632860613087b0bf14d74:config"
 )
