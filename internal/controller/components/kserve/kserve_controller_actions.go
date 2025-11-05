@@ -11,7 +11,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -27,7 +26,6 @@ import (
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -292,44 +290,9 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 			// CR generation hasn't changed.
 			for _, res := range rr.Resources {
 				if isForDependency("serverless")(&res) || isForDependency("servicemesh")(&res) {
-					// Fetch the cluster resource to check ownership
-					key := client.ObjectKeyFromObject(&res)
-					clusterRes := resources.GvkToUnstructured(res.GroupVersionKind())
-
-					if err := rr.Client.Get(ctx, key, clusterRes); err != nil {
-						if k8serr.IsNotFound(err) {
-							continue // Already deleted or never existed
-						}
-						if errors.Is(err, &meta.NoKindMatchError{}) {
-							continue // CRD missing
-						}
-						return odherrors.NewStopErrorW(err)
+					if err := deleteResourceIfOwnedByKserve(ctx, rr.Client, res, logger); err != nil {
+						return err
 					}
-
-					// Only delete if resource has Kserve OwnerReference
-					hasKserveOwner := false
-					for _, owner := range clusterRes.GetOwnerReferences() {
-						if isKserveOwnerRef(owner) {
-							hasKserveOwner = true
-							break
-						}
-					}
-
-					if !hasKserveOwner {
-						continue // Skip resources not owned by Kserve controller
-					}
-
-					err := rr.Client.Delete(ctx, clusterRes, client.PropagationPolicy(metav1.DeletePropagationForeground))
-					if err != nil {
-						if k8serr.IsNotFound(err) {
-							continue
-						}
-						if errors.Is(err, &meta.NoKindMatchError{}) {
-							continue
-						}
-						return odherrors.NewStopErrorW(err)
-					}
-					logger.Info("Deleted", "kind", clusterRes.GetKind(), "name", clusterRes.GetName(), "namespace", clusterRes.GetNamespace())
 				}
 			}
 		}
@@ -339,44 +302,9 @@ func cleanUpTemplatedResources(ctx context.Context, rr *odhtypes.ReconciliationR
 		if !authorinoInstalled {
 			for _, res := range rr.Resources {
 				if isForDependency("servicemesh")(&res) {
-					// Fetch the cluster resource to check ownership
-					key := client.ObjectKeyFromObject(&res)
-					clusterRes := resources.GvkToUnstructured(res.GroupVersionKind())
-
-					if err := rr.Client.Get(ctx, key, clusterRes); err != nil {
-						if k8serr.IsNotFound(err) {
-							continue
-						}
-						if errors.Is(err, &meta.NoKindMatchError{}) {
-							continue
-						}
-						return odherrors.NewStopErrorW(err)
+					if err := deleteResourceIfOwnedByKserve(ctx, rr.Client, res, logger); err != nil {
+						return err
 					}
-
-					// Only delete if resource has Kserve OwnerReference
-					hasKserveOwner := false
-					for _, owner := range clusterRes.GetOwnerReferences() {
-						if isKserveOwnerRef(owner) {
-							hasKserveOwner = true
-							break
-						}
-					}
-
-					if !hasKserveOwner {
-						continue
-					}
-
-					err := rr.Client.Delete(ctx, clusterRes, client.PropagationPolicy(metav1.DeletePropagationForeground))
-					if err != nil {
-						if k8serr.IsNotFound(err) {
-							continue
-						}
-						if errors.Is(err, &meta.NoKindMatchError{}) {
-							continue
-						}
-						return odherrors.NewStopErrorW(err)
-					}
-					logger.Info("Deleted", "kind", clusterRes.GetKind(), "name", clusterRes.GetName(), "namespace", clusterRes.GetNamespace())
 				}
 			}
 			if err := rr.RemoveResources(isForDependency("servicemesh")); err != nil {

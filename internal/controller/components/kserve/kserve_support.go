@@ -10,9 +10,10 @@ import (
 	"maps"
 	"strings"
 
+	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -26,6 +27,7 @@ import (
 	dsciv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
+	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -135,7 +137,7 @@ func getKnativeCertSecretName(k *componentApi.Kserve) string {
 func getDefaultDeploymentMode(ctx context.Context, cli client.Client, dscispec *dsciv1.DSCInitializationSpec) (string, error) {
 	kserveConfigMap := corev1.ConfigMap{}
 	err := cli.Get(ctx, client.ObjectKey{Name: kserveConfigMapName, Namespace: dscispec.ApplicationsNamespace}, &kserveConfigMap)
-	if k8serrors.IsNotFound(err) {
+	if k8serr.IsNotFound(err) {
 		return "", nil
 	}
 	if err != nil {
@@ -271,7 +273,7 @@ func getAndRemoveOwnerReferences(
 	current := resources.GvkToUnstructured(res.GroupVersionKind())
 
 	lookupErr := cli.Get(ctx, client.ObjectKeyFromObject(&res), current)
-	if k8serrors.IsNotFound(lookupErr) {
+	if k8serr.IsNotFound(lookupErr) {
 		return nil
 	}
 	if errors.Is(lookupErr, &meta.NoKindMatchError{}) {
@@ -306,4 +308,48 @@ func isForDependency(s string) func(u *unstructured.Unstructured) bool {
 func isKserveOwnerRef(or metav1.OwnerReference) bool {
 	return or.APIVersion == componentApi.GroupVersion.String() &&
 		or.Kind == componentApi.KserveKind
+}
+
+// deleteResourceIfOwnedByKserve fetches a cluster resource and deletes it only if it has a Kserve OwnerReference.
+// This prevents accidentally deleting resources created by users or other controllers.
+func deleteResourceIfOwnedByKserve(ctx context.Context, cli client.Client, res unstructured.Unstructured, logger logr.Logger) error {
+	// Fetch the cluster resource to check ownership
+	key := client.ObjectKeyFromObject(&res)
+	clusterRes := resources.GvkToUnstructured(res.GroupVersionKind())
+
+	if err := cli.Get(ctx, key, clusterRes); err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil // Already deleted or never existed
+		}
+		if errors.Is(err, &meta.NoKindMatchError{}) {
+			return nil // CRD missing
+		}
+		return odherrors.NewStopErrorW(err)
+	}
+
+	// Only delete if resource has Kserve OwnerReference
+	hasKserveOwner := false
+	for _, owner := range clusterRes.GetOwnerReferences() {
+		if isKserveOwnerRef(owner) {
+			hasKserveOwner = true
+			break
+		}
+	}
+
+	if !hasKserveOwner {
+		return nil // Skip resources not owned by Kserve controller
+	}
+
+	err := cli.Delete(ctx, clusterRes, client.PropagationPolicy(metav1.DeletePropagationForeground))
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+		if errors.Is(err, &meta.NoKindMatchError{}) {
+			return nil
+		}
+		return odherrors.NewStopErrorW(err)
+	}
+	logger.Info("Deleted", "kind", clusterRes.GetKind(), "name", clusterRes.GetName(), "namespace", clusterRes.GetNamespace())
+	return nil
 }

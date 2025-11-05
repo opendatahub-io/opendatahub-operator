@@ -9,6 +9,7 @@ import (
 	ofapiv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -481,35 +482,54 @@ func TestCleanUpTemplatedResources_withoutAuthorino(t *testing.T) {
 	)
 }
 
-func TestCleanUpTemplatedResources_DeletesResourcesWithoutKserveLabel(t *testing.T) {
-	// This test demonstrates the bug where cleanUpTemplatedResources deletes KnativeServing
-	// resources based on name/namespace alone, without checking if the cluster resource
-	// has the platform.opendatahub.io/part-of: kserve ownership label.
+func TestCleanUpTemplatedResources_DoesNotDeleteExternalResources(t *testing.T) {
+	// This test verifies that cleanUpTemplatedResources does NOT delete resources
+	// that lack Kserve OwnerReferences, preventing accidental deletion of user-created
+	// or externally-managed resources.
 	//
-	// The code iterates through rr.Resources (which come from templates and have the
-	// platform.opendatahub.io/dependency: serverless label), and for each matching resource,
-	// it deletes any cluster resource with the same name/namespace regardless of whether
-	// that cluster resource was actually created by the Kserve controller.
-	//
-	// Both scenarios from RHOAIENG-37741 trigger this bug.
+	// Tests multiple code paths in cleanUpTemplatedResources:
+	// 1. First deletion loop (ServiceMesh.ManagementState == Removed)
+	// 2. Second deletion loop (!authorinoInstalled)
 
 	testCases := []struct {
-		name                     string
-		servingManagementState   operatorv1.ManagementState
-		serviceMeshManagement    operatorv1.ManagementState
-		description              string
+		name                   string
+		authorinoInstalled     bool
+		servingManagementState operatorv1.ManagementState
+		serviceMeshManagement  operatorv1.ManagementState
+		externalResourceGVK    schema.GroupVersionKind
+		externalResourceName   string
+		externalResourceNs     string
+		description            string
 	}{
 		{
-			name:                   "Scenario 1: ServiceMesh Removed, Serving Unmanaged",
+			name:                   "ServiceMesh Removed, Serving Unmanaged, with Authorino",
+			authorinoInstalled:     true,
 			servingManagementState: operatorv1.Unmanaged,
 			serviceMeshManagement:  operatorv1.Removed,
+			externalResourceGVK:    gvk.KnativeServing,
+			externalResourceName:   "knative-serving",
+			externalResourceNs:     "knative-serving",
 			description:            "User wants to use existing KnativeServing but not manage it",
 		},
 		{
-			name:                   "Scenario 2: ServiceMesh Removed, Serving Removed",
+			name:                   "ServiceMesh Removed, Serving Removed, with Authorino",
+			authorinoInstalled:     true,
 			servingManagementState: operatorv1.Removed,
 			serviceMeshManagement:  operatorv1.Removed,
+			externalResourceGVK:    gvk.KnativeServing,
+			externalResourceName:   "knative-serving",
+			externalResourceNs:     "knative-serving",
 			description:            "User wants RawDeployment mode without Serverless",
+		},
+		{
+			name:                   "ServiceMesh Managed, No Authorino",
+			authorinoInstalled:     false,
+			servingManagementState: operatorv1.Managed,
+			serviceMeshManagement:  operatorv1.Managed,
+			externalResourceGVK:    gvk.EnvoyFilter,
+			externalResourceName:   "activator-host-header",
+			externalResourceNs:     "istio-system",
+			description:            "Tests second deletion loop when authorino is not installed",
 		},
 	}
 
@@ -518,37 +538,48 @@ func TestCleanUpTemplatedResources_DeletesResourcesWithoutKserveLabel(t *testing
 			ctx := t.Context()
 			g := NewWithT(t)
 
-			// Create a KnativeServing resource WITHOUT the platform.opendatahub.io/part-of: kserve label.
-			// This simulates a KnativeServing CR that was NOT created by the Kserve controller,
-			// but was instead created by the user or another controller for a different purpose.
-			externalKnativeServing := resources.GvkToUnstructured(gvk.KnativeServing)
-			externalKnativeServing.SetName("knative-serving")
-			externalKnativeServing.SetNamespace("knative-serving")
-			// Intentionally not setting platform.opendatahub.io/part-of: kserve label
-			externalKnativeServing.SetLabels(map[string]string{
+			// Create an external resource WITHOUT Kserve OwnerReference.
+			// This simulates a resource created by the user or another controller.
+			externalResource := resources.GvkToUnstructured(tc.externalResourceGVK)
+			externalResource.SetName(tc.externalResourceName)
+			externalResource.SetNamespace(tc.externalResourceNs)
+			// Intentionally not setting Kserve OwnerReference
+			externalResource.SetLabels(map[string]string{
 				"external-label": "true",
 			})
 
+			// Build initial fake client objects
+			initialObjects := []client.Object{
+				&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+					Name: serviceMeshOperator,
+				}},
+				&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
+					Name: serverlessOperator,
+				}},
+				externalResource,
+			}
+
+			// Conditionally add authorino-operator subscription
+			if tc.authorinoInstalled {
+				initialObjects = append(initialObjects, &ofapiv1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "authorino-operator",
+						Namespace: "openshift-operators",
+					},
+				})
+			}
+
 			cli, err := fakeclient.New(
-				fakeclient.WithObjects(
-					&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-						Name: serviceMeshOperator,
-					}},
-					&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-						Name: serverlessOperator,
-					}},
-					externalKnativeServing,
-				),
+				fakeclient.WithObjects(initialObjects...),
 			)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
 			ks := componentApi.Kserve{}
 			ks.Spec.Serving.ManagementState = tc.servingManagementState
-			ks.Spec.Serving.Name = "knative-serving" // Explicitly set to match the resource name
+			ks.Spec.Serving.Name = "knative-serving"
 
-			// ServiceMesh set to Removed triggers the deletion code path on line 288-306
 			dsci := dsciv1.DSCInitialization{}
-			dsci.Spec.ApplicationsNamespace = "opendatahub" // Required for template rendering
+			dsci.Spec.ApplicationsNamespace = "opendatahub"
 			dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
 				ManagementState: tc.serviceMeshManagement,
 				ControlPlane: infrav1.ControlPlaneSpec{
@@ -563,8 +594,7 @@ func TestCleanUpTemplatedResources_DeletesResourcesWithoutKserveLabel(t *testing
 				Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
 			}
 
-			// Add template files which will generate a KnativeServing resource in rr.Resources.
-			// This template resource will have the platform.opendatahub.io/dependency: serverless label.
+			// Add template files and render them
 			err = addTemplateFiles(ctx, &rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
@@ -573,115 +603,22 @@ func TestCleanUpTemplatedResources_DeletesResourcesWithoutKserveLabel(t *testing
 			)(ctx, &rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			// Verify the external KnativeServing exists before cleanup
-			knativeServingBefore := resources.GvkToUnstructured(gvk.KnativeServing)
-			err = cli.Get(ctx, client.ObjectKey{Name: "knative-serving", Namespace: "knative-serving"}, knativeServingBefore)
-			g.Expect(err).ShouldNot(HaveOccurred(), "KnativeServing should exist before cleanup")
+			// Verify the external resource exists before cleanup
+			resourceBefore := resources.GvkToUnstructured(tc.externalResourceGVK)
+			err = cli.Get(ctx, client.ObjectKey{Name: tc.externalResourceName, Namespace: tc.externalResourceNs}, resourceBefore)
+			g.Expect(err).ShouldNot(HaveOccurred(), "External resource should exist before cleanup")
 
 			// Execute the cleanup function
 			err = cleanUpTemplatedResources(ctx, &rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			// FIXED: The external KnativeServing resource should NOT be deleted because it doesn't
-			// have a Kserve OwnerReference.
-			//
-			// The fix (lines 294-331 in kserve_controller_actions.go):
-			// 1. Iterates through rr.Resources (which contains the template resource with dependency label)
-			// 2. For each resource matching isForDependency("serverless"), it fetches the cluster resource
-			// 3. Checks if the cluster resource has a Kserve OwnerReference using isKserveOwnerRef()
-			// 4. Only deletes if the OwnerReference exists
-			// 5. Skips resources not owned by the Kserve controller
-			knativeServingAfter := resources.GvkToUnstructured(gvk.KnativeServing)
-			err = cli.Get(ctx, client.ObjectKey{Name: "knative-serving", Namespace: "knative-serving"}, knativeServingAfter)
-			g.Expect(err).ShouldNot(HaveOccurred(), "KnativeServing should still exist (bug is fixed)")
+			// FIXED: The external resource should NOT be deleted because it doesn't have
+			// a Kserve OwnerReference. The fix checks OwnerReferences before deletion in both:
+			// 1. First deletion loop (ServiceMesh.ManagementState == Removed)
+			// 2. Second deletion loop (!authorinoInstalled)
+			resourceAfter := resources.GvkToUnstructured(tc.externalResourceGVK)
+			err = cli.Get(ctx, client.ObjectKey{Name: tc.externalResourceName, Namespace: tc.externalResourceNs}, resourceAfter)
+			g.Expect(err).ShouldNot(HaveOccurred(), "External resource should still exist (bug is fixed)")
 		})
 	}
-}
-
-func TestCleanUpTemplatedResources_DeletesResourcesWithoutKserveLabel_NoAuthorino(t *testing.T) {
-	// This test demonstrates the same bug in the second deletion loop (lines 311-326)
-	// when authorino is NOT installed. The code deletes servicemesh resources based on
-	// name/namespace alone without checking for Kserve OwnerReferences.
-
-	ctx := t.Context()
-	g := NewWithT(t)
-
-	// Create an external EnvoyFilter resource WITHOUT Kserve OwnerReference.
-	// This matches the name/namespace from the activator-envoyfilter.tmpl.yaml template.
-	// This simulates an EnvoyFilter that was created by the user or another controller.
-	externalEnvoyFilter := resources.GvkToUnstructured(gvk.EnvoyFilter)
-	externalEnvoyFilter.SetName("activator-host-header")
-	externalEnvoyFilter.SetNamespace("istio-system") // Matches ControlPlane.Namespace
-	// Intentionally not setting Kserve OwnerReference
-	externalEnvoyFilter.SetLabels(map[string]string{
-		"external-resource": "true",
-	})
-
-	cli, err := fakeclient.New(
-		fakeclient.WithObjects(
-			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-				Name: serviceMeshOperator,
-			}},
-			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-				Name: serverlessOperator,
-			}},
-			// NO authorino-operator Subscription - this triggers the line 311 code path
-			externalEnvoyFilter,
-		),
-	)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	ks := componentApi.Kserve{}
-	ks.Spec.Serving.ManagementState = operatorv1.Managed
-	ks.Spec.Serving.Name = "knative-serving"
-
-	// ServiceMesh set to Managed (not Removed) to avoid the first deletion loop at line 288
-	dsci := dsciv1.DSCInitialization{}
-	dsci.Spec.ApplicationsNamespace = "opendatahub"
-	dsci.Spec.ServiceMesh = &infrav1.ServiceMeshSpec{
-		ManagementState: operatorv1.Managed,
-		ControlPlane: infrav1.ControlPlaneSpec{
-			Namespace: "istio-system",
-		},
-	}
-
-	rr := types.ReconciliationRequest{
-		Client:     cli,
-		Instance:   &ks,
-		DSCI:       &dsci,
-		Conditions: conditions.NewManager(&ks, status.ConditionTypeReady),
-	}
-
-	// Add template files which will generate an EnvoyFilter resource in rr.Resources.
-	// This template resource will have the platform.opendatahub.io/dependency: servicemesh label.
-	err = addTemplateFiles(ctx, &rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	err = template.NewAction(
-		template.WithDataFn(getTemplateData),
-	)(ctx, &rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// Verify the external EnvoyFilter exists before cleanup
-	envoyFilterBefore := resources.GvkToUnstructured(gvk.EnvoyFilter)
-	err = cli.Get(ctx, client.ObjectKey{Name: "activator-host-header", Namespace: "istio-system"}, envoyFilterBefore)
-	g.Expect(err).ShouldNot(HaveOccurred(), "EnvoyFilter should exist before cleanup")
-
-	// Execute the cleanup function
-	err = cleanUpTemplatedResources(ctx, &rr)
-	g.Expect(err).ShouldNot(HaveOccurred())
-
-	// FIXED: The external EnvoyFilter resource should NOT be deleted because it doesn't have
-	// a Kserve OwnerReference.
-	//
-	// The fix (lines 340-378 in kserve_controller_actions.go) in the second deletion loop:
-	// When authorino is NOT installed (!authorinoInstalled), the code:
-	// 1. Iterates through rr.Resources (which contains the template resource with dependency: servicemesh label)
-	// 2. For each resource matching isForDependency("servicemesh"), it fetches the cluster resource
-	// 3. Checks if the cluster resource has a Kserve OwnerReference using isKserveOwnerRef()
-	// 4. Only deletes if the OwnerReference exists
-	// 5. Skips resources not owned by the Kserve controller
-	envoyFilterAfter := resources.GvkToUnstructured(gvk.EnvoyFilter)
-	err = cli.Get(ctx, client.ObjectKey{Name: "activator-host-header", Namespace: "istio-system"}, envoyFilterAfter)
-	g.Expect(err).ShouldNot(HaveOccurred(), "EnvoyFilter should still exist (bug is fixed)")
 }
