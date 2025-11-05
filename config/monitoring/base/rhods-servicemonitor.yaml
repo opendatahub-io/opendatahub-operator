@@ -8,12 +8,12 @@ metadata:
     team: rhods
 spec:
   endpoints:
-    - authorization:
-        type: Bearer
-        credentialsFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      bearerTokenSecret:
+        key: ""
       honorLabels: true
       params:
-        "match[]":
+        'match[]':
           - '{__name__= "rhods_total_users"}'
           - '{__name__= "rhods_active_users"}'
           - '{__name__= "rhods_aggregate_availability"}'
@@ -23,7 +23,7 @@ spec:
       scheme: https
       tlsConfig:
         caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
-        serverName: "prometheus.redhat-ods-monitoring.svc"
+        serverName: prometheus.redhat-ods-monitoring.svc
       scrapeTimeout: 10s
       interval: 30s
   namespaceSelector:
