@@ -582,21 +582,18 @@ func TestCleanUpTemplatedResources_DeletesResourcesWithoutKserveLabel(t *testing
 			err = cleanUpTemplatedResources(ctx, &rr)
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			// BUG: The external KnativeServing resource gets deleted even though it doesn't have
-			// the platform.opendatahub.io/part-of: kserve label.
+			// FIXED: The external KnativeServing resource should NOT be deleted because it doesn't
+			// have a Kserve OwnerReference.
 			//
-			// This happens on line 294 of kserve_controller_actions.go where the code:
+			// The fix (lines 294-331 in kserve_controller_actions.go):
 			// 1. Iterates through rr.Resources (which contains the template resource with dependency label)
-			// 2. For each resource matching isForDependency("serverless"), it calls rr.Client.Delete(&res, ...)
-			// 3. The delete uses the name/namespace from the template resource (&res)
-			// 4. This deletes ANY cluster resource with that name/namespace, regardless of labels
-			//
-			// The fix should be to fetch the cluster resource first and check if it has the
-			// platform.opendatahub.io/part-of: kserve label before deleting.
+			// 2. For each resource matching isForDependency("serverless"), it fetches the cluster resource
+			// 3. Checks if the cluster resource has a Kserve OwnerReference using isKserveOwnerRef()
+			// 4. Only deletes if the OwnerReference exists
+			// 5. Skips resources not owned by the Kserve controller
 			knativeServingAfter := resources.GvkToUnstructured(gvk.KnativeServing)
 			err = cli.Get(ctx, client.ObjectKey{Name: "knative-serving", Namespace: "knative-serving"}, knativeServingAfter)
-			g.Expect(err).Should(HaveOccurred(), "KnativeServing should have been deleted (demonstrates the bug)")
-			g.Expect(err.Error()).Should(ContainSubstring("not found"))
+			g.Expect(err).ShouldNot(HaveOccurred(), "KnativeServing should still exist (bug is fixed)")
 		})
 	}
 }
@@ -674,20 +671,17 @@ func TestCleanUpTemplatedResources_DeletesResourcesWithoutKserveLabel_NoAuthorin
 	err = cleanUpTemplatedResources(ctx, &rr)
 	g.Expect(err).ShouldNot(HaveOccurred())
 
-	// BUG: The external EnvoyFilter resource gets deleted even though it doesn't have
+	// FIXED: The external EnvoyFilter resource should NOT be deleted because it doesn't have
 	// a Kserve OwnerReference.
 	//
-	// This happens on line 314 of kserve_controller_actions.go in the second deletion loop.
+	// The fix (lines 340-378 in kserve_controller_actions.go) in the second deletion loop:
 	// When authorino is NOT installed (!authorinoInstalled), the code:
 	// 1. Iterates through rr.Resources (which contains the template resource with dependency: servicemesh label)
-	// 2. For each resource matching isForDependency("servicemesh"), it calls rr.Client.Delete(&res, ...)
-	// 3. The delete uses the name/namespace from the template resource (&res)
-	// 4. This deletes ANY cluster resource with that name/namespace, regardless of OwnerReferences
-	//
-	// The fix should be the same as for the first deletion loop: fetch the cluster resource
-	// first and check if it has a Kserve OwnerReference before deleting.
+	// 2. For each resource matching isForDependency("servicemesh"), it fetches the cluster resource
+	// 3. Checks if the cluster resource has a Kserve OwnerReference using isKserveOwnerRef()
+	// 4. Only deletes if the OwnerReference exists
+	// 5. Skips resources not owned by the Kserve controller
 	envoyFilterAfter := resources.GvkToUnstructured(gvk.EnvoyFilter)
 	err = cli.Get(ctx, client.ObjectKey{Name: "activator-host-header", Namespace: "istio-system"}, envoyFilterAfter)
-	g.Expect(err).Should(HaveOccurred(), "EnvoyFilter should have been deleted (demonstrates the bug)")
-	g.Expect(err.Error()).Should(ContainSubstring("not found"))
+	g.Expect(err).ShouldNot(HaveOccurred(), "EnvoyFilter should still exist (bug is fixed)")
 }
