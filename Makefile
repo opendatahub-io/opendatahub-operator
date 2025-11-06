@@ -215,7 +215,7 @@ endif
 	$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	$(call fetch-external-crds,github.com/openshift/api,user/v1)
 	$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
-CLEANFILES += $(CONFIG_DIR)/crd/bases $(CONFIG_DIR)/crd/external $(CONFIG_DIR)/rbac/role.yaml $(CONFIG_DIR)/webhook/manifests.yaml
+CLEANFILES += odh-config/crd/bases rhoai-config/crd/bases odh-config/crd/external rhoai-config/crd/external odh-config/rbac/role.yaml rhoai-config/rbac/role.yaml odh-config/webhook/manifests.yaml rhoai-config/webhook/manifests.yaml
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
