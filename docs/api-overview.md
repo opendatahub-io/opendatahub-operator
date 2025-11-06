@@ -2728,7 +2728,7 @@ Monitoring is the Schema for the monitorings API
 
 
 
-MonitoringCommonSpec spec defines the shared desired state of Dashboard
+MonitoringCommonSpec spec defines the shared desired state of Monitoring
 
 
 
@@ -2858,5 +2858,3 @@ _Appears in:_
 | `enabled` _boolean_ | Enabled enables TLS for Tempo gRPC connections | true |  |
 | `certificateSecret` _string_ | CertificateSecret specifies the name of the secret containing TLS certificates<br />If not specified, OpenShift service serving certificates will be used |  |  |
 | `caConfigMap` _string_ | CAConfigMap specifies the name of the ConfigMap containing the CA certificate<br />Required for mutual TLS authentication |  |  |
-
-
