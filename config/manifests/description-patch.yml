@@ -18,7 +18,7 @@ spec:
     * Dashboard
     * Curated Workbench Images (including CUDA, PyTorch, TensorFlow, code-server, TrustyAI)
     * Ability to add Custom Images
-    * Ability to leverage accelerators (such as NVIDIA GPU)
+    * Ability to leverage accelerators (such as NVIDIA GPUs, AMD GPUs, and Intel Gaudi AI accelerators)
     * AI Pipelines (including Elyra notebook interface)
     * Model Serving using Kserve.
     * Ability to use other runtimes for serving
