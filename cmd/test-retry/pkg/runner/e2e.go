@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -267,14 +268,19 @@ func (r *E2ETestRunner) extractTestLevel(testName string) (string, bool) {
 	// Find the longest matching skip-at-prefix
 	var longestMatch string
 	for _, prefix := range r.opts.SkipAtPrefixes {
-		normalizedPrefix := normalizePrefix(prefix)
-		if strings.HasPrefix(testName, normalizedPrefix) || prefix == testName {
-			if strings.Contains(testName, "/") {
-				longestMatch = getLongestMatch(longestMatch, normalizedPrefix)
-			} else {
-				longestMatch = getLongestMatch(longestMatch, prefix)
+		prefixParts := strings.Split(prefix, "/")
+		// Check if prefix contains wildcard
+		if slices.Contains(prefixParts, "*") {
+			expandedPrefix := expandWildcardPrefix(testName, prefix)
+			if expandedPrefix == "" {
+				continue
 			}
+			prefix = expandedPrefix
+		} else if !strings.HasPrefix(testName, prefix) {
+			continue
 		}
+
+		longestMatch = getLongestMatch(longestMatch, prefix)
 	}
 
 	// If no match found, don't skip
@@ -282,7 +288,7 @@ func (r *E2ETestRunner) extractTestLevel(testName string) (string, bool) {
 		return "", false
 	}
 
-	remainder := strings.TrimPrefix(testName, longestMatch)
+	remainder := strings.TrimPrefix(strings.TrimPrefix(testName, longestMatch), "/")
 	if remainder == "" {
 		return longestMatch, true
 	}
@@ -306,6 +312,27 @@ func getLongestMatch(actualLongestMatch string, testName string) string {
 		return testName
 	}
 	return actualLongestMatch
+}
+
+// expandWildcardPrefix replaces * in prefix with actual test name parts
+func expandWildcardPrefix(testName, prefix string) string {
+	testParts := strings.Split(testName, "/")
+	prefixParts := strings.Split(strings.TrimSuffix(prefix, "/"), "/")
+
+	// Test must have at least as many parts as the prefix
+	if len(testParts) < len(prefixParts) {
+		return ""
+	}
+
+	// Check if all non-wildcard parts match
+	for i, prefixPart := range prefixParts {
+		if prefixPart != "*" && testParts[i] != prefixPart {
+			return ""
+		}
+	}
+
+	// Return the matched prefix from testName
+	return strings.Join(testParts[:len(prefixParts)], "/")
 }
 
 // exportJUnit exports test results to JUnit XML format
