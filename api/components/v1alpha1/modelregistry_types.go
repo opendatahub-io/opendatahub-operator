@@ -1,5 +1,3 @@
-//go:build !rhoai
-
 /*
 Copyright 2023.
 
@@ -33,15 +31,6 @@ const (
 
 // Check that the component implements common.PlatformObject.
 var _ common.PlatformObject = (*ModelRegistry)(nil)
-
-// ModelRegistryCommonSpec spec defines the shared desired state of ModelRegistry
-type ModelRegistryCommonSpec struct {
-	// Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries"
-	// +kubebuilder:default="odh-model-registries"
-	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
-	// +kubebuilder:validation:MaxLength=63
-	RegistriesNamespace string `json:"registriesNamespace,omitempty"`
-}
 
 // ModelRegistrySpec defines the desired state of ModelRegistry
 type ModelRegistrySpec struct {

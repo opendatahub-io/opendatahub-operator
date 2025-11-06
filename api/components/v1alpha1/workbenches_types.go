@@ -1,5 +1,3 @@
-//go:build !rhoai
-
 /*
 Copyright 2023.
 
@@ -33,17 +31,6 @@ const (
 
 // Check that the component implements common.PlatformObject.
 var _ common.PlatformObject = (*Workbenches)(nil)
-
-type WorkbenchesCommonSpec struct {
-	// workbenches spec exposed only to internal api
-
-	// Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub"
-	// +kubebuilder:default="opendatahub"
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="WorkbenchNamespace is immutable"
-	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
-	// +kubebuilder:validation:MaxLength=63
-	WorkbenchNamespace string `json:"workbenchNamespace,omitempty"`
-}
 
 // WorkbenchesSpec defines the desired state of Workbenches
 type WorkbenchesSpec struct {

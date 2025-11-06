@@ -1,5 +1,3 @@
-//go:build !rhoai
-
 /*
 Copyright 2023.
 
@@ -171,28 +169,6 @@ type Monitoring struct {
 
 	Spec   MonitoringSpec   `json:"spec,omitempty"`
 	Status MonitoringStatus `json:"status,omitempty"`
-}
-
-// MonitoringCommonSpec spec defines the shared desired state of Dashboard
-// +kubebuilder:validation:XValidation:rule="has(self.alerting) ? has(self.metrics.storage) || has(self.metrics.resources) : true",message="Alerting configuration requires metrics.storage or metrics.resources to be configured"
-// +kubebuilder:validation:XValidation:rule="!has(self.collectorReplicas) || (self.collectorReplicas > 0 && ((self.metrics.resources != null || self.metrics.storage != null) || self.traces != null))",message="CollectorReplicas can only be set when metrics.resources, metrics.storage or traces are configured, and must be > 0"
-type MonitoringCommonSpec struct {
-	// monitoring spec exposed to DSCI api
-	// Namespace for monitoring if it is enabled
-	// +kubebuilder:default=opendatahub
-	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
-	// +kubebuilder:validation:MaxLength=63
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="MonitoringNamespace is immutable"
-	Namespace string `json:"namespace,omitempty"`
-	// metrics collection
-	Metrics *Metrics `json:"metrics,omitempty"`
-	// Tracing configuration for OpenTelemetry instrumentation
-	Traces *Traces `json:"traces,omitempty"`
-	// Alerting configuration for Prometheus
-	Alerting *Alerting `json:"alerting,omitempty"`
-	// CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults
-	// to 1 on single-node clusters and 2 on multi-node clusters.
-	CollectorReplicas int32 `json:"collectorReplicas,omitempty"`
 }
 
 //+kubebuilder:object:root=true
