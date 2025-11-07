@@ -162,6 +162,19 @@ func IsActiveNamespace(ns *corev1.Namespace) bool {
 	return ns.Status.Phase == corev1.NamespaceActive
 }
 
+// IsSingleNodeCluster determines if the cluster is a single-node cluster by checking the ControlPlaneTopology.
+func IsSingleNodeCluster(ctx context.Context, cli client.Client) bool {
+	infra := &configv1.Infrastructure{}
+	if err := cli.Get(ctx, types.NamespacedName{Name: "cluster"}, infra); err != nil {
+		logf.FromContext(ctx).Info("could not get infrastructure, defaulting to multi-node behavior", "error", err)
+		return false
+	}
+
+	isSNO := infra.Status.ControlPlaneTopology == configv1.SingleReplicaTopologyMode
+	logf.FromContext(ctx).V(1).Info("detected cluster topology", "controlPlaneTopology", infra.Status.ControlPlaneTopology, "isSNO", isSNO)
+	return isSNO
+}
+
 // GetClusterServiceVersion retries CSV only from the defined namespace.
 func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace string) (*ofapiv1alpha1.ClusterServiceVersion, error) {
 	clusterServiceVersionList := &ofapiv1alpha1.ClusterServiceVersionList{}

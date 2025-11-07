@@ -635,6 +635,7 @@ spec:
           resources:
           - authentications
           - clusterversions
+          - infrastructures
           verbs:
           - get
           - list
