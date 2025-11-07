@@ -3,21 +3,31 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 3.2.0
+ifeq ($(VERSION), )
+	VERSION = 3.2.0
+endif
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # opendatahub.io/opendatahub-operator-bundle:$VERSION and opendatahub.io/opendatahub-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= quay.io/opendatahub/opendatahub-operator
+ifeq ($(IMAGE_TAG_BASE), )
+	IMAGE_TAG_BASE = quay.io/opendatahub/opendatahub-operator
+endif
 
 # keep the name based on IMG which already used from command line
-IMG_TAG ?= latest
+ifeq ($(IMG_TAG), )
+	IMG_TAG = latest
+endif
 # Update IMG to a variable, to keep it consistent across versions for OpenShift CI
-IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
+ifeq ($(IMG), )
+	IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
+endif
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
+ifeq ($(BUNDLE_IMG), )
+	BUNDLE_IMG = $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
+endif
 
 IMAGE_BUILDER ?= podman
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
@@ -136,10 +146,20 @@ endef
 
 # Using controller-gen to fetch external CRDs and put them in config/crd/external folder
 # They're used in tests, as they have to be created for controller to work
+# Usage: $(call fetch-external-crds,module,path[,kinds])
+#   module: Go module path (e.g., github.com/openshift/api)
+#   path: Path within module (e.g., config/v1)
+#   kinds: Optional space-separated list of specific kinds to fetch (e.g., authentication authorization)
+#          If not provided, fetches all CRDs from the path
+# Example: $(call fetch-external-crds,github.com/openshift/api,config/v1,authentication oauth)
 define fetch-external-crds
+mkdir -p config/crd/external/tmp
 GOFLAGS="-mod=readonly" $(CONTROLLER_GEN) crd \
 paths=$(shell go env GOPATH)/pkg/mod/$(1)@$(call go-mod-version,$(1))/$(2)/... \
-output:crd:artifacts:config=config/crd/external
+output:crd:artifacts:config=config/crd/external/tmp
+$(if $(3),$(foreach kind,$(3),find config/crd/external/tmp -type f -name '*_$(kind).yaml' -exec mv {} config/crd/external/ \;;))
+$(if $(3),,mv config/crd/external/tmp/*.yaml config/crd/external/)
+rm -rf config/crd/external/tmp
 endef
 
 .PHONY: manifests
@@ -147,6 +167,8 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	$(call fetch-external-crds,github.com/openshift/api,user/v1)
+	$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
+CLEANFILES += config/crd/bases config/crd/external config/rbac/role.yaml config/webhook/manifests.yaml
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -329,12 +351,22 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
-	mv bundle.Dockerfile Dockerfiles/
+	$(SED_COMMAND) -i 's#COPY #COPY --from=builder /workspace/#' bundle.Dockerfile
+	cat Dockerfiles/build-bundle.Dockerfile bundle.Dockerfile > Dockerfiles/bundle.Dockerfile
+	rm bundle.Dockerfile
 	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
+CLEANFILES += $(BUNDLE_DIR)
 
+# The bundle image is multi-stage to preserve the ability to build without invoking make
+# We use build args to ensure the variables are passed to the underlying internal make invocation
 .PHONY: bundle-build
 bundle-build: bundle
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile --platform $(PLATFORM) -t $(BUNDLE_IMG) .
+	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile --platform $(PLATFORM) -t $(BUNDLE_IMG) \
+	--build-arg BUNDLE_IMG=$(BUNDLE_IMG) \
+	--build-arg IMAGE_TAG_BASE=$(IMAGE_TAG_BASE) \
+	--build-arg IMG_TAG=$(IMG_TAG) \
+	--build-arg OPERATOR_VERSION=$(VERSION) \
+	.
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
@@ -431,6 +463,10 @@ test: unit-test e2e-test
 
 .PHONY: unit-test
 unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
+	@if [ ! -d "config/crd/bases" ]; then \
+		echo "Error: config/crd/bases folder does not exist. Please run 'make manifests' first."; \
+		exit 1; \
+	fi
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
     	${GINKGO} -r \
         		--procs=8 \
@@ -491,7 +527,7 @@ unit-test-cli:
 .PHONY: clean
 clean: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) cache clean
-	chmod u+w -R $(LOCALBIN) # envtest makes its dir RO
+	chmod -R u+w $(LOCALBIN) # envtest makes its dir RO
 	rm -rf $(CLEANFILES)
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist

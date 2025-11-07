@@ -165,32 +165,17 @@ func IsActiveNamespace(ns *corev1.Namespace) bool {
 	return ns.Status.Phase == corev1.NamespaceActive
 }
 
-// IsSingleNodeCluster determines if the cluster is a single-node cluster by counting the actual nodes.
+// IsSingleNodeCluster determines if the cluster is a single-node cluster by checking the ControlPlaneTopology.
 func IsSingleNodeCluster(ctx context.Context, cli client.Client) bool {
-	nodeList := &corev1.NodeList{}
-	if err := cli.List(ctx, nodeList); err != nil {
-		logf.FromContext(ctx).Info("could not list nodes, defaulting to multi-node behavior", "error", err)
+	infra := &configv1.Infrastructure{}
+	if err := cli.Get(ctx, types.NamespacedName{Name: "cluster"}, infra); err != nil {
+		logf.FromContext(ctx).Info("could not get infrastructure, defaulting to multi-node behavior", "error", err)
 		return false
 	}
 
-	// Count only nodes that are ready and not marked for deletion
-	var readyNodeCount int
-	for _, node := range nodeList.Items {
-		if node.DeletionTimestamp == nil {
-			for _, condition := range node.Status.Conditions {
-				if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
-					readyNodeCount++
-					break
-				}
-			}
-		}
-		if readyNodeCount > 1 {
-			break
-		}
-	}
-
-	logf.FromContext(ctx).V(1).Info("detected cluster size", "totalNodes", len(nodeList.Items), "readyNodes", readyNodeCount)
-	return readyNodeCount <= 1
+	isSNO := infra.Status.ControlPlaneTopology == configv1.SingleReplicaTopologyMode
+	logf.FromContext(ctx).V(1).Info("detected cluster topology", "controlPlaneTopology", infra.Status.ControlPlaneTopology, "isSNO", isSNO)
+	return isSNO
 }
 
 // GetClusterServiceVersion retries CSV only from the defined namespace.

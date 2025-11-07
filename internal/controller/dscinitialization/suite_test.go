@@ -122,6 +122,7 @@ var _ = BeforeSuite(func() {
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,
 		},
+		ErrorIfCRDPathMissing: true,
 	}
 
 	var err error
