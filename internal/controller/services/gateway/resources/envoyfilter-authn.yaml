@@ -28,7 +28,7 @@ spec:
             server_uri:
               uri: https://kube-auth-proxy.openshift-ingress.svc.cluster.local:8443/oauth2/auth
               cluster: kube-auth-proxy
-              timeout: 0.5s
+              timeout: 5s
             authorization_request:
               allowed_headers:
                 patterns:
@@ -112,7 +112,7 @@ spec:
       value:
         name: kube-auth-proxy
         type: STRICT_DNS
-        connect_timeout: 0.5s
+        connect_timeout: 5s
         transport_socket:
           name: envoy.transport_sockets.tls
           typed_config:
