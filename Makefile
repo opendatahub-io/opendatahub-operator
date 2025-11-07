@@ -401,7 +401,7 @@ bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then val
 	rm bundle.Dockerfile
 	rm -f $(BUNDLE_DIR)/manifests/opendatahub-operator-webhook-service_v1_service.yaml
 	rm -f $(BUNDLE_DIR)/manifests/rhods-operator-webhook-service_v1_service.yaml
-CLEANFILES += $(BUNDLE_DIR)
+CLEANFILES += rhoai-bundle odh-bundle
 
 # The bundle image is multi-stage to preserve the ability to build without invoking make
 # We use build args to ensure the variables are passed to the underlying internal make invocation
