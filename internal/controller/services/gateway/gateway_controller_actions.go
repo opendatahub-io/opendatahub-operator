@@ -31,7 +31,6 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -64,8 +63,7 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		return fmt.Errorf("failed to handle certificates: %w", err)
 	}
 
-	// Pass platform namespace to createGateway
-	if err := createGateway(rr, certSecretName, domain, cluster.GetApplicationNamespace(), DefaultGatewayName); err != nil {
+	if err := createGateway(rr, certSecretName, domain, DefaultGatewayName); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 

@@ -67,7 +67,7 @@ func TestCreateListeners(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			listeners := createListeners(tc.certSecret, tc.domain, "opendatahub")
+			listeners := createListeners(tc.certSecret, tc.domain)
 
 			g.Expect(listeners).To(HaveLen(tc.expectCount), tc.description)
 
@@ -248,7 +248,7 @@ func TestCreateListenersEdgeCases(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			listeners := createListeners(tc.certSecret, tc.domain, "opendatahub")
+			listeners := createListeners(tc.certSecret, tc.domain)
 
 			g.Expect(listeners).To(HaveLen(tc.expectCount), tc.description)
 

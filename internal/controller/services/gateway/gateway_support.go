@@ -185,7 +185,7 @@ func GetGatewayDomain(ctx context.Context, cli client.Client) (string, error) {
 }
 
 // createListeners creates the Gateway listeners configuration with namespace restrictions.
-func createListeners(certSecretName string, domain string, platformNamespace string) []gwapiv1.Listener {
+func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
 	// Early return for empty certificate - avoid unnecessary allocations
 	if certSecretName == "" {
 		return nil
@@ -220,8 +220,8 @@ func createListeners(certSecretName string, domain string, platformNamespace str
 							Key:      "kubernetes.io/metadata.name",
 							Operator: metav1.LabelSelectorOpIn,
 							Values: []string{
-								GatewayNamespace,  // openshift-ingress
-								platformNamespace, // opendatahub or redhat-ods-applications
+								GatewayNamespace,                 // openshift-ingress
+								cluster.GetApplicationNamespace(), // opendatahub or redhat-ods-applications
 							},
 						},
 					},
@@ -319,7 +319,7 @@ func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.Reconciliatio
 	return secretName, nil
 }
 
-func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, platformNamespace string, gatewayName string) error {
+func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, gatewayName string) error {
 	// Input validation
 	if rr == nil {
 		return errors.New("reconciliation request cannot be nil")
@@ -332,7 +332,7 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 	}
 
 	// Create listeners with namespace restrictions
-	listeners := createListeners(certSecretName, domain, platformNamespace)
+	listeners := createListeners(certSecretName, domain)
 
 	// Create gateway resource with optimized structure
 	gateway := &gwapiv1.Gateway{

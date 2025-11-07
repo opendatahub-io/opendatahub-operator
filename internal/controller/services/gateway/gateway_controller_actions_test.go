@@ -75,7 +75,7 @@ func TestCreateGateway(t *testing.T) {
 			g := NewWithT(t)
 
 			rr := &odhtypes.ReconciliationRequest{Client: setupTestClient()}
-			err := createGateway(rr, test.cert, test.domain, "opendatahub", test.name)
+			err := createGateway(rr, test.cert, test.domain, test.name)
 
 			g.Expect(err).NotTo(HaveOccurred())
 			g.Expect(rr.Resources).To(HaveLen(1))
