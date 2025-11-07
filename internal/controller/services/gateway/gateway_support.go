@@ -168,7 +168,7 @@ func GetGatewayDomain(ctx context.Context, cli client.Client) (string, error) {
 	return getClusterDomain(ctx, cli)
 }
 
-// createListeners creates the Gateway listeners configuration.
+// createListeners creates the Gateway listeners configuration with namespace restrictions.
 func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
 	// Early return for empty certificate - avoid unnecessary allocations
 	if certSecretName == "" {
@@ -178,7 +178,7 @@ func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
 	// Pre-allocate slice with known capacity to avoid reallocations
 	listeners := make([]gwapiv1.Listener, 0, 1)
 
-	from := gwapiv1.NamespacesFromAll
+	selectorMode := gwapiv1.NamespacesFromSelector
 	httpsMode := gwapiv1.TLSModeTerminate
 	hostname := gwapiv1.Hostname(domain)
 
@@ -197,7 +197,19 @@ func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
 		},
 		AllowedRoutes: &gwapiv1.AllowedRoutes{
 			Namespaces: &gwapiv1.RouteNamespaces{
-				From: &from,
+				From: &selectorMode,
+				Selector: &metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "kubernetes.io/metadata.name",
+							Operator: metav1.LabelSelectorOpIn,
+							Values: []string{
+								GatewayNamespace,                  // openshift-ingress
+								cluster.GetApplicationNamespace(), // opendatahub or redhat-ods-applications
+							},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -303,7 +315,7 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		return errors.New("domain cannot be empty")
 	}
 
-	// Create listeners with validation
+	// Create listeners with namespace restrictions
 	listeners := createListeners(certSecretName, domain)
 
 	// Create gateway resource with optimized structure
