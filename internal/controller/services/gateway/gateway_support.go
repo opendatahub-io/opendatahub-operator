@@ -23,7 +23,6 @@ import (
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -117,23 +116,6 @@ func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
 		return string(infrav1.OpenshiftDefaultIngress)
 	}
 	return string(gatewayConfig.Spec.Certificate.Type)
-}
-
-// getPlatformNamespace retrieves the platform namespace from DSCI configuration.
-// Returns the applications namespace specified in DSCI, or defaults to "opendatahub".
-func getPlatformNamespace(ctx context.Context, cli client.Client) (string, error) {
-	dsci := &dsciv2.DSCInitialization{}
-	err := cli.Get(ctx, types.NamespacedName{Name: "default-dsci"}, dsci)
-	if err != nil {
-		return "", fmt.Errorf("failed to get DSCI: %w", err)
-	}
-
-	if dsci.Spec.ApplicationsNamespace != "" {
-		return dsci.Spec.ApplicationsNamespace, nil
-	}
-
-	// Fallback: use default for OpenDataHub
-	return "opendatahub", nil
 }
 
 // buildGatewayDomain combines subdomain with base domain.

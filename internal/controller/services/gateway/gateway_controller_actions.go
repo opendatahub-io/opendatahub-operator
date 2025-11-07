@@ -31,6 +31,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
@@ -63,17 +64,8 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		return fmt.Errorf("failed to handle certificates: %w", err)
 	}
 
-	// Get platform namespace for allowedRoutes configuration
-	platformNs, err := getPlatformNamespace(ctx, rr.Client)
-	if err != nil {
-		return fmt.Errorf("failed to get platform namespace: %w", err)
-	}
-
-	l.V(1).Info("Configuring gateway namespace restrictions",
-		"allowedNamespaces", []string{GatewayNamespace, platformNs})
-
 	// Pass platform namespace to createGateway
-	if err := createGateway(rr, certSecretName, domain, platformNs, DefaultGatewayName); err != nil {
+	if err := createGateway(rr, certSecretName, domain, cluster.GetApplicationNamespace(), DefaultGatewayName); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 
