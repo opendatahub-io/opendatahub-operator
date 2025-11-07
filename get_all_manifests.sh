@@ -29,7 +29,7 @@ if [ "${ODH_PLATFORM_TYPE:-OpenDataHub}" = "OpenDataHub" ]; then
         ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@226e911cca9bf7efa1e632860613087b0bf14d74:config"
     )
 else
-    echo "Cloning manifests for RHOAI using ref $DEFAULT_REF"
+    echo "Cloning manifests for RHOAI"
     # COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
     # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
     # ref-name can be a branch name, tag name, or a commit SHA (7-40 hex characters)
