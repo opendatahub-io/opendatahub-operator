@@ -28,7 +28,7 @@ spec:
             server_uri:
               uri: https://kube-auth-proxy.openshift-ingress.svc.cluster.local:8443/oauth2/auth
               cluster: kube-auth-proxy
-              timeout: 5s
+              timeout: %s
             authorization_request:
               allowed_headers:
                 patterns:
@@ -84,7 +84,7 @@ spec:
                   -- Parse and filter cookies in a single pass
                   for cookie in cookie_header:gmatch("([^;]+)") do
                     -- Trim whitespace and extract cookie name
-                    local trimmed = cookie:match("^%s*(.-)%s*$")
+                    local trimmed = cookie:match("^%%s*(.-)%%s*$")
                     if trimmed ~= "" then
                       local cookie_name = trimmed:match("^([^=]+)")
                       -- Only keep cookies that don't match the OAuth2 proxy cookie pattern
@@ -112,7 +112,7 @@ spec:
       value:
         name: kube-auth-proxy
         type: STRICT_DNS
-        connect_timeout: 5s
+        connect_timeout: %s
         transport_socket:
           name: envoy.transport_sockets.tls
           typed_config:
