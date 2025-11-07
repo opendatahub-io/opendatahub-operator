@@ -8,7 +8,7 @@ package dscinitialization
 // +kubebuilder:rbac:groups="features.opendatahub.io",resources=featuretrackers/finalizers,verbs=update;patch;get
 
 /* Auth */
-// +kubebuilder:rbac:groups="config.openshift.io",resources=authentications,verbs=get;watch;list
+// +kubebuilder:rbac:groups="config.openshift.io",resources=authentications;infrastructures,verbs=get;watch;list
 
 // TODO: move to monitoring own file
 // +kubebuilder:rbac:groups="route.openshift.io",resources=routers/metrics,verbs=get

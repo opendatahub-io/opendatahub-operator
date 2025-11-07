@@ -36,6 +36,10 @@ go build -o test-retry .
 # Filter specific tests
 ./test-retry e2e --filter "^TestOdhOperator.*Dashboard"
 
+# Filter tests using wildcards (glob patterns)
+./test-retry e2e --filter "TestOdhOperator/components/*"
+./test-retry e2e --filter "TestOdhOperator/*/basic_test"
+
 # Run with custom test runner options
 ./test-retry e2e -- "-count=3 -timeout=30m"
 ```
@@ -46,7 +50,9 @@ go build -o test-retry .
 - `--verbose`: Enable verbose output
 
 #### E2E Test Flags
-- `--filter`: Filter tests to run using regex pattern (default: "^TestOdhOperator/")
+- `--filter`: Filter tests to run using test name or glob wildcard pattern (default: "^TestOdhOperator/")
+  - Supports test name: `"TestOdhOperator/components`
+  - Supports wildcards: `"TestOdhOperator/components/*"`, `"TestOdhOperator/*/basic_test"`
 - `--path`: Path to e2e tests (default: "./tests/e2e/")
 - `--working-dir`: Working directory for running go test (default: current directory)
 - `--never-skip`: Test prefixes that should never be skipped (default: ["TestOdhOperator/DSCInitialization_and_DataScienceCluster_management_E2E_Tests/"])

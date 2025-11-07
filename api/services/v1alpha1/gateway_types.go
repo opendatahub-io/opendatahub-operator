@@ -49,6 +49,12 @@ type GatewayConfigSpec struct {
 	// +optional
 	Domain string `json:"domain,omitempty"`
 
+	// Subdomain configuration for the GatewayConfig
+	// +optional
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$`
+	Subdomain string `json:"subdomain,omitempty"`
+
 	// Cookie configuration for OAuth2 proxy (applies to both OIDC and OpenShift OAuth)
 	// +optional
 	Cookie *CookieConfig `json:"cookie,omitempty"`

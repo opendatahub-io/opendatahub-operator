@@ -2625,6 +2625,7 @@ _Appears in:_
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
 | `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
 | `domain` _string_ | Domain configuration for the GatewayConfig<br />Example: apps.example.com |  |  |
+| `subdomain` _string_ | Subdomain configuration for the GatewayConfig |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$` <br /> |
 | `cookie` _[CookieConfig](#cookieconfig)_ | Cookie configuration for OAuth2 proxy (applies to both OIDC and OpenShift OAuth) |  |  |
 
 

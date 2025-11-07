@@ -323,6 +323,149 @@ func TestResolveDomainEdgeCases(t *testing.T) {
 	}
 }
 
+// TestResolveDomainWithSubdomain tests subdomain functionality in domain resolution.
+func TestResolveDomainWithSubdomain(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	testCases := []struct {
+		name              string
+		specDomain        string
+		subdomain         string
+		clusterDomain     string
+		useClusterIngress bool
+		expectedDomain    string
+		expectError       bool
+		description       string
+	}{
+		{
+			name:              "custom subdomain with user domain",
+			specDomain:        testUserDomain,
+			subdomain:         "my-gateway",
+			useClusterIngress: false,
+			expectedDomain:    "my-gateway.apps.example.com",
+			expectError:       false,
+			description:       "should use custom subdomain with user-provided domain",
+		},
+		{
+			name:              "custom subdomain with cluster domain",
+			specDomain:        "",
+			subdomain:         "custom-gateway",
+			clusterDomain:     testClusterDomain,
+			useClusterIngress: true,
+			expectedDomain:    "custom-gateway.apps.cluster.example.com",
+			expectError:       false,
+			description:       "should use custom subdomain with cluster domain",
+		},
+		{
+			name:              "empty subdomain falls back to default",
+			specDomain:        testUserDomain,
+			subdomain:         "",
+			useClusterIngress: false,
+			expectedDomain:    expectedODHDomain,
+			expectError:       false,
+			description:       "should fall back to default gateway name when subdomain is empty",
+		},
+		{
+			name:              "whitespace subdomain falls back to default",
+			specDomain:        testUserDomain,
+			subdomain:         "   ",
+			useClusterIngress: false,
+			expectedDomain:    expectedODHDomain,
+			expectError:       false,
+			description:       "should fall back to default gateway name when subdomain is whitespace",
+		},
+		{
+			name:              "subdomain with complex domain",
+			specDomain:        "api.v1.example.com",
+			subdomain:         "data-science",
+			useClusterIngress: false,
+			expectedDomain:    "data-science.api.v1.example.com",
+			expectError:       false,
+			description:       "should use subdomain with complex domain structure",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+
+			// Create test gateway config with subdomain
+			gatewayConfig := createTestGatewayConfigSupportWithSubdomain(tc.specDomain, tc.subdomain, nil)
+
+			// Setup client with or without cluster ingress
+			var client client.Client
+			if tc.useClusterIngress && tc.clusterDomain != "" {
+				client = setupSupportTestClientWithClusterIngress(tc.clusterDomain)
+			} else {
+				client = setupSupportTestClient()
+			}
+
+			domain, err := resolveDomain(ctx, client, gatewayConfig)
+
+			if tc.expectError {
+				g.Expect(err).To(HaveOccurred(), tc.description)
+				g.Expect(domain).To(Equal(""), "domain should be empty on error")
+			} else {
+				g.Expect(err).ToNot(HaveOccurred(), tc.description)
+				g.Expect(domain).To(Equal(tc.expectedDomain), tc.description)
+			}
+		})
+	}
+}
+
+// TestBuildGatewayDomainWithSubdomain tests the buildGatewayDomain function with subdomain.
+func TestBuildGatewayDomainWithSubdomain(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	testCases := []struct {
+		name        string
+		subdomain   string
+		baseDomain  string
+		expected    string
+		description string
+	}{
+		{
+			name:        "custom subdomain",
+			subdomain:   "my-gateway",
+			baseDomain:  "apps.example.com",
+			expected:    "my-gateway.apps.example.com",
+			description: "should use custom subdomain when provided",
+		},
+		{
+			name:        "empty subdomain uses default",
+			subdomain:   "",
+			baseDomain:  "apps.example.com",
+			expected:    "data-science-gateway.apps.example.com",
+			description: "should use default gateway name when subdomain is empty",
+		},
+		{
+			name:        "whitespace subdomain uses default",
+			subdomain:   "   ",
+			baseDomain:  "apps.example.com",
+			expected:    "data-science-gateway.apps.example.com",
+			description: "should use default gateway name when subdomain is whitespace",
+		},
+		{
+			name:        "subdomain with cluster domain",
+			subdomain:   "custom",
+			baseDomain:  testClusterDomain,
+			expected:    "custom.apps.cluster.example.com",
+			description: "should use subdomain with cluster domain",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := buildGatewayDomain(tc.subdomain, tc.baseDomain)
+			g.Expect(result).To(Equal(tc.expected), tc.description)
+		})
+	}
+}
+
 // TestValidateOIDCConfig tests the OIDC configuration validation logic.
 func TestValidateOIDCConfig(t *testing.T) {
 	t.Parallel()
