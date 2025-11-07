@@ -1,9 +1,9 @@
----
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.3
+  creationTimestamp: null
   name: gatewayconfigs.services.platform.opendatahub.io
 spec:
   group: services.platform.opendatahub.io
@@ -48,6 +48,13 @@ spec:
           spec:
             description: GatewayConfigSpec defines the desired state of GatewayConfig
             properties:
+              authTimeout:
+                description: |-
+                  AuthTimeout is the duration Envoy waits for auth proxy responses.
+                  Requests timeout with 403 if exceeded.
+                  Overrides GATEWAY_AUTH_TIMEOUT env var. Default: "5s"
+                pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                type: string
               certificate:
                 description: Certificate management
                 properties:
@@ -216,3 +223,9 @@ spec:
     storage: true
     subresources:
       status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
