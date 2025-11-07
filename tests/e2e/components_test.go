@@ -139,6 +139,11 @@ func (tc *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 func (tc *ComponentTestCtx) ValidateS3SecretCheckBucketExist(t *testing.T) {
 	t.Helper()
 
+	// Ensure the component is actually enabled before checking for the VAP
+	// This handles cases where the component might have been temporarily disabled
+	// by other test suites (e.g., ModelController, TrustyAI) and needs time to reconcile
+	tc.ValidateComponentEnabled(t)
+
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ValidatingAdmissionPolicy, types.NamespacedName{Name: "connectionapi-check-s3-bucket"}),
 	)
