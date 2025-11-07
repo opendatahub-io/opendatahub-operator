@@ -1,11 +1,3 @@
-# VERSION defines the project version for the bundle.
-# Update this value when you upgrade the version of your project.
-# To re-generate a bundle for another specific version without changing the standard setup, you can:
-# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
-# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-ifeq ($(VERSION), )
-	VERSION = 3.2.0
-endif
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -31,8 +23,13 @@ BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 ODH_PLATFORM_TYPE ?= OpenDataHub
 
 ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
+	# VERSION defines the project version for the bundle.
+	# Update this value when you upgrade the version of your project.
+	# To re-generate a bundle for another specific version without changing the standard setup, you can:
+	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
+	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	ifeq ($(VERSION), )
-		VERSION = 3.0.0
+		VERSION = 3.2.0
 	endif
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
 	CHANNELS ?= fast
@@ -44,8 +41,13 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	CONFIG_DIR=odh-config
 	GO_RUN_ARGS=-tags=odh
 else
+	# VERSION defines the project version for the bundle.
+	# Update this value when you upgrade the version of your project.
+	# To re-generate a bundle for another specific version without changing the standard setup, you can:
+	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
+	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 	ifeq ($(VERSION), )
-		VERSION = 3.0.0
+		VERSION = 3.2.0
 	endif
 	OPERATOR_NAMESPACE ?= redhat-ods-operator
 	CHANNELS ?= alpha,stable,fast
