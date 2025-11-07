@@ -220,7 +220,7 @@ func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
 							Key:      "kubernetes.io/metadata.name",
 							Operator: metav1.LabelSelectorOpIn,
 							Values: []string{
-								GatewayNamespace,                 // openshift-ingress
+								GatewayNamespace,                  // openshift-ingress
 								cluster.GetApplicationNamespace(), // opendatahub or redhat-ods-applications
 							},
 						},
