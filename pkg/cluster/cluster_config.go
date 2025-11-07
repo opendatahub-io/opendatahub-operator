@@ -33,9 +33,10 @@ type ClusterInfo struct {
 }
 
 var clusterConfig struct {
-	Namespace   string
-	Release     common.Release
-	ClusterInfo ClusterInfo
+	Namespace            string
+	ApplicationNamespace string
+	Release              common.Release
+	ClusterInfo          ClusterInfo
 }
 
 type InstallConfig struct {
@@ -69,6 +70,11 @@ func Init(ctx context.Context, cli client.Client) error {
 		return err
 	}
 
+	err = setApplicationNamespace(ctx, cli)
+	if err != nil {
+		return err
+	}
+
 	printClusterConfig(log)
 
 	return nil
@@ -77,6 +83,7 @@ func Init(ctx context.Context, cli client.Client) error {
 func printClusterConfig(log logr.Logger) {
 	log.Info("Cluster config",
 		"Operator Namespace", clusterConfig.Namespace,
+		"Application Namespace", clusterConfig.ApplicationNamespace,
 		"Release", clusterConfig.Release,
 		"Cluster", clusterConfig.ClusterInfo)
 }
@@ -160,6 +167,19 @@ func IsReservedNamespace(ns *corev1.Namespace) bool {
 
 func IsActiveNamespace(ns *corev1.Namespace) bool {
 	return ns.Status.Phase == corev1.NamespaceActive
+}
+
+// IsSingleNodeCluster determines if the cluster is a single-node cluster by checking the ControlPlaneTopology.
+func IsSingleNodeCluster(ctx context.Context, cli client.Client) bool {
+	infra := &configv1.Infrastructure{}
+	if err := cli.Get(ctx, types.NamespacedName{Name: "cluster"}, infra); err != nil {
+		logf.FromContext(ctx).Info("could not get infrastructure, defaulting to multi-node behavior", "error", err)
+		return false
+	}
+
+	isSNO := infra.Status.ControlPlaneTopology == configv1.SingleReplicaTopologyMode
+	logf.FromContext(ctx).V(1).Info("detected cluster topology", "controlPlaneTopology", infra.Status.ControlPlaneTopology, "isSNO", isSNO)
+	return isSNO
 }
 
 // GetClusterServiceVersion retries CSV only from the defined namespace.
@@ -337,4 +357,55 @@ func setManagedMonitoringNamespace(ctx context.Context, cli client.Client) error
 		viper.SetDefault("dsc-monitoring-namespace", DefaultMonitoringNamespaceODH)
 	}
 	return nil
+}
+
+func setApplicationNamespace(ctx context.Context, cli client.Client) error {
+	platform := clusterConfig.Release.Name
+	defaultRHOAIApplicationNamespace := "redhat-ods-applications"
+
+	if platform == ManagedRhoai {
+		clusterConfig.ApplicationNamespace = defaultRHOAIApplicationNamespace
+		return nil
+	}
+	namespaceList := &corev1.NamespaceList{}
+	labelSelector := client.MatchingLabels{
+		"opendatahub.io/application-namespace": "true",
+	}
+
+	if err := cli.List(ctx, namespaceList, labelSelector); err != nil {
+		return err
+	}
+
+	switch len(namespaceList.Items) {
+	case 0:
+		// No labeled namespace found, use platform default
+		if platform == SelfManagedRhoai {
+			clusterConfig.ApplicationNamespace = defaultRHOAIApplicationNamespace
+		} else {
+			clusterConfig.ApplicationNamespace = "opendatahub"
+		}
+	case 1:
+		// One labeled namespace found, use it
+		clusterConfig.ApplicationNamespace = namespaceList.Items[0].Name
+	default:
+		// Multiple labeled namespaces found, this is an error
+		return errors.New("only one namespace with label opendatahub.io/application-namespace: true is supported")
+	}
+
+	return nil
+}
+
+// GetApplicationNamespace returns the application namespace for the platform.
+// It returns a cached value from clusterConfig if available, otherwise determines it dynamically.
+func GetApplicationNamespace() string {
+	if clusterConfig.ApplicationNamespace != "" {
+		return clusterConfig.ApplicationNamespace
+	}
+
+	switch clusterConfig.Release.Name {
+	case SelfManagedRhoai, ManagedRhoai:
+		return "redhat-ods-applications"
+	default:
+		return "opendatahub"
+	}
 }

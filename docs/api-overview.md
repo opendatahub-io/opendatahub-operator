@@ -2585,7 +2585,7 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
-| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
+| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
 
 
 #### GatewayConfig
@@ -2742,7 +2742,7 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
-| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
+| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
 
 
 #### MonitoringSpec
@@ -2762,7 +2762,7 @@ _Appears in:_
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
-| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector, default is 2 if not set |  |  |
+| `collectorReplicas` _integer_ | CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  |  |
 
 
 #### MonitoringStatus
