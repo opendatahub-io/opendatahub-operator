@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -76,6 +77,9 @@ func createEnvoyFilter(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	if err != nil {
 		return fmt.Errorf("failed to read EnvoyFilter template: %w", err)
 	}
+
+	cookiePattern := OAuth2ProxyCookieName
+	yamlContent = []byte(strings.ReplaceAll(string(yamlContent), "{{.CookieName}}", cookiePattern))
 
 	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
 	unstructuredObjects, err := resources.Decode(decoder, yamlContent)

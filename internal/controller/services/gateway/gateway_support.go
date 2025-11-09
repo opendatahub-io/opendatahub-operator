@@ -70,6 +70,9 @@ const (
 	EnvClientSecret = "OAUTH2_PROXY_CLIENT_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 	EnvCookieSecret = "OAUTH2_PROXY_COOKIE_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 
+	// OAuth2 proxy cookie name - used in both proxy args and EnvoyFilter Lua filter.
+	OAuth2ProxyCookieName = "_oauth2_proxy"
+
 	AuthModeIntegratedOAuth AuthMode = "IntegratedOAuth"
 	AuthModeOIDC            AuthMode = "OIDC"
 	AuthModeNone            AuthMode = "None"
@@ -710,7 +713,7 @@ func buildBaseOAuth2ProxyArgs(cookieConfig *serviceApi.CookieConfig, domain stri
 		"--cookie-secure=true",                                            // HTTPS only
 		"--cookie-httponly=true",                                          // XSS protection
 		"--cookie-samesite=lax",                                           // CSRF protection
-		"--cookie-name=_oauth2_proxy",                                     // Custom cookie name
+		fmt.Sprintf("--cookie-name=%s", OAuth2ProxyCookieName),            // Custom cookie name (used in EnvoyFilter Lua filter)
 		"--cookie-domain=" + domain,                                       // Cookie domain is the domain of the gateway
 		fmt.Sprintf("--metrics-address=0.0.0.0:%d", AuthProxyMetricsPort), // Expose metrics on unauthenticated port
 	}
