@@ -317,7 +317,7 @@ Lastly, please update the following files to fully integrate new component tests
 ### 4. Update Prometheus config and tests
 
 If the component is planned to be released for downstream, Prometheus rules and promtest need to be updated for the component.
-- Rules are located in `config/monitoring/prometheus/app/prometheus-configs.yaml` file
+- Rules are located in `internal/controllers/components/<component>/monitoring/*.yaml` file
 - Tests are grouped in `tests/prometheus_unit_tests` <component>_unit_tests.yam file
 
 
@@ -328,7 +328,6 @@ Currently integrated components are:
 - [Dashboard](https://github.com/opendatahub-io/odh-dashboard)
 - [Data Science Pipelines](https://github.com/opendatahub-io/data-science-pipelines)
 - [KServe](https://github.com/opendatahub-io/kserve)
-- [Kueue](https://github.com/opendatahub-io/kueue)
 - [Model Controller](https://github.com/opendatahub-io/odh-model-controller)
 - [ModelRegistry](https://github.com/opendatahub-io/model-registry)
 - [Ray](https://github.com/opendatahub-io/kuberay)
