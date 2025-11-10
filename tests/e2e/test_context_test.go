@@ -51,6 +51,9 @@ type TestContext struct {
 	// Namespace where application workloads are deployed.
 	AppsNamespace string
 
+	// Namespace where the workbenches are deployed.
+	WorkbenchesNamespace string
+
 	// Namespace where the monitoring components are deployed.
 	MonitoringNamespace string
 
@@ -97,6 +100,7 @@ func NewTestContext(t *testing.T) (*TestContext, error) { //nolint:thelper
 		DataScienceClusterNamespacedName: types.NamespacedName{Name: dscInstanceName},
 		OperatorNamespace:                testOpts.operatorNamespace,
 		AppsNamespace:                    testOpts.appsNamespace,
+		WorkbenchesNamespace:             testOpts.workbenchesNamespace,
 		MonitoringNamespace:              testOpts.monitoringNamespace,
 		TestTimeouts:                     testOpts.TestTimeouts,
 	}, nil
