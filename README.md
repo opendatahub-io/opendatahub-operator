@@ -97,9 +97,9 @@ The following components are **automatically integrated** by the ODH operator ba
 
 #### Namespace Requirements
 
-- One namespace will be designated as the `applicationsNamespace` (default: `opendatahub`)
-- Only **one** namespace in the cluster can have the label `opendatahub.io/application-namespace: true`
-- The operator itself runs in a separate namespace (default: `opendatahub-operator-system`)
+- One namespace will be designated as the `applicationsNamespace` in DSCI (default: `opendatahub`)
+- Only **one** namespace in the cluster can have the label `opendatahub.io/application-namespace: true` if user prefer overwrite default namespace
+- The operator itself runs in a separate namespace (default: `opendatahub-operator` in ODH)
 
 #### Resource Requirements
 
