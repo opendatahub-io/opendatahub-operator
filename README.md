@@ -56,9 +56,9 @@ The following external operators are **required** or **recommended** depending o
 
 | Operator | Purpose | Required For | Installation |
 |----------|---------|--------------|--------------|
-| **OpenShift Cert Manager Operator** | Certificate management | Gateway with TLS, KServe with Istio | Install from OperatorHub (Channel: `stable-v1`) |
-| **Red Hat build of Kueue Operator** | Advanced job queueing and resource management | Distributed workloads, job scheduling with Kueue component | Optional - Install from OperatorHub |
-| **Red Hat Connectivitiy Link Operator** | Manage the lifecycle of the Kuadrant system | Optional - Install from OperatorHub |
+| **OpenShift Cert Manager Operator** | Certificate management | Gateway with TLS, KServe with Istio | Optional - Install from OperatorHub for llm-d, MaaS and Kueue |
+| **Red Hat build of Kueue Operator** | Advanced job queueing and resource management | Distributed workloads, job scheduling with Kueue component | Optional - Install from OperatorHub for Kueue integration |
+| **Red Hat Connectivity Link Operator** | Manage the lifecycle of the Kuadrant system | Optional - Install from OperatorHub |
 | **LeaderWorkerSet (LWS) Operator** | Leader-worker set controller for distributed training | Advanced distributed training workflows | Optional - Install from OperatorHub for Kueue integration |
 | **OpenTelemetry Operator** | Distributed tracing and telemetry | Monitoring and observability | Optional - for advanced monitoring |
 | **Tempo Operator** | Distributed tracing backend | Tracing infrastructure | Optional - for trace storage |

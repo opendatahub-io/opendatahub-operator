@@ -317,7 +317,7 @@ Lastly, please update the following files to fully integrate new component tests
 ### 4. Update Prometheus config and tests
 
 If the component is planned to be released for downstream, Prometheus rules and promtest need to be updated for the component.
-- Rules are located in `internal/controllers/components/<component>/monitoring/*.yaml` file
+- Rules are located in `./internal/controller/components/<component>/monitoring/<component>-prometheusrules.tmpl.yaml` file
 - Tests are grouped in `tests/prometheus_unit_tests` <component>_unit_tests.yam file
 
 
