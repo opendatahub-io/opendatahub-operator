@@ -34,7 +34,6 @@ const (
 	InstrumentationTemplate                   = "resources/instrumentation.tmpl.yaml"
 	PrometheusRestrictedTemplate              = "resources/data-science-prometheus-restricted.tmpl.yaml"
 	PrometheusRestrictedNetworkPolicyTemplate = "resources/data-science-prometheus-restricted-network-policy.tmpl.yaml"
-	PrometheusSecureRBACTemplate              = "resources/data-science-prometheus-secure-rbac.tmpl.yaml"
 	PrometheusServiceOverrideTemplate         = "resources/data-science-prometheus-service-override.tmpl.yaml"
 	PrometheusNetworkPolicyTemplate           = "resources/data-science-prometheus-network-policy.tmpl.yaml"
 	PrometheusWebTLSServiceTemplate           = "resources/prometheus-web-tls-service.tmpl.yaml"
@@ -158,8 +157,8 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	})
 }
 
-// deployMonitoringStackWithQuerierAndRestrictions handles deployment of both MonitoringStack, ThanosQuerier and NamespaceRestrictedMetrics components.
-// These components are deployed together as both ThanosQuerier and NamespaceRestrictedMetrics depend on MonitoringStack for proper functioning.
+// deployMonitoringStackWithQuerierAndRestrictions handles deployment of MonitoringStack and ThanosQuerier components.
+// These components are deployed together as ThanosQuerier depends on MonitoringStack for proper functioning.
 func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
@@ -169,7 +168,6 @@ func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *od
 	// Early exit if no metrics configuration
 	if monitoring.Spec.Metrics == nil {
 		setConditionFalse(rr, status.ConditionMonitoringStackAvailable, status.MetricsNotConfiguredReason, status.MetricsNotConfiguredMessage)
-		setConditionFalse(rr, status.ConditionNamespaceRestrictedMetricsAvailable, status.MetricsNotConfiguredReason, status.MetricsNotConfiguredMessage)
 		setConditionFalse(rr, status.ConditionThanosQuerierAvailable, status.MetricsNotConfiguredReason, status.MetricsNotConfiguredMessage)
 		return nil
 	}
@@ -177,7 +175,6 @@ func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *od
 	// Define required CRDs and their corresponding conditions for validation
 	requirements := []CRDRequirement{
 		{GVK: gvk.MonitoringStack, ConditionType: status.ConditionMonitoringStackAvailable},
-		{GVK: gvk.MonitoringStack, ConditionType: status.ConditionNamespaceRestrictedMetricsAvailable},
 		{GVK: gvk.ThanosQuerier, ConditionType: status.ConditionThanosQuerierAvailable},
 	}
 
@@ -188,7 +185,6 @@ func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *od
 
 	// All prerequisites met, mark all components as available and deploy
 	rr.Conditions.MarkTrue(status.ConditionMonitoringStackAvailable)
-	rr.Conditions.MarkTrue(status.ConditionNamespaceRestrictedMetricsAvailable)
 	rr.Conditions.MarkTrue(status.ConditionThanosQuerierAvailable)
 
 	// Prepare and deploy all component templates atomically
@@ -196,7 +192,6 @@ func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *od
 		{FS: resourcesFS, Path: MonitoringStackTemplate},
 		{FS: resourcesFS, Path: MonitoringStackAlertmanagerRBACTemplate},
 		{FS: resourcesFS, Path: PrometheusRouteTemplate},
-		{FS: resourcesFS, Path: PrometheusSecureRBACTemplate},
 		{FS: resourcesFS, Path: PrometheusServiceOverrideTemplate},
 		{FS: resourcesFS, Path: PrometheusNetworkPolicyTemplate},
 		{FS: resourcesFS, Path: PrometheusWebTLSServiceTemplate},

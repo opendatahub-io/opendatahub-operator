@@ -21,17 +21,3 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
-    # Allow access from OpenShift cluster monitoring Prometheus for federation.
-    # This enables the cluster-level Prometheus in openshift-monitoring to scrape/federate
-    # metrics from this data-science Prometheus instance, providing cluster admins with
-    # visibility into data science workload metrics at the cluster monitoring level.
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: openshift-monitoring
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/name: prometheus
-      ports:
-        - protocol: TCP
-          port: 9090
