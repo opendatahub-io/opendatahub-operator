@@ -41,6 +41,71 @@ and configure these applications.
 
 ## Usage
 
+### Prerequisites
+
+Before installing the OpenDataHub Operator, ensure your environment meets the following requirements:
+
+#### Platform Requirements
+
+- **OpenShift**: Version 4.19 or higher
+
+#### External Operators (Prerequisites)
+
+The following external operators are **required** or **recommended** depending on different use case. These must be installed separately before ODH operator:
+
+| Operator | Purpose | Required For | Installation |
+|----------|---------|--------------|--------------|
+| **OpenShift Cert Manager Operator** | Certificate management | Gateway with TLS, KServe with Istio | Install from OperatorHub (Channel: `stable-v1`) |
+| **Red Hat build of Kueue Operator** | Advanced job queueing and resource management | Distributed workloads, job scheduling with Kueue component | Optional - Install from OperatorHub |
+| **Red Hat Connectivitiy Link Operator** | Manage the lifecycle of the Kuadrant system | Optional - Install from OperatorHub |
+| **LeaderWorkerSet (LWS) Operator** | Leader-worker set controller for distributed training | Advanced distributed training workflows | Optional - Install from OperatorHub for Kueue integration |
+| **OpenTelemetry Operator** | Distributed tracing and telemetry | Monitoring and observability | Optional - for advanced monitoring |
+| **Tempo Operator** | Distributed tracing backend | Tracing infrastructure | Optional - for trace storage |
+| **Cluster Observability Operator** | Enhanced cluster monitoring | Production monitoring | Optional - for comprehensive observability |
+| **Perses Operator** | Dashboard and visualization for metrics | Monitoring dashboards and visualizations | Optional - Install from OperatorHub for enhanced metric visualization |
+
+
+#### ODH Component Operators (Managed by ODH)
+
+The following operators are **automatically deployed and managed** by the ODH operator based on your DataScienceCluster configuration:
+
+| Component | Operator/Repository | Purpose | Management State |
+|-----------|-------------------|---------|------------------|
+| **KServe** | [opendatahub-io/kserve](https://github.com/opendatahub-io/kserve) | Model serving platform | Optional |
+| **Ray** | [opendatahub-io/kuberay](https://github.com/opendatahub-io/kuberay) | Distributed computing framework | Optional |
+| **Training Operator** | [opendatahub-io/training-operator](https://github.com/opendatahub-io/training-operator) | ML training job management | Optional |
+| **Feast Operator** | [opendatahub-io/feast](https://github.com/opendatahub-io/feast) | Feature store for ML | Optional |
+| **Model Registry** | [opendatahub-io/model-registry](https://github.com/opendatahub-io/model-registry) | Model versioning and registry | Optional |
+| **TrustyAI** | [opendatahub-io/trustyai-service-operator](https://github.com/opendatahub-io/trustyai-service-operator) | AI explainability and governance | Optional |
+| **Dashboard** | [opendatahub-io/odh-dashboard](https://github.com/opendatahub-io/odh-dashboard) | Web UI for ODH management | Optional |
+| **Workbenches** | [opendatahub-io/notebooks](https://github.com/opendatahub-io/notebooks) | Jupyter notebook environments | Optional |
+| **Data Science Pipelines** | [opendatahub-io/data-science-pipelines-operator](https://github.com/opendatahub-io/data-science-pipelines-operator) | ML pipeline orchestration | Optional |
+
+**Note**: These component operators do **not** need to be installed separately. They are deployed and managed by the ODH operator based on your DataScienceCluster configuration.
+
+#### Optional Components
+
+- **GPU Support**: For GPU workloads and metrics:
+  - NVIDIA GPU Operator (for NVIDIA GPUs)
+  - NVIDIA DCGM Exporter (for GPU metrics collection)
+
+- **Monitoring Stack**:
+  - Prometheus (for metrics collection)
+  - OpenTelemetry Collector (for distributed tracing)
+  - Cluster monitoring capabilities
+
+#### Namespace Requirements
+
+- One namespace will be designated as the `applicationsNamespace` (default: `opendatahub`)
+- Only **one** namespace in the cluster can have the label `opendatahub.io/application-namespace: true`
+- The operator itself runs in a separate namespace (default: `opendatahub-operator-system`)
+
+#### Resource Requirements
+
+- Sufficient cluster resources to run enabled components
+- For production deployments, ensure adequate CPU, memory, and storage based on your workload requirements
+- GPU nodes (if using GPU-accelerated workloads)
+
 ### Installation
 
 - The latest version of operator can be installed from the `community-operators` catalog on `OperatorHub`.
