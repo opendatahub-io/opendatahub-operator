@@ -79,11 +79,10 @@ func TestInitialize(t *testing.T) {
 	g.Expect(err).ToNot(HaveOccurred())
 
 	// Verify templates were added
-	g.Expect(rr.Templates).To(HaveLen(4))
+	g.Expect(rr.Templates).To(HaveLen(3))
 	g.Expect(rr.Templates[0].Path).To(Equal(AdminGroupRoleTemplate))
 	g.Expect(rr.Templates[1].Path).To(Equal(AdminGroupClusterRoleTemplate))
 	g.Expect(rr.Templates[2].Path).To(Equal(AllowedGroupClusterRoleTemplate))
-	g.Expect(rr.Templates[3].Path).To(Equal(DataScienceMetricsAdminClusterRoleTemplate))
 }
 
 // TestBindRoleValidation validates the security filtering logic in the bindRole function.
@@ -266,10 +265,10 @@ func TestCreateDefaultGroupBasic(t *testing.T) {
 }
 
 // TestManagePermissionsWithMetricsGroups validates that the controller creates the correct RBAC
-// resources when metrics groups are configured. This test ensures:
+// resources. This test ensures:
 //
 //  1. Standard admin and allowed groups work as before
-//  2. Metrics admin groups get the data-science-metrics-admin role
+//  2. Metrics admin groups are no longer needed (users with 'edit' cluster role already have access)
 //  3. All role bindings are created correctly
 func TestManagePermissionsWithMetricsGroups(t *testing.T) {
 	g := NewWithT(t)
@@ -315,8 +314,9 @@ func TestManagePermissionsWithMetricsGroups(t *testing.T) {
 	err := managePermissions(ctx, rr)
 	g.Expect(err).ToNot(HaveOccurred(), "Should create all required RBAC resources")
 
-	// Verify resources were created (4 total: 1 RoleBinding + 3 ClusterRoleBindings)
-	g.Expect(rr.Resources).To(HaveLen(4), "Should create 4 RBAC resources")
+	// Verify resources were created (3 total: 1 RoleBinding + 2 ClusterRoleBindings)
+	// Note: MetricsAdminGroups no longer create resources since 'edit' cluster role provides the needed permissions
+	g.Expect(rr.Resources).To(HaveLen(3), "Should create 3 RBAC resources")
 
 	// Count different resource types and verify role names
 	roleBindings := 0
@@ -346,10 +346,9 @@ func TestManagePermissionsWithMetricsGroups(t *testing.T) {
 	}
 
 	g.Expect(roleBindings).To(Equal(1), "Should create 1 RoleBinding")
-	g.Expect(clusterRoleBindings).To(Equal(3), "Should create 3 ClusterRoleBindings")
+	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBindings")
 
 	// Verify that cluster-scoped roles are created
-	g.Expect(clusterRoleNames).To(ContainElement("data-science-metrics-admin"), "Should create metrics admin cluster role")
 	g.Expect(clusterRoleNames).To(ContainElement("admingroupcluster-role"), "Should create admin group cluster role")
 	g.Expect(clusterRoleNames).To(ContainElement("allowedgroupcluster-role"), "Should create allowed group cluster role")
 
