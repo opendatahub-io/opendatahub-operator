@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -70,15 +72,40 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	return nil
 }
 
+// getGatewayAuthTimeout returns the auth timeout using:
+// API field > env var > default (5s).
+func getGatewayAuthTimeout(gatewayConfig *serviceApi.GatewayConfig) string {
+	if gatewayConfig != nil && gatewayConfig.Spec.AuthTimeout != "" {
+		return gatewayConfig.Spec.AuthTimeout
+	}
+
+	if timeout := os.Getenv("GATEWAY_AUTH_TIMEOUT"); timeout != "" {
+		return timeout
+	}
+
+	return "5s"
+}
+
 func createEnvoyFilter(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
+	if !ok {
+		return errors.New("instance is not of type *services.GatewayConfig")
+	}
+
+	authTimeout := getGatewayAuthTimeout(gatewayConfig)
+
 	// using yaml templates due to complexity of k8s api struct for envoy filter
 	yamlContent, err := gatewayResources.ReadFile("resources/envoyfilter-authn.yaml")
 	if err != nil {
 		return fmt.Errorf("failed to read EnvoyFilter template: %w", err)
 	}
 
+	yamlString := string(yamlContent)
+	yamlString = fmt.Sprintf(yamlString, authTimeout, authTimeout)
+	yamlString = strings.ReplaceAll(yamlString, "{{.CookieName}}", OAuth2ProxyCookieName)
+
 	decoder := serializer.NewCodecFactory(rr.Client.Scheme()).UniversalDeserializer()
-	unstructuredObjects, err := resources.Decode(decoder, yamlContent)
+	unstructuredObjects, err := resources.Decode(decoder, []byte(yamlString))
 	if err != nil {
 		return fmt.Errorf("failed to decode EnvoyFilter YAML: %w", err)
 	}

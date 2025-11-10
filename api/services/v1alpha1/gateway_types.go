@@ -49,9 +49,22 @@ type GatewayConfigSpec struct {
 	// +optional
 	Domain string `json:"domain,omitempty"`
 
+	// Subdomain configuration for the GatewayConfig
+	// +optional
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$`
+	Subdomain string `json:"subdomain,omitempty"`
+
 	// Cookie configuration for OAuth2 proxy (applies to both OIDC and OpenShift OAuth)
 	// +optional
 	Cookie *CookieConfig `json:"cookie,omitempty"`
+
+	// AuthTimeout is the duration Envoy waits for auth proxy responses.
+	// Requests timeout with 403 if exceeded.
+	// Overrides GATEWAY_AUTH_TIMEOUT env var. Default: "5s"
+	// +optional
+	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`
+	AuthTimeout string `json:"authTimeout,omitempty"`
 }
 
 // OIDCConfig defines OIDC provider configuration
