@@ -67,7 +67,7 @@ The following external operators are **required** or **recommended** depending o
 
 #### ODH Component Operators (Managed by ODH)
 
-The following operators are **automatically deployed and managed** by the ODH operator based on your DataScienceCluster configuration:
+The following components are **automatically integrated** by the ODH operator based on your DataScienceCluster configuration:
 
 | Component | Operator/Repository | Purpose | Management State |
 |-----------|-------------------|---------|------------------|
@@ -75,13 +75,13 @@ The following operators are **automatically deployed and managed** by the ODH op
 | **Ray** | [opendatahub-io/kuberay](https://github.com/opendatahub-io/kuberay) | Distributed computing framework | Optional |
 | **Training Operator** | [opendatahub-io/training-operator](https://github.com/opendatahub-io/training-operator) | ML training job management | Optional |
 | **Feast Operator** | [opendatahub-io/feast](https://github.com/opendatahub-io/feast) | Feature store for ML | Optional |
-| **Model Registry** | [opendatahub-io/model-registry](https://github.com/opendatahub-io/model-registry) | Model versioning and registry | Optional |
+| **Model Registry Operator** | [opendatahub-io/model-registry](https://github.com/opendatahub-io/model-registry-operator) | Model versioning and registry | Optional |
 | **TrustyAI** | [opendatahub-io/trustyai-service-operator](https://github.com/opendatahub-io/trustyai-service-operator) | AI explainability and governance | Optional |
 | **Dashboard** | [opendatahub-io/odh-dashboard](https://github.com/opendatahub-io/odh-dashboard) | Web UI for ODH management | Optional |
 | **Workbenches** | [opendatahub-io/notebooks](https://github.com/opendatahub-io/notebooks) | Jupyter notebook environments | Optional |
-| **Data Science Pipelines** | [opendatahub-io/data-science-pipelines-operator](https://github.com/opendatahub-io/data-science-pipelines-operator) | ML pipeline orchestration | Optional |
+| **AI Pipelines** | [opendatahub-io/data-science-pipelines-operator](https://github.com/opendatahub-io/data-science-pipelines-operator) | ML pipeline orchestration | Optional |
 
-**Note**: These component operators do **not** need to be installed separately. They are deployed and managed by the ODH operator based on your DataScienceCluster configuration.
+**Note**: These component controller do **not** need to be installed separately.
 
 #### Optional Components
 
