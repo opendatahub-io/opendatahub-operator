@@ -220,15 +220,27 @@ $(if $(3),,mv $(CONFIG_DIR)/crd/external/tmp/*.yaml $(CONFIG_DIR)/crd/external/)
 rm -rf $(CONFIG_DIR)/crd/external/tmp
 endef
 
+# Add all CRD base files to kustomization.yaml, skipping kustomization.yaml itself
+# and avoiding duplicates by checking if each resource is already present
+define add-crd-to-kustomization
+cd config/crd/bases && \
+for file in *.yaml; do \
+	[ "$$(basename $$file)" = "kustomization.yaml" ] && continue; \
+	grep -q "$$file" kustomization.yaml || $(KUSTOMIZE) edit add resource "$$file"; \
+done && \
+cd -
+endef
+
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 ifneq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role paths="./..." output:rbac:artifacts:config=odh-config/rbac
 endif
 	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CONFIG_DIR)/crd/bases output:rbac:artifacts:config=$(CONFIG_DIR)/rbac output:webhook:artifacts:config=$(CONFIG_DIR)/webhook
-	$(call fetch-external-crds,github.com/openshift/api,route/v1)
-	$(call fetch-external-crds,github.com/openshift/api,user/v1)
-	$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
+	@$(call add-crd-to-kustomization)
+	@$(call fetch-external-crds,github.com/openshift/api,route/v1)
+	@$(call fetch-external-crds,github.com/openshift/api,user/v1)
+	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
 CLEANFILES += odh-config/crd/bases rhoai-config/crd/bases odh-config/crd/external rhoai-config/crd/external odh-config/rbac/role.yaml rhoai-config/rbac/role.yaml odh-config/webhook/manifests.yaml rhoai-config/webhook/manifests.yaml
 
 .PHONY: generate
@@ -259,7 +271,7 @@ lint-fix: golangci-lint ## Run golangci-lint against code.
 .PHONY: kube-lint
 kube-lint: prepare ## Run kube-linter against rendered manifests.
 	@TMP_FILE=$$(mktemp /tmp/kube-lint.XXXXXX.yaml) && \
-	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone $(CONFIG_DIR)/manifests > $$TMP_FILE && \
+	$(KUSTOMIZE) build $(CONFIG_DIR)/manifests > $$TMP_FILE && \
 	go run golang.stackrox.io/kube-linter/cmd/kube-linter@$(KUBE_LINTER_VERSION) lint --config .kube-linter.yaml $$TMP_FILE && \
 	rm -f $$TMP_FILE
 
@@ -338,19 +350,19 @@ manager-kustomization: $(CONFIG_DIR)/manager/kustomization.yaml.in
 
 .PHONY: install
 install: prepare ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build $(CONFIG_DIR)/crd | kubectl apply -f -
+	$(KUSTOMIZE) build config/crd/bases | kubectl apply -f -
 
 .PHONY: uninstall
 uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build $(CONFIG_DIR)/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/crd/bases | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone $(CONFIG_DIR)/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
 undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone $(CONFIG_DIR)/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
@@ -408,7 +420,7 @@ WARNINGMSG = "provided API should have an example annotation"
 .PHONY: bundle
 bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests --package $(OPERATOR_PACKAGE) --input-dir $(CONFIG_DIR)/manifests --output-dir $(CONFIG_DIR)/manifests -q
-	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone $(CONFIG_DIR)/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) --package $(OPERATOR_PACKAGE) --kustomize-dir $(CONFIG_DIR)/manifests --output-dir $(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
+	$(KUSTOMIZE) build $(CONFIG_DIR)/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) --package $(OPERATOR_PACKAGE) --kustomize-dir $(CONFIG_DIR)/manifests --output-dir $(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	$(SED_COMMAND) -i 's#COPY #COPY --from=builder /workspace/#' bundle.Dockerfile
 	cat Dockerfiles/build-bundle.Dockerfile bundle.Dockerfile > Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME)
