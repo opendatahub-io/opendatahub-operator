@@ -68,7 +68,8 @@ spec:
           # Kube-auth-proxy image configuration
           - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
             value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9:latest"
-        image: controller:latest
+        # NOTE: image is provided in CI by pullspec substitution, and by make/kustomize for local builds
+        image: REPLACE_IMAGE:latest-rhoai
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
