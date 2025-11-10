@@ -48,6 +48,13 @@ spec:
           spec:
             description: GatewayConfigSpec defines the desired state of GatewayConfig
             properties:
+              authTimeout:
+                description: |-
+                  AuthTimeout is the duration Envoy waits for auth proxy responses.
+                  Requests timeout with 403 if exceeded.
+                  Overrides GATEWAY_AUTH_TIMEOUT env var. Default: "5s"
+                pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                type: string
               certificate:
                 description: Certificate management
                 properties:
