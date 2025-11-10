@@ -322,7 +322,7 @@ prepare: manifests kustomize manager-kustomization
 manager-kustomization: $(CONFIG_DIR)/manager/kustomization.yaml.in
 	cd $(CONFIG_DIR)/manager \
 		&& cp -f kustomization.yaml.in kustomization.yaml \
-		&& $(KUSTOMIZE) edit set image controller=$(IMG)
+		&& $(KUSTOMIZE) edit set image REPLACE_IMAGE=$(IMG)
 
 .PHONY: install
 install: prepare ## Install CRDs into the K8s cluster specified in ~/.kube/config.

@@ -72,7 +72,8 @@ spec:
         args:
         - --leader-elect
         - --operator-name=opendatahub
-        image: controller:latest
+        # NOTE: image is provided in CI by pullspec substitution, and by make/kustomize for local builds
+        image: REPLACE_IMAGE:latest
         imagePullPolicy: Always
         name: manager
         ports:
