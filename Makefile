@@ -30,7 +30,12 @@ ifeq ($(BUNDLE_IMG), )
 endif
 
 IMAGE_BUILDER ?= podman
+# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
 OPERATOR_NAMESPACE ?= opendatahub-operator-system
+# Specifies the namespace where the component deployments are deployed (defaults to opendatahub)
+APPLICATIONS_NAMESPACE ?= opendatahub
+# Specifies the namespace where the workbenches are deployed (defaults to opendatahub)
+WORKBENCHES_NAMESPACE ?= opendatahub
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
 CGO_ENABLED ?= 1
 USE_LOCAL = false
@@ -501,8 +506,17 @@ CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 
 .PHONY: e2e-test
 e2e-test:
+# Specifies the namespace where the operator pods are deployed
 ifndef E2E_TEST_OPERATOR_NAMESPACE
 export E2E_TEST_OPERATOR_NAMESPACE = $(OPERATOR_NAMESPACE)
+endif
+# Specifies the namespace where the component deployments are deployed
+ifndef E2E_TEST_APPLICATIONS_NAMESPACE
+export E2E_TEST_APPLICATIONS_NAMESPACE = $(APPLICATIONS_NAMESPACE)
+endif
+# Specifies the namespace where the workbenches are deployed
+ifndef E2E_TEST_WORKBENCHES_NAMESPACE
+export E2E_TEST_WORKBENCHES_NAMESPACE = $(WORKBENCHES_NAMESPACE)
 endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml

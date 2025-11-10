@@ -514,6 +514,8 @@ Evn vars can be set to configure e2e tests:
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
 | E2E_TEST_OPERATOR_NAMESPACE     | Namespace where the ODH operator is deployed.                                                                                                                                | `opendatahub-operator-system` |
 | E2E_TEST_APPLICATIONS_NAMESPACE | Namespace where the ODH applications are deployed.                                                                                                                           | `opendatahub`                 |
+| E2E_TEST_WORKBENCHES_NAMESPACE | Namespace where the workbenches are deployed. | `opendatahub` |
+| E2E_TEST_DSC_MONITORING_NAMESPACE | Namespace where the ODH monitoring is deployed. | `opendatahub` |
 | E2E_TEST_OPERATOR_CONTROLLER    | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes      | `true`                        |
 | E2E_TEST_OPERATOR_RESILIENCE    | To configure the execution of operator resilience tests, useful for testing operator fault tolerance scenarios                                 | `true`                        |
 | E2E_TEST_WEBHOOK                | To configure the execution of tests related to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | `true`                        |
@@ -533,6 +535,8 @@ Alternatively the above configurations can be passed to e2e-tests as flags by se
 |----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
 | --operator-namespace          | Namespace where the ODH operator is deployed.                                                                                                                                | `opendatahub-operator-system` |
 | --applications-namespace      | Namespace where the ODH applications are deployed.                                                                                                                           | `opendatahub`                 |
+| --workbenches-namespace | Namespace where the workbenches are deployed. | `opendatahub` |
+| --dsc-monitoring-namespace | Namespace where the ODH monitoring is deployed. | `opendatahub` |
 | --test-operator-controller    | To configure the execution of tests related to the Operator POD, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes      | `true`                        |
 | --test-operator-resilience    | To configure the execution of operator resilience tests, useful for testing operator fault tolerance scenarios                                 | `true`                        |
 | --test-webhook                | To configure the execution of tests related to the Operator WebHooks, this is useful to run e2e tests for an operator running out of the cluster i.e. for debugging purposes | `true`                        |
@@ -543,6 +547,29 @@ Alternatively the above configurations can be passed to e2e-tests as flags by se
 | --test-service                | A repeatable (or comma separated no spaces) flag that control which services should be tested, by default all service specific test are executed                             | `all services`                |
 | --test-operator-v2tov3upgrade | To configure the execution of V2 to V3 upgrade tests, useful for testing V2 to V3 upgrade scenarios                                                                       | `true`                        |
 | --test-hardware-profile       | To configure the execution of hardware profile tests, useful for testing hardware profile functionality between v1 and v1alpah1                                               | `true`                        |
+
+<details>
+<summary>Running E2E tests with custom application namespace</summary>
+
+If you intend to use non-default application namespace while running E2E tests, additional setup is required:
+1. create the custom application namespace
+```shell
+oc create namespace <your-custom-app-namespace>
+```
+2. ensure your custom namespace has the required label
+```shell
+oc label namespace <your-custom-app-namespace> opendatahub.io/application-namespace=true
+```
+3. deploy the operator
+```shell
+make deploy IMG=<your-operator-image>
+```
+4. run e2e test suite
+```shell
+make e2e-test -e E2E_TEST_APPLICATIONS_NAMESPACE=<your-custom-app-namespace> -e ...
+```
+5. once done with the tests, ensure to clean up the custom namespace
+</details>
 
 Example command to run full test suite skipping the DataScienceCluster deletion (useful to troubleshooting tests failures):
 
