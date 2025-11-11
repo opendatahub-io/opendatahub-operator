@@ -7,9 +7,6 @@ on:
     branches:
       - 'rhoai-[23].[0-9]' # Matches branches like 'rhoai-2.0', 'rhoai-3.1', etc.
       - 'rhoai-[23].[0-9][0-9]' # Matches branches like 'rhoai-2.10', 'rhoai-3.12', etc.
-    paths:
-      - 'bundle/**'  # Trigger the workflow for changes to any file in the bundle directory
-      - 'Dockerfiles/bundle.Dockerfile'  # Trigger the workflow for changes to the Dockerfile
 
 permissions:
   contents: read
@@ -47,16 +44,35 @@ jobs:
           ref: ${{ github.ref_name }}  # Use the same branch name as in the event
           token: ${{ steps.app-token.outputs.token }}
 
+      - name: Generate bundle files
+        run: |
+          cd source_repo
+          make bundle
+
       - name: Sync Bundle Files
         run: |
           mkdir -p target_repo/to-be-processed/bundle
           echo "Updating bundle related files"
+          rm -rf target_repo/to-be-processed/bundle/*
           cp -r source_repo/bundle/* target_repo/to-be-processed/bundle
+          sed -i -e "s|image: quay.io/opendatahub/opendatahub-operator:latest.*|image: REPLACE_IMAGE:latest|g" target_repo/to-be-processed/bundle/manifests/rhods-operator.clusterserviceversion.yaml
 #          echo "Updating Dockerfile"
 #          cp source_repo/Dockerfiles/bundle.Dockerfile target_repo/to-be-processed/bundle/Dockerfile
 
+      - name: Check for bundle changes
+        id: bundle-change-check
+        run: |
+          cd target_repo
+          git add to-be-processed/bundle
+          if [ -z "$(git diff --staged | grep -P '^[-+]' | grep -v createdAt | grep -v -P '^(\+\+\+|---)')" ]; then
+            echo "bundle_changes=empty" >> $GITHUB_OUTPUT
+          else
+            echo "bundle_changes=present" >> $GITHUB_OUTPUT
+          fi
+
       - name: Commit and push the changes to release branch
         uses: actions-js/push@master
+        if: ${{ steps.bundle-change-check.outputs.bundle_changes == 'present' }}
         with:
           github_token: ${{ steps.app-token.outputs.token }}
           branch: ${{ github.ref_name }}
