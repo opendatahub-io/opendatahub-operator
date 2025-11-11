@@ -40,6 +40,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	CHANNELS ?= fast
 	ROLE_NAME=controller-manager-role
 	BUNDLE_DIR ?= odh-bundle
+	DOCKERFILE_FILENAME=Dockerfile
 	BUNDLE_DOCKERFILE_FILENAME=bundle.Dockerfile
 	OPERATOR_PACKAGE=opendatahub-operator
 	CONTROLLER_GEN_TAGS=--load-build-tags=odh
@@ -51,6 +52,7 @@ else
 	# To re-generate a bundle for another specific version without changing the standard setup, you can:
 	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
+	# NOTE: see also the git branches for RHOAI in get_all_manifests.sh. This variable does NOT affect those
 	ifeq ($(VERSION), )
 		VERSION = 3.2.0
 	endif
@@ -64,6 +66,7 @@ else
 	DEFAULT_CHANNEL ?= stable
 	ROLE_NAME=rhods-operator-role
 	BUNDLE_DIR ?= rhoai-bundle
+	DOCKERFILE_FILENAME=rhoai.Dockerfile
 	BUNDLE_DOCKERFILE_FILENAME=rhoai-bundle.Dockerfile
 	OPERATOR_PACKAGE=rhods-operator
 	CONTROLLER_GEN_TAGS=--load-build-tags=rhoai
@@ -309,7 +312,7 @@ run-nowebhook: manifests generate fmt vet ## Run a controller from your host wit
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.
-	$(IMAGE_BUILDER) buildx build --no-cache -f Dockerfiles/Dockerfile ${IMAGE_BUILD_FLAGS} -t $(IMG) .
+	$(IMAGE_BUILDER) buildx build --no-cache -f Dockerfiles/$(DOCKERFILE_FILENAME) ${IMAGE_BUILD_FLAGS} -t $(IMG) .
 
 .PHONY: image-push
 image-push: ## Push image with the manager.
