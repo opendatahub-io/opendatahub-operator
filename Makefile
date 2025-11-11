@@ -31,7 +31,12 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	ifeq ($(VERSION), )
 		VERSION = 3.2.0
 	endif
+	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
 	OPERATOR_NAMESPACE ?= opendatahub-operator-system
+	# Specifies the namespace where the component deployments are deployed (defaults to opendatahub)
+	APPLICATIONS_NAMESPACE ?= opendatahub
+	# Specifies the namespace where the workbenches are deployed (defaults to opendatahub)
+	WORKBENCHES_NAMESPACE ?= opendatahub
 	CHANNELS ?= fast
 	ROLE_NAME=controller-manager-role
 	BUNDLE_DIR ?= odh-bundle
@@ -49,7 +54,12 @@ else
 	ifeq ($(VERSION), )
 		VERSION = 3.2.0
 	endif
-	OPERATOR_NAMESPACE ?= redhat-ods-operator
+	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
+	OPERATOR_NAMESPACE ?= opendatahub-operator-system
+	# Specifies the namespace where the component deployments are deployed (defaults to opendatahub)
+	APPLICATIONS_NAMESPACE ?= redhat-ods-applications
+	# Specifies the namespace where the workbenches are deployed (defaults to opendatahub)
+	WORKBENCHES_NAMESPACE ?= rhods-notebooks
 	CHANNELS ?= alpha,stable,fast
 	DEFAULT_CHANNEL ?= stable
 	ROLE_NAME=rhods-operator-role
@@ -549,8 +559,17 @@ CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 
 .PHONY: e2e-test
 e2e-test:
+# Specifies the namespace where the operator pods are deployed
 ifndef E2E_TEST_OPERATOR_NAMESPACE
 export E2E_TEST_OPERATOR_NAMESPACE = $(OPERATOR_NAMESPACE)
+endif
+# Specifies the namespace where the component deployments are deployed
+ifndef E2E_TEST_APPLICATIONS_NAMESPACE
+export E2E_TEST_APPLICATIONS_NAMESPACE = $(APPLICATIONS_NAMESPACE)
+endif
+# Specifies the namespace where the workbenches are deployed
+ifndef E2E_TEST_WORKBENCHES_NAMESPACE
+export E2E_TEST_WORKBENCHES_NAMESPACE = $(WORKBENCHES_NAMESPACE)
 endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
