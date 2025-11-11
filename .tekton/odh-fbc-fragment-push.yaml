@@ -1,0 +1,544 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    build.appstudio.openshift.io/repo: https://github.com/opendatahub-io/opendatahub-operator?rev={{revision}}
+    build.appstudio.redhat.com/commit_sha: '{{revision}}'
+    build.appstudio.redhat.com/target_branch: '{{target_branch}}'
+    pipelinesascode.tekton.dev/cancel-in-progress: "false"
+    pipelinesascode.tekton.dev/max-keep-runs: "3"
+    pipelinesascode.tekton.dev/on-cel-expression: event == "push" && target_branch
+      == "odh-3.1.0" && ("catalog/**".pathChanged() || ".tekton/odh-fbc-fragment-push.yaml".pathChanged())
+  creationTimestamp: null
+  labels:
+    appstudio.openshift.io/application: opendatahub-release
+    appstudio.openshift.io/component: odh-fbc-fragment
+    pipelines.appstudio.openshift.io/type: build
+  name: odh-fbc-fragment-on-push
+  namespace: open-data-hub-tenant
+spec:
+  params:
+  - name: git-url
+    value: '{{source_url}}'
+  - name: revision
+    value: '{{revision}}'
+  - name: output-image
+    value: quay.io/opendatahub/opendatahub-operator-catalog:v3.1.0
+  - name: build-platforms
+    value:
+    - linux/x86_64
+  - name: dockerfile
+    value: Dockerfiles/catalog.Dockerfile
+  - name: path-context
+    value: .
+  - name: rebuild
+    value: true
+  pipelineSpec:
+    description: |
+      This pipeline is ideal for building and verifying [file-based catalogs](https://konflux-ci.dev/docs/end-to-end/building-olm/#building-the-file-based-catalog).
+
+      _Uses `buildah` to create a container image. Its build-time tests are limited to verifying the included catalog and do not scan the image.
+      This pipeline is pushed as a Tekton bundle to [quay.io](https://quay.io/repository/konflux-ci/tekton-catalog/pipeline-fbc-builder?tab=tags)_
+    finally:
+    - name: show-sbom
+      params:
+      - name: IMAGE_URL
+        value: $(tasks.build-image-index.results.IMAGE_URL)
+      taskRef:
+        params:
+        - name: name
+          value: show-sbom
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-show-sbom:0.1@sha256:002f7c8c1d2f9e09904035da414aba1188ae091df0ea9532cd997be05e73d594
+        - name: kind
+          value: task
+        resolver: bundles
+    - name: send-slack-notification
+      params:
+      - name: message
+        value: "$(tasks.rhoai-init.results.slack-message-failure-text)"
+      - name: secret-name
+        value: slack-secret
+      - name: key-name
+        value: slack-webhook
+      taskRef:
+        params:
+        - name: name
+          value: slack-webhook-notification
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-slack-webhook-notification:0.1@sha256:dc17b70633363d78414b8c06dc1660d25742935f106a6116995638e1210c2730
+        - name: kind
+          value: task
+        resolver: bundles
+      when:
+      - input: $(tasks.status)
+        operator: in
+        values:
+        - "Failed"
+    - name: share-fbc-details
+      params:
+      - name: message
+        value: "$(tasks.prepare-slack-message.results.slack-message-sucess-text)"
+      - name: secret-name
+        value: slack-secret
+      - name: key-name
+        value: slack-webhook
+      taskRef:
+        params:
+        - name: name
+          value: slack-webhook-notification
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-slack-webhook-notification:0.1@sha256:452188df385218d0a1d9d097ff5daa67f11ae3597c917a3c2bb644787453a8e0
+        - name: kind
+          value: task
+        resolver: bundles
+      when:
+      - input: $(tasks.status)
+        operator: in
+        values:
+        - "Completed"
+        - "Succeeded"
+    params:
+    - description: Source Repository URL
+      name: git-url
+      type: string
+    - default: ""
+      description: Revision of the Source Repository
+      name: revision
+      type: string
+    - description: Fully Qualified Output Image
+      name: output-image
+      type: string
+    - default: .
+      description: Path to the source code of an application's component from where
+        to build image.
+      name: path-context
+      type: string
+    - default: Dockerfile
+      description: Path to the Dockerfile inside the context specified by parameter
+        path-context
+      name: dockerfile
+      type: string
+    - default: "true"
+      description: Force rebuild image
+      name: rebuild
+      type: string
+    - default: "false"
+      description: Skip checks against built image
+      name: skip-checks
+      type: string
+    - default: "true"
+      description: Execute the build with network isolation
+      name: hermetic
+      type: string
+    - default: ""
+      description: Build dependencies to be prefetched by Cachi2
+      name: prefetch-input
+      type: string
+    - default: ""
+      description: Image tag expiration time, time values could be something like
+        1h, 2d, 3w for hours, days, and weeks, respectively.
+      name: image-expires-after
+    - default: "false"
+      description: Build a source image.
+      name: build-source-image
+      type: string
+    - default: "true"
+      description: Add built image into an OCI image index
+      name: build-image-index
+      type: string
+    - default: []
+      description: Array of --build-arg values ("arg=value" strings) for buildah
+      name: build-args
+      type: array
+    - default: ""
+      description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
+      name: build-args-file
+      type: string
+    - default:
+      - linux/x86_64
+      description: List of platforms to build the container images on. The available
+        set of values is determined by the configuration of the multi-platform-controller.
+      name: build-platforms
+      type: array
+    results:
+    - description: ""
+      name: IMAGE_URL
+      value: $(tasks.build-image-index.results.IMAGE_URL)
+    - description: ""
+      name: IMAGE_DIGEST
+      value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+    - description: ""
+      name: CHAINS-GIT_URL
+      value: $(tasks.clone-repository.results.url)
+    - description: ""
+      name: CHAINS-GIT_COMMIT
+      value: $(tasks.clone-repository.results.commit)
+    tasks:
+    - name: rhoai-init
+      params:
+      - name: pipelinerun-name
+        value: "$(context.pipelineRun.name)"
+      taskSpec:
+        results:
+        - description: Notification text to be posted to slack
+          name: slack-message-failure-text
+        steps:
+        - image: quay.io/rhoai-konflux/alpine:latest
+          name: rhoai-init
+          env:
+          - name: slack_message
+            valueFrom:
+              secretKeyRef:
+                name: slack-secret
+                key: slack-component-failure-notification
+          script: |
+            pipelinerun_name=$(params.pipelinerun-name)
+            echo "pipelinerun-name = $pipelinerun_name"
+            application_name=opendatahub-release
+            echo "application-name = $application_name"
+
+            component_name=${pipelinerun_name/-on-*/}
+            echo "component-name = $component_name"
+
+            KONFLUX_SERVER="https://konflux-ui.apps.stone-prd-rh01.pg1f.p1.openshiftapps.com"
+            build_url="${KONFLUX_SERVER}/ns/open-data-hub-tenant/applications/${application_name}/pipelineruns/${pipelinerun_name}/logs"
+
+            build_time="$(date +%Y-%m-%dT%H:%M:%S)"
+
+            slack_message=${slack_message/__BUILD__URL__/$build_url}
+            slack_message=${slack_message/__PIPELINERUN__NAME__/$pipelinerun_name}
+            slack_message=${slack_message/__BUILD__TIME__/$build_time}
+
+            echo -en "${slack_message}" > "$(results.slack-message-failure-text.path)"
+    - name: init
+      params:
+      - name: image-url
+        value: $(params.output-image)
+      - name: rebuild
+        value: $(params.rebuild)
+      - name: skip-checks
+        value: $(params.skip-checks)
+      taskRef:
+        params:
+        - name: name
+          value: init
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-init:0.2@sha256:7a24924417260b7094541caaedd2853dc8da08d4bb0968f710a400d3e8062063
+        - name: kind
+          value: task
+        resolver: bundles
+      runAfter:
+      - rhoai-init
+    - name: clone-repository
+      params:
+      - name: url
+        value: $(params.git-url)
+      - name: revision
+        value: $(params.revision)
+      - name: ociStorage
+        value: $(params.output-image).git
+      - name: ociArtifactExpiresAfter
+        value: $(params.image-expires-after)
+      runAfter:
+      - init
+      taskRef:
+        params:
+        - name: name
+          value: git-clone-oci-ta
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-git-clone-oci-ta:0.1@sha256:8ecf57d5a6697ce709bee65b62781efe79a10b0c2b95e05576442b67fbd61744
+        - name: kind
+          value: task
+        resolver: bundles
+      when:
+      - input: $(tasks.init.results.build)
+        operator: in
+        values:
+        - "true"
+      workspaces:
+      - name: basic-auth
+        workspace: git-auth
+    - name: prefetch-dependencies
+      params:
+      - name: input
+        value: $(params.prefetch-input)
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.clone-repository.results.SOURCE_ARTIFACT)
+      - name: ociStorage
+        value: $(params.output-image).prefetch
+      - name: ociArtifactExpiresAfter
+        value: $(params.image-expires-after)
+      runAfter:
+      - clone-repository
+      taskRef:
+        params:
+        - name: name
+          value: prefetch-dependencies-oci-ta
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-prefetch-dependencies-oci-ta:0.2@sha256:d48c621ae828a3cbca162e12ec166210d2d77a7ba23b0e5d60c4a1b94491adeb
+        - name: kind
+          value: task
+        resolver: bundles
+      workspaces:
+      - name: git-basic-auth
+        workspace: git-auth
+      - name: netrc
+        workspace: netrc
+    - matrix:
+        params:
+        - name: PLATFORM
+          value:
+          - $(params.build-platforms)
+      name: build-images
+      params:
+      - name: IMAGE
+        value: $(params.output-image)
+      - name: DOCKERFILE
+        value: $(params.dockerfile)
+      - name: CONTEXT
+        value: $(params.path-context)
+      - name: HERMETIC
+        value: $(params.hermetic)
+      - name: PREFETCH_INPUT
+        value: $(params.prefetch-input)
+      - name: IMAGE_EXPIRES_AFTER
+        value: $(params.image-expires-after)
+      - name: COMMIT_SHA
+        value: $(tasks.clone-repository.results.commit)
+      - name: BUILD_ARGS
+        value:
+        - $(params.build-args[*])
+      - name: BUILD_ARGS_FILE
+        value: $(params.build-args-file)
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+      - name: CACHI2_ARTIFACT
+        value: $(tasks.prefetch-dependencies.results.CACHI2_ARTIFACT)
+      - name: IMAGE_APPEND_PLATFORM
+        value: "true"
+      runAfter:
+      - clone-repository
+      taskRef:
+        params:
+        - name: name
+          value: buildah-remote-oci-ta
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-buildah-remote-oci-ta:0.4@sha256:6a5f714dd0c301ac421c232d2658e336b862681cf0bcbcbf01ef38d8969664e0
+        - name: kind
+          value: task
+        resolver: bundles
+      when:
+      - input: $(tasks.init.results.build)
+        operator: in
+        values:
+        - "true"
+    - name: build-image-index
+      params:
+      - name: IMAGE
+        value: $(params.output-image)
+      - name: COMMIT_SHA
+        value: $(tasks.clone-repository.results.commit)
+      - name: IMAGE_EXPIRES_AFTER
+        value: $(params.image-expires-after)
+      - name: ALWAYS_BUILD_INDEX
+        value: $(params.build-image-index)
+      - name: IMAGES
+        value:
+        - $(tasks.build-images.results.IMAGE_REF[*])
+      runAfter:
+      - build-images
+      taskRef:
+        params:
+        - name: name
+          value: build-image-index
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-build-image-index:0.1@sha256:462ecbf94ec44a8b770d6ef8838955f91f57ee79795e5c18bdc0fcb0df593742
+        - name: kind
+          value: task
+        resolver: bundles
+      when:
+      - input: $(tasks.init.results.build)
+        operator: in
+        values:
+        - "true"
+    - name: deprecated-base-image-check
+      params:
+      - name: IMAGE_URL
+        value: $(tasks.build-image-index.results.IMAGE_URL)
+      - name: IMAGE_DIGEST
+        value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+      runAfter:
+      - build-image-index
+      taskRef:
+        params:
+        - name: name
+          value: deprecated-image-check
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-deprecated-image-check:0.5@sha256:eb8136b543147b4a3e88ca3cc661ca6a11e303f35f0db44059f69151beea8496
+        - name: kind
+          value: task
+        resolver: bundles
+      when:
+      - input: $(params.skip-checks)
+        operator: in
+        values:
+        - "false"
+    - name: apply-tags
+      params:
+      - name: IMAGE
+        value: $(tasks.build-image-index.results.IMAGE_URL)
+      runAfter:
+      - build-image-index
+      taskRef:
+        params:
+        - name: name
+          value: apply-tags
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-apply-tags:0.1@sha256:3f89ba89cacf8547261b5ce064acce81bfe470c8ace127794d0e90aebc8c347d
+        - name: kind
+          value: task
+        resolver: bundles
+#    - name: validate-fbc
+#      params:
+#      - name: IMAGE_URL
+#        value: $(tasks.build-image-index.results.IMAGE_URL)
+#      - name: IMAGE_DIGEST
+#        value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+#      runAfter:
+#      - build-image-index
+#      taskRef:
+#        params:
+#        - name: name
+#          value: validate-fbc
+#        - name: bundle
+#          value: quay.io/konflux-ci/tekton-catalog/task-validate-fbc:0.1@sha256:30a5df9773eb9cab3efd808206370761302d4dc59dc5aa14e56b571c7daf9ee9
+#        - name: kind
+#          value: task
+#        resolver: bundles
+#      when:
+#      - input: $(params.skip-checks)
+#        operator: in
+#        values:
+#        - "false"
+#    - name: fbc-target-index-pruning-check
+#      params:
+#      - name: IMAGE_URL
+#        value: $(tasks.build-image-index.results.IMAGE_URL)
+#      - name: IMAGE_DIGEST
+#        value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+#      - name: TARGET_INDEX
+#        value: registry.redhat.io/redhat/redhat-operator-index
+#      - name: RENDERED_CATALOG_DIGEST
+#        value: $(tasks.validate-fbc.results.RENDERED_CATALOG_DIGEST)
+#      runAfter:
+#      - validate-fbc
+#      taskRef:
+#        params:
+#        - name: name
+#          value: fbc-target-index-pruning-check
+#        - name: bundle
+#          value: quay.io/konflux-ci/tekton-catalog/task-fbc-target-index-pruning-check:0.1@sha256:a4d0bedb2aeed06d060b5a38f3dc020625e1c11665fc1a0317765c1f90edb485
+#        - name: kind
+#          value: task
+#        resolver: bundles
+#      when:
+#      - input: $(params.skip-checks)
+#        operator: in
+#        values:
+#        - "false"
+    - name: fbc-fips-check-oci-ta
+      params:
+      - name: image-digest
+        value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+      - name: image-url
+        value: $(tasks.build-image-index.results.IMAGE_URL)
+      - name: SOURCE_ARTIFACT
+        value: $(tasks.prefetch-dependencies.results.SOURCE_ARTIFACT)
+      runAfter:
+      - build-image-index
+      taskRef:
+        params:
+        - name: name
+          value: fbc-fips-check-oci-ta
+        - name: bundle
+          value: quay.io/konflux-ci/tekton-catalog/task-fbc-fips-check-oci-ta:0.1@sha256:2bc6985a2bd9379ddd3d0ce4343580517bb1a10ffdb7036aa3dd2bbe1943cc0a
+        - name: kind
+          value: task
+        resolver: bundles
+      when:
+      - input: $(params.skip-checks)
+        operator: in
+        values:
+        - "false"
+    - name: prepare-slack-message
+      params:
+      taskSpec:
+        params:
+        - name: pipelinerun-name
+          default: ""
+        results:
+        - description: Notification text to be posted to slack
+          name: slack-message-sucess-text
+        steps:
+        - image: quay.io/rhoai-konflux/alpine:latest
+          name: rhoai-init
+          env:
+          - name: pipelinerun_name
+            value: "$(context.pipelineRun.name)"
+          - name: image_url
+            value: $(tasks.build-image-index.results.IMAGE_URL)
+          - name: image_digest
+            value: $(tasks.build-image-index.results.IMAGE_DIGEST)
+          - name: target_branch
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.annotations['build.appstudio.redhat.com/target_branch']
+          - name: BUILD_URL
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.annotations['pipelinesascode.tekton.dev/log-url']
+          - name: COMMIT_URL
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.annotations['pipelinesascode.tekton.dev/sha-url']
+          - name: COMMIT
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.annotations['pipelinesascode.tekton.dev/sha']
+          script: |
+            echo "pipelinerun-name = $pipelinerun_name"
+  
+            application_name=${target_branch/rhoai-/}
+            application_name=rhoai-v${application_name/./-}
+            echo "application-name = $application_name"
+            echo "image url = $image_url"
+            echo "image digest = $image_digest"
+  
+            component_name=${pipelinerun_name/-on-*/}
+            echo "component-name = $component_name"
+  
+            build_time="$(date +%Y-%m-%dT%H:%M:%S)"
+            alertEmoji=":solid-success:"
+            slack_message="${alertEmoji} A new CI build is available for ${target_branch}: ${build_time}"
+            COMMIT_SHORT=$(echo "$COMMIT" | head -c 7)
+            # slack_message=$(echo -e "${slack_message}")
+            slack_message=$(echo -e "${slack_message}\nImage: ${image_url}@${image_digest}")
+            slack_message=$(echo -e "${slack_message}\nCommit: <${COMMIT_URL}|${COMMIT_SHORT}>")
+            slack_message=$(echo -e "${slack_message}\nBuild: <${BUILD_URL}|${pipelinerun_name}>")
+  
+            echo -n "${slack_message}" > "$(results.slack-message-sucess-text.path)"
+      runAfter:
+      - build-image-index
+    workspaces:
+    - name: git-auth
+      optional: true
+    - name: netrc
+      optional: true
+  taskRunTemplate:
+    serviceAccountName: build-pipeline-odh-fbc-fragment
+  workspaces:
+  - name: git-auth
+    secret:
+      secretName: '{{ git_auth_secret }}'
+status: {}
