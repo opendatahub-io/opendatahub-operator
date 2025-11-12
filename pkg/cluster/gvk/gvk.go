@@ -307,6 +307,12 @@ var (
 		Kind:    componentApi.TrainingOperatorKind,
 	}
 
+	Trainer = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.TrainerKind,
+	}
+
 	Monitoring = schema.GroupVersionKind{
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,

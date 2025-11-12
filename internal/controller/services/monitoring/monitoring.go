@@ -63,6 +63,8 @@ func updatePrometheusConfig(ctx context.Context, enable bool, component string) 
 			KueueARules            string `yaml:"kueue-alerting.rules"`
 			TrainingOperatorRRules string `yaml:"trainingoperator-recording.rules"`
 			TrainingOperatorARules string `yaml:"trainingoperator-alerting.rules"`
+			TrainerRRules          string `yaml:"trainer-recording.rules"`
+			TrainerARules          string `yaml:"trainer-alerting.rules"`
 			ModelRegistryRRules    string `yaml:"model-registry-operator-recording.rules"`
 			ModelRegistryARules    string `yaml:"model-registry-operator-alerting.rules"`
 			FeastOperatorRRules    string `yaml:"feastoperator-recording.rules"`

@@ -25,6 +25,7 @@ declare -A COMPONENT_MANIFESTS=(
     ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@4859b3de43e0c1ed812dc1451323269f9b44c3e2:config"
     ["feastoperator"]="opendatahub-io:feast:stable@3c6fd777b7d5c9de4f7949ee7b9ee7f829dc8528:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@226e911cca9bf7efa1e632860613087b0bf14d74:config"
+    ["trainer"]="opendatahub-io:trainer:main@d0c78f59bbfeb9adb27bc3390652dac877abb915:manifests"
 )
 
 # PLATFORM_MANIFESTS is a list of manifests that are contained in the operator repository. Please also add them to the
