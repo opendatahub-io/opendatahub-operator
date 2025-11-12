@@ -82,7 +82,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-11-03T18:25:12Z"
+    createdAt: "2025-11-07T14:58:02Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -110,7 +110,7 @@ metadata:
             "dashboard": {
               "managementState": "Managed"
             },
-            "datasciencepipelines": {
+            "aipipelines": {
               "managementState": "Managed"
             },
             "feastoperator": {
@@ -123,7 +123,7 @@ metadata:
               "managementState": "Removed"
             },
             "kueue": {
-              "managementState": "Managed"
+              "managementState": "Removed"
             },
             "modelregistry": {
               "managementState": "Managed",
@@ -287,9 +287,9 @@ spec:
     * Dashboard
     * Curated Workbench Images (including CUDA, PyTorch, TensorFlow, code-server, TrustyAI)
     * Ability to add Custom Images
-    * Ability to leverage accelerators (such as NVIDIA GPU)
-    * Data Science Pipelines (including Elyra notebook interface)
-    * Model Serving using ModelMesh and Kserve.
+    * Ability to leverage accelerators (such as NVIDIA GPUs, AMD GPUs, and Intel Gaudi AI accelerators)
+    * AI Pipelines (including Elyra notebook interface)
+    * Model Serving using Kserve.
     * Ability to use other runtimes for serving
     * Model Monitoring
     * Distributed workloads (KubeRay, Kueue, Training Operator)
@@ -635,6 +635,7 @@ spec:
           resources:
           - authentications
           - clusterversions
+          - infrastructures
           verbs:
           - get
           - list

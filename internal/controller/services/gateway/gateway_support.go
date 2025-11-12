@@ -70,6 +70,9 @@ const (
 	EnvClientSecret = "OAUTH2_PROXY_CLIENT_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 	EnvCookieSecret = "OAUTH2_PROXY_COOKIE_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 
+	// OAuth2 proxy cookie name - used in both proxy args and EnvoyFilter Lua filter.
+	OAuth2ProxyCookieName = "_oauth2_proxy"
+
 	AuthModeIntegratedOAuth AuthMode = "IntegratedOAuth"
 	AuthModeOIDC            AuthMode = "OIDC"
 	AuthModeNone            AuthMode = "None"
@@ -114,36 +117,45 @@ func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
 	return string(gatewayConfig.Spec.Certificate.Type)
 }
 
-// buildGatewayDomain combines gateway name with base domain.
-func buildGatewayDomain(baseDomain string) string {
+// buildGatewayDomain combines subdomain with base domain.
+// If subdomain is empty or whitespace, uses DefaultGatewayName as fallback.
+func buildGatewayDomain(subdomain, baseDomain string) string {
+	// Trim whitespace and use provided subdomain or fallback to default gateway name
+	hostname := strings.TrimSpace(subdomain)
+	if hostname == "" {
+		hostname = DefaultGatewayName
+	}
 	// Use string concatenation for better performance in frequently called function
-	return DefaultGatewayName + "." + baseDomain
+	return hostname + "." + baseDomain
 }
 
 // getClusterDomain gets cluster domain - extracted common logic.
-func getClusterDomain(ctx context.Context, client client.Client) (string, error) {
+func getClusterDomain(ctx context.Context, client client.Client, subdomain string) (string, error) {
 	clusterDomain, err := cluster.GetDomain(ctx, client)
 	if err != nil {
 		return "", fmt.Errorf("failed to get cluster domain: %w", err)
 	}
-	return buildGatewayDomain(clusterDomain), nil
+	return buildGatewayDomain(subdomain, clusterDomain), nil
 }
 
 func resolveDomain(ctx context.Context, client client.Client,
 	gatewayConfig *serviceApi.GatewayConfig) (string, error) {
 	// Input validation
 	if gatewayConfig == nil {
-		return getClusterDomain(ctx, client)
+		return getClusterDomain(ctx, client, "")
 	}
+
+	// Extract subdomain from GatewayConfig if provided
+	subdomain := strings.TrimSpace(gatewayConfig.Spec.Subdomain)
 
 	// Check if user has overridden the domain
 	baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
 	if baseDomain != "" {
-		return buildGatewayDomain(baseDomain), nil
+		return buildGatewayDomain(subdomain, baseDomain), nil
 	}
 
-	// No domain override, use cluster domain
-	return getClusterDomain(ctx, client)
+	// No domain override, use cluster domain with subdomain
+	return getClusterDomain(ctx, client, subdomain)
 }
 
 // GetGatewayDomain reads GatewayConfig and passes it to resolveDomain.
@@ -154,21 +166,24 @@ func GetGatewayDomain(ctx context.Context, cli client.Client) (string, error) {
 	gatewayConfig := &serviceApi.GatewayConfig{}
 	err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, gatewayConfig)
 	if err != nil {
-		// GatewayConfig doesn't exist, use cluster domain directly
-		return getClusterDomain(ctx, cli)
+		// GatewayConfig doesn't exist, use cluster domain directly with default subdomain
+		return getClusterDomain(ctx, cli, "")
 	}
+
+	// Extract subdomain from GatewayConfig if provided
+	subdomain := strings.TrimSpace(gatewayConfig.Spec.Subdomain)
 
 	// Check if user has overridden the domain (inline ResolveDomain logic to avoid redundant calls)
 	baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
 	if baseDomain != "" {
-		return buildGatewayDomain(baseDomain), nil
+		return buildGatewayDomain(subdomain, baseDomain), nil
 	}
 
-	// No domain override, use cluster domain
-	return getClusterDomain(ctx, cli)
+	// No domain override, use cluster domain with subdomain
+	return getClusterDomain(ctx, cli, subdomain)
 }
 
-// createListeners creates the Gateway listeners configuration.
+// createListeners creates the Gateway listeners configuration with namespace restrictions.
 func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
 	// Early return for empty certificate - avoid unnecessary allocations
 	if certSecretName == "" {
@@ -178,7 +193,7 @@ func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
 	// Pre-allocate slice with known capacity to avoid reallocations
 	listeners := make([]gwapiv1.Listener, 0, 1)
 
-	from := gwapiv1.NamespacesFromAll
+	selectorMode := gwapiv1.NamespacesFromSelector
 	httpsMode := gwapiv1.TLSModeTerminate
 	hostname := gwapiv1.Hostname(domain)
 
@@ -197,7 +212,19 @@ func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
 		},
 		AllowedRoutes: &gwapiv1.AllowedRoutes{
 			Namespaces: &gwapiv1.RouteNamespaces{
-				From: &from,
+				From: &selectorMode,
+				Selector: &metav1.LabelSelector{
+					MatchExpressions: []metav1.LabelSelectorRequirement{
+						{
+							Key:      "kubernetes.io/metadata.name",
+							Operator: metav1.LabelSelectorOpIn,
+							Values: []string{
+								GatewayNamespace,                  // openshift-ingress
+								cluster.GetApplicationNamespace(), // opendatahub or redhat-ods-applications
+							},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -303,7 +330,7 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		return errors.New("domain cannot be empty")
 	}
 
-	// Create listeners with validation
+	// Create listeners with namespace restrictions
 	listeners := createListeners(certSecretName, domain)
 
 	// Create gateway resource with optimized structure
@@ -698,7 +725,7 @@ func buildBaseOAuth2ProxyArgs(cookieConfig *serviceApi.CookieConfig, domain stri
 		"--cookie-secure=true",                                            // HTTPS only
 		"--cookie-httponly=true",                                          // XSS protection
 		"--cookie-samesite=lax",                                           // CSRF protection
-		"--cookie-name=_oauth2_proxy",                                     // Custom cookie name
+		fmt.Sprintf("--cookie-name=%s", OAuth2ProxyCookieName),            // Custom cookie name (used in EnvoyFilter Lua filter)
 		"--cookie-domain=" + domain,                                       // Cookie domain is the domain of the gateway
 		fmt.Sprintf("--metrics-address=0.0.0.0:%d", AuthProxyMetricsPort), // Expose metrics on unauthenticated port
 	}

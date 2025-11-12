@@ -11,6 +11,7 @@ and configure these applications.
   - [Configuration](#configuration)
     - [Log mode values](#log-mode-values)
     - [Use custom application namespace](#use-custom-application-namespace)
+    - [Use custom workbench namespace](#use-custom-workbench-namespace)
 - [Developer Guide](#developer-guide)
     - [Pre-requisites](#pre-requisites)
     - [Download manifests](#download-manifests)
@@ -40,6 +41,71 @@ and configure these applications.
   - [Release Workflow Guide](#release-workflow-guide)
 
 ## Usage
+
+### Prerequisites
+
+Before installing the OpenDataHub Operator, ensure your environment meets the following requirements:
+
+#### Platform Requirements
+
+- **OpenShift**: Version 4.19 or higher
+
+#### External Operators (Prerequisites)
+
+The following external operators are **required** or **recommended** depending on different use case. These must be installed separately before ODH operator:
+
+| Operator | Purpose | Required For | Installation |
+|----------|---------|--------------|--------------|
+| **OpenShift Cert Manager Operator** | Certificate management | Gateway with TLS, KServe with Istio | Optional - Install from OperatorHub for llm-d, MaaS and Kueue |
+| **Red Hat build of Kueue Operator** | Advanced job queueing and resource management | Distributed workloads, job scheduling with Kueue component | Optional - Install from OperatorHub for Kueue integration |
+| **Red Hat Connectivity Link Operator** | Manage the lifecycle of the Kuadrant system | Optional - Install from OperatorHub |
+| **LeaderWorkerSet (LWS) Operator** | Leader-worker set controller for distributed training | Advanced distributed training workflows | Optional - Install from OperatorHub for Kueue integration |
+| **OpenTelemetry Operator** | Distributed tracing and telemetry | Monitoring and observability | Optional - for advanced monitoring |
+| **Tempo Operator** | Distributed tracing backend | Tracing infrastructure | Optional - for trace storage |
+| **Cluster Observability Operator** | Enhanced cluster monitoring | Production monitoring | Optional - for comprehensive observability |
+| **Perses Operator** | Dashboard and visualization for metrics | Monitoring dashboards and visualizations | Optional - Install from OperatorHub for enhanced metric visualization |
+
+
+#### ODH Component Operators (Managed by ODH)
+
+The following components are **automatically integrated** by the ODH operator based on your DataScienceCluster configuration:
+
+| Component | Operator/Repository | Purpose | Management State |
+|-----------|-------------------|---------|------------------|
+| **KServe** | [opendatahub-io/kserve](https://github.com/opendatahub-io/kserve) | Model serving platform | Optional |
+| **Ray** | [opendatahub-io/kuberay](https://github.com/opendatahub-io/kuberay) | Distributed computing framework | Optional |
+| **Training Operator** | [opendatahub-io/training-operator](https://github.com/opendatahub-io/training-operator) | ML training job management | Optional |
+| **Feast Operator** | [opendatahub-io/feast](https://github.com/opendatahub-io/feast) | Feature store for ML | Optional |
+| **Model Registry Operator** | [opendatahub-io/model-registry](https://github.com/opendatahub-io/model-registry-operator) | Model versioning and registry | Optional |
+| **TrustyAI** | [opendatahub-io/trustyai-service-operator](https://github.com/opendatahub-io/trustyai-service-operator) | AI explainability and governance | Optional |
+| **Dashboard** | [opendatahub-io/odh-dashboard](https://github.com/opendatahub-io/odh-dashboard) | Web UI for ODH management | Optional |
+| **Workbenches** | [opendatahub-io/notebooks](https://github.com/opendatahub-io/notebooks) | Jupyter notebook environments | Optional |
+| **AI Pipelines** | [opendatahub-io/data-science-pipelines-operator](https://github.com/opendatahub-io/data-science-pipelines-operator) | ML pipeline orchestration | Optional |
+
+**Note**: These component controller do **not** need to be installed separately.
+
+#### Optional Components
+
+- **GPU Support**: For GPU workloads and metrics:
+  - NVIDIA GPU Operator (for NVIDIA GPUs)
+  - NVIDIA DCGM Exporter (for GPU metrics collection)
+
+- **Monitoring Stack**:
+  - Prometheus (for metrics collection)
+  - OpenTelemetry Collector (for distributed tracing)
+  - Cluster monitoring capabilities
+
+#### Namespace Requirements
+
+- One namespace will be designated as the `applicationsNamespace` in DSCI (default: `opendatahub`)
+- Only **one** namespace in the cluster can have the label `opendatahub.io/application-namespace: true` if user prefer overwrite default namespace
+- The operator itself runs in a separate namespace (default: `opendatahub-operator` in ODH)
+
+#### Resource Requirements
+
+- Sufficient cluster resources to run enabled components
+- For production deployments, ensure adequate CPU, memory, and storage based on your workload requirements
+- GPU nodes (if using GPU-accelerated workloads)
 
 ### Installation
 
@@ -116,6 +182,30 @@ To enable it:
   6. continue to create DSC CR
 - For cases in which ODH is already running in the cluster:
   - WARNING: Be aware that switching to a different application namespace can cause issues that require manual intervention to be fixed, therefore we suggest this to be done for new clusters only.
+
+#### Use custom workbench namespace
+
+The workbench namespace is configurable. By default, workbenches are deployed to the `opendatahub` application namespace (or `rhods-notebooks` for downstream). You can configure a custom workbench namespace when enabling the workbenches component.
+
+**Important notes:**
+- The `workbenchNamespace` field is **immutable** - it can only be set once when workbenches are first enabled
+- The namespace must follow Kubernetes naming conventions (lowercase alphanumeric characters or '-', max 63 characters)
+
+**To configure a custom workbench namespace:**
+
+In your DataScienceCluster CR, specify the `workbenchNamespace` field:
+
+```yaml
+apiVersion: datasciencecluster.opendatahub.io/v2
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+spec:
+  components:
+    workbenches:
+      managementState: Managed
+      workbenchNamespace: my-custom-workbench-namespace
+```
 
 ## Developer Guide
 
@@ -283,7 +373,7 @@ spec:
 
 ### Example DSCInitialization
 
-Below is the default DSCI CR config
+1. Default DSCI configuration
 
 ```console
 kind: DSCInitialization
@@ -316,7 +406,26 @@ spec:
 
 ```
 
-Apply this example with modification for your usage.
+2. DSCI with custom application and monitoring namespace
+
+```console
+kind: DSCInitialization
+apiVersion: dscinitialization.opendatahub.io/v2
+metadata:
+  name: default-dsci
+spec:
+  applicationsNamespace: my-custom-namespace
+  monitoring:
+    managementState: Managed
+    namespace: my-custom-namespace
+  trustedCABundle:
+    managementState: Managed
+
+```
+
+**Note:** Before applying DSCI with a custom application namespace, ensure you have created the namespace and labeled it with `opendatahub.io/application-namespace: true`. See [Use custom application namespace](#use-custom-application-namespace) for complete setup instructions.
+
+Apply these examples with modifications for your usage.
 
 ### Example DataScienceCluster
 
@@ -375,7 +484,21 @@ spec:
       managementState: Managed
 ```
 
-**Note:** Default value for managementState in component is `false`.
+3. Enable Workbenches with custom namespace
+
+```console
+apiVersion: datasciencecluster.opendatahub.io/v2
+kind: DataScienceCluster
+metadata:
+  name: example
+spec:
+  components:
+    workbenches:
+      managementState: Managed
+      workbenchNamespace: my-workbench-namespace
+```
+
+**Note:** The `workbenchNamespace` field once set, it cannot be changed (immutable).
 
 ### Run functional Tests
 
