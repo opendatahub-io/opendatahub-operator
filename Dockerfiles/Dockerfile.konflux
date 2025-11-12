@@ -42,7 +42,7 @@ RUN rm -rf /opt/manifests/*/e2e /opt/manifests/*/scorecard /opt/manifests/*/test
     && find /opt/manifests -name "README.md" -delete
 
 # Build stripe out debug info to minimize binary size
-RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOEXPERIMENT=strictfipsruntime go build -a -ldflags="-s -w" -o manager cmd/main.go
+RUN CGO_ENABLED=1 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOEXPERIMENT=strictfipsruntime go build -a -ldflags="-s -w" -tags rhoai -o manager cmd/main.go
 
 ################################################################################
 FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:2ddd6e10383981c7d10e4966a7c0edce7159f8ca91b1691cafabc78bae79d8f8
