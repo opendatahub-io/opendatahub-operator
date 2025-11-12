@@ -5,9 +5,11 @@ on:
       - rhoai
       - main
   pull_request:
+      - 'internal/**'
+      - 'pkg/**'
+      - 'cmd/main.go'
       - 'api/**'
       - 'config/**'
-
 jobs:
   unit-test:
     name: Run tests and collect coverage on internal and pkg
