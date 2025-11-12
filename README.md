@@ -11,6 +11,7 @@ and configure these applications.
   - [Configuration](#configuration)
     - [Log mode values](#log-mode-values)
     - [Use custom application namespace](#use-custom-application-namespace)
+    - [Use custom workbench namespace](#use-custom-workbench-namespace)
 - [Developer Guide](#developer-guide)
     - [Pre-requisites](#pre-requisites)
     - [Download manifests](#download-manifests)
@@ -182,6 +183,30 @@ To enable it:
 - For cases in which ODH is already running in the cluster:
   - WARNING: Be aware that switching to a different application namespace can cause issues that require manual intervention to be fixed, therefore we suggest this to be done for new clusters only.
 
+#### Use custom workbench namespace
+
+The workbench namespace is configurable. By default, workbenches are deployed to the `opendatahub` application namespace (or `rhods-notebooks` for downstream). You can configure a custom workbench namespace when enabling the workbenches component.
+
+**Important notes:**
+- The `workbenchNamespace` field is **immutable** - it can only be set once when workbenches are first enabled
+- The namespace must follow Kubernetes naming conventions (lowercase alphanumeric characters or '-', max 63 characters)
+
+**To configure a custom workbench namespace:**
+
+In your DataScienceCluster CR, specify the `workbenchNamespace` field:
+
+```yaml
+apiVersion: datasciencecluster.opendatahub.io/v2
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+spec:
+  components:
+    workbenches:
+      managementState: Managed
+      workbenchNamespace: my-custom-workbench-namespace
+```
+
 ## Developer Guide
 
 #### Pre-requisites
@@ -348,7 +373,7 @@ spec:
 
 ### Example DSCInitialization
 
-Below is the default DSCI CR config
+1. Default DSCI configuration
 
 ```console
 kind: DSCInitialization
@@ -381,7 +406,26 @@ spec:
 
 ```
 
-Apply this example with modification for your usage.
+2. DSCI with custom application and monitoring namespace
+
+```console
+kind: DSCInitialization
+apiVersion: dscinitialization.opendatahub.io/v2
+metadata:
+  name: default-dsci
+spec:
+  applicationsNamespace: my-custom-namespace
+  monitoring:
+    managementState: Managed
+    namespace: my-custom-namespace
+  trustedCABundle:
+    managementState: Managed
+
+```
+
+**Note:** Before applying DSCI with a custom application namespace, ensure you have created the namespace and labeled it with `opendatahub.io/application-namespace: true`. See [Use custom application namespace](#use-custom-application-namespace) for complete setup instructions.
+
+Apply these examples with modifications for your usage.
 
 ### Example DataScienceCluster
 
@@ -440,7 +484,21 @@ spec:
       managementState: Managed
 ```
 
-**Note:** Default value for managementState in component is `false`.
+3. Enable Workbenches with custom namespace
+
+```console
+apiVersion: datasciencecluster.opendatahub.io/v2
+kind: DataScienceCluster
+metadata:
+  name: example
+spec:
+  components:
+    workbenches:
+      managementState: Managed
+      workbenchNamespace: my-workbench-namespace
+```
+
+**Note:** The `workbenchNamespace` field once set, it cannot be changed (immutable).
 
 ### Run functional Tests
 
