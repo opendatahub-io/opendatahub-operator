@@ -69,6 +69,10 @@ spec:
           # For RHOAI: Overridden by CSV. For ODH: Uses jtanner's public image
           - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
             value: quay.io/opendatahub/odh-kube-auth-proxy:latest
+          # Perses image configuration
+          # For RHOAI: Overridden by CSV. For ODH: Uses public quay.io image
+          - name: RELATED_IMAGE_ODH_PERSES_IMAGE
+            value: quay.io/opendatahub/perses:0.50.0
         args:
         - --leader-elect
         - --operator-name=opendatahub

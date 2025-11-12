@@ -32,6 +32,8 @@ const (
 	InstrumentationName        = "data-science-instrumentation"
 	ThanosQuerierName          = "data-science-thanos-querier"
 	ThanosQuerierRouteName     = "data-science-thanos-querier-route"
+	PersesName                 = "data-science-perses"
+	PersesDatasourceName       = "data-science-prometheus-datasource"
 )
 
 // Constants for common test values.
@@ -108,6 +110,11 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
 		{"Test ThanosQuerier deployment with metrics", monitoringServiceCtx.ValidateThanosQuerierDeployment},
 		{"Test ThanosQuerier not deployed without metrics", monitoringServiceCtx.ValidateThanosQuerierNotDeployedWithoutMetrics},
+		{"Test Perses deployment when monitoring is managed", monitoringServiceCtx.ValidatePersesCRCreation},
+		{"Test Perses CR configuration", monitoringServiceCtx.ValidatePersesCRConfiguration},
+		{"Test Perses lifecycle", monitoringServiceCtx.ValidatePersesLifecycle},
+		{"Test PersesDatasource deployment with Prometheus", monitoringServiceCtx.ValidatePersesDatasourceWithPrometheus},
+		{"Test PersesDatasource lifecycle", monitoringServiceCtx.ValidatePersesDatasourceLifecycle},
 		{"Validate CEL blocks invalid monitoring configs", monitoringServiceCtx.ValidateCELBlocksInvalidMonitoringConfigs},
 		{"Validate CEL allows valid monitoring configs", monitoringServiceCtx.ValidateCELAllowsValidMonitoringConfigs},
 		{"Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled},
@@ -652,6 +659,187 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRulesLifecycle(t *testing.T) {
 	tc.updateMonitoringConfig(withNoAlerting())
 }
 
+func (tc *MonitoringTestCtx) ValidatePersesCRCreation(t *testing.T) {
+	t.Helper()
+
+	tc.updateMonitoringConfig(withManagementState(operatorv1.Managed))
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			monitoringOwnerReferencesCondition,
+			jq.Match(`.spec.containerPort == 8080`),
+			jq.Match(`.spec.config.database.file.folder == "/perses"`),
+			jq.Match(`.spec.config.database.file.extension == "yaml"`),
+		)),
+		WithCustomErrorMsg("Perses CR should be created with correct configuration when monitoring is managed"),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidatePersesCRConfiguration(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			jq.Match(`.spec.containerPort == 8080`),
+			jq.Match(`.spec.config.database.file != null`),
+			jq.Match(`.spec.storage.size == "1Gi"`),
+			jq.Match(`.metadata.labels["platform.opendatahub.io/part-of"] == "monitoring"`),
+		)),
+		WithCustomErrorMsg("Perses CR configuration validation failed"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.StatefulSet, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			jq.Match(`.spec.replicas == 1`),
+			jq.Match(`.spec.template.spec.containers[0].ports[0].containerPort == 8080`),
+			jq.Match(`.spec.volumeClaimTemplates[0].spec.resources.requests.storage == "1Gi"`),
+		)),
+		WithCustomErrorMsg("Perses StatefulSet should be created by perses-operator with correct configuration"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{Name: PersesName + "-0", Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			jq.Match(`.status.phase == "Running"`),
+			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
+		)),
+		WithCustomErrorMsg("Perses pod should be running and ready"),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidatePersesLifecycle(t *testing.T) {
+	t.Helper()
+
+	tc.updateMonitoringConfig(withManagementState(operatorv1.Managed))
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(jq.Match(`.metadata.name == "%s"`, PersesName)),
+		WithCustomErrorMsg("Perses CR should exist when monitoring is managed"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionPersesAvailable, metav1.ConditionTrue),
+		),
+		WithCustomErrorMsg("Monitoring CR should have PersesAvailable condition set to True"),
+	)
+
+	// Disable monitoring and verify Perses cleanup
+	tc.resetMonitoringConfigToRemoved()
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+	)
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.StatefulSet, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+	)
+
+	// Re-enable monitoring to verify Perses is recreated
+	tc.updateMonitoringConfig(withManagementState(operatorv1.Managed))
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(jq.Match(`.metadata.name == "%s"`, PersesName)),
+		WithCustomErrorMsg("Perses CR should be recreated when monitoring is re-enabled"),
+	)
+}
+
+// ValidatePersesDatasourceWithPrometheus validates that Prometheus datasource is created when both Perses and MonitoringStack are deployed.
+func (tc *MonitoringTestCtx) ValidatePersesDatasourceWithPrometheus(t *testing.T) {
+	t.Helper()
+
+	// Enable monitoring with metrics configuration to deploy both Perses and Prometheus
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Wait for Monitoring CR to be ready with both Perses and Prometheus
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionPersesAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringStackAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionPersesDatasourceAvailable, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring CR should have all conditions (Perses, MonitoringStack, PersesDatasource) set to True"),
+	)
+
+	// Verify PersesDatasource CR is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: PersesDatasourceName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			// Validate owner references
+			monitoringOwnerReferencesCondition,
+			// Validate datasource is set as default
+			jq.Match(`.spec.config.default == true`),
+			// Validate plugin kind is PrometheusDatasource
+			jq.Match(`.spec.config.plugin.kind == "PrometheusDatasource"`),
+			// Validate Prometheus URL points to Thanos Querier using proxy configuration
+			jq.Match(`.spec.config.plugin.spec.proxy.kind == "HTTPProxy"`),
+			jq.Match(`.spec.config.plugin.spec.proxy.spec.url | contains("thanos-querier-data-science-thanos-querier")`),
+			jq.Match(`.spec.config.plugin.spec.proxy.spec.url | contains("%s")`, tc.MonitoringNamespace),
+		)),
+		WithCustomErrorMsg("PersesDatasource CR should be created with correct Thanos Querier proxy configuration"),
+	)
+}
+
+// ValidatePersesDatasourceLifecycle tests the complete lifecycle of PersesDatasource deployment and cleanup.
+func (tc *MonitoringTestCtx) ValidatePersesDatasourceLifecycle(t *testing.T) {
+	t.Helper()
+
+	// Step 1: Enable monitoring with metrics to deploy datasource
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Verify datasource is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: PersesDatasourceName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(jq.Match(`.metadata.name == "%s"`, PersesDatasourceName)),
+		WithCustomErrorMsg("PersesDatasource should exist when metrics are configured"),
+	)
+
+	// Step 2: Remove metrics configuration and verify datasource is deleted
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+	)
+
+	// Verify PersesDatasourceAvailable condition is False
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionPersesDatasourceAvailable, metav1.ConditionFalse),
+		),
+		WithCustomErrorMsg("Monitoring CR should have PersesDatasourceAvailable condition set to False when metrics are not configured"),
+	)
+
+	// Verify datasource is deleted
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: PersesDatasourceName, Namespace: tc.MonitoringNamespace}),
+	)
+
+	// Step 3: Re-enable metrics and verify datasource is recreated
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: PersesDatasourceName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(jq.Match(`.metadata.name == "%s"`, PersesDatasourceName)),
+		WithCustomErrorMsg("PersesDatasource should be recreated when metrics are re-enabled"),
+	)
+}
+
 // ValidateMonitoringServiceDisabled ensures monitoring service can be disabled and resources are cleaned up.
 func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 	t.Helper()
@@ -670,6 +858,8 @@ func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 		{gvk.TempoMonolithic, TempoMonolithicName},
 		{gvk.OpenTelemetryCollector, OpenTelemetryCollectorName},
 		{gvk.Instrumentation, InstrumentationName},
+		{gvk.Perses, PersesName},
+		{gvk.PersesDatasource, PersesDatasourceName},
 	} {
 		tc.EnsureResourcesGone(
 			WithMinimalObject(resource.gvk, types.NamespacedName{

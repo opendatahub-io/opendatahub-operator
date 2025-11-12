@@ -1,0 +1,17 @@
+apiVersion: perses.dev/v1alpha1
+kind: PersesDatasource
+metadata:
+  name: data-science-prometheus-datasource
+  namespace: {{.Namespace}}
+spec:
+  config:
+    default: true
+    display:
+      name: "Data Science Prometheus Datasource"
+    plugin:
+      kind: "PrometheusDatasource"
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            url: http://thanos-querier-data-science-thanos-querier.{{.Namespace}}.svc.cluster.local:10902
