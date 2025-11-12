@@ -16,12 +16,17 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = []odhtypes.ManifestInfo{
 		kserveManifestInfo(kserveManifestSourcePath),
+		{
+			Path:       odhdeploy.DefaultManifestPath,
+			ContextDir: "connectionAPI",
+		},
 	}
 
 	return nil
