@@ -135,5 +135,5 @@ jobs:
           {
             "component": "opendatahub-operator",
             "release_branch": "odh-${{ env.VERSION }}",
-            "version": "v${{ env.VERSION }}"
+            "version": "${{ env.VERSION }}"
           }

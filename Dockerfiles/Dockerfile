@@ -30,6 +30,9 @@ COPY odh-config/osd-configs/ /opt/manifests/osd-configs
 # Copy hardwareprofiles removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/hardwareprofiles
 COPY odh-config/hardwareprofiles/ /opt/manifests/hardwareprofiles
+# Copy connectionAPI removing any possibly pre-existing symlinks
+RUN rm -f /opt/manifests/connectionAPI
+COPY odh-config/connectionAPI/ /opt/manifests/connectionAPI
 
 ################################################################################
 FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder

@@ -14,17 +14,17 @@ if [ "${ODH_PLATFORM_TYPE:-OpenDataHub}" = "OpenDataHub" ]; then
     # 2. "tag" - immutable reference (e.g., v1.0.0)
     # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
     declare -A COMPONENT_MANIFESTS=(
-        ["dashboard"]="opendatahub-io:odh-dashboard:main@bb8c4df50d9f43bba398bc4184f6fabdce540120:manifests"
+        ["dashboard"]="opendatahub-io:odh-dashboard:main@40edc4b121e9d62a0bdb478105a6678f8ce2e3f5:manifests"
         ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@40da0d22ed6356961aef3bd640c1be83e10734ab:components/notebook-controller/config"
         ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@40da0d22ed6356961aef3bd640c1be83e10734ab:components/odh-notebook-controller/config"
-        ["workbenches/notebooks"]="opendatahub-io:notebooks:main@bccfcb6b1457b189c8ef483be884efa1a2b3100d:manifests"
+        ["workbenches/notebooks"]="opendatahub-io:notebooks:main@603bf2ff71ed371247c76cba6bd6db4778b1d13a:manifests"
         ["kserve"]="opendatahub-io:kserve:release-v0.15@e585d3953efb855fb60737e0ec52f5a129f55ce1:config"
         ["ray"]="opendatahub-io:kuberay:dev@be7bbfc611040115299cd58631140b6d9f0712c1:ray-operator/config"
         ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@c0d153c22f3a2916fe52aa5819bb754937bae34a:config"
         ["modelregistry"]="opendatahub-io:model-registry-operator:main@5ba49bfd29aa65f89a4e1eed9adb11e415b63313:config"
         ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
         ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@324ddef9c98d74865a98ceb1a9470f1fdc7d1240:config"
-        ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@72e15dba5217e7ffb76995fd75720d806808616d:config"
+        ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@4859b3de43e0c1ed812dc1451323269f9b44c3e2:config"
         ["feastoperator"]="opendatahub-io:feast:stable@3c6fd777b7d5c9de4f7949ee7b9ee7f829dc8528:infra/feast-operator/config"
         ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@226e911cca9bf7efa1e632860613087b0bf14d74:config"
     )
@@ -62,6 +62,7 @@ declare -A PLATFORM_MANIFESTS=(
     ["osd-configs"]="config/osd-configs"
     ["monitoring"]="config/monitoring"
     ["hardwareprofiles"]="config/hardwareprofiles"
+    ["connectionAPI"]="config/connectionAPI"
 )
 
 # Allow overwriting repo using flags component=repo
