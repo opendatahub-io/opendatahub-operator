@@ -46,7 +46,7 @@ jobs:
             PREV_PATCH=$((PATCH - 1))
             PREV_VERSION="$MAJOR.$MINOR.$PREV_PATCH"
           fi
-          make catalog-prepare -e BUNDLE_IMGS=${QUAY_IMG}:v${PREV_VERSION},${QUAY_IMG}:v${CURRENT_VERSION}
+          make catalog-prepare -e BUNDLE_IMGS=${QUAY_IMG}:v${PREV_VERSION},${QUAY_IMG}:v${CURRENT_VERSION} -e VERSION=${CURRENT_VERSION}
 
       - name: Push latest FBC artifacts
         uses: actions-js/push@master
