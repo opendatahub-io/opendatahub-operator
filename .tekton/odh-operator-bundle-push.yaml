@@ -30,6 +30,9 @@ spec:
     value: true
   - name: target_branch
     value: '{{target_branch}}'
+  - name: build-args
+    value:
+    - OPERATOR_VERSION=3.1.0
   pipelineSpec:
     description: |
       This pipeline is ideal for building container images from a Containerfile while maintaining trust after pipeline customization.
