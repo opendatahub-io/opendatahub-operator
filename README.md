@@ -296,6 +296,13 @@ e.g `make image-build USE_LOCAL=true"`
   export KUBECONFIG=<path to kubeconfig>
   ```
 
+- The operator can be built in ODH or RHOAI mode (build defaults to ODH mode); to build in RHOAI mode, use
+  `ODH_PLATFORM_TYPE=rhoai`
+
+  ```commandline
+  make image ODH_PLATFORM_TYPE=rhoai
+  ```
+
 #### Deployment
 
 **Deploying operator locally**
@@ -334,6 +341,8 @@ e.g `make image-build USE_LOCAL=true"`
   ```commandline
   make bundle-build bundle-push BUNDLE_IMG=quay.io/<username>/opendatahub-operator-bundle:<VERSION>
   ```
+
+- RHOAI bundle can be built using `ODH_PLATFORM_TYPE=rhoai` with any of the bundle make targets.
 
 - Run the Bundle on a cluster:
 

@@ -2,7 +2,7 @@ name: Run prometheus unit tests
 on:
   pull_request:
     paths:
-      - 'config/monitoring/prometheus/**'
+      - 'odh-config/monitoring/prometheus/**'
       - 'tests/prometheus_unit_tests/**'
 jobs:
   build:

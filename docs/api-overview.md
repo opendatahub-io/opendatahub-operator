@@ -2730,7 +2730,7 @@ Monitoring is the Schema for the monitorings API
 
 
 
-MonitoringCommonSpec spec defines the shared desired state of Dashboard
+MonitoringCommonSpec spec defines the shared desired state of Monitoring
 
 
 

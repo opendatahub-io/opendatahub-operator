@@ -32,10 +32,12 @@ COPY pkg/ pkg/
 # tests is needed because we have references to tests packages outside of tests
 COPY tests/ tests/
 COPY PROJECT PROJECT
-COPY config/ config/
+COPY odh-config/ odh-config/
+COPY rhoai-config/ rhoai-config/
 COPY Dockerfiles/ Dockerfiles/
 
 RUN VERSION=$OPERATOR_VERSION make bundle
+RUN VERSION=$OPERATOR_VERSION make bundle ODH_PLATFORM_TYPE=rhoai
 FROM scratch
 
 # Core bundle labels.
@@ -53,6 +55,6 @@ LABEL operators.operatorframework.io.test.mediatype.v1=scorecard+v1
 LABEL operators.operatorframework.io.test.config.v1=tests/scorecard/
 
 # Copy files to locations specified by labels.
-COPY --from=builder /workspace/bundle/manifests /manifests/
-COPY --from=builder /workspace/bundle/metadata /metadata/
-COPY --from=builder /workspace/bundle/tests/scorecard /tests/scorecard/
+COPY --from=builder /workspace/odh-bundle/manifests /manifests/
+COPY --from=builder /workspace/odh-bundle/metadata /metadata/
+COPY --from=builder /workspace/odh-bundle/tests/scorecard /tests/scorecard/

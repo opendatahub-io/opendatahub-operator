@@ -165,7 +165,7 @@ func New(opts ...OptionFn) (*EnvT, error) {
 		CRDInstallOptions: envtest.CRDInstallOptions{
 			Scheme: result.s,
 			Paths: []string{
-				filepath.Join(result.root, "config", "crd", "bases"),
+				filepath.Join(result.root, "odh-config", "crd", "bases"),
 			},
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,
@@ -177,7 +177,7 @@ func New(opts ...OptionFn) (*EnvT, error) {
 	if len(result.registerWebhooks) > 0 {
 		result.Env.WebhookInstallOptions = envtest.WebhookInstallOptions{
 			Paths: []string{
-				filepath.Join(result.root, "config", "webhook"),
+				filepath.Join(result.root, "odh-config", "webhook"),
 			},
 		}
 	}
