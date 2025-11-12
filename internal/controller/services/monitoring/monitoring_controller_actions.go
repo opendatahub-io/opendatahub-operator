@@ -66,6 +66,7 @@ var componentRules = map[string]string{
 	componentApi.TrustyAIComponentName:             "trustyai",
 	componentApi.KserveComponentName:               "kserve",
 	componentApi.TrainingOperatorComponentName:     "trainingoperator",
+	componentApi.TrainerComponentName:              "trainer",
 	componentApi.ModelRegistryComponentName:        "model-registry-operator",
 	componentApi.ModelControllerComponentName:      "odh-model-controller",
 	componentApi.FeastOperatorComponentName:        "feastoperator",

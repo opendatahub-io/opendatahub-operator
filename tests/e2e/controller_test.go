@@ -126,6 +126,7 @@ var (
 				componentApi.RayComponentName:                  rayTestSuite,
 				componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
 				componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
+				componentApi.TrainerComponentName:              trainerTestSuite,
 				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
 				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
 				componentApi.KserveComponentName:               kserveTestSuite,

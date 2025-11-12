@@ -176,6 +176,11 @@ const (
 To uninstall it, you should delete all RayClusters resources from the cluster, delete the CodeFlare component resource and recreate the RayClusters.`
 )
 
+// For JobSet operator checks.
+const (
+	JobSetOperatorNotInstalledMessage = "JobSet operator not installed, please install it first"
+)
+
 // setConditions is a helper function to set multiple conditions at once.
 func setConditions(wrapper *conditionsWrapper, conditions []common.Condition) {
 	for _, c := range conditions {

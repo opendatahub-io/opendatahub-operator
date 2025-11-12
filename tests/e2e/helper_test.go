@@ -49,6 +49,9 @@ const (
 	certManagerOpNamespace      = "cert-manager-operator"                    // Name of the cert-manager Namespace
 	certManagerOpChannel        = "stable-v1"                                // Name of cert-manager operator stable channel
 	telemetryOpName             = "opentelemetry-product"                    // Name of the Telemetry Operator
+	jobSetOpName                = "job-set"                                  // Name of the JobSet Operator
+	jobSetOpNamespace           = "openshift-jobset-operator"                // Namespace for the JobSet Operator
+	jobSetOpChannel             = "tech-preview-v0.1"                        // Name of the JobSet Operator stable channel
 	openshiftOperatorsNamespace = "openshift-operators"                      // Namespace for OpenShift Operators
 	telemetryOpNamespace        = "openshift-opentelemetry-operator"         // Namespace for the Telemetry Operator
 	observabilityOpName         = "cluster-observability-operator"           // Name of the Cluster Observability Operator
@@ -241,6 +244,11 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 					},
 				},
 				TrainingOperator: componentApi.DSCTrainingOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Trainer: componentApi.DSCTrainer{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
