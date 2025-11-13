@@ -67,7 +67,7 @@ local.mk
 *.mktmp.*
 
 # Ignore catalog related files
-catalog/
+/catalog/
 
 # Ignore generated files
 config/crd/bases

@@ -231,7 +231,7 @@ cd -
 endef
 
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen kustomize ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 ifneq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role paths="./..." output:rbac:artifacts:config=config/rbac
 endif
@@ -338,7 +338,7 @@ ifndef ignore-not-found
 endif
 
 .PHONY: prepare
-prepare: manifests kustomize manager-kustomization
+prepare: kustomize manifests manager-kustomization
 
 # phony target for the case of changing IMG variable
 .PHONY: manager-kustomization
@@ -349,7 +349,7 @@ manager-kustomization: $(CONFIG_DIR)/manager/kustomization.yaml.in
 
 .PHONY: install
 install: prepare ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd/bases | kubectl apply -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/crd/bases | kubectl apply -f -
 
 .PHONY: uninstall
 uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
