@@ -559,6 +559,18 @@ var (
 		Kind:    "ThanosQuerier",
 	}
 
+	PersesDatasource = schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha1",
+		Kind:    "PersesDatasource",
+	}
+
+	PersesDashboard = schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha1",
+		Kind:    "PersesDashboard",
+	}
+
 	ValidatingAdmissionPolicy = schema.GroupVersionKind{
 		Group:   "admissionregistration.k8s.io",
 		Version: "v1",

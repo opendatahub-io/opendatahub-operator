@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -113,6 +114,8 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Perses CR configuration", monitoringServiceCtx.ValidatePersesCRConfiguration},
 		{"Test Perses lifecycle", monitoringServiceCtx.ValidatePersesLifecycle},
 		{"Test Perses not deployed without metrics or traces", monitoringServiceCtx.ValidatePersesNotDeployedWithoutMetricsOrTraces},
+		{"Test Perses Datasource Creation with Traces", monitoringServiceCtx.ValidatePersesDatasourceCreationWithTraces},
+		{"Test Perses Datasource Configuration", monitoringServiceCtx.ValidatePersesDatasourceConfiguration},
 		{"Validate CEL blocks invalid monitoring configs", monitoringServiceCtx.ValidateCELBlocksInvalidMonitoringConfigs},
 		{"Validate CEL allows valid monitoring configs", monitoringServiceCtx.ValidateCELAllowsValidMonitoringConfigs},
 		{"Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled},
@@ -1258,4 +1261,129 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *t
 
 	// Cleanup: Reset monitoring configuration
 	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidatePersesDatasourceCreationWithTraces tests that Perses datasource is created when traces are configured.
+func (tc *MonitoringTestCtx) ValidatePersesDatasourceCreationWithTraces(t *testing.T) {
+	t.Helper()
+
+	// Skip if PersesDatasource CRD is not installed
+	ctx := context.Background()
+	exists, err := cluster.HasCRD(ctx, tc.Client(), gvk.PersesDatasource)
+	require.NoError(t, err)
+	if !exists {
+		t.Skip("Skipping Perses datasource tests: PersesDatasource CRD not installed in cluster")
+	}
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Update DSCI to set traces - ensure managementState remains Managed
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			withMonitoringTraces("pv", "", "", ""),
+		)),
+	)
+
+	// Wait for the Monitoring resource to be updated by DSCInitialization controller
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(`.spec.traces != null`)),
+		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
+	)
+
+	// Ensure the Perses datasource CR is created (if Perses CRD is available)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: "tempo-datasource", Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCustomErrorMsg("PersesDatasource CR should be created when traces are configured"),
+	)
+
+	// Cleanup: Reset DSCInitialization traces configuration to prevent state contamination
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
+	)
+
+	// Ensure the PersesDatasource is cleaned up after traces are removed
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{
+			Name:      "tempo-datasource",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+	)
+
+	// Validate condition flips to False
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(
+			`[.status.conditions[] | select(.type=="%s" and .status=="False" and .reason=="%s")] | length==1`,
+			status.ConditionPersesTempoDataSourceAvailable,
+			status.TracesNotConfiguredReason,
+		)),
+		WithCustomErrorMsg("PersesTempoDataSourceAvailable condition should be False when traces are not configured"),
+	)
+}
+
+// ValidatePersesDatasourceConfiguration tests the configuration of the Perses datasource.
+func (tc *MonitoringTestCtx) ValidatePersesDatasourceConfiguration(t *testing.T) {
+	t.Helper()
+
+	// Skip if PersesDatasource CRD is not installed
+	ctx := context.Background()
+	exists, err := cluster.HasCRD(ctx, tc.Client(), gvk.PersesDatasource)
+	require.NoError(t, err)
+	if !exists {
+		t.Skip("Skipping Perses datasource tests: PersesDatasource CRD not installed in cluster")
+	}
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Set traces configuration with PV backend
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			withMonitoringTraces("pv", "", "", ""),
+		)),
+	)
+
+	// Validate Perses datasource configuration
+	expectedTempoEndpoint := fmt.Sprintf("http://tempo-data-science-tempomonolithic.%s.svc.cluster.local:3200", dsci.Spec.Monitoring.Namespace)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: "tempo-datasource", Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(
+			And(
+				// Validate the datasource name and description
+				jq.Match(`.spec.config.display.name == "RHOAI Tempo Datasource"`),
+				jq.Match(`.spec.config.display.description == "Tempo datasource for distributed tracing in RHOAI"`),
+				jq.Match(`.spec.config.default == false`),
+				// Validate the plugin configuration
+				jq.Match(`.spec.config.plugin.kind == "TempoDatasource"`),
+				// Validate the HTTP proxy configuration
+				jq.Match(`.spec.config.plugin.spec.proxy.kind == "HTTPProxy"`),
+				jq.Match(`.spec.config.plugin.spec.proxy.spec.url == "%s"`, expectedTempoEndpoint),
+			),
+		),
+		WithCustomErrorMsg("PersesDatasource should have the expected configuration"),
+	)
+
+	// Validate owner references
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: "tempo-datasource", Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(
+			And(
+				jq.Match(`.metadata.ownerReferences | length == 1`),
+				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Monitoring.Kind),
+				jq.Match(`.metadata.ownerReferences[0].name == "%s"`, MonitoringCRName),
+			),
+		),
+	)
+
+	// Cleanup: Reset DSCInitialization traces configuration to prevent state contamination
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
+	)
 }

@@ -1,0 +1,40 @@
+apiVersion: perses.dev/v1alpha1
+kind: PersesDashboard
+metadata:
+  name: data-science-tempo-traces
+  namespace: {{.Namespace}}
+spec:
+  display:
+    name: "RHOAI Distributed Tracing"
+  duration: "1h"
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: "Trace Visualization"
+        items:
+          - x: 0
+            y: 0
+            width: 24
+            height: 12
+            content:
+              $ref: "#/spec/panels/traces"
+  panels:
+    traces:
+      kind: Panel
+      spec:
+        display:
+          name: "Distributed Traces"
+        plugin:
+          kind: TraceTable
+          spec: {}
+        queries:
+          - kind: TraceQuery
+            spec:
+              plugin:
+                kind: TempoTraceQuery
+                spec:
+                  query: "{}"
+                  datasource:
+                    kind: TempoDatasource
+                    name: tempo-datasource
