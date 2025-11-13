@@ -1,5 +1,5 @@
 rule_files:
-  - rhods-dashboard-alerting.rules.yaml
+  - dashboard-alerting.rules.yaml
 
 evaluation_interval: 1m
 
@@ -40,8 +40,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: "RHODS Dashboard Route Error Burn Rate"
-              message: "High error budget burn for rhods-dashboard (current value: 3)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+              message: "High error budget burn for rhods-dashboard (current value: 3 )."
 
   - interval: 1m
     input_series:
@@ -60,8 +59,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: "RHODS Dashboard Route Error Burn Rate"
-              message: "High error budget burn for rhods-dashboard (current value: 16)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+              message: "High error budget burn for rhods-dashboard (current value: 16 )."
 
   - interval: 1m
     input_series:
@@ -80,8 +78,7 @@ tests:
               severity: warning
             exp_annotations:
               summary: "RHODS Dashboard Route Error Burn Rate"
-              message: "High error budget burn for rhods-dashboard (current value: 61)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+              message: "High error budget burn for rhods-dashboard (current value: 61 )."
 
   # Probe success
   - interval: 1m
@@ -120,8 +117,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: "RHODS Dashboard Probe Success Burn Rate"
-              message: "High error budget burn for rhods-dashboard (current value: 3)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md'
+              message: "High error budget burn for rhods-dashboard (current value: 3 )."
 
   - interval: 1m
     input_series:
@@ -140,8 +136,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: "RHODS Dashboard Probe Success Burn Rate"
-              message: "High error budget burn for rhods-dashboard (current value: 16)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md'
+              message: "High error budget burn for rhods-dashboard (current value: 16 )."
 
   - interval: 1m
     input_series:
@@ -160,8 +155,7 @@ tests:
               severity: warning
             exp_annotations:
               summary: "RHODS Dashboard Probe Success Burn Rate"
-              message: "High error budget burn for rhods-dashboard (current value: 61)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md'
+              message: "High error budget burn for rhods-dashboard (current value: 61 )."
 
   - interval: 1m
     input_series:
@@ -180,5 +174,4 @@ tests:
               severity: warning
             exp_annotations:
               summary: "RHODS Dashboard Probe Success Burn Rate"
-              message: "High error budget burn for rhods-dashboard (current value: 181)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md'
+              message: "High error budget burn for rhods-dashboard (current value: 181 )."
