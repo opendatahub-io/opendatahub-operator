@@ -44,7 +44,7 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	BUNDLE_DOCKERFILE_FILENAME=bundle.Dockerfile
 	OPERATOR_PACKAGE=opendatahub-operator
 	CONTROLLER_GEN_TAGS=--load-build-tags=odh
-	CONFIG_DIR=odh-config
+	CONFIG_DIR=config
 	GO_RUN_ARGS=-tags=odh
 else
 	# VERSION defines the project version for the bundle.
@@ -70,7 +70,7 @@ else
 	BUNDLE_DOCKERFILE_FILENAME=rhoai-bundle.Dockerfile
 	OPERATOR_PACKAGE=rhods-operator
 	CONTROLLER_GEN_TAGS=--load-build-tags=rhoai
-	CONFIG_DIR=odh-config/rhoai
+	CONFIG_DIR=config/rhoai
 	GO_RUN_ARGS=-tags=rhoai
 endif
 
@@ -233,14 +233,14 @@ endef
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 ifneq ($(ODH_PLATFORM_TYPE), OpenDataHub)
-	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role paths="./..." output:rbac:artifacts:config=odh-config/rbac
+	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role paths="./..." output:rbac:artifacts:config=config/rbac
 endif
 	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CONFIG_DIR)/crd/bases output:rbac:artifacts:config=$(CONFIG_DIR)/rbac output:webhook:artifacts:config=$(CONFIG_DIR)/webhook
 	@$(call add-crd-to-kustomization)
 	@$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	@$(call fetch-external-crds,github.com/openshift/api,user/v1)
 	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
-CLEANFILES += odh-config/crd/bases odh-config/rhoai/crd/bases odh-config/crd/external odh-config/rhoai/crd/external odh-config/rbac/role.yaml odh-config/rhoai/rbac/role.yaml odh-config/webhook/manifests.yaml odh-config/rhoai/webhook/manifests.yaml
+CLEANFILES += config/crd/bases config/rhoai/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -487,7 +487,7 @@ catalog-clean: ## Clean up catalog files and Dockerfile
 .PHONY: catalog-prepare
 catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel. It requires BUNDLE_IMG exists before running the target"
 	mkdir -p catalog
-	cp odh-config/catalog/fbc-basic-template.yaml catalog/fbc-basic-template.yaml
+	cp config/catalog/fbc-basic-template.yaml catalog/fbc-basic-template.yaml
 	./hack/update-catalog-template.sh catalog/fbc-basic-template.yaml $(BUNDLE_IMGS)
 	$(OPM) alpha render-template basic \
 		--migrate-level=bundle-object-to-csv-metadata \

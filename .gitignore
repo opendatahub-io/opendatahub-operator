@@ -57,8 +57,8 @@ opt/manifests/
 
 cover.out
 
-odh-config/manager/kustomization.yaml
-odh-config/rhoai/manager/kustomization.yaml
+config/manager/kustomization.yaml
+config/rhoai/manager/kustomization.yaml
 
 # Ignore any local.mk files that would be consumed by the Makefile
 local.mk
@@ -70,13 +70,13 @@ local.mk
 catalog/
 
 # Ignore generated files
-odh-config/crd/bases
-odh-config/crd/external
-odh-config/rbac/role.yaml
-odh-config/webhook/manifests.yaml
-odh-config/rhoai/crd/bases
-odh-config/rhoai/crd/external
-odh-config/rhoai/rbac/role.yaml
-odh-config/rhoai/webhook/manifests.yaml
+config/crd/bases
+config/crd/external
+config/rbac/role.yaml
+config/webhook/manifests.yaml
+config/rhoai/crd/bases
+config/rhoai/crd/external
+config/rhoai/rbac/role.yaml
+config/rhoai/webhook/manifests.yaml
 rhoai-bundle/
 odh-bundle/

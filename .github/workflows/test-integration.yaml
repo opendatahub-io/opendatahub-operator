@@ -8,7 +8,7 @@ on:
     paths:
       - 'odh-bundle/**'
       - 'rhoai-bundle/**'
-      - 'odh-config/**'
+      - 'config/**'
       - 'Dockerfiles/**'
       - 'internal/**'
       - 'pkg/**'
