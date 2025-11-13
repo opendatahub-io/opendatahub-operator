@@ -10,12 +10,10 @@ spec:
       managementState: "Managed"
     aipipelines:
       managementState: "Managed"
-    kserve: {
-      managementState: "Managed",
-      nim: {
+    kserve:
+      managementState: "Managed"
+      nim:
         managementState: "Managed"
-      }
-    }
     kueue:
       managementState: "Removed"
     trainingoperator:

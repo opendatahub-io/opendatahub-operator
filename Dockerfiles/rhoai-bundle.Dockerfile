@@ -33,7 +33,6 @@ COPY pkg/ pkg/
 COPY tests/ tests/
 COPY PROJECT PROJECT
 COPY odh-config/ odh-config/
-COPY rhoai-config/ rhoai-config/
 COPY Dockerfiles/ Dockerfiles/
 
 RUN VERSION=$OPERATOR_VERSION make bundle

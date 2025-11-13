@@ -1,21 +1,18 @@
 apiVersion: v1
 kind: Service
 metadata:
+  name: webhook-service
   labels:
-    app.kubernetes.io/name: rhods-operator-webhook-service
-    app.kubernetes.io/instance: rhods-operator
     app.kubernetes.io/component: webhook
     app.kubernetes.io/created-by: rhods-operator
-    app.kubernetes.io/part-of: rhods-operator
+    app.kubernetes.io/instance: rhods-operator
     app.kubernetes.io/managed-by: kustomize
-  name: webhook-service
-  namespace: system
+    app.kubernetes.io/name: rhods-operator-webhook-service
+    app.kubernetes.io/part-of: rhods-operator
   annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
     service.beta.openshift.io/serving-cert-secret-name: redhat-ods-operator-controller-webhook-cert
 spec:
-  ports:
-    - port: 443
-      protocol: TCP
-      targetPort: 9443
   selector:
     name: rhods-operator
+    control-plane: null

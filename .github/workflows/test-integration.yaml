@@ -9,7 +9,6 @@ on:
       - 'odh-bundle/**'
       - 'rhoai-bundle/**'
       - 'odh-config/**'
-      - 'rhoai-config/**'
       - 'Dockerfiles/**'
       - 'internal/**'
       - 'pkg/**'

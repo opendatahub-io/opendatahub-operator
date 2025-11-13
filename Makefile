@@ -70,7 +70,7 @@ else
 	BUNDLE_DOCKERFILE_FILENAME=rhoai-bundle.Dockerfile
 	OPERATOR_PACKAGE=rhods-operator
 	CONTROLLER_GEN_TAGS=--load-build-tags=rhoai
-	CONFIG_DIR=rhoai-config
+	CONFIG_DIR=odh-config/rhoai
 	GO_RUN_ARGS=-tags=rhoai
 endif
 
@@ -223,11 +223,10 @@ endef
 # Add all CRD base files to kustomization.yaml, skipping kustomization.yaml itself
 # and avoiding duplicates by checking if each resource is already present
 define add-crd-to-kustomization
-cd config/crd/bases && \
-for file in *.yaml; do \
-	[ "$$(basename $$file)" = "kustomization.yaml" ] && continue; \
-	grep -q "$$file" kustomization.yaml || $(KUSTOMIZE) edit add resource "$$file"; \
-done && \
+mkdir -p $(CONFIG_DIR)/crd/bases && \
+cd $(CONFIG_DIR)/crd/bases && \
+rm -f kustomization.yaml && \
+$(KUSTOMIZE) create --autodetect && \
 cd -
 endef
 
@@ -241,7 +240,7 @@ endif
 	@$(call fetch-external-crds,github.com/openshift/api,route/v1)
 	@$(call fetch-external-crds,github.com/openshift/api,user/v1)
 	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
-CLEANFILES += odh-config/crd/bases rhoai-config/crd/bases odh-config/crd/external rhoai-config/crd/external odh-config/rbac/role.yaml rhoai-config/rbac/role.yaml odh-config/webhook/manifests.yaml rhoai-config/webhook/manifests.yaml
+CLEANFILES += odh-config/crd/bases odh-config/rhoai/crd/bases odh-config/crd/external odh-config/rhoai/crd/external odh-config/rbac/role.yaml odh-config/rhoai/rbac/role.yaml odh-config/webhook/manifests.yaml odh-config/rhoai/webhook/manifests.yaml
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
