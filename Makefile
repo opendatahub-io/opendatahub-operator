@@ -20,7 +20,12 @@ IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 IMAGE_BUILDER ?= podman
+# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
 OPERATOR_NAMESPACE ?= redhat-ods-operator
+# Specifies the namespace where the component deployments are deployed (defaults to redhat-ods-applications)
+APPLICATIONS_NAMESPACE ?= redhat-ods-applications
+# Specifies the namespace where the workbenches are deployed (defaults to rhods-notebooks)
+WORKBENCHES_NAMESPACE ?= rhods-notebooks
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
 CGO_ENABLED ?= 1
 CHANNELS="alpha,stable,fast"
@@ -469,8 +474,17 @@ CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 
 .PHONY: e2e-test
 e2e-test:
+# Specifies the namespace where the operator pods are deployed
 ifndef E2E_TEST_OPERATOR_NAMESPACE
 export E2E_TEST_OPERATOR_NAMESPACE = $(OPERATOR_NAMESPACE)
+endif
+# Specifies the namespace where the component deployments are deployed
+ifndef E2E_TEST_APPLICATIONS_NAMESPACE
+export E2E_TEST_APPLICATIONS_NAMESPACE = $(APPLICATIONS_NAMESPACE)
+endif
+# Specifies the namespace where the workbenches are deployed
+ifndef E2E_TEST_WORKBENCHES_NAMESPACE
+export E2E_TEST_WORKBENCHES_NAMESPACE = $(WORKBENCHES_NAMESPACE)
 endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
