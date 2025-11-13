@@ -6,26 +6,8 @@ metadata:
 spec:
   endpoints:
     - port: monitoring
-  namespaceSelector:
-    matchNames:
-      - {{.Namespace}}
-  selector:
-    matchLabels:
-      app.kubernetes.io/component: opentelemetry-collector
-      app.kubernetes.io/instance: {{.Namespace}}.data-science-collector
-      app.kubernetes.io/managed-by: opentelemetry-operator
-      app.kubernetes.io/part-of: opentelemetry
-      operator.opentelemetry.io/collector-service-type: monitoring
-
----
-apiVersion: monitoring.rhobs/v1
-kind: ServiceMonitor
-metadata:
-  name: data-science-prometheus-monitor
-  namespace: {{.Namespace}}
-spec:
-  endpoints:
-    - port: prometheus
+      scheme: http
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
   namespaceSelector:
     matchNames:
       - {{.Namespace}}
@@ -36,3 +18,36 @@ spec:
       app.kubernetes.io/managed-by: opentelemetry-operator
       app.kubernetes.io/part-of: opentelemetry
       operator.opentelemetry.io/collector-service-type: base
+
+---
+apiVersion: monitoring.rhobs/v1
+kind: ServiceMonitor
+metadata:
+  name: data-science-prometheus-monitor
+  namespace: {{.Namespace}}
+spec:
+  endpoints:
+    - port: prometheus
+      {{- if .MetricsTLSEnabled }}
+      scheme: https
+      tlsConfig:
+        caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+        serverName: "data-science-collector-prometheus.{{.Namespace}}.svc"
+      {{- else }}
+      scheme: http
+      {{- end }}
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+  namespaceSelector:
+    matchNames:
+      - {{.Namespace}}
+  selector:
+    matchLabels:
+      {{- if .MetricsTLSEnabled }}
+      app.kubernetes.io/name: data-science-collector-prometheus
+      {{- else }}
+      app.kubernetes.io/component: opentelemetry-collector
+      app.kubernetes.io/instance: {{.Namespace}}.data-science-collector
+      app.kubernetes.io/managed-by: opentelemetry-operator
+      app.kubernetes.io/part-of: opentelemetry
+      operator.opentelemetry.io/collector-service-type: base
+      {{- end }}
