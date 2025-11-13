@@ -2,14 +2,13 @@ name: Build and push E2E Test Image
 on:
   push:
     branches:
-      - main
+      - rhoai-**
 
 permissions:
   contents: read
 
 env:
   E2E_IMAGE_TAG_BASE: quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator-e2e
-  E2E_IMAGE_TAG: main
 
 jobs:
   build-push-e2e-image:
@@ -36,41 +35,36 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Retrieve branch name
+        id: branch-name
+        uses: tj-actions/branch-names@5250492686b253f06fa55861556d1027b067aeb5
+
       - name: Generate image tag
         id: image-tag
         run: |
           # tag based on shortened commit SHA
           COMMIT_SHA=$(echo ${{ github.sha }} | cut -c1-8)
-          echo "E2E_IMAGE_TAG_COMMIT=main-${COMMIT_SHA}" >> $GITHUB_OUTPUT
+          BRANCH_NAME=$(echo ${{ steps.branch-name.outputs.current_branch }})
+          BRANCH_NAME=${BRANCH_NAME:#rhoai-}
+          echo "E2E_IMAGE_TAG="${BRANCH_NAME} >> $GITHUB_OUTPUT
+          echo "E2E_IMAGE_TAG_COMMIT=${BRANCH_NAME}-${COMMIT_SHA}" >> $GITHUB_OUTPUT
 
-      - name: Build and push E2E test image (main)
+      - name: Build and push E2E test image
         env:
-          E2E_IMAGE: ${{ env.E2E_IMAGE_TAG_BASE }}:${{ env.E2E_IMAGE_TAG }}
+          E2E_IMAGE: ${{ env.E2E_IMAGE_TAG_BASE }}:${{ steps.image-tag.outputs.E2E_IMAGE_TAG }}
+          E2E_IMAGE_COMMIT: ${{ env.E2E_IMAGE_TAG_BASE }}:${{ steps.image-tag.outputs.E2E_IMAGE_TAG_COMMIT }}
         run: |
           echo "Building E2E test image: ${E2E_IMAGE}"
           podman build \
             --platform linux/amd64 \
             -f Dockerfiles/e2e-tests/e2e-tests.Dockerfile \
-            -t "${E2E_IMAGE}" \
+            -t "${E2E_IMAGE}" -t ${E2E_IMAGE_COMMIT} \
             .
           
           echo "Pushing E2E test image: ${E2E_IMAGE}"
           podman push "${E2E_IMAGE}"
           
-          echo "E2E test image (main) built and pushed successfully!"
-
-      - name: Build and push E2E test image (commit hash)
-        env:
-          E2E_IMAGE: ${{ env.E2E_IMAGE_TAG_BASE }}:${{ steps.image-tag.outputs.E2E_IMAGE_TAG_COMMIT }}
-        run: |
-          echo "Building E2E test image: ${E2E_IMAGE}"
-          podman build \
-            --platform linux/amd64 \
-            -f Dockerfiles/e2e-tests/e2e-tests.Dockerfile \
-            -t "${E2E_IMAGE}" \
-            .
+          echo "Pushing E2E test image: ${E2E_IMAGE_COMMIT}"
+          podman push "${E2E_IMAGE_COMMIT}"
           
-          echo "Pushing E2E test image: ${E2E_IMAGE}"
-          podman push "${E2E_IMAGE}"
-          
-          echo "E2E test image (commit hash) built and pushed successfully!"
+          echo "E2E test image built and pushed successfully!"
