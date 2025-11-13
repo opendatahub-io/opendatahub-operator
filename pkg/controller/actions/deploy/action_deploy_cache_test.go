@@ -49,7 +49,7 @@ func TestDeployWithCacheAction(t *testing.T) {
 		CRDInstallOptions: envtest.CRDInstallOptions{
 			Scheme: s,
 			Paths: []string{
-				filepath.Join(projectDir, "config", "crd", "bases"),
+				filepath.Join(projectDir, "odh-config", "crd", "bases"),
 			},
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,

@@ -96,12 +96,13 @@ var _ = BeforeSuite(func() {
 		CRDInstallOptions: envtest.CRDInstallOptions{
 			Scheme: testScheme,
 			Paths: []string{
-				filepath.Join(rootPath, "config", "crd", "bases"),
-				filepath.Join(rootPath, "config", "crd", "external"),
+				filepath.Join(rootPath, "odh-config", "crd", "bases"),
+				filepath.Join(rootPath, "odh-config", "crd", "external"),
 			},
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,
 		},
+		ErrorIfCRDPathMissing: true,
 	}
 
 	var err error
@@ -137,7 +138,6 @@ var _ = BeforeSuite(func() {
 	utilruntime.Must(templatev1.Install(testScheme))
 	utilruntime.Must(configv1.Install(testScheme))
 	utilruntime.Must(serviceApi.AddToScheme(testScheme))
-	utilruntime.Must(monitoringv1.AddToScheme(testScheme))
 	utilruntime.Must(infrav1.AddToScheme(testScheme))
 	// +kubebuilder:scaffold:scheme
 

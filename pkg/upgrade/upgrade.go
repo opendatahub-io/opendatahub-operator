@@ -520,9 +520,9 @@ func GetDeployedRelease(ctx context.Context, cli client.Client) (common.Release,
 
 func cleanupNimIntegration(ctx context.Context, cli client.Client, oldRelease common.Release, applicationNS string) error {
 	var errs *multierror.Error
-	log := logf.FromContext(ctx)
 
 	if oldRelease.Version.Minor >= 14 && oldRelease.Version.Minor <= 16 {
+		log := logf.FromContext(ctx)
 		type objForDel struct {
 			obj        client.Object
 			name, desc string

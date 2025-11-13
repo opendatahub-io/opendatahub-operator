@@ -2,8 +2,10 @@ name: Run prometheus unit tests
 on:
   pull_request:
     paths:
-      - 'config/monitoring/prometheus/**'
-      - 'tests/prometheus_unit_tests/**'
+      - 'internal/controller/components/**/monitoring/*-prometheusrules.tmpl.yaml'
+      - 'internal/controller/components/**/monitoring/*-alerting.unit-tests.yaml'
+      - 'tests/prometheus_unit_tests/scripts/**'
+      - 'Makefile'
 jobs:
   build:
     runs-on: ubuntu-latest

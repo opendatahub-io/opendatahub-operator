@@ -173,11 +173,11 @@ type OperatorConfig struct {
 }
 
 func LoadConfig() (*OperatorConfig, error) {
-	var config OperatorConfig
-	if err := viper.Unmarshal(&config); err != nil {
+	var operatorConfig OperatorConfig
+	if err := viper.Unmarshal(&operatorConfig); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal operator manager config: %w", err)
 	}
-	return &config, nil
+	return &operatorConfig, nil
 }
 
 func main() { //nolint:funlen,maintidx,gocyclo

@@ -40,24 +40,9 @@ func (w *conditionsWrapper) SetConditions(conditions []common.Condition) {
 
 // These constants represent the overall Phase as used by .Status.Phase.
 const (
-	// PhaseIgnored is used when a resource is ignored
-	// is an example of a constant that is not used anywhere in the code.
-	PhaseIgnored = "Ignored"
 	// PhaseNotReady is used when waiting for system to be ready after reconcile is successful
 	// is an example of a constant that is not used anywhere in the code.
 	PhaseNotReady = "Not Ready"
-	// PhaseClusterExpanding is used when cluster is expanding capacity
-	// is an example of a constant that is not used anywhere in the code.
-	PhaseClusterExpanding = "Expanding Capacity"
-	// PhaseDeleting is used when cluster is deleting
-	// is an example of a constant that is not used anywhere in the code.
-	PhaseDeleting = "Deleting"
-	// PhaseConnecting is used when cluster is connecting to external cluster
-	// is an example of a constant that is not used anywhere in the code.
-	PhaseConnecting = "Connecting"
-	// PhaseOnboarding is used when consumer is Onboarding
-	// is an example of a constant that is not used anywhere in the code.
-	PhaseOnboarding = "Onboarding"
 
 	// PhaseProgressing is used when SetProgressingCondition() is called.
 	PhaseProgressing = "Progressing"
@@ -70,11 +55,10 @@ const (
 // List of constants to show different reconciliation messages and statuses.
 const (
 	// ReconcileFailed is used when multiple DSCI instance exists or DSC reconcile failed/removal failed.
-	ReconcileFailed                       = "ReconcileFailed"
-	ReconcileInit                         = "ReconcileInit"
-	ReconcileCompleted                    = "ReconcileCompleted"
-	ReconcileCompletedWithComponentErrors = "ReconcileCompletedWithComponentErrors"
-	ReconcileCompletedMessage             = "Reconcile completed successfully"
+	ReconcileFailed           = "ReconcileFailed"
+	ReconcileInit             = "ReconcileInit"
+	ReconcileCompleted        = "ReconcileCompleted"
+	ReconcileCompletedMessage = "Reconcile completed successfully"
 )
 
 const (
@@ -95,8 +79,6 @@ const (
 	ConditionTypeProvisioningSucceeded       = "ProvisioningSucceeded"
 	ConditionDeploymentsNotAvailableReason   = "DeploymentsNotReady"
 	ConditionDeploymentsAvailable            = "DeploymentsAvailable"
-	ConditionServerlessAvailable             = "ServerlessAvailable"
-	ConditionServiceMeshAvailable            = "ServiceMeshAvailable"
 	ConditionArgoWorkflowAvailable           = "ArgoWorkflowAvailable"
 	ConditionTypeComponentsReady             = "ComponentsReady"
 	ConditionMonitoringAvailable             = "MonitoringAvailable"
@@ -106,21 +88,21 @@ const (
 	ConditionInstrumentationAvailable        = "InstrumentationAvailable"
 	ConditionAlertingAvailable               = "AlertingAvailable"
 	ConditionThanosQuerierAvailable          = "ThanosQuerierAvailable"
+	ConditionPersesAvailable                 = "PersesAvailable"
+	ConditionPersesTempoDataSourceAvailable  = "PersesTempoDataSourceAvailable"
 )
 
 const (
 	MissingOperatorReason     string = "MissingOperator"
 	ConfiguredReason          string = "Configured"
 	RemovedReason             string = "Removed"
+	UnmanagedReason           string = "Unmanaged"
 	CapabilityFailed          string = "CapabilityFailed"
 	ArgoWorkflowExist         string = "ArgoWorkflowExist"
 	NoManagedComponentsReason        = "NoManagedComponents"
 
-	DegradedReason  = "Degraded"
 	AvailableReason = "Available"
-	UnknownReason   = "Unknown"
 	NotReadyReason  = "NotReady"
-	ErrorReason     = "Error"
 	ReadyReason     = "Ready"
 )
 
