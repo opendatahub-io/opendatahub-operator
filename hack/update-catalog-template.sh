@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-CATALOG_TEMPLATE=${1:-odh-config/catalog/fbc-basic-template.yaml}
+CATALOG_TEMPLATE=${1:-config/catalog/fbc-basic-template.yaml}
 BUNDLE_IMGS=${2:-}
 YQ=${3:-yq}
 
@@ -28,7 +28,7 @@ package_name="opendatahub-operator"
 function add_bundle() {
     local package_name=$1 img=$2 prev_version=$3
     local version bundle_name
-    
+
     version=$(echo "$img" | cut -d':' -f2)
     bundle_name="${package_name}.${version}"
 

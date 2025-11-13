@@ -32,8 +32,7 @@ COPY pkg/ pkg/
 # tests is needed because we have references to tests packages outside of tests
 COPY tests/ tests/
 COPY PROJECT PROJECT
-COPY odh-config/ odh-config/
-COPY rhoai-config/ rhoai-config/
+COPY config/ config/
 COPY Dockerfiles/ Dockerfiles/
 
 RUN VERSION=$OPERATOR_VERSION make bundle

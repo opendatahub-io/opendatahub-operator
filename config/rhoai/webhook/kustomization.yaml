@@ -1,0 +1,10 @@
+resources:
+- ../../webhook
+
+namePrefix: rhods-operator-
+
+patches:
+- path: service.yaml
+  target:
+    kind: Service
+    name: webhook-service

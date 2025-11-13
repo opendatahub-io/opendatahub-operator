@@ -57,7 +57,7 @@ func createEnvTest(s *runtime.Scheme) (*envtest.Environment, error) {
 		CRDInstallOptions: envtest.CRDInstallOptions{
 			Scheme: s,
 			Paths: []string{
-				filepath.Join(projectDir, "odh-config", "crd", "bases"),
+				filepath.Join(projectDir, "config", "crd", "bases"),
 			},
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,

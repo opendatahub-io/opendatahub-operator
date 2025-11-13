@@ -96,8 +96,8 @@ var _ = BeforeSuite(func() {
 		CRDInstallOptions: envtest.CRDInstallOptions{
 			Scheme: testScheme,
 			Paths: []string{
-				filepath.Join(rootPath, "odh-config", "crd", "bases"),
-				filepath.Join(rootPath, "odh-config", "crd", "external"),
+				filepath.Join(rootPath, "config", "crd", "bases"),
+				filepath.Join(rootPath, "config", "crd", "external"),
 			},
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,

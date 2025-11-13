@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - 'bundle/**'
-      - 'odh-config/**'
+      - 'config/**'
       - 'Dockerfiles/**'
       - 'internal/**'
       - 'pkg/**'
