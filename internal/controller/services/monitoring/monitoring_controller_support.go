@@ -205,9 +205,13 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	switch traces.Storage.Backend {
 	case "pv":
 		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempomonolithic.%s.svc.cluster.local:4317", namespace)
+		// Perses datasource needs HTTP query endpoint (port 3200)
+		templateData["TempoQueryEndpoint"] = fmt.Sprintf("http://tempo-data-science-tempomonolithic.%s.svc.cluster.local:3200", namespace)
 		templateData["Size"] = traces.Storage.Size
 	case "s3", "gcs":
 		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempostack-gateway.%s.svc.cluster.local:4317", namespace)
+		// Perses datasource needs HTTP query endpoint via gateway (port 8080)
+		templateData["TempoQueryEndpoint"] = fmt.Sprintf("http://tempo-data-science-tempostack-gateway.%s.svc.cluster.local:8080", namespace)
 		templateData["Secret"] = traces.Storage.Secret
 	}
 

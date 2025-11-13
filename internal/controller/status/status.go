@@ -107,6 +107,7 @@ const (
 	ConditionAlertingAvailable               = "AlertingAvailable"
 	ConditionThanosQuerierAvailable          = "ThanosQuerierAvailable"
 	ConditionPersesAvailable                 = "PersesAvailable"
+	ConditionPersesTempoDataSourceAvailable  = "PersesTempoDataSourceAvailable"
 )
 
 const (

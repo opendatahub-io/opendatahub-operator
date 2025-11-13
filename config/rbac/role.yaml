@@ -945,6 +945,8 @@ rules:
   - perses.dev
   resources:
   - perses
+  - persesdashboards
+  - persesdatasources
   verbs:
   - create
   - delete
@@ -957,12 +959,16 @@ rules:
   - perses.dev
   resources:
   - perses/finalizers
+  - persesdashboards/finalizers
+  - persesdatasources/finalizers
   verbs:
   - update
 - apiGroups:
   - perses.dev
   resources:
   - perses/status
+  - persesdashboards/status
+  - persesdatasources/status
   verbs:
   - get
   - patch
