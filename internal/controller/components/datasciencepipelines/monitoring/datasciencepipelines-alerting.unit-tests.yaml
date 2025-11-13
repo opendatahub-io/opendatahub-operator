@@ -1,5 +1,5 @@
 rule_files:
-  - data-science-pipelines-operator-alerting.rules.yaml
+  - datasciencepipelines-alerting.rules.yaml
 
 evaluation_interval: 1m
 
@@ -39,8 +39,7 @@ tests:
               severity: info
             exp_annotations:
               summary: "Data Science Pipelines Application Route Error Burn Rate"
-              message: "High error budget burn for  (current value: 3)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
+              message: "High error budget burn for  (current value: 3 )."
 
   - interval: 1m
     input_series:
@@ -58,8 +57,7 @@ tests:
               severity: info
             exp_annotations:
               summary: "Data Science Pipelines Application Route Error Burn Rate"
-              message: "High error budget burn for  (current value: 16)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
+              message: "High error budget burn for  (current value: 16 )."
 
   - interval: 1m
     input_series:
@@ -77,8 +75,7 @@ tests:
               severity: info
             exp_annotations:
               summary: "Data Science Pipelines Application Route Error Burn Rate"
-              message: "High error budget burn for  (current value: 61)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
+              message: "High error budget burn for  (current value: 61 )."
 
   - interval: 1m
     input_series:
@@ -96,8 +93,7 @@ tests:
               severity: info
             exp_annotations:
               summary: "Data Science Pipelines Application Route Error Burn Rate"
-              message: "High error budget burn for  (current value: 181)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-error-burn-rate.md'
+              message: "High error budget burn for  (current value: 181 )."
 
   # Probe success
   - interval: 1m
@@ -137,8 +133,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: "Data Science Pipelines Operator Probe Success Burn Rate"
-              message: "High error budget burn for data-science-pipelines-operator (current value: 3)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md'
+              message: "High error budget burn for data-science-pipelines-operator (current value: 3 )."
 
   - interval: 1m
     input_series:
@@ -157,8 +152,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: "Data Science Pipelines Operator Probe Success Burn Rate"
-              message: "High error budget burn for data-science-pipelines-operator (current value: 16)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md'
+              message: "High error budget burn for data-science-pipelines-operator (current value: 16 )."
 
   - interval: 1m
     input_series:
@@ -177,8 +171,7 @@ tests:
               severity: warning
             exp_annotations:
               summary: "Data Science Pipelines Operator Probe Success Burn Rate"
-              message: "High error budget burn for data-science-pipelines-operator (current value: 61)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-operator-probe-success-burn-rate.md'
+              message: "High error budget burn for data-science-pipelines-operator (current value: 61 )."
 
   # application unavailable
   - interval: 1m
@@ -203,7 +196,6 @@ tests:
               severity: info
             exp_annotations:
               message: "Data Science Pipelines Application is down!"
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-component-readiness-status.md'
               summary: The Data Science Pipelines Application CustomResource "dspa_instance_1" in namespace "dspa_namespace_a" has been NotReady for more than 5 minutes
       - eval_time: 2m
         alertname: Data Science Pipeline APIServer Unavailable
@@ -216,7 +208,6 @@ tests:
               severity: info
             exp_annotations:
               message: "Data Science Pipelines APIServer component is down!"
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-component-readiness-status.md'
               summary: A Data Science Pipelines APIServer pod owned by DSPA "dspa_instance_1" in namespace "dspa_namespace_a" has been NotReady for more than 5 minutes
       - eval_time: 2m
         alertname: Data Science Pipeline PersistenceAgent Unavailable
@@ -229,7 +220,6 @@ tests:
               severity: info
             exp_annotations:
               message: "Data Science Pipelines PersistenceAgent component is down!"
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-component-readiness-status.md'
               summary: A Data Science Pipelines PersistenceAgent pod owned by DSPA "dspa_instance_1" in namespace "dspa_namespace_a" has been NotReady for more than 5 minutes
       - eval_time: 2m
         alertname: Data Science Pipeline ScheduledWorkflows Unavailable
@@ -242,5 +232,4 @@ tests:
               severity: info
             exp_annotations:
               message: "Data Science Pipelines ScheduledWorkflows component is down!"
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Data-Science-Pipelines/data-science-pipelines-application-component-readiness-status.md'
               summary: A Data Science Pipelines ScheduledWorkflow controller pod owned by DSPA "dspa_instance_1" in namespace "dspa_namespace_a" has been NotReady for more than 5 minutes
