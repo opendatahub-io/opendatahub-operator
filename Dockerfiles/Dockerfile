@@ -21,9 +21,6 @@ RUN if [ "${USE_LOCAL}" != "true" ]; then \
 RUN rm -rf /opt/manifests/*/e2e /opt/manifests/*/scorecard /opt/manifests/*/test /opt/manifests/*/samples /opt/manifests/*/example-* \
     && find /opt/manifests -name "README.md" -delete
 
-# Copy monitoring config removing any possibly pre-existing symlinks
-RUN rm -f /opt/manifests/monitoring
-COPY odh-config/monitoring/ /opt/manifests/monitoring
 # Copy ods-configs removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/osd-configs
 COPY odh-config/osd-configs/ /opt/manifests/osd-configs
