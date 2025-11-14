@@ -45,7 +45,7 @@ jobs:
           # tag based on shortened commit SHA
           COMMIT_SHA=$(echo ${{ github.sha }} | cut -c1-8)
           BRANCH_NAME=$(echo ${{ steps.branch-name.outputs.current_branch }})
-          BRANCH_NAME=${BRANCH_NAME:#rhoai-}
+          BRANCH_NAME=${BRANCH_NAME//rhoai-/}
           echo "E2E_IMAGE_TAG="${BRANCH_NAME} >> $GITHUB_OUTPUT
           echo "E2E_IMAGE_TAG_COMMIT=${BRANCH_NAME}-${COMMIT_SHA}" >> $GITHUB_OUTPUT
 
