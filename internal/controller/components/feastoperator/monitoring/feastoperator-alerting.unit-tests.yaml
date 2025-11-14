@@ -1,5 +1,5 @@
 rule_files:
-  - feast-operator-alerting.rules.yaml
+  - feastoperator-alerting.rules.yaml
 
 evaluation_interval: 1m
 
@@ -39,8 +39,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: "Feast Operator Probe Success Burn Rate"
-              message: "High error budget burn for feast-operator-controller-manager (current value: 3)."
-              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Feature-Store/rhoai-feast-operator-probe-success-burn-rate.md"
+              message: "High error budget burn for feast-operator-controller-manager (current value: 3 )."
 
   - interval: 1m
     input_series:
@@ -58,8 +57,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: "Feast Operator Probe Success Burn Rate"
-              message: "High error budget burn for feast-operator-controller-manager (current value: 16)."
-              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Feature-Store/rhoai-feast-operator-probe-success-burn-rate.md"
+              message: "High error budget burn for feast-operator-controller-manager (current value: 16 )."
 
   - interval: 1m
     input_series:
@@ -77,5 +75,4 @@ tests:
               severity: warning
             exp_annotations:
               summary: "Feast Operator Probe Success Burn Rate"
-              message: "High error budget burn for feast-operator-controller-manager (current value: 61)."
-              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Feature-Store/rhoai-feast-operator-probe-success-burn-rate.md"
+              message: "High error budget burn for feast-operator-controller-manager (current value: 61 )."

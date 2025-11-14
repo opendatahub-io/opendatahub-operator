@@ -1,5 +1,5 @@
 rule_files:
-  - llama-stack-k8s-operator-alerting.rules.yaml
+  - llamastackoperator-alerting.rules.yaml
 
 evaluation_interval: 1m
 
@@ -39,8 +39,7 @@ tests:
               severity: warning
             exp_annotations:
               summary: "Llama Stack K8s Operator Probe Success Burn Rate"
-              message: "High error budget burn for llama-stack-k8s-operator-controller-manager (current value: 3)."
-              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Llama-Stack/rhoai-llama-stack-k8s-operator-probe-success-burn-rate.md"
+              message: "High error budget burn for llama-stack-k8s-operator-controller-manager (current value: 3 )."
 
   - interval: 1m
     input_series:
@@ -58,8 +57,7 @@ tests:
               severity: warning
             exp_annotations:
               summary: "Llama Stack K8s Operator Probe Success Burn Rate"
-              message: "High error budget burn for llama-stack-k8s-operator-controller-manager (current value: 16)."
-              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Llama-Stack/rhoai-llama-stack-k8s-operator-probe-success-burn-rate.md"
+              message: "High error budget burn for llama-stack-k8s-operator-controller-manager (current value: 16 )."
   - interval: 1m
     input_series:
       - series: probe_success:burnrate2h{instance="llama-stack-k8s-operator-controller-manager"}
@@ -76,5 +74,4 @@ tests:
               severity: warning
             exp_annotations:
               summary: "Llama Stack K8s Operator Probe Success Burn Rate"
-              message: "High error budget burn for llama-stack-k8s-operator-controller-manager (current value: 61)."
-              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Llama-Stack/rhoai-llama-stack-k8s-operator-probe-success-burn-rate.md"
+              message: "High error budget burn for llama-stack-k8s-operator-controller-manager (current value: 61 )."

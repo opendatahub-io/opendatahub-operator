@@ -26,7 +26,6 @@ tests:
             exp_annotations:
               description: This alert fires when the Kueue Operator is not running.
               summary: Alerting for Kueue Operator
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/kueue-operator-availability.md'
 
   - interval: 1m
     input_series:
@@ -43,4 +42,3 @@ tests:
             exp_annotations:
               description: This alert fires when the Kueue Operator is not running.
               summary: Alerting for Kueue Operator
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Distributed-Workloads/kueue-operator-availability.md'

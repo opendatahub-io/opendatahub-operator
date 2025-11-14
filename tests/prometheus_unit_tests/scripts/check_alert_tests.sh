@@ -1,23 +1,24 @@
 #!/bin/bash
 
-PROMETHEUS_CONFIG_YAML=$1
-UNIT_TEST_DIR=$2
-ALERT_SEVERITY=$3
+PROMETHEUS_RULES_DIR=$1
+ALERT_SEVERITY=$2
 
-# Collect all alerts from the configuration file
+# Collect all alerts from the PrometheusRule template files
 while IFS= read -r ALERT; do
   ALL_ALERTS+=("$ALERT")
-done < <(yq -N e '.data[]
-  | from_yaml
-  | .groups[].rules[]
-  | select(.alert != "DeadManSnitch" and .labels.severity == "'${ALERT_SEVERITY}'")
-  | .alert' "${PROMETHEUS_CONFIG_YAML}")
+done < <(
+  find "${PROMETHEUS_RULES_DIR}" -name "*-prometheusrules.tmpl.yaml" -type f | while read -r rule_file; do
+    yq -N e '.spec.groups[].rules[]
+      | select(.alert != null and .labels.severity == "'${ALERT_SEVERITY}'")
+      | .alert' "${rule_file}"
+  done
+)
 
 # Collect all alerts from the unit test files
 while IFS= read -r ALERT; do
   PROMETHEUS_UNIT_TEST_CHECK+=("$ALERT")
 done < <(
-  for alert in "$UNIT_TEST_DIR"/*.yaml; do
+  find "${PROMETHEUS_RULES_DIR}" -name "*-alerting.unit-tests.yaml" -type f | while read -r alert; do
     yq -N eval-all '.tests[]
     | .alert_rule_test[]
     | .exp_alerts[]
