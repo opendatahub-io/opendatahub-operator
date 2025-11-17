@@ -84,3 +84,135 @@ spec:
           labels:
             instance: kserve-controller-manager
           record: probe_success:burnrate6h
+
+      - name: kserve-maas.rules
+        rules:
+          # 1) Recording rule: per-model QPS over 5 minutes
+          - record: kserve:maas_request_qps:rate5m
+            expr: |
+              sum by (namespace, service, model) (
+                rate(request_predict_seconds_count[5m])
+              )
+
+          # 2) Recording rule: authorized calls rate over 5 minutes
+          - record: kserve:maas_authorized_calls:rate5m
+            expr: |
+              sum by (namespace, service, model) (
+                rate(authorized_calls[5m])
+              )
+
+          # 3) Recording rule: authorized hits rate over 5 minutes
+          - record: kserve:maas_authorized_hits:rate5m
+            expr: |
+              sum by (namespace, service, model) (
+                rate(authorized_hits[5m])
+              )
+
+          # 4) Recording rule: limited calls rate over 5 minutes
+          - record: kserve:maas_limited_calls:rate5m
+            expr: |
+              sum by (namespace, service, model) (
+                rate(limited_calls[5m])
+              )
+
+          # 5) Recording rule: quota limit hit ratio (limited_calls / authorized_calls)
+          - record: kserve:maas_quota_limit_hit_ratio:rate5m
+            expr: |
+              (
+                sum by (namespace, service, model) (
+                  rate(limited_calls[5m])
+                )
+                /
+                sum by (namespace, service, model) (
+                  rate(authorized_calls[5m])
+                )
+              )
+
+          # 6) Alert: high prediction latency (p95 > 2s for 5m)
+          - alert: KServeMaaSHighLatencyP95
+            expr: |
+              histogram_quantile(
+                0.95,
+                sum by (le, namespace, service, model) (
+                  rate(request_predict_seconds_bucket[5m])
+                )
+              ) > 2
+            for: 5m
+            labels:
+              severity: warning
+              component: kserve
+              subsystem: maas
+            annotations:
+              message: '95th percentile prediction latency for model {{`{{`}}$labels.model{{`}}`}} in namespace {{`{{`}}$labels.namespace{{`}}`}} is above 2 seconds for at least 5 minutes.'
+              summary: "KServe/MaaS high prediction latency (p95 > 2s)"
+
+          # 7) Alert: high non-success response ratio (>5% for 10m)
+          - alert: KServeMaaSHighErrorRate
+            expr: |
+              (
+                sum by (namespace, service, model) (
+                  rate(request_predict_seconds_count{response_code!~"2..|3.."}[10m])
+                )
+                /
+                sum by (namespace, service, model) (
+                  rate(request_predict_seconds_count[10m])
+                )
+              ) > 0.05
+            for: 10m
+            labels:
+              severity: warning
+              component: kserve
+              subsystem: maas
+            annotations:
+              message: 'Error rate for model {{`{{`}}$labels.model{{`}}`}} in namespace {{`{{`}}$labels.namespace{{`}}`}} is above 5% over the last 10 minutes.'
+              summary: "KServe/MaaS high error rate (>5%)"
+
+          # 8) Alert: high quota limit hit rate (>10% for 10m)
+          - alert: KServeMaaSHighQuotaLimitHitRate
+            expr: |
+              (
+                sum by (namespace, service, model) (
+                  rate(limited_calls[10m])
+                )
+                /
+                sum by (namespace, service, model) (
+                  rate(authorized_calls[10m])
+                )
+              ) > 0.10
+              and
+              sum by (namespace, service, model) (
+                rate(authorized_calls[10m])
+              ) > 0
+            for: 10m
+            labels:
+              severity: warning
+              component: kserve
+              subsystem: maas
+            annotations:
+              message: 'Quota limit hit rate for model {{`{{`}}$labels.model{{`}}`}} in namespace {{`{{`}}$labels.namespace{{`}}`}} is above 10% over the last 10 minutes. This indicates requests are being rate-limited frequently.'
+              summary: "KServe/MaaS high quota limit hit rate (>10%)"
+
+          # 9) Alert: sustained quota limit hits (>50% for 30m)
+          - alert: KServeMaaSSustainedQuotaLimitHits
+            expr: |
+              (
+                sum by (namespace, service, model) (
+                  rate(limited_calls[30m])
+                )
+                /
+                sum by (namespace, service, model) (
+                  rate(authorized_calls[30m])
+                )
+              ) > 0.50
+              and
+              sum by (namespace, service, model) (
+                rate(authorized_calls[30m])
+              ) > 0
+            for: 30m
+            labels:
+              severity: critical
+              component: kserve
+              subsystem: maas
+            annotations:
+              message: 'Quota limit hit rate for model {{`{{`}}$labels.model{{`}}`}} in namespace {{`{{`}}$labels.namespace{{`}}`}} is above 50% over the last 30 minutes. This indicates severe rate limiting that may require quota adjustment.'
+              summary: "KServe/MaaS sustained quota limit hits (>50%)"
