@@ -77,3 +77,65 @@ tests:
             exp_annotations:
               message: "High error budget burn for kserve-controller-manager (current value: 61 )."
               summary: Kserve Controller Probe Success Burn Rate
+
+  # MaaS quota limit hit rate tests
+  # Test 1: Should NOT fire (5% hit rate < 10% threshold)
+  - interval: 1m
+    input_series:
+      - series: authorized_calls{namespace="test-ns",service="test-svc",model="test-model"}
+        values: "0+100x12"
+      - series: limited_calls{namespace="test-ns",service="test-svc",model="test-model"}
+        values: "0+5x12"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: KServeMaaSHighQuotaLimitHitRate
+        exp_alerts: []
+
+  # Test 2: Should fire (15% hit rate > 10% threshold)
+  # Need data spanning at least 10m + for duration (10m) = 20m total
+  - interval: 1m
+    input_series:
+      - series: authorized_calls{namespace="test-ns",service="test-svc",model="test-model"}
+        values: "0+100x25"
+      - series: limited_calls{namespace="test-ns",service="test-svc",model="test-model"}
+        values: "0+15x25"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: KServeMaaSHighQuotaLimitHitRate
+        exp_alerts:
+          - exp_labels:
+              alertname: KServeMaaSHighQuotaLimitHitRate
+              namespace: "test-ns"
+              service: "test-svc"
+              model: "test-model"
+              severity: warning
+              component: kserve
+              subsystem: maas
+            exp_annotations:
+              message: "Quota limit hit rate for model test-model in namespace test-ns is above 10% over the last 10 minutes. This indicates requests are being rate-limited frequently."
+              summary: "KServe/MaaS high quota limit hit rate (>10%)"
+
+  # MaaS sustained quota limit hits test
+  # Should fire (60% hit rate > 50% threshold)
+  # Need data spanning at least 30m + for duration (30m) = 60m total
+  - interval: 1m
+    input_series:
+      - series: authorized_calls{namespace="test-ns",service="test-svc",model="test-model"}
+        values: "0+100x65"
+      - series: limited_calls{namespace="test-ns",service="test-svc",model="test-model"}
+        values: "0+60x65"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: KServeMaaSSustainedQuotaLimitHits
+        exp_alerts:
+          - exp_labels:
+              alertname: KServeMaaSSustainedQuotaLimitHits
+              namespace: "test-ns"
+              service: "test-svc"
+              model: "test-model"
+              severity: critical
+              component: kserve
+              subsystem: maas
+            exp_annotations:
+              message: "Quota limit hit rate for model test-model in namespace test-ns is above 50% over the last 30 minutes. This indicates severe rate limiting that may require quota adjustment."
+              summary: "KServe/MaaS sustained quota limit hits (>50%)"
