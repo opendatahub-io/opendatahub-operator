@@ -45,4 +45,4 @@ COPY --from=builder /opt/app-root/src/test2json /usr/local/bin/
 
 RUN chmod +x ./e2e-tests
 
-ENTRYPOINT ["gotestsum --raw-command --junitfile results.xml -- go tool test2json -t ./e2e-tests -test.v"]
+ENTRYPOINT ["./e2e-tests"]
