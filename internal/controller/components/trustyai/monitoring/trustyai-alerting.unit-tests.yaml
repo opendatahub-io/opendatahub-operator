@@ -39,8 +39,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: "TrustyAI Controller Probe Success Burn Rate"
-              message: "High error budget burn for trustyai-service-operator-controller-manager (current value: 3)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-trustyai-controller-probe-success-burn-rate.md'
+              message: "High error budget burn for trustyai-service-operator-controller-manager (current value: 3 )."
 
   - interval: 1m
     input_series:
@@ -58,8 +57,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: "TrustyAI Controller Probe Success Burn Rate"
-              message: "High error budget burn for trustyai-service-operator-controller-manager (current value: 16)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-trustyai-controller-probe-success-burn-rate.md'
+              message: "High error budget burn for trustyai-service-operator-controller-manager (current value: 16 )."
 
   - interval: 1m
     input_series:
@@ -77,5 +75,4 @@ tests:
               severity: warning
             exp_annotations:
               summary: "TrustyAI Controller Probe Success Burn Rate"
-              message: "High error budget burn for trustyai-service-operator-controller-manager (current value: 61)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhoai-trustyai-controller-probe-success-burn-rate.md'
+              message: "High error budget burn for trustyai-service-operator-controller-manager (current value: 61 )."

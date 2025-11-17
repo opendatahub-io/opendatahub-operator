@@ -29,12 +29,19 @@ jobs:
             const script = require('./.github/scripts/update-manifests-commit-sha.js')
             await script({github, core})
 
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
+          private_key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
+
       - name: Create Pull Request
         if: steps.update-shas.outputs.updates-needed == 'true'
         uses: peter-evans/create-pull-request@v7
         id: create-pr
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.generate-token.outputs.token }}
           commit-message: "chore: update manifest commit SHAs"
           title: "chore: update manifest commit SHAs"
           body: |

@@ -64,6 +64,7 @@ coverage.html
 coverage.out
 overall_coverage.out
 config/manager/kustomization.yaml
+config/rhoai/manager/kustomization.yaml
 
 # Ignore any local.mk files that would be consumed by the Makefile
 local.mk
@@ -72,7 +73,7 @@ local.mk
 *.mktmp.*
 
 # Ignore catalog related files
-catalog/
+/catalog/
 
 # Ignore backup files
 *.backup
@@ -81,4 +82,9 @@ config/crd/bases
 config/crd/external
 config/rbac/role.yaml
 config/webhook/manifests.yaml
-bundle/
+config/rhoai/crd/bases
+config/rhoai/crd/external
+config/rhoai/rbac/role.yaml
+config/rhoai/webhook/manifests.yaml
+rhoai-bundle/
+odh-bundle/

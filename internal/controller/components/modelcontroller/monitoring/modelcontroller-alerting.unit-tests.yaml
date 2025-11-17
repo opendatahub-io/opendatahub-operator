@@ -1,5 +1,5 @@
 rule_files:
-  - odh-model-controller-alerting.rules.yaml
+  - modelcontroller-alerting.rules.yaml
 
 evaluation_interval: 1m
 
@@ -40,8 +40,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: "ODH Model Controller Probe Success Burn Rate"
-              message: "High error budget burn for odh-model-controller (current value: 3)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-odh-controller-probe-success-burn-rate.md'
+              message: "High error budget burn for odh-model-controller (current value: 3 )."
 
   - interval: 1m
     input_series:
@@ -60,8 +59,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: "ODH Model Controller Probe Success Burn Rate"
-              message: "High error budget burn for odh-model-controller (current value: 16)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-odh-controller-probe-success-burn-rate.md'
+              message: "High error budget burn for odh-model-controller (current value: 16 )."
 
   - interval: 1m
     input_series:
@@ -80,5 +78,4 @@ tests:
               severity: warning
             exp_annotations:
               summary: "ODH Model Controller Probe Success Burn Rate"
-              message: "High error budget burn for odh-model-controller (current value: 61)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-odh-controller-probe-success-burn-rate.md'
+              message: "High error budget burn for odh-model-controller (current value: 61 )."

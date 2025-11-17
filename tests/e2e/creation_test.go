@@ -131,7 +131,7 @@ func (tc *DSCTestCtx) ValidateDSCCreation(t *testing.T) {
 	t.Helper()
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name)),
+		WithObjectToCreate(CreateDSC(tc.DataScienceClusterNamespacedName.Name, tc.WorkbenchesNamespace)),
 		WithCondition(jq.Match(`.status.phase == "%s"`, status.ConditionTypeReady)),
 		WithCustomErrorMsg("Failed to create DataScienceCluster resource %s", tc.DataScienceClusterNamespacedName.Name),
 
@@ -187,10 +187,10 @@ func (tc *DSCTestCtx) ValidateDSCIDuplication(t *testing.T) {
 func (tc *DSCTestCtx) ValidateDSCDuplication(t *testing.T) {
 	t.Helper()
 
-	dsc := CreateDSC(dscInstanceNameDuplicate)
+	dsc := CreateDSC(dscInstanceNameDuplicate, tc.WorkbenchesNamespace)
 	tc.EnsureResourceIsUnique(dsc, "Error validating DataScienceCluster duplication")
 
-	dsv1 := CreateDSCv1(dscInstanceNameDuplicate)
+	dsv1 := CreateDSCv1(dscInstanceNameDuplicate, tc.WorkbenchesNamespace)
 	tc.EnsureResourceIsUnique(dsv1, "Error validating DataScienceCluster duplication v1")
 }
 

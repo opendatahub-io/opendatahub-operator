@@ -36,3 +36,4 @@ COPY config/ config/
 COPY Dockerfiles/ Dockerfiles/
 
 RUN VERSION=$OPERATOR_VERSION make bundle
+RUN VERSION=$OPERATOR_VERSION make bundle ODH_PLATFORM_TYPE=rhoai

@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	gTypes "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
@@ -136,6 +135,22 @@ func (tc *ComponentTestCtx) ValidateOperandsOwnerReferences(t *testing.T) {
 	)
 }
 
+func (tc *ComponentTestCtx) ValidateS3SecretCheckBucketExist(t *testing.T) {
+	t.Helper()
+
+	// Ensure the component is actually enabled before checking for the VAP
+	// This handles cases where the component might have been temporarily disabled
+	// by other test suites (e.g., ModelController, TrustyAI) and needs time to reconcile
+	tc.ValidateComponentEnabled(t)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ValidatingAdmissionPolicy, types.NamespacedName{Name: "connectionapi-check-s3-bucket"}),
+	)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ValidatingAdmissionPolicyBinding, types.NamespacedName{Name: "connectionapi-check-s3-bucket-binding"}),
+	)
+}
+
 // ValidateUpdateDeploymentsResources verifies the update of deployment replicas for the component.
 func (tc *ComponentTestCtx) ValidateUpdateDeploymentsResources(t *testing.T) {
 	t.Helper()
@@ -251,50 +266,8 @@ func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceCluster(state opera
 
 // UpdateComponentStateInDataScienceClusterWithKind updates the management state of a specified component kind in the DataScienceCluster.
 func (tc *ComponentTestCtx) UpdateComponentStateInDataScienceClusterWithKind(state operatorv1.ManagementState, kind string) {
-	componentName := strings.ToLower(kind)
-
-	// Map DataSciencePipelines to aipipelines for v2 API
-	componentFieldName := componentName
-	conditionKind := kind
-	if kind == dataSciencePipelinesKind {
-		componentFieldName = aiPipelinesFieldName
-		conditionKind = "AIPipelines"
-	}
-
-	readyCondition := metav1.ConditionFalse
-	if state == operatorv1.Managed {
-		readyCondition = metav1.ConditionTrue
-	}
-
-	// Define common conditions to match.
-	conditions := []gTypes.GomegaMatcher{
-		// Validate that the component's management state is updated correctly
-		jq.Match(`.spec.components.%s.managementState == "%s"`, componentFieldName, state),
-
-		// Validate the "Ready" condition for the component
-		jq.Match(`.status.conditions[] | select(.type == "%sReady") | .status == "%s"`, conditionKind, readyCondition),
-	}
-
-	// TODO: Commented out because this check does not work with parallel component tests.
-	// Verify it is still needed, otherwise remove it. A new test only for those conditions is added in resilience tests.
-	//
-	// If the state is "Managed", add additional checks for provisioning and components readiness.
-	// if state == operatorv1.Managed {
-	// 	conditions = append(conditions,
-	// 		// Validate the "ProvisioningSucceeded" condition
-	// 		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeProvisioningSucceeded, readyCondition),
-
-	// 		// Validate the "ComponentsReady" condition
-	// 		jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeComponentsReady, readyCondition),
-	// 	)
-	// }
-
-	// Update the management state of the component in the DataScienceCluster.
-	tc.EventuallyResourcePatched(
-		WithMinimalObject(gvk.DataScienceCluster, tc.DataScienceClusterNamespacedName),
-		WithMutateFunc(testf.Transform(`.spec.components.%s.managementState = "%s"`, componentFieldName, state)),
-		WithCondition(And(conditions...)),
-	)
+	// Delegate to the base TestContext method
+	tc.TestContext.UpdateComponentStateInDataScienceClusterWithKind(state, kind)
 }
 
 // ValidateCRDRemoval ensures that the CRD is properly removed when the component is disabled.

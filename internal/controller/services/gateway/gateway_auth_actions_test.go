@@ -26,6 +26,9 @@ func getEnvoyFilterLuaCode(t *testing.T) string {
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client: setupTestClient(),
+		Instance: &serviceApi.GatewayConfig{
+			Spec: serviceApi.GatewayConfigSpec{},
+		},
 	}
 
 	err := createEnvoyFilter(ctx, rr)
@@ -213,6 +216,9 @@ func TestCreateEnvoyFilter(t *testing.T) {
 
 	rr := &odhtypes.ReconciliationRequest{
 		Client: setupTestClient(),
+		Instance: &serviceApi.GatewayConfig{
+			Spec: serviceApi.GatewayConfigSpec{},
+		},
 	}
 
 	err := createEnvoyFilter(ctx, rr)

@@ -1,11 +1,3 @@
-# VERSION defines the project version for the bundle.
-# Update this value when you upgrade the version of your project.
-# To re-generate a bundle for another specific version without changing the standard setup, you can:
-# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
-# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-ifeq ($(VERSION), )
-	VERSION = 3.2.0
-endif
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
@@ -25,22 +17,89 @@ ifeq ($(IMG), )
 endif
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-ifeq ($(BUNDLE_IMG), )
-	BUNDLE_IMG = $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
+BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
+
+# default platform type
+ODH_PLATFORM_TYPE ?= OpenDataHub
+
+ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
+	# VERSION defines the project version for the bundle.
+	# Update this value when you upgrade the version of your project.
+	# To re-generate a bundle for another specific version without changing the standard setup, you can:
+	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
+	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
+	ifeq ($(VERSION), )
+		VERSION = 3.2.0
+	endif
+	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
+	OPERATOR_NAMESPACE ?= opendatahub-operator-system
+	# Specifies the namespace where the component deployments are deployed (defaults to opendatahub)
+	APPLICATIONS_NAMESPACE ?= opendatahub
+	# Specifies the namespace where the workbenches are deployed (defaults to opendatahub)
+	WORKBENCHES_NAMESPACE ?= opendatahub
+	CHANNELS ?= fast
+	ROLE_NAME=controller-manager-role
+	BUNDLE_DIR ?= odh-bundle
+	DOCKERFILE_FILENAME=Dockerfile
+	BUNDLE_DOCKERFILE_FILENAME=bundle.Dockerfile
+	OPERATOR_PACKAGE=opendatahub-operator
+	CONTROLLER_GEN_TAGS=--load-build-tags=odh
+	CONFIG_DIR=config
+	GO_RUN_ARGS=-tags=odh
+else
+	# VERSION defines the project version for the bundle.
+	# Update this value when you upgrade the version of your project.
+	# To re-generate a bundle for another specific version without changing the standard setup, you can:
+	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
+	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
+	# NOTE: see also the git branches for RHOAI in get_all_manifests.sh. This variable does NOT affect those
+	ifeq ($(VERSION), )
+		VERSION = 3.2.0
+	endif
+	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
+	OPERATOR_NAMESPACE ?= opendatahub-operator-system
+	# Specifies the namespace where the component deployments are deployed (defaults to opendatahub)
+	APPLICATIONS_NAMESPACE ?= redhat-ods-applications
+	# Specifies the namespace where the workbenches are deployed (defaults to opendatahub)
+	WORKBENCHES_NAMESPACE ?= rhods-notebooks
+	CHANNELS ?= alpha,stable,fast
+	DEFAULT_CHANNEL ?= stable
+	ROLE_NAME=rhods-operator-role
+	BUNDLE_DIR ?= rhoai-bundle
+	DOCKERFILE_FILENAME=rhoai.Dockerfile
+	BUNDLE_DOCKERFILE_FILENAME=rhoai-bundle.Dockerfile
+	OPERATOR_PACKAGE=rhods-operator
+	CONTROLLER_GEN_TAGS=--load-build-tags=rhoai
+	CONFIG_DIR=config/rhoai
+	GO_RUN_ARGS=-tags=rhoai
 endif
 
 IMAGE_BUILDER ?= podman
-OPERATOR_NAMESPACE ?= opendatahub-operator-system
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
 CGO_ENABLED ?= 1
 USE_LOCAL = false
 
-# BUNDLE_CHANNELS defines the bundle channel used in the bundle
-BUNDLE_CHANNELS := --channels=fast
+# CHANNELS define the bundle channels used in the bundle.
+# Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
+# To re-generate a bundle for other specific channels without changing the standard setup, you can:
+# - use the CHANNELS as arg of the bundle target (e.g make bundle CHANNELS=candidate,fast,stable)
+# - use environment variables to overwrite this value (e.g export CHANNELS="candidate,fast,stable")
+ifneq ($(origin CHANNELS), undefined)
+BUNDLE_CHANNELS := --channels=$(CHANNELS)
+endif
 
+# DEFAULT_CHANNEL defines the default channel used in the bundle.
+# Add a new line here if you would like to change its default config. (E.g DEFAULT_CHANNEL = "stable")
+# To re-generate a bundle for any other default channel without changing the default setup, you can:
+# - use the DEFAULT_CHANNEL as arg of the bundle target (e.g make bundle DEFAULT_CHANNEL=stable)
+# - use environment variables to overwrite this value (e.g export DEFAULT_CHANNEL="stable")
+ifneq ($(origin DEFAULT_CHANNEL), undefined)
+BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
+endif
+
+BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
-BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_CHANNELS)
-
+BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
 # USE_IMAGE_DIGESTS defines if images are resolved via tags or digests
 # You can enable this value if you would like to use SHA Based Digests
 # To enable set flag to true
@@ -103,10 +162,9 @@ IMAGE_BUILD_FLAGS += --build-arg CGO_ENABLED=$(CGO_ENABLED)
 IMAGE_BUILD_FLAGS += --platform $(PLATFORM)
 
 # Prometheus-Unit Tests Parameters
-PROMETHEUS_CONFIG_YAML = ./config/monitoring/prometheus/apps/prometheus-configs.yaml
-PROMETHEUS_CONFIG_DIR = ./config/monitoring/prometheus/apps
-PROMETHEUS_TEST_DIR = ./tests/prometheus_unit_tests
-PROMETHEUS_ALERT_TESTS = $(wildcard $(PROMETHEUS_TEST_DIR)/*.unit-tests.yaml)
+PROMETHEUS_RULES_DIR = ./internal/controller/components
+PROMETHEUS_RULE_TEMPLATES = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-prometheusrules.tmpl.yaml" 2>/dev/null)
+PROMETHEUS_ALERT_TESTS = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-alerting.unit-tests.yaml" 2>/dev/null)
 
 ALERT_SEVERITY = critical
 
@@ -153,22 +211,36 @@ endef
 #          If not provided, fetches all CRDs from the path
 # Example: $(call fetch-external-crds,github.com/openshift/api,config/v1,authentication oauth)
 define fetch-external-crds
-mkdir -p config/crd/external/tmp
+mkdir -p $(CONFIG_DIR)/crd/external/tmp
 GOFLAGS="-mod=readonly" $(CONTROLLER_GEN) crd \
 paths=$(shell go env GOPATH)/pkg/mod/$(1)@$(call go-mod-version,$(1))/$(2)/... \
-output:crd:artifacts:config=config/crd/external/tmp
-$(if $(3),$(foreach kind,$(3),find config/crd/external/tmp -type f -name '*_$(kind).yaml' -exec mv {} config/crd/external/ \;;))
-$(if $(3),,mv config/crd/external/tmp/*.yaml config/crd/external/)
-rm -rf config/crd/external/tmp
+output:crd:artifacts:config=$(CONFIG_DIR)/crd/external/tmp
+$(if $(3),$(foreach kind,$(3),find $(CONFIG_DIR)/crd/external/tmp -type f -name '*_$(kind).yaml' -exec mv {} $(CONFIG_DIR)/crd/external/ \;;))
+$(if $(3),,mv $(CONFIG_DIR)/crd/external/tmp/*.yaml $(CONFIG_DIR)/crd/external/)
+rm -rf $(CONFIG_DIR)/crd/external/tmp
+endef
+
+# Add all CRD base files to kustomization.yaml, skipping kustomization.yaml itself
+# and avoiding duplicates by checking if each resource is already present
+define add-crd-to-kustomization
+mkdir -p $(CONFIG_DIR)/crd/bases && \
+cd $(CONFIG_DIR)/crd/bases && \
+rm -f kustomization.yaml && \
+$(KUSTOMIZE) create --autodetect && \
+cd -
 endef
 
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
-	$(call fetch-external-crds,github.com/openshift/api,route/v1)
-	$(call fetch-external-crds,github.com/openshift/api,user/v1)
-	$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
-CLEANFILES += config/crd/bases config/crd/external config/rbac/role.yaml config/webhook/manifests.yaml
+manifests: controller-gen kustomize ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+ifneq ($(ODH_PLATFORM_TYPE), OpenDataHub)
+	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role paths="./..." output:rbac:artifacts:config=config/rbac
+endif
+	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CONFIG_DIR)/crd/bases output:rbac:artifacts:config=$(CONFIG_DIR)/rbac output:webhook:artifacts:config=$(CONFIG_DIR)/webhook
+	@$(call add-crd-to-kustomization)
+	@$(call fetch-external-crds,github.com/openshift/api,route/v1)
+	@$(call fetch-external-crds,github.com/openshift/api,user/v1)
+	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
+CLEANFILES += config/crd/bases config/rhoai/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -198,13 +270,13 @@ lint-fix: golangci-lint ## Run golangci-lint against code.
 .PHONY: kube-lint
 kube-lint: prepare ## Run kube-linter against rendered manifests.
 	@TMP_FILE=$$(mktemp /tmp/kube-lint.XXXXXX.yaml) && \
-	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/manifests > $$TMP_FILE && \
+	$(KUSTOMIZE) build $(CONFIG_DIR)/manifests > $$TMP_FILE && \
 	go run golang.stackrox.io/kube-linter/cmd/kube-linter@$(KUBE_LINTER_VERSION) lint --config .kube-linter.yaml $$TMP_FILE && \
 	rm -f $$TMP_FILE
 
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
-	./get_all_manifests.sh
+	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) VERSION=$(VERSION) ./get_all_manifests.sh
 CLEANFILES += opt/manifests/*
 
 # Default to standard sed command
@@ -250,7 +322,7 @@ run-nowebhook: manifests generate fmt vet ## Run a controller from your host wit
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.
-	$(IMAGE_BUILDER) buildx build --no-cache -f Dockerfiles/Dockerfile ${IMAGE_BUILD_FLAGS} -t $(IMG) .
+	$(IMAGE_BUILDER) buildx build --no-cache -f Dockerfiles/$(DOCKERFILE_FILENAME) ${IMAGE_BUILD_FLAGS} -t $(IMG) .
 
 .PHONY: image-push
 image-push: ## Push image with the manager.
@@ -266,30 +338,30 @@ ifndef ignore-not-found
 endif
 
 .PHONY: prepare
-prepare: manifests kustomize manager-kustomization
+prepare: kustomize manifests manager-kustomization
 
 # phony target for the case of changing IMG variable
 .PHONY: manager-kustomization
-manager-kustomization: config/manager/kustomization.yaml.in
-	cd config/manager \
+manager-kustomization: $(CONFIG_DIR)/manager/kustomization.yaml.in
+	cd $(CONFIG_DIR)/manager \
 		&& cp -f kustomization.yaml.in kustomization.yaml \
-		&& $(KUSTOMIZE) edit set image controller=$(IMG)
+		&& $(KUSTOMIZE) edit set image REPLACE_IMAGE=$(IMG)
 
 .PHONY: install
 install: prepare ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/crd/bases | kubectl apply -f -
 
 .PHONY: uninstall
 uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/crd/bases | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
 undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
@@ -343,25 +415,24 @@ new-component: $(LOCALBIN)/component-codegen
 $(LOCALBIN)/component-codegen: | $(LOCALBIN)
 	cd ./cmd/component-codegen && go mod tidy && go build -o $@
 
-# TODO: change kustomize layout to remove --load-restrictor LoadRestrictionsNone option in each kustomize invocation in this makefile
-BUNDLE_DIR ?= "bundle"
 WARNINGMSG = "provided API should have an example annotation"
 .PHONY: bundle
 bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
-	$(OPERATOR_SDK) generate kustomize manifests -q
-	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) 2>&1 | grep -v $(WARNINGMSG)
+	$(OPERATOR_SDK) generate kustomize manifests --package $(OPERATOR_PACKAGE) --input-dir $(CONFIG_DIR)/manifests --output-dir $(CONFIG_DIR)/manifests -q
+	$(KUSTOMIZE) build $(CONFIG_DIR)/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) --package $(OPERATOR_PACKAGE) --kustomize-dir $(CONFIG_DIR)/manifests --output-dir $(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	$(SED_COMMAND) -i 's#COPY #COPY --from=builder /workspace/#' bundle.Dockerfile
-	cat Dockerfiles/build-bundle.Dockerfile bundle.Dockerfile > Dockerfiles/bundle.Dockerfile
+	cat Dockerfiles/build-bundle.Dockerfile bundle.Dockerfile > Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME)
 	rm bundle.Dockerfile
-	rm -f bundle/manifests/opendatahub-operator-webhook-service_v1_service.yaml
-CLEANFILES += $(BUNDLE_DIR)
+	rm -f $(BUNDLE_DIR)/manifests/opendatahub-operator-webhook-service_v1_service.yaml
+	rm -f $(BUNDLE_DIR)/manifests/rhods-operator-webhook-service_v1_service.yaml
+CLEANFILES += rhoai-bundle odh-bundle
 
 # The bundle image is multi-stage to preserve the ability to build without invoking make
 # We use build args to ensure the variables are passed to the underlying internal make invocation
 .PHONY: bundle-build
 bundle-build: bundle
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile --platform $(PLATFORM) -t $(BUNDLE_IMG) \
+	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME) --platform $(PLATFORM) -t $(BUNDLE_IMG) \
 	--build-arg BUNDLE_IMG=$(BUNDLE_IMG) \
 	--build-arg IMAGE_TAG_BASE=$(IMAGE_TAG_BASE) \
 	--build-arg IMG_TAG=$(IMG_TAG) \
@@ -463,8 +534,8 @@ test: unit-test e2e-test
 
 .PHONY: unit-test
 unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
-	@if [ ! -d "config/crd/bases" ]; then \
-		echo "Error: config/crd/bases folder does not exist. Please run 'make manifests' first."; \
+	@if [ ! -d "$(CONFIG_DIR)/crd/bases" ]; then \
+		echo "Error: $(CONFIG_DIR)/crd/bases folder does not exist. Please run 'make manifests' first."; \
 		exit 1; \
 	fi
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
@@ -494,26 +565,67 @@ test-coverage: ## Generate HTML coverage report
 	go tool cover -html=cover.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
-$(PROMETHEUS_TEST_DIR)/%.rules.yaml: $(PROMETHEUS_TEST_DIR)/%.unit-tests.yaml $(PROMETHEUS_CONFIG_YAML) $(YQ)
-	$(YQ) eval ".data.\"$(@F:.rules.yaml=.rules)\"" $(PROMETHEUS_CONFIG_YAML) > $@
+# Pattern rule to generate .rules.yaml from PrometheusRule templates
+# This finds the corresponding *-prometheusrules.tmpl.yaml in the same directory
+# and extracts the spec.groups section, replacing template variables
+# Note: We filter out recording rules (rules with 'record' field) to avoid conflicts with test input series
+%.rules.yaml: %.unit-tests.yaml $(YQ)
+	@RULE_FILE=$$(dirname $<)/$$(basename $< -alerting.unit-tests.yaml)-prometheusrules.tmpl.yaml; \
+	if [ ! -f "$$RULE_FILE" ]; then \
+		echo "Error: PrometheusRule template file not found: $$RULE_FILE"; \
+		exit 1; \
+	fi; \
+	echo "Generating $@ from $$RULE_FILE (alerts only, excluding recording rules)"; \
+	sed 's/{{\.Namespace}}/redhat-ods-monitoring/g; s/{{\.ApplicationNamespace}}/redhat-ods-applications/g; s/{{`{{`}}/{{/g; s/{{`}}`}}/}}/g' "$$RULE_FILE" | \
+		$(YQ) eval '.spec.groups' - | \
+		$(YQ) eval 'del(.[] | .rules[] | select(.alert == null))' - | \
+		$(YQ) eval '{"groups": .}' - > $@
 
 PROMETHEUS_ALERT_RULES := $(PROMETHEUS_ALERT_TESTS:.unit-tests.yaml=.rules.yaml)
 
+# Validate PrometheusRule syntax
+.PHONY: validate-prometheus-rules
+validate-prometheus-rules: $(YQ)
+	@echo "Validating PrometheusRule templates syntax..."
+	@for tmpl_file in $(PROMETHEUS_RULE_TEMPLATES); do \
+		echo "  Checking $$tmpl_file..."; \
+		sed 's/{{\.Namespace}}/redhat-ods-monitoring/g; s/{{\.ApplicationNamespace}}/redhat-ods-applications/g; s/{{`{{`}}/{{/g; s/{{`}}`}}/}}/g' "$$tmpl_file" | \
+			$(YQ) eval '.spec.groups' - | \
+			$(YQ) eval '{"groups": .}' - | \
+			promtool check rules --lint=none /dev/stdin > /dev/null || exit 1; \
+	done
+	@echo "✓ All PrometheusRule templates are syntactically valid"
+
 # Run prometheus-alert-unit-tests
+# Test each component separately to avoid duplicate recording rule conflicts
 .PHONY: test-alerts
-test-alerts: $(PROMETHEUS_ALERT_RULES)
-	promtool test rules $(PROMETHEUS_ALERT_TESTS)
+test-alerts: validate-prometheus-rules $(PROMETHEUS_ALERT_RULES)
+	@echo "Running Prometheus alert unit tests..."
+	@for test_file in $(PROMETHEUS_ALERT_TESTS); do \
+		echo "  Testing $$test_file..."; \
+		promtool test rules $$test_file || exit 1; \
+	done
+	@echo "✓ All Prometheus alert tests passed!"
 
 #Check for alerts without unit-tests
 .PHONY: check-prometheus-alert-unit-tests
 check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES)
-	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_CONFIG_YAML) $(PROMETHEUS_TEST_DIR) $(ALERT_SEVERITY)
+	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_RULES_DIR) $(ALERT_SEVERITY)
 CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 
 .PHONY: e2e-test
 e2e-test:
+# Specifies the namespace where the operator pods are deployed
 ifndef E2E_TEST_OPERATOR_NAMESPACE
 export E2E_TEST_OPERATOR_NAMESPACE = $(OPERATOR_NAMESPACE)
+endif
+# Specifies the namespace where the component deployments are deployed
+ifndef E2E_TEST_APPLICATIONS_NAMESPACE
+export E2E_TEST_APPLICATIONS_NAMESPACE = $(APPLICATIONS_NAMESPACE)
+endif
+# Specifies the namespace where the workbenches are deployed
+ifndef E2E_TEST_WORKBENCHES_NAMESPACE
+export E2E_TEST_WORKBENCHES_NAMESPACE = $(WORKBENCHES_NAMESPACE)
 endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml

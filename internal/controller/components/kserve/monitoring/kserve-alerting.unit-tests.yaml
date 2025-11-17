@@ -39,9 +39,8 @@ tests:
               instance: "kserve-controller-manager"
               severity: critical
             exp_annotations:
-              message: "High error budget burn for kserve-controller-manager (current value: 3)."
+              message: "High error budget burn for kserve-controller-manager (current value: 3 )."
               summary: Kserve Controller Probe Success Burn Rate
-              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-kserve-controller-probe-success-burn-rate.md"
 
   - interval: 1m
     input_series:
@@ -58,9 +57,8 @@ tests:
               instance: "kserve-controller-manager"
               severity: critical
             exp_annotations:
-              message: "High error budget burn for kserve-controller-manager (current value: 16)."
+              message: "High error budget burn for kserve-controller-manager (current value: 16 )."
               summary: Kserve Controller Probe Success Burn Rate
-              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-kserve-controller-probe-success-burn-rate.md"
 
   - interval: 1m
     input_series:
@@ -77,6 +75,5 @@ tests:
               instance: "kserve-controller-manager"
               severity: warning
             exp_annotations:
-              message: "High error budget burn for kserve-controller-manager (current value: 61)."
+              message: "High error budget burn for kserve-controller-manager (current value: 61 )."
               summary: Kserve Controller Probe Success Burn Rate
-              triage: "https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-kserve-controller-probe-success-burn-rate.md"
