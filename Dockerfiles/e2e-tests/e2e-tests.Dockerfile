@@ -39,10 +39,10 @@ RUN microdnf update -y && \
 
 WORKDIR /e2e
 
-COPY --from=builder /workspace/e2e-tests /usr/local/bin/
+COPY --from=builder /workspace/e2e-tests .
 COPY --from=builder /opt/app-root/src/go/bin/gotestsum /usr/local/bin/
 COPY --from=builder /opt/app-root/src/test2json /usr/local/bin/
 
-RUN chmod +x /usr/local/bin/e2e-tests
+RUN chmod +x ./e2e-tests
 
-ENTRYPOINT ["e2e-tests"]
+ENTRYPOINT ["./e2e-tests"]
