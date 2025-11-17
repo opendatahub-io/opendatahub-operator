@@ -37,6 +37,9 @@ COPY config/osd-configs/ /opt/manifests/osd-configs/
 # Copy HWProfiles
 COPY config/hardwareprofiles/ /opt/manifests/hardwareprofiles
 
+# Copy connectionAPI removing any possibly pre-existing symlinks
+COPY config/connectionAPI/ /opt/manifests/connectionAPI
+
 # Clean up unwanted directories and files from manifests
 RUN rm -rf /opt/manifests/*/e2e /opt/manifests/*/scorecard /opt/manifests/*/test /opt/manifests/*/samples /opt/manifests/*/example-* \
     && find /opt/manifests -name "README.md" -delete
