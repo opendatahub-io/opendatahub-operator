@@ -56,6 +56,7 @@ gitGraph
 The PR author should then create another PR targeting the `rhoai` branch. CI automation typically creates the cherry-pick PR. Add a `/cherry-pick rhoai` comment to the original PR; CI will report success or failure. If it fails, manually cherry-pick the commits into a new branch and open a new PR.
 3. **Edit the cherry-pick PR:** Edit the title to include the prefix `[sync]`. If the PR is associated with any Jira
 ticket, edit the description to include the ticket link.
+3. **Regenerate the bundle:** As of [#2329](https://github.com/opendatahub-io/opendatahub-operator/pull/2329), the `main` branch doesn't maintain most generated files anymore; however downstream builds still need bundle contents in the `rhoai` branch, so it is necessary to regenerate the bundle in the sync PR.
 4. **Merge sync PR:**
 After the sync PR has passed GitHub checks and is reviewed and approved, CI will merge it into the `rhoai` branch.
 
