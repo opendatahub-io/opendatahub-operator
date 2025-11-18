@@ -468,9 +468,10 @@ func validateGatewayConfig(rr *odhtypes.ReconciliationRequest) (*serviceApi.Gate
 	return gatewayConfig, nil
 }
 
-// deployKubeAuthProxy deploys the complete OAuth2 proxy infrastructure including secret, service and deployment.
+// deployKubeAuthProxy deploys the complete OAuth2 proxy infrastructure including secret, service, network policy and deployment.
 func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 	oidcConfig *serviceApi.OIDCConfig, cookieConfig *serviceApi.CookieConfig,
+	networkPolicy *serviceApi.NetworkPolicyConfig,
 	clientSecret, cookieSecret string, domain string) error {
 	l := logf.FromContext(ctx).WithName("deployAuthProxy")
 
@@ -493,6 +494,12 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	err = createKubeAuthProxyService(rr)
 	if err != nil {
 		return err
+	}
+
+	// Create NetworkPolicy before deployment to ensure network restrictions are in place
+	// before the pod starts
+	if err := createNetworkPolicy(ctx, rr, networkPolicy); err != nil {
+		return fmt.Errorf("failed to create network policy: %w", err)
 	}
 
 	err = createKubeAuthProxyDeployment(ctx, rr, oidcConfig, cookieConfig, domain)
