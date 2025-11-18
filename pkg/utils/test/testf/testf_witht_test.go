@@ -27,7 +27,7 @@ import (
 // prepareTestConfigMap creates a unique ConfigMap and returns a matcher for it along with the unstructured object and key.
 // This is used for tests that create new ConfigMaps (e.g., TestCreate).
 //
-//nolint:ireturn // Returning Gomega interfaces is acceptable in test helpers
+//nolint:ireturn
 func prepareTestConfigMap(g Gomega, template corev1.ConfigMap) (types.GomegaMatcher, *unstructured.Unstructured, client.ObjectKey) {
 	cm := template.DeepCopy()
 	cm.Name = xid.New().String()
@@ -52,7 +52,7 @@ func prepareTestConfigMap(g Gomega, template corev1.ConfigMap) (types.GomegaMatc
 // prepareUpdateTestConfigMap creates a ConfigMap from template and returns an unstructured object for update tests.
 // The matcher expects the transformer to have been applied.
 //
-//nolint:ireturn // Returning Gomega interfaces is acceptable in test helpers
+//nolint:ireturn
 func prepareUpdateTestConfigMap(g Gomega, template corev1.ConfigMap, expectedMatcher types.GomegaMatcher) (*unstructured.Unstructured, types.GomegaMatcher) {
 	obj, err := resources.ToUnstructured(template.DeepCopy())
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -62,7 +62,7 @@ func prepareUpdateTestConfigMap(g Gomega, template corev1.ConfigMap, expectedMat
 // prepareExistingConfigMapTest creates a ConfigMap with pre-existing client and returns test setup for Update/Patch tests.
 // The ConfigMap already exists in the fake client, and the test applies a transformer to it.
 //
-//nolint:ireturn // Returning Gomega interfaces is acceptable in test helpers
+//nolint:ireturn
 func prepareExistingConfigMapTest(g Gomega, cmName string) (types.GomegaMatcher, client.ObjectKey, testf.TransformFn, *testf.TestContext) {
 	cm := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{

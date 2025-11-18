@@ -49,13 +49,8 @@ spec:
                 - linux
       securityContext:
         runAsNonRoot: true
-        # TODO(user): For common cases that do not require escalating privileges
-        # it is recommended to ensure that all your Pods/Containers are restrictive.
-        # More info: https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
-        # Please uncomment the following code if your project does NOT have to work on old Kubernetes
-        # versions < 1.19 or on vendors versions which do NOT support this field by default (i.e. Openshift < 4.11 ).
-        # seccompProfile:
-        #   type: RuntimeDefault
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - command:
         - /manager
@@ -74,10 +69,16 @@ spec:
           # For RHOAI: Overridden by CSV. For ODH: Uses jtanner's public image
           - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
             value: quay.io/opendatahub/odh-kube-auth-proxy:latest
+          # Perses image configuration (for monitoring dashboards)
+          # For RHOAI: Overridden by CSV. For ODH: Uses Red Hat COO image
+          # Note: Must stay compatible with cluster-observability-operator version
+          - name: RELATED_IMAGE_PERSES
+            value: registry.redhat.io/cluster-observability-operator/perses-0-50-rhel9:1.2.2-1752686994
         args:
         - --leader-elect
         - --operator-name=opendatahub
-        image: controller:latest
+        # NOTE: image is provided in CI by pullspec substitution, and by make/kustomize for local builds
+        image: REPLACE_IMAGE:latest
         imagePullPolicy: Always
         name: manager
         ports:

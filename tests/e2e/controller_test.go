@@ -73,10 +73,11 @@ func ParseDeletionPolicy(dp string) (DeletionPolicy, error) {
 
 // Struct to store test configurations.
 type TestContextConfig struct {
-	operatorNamespace   string
-	appsNamespace       string
-	monitoringNamespace string
-	deletionPolicy      DeletionPolicy
+	operatorNamespace    string
+	appsNamespace        string
+	workbenchesNamespace string
+	monitoringNamespace  string
+	deletionPolicy       DeletionPolicy
 
 	operatorControllerTest bool
 	operatorResilienceTest bool
@@ -90,7 +91,8 @@ type TestContextConfig struct {
 type TestGroup struct {
 	name      string
 	enabled   bool
-	scenarios map[string]TestFn
+	parallel  bool
+	scenarios []map[string]TestFn
 	flags     arrayFlags
 }
 
@@ -114,32 +116,43 @@ var (
 	testOpts = TestContextConfig{}
 
 	Components = TestGroup{
-		name:    "components",
-		enabled: true,
-		scenarios: map[string]TestFn{
-			componentApi.DashboardComponentName:            dashboardTestSuite,
-			componentApi.RayComponentName:                  rayTestSuite,
-			componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
-			componentApi.TrustyAIComponentName:             trustyAITestSuite,
-			componentApi.KueueComponentName:                kueueTestSuite,
-			componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
-			componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
-			componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
-			componentApi.KserveComponentName:               kserveTestSuite,
-			componentApi.ModelControllerComponentName:      modelControllerTestSuite,
-			componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
-			componentApi.LlamaStackOperatorComponentName:   llamastackOperatorTestSuite,
+		name:     "components",
+		enabled:  true,
+		parallel: true,
+		scenarios: []map[string]TestFn{
+			{
+				componentApi.DashboardComponentName:            dashboardTestSuite,
+				componentApi.RayComponentName:                  rayTestSuite,
+				componentApi.ModelRegistryComponentName:        modelRegistryTestSuite,
+				componentApi.TrainingOperatorComponentName:     trainingOperatorTestSuite,
+				componentApi.DataSciencePipelinesComponentName: dataSciencePipelinesTestSuite,
+				componentApi.WorkbenchesComponentName:          workbenchesTestSuite,
+				componentApi.KserveComponentName:               kserveTestSuite,
+				componentApi.FeastOperatorComponentName:        feastOperatorTestSuite,
+				componentApi.LlamaStackOperatorComponentName:   llamastackOperatorTestSuite,
+			},
+			{
+				// Kueue tests depends on Workbenches, so must not run with Workbenches tests in parallel
+				componentApi.KueueComponentName: kueueTestSuite,
+				// ModelController tests depends on KServe and ModelRegistry, so must not run with KServe, ModelRegistry or TrustyAI tests in parallel
+				componentApi.ModelControllerComponentName: modelControllerTestSuite,
+			},
+			{
+				// TrustyAI tests depends on KServe, so must not run with Kserve or ModelController tests in parallel
+				componentApi.TrustyAIComponentName: trustyAITestSuite,
+			},
 		},
 	}
 
 	Services = TestGroup{
-		name:    "services",
-		enabled: true,
-		scenarios: map[string]TestFn{
+		name:     "services",
+		enabled:  true,
+		parallel: true,
+		scenarios: []map[string]TestFn{{
 			serviceApi.MonitoringServiceName: monitoringTestSuite,
 			serviceApi.AuthServiceName:       authControllerTestSuite,
-			// serviceApi.GatewayServiceName:    gatewayTestSuite,
-		},
+			serviceApi.GatewayServiceName:    gatewayTestSuite,
+		}},
 	}
 )
 
@@ -162,7 +175,11 @@ func (tg *TestGroup) String() string {
 }
 
 func (tg *TestGroup) Names() []string {
-	return slices.AppendSeq(make([]string, 0, len(tg.scenarios)), maps.Keys(tg.scenarios))
+	names := make([]string, 0, len(tg.scenarios))
+	for _, group := range tg.scenarios {
+		names = slices.AppendSeq(names, maps.Keys(group))
+	}
+	return names
 }
 
 func (tg *TestGroup) Validate() error {
@@ -171,9 +188,14 @@ func (tg *TestGroup) Validate() error {
 		return nil
 	}
 
+	testNameMap := map[string]bool{}
+	for _, name := range tg.Names() {
+		testNameMap[name] = true
+	}
+
 	for _, name := range tg.flags {
 		name = strings.TrimLeft(name, "!")
-		if _, ok := tg.scenarios[name]; !ok {
+		if _, ok := testNameMap[name]; !ok {
 			validValues := strings.Join(tg.Names(), ", ")
 			return fmt.Errorf("unsupported value %s, valid values are: %s", name, validValues)
 		}
@@ -191,34 +213,49 @@ func (tg *TestGroup) Run(t *testing.T) {
 	}
 
 	disabledTests := make([]string, 0)
-	enabledTests := make([]string, 0)
+	enabledTests := make(map[string]bool, 0)
 
 	for _, name := range tg.flags {
 		if strings.HasPrefix(name, "!") {
 			disabledTests = append(disabledTests, strings.TrimLeft(name, "!"))
 		} else {
-			enabledTests = append(enabledTests, name)
+			enabledTests[name] = true
 		}
 	}
 
 	// Run all tests if none are explicitly enabled
 	if len(enabledTests) == 0 {
-		enabledTests = slices.AppendSeq(make([]string, 0, len(tg.scenarios)), maps.Keys(tg.scenarios))
+		for _, name := range tg.Names() {
+			enabledTests[name] = true
+		}
 	}
 
 	// Remove disabled tests
-	enabledTests = slices.DeleteFunc(enabledTests, func(n string) bool {
-		return slices.Contains(disabledTests, n)
-	})
+	for _, name := range disabledTests {
+		delete(enabledTests, name)
+	}
 
-	// Run each test case
-	for testName, testFunc := range tg.scenarios {
-		if !slices.Contains(enabledTests, testName) {
-			t.Logf("Skipping tests for %s/%s", tg.name, testName)
-			continue
-		}
+	// Run each test case by group
+	for i, group := range tg.scenarios {
+		mustRun(t, fmt.Sprintf("group %d", i+1), func(t *testing.T) {
+			t.Helper()
 
-		mustRun(t, testName, testFunc)
+			groupNames := slices.AppendSeq(make([]string, 0, len(group)), maps.Keys(group))
+			slices.Sort(groupNames)
+
+			for _, testName := range groupNames {
+				testFunc := group[testName]
+				if _, ok := enabledTests[testName]; !ok {
+					t.Logf("Skipping tests for %s/%s", tg.name, testName)
+					continue
+				}
+				if tg.parallel {
+					mustRun(t, testName, testFunc, WithParallel())
+				} else {
+					mustRun(t, testName, testFunc)
+				}
+			}
+		})
 	}
 }
 
@@ -332,6 +369,8 @@ func TestMain(m *testing.M) {
 	checkEnvVarBindingError(viper.BindEnv("operator-namespace", viper.GetEnvPrefix()+"_OPERATOR_NAMESPACE"))
 	pflag.String("applications-namespace", "opendatahub", "Namespace where the odh applications are deployed")
 	checkEnvVarBindingError(viper.BindEnv("applications-namespace", viper.GetEnvPrefix()+"_APPLICATIONS_NAMESPACE"))
+	pflag.String("workbenches-namespace", "opendatahub", "Namespace where the workbenches are deployed")
+	checkEnvVarBindingError(viper.BindEnv("workbenches-namespace", viper.GetEnvPrefix()+"_WORKBENCHES_NAMESPACE"))
 	pflag.String("dsc-monitoring-namespace", "opendatahub", "Namespace where the odh monitoring is deployed")
 	checkEnvVarBindingError(viper.BindEnv("dsc-monitoring-namespace", viper.GetEnvPrefix()+"_DSC_MONITORING_NAMESPACE"))
 	pflag.String("deletion-policy", "always",
@@ -388,6 +427,7 @@ func TestMain(m *testing.M) {
 	}
 	testOpts.operatorNamespace = viper.GetString("operator-namespace")
 	testOpts.appsNamespace = viper.GetString("applications-namespace")
+	testOpts.workbenchesNamespace = viper.GetString("workbenches-namespace")
 	testOpts.monitoringNamespace = viper.GetString("dsc-monitoring-namespace")
 	var err error
 	if testOpts.deletionPolicy, err = ParseDeletionPolicy(viper.GetString("deletion-policy")); err != nil {
@@ -443,7 +483,7 @@ func registerSchemes() {
 }
 
 // mustRun executes a test and stops execution if it fails.
-func mustRun(t *testing.T, name string, testFunc func(t *testing.T)) {
+func mustRun(t *testing.T, name string, testFunc func(t *testing.T), opts ...TestCaseOpts) {
 	t.Helper()
 
 	// If the test already failed, skip running the next test
@@ -452,6 +492,9 @@ func mustRun(t *testing.T, name string, testFunc func(t *testing.T)) {
 	}
 
 	if !t.Run(name, func(t *testing.T) {
+		for _, opt := range opts {
+			opt(t)
+		}
 		// Set up panic handler for each test group
 		defer HandleGlobalPanic()
 		testFunc(t)

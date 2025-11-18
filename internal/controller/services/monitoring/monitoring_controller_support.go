@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -43,6 +44,22 @@ const (
 )
 
 var componentIDRE = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z0-9][A-Za-z0-9_-]*)?$`)
+
+// getPersesImage returns the Perses image from environment variable.
+// For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
+// For ODH deployments, this comes from config/manager/manager.yaml.
+// Falls back to a default image for local development/testing only.
+//
+// Note: This image version must stay compatible with the Cluster Observability Operator (COO) version
+// that we depend on. When upgrading COO, verify Perses image compatibility and update accordingly.
+// The current image is compatible with COO 1.2.2.
+func getPersesImage() string {
+	if image := os.Getenv("RELATED_IMAGE_PERSES"); image != "" {
+		return image
+	}
+
+	return "registry.redhat.io/cluster-observability-operator/perses-0-50-rhel9:1.2.2-1752686994"
+}
 
 // isLocalServiceEndpoint checks if an endpoint URL is for a local/in-cluster service.
 // Returns true for localhost, loopback IPs, cluster-local services, and single-label service names.
@@ -188,9 +205,13 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	switch traces.Storage.Backend {
 	case "pv":
 		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempomonolithic.%s.svc.cluster.local:4317", namespace)
+		// Perses datasource needs HTTP query endpoint (port 3200)
+		templateData["TempoQueryEndpoint"] = fmt.Sprintf("http://tempo-data-science-tempomonolithic.%s.svc.cluster.local:3200", namespace)
 		templateData["Size"] = traces.Storage.Size
 	case "s3", "gcs":
 		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempostack-gateway.%s.svc.cluster.local:4317", namespace)
+		// Perses datasource needs HTTP query endpoint via gateway (port 8080)
+		templateData["TempoQueryEndpoint"] = fmt.Sprintf("http://tempo-data-science-tempostack-gateway.%s.svc.cluster.local:8080", namespace)
 		templateData["Secret"] = traces.Storage.Secret
 	}
 
@@ -222,14 +243,21 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		return nil, errors.New("instance is not of type services.Monitoring")
 	}
 
+	// Fetch application namespace from DSCI.
+	appNamespace, err := cluster.ApplicationNamespace(ctx, rr.Client)
+	if err != nil {
+		return nil, err
+	}
+
 	templateData := map[string]any{
 		"Namespace":            monitoring.Spec.Namespace,
 		"Traces":               monitoring.Spec.Traces != nil,
 		"Metrics":              monitoring.Spec.Metrics != nil,
 		"AcceleratorMetrics":   monitoring.Spec.Metrics != nil,
-		"ApplicationNamespace": rr.DSCI.Spec.ApplicationsNamespace,
+		"ApplicationNamespace": appNamespace,
 		"MetricsExporters":     make(map[string]string),
 		"MetricsExporterNames": []string{},
+		"PersesImage":          getPersesImage(),
 	}
 
 	// Add metrics-related data if metrics are configured
@@ -333,10 +361,20 @@ func addPrometheusRules(componentName string, rr *odhtypes.ReconciliationRequest
 // if a component is disabled, we need to delete the prometheus rules. If the DSCI is deleted
 // the rules will be gc'd automatically.
 func cleanupPrometheusRules(ctx context.Context, componentName string, rr *odhtypes.ReconciliationRequest) error {
+	// Fetch monitoring namespace from DSCI
+	monitoringNamespace, err := cluster.MonitoringNamespace(ctx, rr.Client)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			// No DSCI means no monitoring namespace configured, nothing to clean up
+			return nil
+		}
+		return err
+	}
+
 	pr := &unstructured.Unstructured{}
 	pr.SetGroupVersionKind(gvk.PrometheusRule)
 	pr.SetName(fmt.Sprintf("%s-prometheusrules", componentName))
-	pr.SetNamespace(rr.DSCI.Spec.Monitoring.Namespace)
+	pr.SetNamespace(monitoringNamespace)
 
 	if err := rr.Client.Delete(ctx, pr); err != nil {
 		if k8serr.IsNotFound(err) {

@@ -175,7 +175,7 @@ func CreateDSCI(name, groupVersion string, appNamespace, monitoringNamespace str
 }
 
 // CreateDSC creates a DataScienceCluster CR.
-func CreateDSC(name string) *dscv2.DataScienceCluster {
+func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceCluster {
 	return &dscv2.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
@@ -195,6 +195,9 @@ func CreateDSC(name string) *dscv2.DataScienceCluster {
 				Workbenches: componentApi.DSCWorkbenches{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
+					},
+					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
+						WorkbenchNamespace: workbenchesNamespace,
 					},
 				},
 				AIPipelines: componentApi.DSCDataSciencePipelines{
@@ -251,7 +254,7 @@ func CreateDSC(name string) *dscv2.DataScienceCluster {
 	}
 }
 
-func CreateDSCv1(name string) *dscv1.DataScienceCluster {
+func CreateDSCv1(name string, workbenchesNamespace string) *dscv1.DataScienceCluster {
 	return &dscv1.DataScienceCluster{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataScienceCluster",
@@ -270,6 +273,9 @@ func CreateDSCv1(name string) *dscv1.DataScienceCluster {
 				Workbenches: componentApi.DSCWorkbenches{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
+					},
+					WorkbenchesCommonSpec: componentApi.WorkbenchesCommonSpec{
+						WorkbenchNamespace: workbenchesNamespace,
 					},
 				},
 				ModelMeshServing: componentApi.DSCModelMeshServing{

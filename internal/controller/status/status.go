@@ -88,10 +88,8 @@ const (
 	ConditionInstrumentationAvailable        = "InstrumentationAvailable"
 	ConditionAlertingAvailable               = "AlertingAvailable"
 	ConditionThanosQuerierAvailable          = "ThanosQuerierAvailable"
-)
-
-const (
-	CapabilityDSPv2Argo string = "CapabilityDSPv2Argo"
+	ConditionPersesAvailable                 = "PersesAvailable"
+	ConditionPersesTempoDataSourceAvailable  = "PersesTempoDataSourceAvailable"
 )
 
 const (
@@ -296,7 +294,6 @@ func SetCompleteCondition(conditions *[]common.Condition, reason string, message
 			Message: message,
 		},
 	})
-	cond.RemoveStatusCondition(wrapper, CapabilityDSPv2Argo)
 }
 
 // SetCondition is a general purpose function to update any type of condition.

@@ -2,11 +2,11 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{.SMM.Name}}
-  namespace: {{.DSCI.Spec.ApplicationsNamespace}}
+  namespace: {{.AppNamespace}}
   annotations:
     instance-name: {{.Component.Name}}
     instance-id: {{.ID}}
     instance-uid: {{.UID}}
     instance-foo: {{.Foo}}
 data:
-  app-namespace: {{.DSCI.Spec.ApplicationsNamespace}}
+  app-namespace: {{.AppNamespace}}
