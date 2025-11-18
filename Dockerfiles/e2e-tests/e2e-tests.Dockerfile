@@ -24,18 +24,18 @@ COPY tests/ tests/
 # build the e2e test binary + pre-compile the e2e tests
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./tests/e2e/ -o e2e-tests
 
-# install gotestsum and build test2json
-RUN go install gotest.tools/gotestsum@latest \
- && go build -o /opt/app-root/src/test2json cmd/test2json
-
 ################################################################################
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+FROM golang:$GOLANG_VERSION
 
-RUN microdnf update -y && \
+RUN apt-get update -y && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/ && \
-    microdnf clean all
+    apt-get clean all
+
+# install gotestsum and build test2json
+RUN go install gotest.tools/gotestsum@latest \
+ && go build -o /opt/app-root/src/test2json cmd/test2json
 
 WORKDIR /e2e
 
@@ -45,4 +45,6 @@ COPY --from=builder /opt/app-root/src/test2json /usr/local/bin/
 
 RUN chmod +x ./e2e-tests
 
-ENTRYPOINT ["./e2e-tests"]
+RUN mkdir -p results
+
+CMD gotestsum --junitfile-project-name odh-operator-e2e --junitfile results/xunit_report.xml --format testname --raw-command -- test2json -p e2e ./e2e-tests --test.parallel=1 --test.v=test2json --deletion-policy=never
