@@ -45,7 +45,7 @@ COPY --from=builder /opt/app-root/src/test2json /usr/local/bin/
 
 RUN chmod +x ./e2e-tests
 
-RUN mkdir -p /test-results
+RUN mkdir -p /results
 
 ENTRYPOINT ["gotestsum", "--junitfile", "/results/junit.xml", "--format", "standard-verbose", "--raw-command", "--"]
 CMD ["./e2e-tests", "-test.v"]
