@@ -48,4 +48,4 @@ RUN chmod +x ./e2e-tests
 RUN mkdir -p /results
 
 ENTRYPOINT ["gotestsum", "--junitfile", "/results/junit.xml", "--format", "standard-verbose", "--raw-command", "--"]
-CMD ["./e2e-tests --deletion-policy never"]
+CMD ["sh", "-c", "./e2e-tests --deletion-policy never -test.v 2>&1 | /usr/local/bin/test2json"]
