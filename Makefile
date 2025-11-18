@@ -56,8 +56,8 @@ else
 	ifeq ($(VERSION), )
 		VERSION = 3.2.0
 	endif
-	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
-	OPERATOR_NAMESPACE ?= redhat-ods-operator
+	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
+	OPERATOR_NAMESPACE ?= opendatahub-operator-system
 	# Specifies the namespace where the component deployments are deployed (defaults to opendatahub)
 	APPLICATIONS_NAMESPACE ?= redhat-ods-applications
 	# Specifies the namespace where the workbenches are deployed (defaults to opendatahub)
