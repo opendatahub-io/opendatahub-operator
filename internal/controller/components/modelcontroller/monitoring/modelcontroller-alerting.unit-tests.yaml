@@ -1,5 +1,5 @@
 rule_files:
-  - odh-model-controller-alerting.rules.yaml
+  - modelcontroller-alerting.rules.yaml
 
 evaluation_interval: 1m
 
@@ -20,13 +20,7 @@ tests:
         values: "0x60"
     alert_rule_test:
       - eval_time: 1h
-        alertname: ODH Model Controller Probe Success 5m and 1h Burn Rate high
-        exp_alerts: []
-      - eval_time: 1h
-        alertname: ODH Model Controller Probe Success 30m and 6h Burn Rate high
-        exp_alerts: []
-      - eval_time: 1h
-        alertname: ODH Model Controller Probe Success 2h and 1d Burn Rate high
+        alertname: ODH Model Controller Probe Success Burn Rate
         exp_alerts: []
 
   - interval: 1m
@@ -37,17 +31,16 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 2m
-        alertname: ODH Model Controller Probe Success 5m and 1h Burn Rate high
+        alertname: ODH Model Controller Probe Success Burn Rate
         exp_alerts:
           - exp_labels:
-              alertname: ODH Model Controller Probe Success 5m and 1h Burn Rate high
+              alertname: ODH Model Controller Probe Success Burn Rate
               namespace: "redhat-ods-applications"
               instance: "odh-model-controller"
               severity: critical
             exp_annotations:
-              summary: "ODH Model Controller Probe Success 5m and 1h Burn Rate high"
-              message: "High error budget burn for odh-model-controller (current value: 3)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-odh-controller-probe-success-burn-rate.md'
+              summary: "ODH Model Controller Probe Success Burn Rate"
+              message: "High error budget burn for odh-model-controller (current value: 3 )."
 
   - interval: 1m
     input_series:
@@ -57,17 +50,16 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 15m
-        alertname: ODH Model Controller Probe Success 30m and 6h Burn Rate high
+        alertname: ODH Model Controller Probe Success Burn Rate
         exp_alerts:
           - exp_labels:
-              alertname: ODH Model Controller Probe Success 30m and 6h Burn Rate high
+              alertname: ODH Model Controller Probe Success Burn Rate
               namespace: "redhat-ods-applications"
               instance: "odh-model-controller"
               severity: critical
             exp_annotations:
-              summary: "ODH Model Controller Probe Success 30m and 6h Burn Rate high"
-              message: "High error budget burn for odh-model-controller (current value: 16)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-odh-controller-probe-success-burn-rate.md'
+              summary: "ODH Model Controller Probe Success Burn Rate"
+              message: "High error budget burn for odh-model-controller (current value: 16 )."
 
   - interval: 1m
     input_series:
@@ -77,14 +69,13 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 1h
-        alertname: ODH Model Controller Probe Success 2h and 1d Burn Rate high
+        alertname: ODH Model Controller Probe Success Burn Rate
         exp_alerts:
           - exp_labels:
-              alertname: ODH Model Controller Probe Success 2h and 1d Burn Rate high
+              alertname: ODH Model Controller Probe Success Burn Rate
               namespace: "redhat-ods-applications"
               instance: "odh-model-controller"
               severity: warning
             exp_annotations:
-              summary: "ODH Model Controller Probe Success 2h and 1d Burn Rate high"
-              message: "High error budget burn for odh-model-controller (current value: 61)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/Model-Serving/rhods-odh-controller-probe-success-burn-rate.md'
+              summary: "ODH Model Controller Probe Success Burn Rate"
+              message: "High error budget burn for odh-model-controller (current value: 61 )."

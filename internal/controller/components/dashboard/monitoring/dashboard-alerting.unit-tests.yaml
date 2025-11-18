@@ -1,5 +1,5 @@
 rule_files:
-  - rhods-dashboard-alerting.rules.yaml
+  - dashboard-alerting.rules.yaml
 
 evaluation_interval: 1m
 
@@ -20,13 +20,7 @@ tests:
         values: "0x60"
     alert_rule_test:
       - eval_time: 1h
-        alertname: RHODS Dashboard Route Error 5m and 1h Burn Rate high
-        exp_alerts: []
-      - eval_time: 1h
-        alertname: RHODS Dashboard Route Error 30m and 6h Burn Rate high
-        exp_alerts: []
-      - eval_time: 1h
-        alertname: RHODS Dashboard Route Error 2h and 1d Burn Rate high
+        alertname: RHODS Dashboard Route Error Burn Rate
         exp_alerts: []
 
   - interval: 1m
@@ -37,17 +31,16 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 2m
-        alertname: RHODS Dashboard Route Error 5m and 1h Burn Rate high
+        alertname: RHODS Dashboard Route Error Burn Rate
         exp_alerts:
           - exp_labels:
-              alertname: RHODS Dashboard Route Error 5m and 1h Burn Rate high
+              alertname: RHODS Dashboard Route Error Burn Rate
               namespace: "redhat-ods-applications"
               route: "rhods-dashboard"
               severity: critical
             exp_annotations:
-              summary: "RHODS Dashboard Route Error 5m and 1h Burn Rate high"
-              message: "High error budget burn for rhods-dashboard (current value: 3)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+              summary: "RHODS Dashboard Route Error Burn Rate"
+              message: "High error budget burn for rhods-dashboard (current value: 3 )."
 
   - interval: 1m
     input_series:
@@ -57,17 +50,16 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 15m
-        alertname: RHODS Dashboard Route Error 30m and 6h Burn Rate high
+        alertname: RHODS Dashboard Route Error Burn Rate
         exp_alerts:
           - exp_labels:
-              alertname: RHODS Dashboard Route Error 30m and 6h Burn Rate high
+              alertname: RHODS Dashboard Route Error Burn Rate
               namespace: "redhat-ods-applications"
               route: "rhods-dashboard"
               severity: critical
             exp_annotations:
-              summary: "RHODS Dashboard Route Error 30m and 6h Burn Rate high"
-              message: "High error budget burn for rhods-dashboard (current value: 16)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+              summary: "RHODS Dashboard Route Error Burn Rate"
+              message: "High error budget burn for rhods-dashboard (current value: 16 )."
 
   - interval: 1m
     input_series:
@@ -77,17 +69,16 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 1h
-        alertname: RHODS Dashboard Route Error 2h and 1d Burn Rate high
+        alertname: RHODS Dashboard Route Error Burn Rate
         exp_alerts:
           - exp_labels:
-              alertname: RHODS Dashboard Route Error 2h and 1d Burn Rate high
+              alertname: RHODS Dashboard Route Error Burn Rate
               namespace: "redhat-ods-applications"
               route: "rhods-dashboard"
               severity: warning
             exp_annotations:
-              summary: "RHODS Dashboard Route Error 2h and 1d Burn Rate high"
-              message: "High error budget burn for rhods-dashboard (current value: 61)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-error-burn-rate.md'
+              summary: "RHODS Dashboard Route Error Burn Rate"
+              message: "High error budget burn for rhods-dashboard (current value: 61 )."
 
   # Probe success
   - interval: 1m
@@ -106,16 +97,7 @@ tests:
         values: "0x60"
     alert_rule_test:
       - eval_time: 3h
-        alertname: RHODS Dashboard Probe Success 5m and 1h Burn Rate high
-        exp_alerts: []
-      - eval_time: 3h
-        alertname: RHODS Dashboard Probe Success 30m and 6h Burn Rate high
-        exp_alerts: []
-      - eval_time: 3h
-        alertname: RHODS Dashboard Probe Success 2h and 1d Burn Rate high
-        exp_alerts: []
-      - eval_time: 3h
-        alertname: RHODS Dashboard Probe Success 6h and 3d Burn Rate high
+        alertname: RHODS Dashboard Probe Success Burn Rate
         exp_alerts: []
 
   - interval: 1m
@@ -126,17 +108,16 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 2m
-        alertname: RHODS Dashboard Probe Success 5m and 1h Burn Rate high
+        alertname: RHODS Dashboard Probe Success Burn Rate
         exp_alerts:
           - exp_labels:
-              alertname: RHODS Dashboard Probe Success 5m and 1h Burn Rate high
+              alertname: RHODS Dashboard Probe Success Burn Rate
               name: "rhods-dashboard"
               namespace: "redhat-ods-applications"
               severity: critical
             exp_annotations:
-              summary: "RHODS Dashboard Probe Success 5m and 1h Burn Rate high"
-              message: "High error budget burn for rhods-dashboard (current value: 3)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md'
+              summary: "RHODS Dashboard Probe Success Burn Rate"
+              message: "High error budget burn for rhods-dashboard (current value: 3 )."
 
   - interval: 1m
     input_series:
@@ -146,17 +127,16 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 15m
-        alertname: RHODS Dashboard Probe Success 30m and 6h Burn Rate high
+        alertname: RHODS Dashboard Probe Success Burn Rate
         exp_alerts:
           - exp_labels:
-              alertname: RHODS Dashboard Probe Success 30m and 6h Burn Rate high
+              alertname: RHODS Dashboard Probe Success Burn Rate
               name: "rhods-dashboard"
               namespace: "redhat-ods-applications"
               severity: critical
             exp_annotations:
-              summary: "RHODS Dashboard Probe Success 30m and 6h Burn Rate high"
-              message: "High error budget burn for rhods-dashboard (current value: 16)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md'
+              summary: "RHODS Dashboard Probe Success Burn Rate"
+              message: "High error budget burn for rhods-dashboard (current value: 16 )."
 
   - interval: 1m
     input_series:
@@ -166,17 +146,16 @@ tests:
         values: "1+1x60"
     alert_rule_test:
       - eval_time: 1h
-        alertname: RHODS Dashboard Probe Success 2h and 1d Burn Rate high
+        alertname: RHODS Dashboard Probe Success Burn Rate
         exp_alerts:
           - exp_labels:
-              alertname: RRHODS Dashboard Probe Success 2h and 1d Burn Rate high
+              alertname: RHODS Dashboard Probe Success Burn Rate
               name: "rhods-dashboard"
               namespace: "redhat-ods-applications"
               severity: warning
             exp_annotations:
-              summary: "RHODS Dashboard Probe Success 2h and 1d Burn Rate high"
-              message: "High error budget burn for rhods-dashboard (current value: 61)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md'
+              summary: "RHODS Dashboard Probe Success Burn Rate"
+              message: "High error budget burn for rhods-dashboard (current value: 61 )."
 
   - interval: 1m
     input_series:
@@ -186,14 +165,13 @@ tests:
         values: "1+1x200"
     alert_rule_test:
       - eval_time: 3h
-        alertname: RHODS Dashboard Probe Success 6h and 3d Burn Rate high
+        alertname: RHODS Dashboard Probe Success Burn Rate
         exp_alerts:
           - exp_labels:
-              alertname: RHODS Dashboard Probe Success 6h and 3d Burn Rate high
+              alertname: RHODS Dashboard Probe Success Burn Rate
               name: "rhods-dashboard"
               namespace: "redhat-ods-applications"
               severity: warning
             exp_annotations:
-              summary: "RHODS Dashboard Probe Success 6h and 3d Burn Rate high"
-              message: "High error budget burn for rhods-dashboard (current value: 181)."
-              triage: 'https://gitlab.cee.redhat.com/service/managed-tenants-sops/-/blob/main/RHODS/RHODS-Dashboard/rhods-dashboard-probe-success-burn-rate.md'
+              summary: "RHODS Dashboard Probe Success Burn Rate"
+              message: "High error budget burn for rhods-dashboard (current value: 181 )."

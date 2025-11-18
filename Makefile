@@ -115,10 +115,9 @@ IMAGE_BUILD_FLAGS += --build-arg CGO_ENABLED=$(CGO_ENABLED)
 IMAGE_BUILD_FLAGS += --platform $(PLATFORM)
 
 # Prometheus-Unit Tests Parameters
-PROMETHEUS_CONFIG_YAML = ./config/monitoring/prometheus/apps/prometheus-configs.yaml
-PROMETHEUS_CONFIG_DIR = ./config/monitoring/prometheus/apps
-PROMETHEUS_TEST_DIR = ./tests/prometheus_unit_tests
-PROMETHEUS_ALERT_TESTS = $(wildcard $(PROMETHEUS_TEST_DIR)/*.unit-tests.yaml)
+PROMETHEUS_RULES_DIR = ./internal/controller/components
+PROMETHEUS_RULE_TEMPLATES = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-prometheusrules.tmpl.yaml" 2>/dev/null)
+PROMETHEUS_ALERT_TESTS = $(shell find $(PROMETHEUS_RULES_DIR) -name "*-alerting.unit-tests.yaml" 2>/dev/null)
 
 ALERT_SEVERITY = critical
 
@@ -456,20 +455,52 @@ unit-test: envtest ginkgo # directly use ginkgo since the framework is not compa
         		$(TEST_SRC)
 CLEANFILES += cover.out
 
-$(PROMETHEUS_TEST_DIR)/%.rules.yaml: $(PROMETHEUS_TEST_DIR)/%.unit-tests.yaml $(PROMETHEUS_CONFIG_YAML) $(YQ)
-	$(YQ) eval ".data.\"$(@F:.rules.yaml=.rules)\"" $(PROMETHEUS_CONFIG_YAML) > $@
+# Pattern rule to generate .rules.yaml from PrometheusRule templates
+# This finds the corresponding *-prometheusrules.tmpl.yaml in the same directory
+# and extracts the spec.groups section, replacing template variables
+# Note: We filter out recording rules (rules with 'record' field) to avoid conflicts with test input series
+%.rules.yaml: %.unit-tests.yaml $(YQ)
+	@RULE_FILE=$$(dirname $<)/$$(basename $< -alerting.unit-tests.yaml)-prometheusrules.tmpl.yaml; \
+	if [ ! -f "$$RULE_FILE" ]; then \
+		echo "Error: PrometheusRule template file not found: $$RULE_FILE"; \
+		exit 1; \
+	fi; \
+	echo "Generating $@ from $$RULE_FILE (alerts only, excluding recording rules)"; \
+	sed 's/{{\.Namespace}}/redhat-ods-monitoring/g; s/{{\.ApplicationNamespace}}/redhat-ods-applications/g; s/{{`{{`}}/{{/g; s/{{`}}`}}/}}/g' "$$RULE_FILE" | \
+		$(YQ) eval '.spec.groups' - | \
+		$(YQ) eval 'del(.[] | .rules[] | select(.alert == null))' - | \
+		$(YQ) eval '{"groups": .}' - > $@
 
 PROMETHEUS_ALERT_RULES := $(PROMETHEUS_ALERT_TESTS:.unit-tests.yaml=.rules.yaml)
 
+# Validate PrometheusRule syntax
+.PHONY: validate-prometheus-rules
+validate-prometheus-rules: $(YQ)
+	@echo "Validating PrometheusRule templates syntax..."
+	@for tmpl_file in $(PROMETHEUS_RULE_TEMPLATES); do \
+		echo "  Checking $$tmpl_file..."; \
+		sed 's/{{\.Namespace}}/redhat-ods-monitoring/g; s/{{\.ApplicationNamespace}}/redhat-ods-applications/g; s/{{`{{`}}/{{/g; s/{{`}}`}}/}}/g' "$$tmpl_file" | \
+			$(YQ) eval '.spec.groups' - | \
+			$(YQ) eval '{"groups": .}' - | \
+			promtool check rules --lint=none /dev/stdin > /dev/null || exit 1; \
+	done
+	@echo "✓ All PrometheusRule templates are syntactically valid"
+
 # Run prometheus-alert-unit-tests
+# Test each component separately to avoid duplicate recording rule conflicts
 .PHONY: test-alerts
-test-alerts: $(PROMETHEUS_ALERT_RULES)
-	promtool test rules $(PROMETHEUS_ALERT_TESTS)
+test-alerts: validate-prometheus-rules $(PROMETHEUS_ALERT_RULES)
+	@echo "Running Prometheus alert unit tests..."
+	@for test_file in $(PROMETHEUS_ALERT_TESTS); do \
+		echo "  Testing $$test_file..."; \
+		promtool test rules $$test_file || exit 1; \
+	done
+	@echo "✓ All Prometheus alert tests passed!"
 
 #Check for alerts without unit-tests
 .PHONY: check-prometheus-alert-unit-tests
 check-prometheus-alert-unit-tests: $(PROMETHEUS_ALERT_RULES)
-	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_CONFIG_YAML) $(PROMETHEUS_TEST_DIR) $(ALERT_SEVERITY)
+	./tests/prometheus_unit_tests/scripts/check_alert_tests.sh $(PROMETHEUS_RULES_DIR) $(ALERT_SEVERITY)
 CLEANFILES += $(PROMETHEUS_ALERT_RULES)
 
 .PHONY: e2e-test
