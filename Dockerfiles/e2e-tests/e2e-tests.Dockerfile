@@ -31,11 +31,11 @@ RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./test
 ################################################################################
 FROM golang:$GOLANG_VERSION
 
-RUN microdnf update -y && \
+RUN apt-get update -y && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/ && \
-    microdnf clean all
+    apt-get clean all
 
 WORKDIR /e2e
 
