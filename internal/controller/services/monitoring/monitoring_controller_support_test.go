@@ -584,7 +584,6 @@ func TestGetTemplateDataAcceleratorMetricsWithMetricsConfiguration(t *testing.T)
 					Storage: &serviceApi.MetricsStorage{
 						Retention: "7d",
 					},
-					Resources: &serviceApi.MetricsResources{},
 				},
 			},
 		},
