@@ -21,12 +21,12 @@ COPY cmd/main.go cmd/main.go
 COPY pkg/ pkg/
 COPY tests/ tests/
 
-# build the e2e test binary + pre-compile the e2e tests
-RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./tests/e2e/ -o e2e-tests
-
 # install gotestsum and build test2json
 RUN go install gotest.tools/gotestsum@latest \
  && go build -o /opt/app-root/src/test2json cmd/test2json
+
+# build the e2e test binary + pre-compile the e2e tests
+RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./tests/e2e/ -o e2e-tests
 
 ################################################################################
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
@@ -38,6 +38,9 @@ RUN microdnf update -y && \
     microdnf clean all
 
 WORKDIR /e2e
+
+# install gotestsum
+RUN go install gotest.tools/gotestsum@latest
 
 COPY --from=builder /workspace/e2e-tests .
 COPY --from=builder /opt/app-root/src/go/bin/gotestsum /usr/local/bin/
