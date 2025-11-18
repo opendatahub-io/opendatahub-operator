@@ -29,7 +29,7 @@ RUN go install gotest.tools/gotestsum@latest \
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./tests/e2e/ -o e2e-tests
 
 ################################################################################
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+FROM golang:$GOLANG_VERSION
 
 RUN microdnf update -y && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
