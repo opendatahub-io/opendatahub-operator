@@ -65,6 +65,27 @@ type GatewayConfigSpec struct {
 	// +optional
 	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`
 	AuthTimeout string `json:"authTimeout,omitempty"`
+
+	// NetworkPolicy configuration for kube-auth-proxy
+	// +optional
+	NetworkPolicy *NetworkPolicyConfig `json:"networkPolicy,omitempty"`
+}
+
+// NetworkPolicyConfig defines network policy configuration for kube-auth-proxy
+type NetworkPolicyConfig struct {
+	// Ingress defines ingress NetworkPolicy rules.
+	// When present, ingress rules are applied to restrict incoming traffic to kube-auth-proxy pod.
+	// Default: Ingress rules are applied (allows traffic from Gateway pods and monitoring namespaces)
+	// +optional
+	Ingress *IngressPolicyConfig `json:"ingress,omitempty"`
+}
+
+// IngressPolicyConfig defines ingress NetworkPolicy rules
+type IngressPolicyConfig struct {
+	// Enabled determines whether ingress rules are applied.
+	// When Ingress is specified, Enabled must be explicitly set.
+	// +kubebuilder:validation:Required
+	Enabled bool `json:"enabled"`
 }
 
 // OIDCConfig defines OIDC provider configuration
