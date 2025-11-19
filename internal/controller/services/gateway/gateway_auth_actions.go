@@ -55,9 +55,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return fmt.Errorf("failed to get or generate secrets: %w", err)
 	}
 
-	// Pass subdomain to deployKubeAuthProxy for image selection
-	subdomain := gatewayConfig.Spec.Subdomain
-	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, gatewayConfig.Spec.Cookie, clientSecret, cookieSecret, domain, subdomain); err != nil {
+	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, gatewayConfig.Spec.Cookie, clientSecret, cookieSecret, domain); err != nil {
 		return fmt.Errorf("failed to deploy auth proxy: %w", err)
 	}
 
