@@ -37,6 +37,8 @@ ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
 	APPLICATIONS_NAMESPACE ?= opendatahub
 	# Specifies the namespace where the workbenches are deployed (defaults to opendatahub)
 	WORKBENCHES_NAMESPACE ?= opendatahub
+	# Specifies the namespace where monitoring is deployed (defaults to opendatahub)
+	MONITORING_NAMESPACE ?= opendatahub
 	CHANNELS ?= fast
 	ROLE_NAME=controller-manager-role
 	BUNDLE_DIR ?= odh-bundle
@@ -56,12 +58,14 @@ else
 	ifeq ($(VERSION), )
 		VERSION = 3.2.0
 	endif
-	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
-	OPERATOR_NAMESPACE ?= opendatahub-operator-system
-	# Specifies the namespace where the component deployments are deployed (defaults to opendatahub)
+	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
+	OPERATOR_NAMESPACE ?= redhat-ods-operator
+	# Specifies the namespace where the component deployments are deployed (defaults to redhat-ods-applications)
 	APPLICATIONS_NAMESPACE ?= redhat-ods-applications
-	# Specifies the namespace where the workbenches are deployed (defaults to opendatahub)
+	# Specifies the namespace where the workbenches are deployed (defaults to rhods-notebooks)
 	WORKBENCHES_NAMESPACE ?= rhods-notebooks
+	# Specifies the namespace where monitoring is deployed (defaults to redhat-ods-monitoring)
+	MONITORING_NAMESPACE ?= redhat-ods-monitoring
 	CHANNELS ?= alpha,stable,fast
 	DEFAULT_CHANNEL ?= stable
 	ROLE_NAME=rhods-operator-role
@@ -615,6 +619,10 @@ endif
 # Specifies the namespace where the workbenches are deployed
 ifndef E2E_TEST_WORKBENCHES_NAMESPACE
 export E2E_TEST_WORKBENCHES_NAMESPACE = $(WORKBENCHES_NAMESPACE)
+endif
+# Specifies the namespace where monitoring is deployed
+ifndef E2E_TEST_MONITORING_NAMESPACE
+export E2E_TEST_MONITORING_NAMESPACE = $(MONITORING_NAMESPACE)
 endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
