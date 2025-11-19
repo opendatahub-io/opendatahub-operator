@@ -23,7 +23,7 @@ COPY internal/ internal/
 COPY cmd/ cmd/
 COPY pkg/ pkg/
 
-COPY /tests/e2e/ .
+COPY /tests/e2e/ /tests/e2e/
 COPY /tests/run-tests.sh .
 
 RUN chmod +x run-tests.sh
