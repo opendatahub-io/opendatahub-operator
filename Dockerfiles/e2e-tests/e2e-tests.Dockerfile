@@ -15,13 +15,13 @@ COPY go.sum go.sum
 
 RUN go mod download
 
+WORKDIR /e2e
+
 # Copy the go source needed for e2e tests
 COPY api/ api/
 COPY internal/ internal/
 COPY cmd/ cmd/
 COPY pkg/ pkg/
-
-WORKDIR /e2e
 
 COPY /tests/e2e/ .
 COPY /tests/run-tests.sh .
