@@ -28,4 +28,4 @@ COPY /tests/e2e/ .
 
 RUN mkdir -p /results
 
-ENTRYPOINT ["bash", "/tests/run-tests.sh"]
+ENTRYPOINT ["bash", "run-tests.sh"]
