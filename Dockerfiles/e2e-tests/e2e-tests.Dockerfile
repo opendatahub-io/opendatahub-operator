@@ -28,6 +28,4 @@ COPY /tests/run-tests.sh .
 
 RUN chmod +x run-tests.sh
 
-RUN mkdir -p /results
-
 ENTRYPOINT ["bash", "run-tests.sh"]
