@@ -694,30 +694,27 @@ func (tc *TestContext) EnsureDeploymentReady(nn types.NamespacedName, replicas i
 	// Construct a resource identifier.
 	resourceID := resources.FormatNamespacedName(nn)
 
-	// Use Eventually to wait for the deployment to become ready
-	tc.g.Eventually(func(g Gomega) {
-		// Fetch the deployment
-		deployment := &appsv1.Deployment{}
-		tc.FetchTypedResource(
-			deployment,
-			WithMinimalObject(gvk.Deployment, nn),
-			WithCustomErrorMsg("Deployment %s was expected to exist but was not found", resourceID),
-		)
+	// Ensure the deployment exists and retrieve the object.
+	deployment := &appsv1.Deployment{}
+	tc.FetchTypedResource(
+		deployment,
+		WithMinimalObject(gvk.Deployment, nn),
+		WithCustomErrorMsg("Deployment %s was expected to exist but was not found", resourceID),
+	)
 
-		// Assert that the deployment contains the necessary condition (DeploymentAvailable) with status "True"
-		g.Expect(deployment.Status.Conditions).To(
-			ContainElement(
-				gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
-					"Type":   Equal(appsv1.DeploymentAvailable),
-					"Status": Equal(corev1.ConditionTrue),
-				}),
-			), "Expected DeploymentAvailable condition to be True for deployment %s", resourceID)
+	// Assert that the deployment contains the necessary condition (DeploymentAvailable) with status "True"
+	tc.g.Expect(deployment.Status.Conditions).To(
+		ContainElement(
+			gstruct.MatchFields(gstruct.IgnoreExtras, gstruct.Fields{
+				"Type":   Equal(appsv1.DeploymentAvailable),
+				"Status": Equal(corev1.ConditionTrue),
+			}),
+		), "Expected DeploymentAvailable condition to be True for deployment %s", resourceID)
 
-		// Assert the number of ready replicas matches the expected count
-		g.Expect(deployment.Status.ReadyReplicas).To(
-			Equal(replicas),
-			"Expected %d ready replicas for deployment, but got %d", replicas, deployment.Status.ReadyReplicas)
-	}).Should(Succeed(), "Deployment %s should become ready with %d replicas", resourceID, replicas)
+	// Assert the number of ready replicas matches the expected count
+	tc.g.Expect(deployment.Status.ReadyReplicas).To(
+		Equal(replicas),
+		"Expected %d ready replicas for deployment, but got %d", replicas, deployment.Status.ReadyReplicas)
 }
 
 // EnsureCRDEstablished ensures that the specified CustomResourceDefinition is fully established.

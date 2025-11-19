@@ -932,10 +932,10 @@ func TestSecretHashAnnotationChangeTriggers(t *testing.T) {
 	rr2 := &odhtypes.ReconciliationRequest{Client: client2}
 
 	// Create two deployments with different secrets
-	err1 := createKubeAuthProxyDeployment(ctx, rr1, nil, nil, expectedODHDomain, "")
+	err1 := createKubeAuthProxyDeployment(ctx, rr1, nil, nil, expectedODHDomain)
 	g.Expect(err1).NotTo(HaveOccurred())
 
-	err2 := createKubeAuthProxyDeployment(ctx, rr2, nil, nil, expectedODHDomain, "")
+	err2 := createKubeAuthProxyDeployment(ctx, rr2, nil, nil, expectedODHDomain)
 	g.Expect(err2).NotTo(HaveOccurred())
 
 	// Convert both to typed Deployments
@@ -967,7 +967,7 @@ func TestSecretHashAnnotationWithoutSecret(t *testing.T) {
 	rr := &odhtypes.ReconciliationRequest{Client: client}
 
 	// Create deployment without secret - should succeed with empty hash
-	err := createKubeAuthProxyDeployment(ctx, rr, nil, nil, expectedODHDomain, "")
+	err := createKubeAuthProxyDeployment(ctx, rr, nil, nil, expectedODHDomain)
 	g.Expect(err).NotTo(HaveOccurred(), "deployment creation should succeed even when secret doesn't exist")
 	g.Expect(rr.Resources).To(HaveLen(1))
 

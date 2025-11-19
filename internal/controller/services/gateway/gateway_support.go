@@ -76,8 +76,6 @@ const (
 	AuthModeIntegratedOAuth AuthMode = "IntegratedOAuth"
 	AuthModeOIDC            AuthMode = "OIDC"
 	AuthModeNone            AuthMode = "None"
-
-	DefaultKubeAuthProxyImage = "quay.io/opendatahub/odh-kube-auth-proxy:latest"
 )
 
 var (
@@ -96,22 +94,14 @@ func calculateSecretHash(secretData map[string][]byte) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// getKubeAuthProxyImage returns the kube-auth-proxy image from the environment,
-// falling back to a local-development default.
+// getKubeAuthProxyImage returns the kube-auth-proxy image from environment variable.
+// Falls back to a odh image for development.
 func getKubeAuthProxyImage() string {
-	if img := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); img != "" {
-		return img
+	if image := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); image != "" {
+		return image
 	}
-	return DefaultKubeAuthProxyImage
-}
-
-// getKubeAuthProxyImageWithSubdomainCheck returns the kube-auth-proxy image,
-// using the ODH image specifically when subdomain == "e2etest".
-func getKubeAuthProxyImageWithSubdomainCheck(subdomain string) string {
-	if strings.EqualFold(strings.TrimSpace(subdomain), "e2etest") {
-		return DefaultKubeAuthProxyImage
-	}
-	return getKubeAuthProxyImage()
+	// Fallback for ODH development
+	return "quay.io/opendatahub/odh-kube-auth-proxy:latest"
 }
 
 // getCertificateType returns a string representation of the certificate type.
@@ -495,7 +485,7 @@ func validateGatewayConfig(rr *odhtypes.ReconciliationRequest) (*serviceApi.Gate
 // deployKubeAuthProxy deploys the complete OAuth2 proxy infrastructure including secret, service and deployment.
 func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 	oidcConfig *serviceApi.OIDCConfig, cookieConfig *serviceApi.CookieConfig,
-	clientSecret, cookieSecret string, domain string, subdomain string) error {
+	clientSecret, cookieSecret string, domain string) error {
 	l := logf.FromContext(ctx).WithName("deployAuthProxy")
 
 	if oidcConfig != nil {
@@ -519,7 +509,7 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return err
 	}
 
-	err = createKubeAuthProxyDeployment(ctx, rr, oidcConfig, cookieConfig, domain, subdomain)
+	err = createKubeAuthProxyDeployment(ctx, rr, oidcConfig, cookieConfig, domain)
 	if err != nil {
 		return err
 	}
@@ -598,7 +588,7 @@ func createKubeAuthProxyDeployment(
 	ctx context.Context, rr *odhtypes.ReconciliationRequest,
 	oidcConfig *serviceApi.OIDCConfig,
 	cookieConfig *serviceApi.CookieConfig,
-	domain string, subdomain string) error {
+	domain string) error {
 	// secret doesn't exist use empty string.
 	secret := &corev1.Secret{}
 	secretHash := ""
@@ -634,7 +624,7 @@ func createKubeAuthProxyDeployment(
 					Containers: []corev1.Container{
 						{
 							Name:  KubeAuthProxyName,
-							Image: getKubeAuthProxyImageWithSubdomainCheck(subdomain),
+							Image: getKubeAuthProxyImage(),
 							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: AuthProxyHTTPPort,

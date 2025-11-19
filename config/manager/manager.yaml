@@ -65,9 +65,6 @@ spec:
             value: /opt/manifests
           # - name: ODH_PLATFORM_TYPE
           #   value: SelfManagedRHOAI
-          # Kube-auth-proxy image configuration
-          - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
-            value: "quay.io/rhoai/odh-kube-auth-proxy-rhel9:latest"
         image: controller:latest
         imagePullPolicy: Always
         securityContext:
