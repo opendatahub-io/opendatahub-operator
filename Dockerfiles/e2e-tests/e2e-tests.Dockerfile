@@ -29,13 +29,13 @@ RUN go install gotest.tools/gotestsum@latest \
  && go build -o /opt/app-root/src/test2json cmd/test2json
 
 ################################################################################
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+FROM golang:$GOLANG_VERSION
 
-RUN microdnf update -y && \
+RUN apt-get update -y && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/ && \
-    microdnf clean all
+    apt-get clean all
 
 # install gotestsum and build test2json
 RUN go install gotest.tools/gotestsum@latest \
