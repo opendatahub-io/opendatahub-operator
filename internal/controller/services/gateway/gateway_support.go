@@ -103,8 +103,8 @@ func getKubeAuthProxyImage() string {
 	if image := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); image != "" {
 		return image
 	}
-	// Fallback for local development only
-	return "quay.io/jtanner/kube-auth-proxy:latest"
+	// Fallback for ODH development
+	return "quay.io/opendatahub/odh-kube-auth-proxy:latest"
 }
 
 // getCertificateType returns a string representation of the certificate type.
