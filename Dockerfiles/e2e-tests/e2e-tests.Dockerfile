@@ -28,4 +28,4 @@ COPY /tests/e2e/ .
 
 RUN mkdir -p /results
 
-ENTRYPOINT ["go run -C ./cmd/test-retry main.go e2e --verbose --junit-output=results/xunit_report.xml"]
+CMD ["go run -C ./cmd/test-retry main.go e2e --verbose --junit-output=results/xunit_report.xml"]
