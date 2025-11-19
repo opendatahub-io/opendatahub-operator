@@ -11,10 +11,12 @@ import (
 	"slices"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/hashicorp/go-multierror"
 	routev1 "github.com/openshift/api/route/v1"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,9 +25,22 @@ import (
 	"k8s.io/client-go/discovery"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const PlatformFieldOwner = "platform.opendatahub.io"
+
+// ResourceSpec defines a specification for identifying and filtering Kubernetes resources
+// based on their GroupVersionKind, namespace, and field values.
+type ResourceSpec struct {
+	Gvk       schema.GroupVersionKind
+	Namespace string
+	// FieldPath specifies the path to the field for filtering, like ["metadata", "name"]
+	FieldPath []string
+	// FilterValues contains the values to match against the field - if the field value
+	// matches any of these values, the resource will be processed (e.g., deleted)
+	FilterValues []string
+}
 
 func ToUnstructured(obj any) (*unstructured.Unstructured, error) {
 	data, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
@@ -630,4 +645,96 @@ func ListAvailableAPIResources(
 	}
 
 	return items, nil
+}
+
+// DeleteResources iterates through a list of ResourceSpec and deletes matching Kubernetes resources.
+// It collects all errors encountered during deletion and returns them as a multierror.
+//
+// Parameters:
+//   - ctx: The context for the operation
+//   - c: The Kubernetes client used to list and delete resources
+//   - resources: A slice of ResourceSpec defining which resources to delete
+//
+// Returns:
+//   - error: A multierror containing all errors encountered, or nil if all deletions succeeded
+func DeleteResources(ctx context.Context, c client.Client, resources []ResourceSpec) error {
+	var errors *multierror.Error
+
+	for _, res := range resources {
+		err := DeleteOneResource(ctx, c, res)
+		errors = multierror.Append(errors, err)
+	}
+
+	return errors.ErrorOrNil()
+}
+
+// DeleteOneResource deletes all Kubernetes resources matching the given ResourceSpec.
+// It lists resources of the specified GVK in the given namespace, filters them based on
+// the field path and values, and deletes matching resources.
+//
+// Parameters:
+//   - ctx: The context for the operation
+//   - c: The Kubernetes client used to list and delete resources
+//   - res: The ResourceSpec defining which resources to delete
+//
+// Returns:
+//   - error: An error if the operation fails, or nil on success
+func DeleteOneResource(ctx context.Context, c client.Client, res ResourceSpec) error {
+	log := logf.FromContext(ctx)
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(res.Gvk)
+
+	err := c.List(ctx, list, client.InNamespace(res.Namespace))
+	if err != nil {
+		if meta.IsNoMatchError(err) {
+			log.Info("CRD not found, will not delete", "gvk", res.Gvk.String())
+			return nil
+		}
+		return fmt.Errorf("failed to list %s: %w", res.Gvk.Kind, err)
+	}
+
+	for _, item := range list.Items {
+		v, ok, err := unstructured.NestedString(item.Object, res.FieldPath...)
+		if err != nil {
+			return fmt.Errorf("failed to get field %v for %s %s/%s: %w", res.FieldPath, res.Gvk.Kind, res.Namespace, item.GetName(), err)
+		}
+
+		if !ok {
+			return fmt.Errorf("nonexistent field path: %v", res.FieldPath)
+		}
+
+		for _, targetValue := range res.FilterValues {
+			if v == targetValue {
+				err = c.Delete(ctx, &item)
+				if err != nil {
+					return fmt.Errorf("failed to delete %s %s/%s: %w", res.Gvk.Kind, res.Namespace, item.GetName(), err)
+				}
+				log.Info("Deleted object", "name", item.GetName(), "gvk", res.Gvk.String(), "namespace", res.Namespace)
+			}
+		}
+	}
+
+	return nil
+}
+
+// UnsetOwnerReferences removes all owner references from a Kubernetes object and updates it.
+// This is useful when you need to orphan a resource from its owner.
+//
+// Parameters:
+//   - ctx: The context for the operation
+//   - cli: The Kubernetes client used to update the resource
+//   - instanceName: The name of the instance (used for error reporting)
+//   - odhObject: The unstructured object whose owner references should be removed
+//
+// Returns:
+//   - error: An error if the update operation fails, or nil if there are no owner references or update succeeds
+func UnsetOwnerReferences(ctx context.Context, cli client.Client, instanceName string, odhObject *unstructured.Unstructured) error {
+	if odhObject.GetOwnerReferences() != nil {
+		// set to nil as updates
+		odhObject.SetOwnerReferences(nil)
+		if err := cli.Update(ctx, odhObject); err != nil {
+			return fmt.Errorf("error unset ownerreference for CR %s : %w", instanceName, err)
+		}
+	}
+	return nil
 }
