@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -24,6 +23,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/matchers/jq"
 
@@ -75,7 +75,6 @@ func gatewayTestSuite(t *testing.T) {
 	}
 
 	testCases := []TestCase{
-		{"Configure GatewayConfig with e2e_test subdomain", gatewayCtx.ConfigureE2ESubdomain},
 		{"Validate GatewayConfig creation", gatewayCtx.ValidateGatewayConfig},
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
 		{"Validate OAuth client and secret creation", gatewayCtx.ValidateOAuthClientAndSecret},
@@ -101,31 +100,6 @@ func makeCookieDomain(hostname string) string {
 	return fmt.Sprintf("--cookie-domain=%s", hostname)
 }
 
-// ConfigureE2ESubdomain patches the GatewayConfig to use 'e2etest' subdomain.
-// This ensures the kube-auth-proxy deployment uses the ODH image in e2e tests.
-func (tc *GatewayTestCtx) ConfigureE2ESubdomain(t *testing.T) {
-	t.Helper()
-	t.Log("Configuring GatewayConfig with e2etest subdomain")
-
-	// Wait for GatewayConfig to be created by the operator
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
-		WithCustomErrorMsg("GatewayConfig should be created before configuring subdomain"),
-	)
-
-	// Update the GatewayConfig to set subdomain to e2etest
-	tc.EventuallyResourceUpdated(
-		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
-		WithMutateFunc(func(obj *unstructured.Unstructured) error {
-			// Set the subdomain field in the spec
-			return unstructured.SetNestedField(obj.Object, "e2etest", "spec", "subdomain")
-		}),
-		WithCustomErrorMsg("Failed to update GatewayConfig with e2etest subdomain"),
-	)
-
-	t.Log("Successfully configured GatewayConfig with e2etest subdomain")
-}
-
 // ValidateGatewayConfig ensures the GatewayConfig CR exists and is properly configured.
 func (tc *GatewayTestCtx) ValidateGatewayConfig(t *testing.T) {
 	t.Helper()
@@ -134,12 +108,11 @@ func (tc *GatewayTestCtx) ValidateGatewayConfig(t *testing.T) {
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.GatewayConfig, types.NamespacedName{Name: gatewayConfigName}),
 		WithCondition(And(
-			jq.Match(`.spec.subdomain == "e2etest"`),
 			jq.Match(`.spec.certificate.secretName == "%s"`, gatewayTLSSecretName),
 			jq.Match(`.spec.certificate.type == "%s"`, string(infrav1.OpenshiftDefaultIngress)),
 			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "%s"`, metav1.ConditionTrue),
 		)),
-		WithCustomErrorMsg("GatewayConfig should have e2etest subdomain, correct certificate configuration and Ready status"),
+		WithCustomErrorMsg("GatewayConfig should have correct certificate configuration and Ready status"),
 	)
 
 	t.Log("GatewayConfig validation completed")
@@ -624,22 +597,21 @@ func (tc *GatewayTestCtx) createHTTPClient() *http.Client {
 	}
 }
 
-// getExpectedGatewayHostname returns the expected gateway hostname based on the GatewayConfig.
+// getExpectedGatewayHostname returns the expected gateway hostname based on cluster domain.
 // Result is cached to avoid multiple cluster API calls.
-// This uses the gateway.GetGatewayDomain function which reads the subdomain from GatewayConfig.
 func (tc *GatewayTestCtx) getExpectedGatewayHostname(t *testing.T) string {
 	t.Helper()
 	tc.once.Do(func() {
-		hostname, err := gateway.GetGatewayDomain(tc.Context(), tc.Client())
+		clusterDomain, err := cluster.GetDomain(tc.Context(), tc.Client())
 		if err != nil {
 			// store empty and let caller fail with require if needed
 			tc.cachedGatewayHostname = ""
 			return
 		}
-		tc.cachedGatewayHostname = hostname
+		tc.cachedGatewayHostname = gatewayName + "." + clusterDomain
 	})
 	if tc.cachedGatewayHostname == "" {
-		require.FailNow(t, "failed to determine gateway hostname from GatewayConfig")
+		require.FailNow(t, "failed to determine cluster domain to compute gateway hostname")
 	}
 	t.Logf("Expected gateway hostname: %s", tc.cachedGatewayHostname)
 	return tc.cachedGatewayHostname
