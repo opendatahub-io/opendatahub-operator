@@ -37,18 +37,27 @@ RUN apt-get update -y && \
     mv kubectl /usr/local/bin/ && \
     apt-get clean all
 
+# Copy the Go Modules manifests
+COPY go.mod go.mod
+COPY go.sum go.sum
+
+RUN go mod download
+
+# Copy the go source needed for e2e tests
+COPY api/ api/
+COPY internal/ internal/
+COPY cmd/main.go cmd/main.go
+COPY pkg/ pkg/
+COPY tests/ tests/
+
 WORKDIR /e2e
 
-# install gotestsum
-RUN go install gotest.tools/gotestsum@latest
+# install gotestsum and build test2json
+RUN go install gotest.tools/gotestsum@latest \
+ && go build -o /opt/app-root/src/test2json cmd/test2json
 
-COPY --from=builder /workspace/e2e-tests .
-COPY --from=builder /opt/app-root/src/go/bin/gotestsum /usr/local/bin/
-COPY --from=builder /opt/app-root/src/test2json /usr/local/bin/
-
-RUN chmod +x ./e2e-tests
-
+COPY /tests/e2e/ .
 
 RUN mkdir -p /results
 
-ENTRYPOINT ["gotestsum", "--junitfile", "/results/xunit_report.xml", "--format", "standard-verbose", "--raw-command", "--", "sh", "-c", "./e2e-tests --deletion-policy=never -test.v 2>&1 | /usr/local/bin/test2json"]
+ENTRYPOINT ["gotestsum", "--junitfile", "/results/xunit_report.xml", "--format", "standard-verbose"]
