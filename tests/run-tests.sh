@@ -5,6 +5,6 @@ set +o allexport
 
 mkdir -p /results
 
-gotestsum --debug --format standard-verbose --junitfile results/xunit_report.xml
+gotestsum /tests/e2e/ --debug --format testname --junitfile results/xunit_report.xml
 
 sleep 60s
