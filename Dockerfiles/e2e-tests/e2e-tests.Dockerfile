@@ -51,4 +51,4 @@ RUN chmod +x ./e2e-tests
 
 RUN mkdir -p /results
 
-CMD gotestsum --junitfile /results/xunit_report.xml --format standard-verbose --raw-command -- (go tool test2json ./e2e-tests --deletion-policy=never -test.v 2>&1)
+CMD gotestsum --junitfile /results/xunit_report.xml --format testname --raw-command -- go tool test2json ./e2e-tests --deletion-policy=never -test.v
