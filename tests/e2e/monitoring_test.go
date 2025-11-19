@@ -45,8 +45,8 @@ const (
 	OtlpCustomExporter     = "otlp/custom"
 	OtlpHttpCustomExporter = "otlphttp/custom"
 	OtlpTempoExporter      = "otlp/tempo"
-	MetricsCPURequest      = "50m"
-	MetricsMemoryRequest   = "128Mi"
+	MetricsCPURequest      = "100m"
+	MetricsMemoryRequest   = "256Mi"
 	// TracesStorage backend types for testing.
 	TracesStorageBackendPV        = "pv"
 	TracesStorageBackendS3        = "s3"
@@ -281,11 +281,11 @@ func (tc *MonitoringTestCtx) ValidateCELBlocksInvalidMonitoringConfigs(t *testin
 			description: "Exporters alone should not satisfy alerting requirements",
 		},
 		{
-			name: "replicas_without_storage_or_resources",
+			name: "replicas_without_storage",
 			transforms: []testf.TransformFn{
 				testf.Transform(`.spec.monitoring.metrics = {"replicas": 2}`),
 			},
-			description: "Non-zero replicas should require storage or resources",
+			description: "Non-zero replicas should require storage ",
 		},
 	}
 
@@ -1053,12 +1053,8 @@ func (tc *MonitoringTestCtx) withMetricsConfig() testf.TransformFn {
             "size": "%s",
             "retention": "%s"
         },
-        "resources": {
-            "cpurequest": "%s",
-            "memoryrequest": "%s"
-        },
         "replicas": %d
-    }`, MetricsStorageSize, MetricsRetention, MetricsCPURequest, MetricsMemoryRequest, tc.expectedDefaultReplicas)
+    }`, MetricsStorageSize, MetricsRetention, tc.expectedDefaultReplicas)
 }
 
 // withMetricsReplicas returns a transform that sets metrics replicas.

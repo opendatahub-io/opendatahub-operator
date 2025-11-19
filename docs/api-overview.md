@@ -2664,28 +2664,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `storage` _[MetricsStorage](#metricsstorage)_ |  |  |  |
-| `resources` _[MetricsResources](#metricsresources)_ |  |  |  |
 | `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  | Minimum: 0 <br /> |
 | `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines custom metrics exporters for sending metrics to external observability tools.<br />Each key represents the exporter name, and the value contains the exporter configuration.<br />The configuration follows the OpenTelemetry Collector exporter format.<br />Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.<br />Maximum 10 exporters allowed, each config must be less than 10KB (enforced at reconciliation time). |  |  |
-
-
-#### MetricsResources
-
-
-
-MetricsResources defines the resource requests and limits for the monitoring service
-
-
-
-_Appears in:_
-- [Metrics](#metrics)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `cpulimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPULimit specifies the maximum CPU allocation (e.g., "500m", "2") | 500m |  |
-| `memorylimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi") | 512Mi |  |
-| `cpurequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5") | 100m |  |
-| `memoryrequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi") | 256Mi |  |
 
 
 #### MetricsStorage

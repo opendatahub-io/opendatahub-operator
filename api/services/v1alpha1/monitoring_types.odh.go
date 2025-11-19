@@ -19,8 +19,8 @@ limitations under the License.
 package v1alpha1
 
 // MonitoringCommonSpec spec defines the shared desired state of Monitoring
-// +kubebuilder:validation:XValidation:rule="has(self.alerting) ? has(self.metrics.storage) || has(self.metrics.resources) : true",message="Alerting configuration requires metrics.storage or metrics.resources to be configured"
-// +kubebuilder:validation:XValidation:rule="!has(self.collectorReplicas) || (self.collectorReplicas > 0 && ((self.metrics.resources != null || self.metrics.storage != null) || self.traces != null))",message="CollectorReplicas can only be set when metrics.resources, metrics.storage or traces are configured, and must be > 0"
+// +kubebuilder:validation:XValidation:rule="has(self.alerting) ? has(self.metrics.storage)  : true",message="Alerting configuration requires metrics.storage to be configured"
+// +kubebuilder:validation:XValidation:rule="!has(self.collectorReplicas) || (self.collectorReplicas > 0 && (self.metrics.storage != null || self.traces != null))",message="CollectorReplicas can only be set when metrics.storage or traces are configured, and must be > 0"
 type MonitoringCommonSpec struct {
 	// monitoring spec exposed to DSCI api
 	// Namespace for monitoring if it is enabled

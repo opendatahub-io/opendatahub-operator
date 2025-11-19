@@ -35,12 +35,23 @@ const (
 	clusterObservabilityOperator = "cluster-observability-operator"
 	tempoOperator                = "tempo-operator"
 
-	defaultCPULimit      = "500m"
+	defaultStorageSize = "5Gi"
+	defaultRetention   = "90d"
+
+	defaultCPULimit      = "1"
 	defaultMemoryLimit   = "512Mi"
 	defaultCPURequest    = "100m"
 	defaultMemoryRequest = "256Mi"
-	defaultStorageSize   = "5Gi"
-	defaultRetention     = "90d"
+
+	defaultCollectorCPULimit      = "1"
+	defaultCollectorMemoryLimit   = "256Mi"
+	defaultCollectorCPURequest    = "100m"
+	defaultCollectorMemoryRequest = "256Mi"
+
+	defaultTempoCPULimit      = "1"
+	defaultTempoMemoryLimit   = "256Mi"
+	defaultTempoCPURequest    = "100m"
+	defaultTempoMemoryRequest = "256Mi"
 )
 
 var componentIDRE = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z0-9][A-Za-z0-9_-]*)?$`)
@@ -260,6 +271,9 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"PersesImage":          getPersesImage(),
 	}
 
+	// always add resource defaults
+	addResourceData(templateData)
+
 	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {
 		if err := addMetricsData(ctx, rr, metrics, templateData); err != nil {
@@ -388,26 +402,28 @@ func cleanupPrometheusRules(ctx context.Context, componentName string, rr *odhty
 
 // addMetricsData adds metrics configuration data to the template data map.
 func addMetricsData(ctx context.Context, rr *odhtypes.ReconciliationRequest, metrics *serviceApi.Metrics, templateData map[string]any) error {
-	addResourceData(metrics, templateData)
 	addStorageData(metrics, templateData)
 	addReplicasData(ctx, rr, metrics, templateData)
 	return addExportersData(metrics, templateData)
 }
 
 // addResourceData adds resource configuration data to the template data map.
-func addResourceData(metrics *serviceApi.Metrics, templateData map[string]any) {
-	if metrics.Resources != nil {
-		templateData["CPULimit"] = getResourceValueOrDefault(metrics.Resources.CPULimit.String(), defaultCPULimit)
-		templateData["MemoryLimit"] = getResourceValueOrDefault(metrics.Resources.MemoryLimit.String(), defaultMemoryLimit)
-		templateData["CPURequest"] = getResourceValueOrDefault(metrics.Resources.CPURequest.String(), defaultCPURequest)
-		templateData["MemoryRequest"] = getResourceValueOrDefault(metrics.Resources.MemoryRequest.String(), defaultMemoryRequest)
-	} else {
-		// Use defaults when Resources is nil
-		templateData["CPULimit"] = defaultCPULimit
-		templateData["MemoryLimit"] = defaultMemoryLimit
-		templateData["CPURequest"] = defaultCPURequest
-		templateData["MemoryRequest"] = defaultMemoryRequest
-	}
+func addResourceData(templateData map[string]any) {
+	// Use defaults
+	templateData["CPULimit"] = defaultCPULimit
+	templateData["MemoryLimit"] = defaultMemoryLimit
+	templateData["CPURequest"] = defaultCPURequest
+	templateData["MemoryRequest"] = defaultMemoryRequest
+
+	templateData["CollectorCPULimit"] = defaultCollectorCPULimit
+	templateData["CollectorMemoryLimit"] = defaultCollectorMemoryLimit
+	templateData["CollectorCPURequest"] = defaultCollectorCPURequest
+	templateData["CollectorMemoryRequest"] = defaultCollectorMemoryRequest
+
+	templateData["TempoCPULimit"] = defaultTempoCPULimit
+	templateData["TempoMemoryLimit"] = defaultTempoMemoryLimit
+	templateData["TempoCPURequest"] = defaultTempoCPURequest
+	templateData["TempoMemoryRequest"] = defaultTempoMemoryRequest
 }
 
 // addStorageData adds storage configuration data to the template data map.
@@ -425,9 +441,9 @@ func addStorageData(metrics *serviceApi.Metrics, templateData map[string]any) {
 // addReplicasData adds replica configuration data to the template data map.
 func addReplicasData(ctx context.Context, rr *odhtypes.ReconciliationRequest, metrics *serviceApi.Metrics, templateData map[string]any) {
 	// - if user explicitly set replicas, use their value
-	// - if metrics is configured (storage or resources) but no explicit replicas, use SNO-aware defaults
+	// - if metrics is configured but no explicit replicas, use SNO-aware defaults
 	// - otherwise, rely on MonitoringStack CRD defaults
-	allowedByConfig := metrics.Storage != nil || metrics.Resources != nil
+	allowedByConfig := metrics.Storage != nil
 	isSNO := cluster.IsSingleNodeCluster(ctx, rr.Client)
 
 	switch {
