@@ -5,12 +5,13 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   resources:
-    limits:
-      cpu: {{.TempoCPULimit}}
-      memory: {{.TempoMemoryLimit}}
-    requests:
-      cpu: {{.TempoCPURequest}}
-      memory: {{.TempoMemoryRequest}}
+    total:
+      limits:
+        cpu: {{.TempoCPULimit}}
+        memory: {{.TempoMemoryLimit}}
+      requests:
+        cpu: {{.TempoCPURequest}}
+        memory: {{.TempoMemoryRequest}}
   tenants:
     mode: openshift
   retention:
