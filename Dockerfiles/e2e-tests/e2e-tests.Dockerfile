@@ -9,13 +9,13 @@ RUN apt-get update -y && \
     mv kubectl /usr/local/bin/ && \
     apt-get clean all
 
+WORKDIR /e2e
+
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
 
 RUN go mod download
-
-WORKDIR /e2e
 
 # Copy the go source needed for e2e tests
 COPY api/ api/
