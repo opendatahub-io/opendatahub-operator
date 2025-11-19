@@ -52,4 +52,4 @@ RUN chmod +x ./e2e-tests
 RUN mkdir -p /results
 
 ENTRYPOINT ["gotestsum", "--junitfile", "/results/xunit_report.xml", "--format", "standard-verbose", "--raw-command", "--"]
-CMD ["go tool test2json", "./e2e-tests --deletion-policy=never -test.v 2>&1"]
+CMD go tool test2json ./e2e-tests --deletion-policy=never -test.v 2>&1
