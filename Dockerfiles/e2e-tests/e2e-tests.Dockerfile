@@ -16,6 +16,7 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 
 RUN go mod download
+RUN go install gotest.tools/gotestsum@v1.13
 
 # Copy the go source needed for e2e tests
 COPY api/ api/
