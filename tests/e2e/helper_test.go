@@ -59,6 +59,8 @@ const (
 	opentelemetryOpNamespace    = "openshift-opentelemetry-operator"         // Namespace for the OpenTelemetry Operator
 	controllerDeploymentODH     = "opendatahub-operator-controller-manager"  // Name of the ODH deployment
 	controllerDeploymentRhoai   = "rhods-operator"                           // Name of the Rhoai deployment
+	dashboardRouteNameODH       = "odh-dashboard"                            // Name of the ODH dashboard route
+	dashboardRouteNameRhoai     = "rhods-dashboard"                          // Name of the Rhoai dashboard route
 )
 
 // Configuration and Miscellaneous Constants.
@@ -442,5 +444,16 @@ func getControllerDeploymentNameByPlatform(platform common.Platform) string {
 		return controllerDeploymentODH
 	default:
 		return controllerDeploymentODH
+	}
+}
+
+func getDashboardRouteNameByPlatform(platform common.Platform) string {
+	switch platform {
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+		return dashboardRouteNameRhoai
+	case cluster.OpenDataHub:
+		return dashboardRouteNameODH
+	default:
+		return dashboardRouteNameODH
 	}
 }
