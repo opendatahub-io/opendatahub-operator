@@ -3039,7 +3039,7 @@ _Appears in:_
 
 
 
-TracesStorage defines the storage configuration for tracing.
+TracesStorage defines the storage configuration for tracing
 
 
 
@@ -3058,7 +3058,7 @@ _Appears in:_
 
 
 
-TracesTLS defines TLS configuration for traces collection
+TracesTLS defines TLS configuration for trace ingestion and query APIs
 
 
 
@@ -3067,7 +3067,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `enabled` _boolean_ | Enabled enables TLS for Tempo gRPC connections | true |  |
+| `enabled` _boolean_ | Enabled enables TLS for Tempo OTLP ingestion (gRPC/HTTP) and query APIs (HTTP)<br />TLS is disabled by default to maintain backward compatibility |  |  |
 | `certificateSecret` _string_ | CertificateSecret specifies the name of the secret containing TLS certificates<br />If not specified, OpenShift service serving certificates will be used |  |  |
 | `caConfigMap` _string_ | CAConfigMap specifies the name of the ConfigMap containing the CA certificate<br />Required for mutual TLS authentication |  |  |
 
