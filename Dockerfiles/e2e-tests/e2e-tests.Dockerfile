@@ -37,11 +37,12 @@ RUN apt-get update -y && \
 RUN go install gotest.tools/gotestsum@latest \
  && go build -o /opt/app-root/src/test2json cmd/test2json
 
+RUN cp /opt/app-root/src/go/bin/gotestsum /usr/local/bin/
+RUN cp /opt/app-root/src/test2json /usr/local/bin/
+
 WORKDIR /e2e
 
 COPY --from=builder /workspace/e2e-tests .
-COPY --from=builder /opt/app-root/src/go/bin/gotestsum /usr/local/bin/
-COPY --from=builder /opt/app-root/src/test2json /usr/local/bin/
 
 RUN chmod +x ./e2e-tests
 
