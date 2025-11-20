@@ -21,6 +21,7 @@ COPY cmd/main.go cmd/main.go
 COPY pkg/ pkg/
 COPY tests/ tests/
 
+# Set environment vars
 ENV E2E_TEST_OPERATOR_NAMESPACE=redhat-ods-operator
 ENV E2E_TEST_APPLICATIONS_NAMESPACE=redhat-ods-applications
 ENV E2E_TEST_WORKBENCHES_NAMESPACE=rhods-notebooks
