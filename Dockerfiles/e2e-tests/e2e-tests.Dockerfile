@@ -21,6 +21,10 @@ COPY cmd/main.go cmd/main.go
 COPY pkg/ pkg/
 COPY tests/ tests/
 
+ENV E2E_TEST_OPERATOR_NAMESPACE=redhat-ods-operator
+ENV E2E_TEST_APPLICATIONS_NAMESPACE=redhat-ods-applications
+ENV E2E_TEST_WORKBENCHES_NAMESPACE=rhods-notebooks
+
 # build the e2e test binary + pre-compile the e2e tests
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./tests/e2e/ -o e2e-tests
 
@@ -45,4 +49,4 @@ RUN chmod +x ./e2e-tests
 
 RUN mkdir -p results
 
-CMD gotestsum --junitfile-project-name odh-operator-e2e --junitfile results/xunit_report.xml --format testname --raw-command -- test2json -p e2e ./e2e-tests --test.parallel=1 --test.v=test2json --deletion-policy=never
+CMD gotestsum --junitfile-project-name odh-operator-e2e --junitfile results/xunit_report.xml --format testname --raw-command -- test2json -p e2e ./e2e-tests --test.parallel=1 --test.v=test2json --deletion-policy=never --operator-namespace=$E2E_TEST_OPERATOR_NAMESPACE --applications-namespace=$E2E_TEST_APPLICATIONS_NAMESPACE --workbenches-namespace=$E2E_TEST_WORKBENCHES_NAMESPACE
