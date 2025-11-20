@@ -35,10 +35,7 @@ RUN apt-get update -y && \
 
 # install gotestsum and build test2json
 RUN go install gotest.tools/gotestsum@latest \
- && go build -o /opt/app-root/src/test2json cmd/test2json
-
-RUN cp /opt/app-root/src/go/bin/gotestsum /usr/local/bin/
-RUN cp /opt/app-root/src/test2json /usr/local/bin/
+ && go build -o /usr/local/bin/test2json cmd/test2json
 
 WORKDIR /e2e
 
