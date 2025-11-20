@@ -1,5 +1,10 @@
 # E2E Test Image with precompiled tests
+# ARG vars
 ARG GOLANG_VERSION=1.24
+# ENV vars
+ENV E2E_TEST_OPERATOR_NAMESPACE=redhat-ods-operator
+ENV E2E_TEST_APPLICATIONS_NAMESPACE=redhat-ods-applications
+ENV E2E_TEST_WORKBENCHES_NAMESPACE=rhods-notebooks
 
 ################################################################################
 FROM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder
@@ -20,11 +25,6 @@ COPY internal/ internal/
 COPY cmd/main.go cmd/main.go
 COPY pkg/ pkg/
 COPY tests/ tests/
-
-# Set environment vars
-ENV E2E_TEST_OPERATOR_NAMESPACE=redhat-ods-operator
-ENV E2E_TEST_APPLICATIONS_NAMESPACE=redhat-ods-applications
-ENV E2E_TEST_WORKBENCHES_NAMESPACE=rhods-notebooks
 
 # build the e2e test binary + pre-compile the e2e tests
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./tests/e2e/ -o e2e-tests
