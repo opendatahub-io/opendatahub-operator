@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 )
@@ -62,7 +63,7 @@ func getOdhDashboardConfig(ctx context.Context, cli client.Client, applicationNS
 	odhConfig.SetGroupVersionKind(gvk.OdhDashboardConfig)
 
 	// Try to get the OdhDashboardConfig from cluster first
-	err := cli.Get(ctx, client.ObjectKey{Name: "odh-dashboard-config", Namespace: applicationNS}, odhConfig)
+	err := cli.Get(ctx, client.ObjectKey{Name: odhDashboardConfigName, Namespace: applicationNS}, odhConfig)
 	if err == nil {
 		log.Info("Found OdhDashboardConfig in cluster")
 		return odhConfig, true, nil
@@ -94,11 +95,9 @@ func createHardwareProfileFromContainerSize(ctx context.Context, cli client.Clie
 	sizeType string, notebooksOnlyToleration []corev1.Toleration, applicationNS string) error {
 	hwp := generateHardwareProfileFromContainerSize(ctx, size, sizeType, notebooksOnlyToleration, applicationNS)
 
-	if err := cli.Create(ctx, hwp); err != nil {
-		if !k8serr.IsAlreadyExists(err) {
-			return fmt.Errorf("failed to create HardwareProfile resource '%s' for container size '%s' "+
-				"(profileType: %s, namespace: %s): %w", hwp.GetName(), size.Name, sizeType, applicationNS, err)
-		}
+	if err := cluster.CreateHardwareProfile(ctx, cli, hwp); err != nil {
+		return fmt.Errorf("failed to create HardwareProfile resource '%s' for container size '%s' "+
+			"(profileType: %s, namespace: %s): %w", hwp.GetName(), size.Name, sizeType, applicationNS, err)
 	}
 	return nil
 }
@@ -339,19 +338,22 @@ func getNotebooksOnlyToleration(odhConfig *unstructured.Unstructured) ([]corev1.
 
 	return []corev1.Toleration{toleration}, nil
 }
-func createHardwareProfileFromAcceleratorProfile(ctx context.Context, cli client.Client,
-	ap unstructured.Unstructured, profileType string, containerCounts map[string]string,
-	toleration []corev1.Toleration) error {
+func createHardwareProfileFromAcceleratorProfile(
+	ctx context.Context,
+	cli client.Client,
+	ap unstructured.Unstructured,
+	profileType string,
+	containerCounts map[string]string,
+	toleration []corev1.Toleration,
+) error {
 	apName := ap.GetName()
 	hwp, err := generateHardwareProfileFromAcceleratorProfile(ctx, ap, profileType, containerCounts, toleration)
 	if err != nil {
 		return fmt.Errorf("failed to generate %s HardwareProfile for AcceleratorProfile '%s' (profileType: %s): %w", profileType, apName, profileType, err)
 	}
 
-	if err := cli.Create(ctx, hwp); err != nil {
-		if !k8serr.IsAlreadyExists(err) {
-			return fmt.Errorf("failed to create %s HardwareProfile '%s' for AcceleratorProfile '%s' (profileType: %s): %w", profileType, hwp.GetName(), apName, profileType, err)
-		}
+	if err := cluster.CreateHardwareProfile(ctx, cli, hwp); err != nil {
+		return fmt.Errorf("failed to create %s HardwareProfile '%s' for AcceleratorProfile '%s' (profileType: %s): %w", profileType, hwp.GetName(), apName, profileType, err)
 	}
 	return nil
 }
@@ -375,19 +377,8 @@ func generateHardwareProfileFromAcceleratorProfile(ctx context.Context, ap unstr
 	description, _ := spec["description"].(string)
 	enabled, _ := spec["enabled"].(bool)
 
-	// Create HWP name
-	hwpName := fmt.Sprintf("%s-%s", apName, profileType)
-	// Convert to lowercase and replace spaces with dashes to comply with the hardwareprofile CRD validation
-	hwpName = strings.ReplaceAll(strings.ToLower(hwpName), " ", "-")
-
 	// Create annotations
-	annotations := map[string]string{
-		"opendatahub.io/dashboard-feature-visibility": getFeatureVisibility(profileType),
-		"opendatahub.io/modified-date":                time.Now().Format(time.RFC3339),
-		"opendatahub.io/display-name":                 displayName,
-		"opendatahub.io/description":                  description,
-		"opendatahub.io/disabled":                     strconv.FormatBool(!enabled),
-	}
+	annotations := createHardwareProfileAnnotations(profileType, displayName, description, !enabled)
 
 	// Copy existing annotations from AP
 	if apAnnotations := ap.GetAnnotations(); apAnnotations != nil {
@@ -469,8 +460,8 @@ func generateHardwareProfileFromAcceleratorProfile(ctx context.Context, ap unstr
 			},
 		}
 	}
-
-	log.Info("successfully generated HardwareProfile from AcceleratorProfile", "name", hwpName, "namespace", apNamespace, "ap", apName)
+	hwpName := fmt.Sprintf("%s-%s", apName, profileType)
+	log.Info("generated HardwareProfile object from AcceleratorProfile", "name", hwpName, "namespace", apNamespace, "ap", apName)
 
 	return &infrav1.HardwareProfile{
 		TypeMeta: metav1.TypeMeta{
@@ -498,13 +489,7 @@ func generateHardwareProfileFromContainerSize(ctx context.Context, size Containe
 	// Convert size name to lowercase and replace spaces with dashes to comply with the hardwareprofile CRD validation
 	hwpName := fmt.Sprintf("%s%s-%s", containerSizeHWPPrefix, strings.ReplaceAll(strings.ToLower(size.Name), " ", "-"), profileType)
 	// Create annotations
-	annotations := map[string]string{
-		"opendatahub.io/dashboard-feature-visibility": getFeatureVisibility(profileType),
-		"opendatahub.io/modified-date":                time.Now().Format(time.RFC3339),
-		"opendatahub.io/display-name":                 size.Name,
-		"opendatahub.io/description":                  "",
-		"opendatahub.io/disabled":                     "false",
-	}
+	annotations := createHardwareProfileAnnotations(profileType, size.Name, "", false)
 
 	// Create identifiers
 	identifiers := []infrav1.HardwareIdentifier{
@@ -537,7 +522,7 @@ func generateHardwareProfileFromContainerSize(ctx context.Context, size Containe
 		}
 	}
 
-	log.Info("successfully generated HardwareProfile from ContainerSize", "name", hwpName, "namespace", namespace, "size", size.Name)
+	log.Info("generated HardwareProfile object from ContainerSize", "name", hwpName, "namespace", namespace, "size", size.Name)
 
 	return &infrav1.HardwareProfile{
 		TypeMeta: metav1.TypeMeta{
@@ -559,9 +544,9 @@ func generateHardwareProfileFromContainerSize(ctx context.Context, size Containe
 // getFeatureVisibility returns the dashboard feature visibility string for a profile type.
 func getFeatureVisibility(profileType string) string {
 	if profileType == serving {
-		return `["model-serving"]`
+		return featureVisibilityModelServing
 	}
-	return `["workbench"]`
+	return featureVisibilityWorkbench
 }
 
 // getNotebooks retrieves all Notebook resources in the given namespace.
@@ -690,4 +675,25 @@ func setHardwareProfileAnnotation(ctx context.Context, cli client.Client, obj *u
 	obj.SetAnnotations(annotations)
 
 	return cli.Update(ctx, obj)
+}
+
+// createHardwareProfileAnnotations creates the standard set of annotations for a HardwareProfile.
+// This function ensures consistency across all HardwareProfile creation.
+//
+// Parameters:
+//   - profileType: The type of profile (notebooks, serving, or all)
+//   - displayName: The display name for the profile
+//   - description: The description for the profile
+//   - disabled: Whether the profile is disabled
+//
+// Returns:
+//   - map[string]string: A map of annotation keys to values
+func createHardwareProfileAnnotations(profileType, displayName, description string, disabled bool) map[string]string {
+	return map[string]string{
+		hardwareProfileVisibilityAnnotation:   getFeatureVisibility(profileType),
+		hardwareProfileModifiedDateAnnotation: time.Now().Format(time.RFC3339),
+		hardwareProfileDisplayNameAnnotation:  displayName,
+		hardwareProfileDescriptionAnnotation:  description,
+		hardwareProfileDisabledAnnotation:     strconv.FormatBool(disabled),
+	}
 }
