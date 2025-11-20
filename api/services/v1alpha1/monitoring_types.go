@@ -95,10 +95,10 @@ type Traces struct {
 	Exporters map[string]runtime.RawExtension `json:"exporters,omitempty"`
 }
 
-// TracesTLS defines TLS configuration for traces collection
+// TracesTLS defines TLS configuration for trace ingestion and query APIs
 type TracesTLS struct {
-	// Enabled enables TLS for Tempo gRPC connections
-	// +kubebuilder:default=true
+	// Enabled enables TLS for Tempo OTLP ingestion (gRPC/HTTP) and query APIs (HTTP)
+	// TLS is disabled by default to maintain backward compatibility
 	Enabled bool `json:"enabled,omitempty"`
 	// CertificateSecret specifies the name of the secret containing TLS certificates
 	// If not specified, OpenShift service serving certificates will be used
@@ -108,8 +108,18 @@ type TracesTLS struct {
 	CAConfigMap string `json:"caConfigMap,omitempty"`
 }
 
-// TracesStorage defines the storage configuration for tracing.
-// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? has(self.secret) : true", message="When backend is s3 or gcs, the 'secret' field must be specified and non-empty"
+// Storage backend type constants
+const (
+	// StorageBackendPV represents persistent volume storage backend
+	StorageBackendPV = "pv"
+	// StorageBackendS3 represents S3-compatible storage backend
+	StorageBackendS3 = "s3"
+	// StorageBackendGCS represents Google Cloud Storage backend
+	StorageBackendGCS = "gcs"
+)
+
+// TracesStorage defines the storage configuration for tracing
+// +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? (has(self.secret) && self.secret != '') : true", message="When backend is s3 or gcs, the 'secret' field must be specified and non-empty"
 // +kubebuilder:validation:XValidation:rule="self.backend != 'pv' ? !has(self.size) : true", message="Size is supported when backend is pv only"
 type TracesStorage struct {
 	// Backend defines the storage backend type.
