@@ -41,9 +41,6 @@ WORKDIR /e2e
 
 COPY --from=builder /workspace/e2e-tests .
 
-RUN cp /opt/app-root/src/go/bin/gotestsum /usr/local/bin/
-RUN cp  /opt/app-root/src/test2json /usr/local/bin/
-
 RUN chmod +x ./e2e-tests
 
 RUN mkdir -p results
