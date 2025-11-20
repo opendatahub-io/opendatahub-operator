@@ -21,10 +21,6 @@ COPY cmd/main.go cmd/main.go
 COPY pkg/ pkg/
 COPY tests/ tests/
 
-# install gotestsum and build test2json
-RUN go install gotest.tools/gotestsum@latest \
- && go build -o /opt/app-root/src/test2json cmd/test2json
-
 # build the e2e test binary + pre-compile the e2e tests
 RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./tests/e2e/ -o e2e-tests
 

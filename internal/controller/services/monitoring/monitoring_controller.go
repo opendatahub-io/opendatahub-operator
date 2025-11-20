@@ -136,7 +136,8 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deployAlerting).
 		WithAction(deployOpenTelemetryCollector).
 		WithAction(deployPerses).
-		WithAction(deployPersesDatasource).
+		WithAction(deployPersesTempoIntegration).
+		WithAction(deployPersesPrometheusIntegration).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
