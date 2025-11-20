@@ -13,6 +13,16 @@ spec:
     requests:
       cpu: {{.CollectorCPURequest}}
       memory: {{.CollectorMemoryRequest}}
+  {{- if .Metrics }}
+  volumeMounts:
+  - name: tls-certs
+    mountPath: /etc/otel-collector/tls
+    readOnly: true
+  volumes:
+  - name: tls-certs
+    secret:
+      secretName: data-science-collector-tls
+  {{- end }}
   config:
     extensions:
       bearertokenauth:
@@ -143,6 +153,9 @@ spec:
       {{- if .Metrics }}
       prometheus:
         endpoint: 0.0.0.0:8889
+        tls:
+          cert_file: "/etc/otel-collector/tls/tls.crt"
+          key_file: "/etc/otel-collector/tls/tls.key"
         resource_to_telemetry_conversion:
           enabled: true # by default resource attributes are dropped
       {{- if .MetricsExporterNames }}
