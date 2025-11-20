@@ -1,10 +1,6 @@
 # E2E Test Image with precompiled tests
 # ARG vars
 ARG GOLANG_VERSION=1.24
-# ENV vars
-ENV E2E_TEST_OPERATOR_NAMESPACE=redhat-ods-operator
-ENV E2E_TEST_APPLICATIONS_NAMESPACE=redhat-ods-applications
-ENV E2E_TEST_WORKBENCHES_NAMESPACE=rhods-notebooks
 
 ################################################################################
 FROM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder
@@ -50,4 +46,4 @@ RUN chmod +x ./e2e-tests
 
 RUN mkdir -p results
 
-ENTRYPOINT exec gotestsum --junitfile-project-name odh-operator-e2e --junitfile results/xunit_report.xml --format testname --raw-command -- test2json -p e2e ./e2e-tests --test.parallel=1 --test.v=test2json --deletion-policy=never --operator-namespace=$E2E_TEST_OPERATOR_NAMESPACE --applications-namespace=$E2E_TEST_APPLICATIONS_NAMESPACE --workbenches-namespace=$E2E_TEST_WORKBENCHES_NAMESPACE
+ENTRYPOINT exec gotestsum --junitfile-project-name odh-operator-e2e --junitfile results/xunit_report.xml --format testname --raw-command -- test2json -p e2e ./e2e-tests --test.parallel=1 --test.v=test2json --deletion-policy=never
