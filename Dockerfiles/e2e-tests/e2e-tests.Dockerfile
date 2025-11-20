@@ -28,6 +28,11 @@ RUN CGO_ENABLED=${CGO_ENABLED} GOOS=linux GOARCH=${TARGETARCH} go test -c ./test
 ################################################################################
 FROM golang:$GOLANG_VERSION
 
+# ENV vars
+ENV E2E_TEST_OPERATOR_NAMESPACE=redhat-ods-operator
+ENV E2E_TEST_APPLICATIONS_NAMESPACE=redhat-ods-applications
+ENV E2E_TEST_WORKBENCHES_NAMESPACE=rhods-notebooks
+
 RUN apt-get update -y && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
@@ -36,7 +41,7 @@ RUN apt-get update -y && \
 
 # install gotestsum and build test2json
 RUN go install gotest.tools/gotestsum@latest \
- && go build -o /opt/app-root/src/test2json cmd/test2json
+ && go build -o /usr/local/bin/test2json cmd/test2json
 
 WORKDIR /e2e
 
@@ -46,4 +51,4 @@ RUN chmod +x ./e2e-tests
 
 RUN mkdir -p results
 
-CMD gotestsum --junitfile-project-name odh-operator-e2e --junitfile results/xunit_report.xml --format testname --raw-command -- test2json -p e2e ./e2e-tests --test.parallel=1 --test.v=test2json --deletion-policy=never
+CMD gotestsum --junitfile-project-name odh-operator-e2e --junitfile results/xunit_report.xml --format testname --raw-command -- test2json -p e2e ./e2e-tests --test.parallel=1 --test.v=test2json --deletion-policy=never --operator-namespace=$E2E_TEST_OPERATOR_NAMESPACE --applications-namespace=$E2E_TEST_APPLICATIONS_NAMESPACE --workbenches-namespace=$E2E_TEST_WORKBENCHES_NAMESPACE
