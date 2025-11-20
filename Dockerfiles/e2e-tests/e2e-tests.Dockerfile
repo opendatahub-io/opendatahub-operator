@@ -46,4 +46,4 @@ RUN chmod +x ./e2e-tests
 
 RUN mkdir -p results
 
-ENTRYPOINT exec gotestsum --junitfile-project-name odh-operator-e2e --junitfile results/xunit_report.xml --format testname --raw-command -- test2json -p e2e ./e2e-tests --test.parallel=1 --test.v=test2json --deletion-policy=never
+CMD gotestsum --junitfile-project-name odh-operator-e2e --junitfile results/xunit_report.xml --format testname --raw-command -- test2json -p e2e ./e2e-tests --test.parallel=1 --test.v=test2json --deletion-policy=never
