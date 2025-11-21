@@ -38,7 +38,6 @@ const (
 	PrometheusServiceOverrideTemplate         = "resources/data-science-prometheus-service-override.tmpl.yaml"
 	PrometheusNetworkPolicyTemplate           = "resources/data-science-prometheus-network-policy.tmpl.yaml"
 	PrometheusWebTLSServiceTemplate           = "resources/prometheus-web-tls-service.tmpl.yaml"
-	PrometheusWebTLSCASecretJobTemplate       = "resources/prometheus-web-tls-ca-secret-job.tmpl.yaml"
 	ThanosQuerierTemplate                     = "resources/thanos-querier-cr.tmpl.yaml"
 	ThanosQuerierRouteTemplate                = "resources/thanos-querier-route.tmpl.yaml"
 	PersesTemplate                            = "resources/perses.tmpl.yaml"
@@ -196,6 +195,8 @@ func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *od
 	rr.Conditions.MarkTrue(status.ConditionThanosQuerierAvailable)
 
 	// Prepare and deploy all component templates atomically
+	// Note: PrometheusWebTLSCASecretJobTemplate is no longer needed - the syncPrometheusWebTLSCA
+	// controller action handles CA sync from ConfigMap to Secret automatically, including CA rotation.
 	templates := []odhtypes.TemplateInfo{
 		{FS: resourcesFS, Path: MonitoringStackTemplate},
 		{FS: resourcesFS, Path: MonitoringStackAlertmanagerRBACTemplate},
@@ -203,7 +204,6 @@ func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *od
 		{FS: resourcesFS, Path: PrometheusServiceOverrideTemplate},
 		{FS: resourcesFS, Path: PrometheusNetworkPolicyTemplate},
 		{FS: resourcesFS, Path: PrometheusWebTLSServiceTemplate},
-		{FS: resourcesFS, Path: PrometheusWebTLSCASecretJobTemplate},
 		{FS: resourcesFS, Path: PrometheusRestrictedTemplate},
 		{FS: resourcesFS, Path: PrometheusRestrictedNetworkPolicyTemplate},
 		{FS: resourcesFS, Path: ThanosQuerierTemplate},

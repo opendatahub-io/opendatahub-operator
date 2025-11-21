@@ -48,6 +48,43 @@ metadata:
     platform.opendatahub.io/part-of: monitoring
 data:
   kube-rbac-proxy.yaml: |
+    # kube-rbac-proxy authorization configuration
+    # This configuration enforces namespace-scoped metrics access by:
+    # 1. Extracting the 'namespace' query parameter from incoming requests
+    # 2. Performing a SubjectAccessReview (SAR) to verify the user has
+    #    'get pods' permission in the metrics.k8s.io API group for that namespace
+    # 3. Allowing/denying the request based on the SAR result
+    #
+    # IMPORTANT: The 'namespace' query parameter is MANDATORY for all requests.
+    #
+    # Expected behaviors:
+    # - Query WITH namespace parameter and valid permissions:
+    #   Request: GET /api/v1/query?query=up&namespace=my-namespace
+    #   Result: HTTP 200 OK (proxied to Prometheus with rewritten query)
+    #
+    # - Query WITH namespace parameter but NO permissions:
+    #   Request: GET /api/v1/query?query=up&namespace=my-namespace
+    #   Result: HTTP 403 Forbidden
+    #   Error: "Forbidden (user=<user>, verb=get, resource=pods, subresource=)"
+    #
+    # - Query WITHOUT namespace parameter:
+    #   Request: GET /api/v1/query?query=up
+    #   Result: HTTP 400 Bad Request
+    #   Error: "Bad Request. The request or configuration is malformed."
+    #   Reason: prom-label-proxy requires the namespace parameter for query rewriting
+    #
+    # - Query with WRONG namespace (no permission):
+    #   Request: GET /api/v1/query?query=up&namespace=other-namespace
+    #   Result: HTTP 403 Forbidden
+    #
+    # Correct query format (REQUIRED):
+    #   GET /api/v1/query?query=<promql>&namespace=<namespace-name>
+    #
+    # To grant metrics access, users need any role with metrics.k8s.io/pods permission:
+    #   oc adm policy add-role-to-user view <user> -n <namespace>
+    #   oc adm policy add-role-to-user edit <user> -n <namespace>
+    #   oc adm policy add-role-to-user cluster-monitoring-view <user> -n <namespace>
+    # Note: Standard OpenShift roles (view, edit, admin) include metrics.k8s.io permissions
     authorization:
       rewrites:
         byQueryParameter:
@@ -57,6 +94,53 @@ data:
         resource: pods
         namespace: "{{ "{{ .Value }}" }}"
 ---
+# Namespace-Restricted Prometheus Proxy Deployment
+#
+# This deployment provides namespace-scoped access to Prometheus metrics using a
+# two-proxy architecture to enforce both authentication/authorization and query filtering.
+#
+# ARCHITECTURE:
+#   User Request
+#       ↓
+#   kube-rbac-proxy (port 8443)
+#       ├─ Authenticates via bearer token
+#       ├─ Extracts 'namespace' query parameter
+#       ├─ Performs SubjectAccessReview for metrics.k8s.io/pods in that namespace
+#       └─ Denies if unauthorized (403 Forbidden)
+#       ↓
+#   prom-label-proxy (port 9091)
+#       ├─ Rewrites PromQL queries to inject namespace label: {namespace="value"}
+#       └─ Forwards to upstream Prometheus
+#       ↓
+#   Prometheus (prometheus-operated service)
+#
+# REQUIRED QUERY FORMAT:
+#   GET /api/v1/query?query=<promql>&namespace=<namespace-name>
+#
+# COMMON ERRORS AND TROUBLESHOOTING:
+#
+# 1. HTTP 400 Bad Request - Missing namespace parameter
+#    Error: "Bad Request. The request or configuration is malformed."
+#    Cause: Query missing 'namespace' parameter
+#    Example: curl "https://.../api/v1/query?query=up"
+#    Fix: Add namespace parameter: curl "https://.../api/v1/query?query=up&namespace=my-namespace"
+#    Technical: prom-label-proxy requires namespace parameter for query rewriting
+#
+# 2. HTTP 403 Forbidden - Insufficient permissions
+#    Error: "Forbidden (user=<user>, verb=get, resource=pods, subresource=)"
+#    Cause: User lacks cluster-monitoring-view role in the requested namespace
+#    Check: oc adm policy who-can get pods.metrics.k8s.io -n <namespace>
+#    Fix: oc adm policy add-role-to-user cluster-monitoring-view <user> -n <namespace>
+#
+# 3. HTTP 401 Unauthorized
+#    Cause: Missing or invalid bearer token
+#    Fix: Include valid token: -H "Authorization: Bearer $(oc whoami -t)"
+#
+# 4. Empty results but successful query (HTTP 200)
+#    Cause: No metrics exist for that namespace, or wrong namespace specified
+#    Check: Verify namespace name spelling and that pods are exposing metrics
+#    Debug: Check if metrics exist: oc get servicemonitors -n <namespace>
+#
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -96,11 +180,11 @@ spec:
               protocol: TCP
           resources:
             limits:
-              cpu: 20m
-              memory: 40Mi
+              cpu: 100m
+              memory: 128Mi
             requests:
-              cpu: 10m
-              memory: 20Mi
+              cpu: 50m
+              memory: 64Mi
           terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
             - name: config
@@ -131,11 +215,11 @@ spec:
               value: /etc/prometheus-tls-ca:/etc/ssl/certs:/etc/pki/tls/certs
           resources:
             limits:
-              cpu: 20m
-              memory: 40Mi
+              cpu: 100m
+              memory: 128Mi
             requests:
-              cpu: 10m
-              memory: 20Mi
+              cpu: 50m
+              memory: 64Mi
           terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
             - name: prometheus-tls-ca
