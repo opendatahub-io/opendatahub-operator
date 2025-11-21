@@ -2628,6 +2628,7 @@ _Appears in:_
 | `subdomain` _string_ | Subdomain configuration for the GatewayConfig |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$` <br /> |
 | `cookie` _[CookieConfig](#cookieconfig)_ | Cookie configuration for OAuth2 proxy (applies to both OIDC and OpenShift OAuth) |  |  |
 | `authTimeout` _string_ | AuthTimeout is the duration Envoy waits for auth proxy responses.<br />Requests timeout with 403 if exceeded.<br />Overrides GATEWAY_AUTH_TIMEOUT env var. Default: "5s" |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
+| `networkPolicy` _[NetworkPolicyConfig](#networkpolicyconfig)_ | NetworkPolicy configuration for kube-auth-proxy |  |  |
 
 
 #### GatewayConfigStatus
@@ -2646,6 +2647,22 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
+
+
+#### IngressPolicyConfig
+
+
+
+IngressPolicyConfig defines ingress NetworkPolicy rules
+
+
+
+_Appears in:_
+- [NetworkPolicyConfig](#networkpolicyconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ | Enabled determines whether ingress rules are applied.<br />When Ingress is specified, Enabled must be explicitly set. |  | Required: \{\} <br /> |
 
 
 #### Metrics
@@ -2764,6 +2781,22 @@ _Appears in:_
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `url` _string_ |  |  |  |
+
+
+#### NetworkPolicyConfig
+
+
+
+NetworkPolicyConfig defines network policy configuration for kube-auth-proxy
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ingress` _[IngressPolicyConfig](#ingresspolicyconfig)_ | Ingress defines ingress NetworkPolicy rules.<br />When present, ingress rules are applied to restrict incoming traffic to kube-auth-proxy pod.<br />Default: Ingress rules are applied (allows traffic from Gateway pods and monitoring namespaces) |  |  |
 
 
 #### OIDCConfig
