@@ -170,6 +170,7 @@ func New(opts ...OptionFn) (*EnvT, error) {
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,
 		},
+		ErrorIfCRDPathMissing: true,
 	}
 
 	// If webhooks are registered, configure the webhook server

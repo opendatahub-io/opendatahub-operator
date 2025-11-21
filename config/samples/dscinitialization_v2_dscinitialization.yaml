@@ -7,9 +7,9 @@ metadata:
 spec:
   monitoring:
     managementState: "Managed"
-    namespace: 'redhat-ods-monitoring'
+    namespace: 'opendatahub'
     metrics: {}
-  applicationsNamespace: 'redhat-ods-applications'
+  applicationsNamespace: 'opendatahub'
   trustedCABundle:
     managementState: "Managed"
     customCABundle: ""

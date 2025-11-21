@@ -1,0 +1,26 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-web-tls-ca
+  namespace: {{.Namespace}}
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+---
+# This Service definition intentionally omits the 'spec' field because:
+# 1. The 'prometheus-operated' Service is created and managed by the MonitoringStack Operator
+# 2. We only need to add the serving-cert-secret-name annotation to trigger OpenShift's
+#    service serving cert controller to generate TLS certificates
+# 3. This manifest is applied using Server-Side Apply (SSA), which merges this partial
+#    definition with the existing Service without overwriting the spec
+# 4. Each controller (MonitoringStack Operator and ODH Operator) manages different fields,
+#    allowing them to coexist without conflicts
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-operated
+  namespace: {{.Namespace}}
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: prometheus-operated-tls

@@ -2,8 +2,6 @@ resources:
 - manifests.yaml
 - service.yaml
 
-namePrefix: rhods-operator-
-
 commonAnnotations:
   service.beta.openshift.io/inject-cabundle: "true"
 

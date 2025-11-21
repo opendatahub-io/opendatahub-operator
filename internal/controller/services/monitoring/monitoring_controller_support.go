@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	apicommon "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	componentMonitoring "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -34,15 +36,42 @@ const (
 	clusterObservabilityOperator = "cluster-observability-operator"
 	tempoOperator                = "tempo-operator"
 
-	defaultCPULimit      = "500m"
+	defaultStorageSize = "5Gi"
+	defaultRetention   = "90d"
+
+	defaultCPULimit      = "1"
 	defaultMemoryLimit   = "512Mi"
 	defaultCPURequest    = "100m"
 	defaultMemoryRequest = "256Mi"
-	defaultStorageSize   = "5Gi"
-	defaultRetention     = "90d"
+
+	defaultCollectorCPULimit      = "1"
+	defaultCollectorMemoryLimit   = "256Mi"
+	defaultCollectorCPURequest    = "100m"
+	defaultCollectorMemoryRequest = "256Mi"
+
+	defaultTempoCPULimit      = "1"
+	defaultTempoMemoryLimit   = "256Mi"
+	defaultTempoCPURequest    = "100m"
+	defaultTempoMemoryRequest = "256Mi"
 )
 
 var componentIDRE = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z0-9][A-Za-z0-9_-]*)?$`)
+
+// getPersesImage returns the Perses image from environment variable.
+// For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
+// For ODH deployments, this comes from config/manager/manager.yaml.
+// Falls back to a default image for local development/testing only.
+//
+// Note: This image version must stay compatible with the Cluster Observability Operator (COO) version
+// that we depend on. When upgrading COO, verify Perses image compatibility and update accordingly.
+// The current image is compatible with COO 1.2.2.
+func getPersesImage() string {
+	if image := os.Getenv("RELATED_IMAGE_PERSES"); image != "" {
+		return image
+	}
+
+	return "registry.redhat.io/cluster-observability-operator/perses-0-50-rhel9:1.2.2-1752686994"
+}
 
 // isLocalServiceEndpoint checks if an endpoint URL is for a local/in-cluster service.
 // Returns true for localhost, loopback IPs, cluster-local services, and single-label service names.
@@ -188,9 +217,13 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	switch traces.Storage.Backend {
 	case "pv":
 		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempomonolithic.%s.svc.cluster.local:4317", namespace)
+		// Perses datasource needs HTTP query endpoint (port 3200)
+		templateData["TempoQueryEndpoint"] = fmt.Sprintf("http://tempo-data-science-tempomonolithic.%s.svc.cluster.local:3200", namespace)
 		templateData["Size"] = traces.Storage.Size
 	case "s3", "gcs":
 		templateData["TempoEndpoint"] = fmt.Sprintf("tempo-data-science-tempostack-gateway.%s.svc.cluster.local:4317", namespace)
+		// Perses datasource needs HTTP query endpoint via gateway (port 8080)
+		templateData["TempoQueryEndpoint"] = fmt.Sprintf("http://tempo-data-science-tempostack-gateway.%s.svc.cluster.local:8080", namespace)
 		templateData["Secret"] = traces.Storage.Secret
 	}
 
@@ -216,6 +249,34 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	return nil
 }
 
+// Images can be overridden via environment variables, with defaults based on platform.
+func addImageURLs(rr *odhtypes.ReconciliationRequest, templateData map[string]any) {
+	templateData["KubeRBACProxyImage"] = getImageURL(
+		"RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+		"quay.io/brancz/kube-rbac-proxy:v0.20.0",
+		"registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9:v4.17",
+		rr.Release.Name,
+	)
+	templateData["PromLabelProxyImage"] = getImageURL(
+		"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",
+		"quay.io/prometheuscommunity/prom-label-proxy:v0.12.1",
+		"registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9:v4.17",
+		rr.Release.Name,
+	)
+}
+
+func getImageURL(envVar, upstreamDefault, rhoaiDefault string, platform apicommon.Platform) string {
+	if envValue := os.Getenv(envVar); envValue != "" {
+		return envValue
+	}
+
+	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
+		return rhoaiDefault
+	}
+
+	return upstreamDefault
+}
+
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
@@ -236,7 +297,12 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		"ApplicationNamespace": appNamespace,
 		"MetricsExporters":     make(map[string]string),
 		"MetricsExporterNames": []string{},
+		"PersesImage":          getPersesImage(),
 	}
+
+	// always add resource defaults
+	addResourceData(templateData)
+	addImageURLs(rr, templateData)
 
 	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {
@@ -366,26 +432,28 @@ func cleanupPrometheusRules(ctx context.Context, componentName string, rr *odhty
 
 // addMetricsData adds metrics configuration data to the template data map.
 func addMetricsData(ctx context.Context, rr *odhtypes.ReconciliationRequest, metrics *serviceApi.Metrics, templateData map[string]any) error {
-	addResourceData(metrics, templateData)
 	addStorageData(metrics, templateData)
 	addReplicasData(ctx, rr, metrics, templateData)
 	return addExportersData(metrics, templateData)
 }
 
 // addResourceData adds resource configuration data to the template data map.
-func addResourceData(metrics *serviceApi.Metrics, templateData map[string]any) {
-	if metrics.Resources != nil {
-		templateData["CPULimit"] = getResourceValueOrDefault(metrics.Resources.CPULimit.String(), defaultCPULimit)
-		templateData["MemoryLimit"] = getResourceValueOrDefault(metrics.Resources.MemoryLimit.String(), defaultMemoryLimit)
-		templateData["CPURequest"] = getResourceValueOrDefault(metrics.Resources.CPURequest.String(), defaultCPURequest)
-		templateData["MemoryRequest"] = getResourceValueOrDefault(metrics.Resources.MemoryRequest.String(), defaultMemoryRequest)
-	} else {
-		// Use defaults when Resources is nil
-		templateData["CPULimit"] = defaultCPULimit
-		templateData["MemoryLimit"] = defaultMemoryLimit
-		templateData["CPURequest"] = defaultCPURequest
-		templateData["MemoryRequest"] = defaultMemoryRequest
-	}
+func addResourceData(templateData map[string]any) {
+	// Use defaults
+	templateData["CPULimit"] = defaultCPULimit
+	templateData["MemoryLimit"] = defaultMemoryLimit
+	templateData["CPURequest"] = defaultCPURequest
+	templateData["MemoryRequest"] = defaultMemoryRequest
+
+	templateData["CollectorCPULimit"] = defaultCollectorCPULimit
+	templateData["CollectorMemoryLimit"] = defaultCollectorMemoryLimit
+	templateData["CollectorCPURequest"] = defaultCollectorCPURequest
+	templateData["CollectorMemoryRequest"] = defaultCollectorMemoryRequest
+
+	templateData["TempoCPULimit"] = defaultTempoCPULimit
+	templateData["TempoMemoryLimit"] = defaultTempoMemoryLimit
+	templateData["TempoCPURequest"] = defaultTempoCPURequest
+	templateData["TempoMemoryRequest"] = defaultTempoMemoryRequest
 }
 
 // addStorageData adds storage configuration data to the template data map.
@@ -403,9 +471,9 @@ func addStorageData(metrics *serviceApi.Metrics, templateData map[string]any) {
 // addReplicasData adds replica configuration data to the template data map.
 func addReplicasData(ctx context.Context, rr *odhtypes.ReconciliationRequest, metrics *serviceApi.Metrics, templateData map[string]any) {
 	// - if user explicitly set replicas, use their value
-	// - if metrics is configured (storage or resources) but no explicit replicas, use SNO-aware defaults
+	// - if metrics is configured but no explicit replicas, use SNO-aware defaults
 	// - otherwise, rely on MonitoringStack CRD defaults
-	allowedByConfig := metrics.Storage != nil || metrics.Resources != nil
+	allowedByConfig := metrics.Storage != nil
 	isSNO := cluster.IsSingleNodeCluster(ctx, rr.Client)
 
 	switch {

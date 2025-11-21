@@ -4,6 +4,13 @@ metadata:
   name: data-science-tempomonolithic
   namespace: {{.Namespace}}
 spec:
+  resources:
+    limits:
+      cpu: {{.TempoCPULimit}}
+      memory: {{.TempoMemoryLimit}}
+    requests:
+      cpu: {{.TempoCPURequest}}
+      memory: {{.TempoMemoryRequest}}
   multitenancy:
     enabled: true  # Required for OpenShift
   storage:

@@ -1,0 +1,11 @@
+# Dockerfile-specific .dockerignore for e2e-tests.Dockerfile
+# unlike the main .dockerignore file, this one allows the tests/ directory to be included for e2e test builds
+
+**/.git
+**/coverage
+**/*.md
+**/docs
+**/bin
+**/samples
+opt/manifests/**/scorecard
+opt/manifests/**/example-*

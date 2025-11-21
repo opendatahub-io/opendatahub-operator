@@ -8,7 +8,7 @@ metadata:
     opendatahub.io/display-name: default-profile
     opendatahub.io/managed: "false"
   name: default-profile
-  namespace: redhat-ods-applications
+  namespace: opendatahub
 spec:
   identifiers:
     - defaultCount: 2

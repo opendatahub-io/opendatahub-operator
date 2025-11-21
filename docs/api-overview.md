@@ -272,7 +272,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "rhoai-model-registries" | rhoai-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### DSCModelRegistryStatus
@@ -410,7 +410,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, defaults to "rhods-notebooks" configurable once when component is enabled. | rhods-notebooks | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### DSCWorkbenchesStatus
@@ -1117,7 +1117,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "rhoai-model-registries" | rhoai-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### ModelRegistryCommonStatus
@@ -1151,7 +1151,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "rhoai-model-registries" | rhoai-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `registriesNamespace` _string_ | Namespace for model registries to be installed, configurable only once when model registry is enabled, defaults to "odh-model-registries" | odh-model-registries | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### ModelRegistryStatus
@@ -1541,7 +1541,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, defaults to "rhods-notebooks" configurable once when component is enabled. | rhods-notebooks | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### WorkbenchesCommonStatus
@@ -1575,7 +1575,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, defaults to "rhods-notebooks" configurable once when component is enabled. | rhods-notebooks | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `workbenchNamespace` _string_ | Namespace for workbenches to be installed, configurable only once when workbenches are enabled, defaults to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### WorkbenchesStatus
@@ -1935,7 +1935,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `applicationsNamespace` _string_ | Namespace for applications to be installed, non-configurable, default to "redhat-ods-applications" | redhat-ods-applications | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `applicationsNamespace` _string_ | Namespace for applications to be installed, non-configurable, default to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `monitoring` _[DSCIMonitoring](#dscimonitoring)_ | Enable monitoring on specified namespace |  |  |
 | `trustedCABundle` _[TrustedCABundleSpec](#trustedcabundlespec)_ | When set to `Managed`, adds odh-trusted-ca-bundle Configmap to all namespaces that includes<br />cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].<br />Additionally, this fields allows admins to add custom CA bundles to the configmap using the .CustomCABundle field. |  |  |
 | `devFlags` _[DevFlags](#devflags)_ | Internal development useful field to test customizations.<br />This is not recommended to be used in production environment. |  |  |
@@ -2041,7 +2041,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `applicationsNamespace` _string_ | Namespace for applications to be installed, non-configurable, default to "redhat-ods-applications" | redhat-ods-applications | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `applicationsNamespace` _string_ | Namespace for applications to be installed, non-configurable, default to "opendatahub" | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `monitoring` _[DSCIMonitoring](#dscimonitoring)_ | Enable monitoring on specified namespace |  |  |
 | `trustedCABundle` _[TrustedCABundleSpec](#trustedcabundlespec)_ | When set to `Managed`, adds odh-trusted-ca-bundle Configmap to all namespaces that includes<br />cluster-wide Trusted CA Bundle in .data["ca-bundle.crt"].<br />Additionally, this fields allows admins to add custom CA bundles to the configmap using the .CustomCABundle field. |  |  |
 | `devFlags` _[DevFlags](#devflags)_ | Internal development useful field to test customizations.<br />This is not recommended to be used in production environment. |  |  |
@@ -2581,7 +2581,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `managementState` _[ManagementState](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)_ | Set to one of the following values:<br />- "Managed" : the operator is actively managing the component and trying to keep it active.<br />              It will only upgrade the component if it is safe to do so<br />- "Removed" : the operator is actively managing the component and will not install it,<br />              or if it is installed, the operator will try to remove it |  | Enum: [Managed Removed] <br /> |
-| `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | redhat-ods-monitoring | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
@@ -2664,28 +2664,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `storage` _[MetricsStorage](#metricsstorage)_ |  |  |  |
-| `resources` _[MetricsResources](#metricsresources)_ |  |  |  |
 | `replicas` _integer_ | Replicas specifies the number of replicas in monitoringstack. If not set, it defaults<br />to 1 on single-node clusters and 2 on multi-node clusters. |  | Minimum: 0 <br /> |
 | `exporters` _object (keys:string, values:[RawExtension](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#rawextension-runtime-pkg))_ | Exporters defines custom metrics exporters for sending metrics to external observability tools.<br />Each key represents the exporter name, and the value contains the exporter configuration.<br />The configuration follows the OpenTelemetry Collector exporter format.<br />Reserved names 'prometheus' and 'otlp/tempo' cannot be used as they conflict with built-in exporters.<br />Maximum 10 exporters allowed, each config must be less than 10KB (enforced at reconciliation time). |  |  |
-
-
-#### MetricsResources
-
-
-
-MetricsResources defines the resource requests and limits for the monitoring service
-
-
-
-_Appears in:_
-- [Metrics](#metrics)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `cpulimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPULimit specifies the maximum CPU allocation (e.g., "500m", "2") | 500m |  |
-| `memorylimit` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi") | 512Mi |  |
-| `cpurequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5") | 100m |  |
-| `memoryrequest` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#quantity-resource-api)_ | MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi") | 256Mi |  |
 
 
 #### MetricsStorage
@@ -2730,7 +2710,7 @@ Monitoring is the Schema for the monitorings API
 
 
 
-MonitoringCommonSpec spec defines the shared desired state of Dashboard
+MonitoringCommonSpec spec defines the shared desired state of Monitoring
 
 
 
@@ -2740,7 +2720,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | redhat-ods-monitoring | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |
@@ -2760,7 +2740,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | redhat-ods-monitoring | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
+| `namespace` _string_ | monitoring spec exposed to DSCI api<br />Namespace for monitoring if it is enabled | opendatahub | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 | `metrics` _[Metrics](#metrics)_ | metrics collection |  |  |
 | `traces` _[Traces](#traces)_ | Tracing configuration for OpenTelemetry instrumentation |  |  |
 | `alerting` _[Alerting](#alerting)_ | Alerting configuration for Prometheus |  |  |

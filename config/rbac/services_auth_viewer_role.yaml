@@ -6,8 +6,8 @@ metadata:
     app.kubernetes.io/name: clusterrole
     app.kubernetes.io/instance: auth-viewer-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: rhods-operator
-    app.kubernetes.io/part-of: rhods-operator
+    app.kubernetes.io/created-by: opendatahub-operator
+    app.kubernetes.io/part-of: opendatahub-operator
     app.kubernetes.io/managed-by: kustomize
   name: auth-viewer-role
 rules:

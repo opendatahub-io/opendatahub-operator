@@ -21,6 +21,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	roleBindingKind        = "RoleBinding"
+	clusterRoleBindingKind = "ClusterRoleBinding"
+)
+
 // setupTestClient creates a fake client with DSCI pre-configured
 // Set includeMockAuth to true if the test needs OAuth authentication.
 func setupTestClient(g Gomega, includeMockAuth bool) client.Client {
@@ -201,9 +206,9 @@ func TestManagePermissionsBasic(t *testing.T) {
 
 	for _, resource := range rr.Resources {
 		switch resource.GetKind() {
-		case "RoleBinding":
+		case roleBindingKind:
 			roleBindings++
-		case "ClusterRoleBinding":
+		case clusterRoleBindingKind:
 			clusterRoleBindings++
 		}
 	}
@@ -257,4 +262,144 @@ func TestCreateDefaultGroupBasic(t *testing.T) {
 
 	err := createDefaultGroup(ctx, rr)
 	g.Expect(err).ToNot(HaveOccurred(), "Should handle group creation without error")
+}
+
+// TestManagePermissions validates that the controller creates the correct RBAC
+// resources. This test ensures:
+//
+//  1. Admin and allowed groups are configured correctly
+//  2. The correct number of RBAC resources are created
+//  3. All role bindings reference the correct roles
+func TestManagePermissions(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	fakeClient := setupTestClient(g, false)
+
+	auth := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "auth",
+		},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups:   []string{"admin1", "admin2"},
+			AllowedGroups: []string{"user1", "system:authenticated"},
+		},
+	}
+
+	// Create reconciliation request
+	rr := &odhtypes.ReconciliationRequest{
+		Client:    fakeClient,
+		Instance:  auth,
+		Resources: []unstructured.Unstructured{},
+	}
+
+	err := managePermissions(ctx, rr)
+	g.Expect(err).ToNot(HaveOccurred(), "Should create all required RBAC resources")
+
+	// Verify resources were created (3 total: 1 RoleBinding + 2 ClusterRoleBindings)
+	g.Expect(rr.Resources).To(HaveLen(3), "Should create 3 RBAC resources")
+
+	// Count different resource types and verify role names
+	roleBindings := 0
+	clusterRoleBindings := 0
+	roleNames := []string{}
+	clusterRoleNames := []string{}
+
+	for _, resource := range rr.Resources {
+		switch resource.GetKind() {
+		case roleBindingKind:
+			roleBindings++
+			// Extract role name from RoleBinding
+			if roleRef, found, err := unstructured.NestedMap(resource.Object, "roleRef"); found && err == nil {
+				if roleName, ok := roleRef["name"].(string); ok {
+					roleNames = append(roleNames, roleName)
+				}
+			}
+		case clusterRoleBindingKind:
+			clusterRoleBindings++
+			// Extract role name from ClusterRoleBinding
+			if roleRef, found, err := unstructured.NestedMap(resource.Object, "roleRef"); found && err == nil {
+				if roleName, ok := roleRef["name"].(string); ok {
+					clusterRoleNames = append(clusterRoleNames, roleName)
+				}
+			}
+		}
+	}
+
+	g.Expect(roleBindings).To(Equal(1), "Should create 1 RoleBinding")
+	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBindings")
+
+	// Verify that cluster-scoped roles are created
+	g.Expect(clusterRoleNames).To(ContainElement("admingroupcluster-role"), "Should create admin group cluster role")
+	g.Expect(clusterRoleNames).To(ContainElement("allowedgroupcluster-role"), "Should create allowed group cluster role")
+
+	// Verify that namespace-scoped roles are created
+	g.Expect(roleNames).To(ContainElement("admingroup-role"), "Should create admin group role")
+}
+
+// TestManagePermissionsMultipleGroups validates that the controller works correctly
+// with multiple admin and allowed groups. This test ensures:
+//
+//  1. Multiple groups can be configured for both admin and allowed access
+//  2. The correct number of RBAC resources are created
+//  3. All role bindings are created with the correct subjects
+func TestManagePermissionsMultipleGroups(t *testing.T) {
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	fakeClient := setupTestClient(g, false)
+
+	auth := &serviceApi.Auth{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "auth",
+		},
+		Spec: serviceApi.AuthSpec{
+			AdminGroups:   []string{"admin1", "admin2"},
+			AllowedGroups: []string{"user1", "system:authenticated"},
+		},
+	}
+
+	// Create reconciliation request
+	rr := &odhtypes.ReconciliationRequest{
+		Client:    fakeClient,
+		Instance:  auth,
+		Resources: []unstructured.Unstructured{},
+	}
+
+	err := managePermissions(ctx, rr)
+	g.Expect(err).ToNot(HaveOccurred(), "Should create all required RBAC resources")
+
+	// Verify resources were created (3 total: 1 RoleBinding + 2 ClusterRoleBindings)
+	g.Expect(rr.Resources).To(HaveLen(3), "Should create 3 RBAC resources (no metrics roles)")
+
+	roleBindings := 0
+	clusterRoleBindings := 0
+	roleNames := []string{}
+	clusterRoleNames := []string{}
+
+	for _, resource := range rr.Resources {
+		switch resource.GetKind() {
+		case roleBindingKind:
+			roleBindings++
+			if roleRef, found, err := unstructured.NestedMap(resource.Object, "roleRef"); found && err == nil {
+				if roleName, ok := roleRef["name"].(string); ok {
+					roleNames = append(roleNames, roleName)
+				}
+			}
+		case clusterRoleBindingKind:
+			clusterRoleBindings++
+			if roleRef, found, err := unstructured.NestedMap(resource.Object, "roleRef"); found && err == nil {
+				if roleName, ok := roleRef["name"].(string); ok {
+					clusterRoleNames = append(clusterRoleNames, roleName)
+				}
+			}
+		}
+	}
+
+	g.Expect(roleBindings).To(Equal(1), "Should create 1 RoleBinding")
+	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBindings")
+	g.Expect(clusterRoleNames).To(ContainElement("admingroupcluster-role"), "Should create admin group cluster role")
+	g.Expect(clusterRoleNames).To(ContainElement("allowedgroupcluster-role"), "Should create allowed group cluster role")
+	g.Expect(clusterRoleNames).ToNot(ContainElement("data-science-metrics-admin"), "Should not create metrics admin cluster role")
+	g.Expect(roleNames).To(ContainElement("admingroup-role"), "Should create admin group role")
 }

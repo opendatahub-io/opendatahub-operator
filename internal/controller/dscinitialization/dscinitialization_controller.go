@@ -113,6 +113,8 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			}
 		}
 	} else {
+		log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
+
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			newInstance := &dsciv2.DSCInitialization{}
 			if err := r.Client.Get(ctx, client.ObjectKeyFromObject(instance), newInstance); err != nil {
@@ -265,6 +267,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		// legacy ServiceMesh FeatureTracker cleanup, retained from the remove ServiceMesh controller
+		// TODO where exactly to put this logic ?
 		ftNames := []string{
 			instance.Spec.ApplicationsNamespace + "-mesh-shared-configmap",
 			instance.Spec.ApplicationsNamespace + "-mesh-control-plane-creation",
@@ -300,7 +303,7 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 
 		// Finish reconciling
-		_, err = status.UpdateWithRetry[*dsciv2.DSCInitialization](ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
+		_, err = status.UpdateWithRetry(ctx, r.Client, instance, func(saved *dsciv2.DSCInitialization) {
 			status.SetCompleteCondition(&saved.Status.Conditions, status.ReconcileCompleted, status.ReconcileCompletedMessage)
 			saved.Status.Phase = status.PhaseReady
 		})
@@ -490,7 +493,7 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 		},
 	}
 
-	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && (dsci.Spec.Monitoring.Metrics.Storage != nil || dsci.Spec.Monitoring.Metrics.Resources != nil)
+	metricsEnabled := dsci.Spec.Monitoring.Metrics != nil && dsci.Spec.Monitoring.Metrics.Storage != nil
 	tracesEnabled := dsci.Spec.Monitoring.Traces != nil
 
 	if metricsEnabled {

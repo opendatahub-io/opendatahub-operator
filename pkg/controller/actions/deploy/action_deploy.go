@@ -469,6 +469,14 @@ func (a *Action) apply(
 		if found {
 			unstructured.RemoveNestedField(obj.Object, "rules")
 		}
+	// For observability components, we preserve user changes to resource requests/limits
+	case gvk.MonitoringStack, gvk.TempoStack, gvk.TempoMonolithic, gvk.OpenTelemetryCollector:
+		if old == nil || resources.GetAnnotation(old, annotations.ManagedByODHOperator) == "true" {
+			break
+		}
+		if err := MergeObservabilityResources(old, obj); err != nil {
+			return nil, fmt.Errorf("failed to merge %s %s/%s: %w", obj.GetKind(), obj.GetNamespace(), obj.GetName(), err)
+		}
 	default:
 		// do nothing
 		break

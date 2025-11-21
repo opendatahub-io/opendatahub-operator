@@ -2,14 +2,14 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # Adds namespace to all resources.
-namespace: redhat-ods-operator
+namespace: opendatahub-operator-system
 
 # Value of this field is prepended to the
 # names of all resources, e.g. a deployment named
 # "wordpress" becomes "alices-wordpress".
 # Note that it should also match with the prefix (text before '-') of the namespace
 # field above.
-#namePrefix: redhat-ods-operator-
+namePrefix: opendatahub-operator-
 
 # Labels to add to all resources and selectors.
 #labels:
@@ -79,30 +79,3 @@ patches:
 - path: manager_auth_proxy_patch.yaml
 # [WEBHOOK]
 - path: manager_webhook_patch.yaml
-
-- target:
-    group: apiextensions.k8s.io
-    version: v1
-    kind: CustomResourceDefinition
-    name: dscinitializations.dscinitialization.opendatahub.io
-  path: ../crd/patches/webhook_in_dscinitialization_dscinitializations.yaml
-- target:
-    group: apiextensions.k8s.io
-    version: v1
-    kind: CustomResourceDefinition
-    name: datascienceclusters.datasciencecluster.opendatahub.io
-  path: ../crd/patches/webhook_in_datasciencecluster_datascienceclusters.yaml
-
-# CA injection patches for local certificate management
-- target:
-    group: apiextensions.k8s.io
-    version: v1
-    kind: CustomResourceDefinition
-    name: dscinitializations.dscinitialization.opendatahub.io
-  path: ../crd/patches/cainjection_in_dscinitialization_dscinitializations.yaml
-- target:
-    group: apiextensions.k8s.io
-    version: v1
-    kind: CustomResourceDefinition
-    name: datascienceclusters.datasciencecluster.opendatahub.io
-  path: ../crd/patches/cainjection_in_datasciencecluster_datascienceclusters.yaml
