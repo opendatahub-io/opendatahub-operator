@@ -1,7 +1,0 @@
----
-# Create a service account for accessing prometheus data
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: prometheus-reader
-  namespace: redhat-ods-monitoring
