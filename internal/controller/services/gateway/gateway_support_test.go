@@ -982,3 +982,59 @@ func TestSecretHashAnnotationWithoutSecret(t *testing.T) {
 	hash := deployment.Spec.Template.Annotations["opendatahub.io/secret-hash"]
 	g.Expect(hash).To(BeEmpty(), "secret hash should be empty string when secret doesn't exist")
 }
+
+// TestKubeAuthProxySecurityContexts tests that the deployment has proper security contexts configured.
+func TestKubeAuthProxySecurityContexts(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client: setupTestClient(),
+	}
+
+	err := createKubeAuthProxyDeployment(ctx, rr, nil, nil, expectedODHDomain)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(rr.Resources).To(HaveLen(1))
+
+	// Convert unstructured to typed Deployment
+	deploymentResource := &rr.Resources[0]
+	deployment := &appsv1.Deployment{}
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(deploymentResource.Object, deployment)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	podSpec := deployment.Spec.Template.Spec
+	container := podSpec.Containers[0]
+
+	// Verify pod-level security context
+	g.Expect(*podSpec.SecurityContext.RunAsNonRoot).To(BeTrue())
+	g.Expect(podSpec.SecurityContext.SeccompProfile.Type).To(Equal(corev1.SeccompProfileTypeRuntimeDefault))
+
+	// Verify container-level security context
+	g.Expect(*container.SecurityContext.ReadOnlyRootFilesystem).To(BeTrue())
+	g.Expect(*container.SecurityContext.AllowPrivilegeEscalation).To(BeFalse())
+	g.Expect(container.SecurityContext.Capabilities.Drop).To(ContainElement(corev1.Capability("ALL")))
+	g.Expect(container.SecurityContext.Capabilities.Add).To(BeEmpty(), "no capabilities should be added")
+
+	// Verify tmp volume mount exists (required for read-only root filesystem)
+	foundTmpMount := false
+	for _, vm := range container.VolumeMounts {
+		if vm.Name == "tmp" && vm.MountPath == "/tmp" {
+			foundTmpMount = true
+			break
+		}
+	}
+	g.Expect(foundTmpMount).To(BeTrue())
+
+	// Verify tmp volume is configured with memory-backed EmptyDir
+	foundTmpVolume := false
+	for _, vol := range podSpec.Volumes {
+		if vol.Name == "tmp" && vol.EmptyDir != nil && vol.EmptyDir.Medium == corev1.StorageMediumMemory {
+			foundTmpVolume = true
+			g.Expect(vol.EmptyDir.SizeLimit).NotTo(BeNil(), "tmp volume should have size limit")
+			g.Expect(vol.EmptyDir.SizeLimit.String()).To(Equal("10Mi"), "tmp volume should be limited to 10Mi")
+			break
+		}
+	}
+	g.Expect(foundTmpVolume).To(BeTrue())
+}

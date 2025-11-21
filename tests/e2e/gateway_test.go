@@ -513,7 +513,7 @@ func (tc *GatewayTestCtx) waitForDashboardHTTPRoute(t *testing.T) {
 	t.Helper()
 
 	dashboardNamespace := tc.AppsNamespace
-	dashboardRouteName := "odh-dashboard"
+	dashboardRouteName := getDashboardRouteNameByPlatform(tc.FetchPlatformRelease())
 
 	t.Log("Waiting for dashboard HTTPRoute to be accepted by Gateway")
 	tc.EnsureResourceExists(
