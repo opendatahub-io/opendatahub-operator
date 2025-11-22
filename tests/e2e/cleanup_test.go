@@ -31,8 +31,35 @@ func CleanupPreviousTestResources(t *testing.T) {
 	tc.DeleteResource(
 		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: tc.AppsNamespace}),
 		WithIgnoreNotFound(true),
-		WithWaitForDeletion(false),
+		WithWaitForDeletion(true), // Wait for namespace deletion to complete before proceeding
 	)
+
+	// Also clean up the RHOAI applications namespace if it exists (for RHOAI mode)
+	rhoaiAppsNamespace := "redhat-ods-applications"
+	if tc.AppsNamespace != rhoaiAppsNamespace {
+		t.Logf("Cleaning up RHOAI applications namespace: %s", rhoaiAppsNamespace)
+		tc.DeleteResource(
+			WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: rhoaiAppsNamespace}),
+			WithIgnoreNotFound(true),
+			WithWaitForDeletion(true),
+		)
+	}
+
+	// Recreate the applications namespace immediately after deletion to avoid cache issues
+	// The operator's cache expects this namespace to exist at startup
+	t.Logf("Recreating applications namespace: %s", tc.AppsNamespace)
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(CreateNamespaceWithLabels(tc.AppsNamespace, nil)),
+	)
+
+	// Also recreate the RHOAI applications namespace to avoid operator cache errors
+	// The RHOAI-mode operator has this namespace hardcoded in its cache configuration
+	if tc.AppsNamespace != rhoaiAppsNamespace {
+		t.Logf("Recreating RHOAI applications namespace for cache: %s", rhoaiAppsNamespace)
+		tc.EventuallyResourceCreatedOrUpdated(
+			WithObjectToCreate(CreateNamespaceWithLabels(rhoaiAppsNamespace, nil)),
+		)
+	}
 
 	// Cleanup Kueue cluster-scoped resources
 	cleanupKueueOperatorAndResources(t, tc)
