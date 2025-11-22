@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{.KubeAuthProxyServiceName}}
+  namespace: {{.GatewayNamespace}}
+  labels:
+    app: {{.KubeAuthProxyServiceName}}
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: {{.KubeAuthProxyTLSName}}
+spec:
+  selector:
+    app: {{.KubeAuthProxyServiceName}}
+  ports:
+    - name: https
+      port: {{.GatewayHTTPSPort}}
+      targetPort: {{.GatewayHTTPSPort}}
