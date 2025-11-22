@@ -9,14 +9,17 @@ metadata:
   annotations:
     service.beta.openshift.io/inject-cabundle: "true"
 ---
-# This Service definition intentionally omits the 'spec' field because:
+# This Service definition provides a minimal spec to handle fresh installations gracefully:
 # 1. The 'prometheus-operated' Service is created and managed by the MonitoringStack Operator
-# 2. We only need to add the serving-cert-secret-name annotation to trigger OpenShift's
-#    service serving cert controller to generate TLS certificates
-# 3. This manifest is applied using Server-Side Apply (SSA), which merges this partial
-#    definition with the existing Service without overwriting the spec
-# 4. Each controller (MonitoringStack Operator and ODH Operator) manages different fields,
-#    allowing them to coexist without conflicts
+# 2. We add the serving-cert-secret-name annotation to trigger OpenShift's service serving
+#    cert controller to generate TLS certificates
+# 3. This manifest is applied using Server-Side Apply (SSA), which merges this definition
+#    with the MonitoringStack-created Service without conflicts
+# 4. The minimal spec (empty ports, ClusterIP type) ensures the Service passes validation
+#    if applied before MonitoringStack creates it, preventing transient errors on fresh installs
+# 5. When MonitoringStack reconciles, it updates the spec with the actual port configuration
+# 6. Each controller (MonitoringStack Operator and ODH Operator) manages different fields,
+#    allowing them to coexist without conflicts via SSA field ownership
 apiVersion: v1
 kind: Service
 metadata:
@@ -24,3 +27,6 @@ metadata:
   namespace: {{.Namespace}}
   annotations:
     service.beta.openshift.io/serving-cert-secret-name: prometheus-operated-tls
+spec:
+  ports: []
+  type: ClusterIP

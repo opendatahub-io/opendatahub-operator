@@ -48,6 +48,8 @@ metadata:
     platform.opendatahub.io/part-of: monitoring
 data:
   kube-rbac-proxy.yaml: |
+    # See kube-rbac-proxy authorization configuration with namespace restriction doc for implementation, troubleshooting and usage examples:
+    # docs/NAMESPACE_RESTRICTED_METRICS.md
     authorization:
       rewrites:
         byQueryParameter:
@@ -57,6 +59,9 @@ data:
         resource: pods
         namespace: "{{ "{{ .Value }}" }}"
 ---
+#
+# REQUIRED QUERY FORMAT: /api/v1/query?query=<promql>&namespace=<namespace-name>
+#
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -96,11 +101,11 @@ spec:
               protocol: TCP
           resources:
             limits:
-              cpu: 20m
-              memory: 40Mi
+              cpu: 100m
+              memory: 128Mi
             requests:
-              cpu: 10m
-              memory: 20Mi
+              cpu: 50m
+              memory: 64Mi
           terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
             - name: config
@@ -131,11 +136,11 @@ spec:
               value: /etc/prometheus-tls-ca:/etc/ssl/certs:/etc/pki/tls/certs
           resources:
             limits:
-              cpu: 20m
-              memory: 40Mi
+              cpu: 100m
+              memory: 128Mi
             requests:
-              cpu: 10m
-              memory: 20Mi
+              cpu: 50m
+              memory: 64Mi
           terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
             - name: prometheus-tls-ca

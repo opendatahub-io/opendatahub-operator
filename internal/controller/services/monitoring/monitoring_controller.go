@@ -138,6 +138,12 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(
 				handlers.ToNamed(serviceApi.MonitoringInstanceName)),
 		).
+		// Watch ConfigMaps for CA rotation sync (specifically prometheus-web-tls-ca)
+		Watches(
+			&corev1.ConfigMap{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.MonitoringInstanceName)),
+			reconciler.WithPredicates(resources.CMContentChangedPredicate),
+		).
 		// These are only for SRE Monitoring
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).
@@ -156,6 +162,8 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
+		// Sync CA from ConfigMap to Secret (handles initial creation and rotation updates)
+		WithAction(syncPrometheusWebTLSCA).
 		WithAction(gc.NewAction()).
 		Build(ctx)
 
