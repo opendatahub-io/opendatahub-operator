@@ -49,6 +49,7 @@ func dscManagementTestSuite(t *testing.T) {
 
 	// Define test cases.
 	testCases := []TestCase{
+		{"Ensure required operators with custom channels are installed", dscTestCtx.ValidateOperatorsWithCustomChannelsInstallation},
 		{"Ensure required operators are installed", dscTestCtx.ValidateOperatorsInstallation},
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
@@ -78,6 +79,33 @@ func dscManagementTestSuite(t *testing.T) {
 	RunTestCases(t, testCases)
 }
 
+func (tc *DSCTestCtx) ValidateOperatorsWithCustomChannelsInstallation(t *testing.T) {
+	t.Helper()
+
+	// Define operators to be installed.
+	operators := []struct {
+		nn                types.NamespacedName
+		skipOperatorGroup bool
+		channel           string
+	}{
+		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace}, skipOperatorGroup: false, channel: leaderWorkerSetChannel},
+	}
+
+	// Create and run test cases in parallel.
+	testCases := make([]TestCase, len(operators))
+	for i, op := range operators {
+		testCases[i] = TestCase{
+			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
+			testFn: func(t *testing.T) {
+				t.Helper()
+				tc.EnsureOperatorInstalledWithChannel(op.nn, op.skipOperatorGroup, op.channel)
+			},
+		}
+	}
+
+	RunTestCases(t, testCases, WithParallel())
+}
+
 // ValidateOperatorsInstallation ensures the required operators are installed.
 func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	t.Helper()
@@ -92,6 +120,7 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
 		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
 		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: kuadrantOperator, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true, channel: defaultOperatorChannel},
 	}
 
 	// Create and run test cases in parallel.

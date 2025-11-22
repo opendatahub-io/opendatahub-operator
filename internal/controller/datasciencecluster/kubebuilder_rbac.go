@@ -232,6 +232,8 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="serving.kserve.io",resources=llminferenceservices/status,verbs=get;list;watch
 // +kubebuilder:rbac:groups="inference.networking.x-k8s.io",resources=inferencepools,verbs=get;list;watch
 // +kubebuilder:rbac:groups="inference.networking.x-k8s.io",resources=inferencemodels,verbs=get;list;watch
+// +kubebuilder:rbac:groups="kuadrant.io",resources=kuadrants,verbs=get;list;watch
+// +kubebuilder:rbac:groups="operator.openshift.io",resources=leaderworkersetoperators,verbs=get;list;watch
 
 // WB
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=workbenches,verbs=get;list;watch;create;update;patch;delete
