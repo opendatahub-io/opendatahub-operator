@@ -14,18 +14,18 @@ DST_MANIFESTS_DIR="./opt/manifests"
 
 # ODH Component Manifests
 declare -A ODH_COMPONENT_MANIFESTS=(
-    ["dashboard"]="opendatahub-io:odh-dashboard:main@40edc4b121e9d62a0bdb478105a6678f8ce2e3f5:manifests"
-    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@40da0d22ed6356961aef3bd640c1be83e10734ab:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@40da0d22ed6356961aef3bd640c1be83e10734ab:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@603bf2ff71ed371247c76cba6bd6db4778b1d13a:manifests"
-    ["kserve"]="opendatahub-io:kserve:release-v0.15@e585d3953efb855fb60737e0ec52f5a129f55ce1:config"
-    ["ray"]="opendatahub-io:kuberay:dev@be7bbfc611040115299cd58631140b6d9f0712c1:ray-operator/config"
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@7e4df91b22bcad99f5295019c9757a3fee7eda7e:manifests"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@ba644877b50fcb5d7e7c5a35364012da94c72255:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@ba644877b50fcb5d7e7c5a35364012da94c72255:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@fb65049e0e131043cd912f8269bd87ad2dd4a6eb:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.15@6a4cfed756c2c671d724aa03c37c95911947a997:config"
+    ["ray"]="opendatahub-io:kuberay:dev@aed5412f7fcf199bd2f0d1952e4953d78861188c:ray-operator/config"
     ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@c0d153c22f3a2916fe52aa5819bb754937bae34a:config"
-    ["modelregistry"]="opendatahub-io:model-registry-operator:main@5ba49bfd29aa65f89a4e1eed9adb11e415b63313:config"
-    ["trainingoperator"]="opendatahub-io:training-operator:dev@fc212b8db7fde82f12e801e6778961097899e88d:manifests"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main@4a622e86a3b50c411aff689fea20364745c69c5a:config"
+    ["trainingoperator"]="opendatahub-io:training-operator:dev@8a5a483c3da1e631b5fdcb54a1e297b7cdfc77c4:manifests"
     ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@324ddef9c98d74865a98ceb1a9470f1fdc7d1240:config"
-    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@4859b3de43e0c1ed812dc1451323269f9b44c3e2:config"
-    ["feastoperator"]="opendatahub-io:feast:stable@3c6fd777b7d5c9de4f7949ee7b9ee7f829dc8528:infra/feast-operator/config"
+    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@c5f63708a8a0a8d536cfbb7978541eda053ade06:config"
+    ["feastoperator"]="opendatahub-io:feast:stable@94bc6204cbdbcbebfd004f64986f43397bfc0e65:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@226e911cca9bf7efa1e632860613087b0bf14d74:config"
 )
 

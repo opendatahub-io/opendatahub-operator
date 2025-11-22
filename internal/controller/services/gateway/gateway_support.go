@@ -18,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -103,8 +104,8 @@ func getKubeAuthProxyImage() string {
 	if image := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); image != "" {
 		return image
 	}
-	// Fallback for local development only
-	return "quay.io/jtanner/kube-auth-proxy:latest"
+	// Fallback for ODH development
+	return "quay.io/opendatahub/odh-kube-auth-proxy:latest"
 }
 
 // getCertificateType returns a string representation of the certificate type.
@@ -587,6 +588,13 @@ func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationR
 	return nil
 }
 
+// createKubeAuthProxyDeployment creates the OAuth2 proxy deployment
+// with security contexts meeting Pod Security Standards (restricted profile):
+//   - RunAsNonRoot prevents root execution
+//   - ReadOnlyRootFilesystem provides an immutable container filesystem
+//   - AllowPrivilegeEscalation blocked, all capabilities dropped
+//   - Temporary /tmp volume (10Mi limit) minimizes attack surface while
+//     providing sufficient space for OAuth2 session storage
 func createKubeAuthProxyDeployment(
 	ctx context.Context, rr *odhtypes.ReconciliationRequest,
 	oidcConfig *serviceApi.OIDCConfig,
@@ -624,6 +632,12 @@ func createKubeAuthProxyDeployment(
 					},
 				},
 				Spec: corev1.PodSpec{
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsNonRoot: ptr.To(true),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:  KubeAuthProxyName,
@@ -659,11 +673,22 @@ func createKubeAuthProxyDeployment(
 									corev1.ResourceMemory: resource.MustParse("64Mi"),
 								},
 							},
+							SecurityContext: &corev1.SecurityContext{
+								ReadOnlyRootFilesystem:   ptr.To(true),
+								AllowPrivilegeEscalation: ptr.To(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
+								},
+							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      TLSCertsVolumeName,
 									MountPath: TLSCertsMountPath,
 									ReadOnly:  true,
+								},
+								{
+									Name:      "tmp",
+									MountPath: "/tmp",
 								},
 							},
 						},
@@ -674,6 +699,15 @@ func createKubeAuthProxyDeployment(
 							VolumeSource: corev1.VolumeSource{
 								Secret: &corev1.SecretVolumeSource{
 									SecretName: KubeAuthProxyTLSName,
+								},
+							},
+						},
+						{
+							Name: "tmp",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{
+									Medium:    corev1.StorageMediumMemory,
+									SizeLimit: ptr.To(resource.MustParse("10Mi")),
 								},
 							},
 						},

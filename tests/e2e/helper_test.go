@@ -63,6 +63,8 @@ const (
 	leaderWorkerSetNamespace    = "openshift-lws-operator"                   // Namespace for the Leader Worker Set Operator
 	leaderWorkerSetChannel      = "stable-v1.0"                              // Channel for the Leader Worker Set Operator
 	kuadrantOperator            = "rhcl-operator"                            // Name of the Red Hat Connectivity Link Operator subscription.
+	dashboardRouteNameODH       = "odh-dashboard"                            // Name of the ODH dashboard route
+	dashboardRouteNameRhoai     = "rhods-dashboard"                          // Name of the Rhoai dashboard route
 )
 
 // Configuration and Miscellaneous Constants.
@@ -446,5 +448,16 @@ func getControllerDeploymentNameByPlatform(platform common.Platform) string {
 		return controllerDeploymentODH
 	default:
 		return controllerDeploymentODH
+	}
+}
+
+func getDashboardRouteNameByPlatform(platform common.Platform) string {
+	switch platform {
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+		return dashboardRouteNameRhoai
+	case cluster.OpenDataHub:
+		return dashboardRouteNameODH
+	default:
+		return dashboardRouteNameODH
 	}
 }
