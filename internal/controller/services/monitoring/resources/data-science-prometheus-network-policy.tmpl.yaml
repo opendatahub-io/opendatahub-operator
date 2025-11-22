@@ -17,7 +17,10 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              app: data-science-prometheus-restricted
+              app: data-science-prometheus-namespace-proxy
+        - podSelector:
+            matchLabels:
+              app: data-science-prometheus-cluster-proxy
       ports:
         - protocol: TCP
           port: 9090

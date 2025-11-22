@@ -9,7 +9,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app: data-science-prometheus-restricted
+      app: data-science-prometheus-namespace-proxy
   policyTypes:
     - Ingress
   ingress:
