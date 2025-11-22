@@ -153,7 +153,7 @@ func (tc *KueueTestCtx) ValidateKueueRemovedToUnmanagedTransition(t *testing.T) 
 	)
 
 	// Install ocp kueue-operator
-	tc.EnsureOperatorInstalledWithChannel(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, false, kueueOcpOperatorChannel)
+	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, kueueOcpOperatorChannel)
 
 	conditionsUnmanagedReady := []gTypes.GomegaMatcher{
 		// Validate that the component's management state is updated correctly
@@ -210,7 +210,7 @@ func (tc *KueueTestCtx) ValidateKueueUnmanagedToRemovedTransition(t *testing.T) 
 
 	// UNMANAGED
 	// Install ocp kueue-operator
-	tc.EnsureOperatorInstalledWithChannel(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, false, kueueOcpOperatorChannel)
+	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, kueueOcpOperatorChannel)
 	stateUnmanaged := operatorv1.Unmanaged
 	conditionsUnmanaged := []gTypes.GomegaMatcher{
 		// Validate that the component's management state is updated correctly
@@ -286,7 +286,7 @@ func (tc *KueueTestCtx) ValidateKueueWebhookValidation(t *testing.T) {
 	t.Helper()
 
 	// Install ocp kueue-operator
-	tc.EnsureOperatorInstalledWithChannel(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, false, kueueOcpOperatorChannel)
+	tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(types.NamespacedName{Name: kueueOpName, Namespace: kueueOcpOperatorNamespace}, kueueOcpOperatorChannel)
 	// Ensure Kueue is in Unmanaged state
 	tc.UpdateComponentStateInDataScienceCluster(operatorv1.Unmanaged)
 

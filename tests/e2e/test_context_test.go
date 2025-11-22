@@ -11,6 +11,7 @@ import (
 	gTypes "github.com/onsi/gomega/types"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	ofapi "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -842,35 +843,38 @@ func (tc *TestContext) EnsureResourceIsUnique(obj client.Object, args ...any) {
 	}).Should(Succeed())
 }
 
-// EnsureOperatorInstalled ensures that the specified operator is installed and the associated
-// ClusterServiceVersion (CSV) reaches the 'Succeeded' phase.
-//
-// This function performs the following tasks:
-// 1. Creates or updates the namespace for the operator, if necessary.
-// 2. Optionally creates or updates the operator group, depending on the 'skipOperatorGroupCreation' flag.
-// 3. Retrieves the InstallPlan for the operator and approves it if not already approved.
-// 4. Verifies that the operator's ClusterServiceVersion (CSV) reaches the 'Succeeded' phase.
-//
-// Parameters:
-//   - nn (types.NamespacedName): The namespace and name of the operator being installed.
-//   - skipOperatorGroupCreation (bool): If true, skips the creation or update of the operator group.
-func (tc *TestContext) EnsureOperatorInstalled(nn types.NamespacedName, skipOperatorGroupCreation bool) {
-	tc.EnsureOperatorInstalledWithChannel(nn, skipOperatorGroupCreation, defaultOperatorChannel)
-}
-
 // EnsureOperatorInstalledWithChannel ensures that an operator is installed via OLM with a specific channel.
 //
 // This function performs the following steps:
 //  1. Creates the operator's namespace if it doesn't exist
-//  2. Creates an OperatorGroup in the namespace (unless skipOperatorGroupCreation is true)
+//  2. Creates a Subscription for the operator with the specified channel
+//  3. Waits for the CSV (ClusterServiceVersion) to reach "Succeeded" phase
+//
+// Parameters:
+//   - nn (types.NamespacedName): The namespace and name of the operator being installed.
+//   - channelName (string): The OLM channel to use for the operator installation (e.g., "stable", "alpha").
+func (tc *TestContext) EnsureOperatorInstalledWithChannel(nn types.NamespacedName, channelName string) {
+	// Ensure the operator's namespace is created.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nn.Namespace}),
+		WithCustomErrorMsg("Failed to create or update namespace '%s'", nn.Namespace),
+	)
+
+	tc.ensureInstallPlan(nn, channelName)
+}
+
+// EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel ensures that an operator is installed via OLM with a specific channel.
+//
+// This function performs the following steps:
+//  1. Creates the operator's namespace if it doesn't exist
+//  2. Creates an OperatorGroup with global scope in the namespace
 //  3. Creates a Subscription for the operator with the specified channel
 //  4. Waits for the CSV (ClusterServiceVersion) to reach "Succeeded" phase
 //
 // Parameters:
 //   - nn (types.NamespacedName): The namespace and name of the operator being installed.
-//   - skipOperatorGroupCreation (bool): If true, skips the creation or update of the operator group.
 //   - channelName (string): The OLM channel to use for the operator installation (e.g., "stable", "alpha").
-func (tc *TestContext) EnsureOperatorInstalledWithChannel(nn types.NamespacedName, skipOperatorGroupCreation bool, channelName string) {
+func (tc *TestContext) EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(nn types.NamespacedName, channelName string) {
 	// Construct a resource identifier.
 	resourceID := resources.FormatNamespacedName(nn)
 
@@ -880,13 +884,60 @@ func (tc *TestContext) EnsureOperatorInstalledWithChannel(nn types.NamespacedNam
 		WithCustomErrorMsg("Failed to create or update namespace '%s'", nn.Namespace),
 	)
 
-	// Ensure the operator group is created or updated only if necessary.
-	if !skipOperatorGroupCreation {
-		tc.EventuallyResourceCreatedOrUpdated(
-			WithMinimalObject(gvk.OperatorGroup, nn),
-			WithCustomErrorMsg("Failed to create or update operator group '%s'", resourceID),
-		)
-	}
+	// Ensure the operator group is created or updated.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.OperatorGroup, nn),
+		WithCustomErrorMsg("Failed to create or update operator group '%s'", resourceID),
+	)
+
+	tc.ensureInstallPlan(nn, channelName)
+}
+
+// EnsureOperatorInstalledWithLocalOperatorGroupAndChannel ensures that an operator is installed via OLM with a specific channel.
+//
+// This function performs the following steps:
+//  1. Creates the operator's namespace if it doesn't exist
+//  2. Creates an OperatorGroup targeting operator's namespace
+//  3. Creates a Subscription for the operator with the specified channel
+//  4. Waits for the CSV (ClusterServiceVersion) to reach "Succeeded" phase
+//
+// Parameters:
+//   - nn (types.NamespacedName): The namespace and name of the operator being installed.
+//   - channelName (string): The OLM channel to use for the operator installation (e.g., "stable", "alpha").
+func (tc *TestContext) EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(nn types.NamespacedName, channelName string) {
+	// Construct a resource identifier.
+	resourceID := resources.FormatNamespacedName(nn)
+
+	// Ensure the operator's namespace is created.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.Namespace, types.NamespacedName{Name: nn.Namespace}),
+		WithCustomErrorMsg("Failed to create or update namespace '%s'", nn.Namespace),
+	)
+
+	// Ensure the operator group is created or updated.
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(tc.createOperatorGroup(nn, []string{nn.Namespace})),
+		WithCustomErrorMsg("Failed to create or update operator group '%s'", resourceID),
+	)
+
+	tc.ensureInstallPlan(nn, channelName)
+}
+
+// ensureInstallPlan is a helper function that retrieves and approves an operator's InstallPlan,
+// then waits for the associated ClusterServiceVersion (CSV) to reach the 'Succeeded' phase.
+//
+// This function performs the following steps:
+//  1. Creates a Subscription for the operator with the specified channel
+//  2. Approves the InstallPlan if it's not already approved (required in CI environments)
+//  3. Extracts the CSV name from the InstallPlan
+//  4. Waits for the CSV to reach 'Succeeded' phase, indicating successful installation
+//
+// Parameters:
+//   - nn (types.NamespacedName): The namespace and name of the operator subscription.
+//   - channelName (string): The OLM channel used for the operator installation.
+func (tc *TestContext) ensureInstallPlan(nn types.NamespacedName, channelName string) {
+	// Construct a resource identifier.
+	resourceID := resources.FormatNamespacedName(nn)
 
 	// Retrieve the InstallPlan
 	plan := tc.FetchInstallPlan(nn, channelName)
@@ -1542,6 +1593,25 @@ func (tc *TestContext) createSubscription(nn types.NamespacedName, channelName s
 	}
 
 	return subscription
+}
+
+// createOperatorGroup creates an OperatorGroup object.
+func (tc *TestContext) createOperatorGroup(nn types.NamespacedName, targetNamespaces []string) *operatorsv1.OperatorGroup {
+	operatorGroup := &operatorsv1.OperatorGroup{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       operatorsv1.OperatorGroupKind,
+			APIVersion: operatorsv1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nn.Name,
+			Namespace: nn.Namespace,
+		},
+		Spec: operatorsv1.OperatorGroupSpec{
+			TargetNamespaces: targetNamespaces,
+		},
+	}
+
+	return operatorGroup
 }
 
 // createInstallPlan creates an InstallPlan object.

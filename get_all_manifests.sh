@@ -27,6 +27,7 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@a5a27c0555cc65d25efb623d3a77fe0dca993b5f:config"
     ["feastoperator"]="opendatahub-io:feast:stable@94bc6204cbdbcbebfd004f64986f43397bfc0e65:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@226e911cca9bf7efa1e632860613087b0bf14d74:config"
+    ["trainer"]="opendatahub-io:trainer:main@921266219457b2d939f469f73ec400d09a80bc9c:manifests"
 )
 
 # RHOAI Component Manifests
@@ -44,6 +45,7 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.2:config"
     ["feastoperator"]="red-hat-data-services:feast:rhoai-3.2:infra/feast-operator/config"
     ["llamastackoperator"]="red-hat-data-services:llama-stack-k8s-operator:rhoai-3.2:config"
+    ["trainer"]="red-hat-data-services:trainer:rhoai-3.2:manifests"
 )
 
 # Select the appropriate manifest based on platform type
