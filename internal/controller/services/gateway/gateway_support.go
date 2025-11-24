@@ -167,6 +167,28 @@ func resolveDomain(ctx context.Context, client client.Client,
 	return getClusterDomain(ctx, client, subdomain)
 }
 
+// GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
+// It constructs the FQDN by combining the subdomain (or default) with either the user-specified
+// domain or the cluster domain.
+func GetFQDN(ctx context.Context, cli client.Client, gatewayConfig *serviceApi.GatewayConfig) (string, error) {
+	subdomain := strings.TrimSpace(gatewayConfig.Spec.Subdomain)
+	if subdomain == "" {
+		subdomain = DefaultGatewayName
+	}
+
+	baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
+	if baseDomain != "" {
+		return fmt.Sprintf("%s.%s", subdomain, baseDomain), nil
+	}
+
+	clusterDomain, err := cluster.GetDomain(ctx, cli)
+	if err != nil {
+		return "", fmt.Errorf("failed to get cluster domain: %w", err)
+	}
+
+	return fmt.Sprintf("%s.%s", subdomain, clusterDomain), nil
+}
+
 // GetGatewayDomain reads GatewayConfig and passes it to resolveDomain.
 // This function optimizes API calls by handling the GatewayConfig retrieval
 // and domain resolution in a single flow.
