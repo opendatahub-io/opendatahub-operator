@@ -97,6 +97,7 @@ The following components are **automatically integrated** by the ODH operator ba
   - Prometheus (for metrics collection)
   - OpenTelemetry Collector (for distributed tracing)
   - Cluster monitoring capabilities
+  - See [Namespace-Restricted Metrics Documentation](docs/NAMESPACE_RESTRICTED_METRICS.md) for secure metrics access
 
 #### Namespace Requirements
 
