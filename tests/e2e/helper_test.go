@@ -55,10 +55,12 @@ const (
 	observabilityOpNamespace    = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
 	tempoOpName                 = "tempo-product"                            // Name of the Tempo Operator
 	tempoOpNamespace            = "openshift-tempo-operator"                 // Namespace for the Tempo Operator
-	opentelemetryOpName         = "opentelemetry-product"                    // Name of the OpenTelemetry Operator
-	opentelemetryOpNamespace    = "openshift-opentelemetry-operator"         // Namespace for the OpenTelemetry Operator
 	controllerDeploymentODH     = "opendatahub-operator-controller-manager"  // Name of the ODH deployment
 	controllerDeploymentRhoai   = "rhods-operator"                           // Name of the Rhoai deployment
+	leaderWorkerSetOpName       = "leader-worker-set"                        // Name of the Leader Worker Set Operator
+	leaderWorkerSetNamespace    = "openshift-lws-operator"                   // Namespace for the Leader Worker Set Operator
+	leaderWorkerSetChannel      = "stable-v1.0"                              // Channel for the Leader Worker Set Operator
+	kuadrantOperator            = "rhcl-operator"                            // Name of the Red Hat Connectivity Link Operator subscription.
 )
 
 // Configuration and Miscellaneous Constants.
