@@ -5,4 +5,4 @@ resources:
 - auth_proxy_client_clusterrole.yaml
 - role_binding.yaml
 - role.yaml
-- searvice_account.yaml
+- service_account.yaml
