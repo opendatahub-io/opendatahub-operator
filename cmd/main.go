@@ -440,20 +440,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		}
 	}
 
-	// Create default Gateway CR
-	var createDefaultGatewayFunc manager.RunnableFunc = func(ctx context.Context) error {
-		err := il.CreateDefaultGateway(ctx, setupClient)
-		if err != nil {
-			setupLog.Error(err, "unable to create default Gateway CR")
-		}
-		return err
-	}
-	err = mgr.Add(createDefaultGatewayFunc)
-	if err != nil {
-		setupLog.Error(err, "error scheduling Gateway creation")
-		os.Exit(1)
-	}
-
 	// Cleanup resources from previous v2 releases
 	var cleanExistingResourceFunc manager.RunnableFunc = func(ctx context.Context) error {
 		if err = upgrade.CleanupExistingResource(ctx, setupClient, platform, oldReleaseVersion); err != nil {
