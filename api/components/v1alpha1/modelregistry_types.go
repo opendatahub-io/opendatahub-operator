@@ -110,7 +110,7 @@ func init() {
 }
 
 // +kubebuilder:object:generate=true
-// +kubebuilder:validation:XValidation:rule="(self.managementState != 'Managed') || (oldSelf.registriesNamespace == '') || (oldSelf.managementState != 'Managed')|| (self.registriesNamespace == oldSelf.registriesNamespace)",message="RegistriesNamespace is immutable when model registry is Managed"
+// +kubebuilder:validation:XValidation:rule="(!has(self.managementState) || self.managementState != 'Managed') || (oldSelf.registriesNamespace == '') || (!has(oldSelf.managementState) || oldSelf.managementState != 'Managed') || (self.registriesNamespace == oldSelf.registriesNamespace)",message="RegistriesNamespace is immutable when model registry is Managed"
 //nolint:lll
 
 // DSCModelRegistry contains all the configuration exposed in DSC instance for ModelRegistry component
