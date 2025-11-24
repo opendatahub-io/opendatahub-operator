@@ -1,10 +1,11 @@
 resources:
-- ../../webhook
+- manifests.yaml
+- service.yaml
 
 namePrefix: rhods-operator-
 
-patches:
-- path: service.yaml
-  target:
-    kind: Service
-    name: webhook-service
+commonAnnotations:
+  service.beta.openshift.io/inject-cabundle: "true"
+
+configurations:
+- kustomizeconfig.yaml
