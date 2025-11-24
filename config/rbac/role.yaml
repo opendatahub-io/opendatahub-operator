@@ -926,6 +926,35 @@ rules:
   - list
   - watch
 - apiGroups:
+  - perses.dev
+  resources:
+  - perses
+  - persesdatasources
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - perses.dev
+  resources:
+  - perses/finalizers
+  - persesdatasources/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - perses.dev
+  resources:
+  - perses/status
+  - persesdatasources/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - ray.io
   resources:
   - rayclusters

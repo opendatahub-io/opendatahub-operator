@@ -82,7 +82,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-11-19T15:13:16Z"
+    createdAt: "2025-11-24T13:31:02Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -1227,6 +1227,35 @@ spec:
           - list
           - watch
         - apiGroups:
+          - perses.dev
+          resources:
+          - perses
+          - persesdatasources
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - perses.dev
+          resources:
+          - perses/finalizers
+          - persesdatasources/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - perses.dev
+          resources:
+          - perses/status
+          - persesdatasources/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
           - ray.io
           resources:
           - rayclusters
@@ -1495,6 +1524,12 @@ spec:
                       fieldPath: metadata.namespace
                 - name: DEFAULT_MANIFESTS_PATH
                   value: /opt/manifests
+                - name: ODH_PLATFORM_TYPE
+                  value: OpenDataHub
+                - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
+                  value: quay.io/opendatahub/odh-kube-auth-proxy:latest
+                - name: RELATED_IMAGE_PERSES
+                  value: registry.redhat.io/cluster-observability-operator/perses-0-50-rhel9:1.2.2-1752686994
                 image: REPLACE_IMAGE:latest
                 imagePullPolicy: Always
                 livenessProbe:
@@ -1593,6 +1628,11 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
+  relatedImages:
+  - image: quay.io/opendatahub/odh-kube-auth-proxy:latest
+    name: odh-kube-auth-proxy-image
+  - image: registry.redhat.io/cluster-observability-operator/perses-0-50-rhel9:1.2.2-1752686994
+    name: perses
   version: 3.2.0
   webhookdefinitions:
   - admissionReviewVersions:
