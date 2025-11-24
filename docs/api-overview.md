@@ -2681,8 +2681,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `expire` _string_ | Expire duration for OAuth2 proxy session cookie (e.g., "24h", "8h")<br />This controls how long the session cookie is valid before requiring re-authentication.<br />Default: "24h" | 24h | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
-| `refresh` _string_ | Refresh duration for OAuth2 proxy to refresh access tokens (e.g., "2h", "1h", "30m")<br />This must be LESS than the OIDC provider's Access Token Lifespan to avoid token expiration.<br />For example, if Keycloak Access Token Lifespan is 1 hour, set this to "30m" or "45m".<br />Default: "1h" | 1h | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
+| `expire` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | Expire duration for OAuth2 proxy session cookie (e.g., "24h", "8h")<br />This controls how long the session cookie is valid before requiring re-authentication. | 24h |  |
+| `refresh` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | Refresh duration for OAuth2 proxy to refresh access tokens (e.g., "2h", "1h", "30m")<br />This must be LESS than the OIDC provider's Access Token Lifespan to avoid token expiration.<br />For example, if Keycloak Access Token Lifespan is 1 hour, set this to "30m" or "45m". | 1h |  |
 
 
 #### DSCIMonitoring
@@ -2742,11 +2742,12 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `oidc` _[OIDCConfig](#oidcconfig)_ | OIDC configuration (used when cluster is in OIDC authentication mode) |  |  |
-| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate management |  |  |
-| `domain` _string_ | Domain configuration for the GatewayConfig<br />Example: apps.example.com |  |  |
-| `subdomain` _string_ | Subdomain configuration for the GatewayConfig |  | MaxLength: 63 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$` <br /> |
-| `cookie` _[CookieConfig](#cookieconfig)_ | Cookie configuration for OAuth2 proxy (applies to both OIDC and OpenShift OAuth) |  |  |
-| `authTimeout` _string_ | AuthTimeout is the duration Envoy waits for auth proxy responses.<br />Requests timeout with 403 if exceeded.<br />Overrides GATEWAY_AUTH_TIMEOUT env var. Default: "5s" |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
+| `certificate` _[CertificateSpec](#certificatespec)_ | Certificate specifies configuration of the TLS certificate securing communication for the gateway. |  |  |
+| `domain` _string_ | Domain specifies the host name for intercepting incoming requests.<br />Most likely, you will want to use a wildcard name, like *.example.com.<br />If not set, the domain of the OpenShift Ingress is used.<br />If you choose to generate a certificate, this is the domain used for the certificate request.<br />Example: *.example.com, example.com, apps.example.com |  | Pattern: `^(\*\.)?([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
+| `subdomain` _string_ | Subdomain configuration for the GatewayConfig<br />Example: my-gateway, custom-gateway |  | Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$` <br /> |
+| `cookie` _[CookieConfig](#cookieconfig)_ | Cookie configuration (applies to both OIDC and OpenShift OAuth) |  |  |
+| `authTimeout` _string_ | AuthTimeout is the duration Envoy waits for auth proxy responses.<br />Requests timeout with 403 if exceeded.<br />Deprecated: Use AuthProxyTimeout instead. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
+| `authProxyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | AuthProxyTimeout defines the timeout for external authorization service calls (e.g., "5s", "10s")<br />This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response. |  |  |
 
 
 #### GatewayConfigStatus

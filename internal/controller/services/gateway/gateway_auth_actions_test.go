@@ -4,7 +4,9 @@ package gateway
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
@@ -85,27 +87,27 @@ func TestGetCookieSettings(t *testing.T) {
 		{
 			name: "custom expire only",
 			cookieConfig: &serviceApi.CookieConfig{
-				Expire: "8h",
+				Expire: metav1.Duration{Duration: 8 * time.Hour},
 			},
-			expectedExpire:  "8h",
+			expectedExpire:  "8h0m0s",
 			expectedRefresh: "1h",
 		},
 		{
 			name: "custom refresh only",
 			cookieConfig: &serviceApi.CookieConfig{
-				Refresh: "30m",
+				Refresh: metav1.Duration{Duration: 30 * time.Minute},
 			},
 			expectedExpire:  "24h",
-			expectedRefresh: "30m",
+			expectedRefresh: "30m0s",
 		},
 		{
 			name: "both custom values",
 			cookieConfig: &serviceApi.CookieConfig{
-				Expire:  "12h",
-				Refresh: "45m",
+				Expire:  metav1.Duration{Duration: 12 * time.Hour},
+				Refresh: metav1.Duration{Duration: 45 * time.Minute},
 			},
-			expectedExpire:  "12h",
-			expectedRefresh: "45m",
+			expectedExpire:  "12h0m0s",
+			expectedRefresh: "45m0s",
 		},
 	}
 
@@ -164,15 +166,15 @@ func TestBuildBaseOAuth2ProxyArgsWithCustomCookie(t *testing.T) {
 	g := NewWithT(t)
 
 	cookieConfig := &serviceApi.CookieConfig{
-		Expire:  "8h",
-		Refresh: "30m",
+		Expire:  metav1.Duration{Duration: 8 * time.Hour},
+		Refresh: metav1.Duration{Duration: 30 * time.Minute},
 	}
 
 	args := buildBaseOAuth2ProxyArgs(cookieConfig, testProxyDomain)
 
 	// Verify custom cookie settings are applied
-	g.Expect(args).To(ContainElement("--cookie-expire=8h"), "custom cookie expiration")
-	g.Expect(args).To(ContainElement("--cookie-refresh=30m"), "custom cookie refresh interval")
+	g.Expect(args).To(ContainElement("--cookie-expire=8h0m0s"), "custom cookie expiration")
+	g.Expect(args).To(ContainElement("--cookie-refresh=30m0s"), "custom cookie refresh interval")
 
 	// Verify other settings remain unchanged
 	g.Expect(args).To(ContainElement("--cookie-secure=true"))
