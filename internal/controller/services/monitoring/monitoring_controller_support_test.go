@@ -2,7 +2,9 @@
 package monitoring
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -21,6 +23,7 @@ import (
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
@@ -28,6 +31,29 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+func TestMain(m *testing.M) {
+	// Set environment variables for operator namespace and platform type
+	// This is required because cluster.GetOperatorNamespace() checks a cached value
+	// that is set once during cluster.Init()
+	os.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
+
+	// Set platform type to avoid CatalogSource lookup during cluster.Init()
+	os.Setenv("ODH_PLATFORM_TYPE", "OpenDataHub")
+
+	// Initialize cluster config with a minimal fake client
+	// This populates the package-level clusterConfig variable with the operator namespace
+	scheme := runtime.NewScheme()
+	_ = dsciv2.AddToScheme(scheme)
+	_ = serviceApi.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	// Ignore errors from Init as we only care about setting the operator namespace
+	// Other initialization errors (like missing cluster resources) are expected in tests
+	_ = cluster.Init(context.Background(), fakeClient)
+
+	os.Exit(m.Run())
+}
 
 // stringToRawExtension converts a YAML string to a runtime.RawExtension for testing.
 func stringToRawExtension(yamlStr string) runtime.RawExtension {
@@ -82,6 +108,9 @@ func setupTestClient(g Gomega, objects ...client.Object) client.Client {
 
 func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 	ctx := t.Context()
+
+	// Set environment variable for operator namespace (required by cluster.GetOperatorNamespace)
+	t.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
 
 	tests := []struct {
 		name                string
@@ -181,6 +210,9 @@ func TestGetTemplateDataAcceleratorMetrics(t *testing.T) {
 func runMetricsExporterTest(t *testing.T, exporters map[string]runtime.RawExtension) (map[string]interface{}, error) {
 	t.Helper()
 	g := NewWithT(t)
+
+	// Set environment variable for operator namespace (required by cluster.GetOperatorNamespace)
+	t.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
 
 	// Create DSCI
 	dsci := &dsciv2.DSCInitialization{
@@ -296,6 +328,9 @@ func validateMetricsExporterResult(t *testing.T, tt struct {
 }
 
 func TestCustomMetricsExporters(t *testing.T) {
+	// Set environment variable for operator namespace (required by cluster.GetOperatorNamespace)
+	t.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
+
 	tests := []struct {
 		name                 string
 		exporters            map[string]runtime.RawExtension
@@ -559,6 +594,9 @@ tls:
 func TestGetTemplateDataAcceleratorMetricsWithMetricsConfiguration(t *testing.T) {
 	ctx := t.Context()
 	g := NewWithT(t)
+
+	// Set environment variable for operator namespace (required by cluster.GetOperatorNamespace)
+	t.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
 
 	// Test with full metrics configuration
 	dsci := &dsciv2.DSCInitialization{
@@ -1042,6 +1080,9 @@ func TestGetImageURL(t *testing.T) {
 func TestGetTemplateDataImageURLs(t *testing.T) {
 	ctx := t.Context()
 
+	// Set environment variable for operator namespace (required by cluster.GetOperatorNamespace)
+	t.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
+
 	tests := []struct {
 		name                   string
 		platform               common.Platform
@@ -1086,6 +1127,9 @@ func TestGetTemplateDataImageURLs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Set environment variable for operator namespace (required by cluster.GetOperatorNamespace)
+			t.Setenv("OPERATOR_NAMESPACE", "test-operator-ns")
+
 			if tt.envKubeRBACProxy != "" {
 				t.Setenv("RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE", tt.envKubeRBACProxy)
 			}

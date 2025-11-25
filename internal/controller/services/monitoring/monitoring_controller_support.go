@@ -298,12 +298,19 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		return nil, err
 	}
 
+	// Fetch operator namespace
+	operatorNamespace, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		return nil, err
+	}
+
 	templateData := map[string]any{
 		"Namespace":            monitoring.Spec.Namespace,
 		"Traces":               monitoring.Spec.Traces != nil,
 		"Metrics":              monitoring.Spec.Metrics != nil,
 		"AcceleratorMetrics":   monitoring.Spec.Metrics != nil,
 		"ApplicationNamespace": appNamespace,
+		"OperatorNamespace":    operatorNamespace,
 		"MetricsExporters":     make(map[string]string),
 		"MetricsExporterNames": []string{},
 		"PersesImage":          getPersesImage(),
