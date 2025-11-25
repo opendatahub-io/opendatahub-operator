@@ -8,7 +8,6 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
-	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -71,14 +70,8 @@ func bffManifestsPath() odhtypes.ManifestInfo {
 }
 
 func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform) (map[string]string, error) {
-	// Get the GatewayConfig from the cluster
-	gatewayConfig := &serviceApi.GatewayConfig{}
-	err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, gatewayConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get GatewayConfig: %w", err)
-	}
-
-	consoleLinkDomain, err := gateway.GetFQDN(ctx, cli, gatewayConfig)
+	// Get the gateway domain directly from Gateway CR
+	consoleLinkDomain, err := gateway.GetGatewayDomain(ctx, cli)
 	if err != nil {
 		return nil, fmt.Errorf("error getting gateway domain: %w", err)
 	}

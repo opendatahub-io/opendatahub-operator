@@ -148,8 +148,8 @@ func TestGetCertificateType(t *testing.T) {
 	}
 }
 
-// TestResolveDomain tests the resolveDomain helper function.
-func TestResolveDomain(t *testing.T) {
+// TestGetFQDN tests the GetFQDN helper function.
+func TestGetFQDN(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
@@ -205,7 +205,7 @@ func TestResolveDomain(t *testing.T) {
 				client = setupSupportTestClient()
 			}
 
-			domain, err := resolveDomain(ctx, client, gatewayConfig)
+			domain, err := GetFQDN(ctx, client, gatewayConfig)
 
 			if tc.expectError {
 				g.Expect(err).To(HaveOccurred(), tc.description)
@@ -267,21 +267,21 @@ func TestCreateListenersEdgeCases(t *testing.T) {
 	}
 }
 
-// TestResolveDomainNilHandling tests nil parameter handling for resolveDomain.
-func TestResolveDomainNilHandling(t *testing.T) {
+// TestGetFQDNNilHandling tests nil parameter handling for GetFQDN.
+func TestGetFQDNNilHandling(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
 	client := setupSupportTestClient()
 
 	// Test nil gatewayConfig - should fall back to cluster domain (which will fail with our test client)
-	domain, err := resolveDomain(ctx, client, nil)
+	domain, err := GetFQDN(ctx, client, nil)
 	g.Expect(err).To(HaveOccurred(), "should return error when gatewayConfig is nil and cluster domain fails")
 	g.Expect(domain).To(Equal(""), "domain should be empty on error")
 }
 
-// TestResolveDomainEdgeCases tests additional edge cases for domain resolution.
-func TestResolveDomainEdgeCases(t *testing.T) {
+// TestGetFQDNEdgeCases tests additional edge cases for domain resolution.
+func TestGetFQDNEdgeCases(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
@@ -316,7 +316,7 @@ func TestResolveDomainEdgeCases(t *testing.T) {
 			gatewayConfig := createTestGatewayConfigSupport(tc.specDomain, nil)
 			client := setupSupportTestClient()
 
-			domain, err := resolveDomain(ctx, client, gatewayConfig)
+			domain, err := GetFQDN(ctx, client, gatewayConfig)
 
 			g.Expect(err).ToNot(HaveOccurred(), tc.description)
 			g.Expect(domain).To(ContainSubstring(tc.expectedContains), tc.description)
@@ -324,8 +324,8 @@ func TestResolveDomainEdgeCases(t *testing.T) {
 	}
 }
 
-// TestResolveDomainWithSubdomain tests subdomain functionality in domain resolution.
-func TestResolveDomainWithSubdomain(t *testing.T) {
+// TestGetFQDNWithSubdomain tests subdomain functionality in domain resolution.
+func TestGetFQDNWithSubdomain(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
@@ -403,7 +403,7 @@ func TestResolveDomainWithSubdomain(t *testing.T) {
 				client = setupSupportTestClient()
 			}
 
-			domain, err := resolveDomain(ctx, client, gatewayConfig)
+			domain, err := GetFQDN(ctx, client, gatewayConfig)
 
 			if tc.expectError {
 				g.Expect(err).To(HaveOccurred(), tc.description)
@@ -412,57 +412,6 @@ func TestResolveDomainWithSubdomain(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred(), tc.description)
 				g.Expect(domain).To(Equal(tc.expectedDomain), tc.description)
 			}
-		})
-	}
-}
-
-// TestBuildGatewayDomainWithSubdomain tests the buildGatewayDomain function with subdomain.
-func TestBuildGatewayDomainWithSubdomain(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	testCases := []struct {
-		name        string
-		subdomain   string
-		baseDomain  string
-		expected    string
-		description string
-	}{
-		{
-			name:        "custom subdomain",
-			subdomain:   "my-gateway",
-			baseDomain:  "apps.example.com",
-			expected:    "my-gateway.apps.example.com",
-			description: "should use custom subdomain when provided",
-		},
-		{
-			name:        "empty subdomain uses default",
-			subdomain:   "",
-			baseDomain:  "apps.example.com",
-			expected:    "data-science-gateway.apps.example.com",
-			description: "should use default gateway name when subdomain is empty",
-		},
-		{
-			name:        "whitespace subdomain uses default",
-			subdomain:   "   ",
-			baseDomain:  "apps.example.com",
-			expected:    "data-science-gateway.apps.example.com",
-			description: "should use default gateway name when subdomain is whitespace",
-		},
-		{
-			name:        "subdomain with cluster domain",
-			subdomain:   "custom",
-			baseDomain:  testClusterDomain,
-			expected:    "custom.apps.cluster.example.com",
-			description: "should use subdomain with cluster domain",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			result := buildGatewayDomain(tc.subdomain, tc.baseDomain)
-			g.Expect(result).To(Equal(tc.expected), tc.description)
 		})
 	}
 }

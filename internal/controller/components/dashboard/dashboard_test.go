@@ -313,8 +313,8 @@ func TestComputeKustomizeVariableError(t *testing.T) {
 
 	// Test error handling with better error message validation
 	_, err = computeKustomizeVariable(ctx, cli, cluster.OpenDataHub)
-	g.Expect(err).Should(HaveOccurred(), "Should fail when GatewayConfig is not found")
-	g.Expect(err.Error()).Should(ContainSubstring("failed to get GatewayConfig"), "Error should contain expected message")
+	g.Expect(err).Should(HaveOccurred(), "Should fail when cluster domain cannot be determined")
+	g.Expect(err.Error()).Should(ContainSubstring("error getting gateway domain"), "Error should contain expected message")
 }
 
 func createDSCWithDashboard(managementState operatorv1.ManagementState) *dscv2.DataScienceCluster {
