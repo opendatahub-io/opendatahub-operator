@@ -1,4 +1,4 @@
-package il
+package initialinstall
 
 import (
 	"context"
@@ -161,33 +161,4 @@ func CreateDefaultGateway(ctx context.Context, cli client.Client) error {
 	}
 
 	return nil
-}
-
-func GetDeployedRelease(ctx context.Context, cli client.Client) (common.Release, error) {
-	// First, try to get release info from DSCI
-	dsciInstance, err := cluster.GetDSCI(ctx, cli)
-	if err == nil {
-		// DSCI found, return its release info
-		return dsciInstance.Status.Release, nil
-	}
-
-	// If error is something other than "not found", return the error
-	if !k8serr.IsNotFound(err) {
-		return common.Release{}, err
-	}
-
-	// No DSCI CR found, try with DSC CR
-	dscInstances, err := cluster.GetDSC(ctx, cli)
-	if err == nil {
-		// DSC found, return its release info
-		return dscInstances.Status.Release, nil
-	}
-
-	// If error is something other than "not found", return the error
-	if !k8serr.IsNotFound(err) {
-		return common.Release{}, err
-	}
-
-	// Could be a clean installation or both CRs are deleted already
-	return common.Release{}, nil
 }

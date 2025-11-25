@@ -79,7 +79,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
-	il "github.com/opendatahub-io/opendatahub-operator/v2/pkg/initialinstall"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/initialinstall"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -257,7 +257,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// get old release version before we create default DSCI CR
-	oldReleaseVersion, err := il.GetDeployedRelease(ctx, setupClient)
+	oldReleaseVersion, err := cluster.GetDeployedRelease(ctx, setupClient)
 	if err != nil {
 		setupLog.Error(err, "unable to get deployed release version")
 		os.Exit(1)
@@ -411,7 +411,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Info("DSCI auto creation is disabled")
 	} else {
 		var createDefaultDSCIFunc manager.RunnableFunc = func(ctx context.Context) error {
-			err := il.CreateDefaultDSCI(ctx, setupClient, platform, oconfig.MonitoringNamespace)
+			err := initialinstall.CreateDefaultDSCI(ctx, setupClient, platform, oconfig.MonitoringNamespace)
 			if err != nil {
 				setupLog.Error(err, "unable to create initial setup for the operator")
 			}
@@ -427,7 +427,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// Create default DSC CR for managed RHOAI
 	if platform == cluster.ManagedRhoai {
 		var createDefaultDSCFunc manager.RunnableFunc = func(ctx context.Context) error {
-			err := il.CreateDefaultDSC(ctx, setupClient)
+			err := initialinstall.CreateDefaultDSC(ctx, setupClient)
 			if err != nil {
 				setupLog.Error(err, "unable to create default DSC CR by the operator")
 			}
