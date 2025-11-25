@@ -27,7 +27,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	l.V(1).Info("creating auth proxy for gateway", "gateway", gatewayConfig.Name)
 
 	// Resolve domain consistently with createGatewayInfrastructure
-	domain, err := resolveDomain(ctx, rr.Client, gatewayConfig)
+	domain, err := GetFQDN(ctx, rr.Client, gatewayConfig)
 	if err != nil {
 		return fmt.Errorf("failed to resolve domain: %w", err)
 	}
