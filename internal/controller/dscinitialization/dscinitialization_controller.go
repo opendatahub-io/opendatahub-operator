@@ -293,6 +293,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return ctrl.Result{}, err
 		}
 
+		// Create GatewayConfig, always have one in the cluster but up to user to config.
+		if err = r.CreateGatewayConfig(ctx, instance); err != nil {
+			log.Info("failed to create GatewayConfig")
+			return ctrl.Result{}, err
+		}
+
 		// Create default HWProfile CR
 		if err = r.ManageDefaultAndCustomHWProfileCR(ctx, instance, platform); err != nil {
 			log.Info("failed to manage default and custom HardwareProfile CR")
@@ -390,6 +396,10 @@ func (r *DSCInitializationReconciler) SetupWithManager(ctx context.Context, mgr 
 			&serviceApi.Auth{},
 			handler.EnqueueRequestsFromMapFunc(r.watchAuthResource),
 		).
+		Watches(
+			&serviceApi.GatewayConfig{},
+			handler.EnqueueRequestsFromMapFunc(r.watchGatewayConfigResource),
+		).
 		Watches( // TODO: this might not be needed after v3.3.
 			&apiextensionsv1.CustomResourceDefinition{},
 			handler.EnqueueRequestsFromMapFunc(r.watchHWProfileCRDResource),
@@ -454,6 +464,23 @@ func (r *DSCInitializationReconciler) watchAuthResource(ctx context.Context, a c
 		log.Info("Found no Auth instance in cluster, reconciling to recreate")
 
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: "auth"}}}
+	}
+
+	return nil
+}
+
+func (r *DSCInitializationReconciler) watchGatewayConfigResource(ctx context.Context, a client.Object) []reconcile.Request {
+	log := logf.FromContext(ctx)
+	instanceList := &serviceApi.GatewayConfigList{}
+	if err := r.Client.List(ctx, instanceList); err != nil {
+		// do not handle if cannot get list
+		log.Error(err, "Failed to get GatewayConfigList")
+		return nil
+	}
+	if len(instanceList.Items) == 0 {
+		log.Info("Found no GatewayConfig instance in cluster, reconciling to recreate one")
+
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: serviceApi.GatewayInstanceName}}}
 	}
 
 	return nil
@@ -533,6 +560,52 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 	)
 
 	if err != nil && !k8serr.IsAlreadyExists(err) {
+		return err
+	}
+	return nil
+}
+
+// CreateGatewayConfig creates a default GatewayConfig if it doesn't exist.
+// Parameters:
+//   - ctx: context for the operation
+//   - instance: DSCInitialization instance
+//
+// Returns:
+//   - error: nil on success, error if GatewayConfig creation fails
+func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, instance *dsciv2.DSCInitialization) error {
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	err := r.Client.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, gatewayConfig)
+	if err == nil {
+		return nil
+	}
+
+	if !k8serr.IsNotFound(err) {
+		return err
+	}
+
+	// GatewayConfig CR not found, create default GatewayConfig CR.
+	defaultGateway := &serviceApi.GatewayConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       serviceApi.GatewayConfigKind,
+			APIVersion: serviceApi.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: serviceApi.GatewayInstanceName,
+		},
+		Spec: serviceApi.GatewayConfigSpec{
+			Certificate: &infrav1.CertificateSpec{
+				Type:       infrav1.OpenshiftDefaultIngress,
+				SecretName: "default-gateway-tls",
+			},
+		},
+	}
+
+	// Set the DSCInitialization instance as the owner of the GatewayConfig
+	if err := ctrl.SetControllerReference(instance, defaultGateway, r.Scheme); err != nil {
+		return err
+	}
+
+	if err := r.Client.Create(ctx, defaultGateway); err != nil && !k8serr.IsAlreadyExists(err) {
 		return err
 	}
 	return nil

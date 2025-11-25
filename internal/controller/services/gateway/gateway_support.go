@@ -115,70 +115,55 @@ func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
 	return string(gatewayConfig.Spec.Certificate.Type)
 }
 
-// buildGatewayDomain combines subdomain with base domain.
-// If subdomain is empty or whitespace, uses DefaultGatewayName as fallback.
-func buildGatewayDomain(subdomain, baseDomain string) string {
-	// Trim whitespace and use provided subdomain or fallback to default gateway name
-	hostname := strings.TrimSpace(subdomain)
-	if hostname == "" {
-		hostname = DefaultGatewayName
-	}
-	// Use string concatenation for better performance in frequently called function
-	return hostname + "." + baseDomain
-}
+// GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
+// It constructs the FQDN by combining the subdomain (or default) with either the user-specified
+// domain or the cluster domain.
+func GetFQDN(ctx context.Context, cli client.Client, gatewayConfig *serviceApi.GatewayConfig) (string, error) {
+	subdomain := DefaultGatewayName
 
-// getClusterDomain gets cluster domain - extracted common logic.
-func getClusterDomain(ctx context.Context, client client.Client, subdomain string) (string, error) {
-	clusterDomain, err := cluster.GetDomain(ctx, client)
+	if gatewayConfig != nil {
+		subdomain = strings.TrimSpace(gatewayConfig.Spec.Subdomain)
+		if subdomain == "" {
+			subdomain = DefaultGatewayName
+		}
+
+		baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
+		if baseDomain != "" {
+			return fmt.Sprintf("%s.%s", subdomain, baseDomain), nil
+		}
+	}
+
+	clusterDomain, err := cluster.GetDomain(ctx, cli)
 	if err != nil {
 		return "", fmt.Errorf("failed to get cluster domain: %w", err)
 	}
-	return buildGatewayDomain(subdomain, clusterDomain), nil
+
+	return fmt.Sprintf("%s.%s", subdomain, clusterDomain), nil
 }
 
-func resolveDomain(ctx context.Context, client client.Client,
-	gatewayConfig *serviceApi.GatewayConfig) (string, error) {
-	// Input validation
-	if gatewayConfig == nil {
-		return getClusterDomain(ctx, client, "")
-	}
-
-	// Extract subdomain from GatewayConfig if provided
-	subdomain := strings.TrimSpace(gatewayConfig.Spec.Subdomain)
-
-	// Check if user has overridden the domain
-	baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
-	if baseDomain != "" {
-		return buildGatewayDomain(subdomain, baseDomain), nil
-	}
-
-	// No domain override, use cluster domain with subdomain
-	return getClusterDomain(ctx, client, subdomain)
-}
-
-// GetGatewayDomain reads GatewayConfig and passes it to resolveDomain.
-// This function optimizes API calls by handling the GatewayConfig retrieval
-// and domain resolution in a single flow.
+// GetGatewayDomain reads the domain directly from the Gateway CR's listener hostname.
+// Falls back to GatewayConfig if Gateway CR doesn't exist yet.
 func GetGatewayDomain(ctx context.Context, cli client.Client) (string, error) {
-	// Try to get the GatewayConfig
+	// Try to get the Gateway CR first
+	gateway := &gwapiv1.Gateway{}
+	err := cli.Get(ctx, client.ObjectKey{
+		Name:      DefaultGatewayName,
+		Namespace: GatewayNamespace,
+	}, gateway)
+	if err == nil {
+		if len(gateway.Spec.Listeners) > 0 && gateway.Spec.Listeners[0].Hostname != nil {
+			return string(*gateway.Spec.Listeners[0].Hostname), nil
+		}
+	}
+
 	gatewayConfig := &serviceApi.GatewayConfig{}
-	err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, gatewayConfig)
+	err = cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, gatewayConfig)
 	if err != nil {
-		// GatewayConfig doesn't exist, use cluster domain directly with default subdomain
-		return getClusterDomain(ctx, cli, "")
+		// GatewayConfig doesn't exist either, use cluster domain with default subdomain
+		return GetFQDN(ctx, cli, nil)
 	}
 
-	// Extract subdomain from GatewayConfig if provided
-	subdomain := strings.TrimSpace(gatewayConfig.Spec.Subdomain)
-
-	// Check if user has overridden the domain (inline ResolveDomain logic to avoid redundant calls)
-	baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
-	if baseDomain != "" {
-		return buildGatewayDomain(subdomain, baseDomain), nil
-	}
-
-	// No domain override, use cluster domain with subdomain
-	return getClusterDomain(ctx, cli, subdomain)
+	return GetFQDN(ctx, cli, gatewayConfig)
 }
 
 // createListeners creates the Gateway listeners configuration with namespace restrictions.
@@ -782,7 +767,7 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 	}
 
 	// Use consistent domain resolution with the gateway
-	domain, err := resolveDomain(ctx, rr.Client, gatewayConfig)
+	domain, err := GetFQDN(ctx, rr.Client, gatewayConfig)
 	if err != nil {
 		return fmt.Errorf("failed to resolve domain: %w", err)
 	}
