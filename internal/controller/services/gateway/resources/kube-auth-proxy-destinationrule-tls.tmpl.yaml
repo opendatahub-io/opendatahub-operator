@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/part-of: data-science-gateway
 spec:
-  host: '*'
+  host: "*"
   trafficPolicy:
     portLevelSettings:
     - port:
@@ -19,3 +19,4 @@ spec:
       tls:
         mode: SIMPLE
         insecureSkipVerify: true
+

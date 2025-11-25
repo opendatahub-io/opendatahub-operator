@@ -87,7 +87,7 @@ func createDestinationRule(ctx context.Context, rr *odhtypes.ReconciliationReque
 	l := logf.FromContext(ctx).WithName("createDestinationRule")
 	l.V(1).Info("Creating DestinationRule for TLS configuration")
 
-	yamlContent, err := gatewayResources.ReadFile("resources/destinationrule-tls.yaml")
+	yamlContent, err := gatewayResources.ReadFile(destinationRuleTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to read DestinationRule template: %w", err)
 	}
