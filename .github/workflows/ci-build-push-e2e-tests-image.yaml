@@ -1,4 +1,4 @@
-name: Build and push E2E Test Image
+name: Build and push E2E Test Image (RHOAI)
 on:
   push:
     branches:
