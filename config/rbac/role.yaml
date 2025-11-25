@@ -621,6 +621,14 @@ rules:
   - update
   - watch
 - apiGroups:
+  - kuadrant.io
+  resources:
+  - kuadrants
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - kubeflow.org
   resources:
   - notebooks
@@ -887,6 +895,14 @@ rules:
   - get
   - list
   - patch
+  - watch
+- apiGroups:
+  - operator.openshift.io
+  resources:
+  - leaderworkersetoperators
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - operators.coreos.com
