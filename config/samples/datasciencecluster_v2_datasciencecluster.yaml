@@ -19,6 +19,8 @@ spec:
       managementState: "Removed"
     trainingoperator:
       managementState: "Managed"
+    trainer:
+      managementState: "Removed"
     ray:
       managementState: "Managed"
     workbenches:

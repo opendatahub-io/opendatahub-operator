@@ -307,6 +307,12 @@ var (
 		Kind:    componentApi.TrainingOperatorKind,
 	}
 
+	Trainer = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.TrainerKind,
+	}
+
 	Monitoring = schema.GroupVersionKind{
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,
@@ -479,6 +485,12 @@ var (
 		Group:   "kubeflow.org",
 		Version: "v1",
 		Kind:    "PyTorchJob",
+	}
+
+	ClusterTrainingRuntime = schema.GroupVersionKind{
+		Group:   "trainer.kubeflow.org",
+		Version: "v1alpha1",
+		Kind:    "ClusterTrainingRuntime",
 	}
 
 	RayJobV1Alpha1 = schema.GroupVersionKind{

@@ -38,7 +38,6 @@ const (
 	PrometheusServiceOverrideTemplate         = "resources/data-science-prometheus-service-override.tmpl.yaml"
 	PrometheusNetworkPolicyTemplate           = "resources/data-science-prometheus-network-policy.tmpl.yaml"
 	PrometheusWebTLSServiceTemplate           = "resources/prometheus-web-tls-service.tmpl.yaml"
-	PrometheusWebTLSCASecretJobTemplate       = "resources/prometheus-web-tls-ca-secret-job.tmpl.yaml"
 	ThanosQuerierTemplate                     = "resources/thanos-querier-cr.tmpl.yaml"
 	ThanosQuerierRouteTemplate                = "resources/thanos-querier-route.tmpl.yaml"
 	PersesTemplate                            = "resources/perses.tmpl.yaml"
@@ -66,6 +65,7 @@ var componentRules = map[string]string{
 	componentApi.TrustyAIComponentName:             "trustyai",
 	componentApi.KserveComponentName:               "kserve",
 	componentApi.TrainingOperatorComponentName:     "trainingoperator",
+	componentApi.TrainerComponentName:              "trainer",
 	componentApi.ModelRegistryComponentName:        "model-registry-operator",
 	componentApi.ModelControllerComponentName:      "odh-model-controller",
 	componentApi.FeastOperatorComponentName:        "feastoperator",
@@ -203,7 +203,6 @@ func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *od
 		{FS: resourcesFS, Path: PrometheusServiceOverrideTemplate},
 		{FS: resourcesFS, Path: PrometheusNetworkPolicyTemplate},
 		{FS: resourcesFS, Path: PrometheusWebTLSServiceTemplate},
-		{FS: resourcesFS, Path: PrometheusWebTLSCASecretJobTemplate},
 		{FS: resourcesFS, Path: PrometheusRestrictedTemplate},
 		{FS: resourcesFS, Path: PrometheusRestrictedNetworkPolicyTemplate},
 		{FS: resourcesFS, Path: ThanosQuerierTemplate},

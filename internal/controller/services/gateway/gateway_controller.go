@@ -29,8 +29,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/auth"
 	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
@@ -91,7 +91,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 
 	// Only watch OAuthClient if cluster uses IntegratedOAuth (not OIDC or None)
 	// This prevents errors in ROSA environments where OAuthClient CRD doesn't exist
-	if isIntegratedOAuth, err := auth.IsDefaultAuthMethod(ctx, mgr.GetClient()); err == nil && isIntegratedOAuth {
+	if isIntegratedOAuth, err := cluster.IsIntegratedOAuth(ctx, mgr.GetClient()); err == nil && isIntegratedOAuth {
 		reconcilerBuilder = reconcilerBuilder.OwnsGVK(gvk.OAuthClient) // OpenShift OAuth integration
 	}
 
