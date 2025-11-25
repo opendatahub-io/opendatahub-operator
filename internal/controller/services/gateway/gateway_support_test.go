@@ -15,6 +15,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
@@ -472,14 +473,14 @@ func TestValidateOIDCConfig(t *testing.T) {
 
 	testCases := []struct {
 		name        string
-		authMode    AuthMode
+		authMode    cluster.AuthenticationMode
 		oidcConfig  *serviceApi.OIDCConfig
 		expectError bool
 		description string
 	}{
 		{
 			name:     "OIDC mode with valid config",
-			authMode: AuthModeOIDC,
+			authMode: cluster.AuthModeOIDC,
 			oidcConfig: &serviceApi.OIDCConfig{
 				IssuerURL: testOIDCIssuerURL,
 				ClientID:  "test-client",
@@ -492,14 +493,14 @@ func TestValidateOIDCConfig(t *testing.T) {
 		},
 		{
 			name:        "OIDC mode with missing config",
-			authMode:    AuthModeOIDC,
+			authMode:    cluster.AuthModeOIDC,
 			oidcConfig:  nil,
 			expectError: true,
 			description: "should fail when OIDC mode has no configuration",
 		},
 		{
 			name:     "OIDC mode with empty clientID",
-			authMode: AuthModeOIDC,
+			authMode: cluster.AuthModeOIDC,
 			oidcConfig: &serviceApi.OIDCConfig{
 				IssuerURL: testOIDCIssuerURL,
 				ClientID:  "",
@@ -512,7 +513,7 @@ func TestValidateOIDCConfig(t *testing.T) {
 		},
 		{
 			name:     "OIDC mode with all fields empty",
-			authMode: AuthModeOIDC,
+			authMode: cluster.AuthModeOIDC,
 			oidcConfig: &serviceApi.OIDCConfig{
 				IssuerURL: "",
 				ClientID:  "",
@@ -525,14 +526,14 @@ func TestValidateOIDCConfig(t *testing.T) {
 		},
 		{
 			name:        "IntegratedOAuth mode",
-			authMode:    AuthModeIntegratedOAuth,
+			authMode:    cluster.AuthModeIntegratedOAuth,
 			oidcConfig:  nil,
 			expectError: false,
 			description: "should pass for IntegratedOAuth mode regardless of OIDC config",
 		},
 		{
 			name:        "None mode",
-			authMode:    AuthModeNone,
+			authMode:    cluster.AuthModeNone,
 			oidcConfig:  nil,
 			expectError: false,
 			description: "should pass for None mode regardless of OIDC config",
@@ -565,25 +566,25 @@ func TestCheckAuthModeNone(t *testing.T) {
 
 	testCases := []struct {
 		name        string
-		authMode    AuthMode
+		authMode    cluster.AuthenticationMode
 		expectError bool
 		description string
 	}{
 		{
 			name:        "None auth mode",
-			authMode:    AuthModeNone,
+			authMode:    cluster.AuthModeNone,
 			expectError: true,
 			description: "should return condition when auth mode is None",
 		},
 		{
 			name:        "IntegratedOAuth auth mode",
-			authMode:    AuthModeIntegratedOAuth,
+			authMode:    cluster.AuthModeIntegratedOAuth,
 			expectError: false,
 			description: "should return nil for IntegratedOAuth mode",
 		},
 		{
 			name:        "OIDC auth mode",
-			authMode:    AuthModeOIDC,
+			authMode:    cluster.AuthModeOIDC,
 			expectError: false,
 			description: "should return nil for OIDC mode",
 		},
