@@ -82,7 +82,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-11-19T15:13:16Z"
+    createdAt: "2025-11-25T07:46:54Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -922,6 +922,14 @@ spec:
           - update
           - watch
         - apiGroups:
+          - kuadrant.io
+          resources:
+          - kuadrants
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
           - kubeflow.org
           resources:
           - notebooks
@@ -1188,6 +1196,14 @@ spec:
           - get
           - list
           - patch
+          - watch
+        - apiGroups:
+          - operator.openshift.io
+          resources:
+          - leaderworkersetoperators
+          verbs:
+          - get
+          - list
           - watch
         - apiGroups:
           - operators.coreos.com
