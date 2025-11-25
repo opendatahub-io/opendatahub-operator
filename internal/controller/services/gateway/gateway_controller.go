@@ -20,16 +20,13 @@ import (
 	"context"
 	"fmt"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	sr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
@@ -38,32 +35,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 )
-
-//nolint:gochecknoinits
-func init() {
-	sr.Add(&ServiceHandler{})
-}
-
-// ServiceHandler implements the ServiceHandler interface for Gateway services.
-// It manages the lifecycle of GatewayConfig resources and their associated infrastructure.
-type ServiceHandler struct{}
-
-// Init initializes the ServiceHandler for the given platform.
-// Currently no platform-specific initialization is required.
-func (h *ServiceHandler) Init(platform common.Platform) error {
-	return nil
-}
-
-// GetName returns the service name for this handler.
-func (h *ServiceHandler) GetName() string {
-	return ServiceName
-}
-
-// GetManagementState returns the management state for Gateway services.
-// Gateway services are always managed regardless of platform or DSCI configuration.
-func (h *ServiceHandler) GetManagementState(platform common.Platform, _ *dsciv2.DSCInitialization) operatorv1.ManagementState {
-	return operatorv1.Managed
-}
 
 // NewReconciler creates and configures a new reconciler for GatewayConfig resources.
 // It sets up ownership relationships and action chains for complete gateway lifecycle management.

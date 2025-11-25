@@ -340,7 +340,7 @@ var (
 	GatewayConfig = schema.GroupVersionKind{
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,
-		Kind:    serviceApi.GatewayKind,
+		Kind:    serviceApi.GatewayConfigKind,
 	}
 
 	GatewayClass = schema.GroupVersionKind{
