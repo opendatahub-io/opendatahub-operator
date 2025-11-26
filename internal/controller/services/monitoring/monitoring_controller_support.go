@@ -60,10 +60,9 @@ const (
 
 var componentIDRE = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z0-9][A-Za-z0-9_-]*)?$`)
 
-// getPersesImage returns the Perses image from environment variable.
-// For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
-// For ODH deployments, this comes from config/manager/manager.yaml.
-// Falls back to a default image for local development/testing only.
+// getPersesImage returns the Perses image from environment variable or default.
+// For RHOAI deployments, this is set via the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
+// For ODH deployments, this uses the default value below.
 //
 // Note: This image version must stay compatible with the Cluster Observability Operator (COO) version
 // that we depend on. When upgrading COO, verify Perses image compatibility and update accordingly.
