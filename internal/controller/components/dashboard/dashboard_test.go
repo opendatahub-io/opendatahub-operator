@@ -218,13 +218,13 @@ func TestComputeKustomizeVariable(t *testing.T) {
 	var (
 		customGatewayConfig = func() *serviceApi.GatewayConfig {
 			gc := &serviceApi.GatewayConfig{}
-			gc.SetName(serviceApi.GatewayInstanceName)
+			gc.SetName(serviceApi.GatewayConfigName)
 			gc.Spec.Domain = customDomain
 			return gc
 		}
 		defaultGatewayConfig = func() *serviceApi.GatewayConfig {
 			gc := &serviceApi.GatewayConfig{}
-			gc.SetName(serviceApi.GatewayInstanceName)
+			gc.SetName(serviceApi.GatewayConfigName)
 			// No custom domain, should use cluster domain
 			return gc
 		}

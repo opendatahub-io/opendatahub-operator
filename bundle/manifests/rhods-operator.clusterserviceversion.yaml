@@ -82,7 +82,7 @@ metadata:
     categories: AI/Machine Learning, Big Data
     certified: "False"
     containerImage: REPLACE_IMAGE:latest
-    createdAt: "2025-11-25T14:57:09Z"
+    createdAt: "2025-11-26T16:34:33Z"
     description: Operator for deployment and management of Red Hat OpenShift AI
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -159,7 +159,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
-  name: rhods-operator.v3.2.0
+  name: rhods-operator.v3.2.374-1111
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -1511,7 +1511,7 @@ spec:
                       fieldPath: metadata.namespace
                 - name: DEFAULT_MANIFESTS_PATH
                   value: /opt/manifests
-                image: REPLACE_IMAGE:latest
+                image: quay.io/wenzhou/opendatahub-operator:3.2.374-1111
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -1609,7 +1609,7 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
-  version: 3.2.0
+  version: 3.2.374-1111
   webhookdefinitions:
   - admissionReviewVersions:
     - v1
