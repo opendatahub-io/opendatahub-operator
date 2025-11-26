@@ -88,3 +88,6 @@ config/rhoai/rbac/role.yaml
 config/rhoai/webhook/manifests.yaml
 rhoai-bundle/
 odh-bundle/
+
+# Ignore binary files
+cmd/component-codegen/component-codegen
