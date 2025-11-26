@@ -29,6 +29,7 @@ and configure these applications.
   - [Change logging level at runtime](#change-logging-level-at-runtime)
   - [Example DSCInitialization](#example-dscinitialization)
   - [Example DataScienceCluster](#example-datasciencecluster)
+  - [Example GatewayConfig](#example-gatewayconfig)
   - [Run functional Tests](#run-functional-tests)
   - [Run e2e Tests](#run-e2e-tests)
     - [Configuring e2e Tests](#configuring-e2e-tests)
@@ -503,6 +504,10 @@ spec:
       managementState: Managed
     trustyai:
       managementState: Managed
+      eval:
+        lmeval:
+          permitCodeExecution: deny
+          permitOnline: deny
     workbenches:
       managementState: Managed
     feastoperator:
@@ -541,6 +546,107 @@ spec:
 ```
 
 **Note:** The `workbenchNamespace` field once set, it cannot be changed (immutable).
+
+### Example GatewayConfig
+
+The GatewayConfig custom resource is used to configure gateway settings for OpenDataHub, including OIDC authentication and ingress gateway configuration. This CR is cluster-scoped and must be named `default-gateway`.
+
+**Automatic Creation**: The GatewayConfig CR is automatically created when a DSCInitialization CR is applied to the cluster. Users typically don't need to create this CR manually unless they want to configure OIDC authentication mode or customize ingress gateway settings.
+
+Here's an example of the default GatewayConfig CR (automatically created):
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: default-gateway
+spec:
+  cookie: {}  # Uses defaults: expire: 24h, refresh: 1h
+  certificate:
+    type: OpenshiftDefaultIngress
+```
+
+For a setup with custom certificate (Provided type):
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: default-gateway
+spec:
+  cookie: {}  # Uses defaults: expire: 24h, refresh: 1h
+  domain: "*.apps.example.com"
+  certificate:
+    type: Provided
+    secretName: custom-tls-cert  # Secret must already exist in openshift-ingress namespace with tls.crt and tls.key
+```
+
+For an advanced example with OIDC authentication:
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: default-gateway
+spec:
+  oidc:
+    issuerURL: "https://keycloak.example.com/auth/realms/opendatahub"
+    clientID: "opendatahub-client"
+    clientSecretRef:
+      name: oidc-client-secret
+      key: client-secret
+  cookie:
+    expire: 24h  # Default: 24h
+    refresh: 1h  # Default: 1h
+  domain: "*.apps.example.com"
+  authTimeout: 10s  # Default: 5s
+  certificate:
+    type: SelfSigned
+```
+
+For an advanced example using cluster domain with custom subdomain:
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: default-gateway
+spec:
+  cookie: {}  # Uses defaults
+  domain: apps.example.com
+  certificate:
+    type: SelfSigned
+```
+
+This will create a gateway `data-science-gateway.apps.example.com` (using default subdomain)
+
+
+For an advanced example with custom subdomain:
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: default-gateway
+spec:
+  cookie: {}  # Uses defaults
+  domain: apps.cluster.example.com
+  subdomain: custom-gateway
+  certificate:
+    type: SelfSigned
+```
+
+This will use the cluster's default domain with your custom subdomain: `custom-gateway.apps.cluster.example.com`
+
+**Important Notes:**
+- The GatewayConfig name must be exactly `default-gateway`
+- This is a cluster-scoped resource
+- **Automatic creation**: This CR is automatically created after DSCInitialization CR is applied
+- **Manual configuration needed**: Only configure this CR manually if you want to enable OIDC authentication mode or customize ingress gateway settings
+- OIDC configuration is optional and only needed when cluster is in OIDC authentication mode
+- Certificate types can be `OpenshiftDefaultIngress`, `SelfSigned`, or `Provided`
+- If `subdomain` is not specified or is empty, the default value `data-science-gateway` is used.
+- If `domain` is not specified, the cluster's default domain is used.
 
 ### Run functional Tests
 

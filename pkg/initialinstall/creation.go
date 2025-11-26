@@ -135,7 +135,7 @@ func CreateDefaultGateway(ctx context.Context, cli client.Client) error {
 
 	defaultGateway := &serviceApi.GatewayConfig{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceApi.GatewayInstanceName,
+			Name: serviceApi.GatewayConfigName,
 		},
 		Spec: serviceApi.GatewayConfigSpec{
 			Certificate: &infrav1.CertificateSpec{
@@ -146,18 +146,18 @@ func CreateDefaultGateway(ctx context.Context, cli client.Client) error {
 	}
 
 	existingGateway := &serviceApi.GatewayConfig{}
-	err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, existingGateway)
+	err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, existingGateway)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
 			if createErr := cli.Create(ctx, defaultGateway); createErr != nil {
 				return fmt.Errorf("unable to create default Gateway CR: %w", createErr)
 			}
-			log.Info("Created default Gateway CR", "name", serviceApi.GatewayInstanceName)
+			log.Info("Created default Gateway CR", "name", serviceApi.GatewayConfigName)
 		} else {
 			return fmt.Errorf("error checking for existing Gateway CR: %w", err)
 		}
 	} else {
-		log.Info("Default Gateway CR already exists", "name", serviceApi.GatewayInstanceName)
+		log.Info("Default Gateway CR already exists", "name", serviceApi.GatewayConfigName)
 	}
 
 	return nil

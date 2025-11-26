@@ -129,6 +129,8 @@ func monitoringTestSuite(t *testing.T) {
 		{"Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled},
 		{"Test Namespace Restricted Metrics Access", monitoringServiceCtx.ValidatePrometheusRestrictedResourceConfiguration},
 		{"Test Prometheus Secure Proxy Authentication", monitoringServiceCtx.ValidatePrometheusSecureProxyAuthentication},
+		{"Test Node Metrics Endpoint Deployment", monitoringServiceCtx.ValidateNodeMetricsEndpointDeployment},
+		{"Test Node Metrics Endpoint RBAC Configuration", monitoringServiceCtx.ValidateNodeMetricsEndpointRBACConfiguration},
 	}
 
 	// Run the test suite.
@@ -1485,7 +1487,7 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceConfiguration(t *testing.T)
 	)
 }
 
-func (tc *MonitoringTestCtx) waitForPrometheusRestrictedPrerequisites(t *testing.T, namespace string) {
+func (tc *MonitoringTestCtx) waitForPrometheusNamespaceProxyPrerequisites(t *testing.T, namespace string) {
 	t.Helper()
 
 	// 1. Wait for MonitoringStack CRD to exist and be established (required by controller)
@@ -1499,39 +1501,39 @@ func (tc *MonitoringTestCtx) waitForPrometheusRestrictedPrerequisites(t *testing
 			Namespace: namespace,
 		}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
-		WithCustomErrorMsg("MonitoringStack should be Available before prometheus-restricted deployment"),
+		WithCustomErrorMsg("MonitoringStack should be Available before prometheus-namespace-proxy deployment"),
 	)
 
 	t.Logf("MonitoringStack CR is Available")
 
-	t.Logf("All prerequisites met for prometheus-restricted deployment")
+	t.Logf("All prerequisites met for prometheus-namespace-proxy deployment")
 }
 
-// validatePrometheusRestrictedResourcesCommon validates common data-science-prometheus-restricted resources that are shared between tests.
-func (tc *MonitoringTestCtx) validatePrometheusRestrictedResourcesCommon(t *testing.T, namespace string) {
+// validatePrometheusNamespaceProxyResourcesCommon validates common data-science-prometheus-namespace-proxy resources that are shared between tests.
+func (tc *MonitoringTestCtx) validatePrometheusNamespaceProxyResourcesCommon(t *testing.T, namespace string) {
 	t.Helper()
 
 	// Wait for prerequisites before checking deployment
-	// The controller only deploys prometheus-restricted when MonitoringStack is available
-	tc.waitForPrometheusRestrictedPrerequisites(t, namespace)
+	// The controller only deploys prometheus-namespace-proxy when MonitoringStack is available
+	tc.waitForPrometheusNamespaceProxyPrerequisites(t, namespace)
 
-	// Verify the data-science-prometheus-restricted deployment is created
+	// Verify the data-science-prometheus-namespace-proxy deployment is created
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Name:      "data-science-prometheus-restricted",
+			Name:      "data-science-prometheus-namespace-proxy",
 			Namespace: namespace,
 		}),
 		WithCondition(And(
 			jq.Match(`.status.readyReplicas == 1`),
 			jq.Match(`.spec.template.spec.containers | length == 2`), // kube-rbac-proxy + prom-label-proxy
 		)),
-		WithCustomErrorMsg("data-science-prometheus-restricted deployment should be created and ready"),
+		WithCustomErrorMsg("data-science-prometheus-namespace-proxy deployment should be created and ready"),
 	)
 
 	// Verify the service account exists with proper RBAC
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
-			Name:      "data-science-prometheus-restricted",
+			Name:      "data-science-prometheus-namespace-proxy",
 			Namespace: namespace,
 		}),
 	)
@@ -1539,11 +1541,11 @@ func (tc *MonitoringTestCtx) validatePrometheusRestrictedResourcesCommon(t *test
 	// Verify the ClusterRoleBinding exists for prometheus metrics reader
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
-			Name: "data-science-prometheus-restricted",
+			Name: "data-science-prometheus-namespace-proxy",
 		}),
 		WithCondition(And(
 			jq.Match(`.roleRef.name == "cluster-monitoring-view"`),
-			jq.Match(`.subjects[0].name == "data-science-prometheus-restricted"`),
+			jq.Match(`.subjects[0].name == "data-science-prometheus-namespace-proxy"`),
 			jq.Match(`.subjects[0].namespace == "%s"`, namespace),
 		)),
 	)
@@ -1551,13 +1553,13 @@ func (tc *MonitoringTestCtx) validatePrometheusRestrictedResourcesCommon(t *test
 	// Verify the service is created with proper annotations for TLS
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Service, types.NamespacedName{
-			Name:      "data-science-prometheus-restricted",
+			Name:      "data-science-prometheus-namespace-proxy",
 			Namespace: namespace,
 		}),
 		WithCondition(And(
 			jq.Match(`.spec.ports[0].port == 8443`),
 			jq.Match(`.spec.ports[0].name == "https"`),
-			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "data-science-prometheus-restricted-tls"`),
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "data-science-prometheus-namespace-proxy-tls"`),
 		)),
 	)
 
@@ -1568,7 +1570,7 @@ func (tc *MonitoringTestCtx) validatePrometheusRestrictedResourcesCommon(t *test
 			Namespace: namespace,
 		}),
 		WithCondition(And(
-			jq.Match(`.spec.to.name == "data-science-prometheus-restricted"`),
+			jq.Match(`.spec.to.name == "data-science-prometheus-namespace-proxy"`),
 			jq.Match(`.spec.tls.termination == "reencrypt"`),
 			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
 		)),
@@ -1590,8 +1592,8 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRestrictedResourceConfiguration(t
 		)),
 	)
 
-	// Validate common data-science-prometheus-restricted resources
-	tc.validatePrometheusRestrictedResourcesCommon(t, dsci.Spec.Monitoring.Namespace)
+	// Validate common data-science-prometheus-namespace-proxy resources
+	tc.validatePrometheusNamespaceProxyResourcesCommon(t, dsci.Spec.Monitoring.Namespace)
 }
 
 // ValidatePrometheusSecureProxyAuthentication tests the Prometheus secure proxy authentication and authorization.
@@ -1600,30 +1602,30 @@ func (tc *MonitoringTestCtx) ValidatePrometheusSecureProxyAuthentication(t *test
 
 	dsci := tc.FetchDSCInitialization()
 
-	// Validate common data-science-prometheus-restricted resources
-	tc.validatePrometheusRestrictedResourcesCommon(t, dsci.Spec.Monitoring.Namespace)
+	// Validate common data-science-prometheus-namespace-proxy resources
+	tc.validatePrometheusNamespaceProxyResourcesCommon(t, dsci.Spec.Monitoring.Namespace)
 
-	// Verify the data-science-prometheus-restricted deployment contains kube-rbac-proxy with specific details
+	// Verify the data-science-prometheus-namespace-proxy deployment contains kube-rbac-proxy with specific details
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Name:      "data-science-prometheus-restricted",
+			Name:      "data-science-prometheus-namespace-proxy",
 			Namespace: dsci.Spec.Monitoring.Namespace,
 		}),
 		WithCondition(And(
 			jq.Match(`.spec.template.spec.containers[0].name == "kube-rbac-proxy"`),
 			jq.Match(`.spec.template.spec.containers[0].image | contains("kube-rbac-proxy")`),
 		)),
-		WithCustomErrorMsg("data-science-prometheus-restricted deployment should contain kube-rbac-proxy container"),
+		WithCustomErrorMsg("data-science-prometheus-namespace-proxy deployment should contain kube-rbac-proxy container"),
 	)
 
 	// Verify the auth-delegator ClusterRoleBinding exists
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
-			Name: "data-science-prometheus-restricted-auth-delegator",
+			Name: "data-science-prometheus-namespace-proxy-auth-delegator",
 		}),
 		WithCondition(And(
 			jq.Match(`.roleRef.name == "system:auth-delegator"`),
-			jq.Match(`.subjects[0].name == "data-science-prometheus-restricted"`),
+			jq.Match(`.subjects[0].name == "data-science-prometheus-namespace-proxy"`),
 			jq.Match(`.subjects[0].namespace == "%s"`, dsci.Spec.Monitoring.Namespace),
 		)),
 	)
@@ -1631,7 +1633,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusSecureProxyAuthentication(t *test
 	// Verify the ConfigMap for kube-rbac-proxy configuration exists
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
-			Name:      "data-science-prometheus-restricted-config",
+			Name:      "data-science-prometheus-namespace-proxy-config",
 			Namespace: dsci.Spec.Monitoring.Namespace,
 		}),
 		WithCondition(jq.Match(`.data."kube-rbac-proxy.yaml" | contains("authorization")`)),
@@ -1640,7 +1642,7 @@ func (tc *MonitoringTestCtx) ValidatePrometheusSecureProxyAuthentication(t *test
 	// Verify that the kube-rbac-proxy container has the correct upstream configuration
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.Deployment, types.NamespacedName{
-			Name:      "data-science-prometheus-restricted",
+			Name:      "data-science-prometheus-namespace-proxy",
 			Namespace: dsci.Spec.Monitoring.Namespace,
 		}),
 		WithCondition(And(
@@ -1654,12 +1656,179 @@ func (tc *MonitoringTestCtx) ValidatePrometheusSecureProxyAuthentication(t *test
 	// Verify that the auth-delegator ClusterRoleBinding exists (uses built-in system:auth-delegator ClusterRole)
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
-			Name: "data-science-prometheus-restricted-auth-delegator",
+			Name: "data-science-prometheus-namespace-proxy-auth-delegator",
 		}),
 		WithCondition(And(
 			jq.Match(`.roleRef.name == "system:auth-delegator"`),
-			jq.Match(`.subjects[0].name == "data-science-prometheus-restricted"`),
+			jq.Match(`.subjects[0].name == "data-science-prometheus-namespace-proxy"`),
 		)),
 		WithCustomErrorMsg("ClusterRoleBinding should reference system:auth-delegator for authentication and authorization"),
+	)
+}
+
+// ValidateNodeMetricsEndpointDeployment tests that the node-metrics-endpoint is deployed when metrics are configured.
+func (tc *MonitoringTestCtx) ValidateNodeMetricsEndpointDeployment(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Ensure metrics are configured
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Wait for the Monitoring resource to be updated
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionNodeMetricsEndpointAvailable, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be updated with metrics configuration and NodeMetricsEndpoint should be available"),
+	)
+
+	// Verify the data-science-prometheus-cluster-proxy deployment is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.status.readyReplicas == 1`),
+			jq.Match(`.spec.template.spec.containers | length == 1`), // kube-rbac-proxy only
+			jq.Match(`.spec.template.spec.containers[0].name == "kube-rbac-proxy"`),
+		)),
+		WithCustomErrorMsg("data-science-prometheus-cluster-proxy deployment should be created and ready with kube-rbac-proxy"),
+	)
+
+	// Verify the service account exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+	)
+
+	// Verify the service is created with proper annotations for TLS
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.ports[0].port == 8443`),
+			jq.Match(`.spec.ports[0].name == "https"`),
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "data-science-prometheus-cluster-proxy-tls"`),
+		)),
+	)
+
+	// Verify the route is created for external access
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Route, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.to.name == "data-science-prometheus-cluster-proxy"`),
+			jq.Match(`.spec.tls.termination == "reencrypt"`),
+			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
+		)),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateNodeMetricsEndpointRBACConfiguration(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "data-science-prometheus-cluster-proxy",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "cluster-monitoring-view"`),
+			jq.Match(`.subjects[0].name == "data-science-prometheus-cluster-proxy"`),
+			jq.Match(`.subjects[0].namespace == "%s"`, dsci.Spec.Monitoring.Namespace),
+		)),
+		WithCustomErrorMsg("ClusterRoleBinding should use cluster-monitoring-view role for NodeMetrics access"),
+	)
+
+	// Verify the auth-delegator ClusterRoleBinding exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "data-science-prometheus-cluster-proxy-auth-delegator",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "system:auth-delegator"`),
+			jq.Match(`.subjects[0].name == "data-science-prometheus-cluster-proxy"`),
+			jq.Match(`.subjects[0].namespace == "%s"`, dsci.Spec.Monitoring.Namespace),
+		)),
+	)
+
+	// Verify the Secret for kube-rbac-proxy configuration exists with correct resourceAttributes
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Secret, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy-kube-rbac-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.data."config.yaml" | @base64d | contains("authorization")`),
+			jq.Match(`.data."config.yaml" | @base64d | contains("metrics.k8s.io")`),
+			jq.Match(`.data."config.yaml" | @base64d | contains("resource: nodes")`),
+		)),
+		WithCustomErrorMsg("kube-rbac-proxy config should enforce NodeMetrics access (metrics.k8s.io/nodes)"),
+	)
+
+	// Verify that the kube-rbac-proxy container has the correct upstream configuration
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream="))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream=https://prometheus-operated"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--secure-listen-address=0.0.0.0:8443"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--config-file=/etc/kube-rbac-proxy/config.yaml"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream-ca-file=/etc/prometheus-ca/service-ca.crt"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream-client-cert-file=/etc/prometheus-client/tls.crt"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream-client-key-file=/etc/prometheus-client/tls.key"))) | length == 1`),
+		)),
+		WithCustomErrorMsg("kube-rbac-proxy should be configured with correct upstream (HTTPS to prometheus-operated) and mTLS client certificates"),
+	)
+
+	// Verify that the deployment uses kube-rbac-proxy image
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.containers[0].name == "kube-rbac-proxy"`),
+			jq.Match(`.spec.template.spec.containers[0].image | contains("kube-rbac-proxy")`),
+		)),
+		WithCustomErrorMsg("data-science-prometheus-cluster-proxy deployment should contain kube-rbac-proxy container"),
+	)
+
+	// Verify the deployment has correct volume mounts for mTLS to Prometheus
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.volumes[] | select(.name == "prometheus-ca") | .configMap.name == "prometheus-web-tls-ca"`),
+			jq.Match(`.spec.template.spec.volumes[] | select(.name == "prometheus-client-cert") | .secret.secretName == "prometheus-operated-tls"`),
+			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "prometheus-ca") | .mountPath == "/etc/prometheus-ca"`),
+			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "prometheus-client-cert") | .mountPath == "/etc/prometheus-client"`),
+		)),
+		WithCustomErrorMsg("deployment should have volumes and mounts for mTLS to Prometheus"),
 	)
 }

@@ -70,7 +70,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	reconcilerBuilder = reconcilerBuilder.
 		Watches(
 			&dsciv2.DSCInitialization{},
-			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayInstanceName)),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(predicate.GenerationChangedPredicate{}),
 		)
 
@@ -79,7 +79,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	reconcilerBuilder = reconcilerBuilder.
 		Watches(
 			&corev1.Secret{},
-			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayInstanceName)),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(
 				predicate.Funcs{
 					CreateFunc: func(e event.CreateEvent) bool {

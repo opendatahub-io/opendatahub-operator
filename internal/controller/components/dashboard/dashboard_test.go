@@ -299,11 +299,32 @@ func testDashboardCRWithoutReadyCondition(t *testing.T, handler registry.Compone
 	g.Expect(cs).Should(Equal(metav1.ConditionFalse))
 }
 
-// testDashboardCRWithReadyConditionTrue tests Dashboard CR with Ready condition set to True.
-func testDashboardCRWithReadyConditionTrue(t *testing.T, handler registry.ComponentHandler) {
-	t.Helper()
-	g := NewWithT(t)
-	ctx := t.Context()
+func TestComputeKustomizeVariable(t *testing.T) {
+	t.Parallel()     // Enable parallel execution for better performance
+	g := NewWithT(t) // Create once outside the loop for better performance
+
+	// Define test constants for better maintainability
+	const (
+		defaultDomain = "apps.example.com"
+		customDomain  = "custom.domain.com"
+		managedDomain = "apps.managed.com"
+	)
+
+	// Pre-create reusable gateway configs to avoid repeated allocations
+	var (
+		customGatewayConfig = func() *serviceApi.GatewayConfig {
+			gc := &serviceApi.GatewayConfig{}
+			gc.SetName(serviceApi.GatewayConfigName)
+			gc.Spec.Domain = customDomain
+			return gc
+		}
+		defaultGatewayConfig = func() *serviceApi.GatewayConfig {
+			gc := &serviceApi.GatewayConfig{}
+			gc.SetName(serviceApi.GatewayConfigName)
+			// No custom domain, should use cluster domain
+			return gc
+		}
+	)
 
 	tests := []struct {
 		name              string
