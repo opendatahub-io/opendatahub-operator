@@ -884,7 +884,7 @@ func TestMonitoringStackThanosQuerierIntegration(t *testing.T) {
 			expectedTQConditionStatus: "True",
 			expectedMSTemplates:       8, // MonitoringStack + Alertmanager RBAC + PrometheusRoute +
 			// PrometheusServiceOverride + PrometheusNetworkPolicy + PrometheusWebTLSService +
-			// PrometheusRestricted + PrometheusRestrictedNetworkPolicy
+			// PrometheusNamespaceProxy + PrometheusNamespaceProxyNetworkPolicy
 			expectedTQTemplates: 2, // ThanosQuerier + ThanosQuerierRoute
 			description:         "When both CRDs are available and metrics configured, both should be deployed",
 		},

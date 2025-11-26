@@ -2,16 +2,16 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: data-science-prometheus-restricted
+  name: data-science-prometheus-namespace-proxy
   namespace: {{.Namespace}}
   labels:
-    app: data-science-prometheus-restricted
+    app: data-science-prometheus-namespace-proxy
     platform.opendatahub.io/part-of: monitoring
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: data-science-prometheus-restricted
+  name: data-science-prometheus-namespace-proxy
   labels:
     platform.opendatahub.io/part-of: monitoring
 roleRef:
@@ -20,13 +20,13 @@ roleRef:
   name: cluster-monitoring-view
 subjects:
   - kind: ServiceAccount
-    name: data-science-prometheus-restricted
+    name: data-science-prometheus-namespace-proxy
     namespace: {{.Namespace}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: data-science-prometheus-restricted-auth-delegator
+  name: data-science-prometheus-namespace-proxy-auth-delegator
   labels:
     platform.opendatahub.io/part-of: monitoring
 roleRef:
@@ -35,16 +35,16 @@ roleRef:
   name: system:auth-delegator
 subjects:
   - kind: ServiceAccount
-    name: data-science-prometheus-restricted
+    name: data-science-prometheus-namespace-proxy
     namespace: {{.Namespace}}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: data-science-prometheus-restricted-config
+  name: data-science-prometheus-namespace-proxy-config
   namespace: {{.Namespace}}
   labels:
-    app: data-science-prometheus-restricted
+    app: data-science-prometheus-namespace-proxy
     platform.opendatahub.io/part-of: monitoring
 data:
   kube-rbac-proxy.yaml: |
@@ -65,22 +65,22 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: data-science-prometheus-restricted
+  name: data-science-prometheus-namespace-proxy
   namespace: {{.Namespace}}
   labels:
-    app: data-science-prometheus-restricted
+    app: data-science-prometheus-namespace-proxy
     platform.opendatahub.io/part-of: monitoring
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: data-science-prometheus-restricted
+      app: data-science-prometheus-namespace-proxy
   template:
     metadata:
       labels:
-        app: data-science-prometheus-restricted
+        app: data-science-prometheus-namespace-proxy
     spec:
-      serviceAccountName: data-science-prometheus-restricted
+      serviceAccountName: data-science-prometheus-namespace-proxy
       containers:
         # kube-rbac-proxy for authentication and authorization
         - name: kube-rbac-proxy
@@ -156,10 +156,10 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: data-science-prometheus-restricted-config
+            name: data-science-prometheus-namespace-proxy-config
         - name: tls
           secret:
-            secretName: data-science-prometheus-restricted-tls
+            secretName: data-science-prometheus-namespace-proxy-tls
         - name: client-ca
           configMap:
             name: prometheus-client-ca
@@ -178,13 +178,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: data-science-prometheus-restricted
+  name: data-science-prometheus-namespace-proxy
   namespace: {{.Namespace}}
   labels:
-    app: data-science-prometheus-restricted
+    app: data-science-prometheus-namespace-proxy
     platform.opendatahub.io/part-of: monitoring
   annotations:
-    service.beta.openshift.io/serving-cert-secret-name: data-science-prometheus-restricted-tls
+    service.beta.openshift.io/serving-cert-secret-name: data-science-prometheus-namespace-proxy-tls
 spec:
   type: ClusterIP
   ports:
@@ -193,4 +193,4 @@ spec:
       protocol: TCP
       targetPort: https
   selector:
-    app: data-science-prometheus-restricted
+    app: data-science-prometheus-namespace-proxy
