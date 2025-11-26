@@ -483,7 +483,7 @@ func (r *DSCInitializationReconciler) watchGatewayConfigResource(ctx context.Con
 	if len(instanceList.Items) == 0 {
 		log.Info("Found no GatewayConfig instance in cluster, reconciling to recreate one")
 
-		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: serviceApi.GatewayInstanceName}}}
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: serviceApi.GatewayConfigName}}}
 	}
 
 	return nil
@@ -577,7 +577,7 @@ func (r *DSCInitializationReconciler) newMonitoringCR(ctx context.Context, dsci 
 //   - error: nil on success, error if GatewayConfig creation fails
 func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, instance *dsciv2.DSCInitialization) error {
 	gatewayConfig := &serviceApi.GatewayConfig{}
-	err := r.Client.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, gatewayConfig)
+	err := r.Client.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig)
 	if err == nil {
 		return nil
 	}
@@ -593,7 +593,7 @@ func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, i
 			APIVersion: serviceApi.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceApi.GatewayInstanceName,
+			Name: serviceApi.GatewayConfigName,
 		},
 		Spec: serviceApi.GatewayConfigSpec{
 			Certificate: &infrav1.CertificateSpec{
