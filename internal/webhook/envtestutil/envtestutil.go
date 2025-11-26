@@ -3,6 +3,7 @@ package envtestutil
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -33,6 +34,8 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/utils/test/envt"
 )
 
+// DefaultWebhookTimeout is the maximum duration to wait for the webhook server to become ready.
+// This acts as the global timeout for the entire setup process including all retry attempts.
 const DefaultWebhookTimeout = 30 * time.Second
 
 // defaultCRDInstallOptions provides consistent configuration for waiting on CRD establishment.
@@ -97,48 +100,62 @@ func SetupEnvAndClient(
 ) (context.Context, *envt.EnvT, func()) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(t.Context(), timeout)
+	testCtx, testCancel := context.WithTimeout(t.Context(), timeout)
+	backoff := 500 * time.Millisecond
 
-	env, err := envt.New(
-		envt.WithRegisterWebhooks(registerWebhooks...),
-		envt.WithRegisterControllers(registerControllers...),
-	)
-	if err != nil {
-		t.Fatalf("failed to start envtest: %v", err)
-	}
-
-	mgrCtx, mgrCancel := context.WithCancel(ctx)
-	errChan := make(chan error, 1)
-	go func() {
-		t.Log("Starting manager...")
-		if err := env.Manager().Start(mgrCtx); err != nil {
-			select {
-			case errChan <- fmt.Errorf("manager exited with error: %w", err):
-			default:
-			}
+	// keep trying until the test context is cancelled or the environment is setup
+	for attempt := 1; ; attempt++ {
+		if testCtx.Err() != nil {
+			t.Fatalf("test context cancelled or timed out while trying to setup test environment: %+v", testCtx.Err())
 		}
-	}()
 
-	t.Log("Waiting for webhook server to be ready...")
-	if err := env.WaitForWebhookServer(ctx, timeout); err != nil {
-		t.Fatalf("webhook server not ready: %v", err)
-	}
-
-	teardown := func() {
-		mgrCancel()
-		cancel()
-		_ = env.Stop()
-		select {
-		case err := <-errChan:
-			if err != nil {
-				t.Errorf("manager goroutine error: %v", err)
-			}
-		default:
-			// No error
+		env, err := envt.New(
+			envt.WithRegisterWebhooks(registerWebhooks...),
+			envt.WithRegisterControllers(registerControllers...),
+		)
+		if err != nil {
+			testCancel()
+			t.Fatalf("failed to start envtest: %+v", err)
 		}
-	}
 
-	return ctx, env, teardown
+		// new shared context for the manager and the wait function
+		mgrCtx, mgrCancel := context.WithCancel(testCtx)
+
+		// try to start the manager in the background
+		go func() {
+			if err := env.Manager().Start(mgrCtx); err != nil {
+				if !errors.Is(err, context.Canceled) {
+					t.Logf("manager exited with error: %v", err)
+					mgrCancel() // ensures WaitForWebhookServer gives up below
+				}
+			}
+		}()
+
+		// sync wait for the webhook server to be ready
+		if err := env.WaitForWebhookServer(mgrCtx); err != nil {
+			t.Logf("failed to wait for webhook server to be ready: %v", err)
+			mgrCancel()
+
+			if err := env.Stop(); err != nil {
+				t.Logf("debug: failed to stop envtest (will retry setup attempt anyway): %v", err)
+			}
+
+			backoff = min(2*backoff, 5*time.Second) // max backoff of 5 seconds
+			t.Logf("failed to setup test environment (attempt %d) with webhook server: %v. Retrying in %v...", attempt, err, backoff)
+			time.Sleep(backoff)
+			continue
+		}
+
+		// webhook server is ready
+		teardown := func() {
+			mgrCancel()
+			if err := env.Stop(); err != nil {
+				t.Logf("failed to stop envtest: %v", err)
+			}
+			testCancel()
+		}
+		return testCtx, env, teardown
+	}
 }
 
 // SetupEnvAndClientWithCRDs boots the envtest environment with webhook support and specified CRDs.
