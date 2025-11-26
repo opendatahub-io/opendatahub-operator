@@ -143,47 +143,6 @@ spec:
                         format: int32
                         minimum: 0
                         type: integer
-                      resources:
-                        description: MetricsResources defines the resource requests
-                          and limits for the monitoring service
-                        properties:
-                          cpulimit:
-                            anyOf:
-                            - type: integer
-                            - type: string
-                            default: 500m
-                            description: CPULimit specifies the maximum CPU allocation
-                              (e.g., "500m", "2")
-                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                            x-kubernetes-int-or-string: true
-                          cpurequest:
-                            anyOf:
-                            - type: integer
-                            - type: string
-                            default: 100m
-                            description: CPURequest specifies the minimum CPU allocation
-                              (e.g., "100m", "0.5")
-                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                            x-kubernetes-int-or-string: true
-                          memorylimit:
-                            anyOf:
-                            - type: integer
-                            - type: string
-                            default: 512Mi
-                            description: MemoryLimit specifies the maximum memory
-                              allocation (e.g., "1Gi", "512Mi")
-                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                            x-kubernetes-int-or-string: true
-                          memoryrequest:
-                            anyOf:
-                            - type: integer
-                            - type: string
-                            default: 256Mi
-                            description: MemoryRequest specifies the minimum memory
-                              allocation (e.g., "256Mi", "1Gi")
-                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                            x-kubernetes-int-or-string: true
-                        type: object
                       storage:
                         description: MetricsStorage defines the storage configuration
                           for the monitoring service
@@ -206,9 +165,9 @@ spec:
                     type: object
                     x-kubernetes-validations:
                     - message: Replicas can only be set to non-zero value when either
-                        Storage or Resources is configured
-                      rule: '!(self.storage == null && self.resources == null) ||
-                        !has(self.replicas) || self.replicas == 0'
+                        is configured
+                      rule: has(self.storage) || !has(self.replicas) || self.replicas
+                        == 0
                   namespace:
                     default: redhat-ods-monitoring
                     description: |-
@@ -300,15 +259,12 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-validations:
-                - message: Alerting configuration requires metrics.storage or metrics.resources
-                    to be configured
-                  rule: 'has(self.alerting) ? has(self.metrics.storage) || has(self.metrics.resources)
-                    : true'
-                - message: CollectorReplicas can only be set when metrics.resources,
-                    metrics.storage or traces are configured, and must be > 0
+                - message: Alerting configuration requires metrics.storage to be configured
+                  rule: 'has(self.alerting) ? has(self.metrics.storage)  : true'
+                - message: CollectorReplicas can only be set when metrics.storage
+                    or traces are configured, and must be > 0
                   rule: '!has(self.collectorReplicas) || (self.collectorReplicas >
-                    0 && ((self.metrics.resources != null || self.metrics.storage
-                    != null) || self.traces != null))'
+                    0 && (self.metrics.storage != null || self.traces != null))'
               serviceMesh:
                 description: |-
                   Configures Service Mesh as networking layer for Data Science Clusters components.
@@ -649,47 +605,6 @@ spec:
                         format: int32
                         minimum: 0
                         type: integer
-                      resources:
-                        description: MetricsResources defines the resource requests
-                          and limits for the monitoring service
-                        properties:
-                          cpulimit:
-                            anyOf:
-                            - type: integer
-                            - type: string
-                            default: 500m
-                            description: CPULimit specifies the maximum CPU allocation
-                              (e.g., "500m", "2")
-                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                            x-kubernetes-int-or-string: true
-                          cpurequest:
-                            anyOf:
-                            - type: integer
-                            - type: string
-                            default: 100m
-                            description: CPURequest specifies the minimum CPU allocation
-                              (e.g., "100m", "0.5")
-                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                            x-kubernetes-int-or-string: true
-                          memorylimit:
-                            anyOf:
-                            - type: integer
-                            - type: string
-                            default: 512Mi
-                            description: MemoryLimit specifies the maximum memory
-                              allocation (e.g., "1Gi", "512Mi")
-                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                            x-kubernetes-int-or-string: true
-                          memoryrequest:
-                            anyOf:
-                            - type: integer
-                            - type: string
-                            default: 256Mi
-                            description: MemoryRequest specifies the minimum memory
-                              allocation (e.g., "256Mi", "1Gi")
-                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                            x-kubernetes-int-or-string: true
-                        type: object
                       storage:
                         description: MetricsStorage defines the storage configuration
                           for the monitoring service
@@ -712,9 +627,9 @@ spec:
                     type: object
                     x-kubernetes-validations:
                     - message: Replicas can only be set to non-zero value when either
-                        Storage or Resources is configured
-                      rule: '!(self.storage == null && self.resources == null) ||
-                        !has(self.replicas) || self.replicas == 0'
+                        is configured
+                      rule: has(self.storage) || !has(self.replicas) || self.replicas
+                        == 0
                   namespace:
                     default: redhat-ods-monitoring
                     description: |-
@@ -806,15 +721,12 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-validations:
-                - message: Alerting configuration requires metrics.storage or metrics.resources
-                    to be configured
-                  rule: 'has(self.alerting) ? has(self.metrics.storage) || has(self.metrics.resources)
-                    : true'
-                - message: CollectorReplicas can only be set when metrics.resources,
-                    metrics.storage or traces are configured, and must be > 0
+                - message: Alerting configuration requires metrics.storage to be configured
+                  rule: 'has(self.alerting) ? has(self.metrics.storage)  : true'
+                - message: CollectorReplicas can only be set when metrics.storage
+                    or traces are configured, and must be > 0
                   rule: '!has(self.collectorReplicas) || (self.collectorReplicas >
-                    0 && ((self.metrics.resources != null || self.metrics.storage
-                    != null) || self.traces != null))'
+                    0 && (self.metrics.storage != null || self.traces != null))'
               trustedCABundle:
                 description: |-
                   When set to `Managed`, adds odh-trusted-ca-bundle Configmap to all namespaces that includes
