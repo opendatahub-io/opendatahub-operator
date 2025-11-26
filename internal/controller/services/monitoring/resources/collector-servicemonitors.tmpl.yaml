@@ -51,7 +51,7 @@ spec:
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
   namespaceSelector:
     matchNames:
-      - opendatahub-operator-system
+      - {{.OperatorNamespace}}
   selector:
     matchLabels:
       control-plane: controller-manager

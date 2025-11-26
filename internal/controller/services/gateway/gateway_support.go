@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	configv1 "github.com/openshift/api/config/v1"
 	oauthv1 "github.com/openshift/api/oauth/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -32,8 +31,10 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-// AuthMode represents different authentication modes supported by the gateway.
-type AuthMode string
+const (
+	ServiceName        = serviceApi.GatewayServiceName
+	ReadyConditionType = serviceApi.GatewayConfigKind + status.ReadySuffix
+)
 
 const (
 	// Gateway infrastructure constants.
@@ -74,10 +75,16 @@ const (
 
 	// OAuth2 proxy cookie name - used in both proxy args and EnvoyFilter Lua filter.
 	OAuth2ProxyCookieName = "_oauth2_proxy"
+)
 
-	AuthModeIntegratedOAuth AuthMode = "IntegratedOAuth"
-	AuthModeOIDC            AuthMode = "OIDC"
-	AuthModeNone            AuthMode = "None"
+const (
+	envoyFilterTemplate     = "resources/envoyfilter-authn.tmpl.yaml"
+	destinationRuleTemplate = "resources/kube-auth-proxy-destinationrule-tls.tmpl.yaml"
+	// not in use yet, TODO comment this out.
+	// kubeAuthProxyDeploymentOidcTemplate  = "resources/kube-auth-proxy-oidc-deployment.tmpl.yaml"
+	// kubeAuthProxyDeploymentOauthTemplate = "resources/kube-auth-proxy-oauth-deployment.tmpl.yaml"
+	// kubeAuthProxyServiceTemplate         = "resources/kube-auth-proxy-svc.tmpl.yaml"
+	// kubeAuthProxyHTTPRouteTemplate       = "resources/kube-auth-proxy-httproute.tmpl.yaml".
 )
 
 var (
@@ -119,70 +126,55 @@ func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
 	return string(gatewayConfig.Spec.Certificate.Type)
 }
 
-// buildGatewayDomain combines subdomain with base domain.
-// If subdomain is empty or whitespace, uses DefaultGatewayName as fallback.
-func buildGatewayDomain(subdomain, baseDomain string) string {
-	// Trim whitespace and use provided subdomain or fallback to default gateway name
-	hostname := strings.TrimSpace(subdomain)
-	if hostname == "" {
-		hostname = DefaultGatewayName
-	}
-	// Use string concatenation for better performance in frequently called function
-	return hostname + "." + baseDomain
-}
+// GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
+// It constructs the FQDN by combining the subdomain (or default) with either the user-specified
+// domain or the cluster domain.
+func GetFQDN(ctx context.Context, cli client.Client, gatewayConfig *serviceApi.GatewayConfig) (string, error) {
+	subdomain := DefaultGatewayName
 
-// getClusterDomain gets cluster domain - extracted common logic.
-func getClusterDomain(ctx context.Context, client client.Client, subdomain string) (string, error) {
-	clusterDomain, err := cluster.GetDomain(ctx, client)
+	if gatewayConfig != nil {
+		subdomain = strings.TrimSpace(gatewayConfig.Spec.Subdomain)
+		if subdomain == "" {
+			subdomain = DefaultGatewayName
+		}
+
+		baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
+		if baseDomain != "" {
+			return fmt.Sprintf("%s.%s", subdomain, baseDomain), nil
+		}
+	}
+
+	clusterDomain, err := cluster.GetDomain(ctx, cli)
 	if err != nil {
 		return "", fmt.Errorf("failed to get cluster domain: %w", err)
 	}
-	return buildGatewayDomain(subdomain, clusterDomain), nil
+
+	return fmt.Sprintf("%s.%s", subdomain, clusterDomain), nil
 }
 
-func resolveDomain(ctx context.Context, client client.Client,
-	gatewayConfig *serviceApi.GatewayConfig) (string, error) {
-	// Input validation
-	if gatewayConfig == nil {
-		return getClusterDomain(ctx, client, "")
-	}
-
-	// Extract subdomain from GatewayConfig if provided
-	subdomain := strings.TrimSpace(gatewayConfig.Spec.Subdomain)
-
-	// Check if user has overridden the domain
-	baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
-	if baseDomain != "" {
-		return buildGatewayDomain(subdomain, baseDomain), nil
-	}
-
-	// No domain override, use cluster domain with subdomain
-	return getClusterDomain(ctx, client, subdomain)
-}
-
-// GetGatewayDomain reads GatewayConfig and passes it to resolveDomain.
-// This function optimizes API calls by handling the GatewayConfig retrieval
-// and domain resolution in a single flow.
+// GetGatewayDomain reads the domain directly from the Gateway CR's listener hostname.
+// Falls back to GatewayConfig if Gateway CR doesn't exist yet.
 func GetGatewayDomain(ctx context.Context, cli client.Client) (string, error) {
-	// Try to get the GatewayConfig
+	// Try to get the Gateway CR first
+	gateway := &gwapiv1.Gateway{}
+	err := cli.Get(ctx, client.ObjectKey{
+		Name:      DefaultGatewayName,
+		Namespace: GatewayNamespace,
+	}, gateway)
+	if err == nil {
+		if len(gateway.Spec.Listeners) > 0 && gateway.Spec.Listeners[0].Hostname != nil {
+			return string(*gateway.Spec.Listeners[0].Hostname), nil
+		}
+	}
+
 	gatewayConfig := &serviceApi.GatewayConfig{}
-	err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, gatewayConfig)
+	err = cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig)
 	if err != nil {
-		// GatewayConfig doesn't exist, use cluster domain directly with default subdomain
-		return getClusterDomain(ctx, cli, "")
+		// GatewayConfig doesn't exist either, use cluster domain with default subdomain
+		return GetFQDN(ctx, cli, nil)
 	}
 
-	// Extract subdomain from GatewayConfig if provided
-	subdomain := strings.TrimSpace(gatewayConfig.Spec.Subdomain)
-
-	// Check if user has overridden the domain (inline ResolveDomain logic to avoid redundant calls)
-	baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
-	if baseDomain != "" {
-		return buildGatewayDomain(subdomain, baseDomain), nil
-	}
-
-	// No domain override, use cluster domain with subdomain
-	return getClusterDomain(ctx, cli, subdomain)
+	return GetFQDN(ctx, cli, gatewayConfig)
 }
 
 // createListeners creates the Gateway listeners configuration with namespace restrictions.
@@ -350,29 +342,8 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 	return rr.AddResources(gateway)
 }
 
-// detectClusterAuthMode determines the authentication mode from cluster configuration.
-func detectClusterAuthMode(ctx context.Context, rr *odhtypes.ReconciliationRequest) (AuthMode, error) {
-	auth := &configv1.Authentication{}
-	err := rr.Client.Get(ctx, types.NamespacedName{Name: "cluster"}, auth)
-	if err != nil {
-		return "", fmt.Errorf("failed to get cluster authentication config: %w", err)
-	}
-
-	switch auth.Spec.Type {
-	case "OIDC":
-		return AuthModeOIDC, nil
-	case "IntegratedOAuth", "":
-		// empty string is equivalent to IntegratedOAuth (default)
-		return AuthModeIntegratedOAuth, nil
-	case "None":
-		return AuthModeNone, nil
-	default:
-		return AuthModeIntegratedOAuth, nil
-	}
-}
-
-func validateOIDCConfig(authMode AuthMode, oidcConfig *serviceApi.OIDCConfig) *common.Condition {
-	if authMode != AuthModeOIDC {
+func validateOIDCConfig(authMode cluster.AuthenticationMode, oidcConfig *serviceApi.OIDCConfig) *common.Condition {
+	if authMode != cluster.AuthModeOIDC {
 		return nil
 	}
 
@@ -407,8 +378,8 @@ func validateOIDCConfig(authMode AuthMode, oidcConfig *serviceApi.OIDCConfig) *c
 	return nil
 }
 
-func checkAuthModeNone(authMode AuthMode) *common.Condition {
-	if authMode == AuthModeNone {
+func checkAuthModeNone(authMode cluster.AuthenticationMode) *common.Condition {
+	if authMode == cluster.AuthModeNone {
 		return &common.Condition{
 			Type:    status.ConditionTypeReady,
 			Status:  metav1.ConditionFalse,
@@ -420,7 +391,7 @@ func checkAuthModeNone(authMode AuthMode) *common.Condition {
 }
 
 // getOrGenerateSecrets retrieves existing secrets or generates new ones for OAuth2 proxy.
-func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationRequest, authMode AuthMode) (string, string, error) {
+func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationRequest, authMode cluster.AuthenticationMode) (string, string, error) {
 	existingSecret := &corev1.Secret{}
 	secretErr := rr.Client.Get(ctx, types.NamespacedName{
 		Name:      KubeAuthProxySecretsName,
@@ -443,7 +414,7 @@ func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationReques
 	}
 
 	var clientSecretValue string
-	if authMode == AuthModeIntegratedOAuth {
+	if authMode == cluster.AuthModeIntegratedOAuth {
 		clientSecretGen, err := cluster.NewSecret("client-secret", "random", ClientSecretLength)
 		if err != nil {
 			return "", "", fmt.Errorf("failed to generate client secret: %w", err)
@@ -738,11 +709,11 @@ func getCookieSettings(cookieConfig *serviceApi.CookieConfig) (string, string) {
 
 	// Override with user configuration if provided
 	if cookieConfig != nil {
-		if cookieConfig.Expire != "" {
-			expire = cookieConfig.Expire
+		if cookieConfig.Expire.Duration != 0 {
+			expire = cookieConfig.Expire.Duration.String()
 		}
-		if cookieConfig.Refresh != "" {
-			refresh = cookieConfig.Refresh
+		if cookieConfig.Refresh.Duration != 0 {
+			refresh = cookieConfig.Refresh.Duration.String()
 		}
 	}
 
@@ -829,7 +800,7 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 	}
 
 	// Use consistent domain resolution with the gateway
-	domain, err := resolveDomain(ctx, rr.Client, gatewayConfig)
+	domain, err := GetFQDN(ctx, rr.Client, gatewayConfig)
 	if err != nil {
 		return fmt.Errorf("failed to resolve domain: %w", err)
 	}

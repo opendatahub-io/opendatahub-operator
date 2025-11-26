@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -26,12 +26,12 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	l.V(1).Info("creating auth proxy for gateway", "gateway", gatewayConfig.Name)
 
 	// Resolve domain consistently with createGatewayInfrastructure
-	domain, err := resolveDomain(ctx, rr.Client, gatewayConfig)
+	domain, err := GetFQDN(ctx, rr.Client, gatewayConfig)
 	if err != nil {
 		return fmt.Errorf("failed to resolve domain: %w", err)
 	}
 
-	authMode, err := detectClusterAuthMode(ctx, rr)
+	authMode, err := cluster.GetClusterAuthenticationMode(ctx, rr.Client)
 	if err != nil {
 		return fmt.Errorf("failed to detect cluster authentication mode: %w", err)
 	}
@@ -45,7 +45,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	}
 
 	var oidcConfig *serviceApi.OIDCConfig
-	if authMode == AuthModeOIDC {
+	if authMode == cluster.AuthModeOIDC {
 		oidcConfig = gatewayConfig.Spec.OIDC
 	}
 
@@ -55,11 +55,11 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return fmt.Errorf("failed to get or generate secrets: %w", err)
 	}
 
-	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, gatewayConfig.Spec.Cookie, clientSecret, cookieSecret, domain); err != nil {
+	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, &gatewayConfig.Spec.Cookie, clientSecret, cookieSecret, domain); err != nil {
 		return fmt.Errorf("failed to deploy auth proxy: %w", err)
 	}
 
-	if authMode == AuthModeIntegratedOAuth {
+	if authMode == cluster.AuthModeIntegratedOAuth {
 		if err := createOAuthClient(ctx, rr, clientSecret); err != nil {
 			return fmt.Errorf("failed to create OAuth client: %w", err)
 		}
@@ -73,14 +73,17 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 }
 
 // getGatewayAuthTimeout returns the auth timeout using:
-// API field > env var > default (5s).
+// Deprecated AuthTimeout field > AuthProxyTimeout field > default (5s).
 func getGatewayAuthTimeout(gatewayConfig *serviceApi.GatewayConfig) string {
-	if gatewayConfig != nil && gatewayConfig.Spec.AuthTimeout != "" {
-		return gatewayConfig.Spec.AuthTimeout
-	}
-
-	if timeout := os.Getenv("GATEWAY_AUTH_TIMEOUT"); timeout != "" {
-		return timeout
+	if gatewayConfig != nil {
+		// Check deprecated field first for backward compatibility
+		if gatewayConfig.Spec.AuthTimeout != "" {
+			return gatewayConfig.Spec.AuthTimeout
+		}
+		// Check new field
+		if gatewayConfig.Spec.AuthProxyTimeout.Duration != 0 {
+			return gatewayConfig.Spec.AuthProxyTimeout.Duration.String()
+		}
 	}
 
 	return "5s"
@@ -95,7 +98,7 @@ func createEnvoyFilter(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 	authTimeout := getGatewayAuthTimeout(gatewayConfig)
 
 	// using yaml templates due to complexity of k8s api struct for envoy filter
-	yamlContent, err := gatewayResources.ReadFile("resources/envoyfilter-authn.yaml")
+	yamlContent, err := gatewayResources.ReadFile(envoyFilterTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to read EnvoyFilter template: %w", err)
 	}

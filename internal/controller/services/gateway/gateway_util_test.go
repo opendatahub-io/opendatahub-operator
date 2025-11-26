@@ -131,7 +131,7 @@ func createTestGatewayConfigSupport(domain string, certSpec *infrav1.Certificate
 func createTestGatewayConfigSupportWithSubdomain(domain, subdomain string, certSpec *infrav1.CertificateSpec) *serviceApi.GatewayConfig {
 	return &serviceApi.GatewayConfig{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceApi.GatewayInstanceName,
+			Name: serviceApi.GatewayConfigName,
 		},
 		Spec: serviceApi.GatewayConfigSpec{
 			Domain:      domain,

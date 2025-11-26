@@ -1,4 +1,11 @@
 ---
+# NetworkPolicy for namespace-restricted Prometheus proxy
+#
+# Restricts ingress to authorized sources only (OpenShift router and Alertmanager).
+#
+# For architecture details and security model:
+# See: docs/NAMESPACE_RESTRICTED_METRICS.md
+#
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -9,7 +16,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app: data-science-prometheus-restricted
+      app: data-science-prometheus-namespace-proxy
   policyTypes:
     - Ingress
   ingress:

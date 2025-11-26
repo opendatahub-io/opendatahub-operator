@@ -4,13 +4,13 @@ metadata:
   name: data-science-prometheus-route
   namespace: {{.Namespace}}
   labels:
-    app: data-science-prometheus-restricted
+    app: data-science-prometheus-namespace-proxy
     platform.opendatahub.io/part-of: monitoring
 spec:
   path: /
   to:
     kind: Service
-    name: data-science-prometheus-restricted
+    name: data-science-prometheus-namespace-proxy
     weight: 100
   port:
     targetPort: https
