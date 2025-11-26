@@ -15,6 +15,7 @@ import (
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
@@ -147,8 +148,8 @@ func TestGetCertificateType(t *testing.T) {
 	}
 }
 
-// TestResolveDomain tests the resolveDomain helper function.
-func TestResolveDomain(t *testing.T) {
+// TestGetFQDN tests the GetFQDN helper function.
+func TestGetFQDN(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
@@ -204,7 +205,7 @@ func TestResolveDomain(t *testing.T) {
 				client = setupSupportTestClient()
 			}
 
-			domain, err := resolveDomain(ctx, client, gatewayConfig)
+			domain, err := GetFQDN(ctx, client, gatewayConfig)
 
 			if tc.expectError {
 				g.Expect(err).To(HaveOccurred(), tc.description)
@@ -266,21 +267,21 @@ func TestCreateListenersEdgeCases(t *testing.T) {
 	}
 }
 
-// TestResolveDomainNilHandling tests nil parameter handling for resolveDomain.
-func TestResolveDomainNilHandling(t *testing.T) {
+// TestGetFQDNNilHandling tests nil parameter handling for GetFQDN.
+func TestGetFQDNNilHandling(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	ctx := t.Context()
 	client := setupSupportTestClient()
 
 	// Test nil gatewayConfig - should fall back to cluster domain (which will fail with our test client)
-	domain, err := resolveDomain(ctx, client, nil)
+	domain, err := GetFQDN(ctx, client, nil)
 	g.Expect(err).To(HaveOccurred(), "should return error when gatewayConfig is nil and cluster domain fails")
 	g.Expect(domain).To(Equal(""), "domain should be empty on error")
 }
 
-// TestResolveDomainEdgeCases tests additional edge cases for domain resolution.
-func TestResolveDomainEdgeCases(t *testing.T) {
+// TestGetFQDNEdgeCases tests additional edge cases for domain resolution.
+func TestGetFQDNEdgeCases(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
@@ -315,7 +316,7 @@ func TestResolveDomainEdgeCases(t *testing.T) {
 			gatewayConfig := createTestGatewayConfigSupport(tc.specDomain, nil)
 			client := setupSupportTestClient()
 
-			domain, err := resolveDomain(ctx, client, gatewayConfig)
+			domain, err := GetFQDN(ctx, client, gatewayConfig)
 
 			g.Expect(err).ToNot(HaveOccurred(), tc.description)
 			g.Expect(domain).To(ContainSubstring(tc.expectedContains), tc.description)
@@ -323,8 +324,8 @@ func TestResolveDomainEdgeCases(t *testing.T) {
 	}
 }
 
-// TestResolveDomainWithSubdomain tests subdomain functionality in domain resolution.
-func TestResolveDomainWithSubdomain(t *testing.T) {
+// TestGetFQDNWithSubdomain tests subdomain functionality in domain resolution.
+func TestGetFQDNWithSubdomain(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
@@ -402,7 +403,7 @@ func TestResolveDomainWithSubdomain(t *testing.T) {
 				client = setupSupportTestClient()
 			}
 
-			domain, err := resolveDomain(ctx, client, gatewayConfig)
+			domain, err := GetFQDN(ctx, client, gatewayConfig)
 
 			if tc.expectError {
 				g.Expect(err).To(HaveOccurred(), tc.description)
@@ -415,71 +416,20 @@ func TestResolveDomainWithSubdomain(t *testing.T) {
 	}
 }
 
-// TestBuildGatewayDomainWithSubdomain tests the buildGatewayDomain function with subdomain.
-func TestBuildGatewayDomainWithSubdomain(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	testCases := []struct {
-		name        string
-		subdomain   string
-		baseDomain  string
-		expected    string
-		description string
-	}{
-		{
-			name:        "custom subdomain",
-			subdomain:   "my-gateway",
-			baseDomain:  "apps.example.com",
-			expected:    "my-gateway.apps.example.com",
-			description: "should use custom subdomain when provided",
-		},
-		{
-			name:        "empty subdomain uses default",
-			subdomain:   "",
-			baseDomain:  "apps.example.com",
-			expected:    "data-science-gateway.apps.example.com",
-			description: "should use default gateway name when subdomain is empty",
-		},
-		{
-			name:        "whitespace subdomain uses default",
-			subdomain:   "   ",
-			baseDomain:  "apps.example.com",
-			expected:    "data-science-gateway.apps.example.com",
-			description: "should use default gateway name when subdomain is whitespace",
-		},
-		{
-			name:        "subdomain with cluster domain",
-			subdomain:   "custom",
-			baseDomain:  testClusterDomain,
-			expected:    "custom.apps.cluster.example.com",
-			description: "should use subdomain with cluster domain",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			result := buildGatewayDomain(tc.subdomain, tc.baseDomain)
-			g.Expect(result).To(Equal(tc.expected), tc.description)
-		})
-	}
-}
-
 // TestValidateOIDCConfig tests the OIDC configuration validation logic.
 func TestValidateOIDCConfig(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name        string
-		authMode    AuthMode
+		authMode    cluster.AuthenticationMode
 		oidcConfig  *serviceApi.OIDCConfig
 		expectError bool
 		description string
 	}{
 		{
 			name:     "OIDC mode with valid config",
-			authMode: AuthModeOIDC,
+			authMode: cluster.AuthModeOIDC,
 			oidcConfig: &serviceApi.OIDCConfig{
 				IssuerURL: testOIDCIssuerURL,
 				ClientID:  "test-client",
@@ -492,14 +442,14 @@ func TestValidateOIDCConfig(t *testing.T) {
 		},
 		{
 			name:        "OIDC mode with missing config",
-			authMode:    AuthModeOIDC,
+			authMode:    cluster.AuthModeOIDC,
 			oidcConfig:  nil,
 			expectError: true,
 			description: "should fail when OIDC mode has no configuration",
 		},
 		{
 			name:     "OIDC mode with empty clientID",
-			authMode: AuthModeOIDC,
+			authMode: cluster.AuthModeOIDC,
 			oidcConfig: &serviceApi.OIDCConfig{
 				IssuerURL: testOIDCIssuerURL,
 				ClientID:  "",
@@ -512,7 +462,7 @@ func TestValidateOIDCConfig(t *testing.T) {
 		},
 		{
 			name:     "OIDC mode with all fields empty",
-			authMode: AuthModeOIDC,
+			authMode: cluster.AuthModeOIDC,
 			oidcConfig: &serviceApi.OIDCConfig{
 				IssuerURL: "",
 				ClientID:  "",
@@ -525,14 +475,14 @@ func TestValidateOIDCConfig(t *testing.T) {
 		},
 		{
 			name:        "IntegratedOAuth mode",
-			authMode:    AuthModeIntegratedOAuth,
+			authMode:    cluster.AuthModeIntegratedOAuth,
 			oidcConfig:  nil,
 			expectError: false,
 			description: "should pass for IntegratedOAuth mode regardless of OIDC config",
 		},
 		{
 			name:        "None mode",
-			authMode:    AuthModeNone,
+			authMode:    cluster.AuthModeNone,
 			oidcConfig:  nil,
 			expectError: false,
 			description: "should pass for None mode regardless of OIDC config",
@@ -565,25 +515,25 @@ func TestCheckAuthModeNone(t *testing.T) {
 
 	testCases := []struct {
 		name        string
-		authMode    AuthMode
+		authMode    cluster.AuthenticationMode
 		expectError bool
 		description string
 	}{
 		{
 			name:        "None auth mode",
-			authMode:    AuthModeNone,
+			authMode:    cluster.AuthModeNone,
 			expectError: true,
 			description: "should return condition when auth mode is None",
 		},
 		{
 			name:        "IntegratedOAuth auth mode",
-			authMode:    AuthModeIntegratedOAuth,
+			authMode:    cluster.AuthModeIntegratedOAuth,
 			expectError: false,
 			description: "should return nil for IntegratedOAuth mode",
 		},
 		{
 			name:        "OIDC auth mode",
-			authMode:    AuthModeOIDC,
+			authMode:    cluster.AuthModeOIDC,
 			expectError: false,
 			description: "should return nil for OIDC mode",
 		},
@@ -981,4 +931,60 @@ func TestSecretHashAnnotationWithoutSecret(t *testing.T) {
 		"pod template should have secret hash annotation even without secret")
 	hash := deployment.Spec.Template.Annotations["opendatahub.io/secret-hash"]
 	g.Expect(hash).To(BeEmpty(), "secret hash should be empty string when secret doesn't exist")
+}
+
+// TestKubeAuthProxySecurityContexts tests that the deployment has proper security contexts configured.
+func TestKubeAuthProxySecurityContexts(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	ctx := t.Context()
+
+	rr := &odhtypes.ReconciliationRequest{
+		Client: setupTestClient(),
+	}
+
+	err := createKubeAuthProxyDeployment(ctx, rr, nil, nil, expectedODHDomain)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(rr.Resources).To(HaveLen(1))
+
+	// Convert unstructured to typed Deployment
+	deploymentResource := &rr.Resources[0]
+	deployment := &appsv1.Deployment{}
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(deploymentResource.Object, deployment)
+	g.Expect(err).NotTo(HaveOccurred())
+
+	podSpec := deployment.Spec.Template.Spec
+	container := podSpec.Containers[0]
+
+	// Verify pod-level security context
+	g.Expect(*podSpec.SecurityContext.RunAsNonRoot).To(BeTrue())
+	g.Expect(podSpec.SecurityContext.SeccompProfile.Type).To(Equal(corev1.SeccompProfileTypeRuntimeDefault))
+
+	// Verify container-level security context
+	g.Expect(*container.SecurityContext.ReadOnlyRootFilesystem).To(BeTrue())
+	g.Expect(*container.SecurityContext.AllowPrivilegeEscalation).To(BeFalse())
+	g.Expect(container.SecurityContext.Capabilities.Drop).To(ContainElement(corev1.Capability("ALL")))
+	g.Expect(container.SecurityContext.Capabilities.Add).To(BeEmpty(), "no capabilities should be added")
+
+	// Verify tmp volume mount exists (required for read-only root filesystem)
+	foundTmpMount := false
+	for _, vm := range container.VolumeMounts {
+		if vm.Name == "tmp" && vm.MountPath == "/tmp" {
+			foundTmpMount = true
+			break
+		}
+	}
+	g.Expect(foundTmpMount).To(BeTrue())
+
+	// Verify tmp volume is configured with memory-backed EmptyDir
+	foundTmpVolume := false
+	for _, vol := range podSpec.Volumes {
+		if vol.Name == "tmp" && vol.EmptyDir != nil && vol.EmptyDir.Medium == corev1.StorageMediumMemory {
+			foundTmpVolume = true
+			g.Expect(vol.EmptyDir.SizeLimit).NotTo(BeNil(), "tmp volume should have size limit")
+			g.Expect(vol.EmptyDir.SizeLimit.String()).To(Equal("10Mi"), "tmp volume should be limited to 10Mi")
+			break
+		}
+	}
+	g.Expect(foundTmpVolume).To(BeTrue())
 }

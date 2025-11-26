@@ -16,8 +16,11 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	controllerutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	apicommon "github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	componentMonitoring "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
@@ -27,6 +30,7 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	cond "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
 const (
@@ -248,6 +252,40 @@ func addTracesTemplateData(templateData map[string]any, traces *serviceApi.Trace
 	return nil
 }
 
+// Images can be overridden via environment variables, with defaults based on platform.
+func addImageURLs(rr *odhtypes.ReconciliationRequest, templateData map[string]any) {
+	templateData["KubeRBACProxyImage"] = getImageURL(
+		"RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
+		"quay.io/brancz/kube-rbac-proxy:v0.20.0",
+		"registry.redhat.io/openshift4/ose-kube-rbac-proxy-rhel9:v4.17",
+		rr.Release.Name,
+	)
+	templateData["PromLabelProxyImage"] = getImageURL(
+		"RELATED_IMAGE_OSE_PROM_LABEL_PROXY_IMAGE",
+		"quay.io/prometheuscommunity/prom-label-proxy:v0.12.1",
+		"registry.redhat.io/openshift4/ose-prom-label-proxy-rhel9:v4.17",
+		rr.Release.Name,
+	)
+	templateData["CLIImage"] = getImageURL(
+		"RELATED_IMAGE_CLI_IMAGE",
+		"quay.io/openshift/origin-cli:4.17",
+		"registry.redhat.io/openshift4/ose-cli:v4.17",
+		rr.Release.Name,
+	)
+}
+
+func getImageURL(envVar, upstreamDefault, rhoaiDefault string, platform apicommon.Platform) string {
+	if envValue := os.Getenv(envVar); envValue != "" {
+		return envValue
+	}
+
+	if platform == cluster.ManagedRhoai || platform == cluster.SelfManagedRhoai {
+		return rhoaiDefault
+	}
+
+	return upstreamDefault
+}
+
 func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (map[string]any, error) {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
@@ -260,12 +298,19 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 		return nil, err
 	}
 
+	// Fetch operator namespace
+	operatorNamespace, err := cluster.GetOperatorNamespace()
+	if err != nil {
+		return nil, err
+	}
+
 	templateData := map[string]any{
 		"Namespace":            monitoring.Spec.Namespace,
 		"Traces":               monitoring.Spec.Traces != nil,
 		"Metrics":              monitoring.Spec.Metrics != nil,
 		"AcceleratorMetrics":   monitoring.Spec.Metrics != nil,
 		"ApplicationNamespace": appNamespace,
+		"OperatorNamespace":    operatorNamespace,
 		"MetricsExporters":     make(map[string]string),
 		"MetricsExporterNames": []string{},
 		"PersesImage":          getPersesImage(),
@@ -273,6 +318,7 @@ func getTemplateData(ctx context.Context, rr *odhtypes.ReconciliationRequest) (m
 
 	// always add resource defaults
 	addResourceData(templateData)
+	addImageURLs(rr, templateData)
 
 	// Add metrics-related data if metrics are configured
 	if metrics := monitoring.Spec.Metrics; metrics != nil {
@@ -938,4 +984,104 @@ func contains(slice []string, item string) bool {
 
 func intPtr(i int) *int {
 	return &i
+}
+
+// syncPrometheusWebTLSCA watches the prometheus-web-tls-ca ConfigMap and syncs its CA to a Secret.
+// This action is a workaround until COO-1270 is complete, which will allow MonitoringStack
+// to consume CA directly from ConfigMap. The service-ca operator injects the CA into the ConfigMap,
+// but MonitoringStack requires it in a Secret. This action ensures the Secret stays in sync
+// with the ConfigMap, especially important when the service-ca operator rotates certificates.
+//
+// Related JIRA: https://issues.redhat.com/browse/COO-1270
+func syncPrometheusWebTLSCA(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	log := logf.FromContext(ctx).WithName("syncPrometheusWebTLSCA")
+
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil {
+		return nil
+	}
+
+	namespace := monitoring.Spec.Namespace
+
+	var configMap unstructured.Unstructured
+	configMap.SetAPIVersion("v1")
+	configMap.SetKind("ConfigMap")
+
+	err := rr.Client.Get(ctx, client.ObjectKey{
+		Namespace: namespace,
+		Name:      "prometheus-web-tls-ca",
+	}, &configMap)
+
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			log.V(1).Info("ConfigMap not found yet, will sync when created",
+				"namespace", namespace, "name", "prometheus-web-tls-ca")
+			return nil
+		}
+		return fmt.Errorf("failed to get CA ConfigMap: %w", err)
+	}
+
+	data, found, err := unstructured.NestedStringMap(configMap.Object, "data")
+	if err != nil {
+		return fmt.Errorf("failed to extract data from ConfigMap: %w", err)
+	}
+	if !found {
+		log.V(1).Info("ConfigMap data field not found, service-ca operator may not have injected CA yet")
+		return nil
+	}
+
+	caCert, found := data["service-ca.crt"]
+	if !found || caCert == "" {
+		log.V(1).Info("service-ca.crt not found in ConfigMap, service-ca operator may not have injected CA yet")
+		return nil
+	}
+
+	secret := &unstructured.Unstructured{}
+	secret.SetAPIVersion("v1")
+	secret.SetKind("Secret")
+	secret.SetNamespace(namespace)
+	secret.SetName("prometheus-web-tls-ca")
+	secret.SetLabels(map[string]string{
+		"platform.opendatahub.io/part-of": "monitoring",
+	})
+
+	// Set TypeMeta explicitly for server-side apply
+	secret.Object["apiVersion"] = "v1"
+	secret.Object["kind"] = "Secret"
+
+	// Set owner reference to Monitoring CR for garbage collection
+	if err := controllerutil.SetControllerReference(monitoring, secret, rr.Client.Scheme()); err != nil {
+		return fmt.Errorf("failed to set owner reference: %w", err)
+	}
+
+	if err := unstructured.SetNestedField(secret.Object, "Opaque", "type"); err != nil {
+		return fmt.Errorf("failed to set secret type: %w", err)
+	}
+
+	secretData := map[string]interface{}{
+		"service-ca.crt": caCert,
+	}
+	if err := unstructured.SetNestedMap(secret.Object, secretData, "stringData"); err != nil {
+		return fmt.Errorf("failed to set secret data: %w", err)
+	}
+
+	// Apply the secret using server-side apply (create or update)
+	opts := []client.PatchOption{
+		client.ForceOwnership,
+		client.FieldOwner(resources.PlatformFieldOwner),
+	}
+	if err := resources.Apply(ctx, rr.Client, secret, opts...); err != nil {
+		return fmt.Errorf("failed to apply CA Secret: %w", err)
+	}
+
+	log.Info("Successfully synced CA from ConfigMap to Secret",
+		"namespace", namespace,
+		"configmap", "prometheus-web-tls-ca",
+		"secret", "prometheus-web-tls-ca")
+
+	return nil
 }

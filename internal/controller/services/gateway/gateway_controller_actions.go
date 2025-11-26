@@ -49,7 +49,7 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 	}
 	l.V(1).Info("Creating Gateway infrastructure", "gateway", gatewayConfig.Name)
 
-	domain, err := resolveDomain(ctx, rr.Client, gatewayConfig)
+	domain, err := GetFQDN(ctx, rr.Client, gatewayConfig)
 	if err != nil {
 		return fmt.Errorf("failed to resolve domain: %w", err)
 	}
@@ -87,7 +87,7 @@ func createDestinationRule(ctx context.Context, rr *odhtypes.ReconciliationReque
 	l := logf.FromContext(ctx).WithName("createDestinationRule")
 	l.V(1).Info("Creating DestinationRule for TLS configuration")
 
-	yamlContent, err := gatewayResources.ReadFile("resources/destinationrule-tls.yaml")
+	yamlContent, err := gatewayResources.ReadFile(destinationRuleTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to read DestinationRule template: %w", err)
 	}

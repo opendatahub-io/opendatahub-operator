@@ -24,20 +24,26 @@ import (
 
 const (
 	// Template files.
-	MonitoringStackTemplate                 = "resources/monitoring-stack.tmpl.yaml"
-	MonitoringStackAlertmanagerRBACTemplate = "resources/monitoringstack-alertmanager-rbac.tmpl.yaml"
-	TempoMonolithicTemplate                 = "resources/tempo-monolithic.tmpl.yaml"
-	TempoStackTemplate                      = "resources/tempo-stack.tmpl.yaml"
-	OpenTelemetryCollectorTemplate          = "resources/opentelemetry-collector.tmpl.yaml"
-	CollectorServiceMonitorsTemplate        = "resources/collector-servicemonitors.tmpl.yaml"
-	CollectorRBACTemplate                   = "resources/collector-rbac.tmpl.yaml"
-	PrometheusRouteTemplate                 = "resources/prometheus-route.tmpl.yaml"
-	InstrumentationTemplate                 = "resources/instrumentation.tmpl.yaml"
-	ThanosQuerierTemplate                   = "resources/thanos-querier-cr.tmpl.yaml"
-	ThanosQuerierRouteTemplate              = "resources/thanos-querier-route.tmpl.yaml"
-	PersesTemplate                          = "resources/perses.tmpl.yaml"
-	PersesTempoDatasourceTemplate           = "resources/perses-tempo-datasource.tmpl.yaml"
-	PersesTempoDashboardTemplate            = "resources/perses-tempo-dashboard.tmpl.yaml"
+	MonitoringStackTemplate                   = "resources/monitoring-stack.tmpl.yaml"
+	MonitoringStackAlertmanagerRBACTemplate   = "resources/monitoringstack-alertmanager-rbac.tmpl.yaml"
+	TempoMonolithicTemplate                   = "resources/tempo-monolithic.tmpl.yaml"
+	TempoStackTemplate                        = "resources/tempo-stack.tmpl.yaml"
+	OpenTelemetryCollectorTemplate            = "resources/opentelemetry-collector.tmpl.yaml"
+	CollectorServiceMonitorsTemplate          = "resources/collector-servicemonitors.tmpl.yaml"
+	CollectorRBACTemplate                     = "resources/collector-rbac.tmpl.yaml"
+	PrometheusRouteTemplate                   = "resources/data-science-prometheus-route.tmpl.yaml"
+	InstrumentationTemplate                   = "resources/instrumentation.tmpl.yaml"
+	PrometheusRestrictedTemplate              = "resources/data-science-prometheus-restricted.tmpl.yaml"
+	PrometheusRestrictedNetworkPolicyTemplate = "resources/data-science-prometheus-restricted-network-policy.tmpl.yaml"
+	PrometheusServiceOverrideTemplate         = "resources/data-science-prometheus-service-override.tmpl.yaml"
+	PrometheusNetworkPolicyTemplate           = "resources/data-science-prometheus-network-policy.tmpl.yaml"
+	PrometheusWebTLSServiceTemplate           = "resources/prometheus-web-tls-service.tmpl.yaml"
+	ThanosQuerierTemplate                     = "resources/thanos-querier-cr.tmpl.yaml"
+	ThanosQuerierRouteTemplate                = "resources/thanos-querier-route.tmpl.yaml"
+	PersesTemplate                            = "resources/perses.tmpl.yaml"
+	PersesTempoDatasourceTemplate             = "resources/perses-tempo-datasource.tmpl.yaml"
+	PersesTempoDashboardTemplate              = "resources/perses-tempo-dashboard.tmpl.yaml"
+	PersesDatasourcePrometheusTemplate        = "resources/perses-datasource-prometheus.tmpl.yaml"
 
 	// Resource names.
 	PersesTempoDatasourceName = "tempo-datasource"
@@ -59,6 +65,7 @@ var componentRules = map[string]string{
 	componentApi.TrustyAIComponentName:             "trustyai",
 	componentApi.KserveComponentName:               "kserve",
 	componentApi.TrainingOperatorComponentName:     "trainingoperator",
+	componentApi.TrainerComponentName:              "trainer",
 	componentApi.ModelRegistryComponentName:        "model-registry-operator",
 	componentApi.ModelControllerComponentName:      "odh-model-controller",
 	componentApi.FeastOperatorComponentName:        "feastoperator",
@@ -158,9 +165,9 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	})
 }
 
-// deployMonitoringStackWithQuerier handles deployment of both MonitoringStack and ThanosQuerier components.
+// deployMonitoringStackWithQuerierAndRestrictions handles deployment of MonitoringStack and ThanosQuerier components.
 // These components are deployed together as ThanosQuerier depends on MonitoringStack for proper functioning.
-func deployMonitoringStackWithQuerier(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
@@ -184,20 +191,25 @@ func deployMonitoringStackWithQuerier(ctx context.Context, rr *odhtypes.Reconcil
 		return nil
 	}
 
-	// All prerequisites met, mark both components as available and deploy
+	// All prerequisites met, mark all components as available and deploy
 	rr.Conditions.MarkTrue(status.ConditionMonitoringStackAvailable)
 	rr.Conditions.MarkTrue(status.ConditionThanosQuerierAvailable)
 
-	// Prepare and deploy both component templates atomically
+	// Prepare and deploy all component templates atomically
 	templates := []odhtypes.TemplateInfo{
 		{FS: resourcesFS, Path: MonitoringStackTemplate},
 		{FS: resourcesFS, Path: MonitoringStackAlertmanagerRBACTemplate},
 		{FS: resourcesFS, Path: PrometheusRouteTemplate},
+		{FS: resourcesFS, Path: PrometheusServiceOverrideTemplate},
+		{FS: resourcesFS, Path: PrometheusNetworkPolicyTemplate},
+		{FS: resourcesFS, Path: PrometheusWebTLSServiceTemplate},
+		{FS: resourcesFS, Path: PrometheusRestrictedTemplate},
+		{FS: resourcesFS, Path: PrometheusRestrictedNetworkPolicyTemplate},
 		{FS: resourcesFS, Path: ThanosQuerierTemplate},
 		{FS: resourcesFS, Path: ThanosQuerierRouteTemplate},
 	}
 
-	// Deploy both components atomically with the same generation annotation
+	// Deploy all components atomically with the same generation annotation
 	rr.Templates = append(rr.Templates, templates...)
 	return nil
 }
@@ -435,14 +447,12 @@ func deployPerses(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 		return nil
 	}
 
-	persesExists, err := cluster.HasCRD(ctx, rr.Client, gvk.Perses)
-	if err != nil {
-		return fmt.Errorf("failed to check if CRD Perses exists: %w", err)
+	// Check for required CRDs
+	requirements := []CRDRequirement{
+		{GVK: gvk.Perses, ConditionType: status.ConditionPersesAvailable},
 	}
-	if !persesExists {
-		setConditionFalse(rr, status.ConditionPersesAvailable,
-			gvk.Perses.Kind+"CRDNotFoundReason",
-			fmt.Sprintf("%s CRD Not Found", gvk.Perses.Kind))
+
+	if !validateRequiredCRDs(ctx, rr, requirements) {
 		return nil
 	}
 
@@ -459,7 +469,7 @@ func deployPerses(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 	return nil
 }
 
-func deployPersesDatasource(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func deployPersesTempoIntegration(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
@@ -544,6 +554,43 @@ func deployPersesDatasource(ctx context.Context, rr *odhtypes.ReconciliationRequ
 		})
 	}
 
+	rr.Templates = append(rr.Templates, templates...)
+
+	return nil
+}
+
+func deployPersesPrometheusIntegration(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil {
+		setConditionFalse(rr, status.ConditionPersesPrometheusDataSourceAvailable,
+			status.MetricsNotConfiguredReason,
+			"Prometheus datasource requires metrics configuration")
+		return nil
+	}
+
+	datasourceExists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDatasource)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD PersesDatasource exists: %w", err)
+	}
+	if !datasourceExists {
+		setConditionFalse(rr, status.ConditionPersesPrometheusDataSourceAvailable,
+			gvk.PersesDatasource.Kind+"CRDNotFoundReason",
+			fmt.Sprintf("%s CRD Not Found", gvk.PersesDatasource.Kind))
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesPrometheusDataSourceAvailable)
+
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesDatasourcePrometheusTemplate,
+		},
+	}
 	rr.Templates = append(rr.Templates, templates...)
 
 	return nil

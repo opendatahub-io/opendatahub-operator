@@ -105,7 +105,7 @@ func TestServiceHandler_Init(t *testing.T) {
 	g.Expect(err).ShouldNot(HaveOccurred())
 }
 
-// TestIsDefaultAuthMethod validates the OpenShift authentication method detection logic.
+// TestIsIntegratedOAuth validates the OpenShift authentication method detection logic.
 // This function determines whether the operator should create default admin groups
 // based on the cluster's authentication configuration. The test ensures:
 //
@@ -123,7 +123,7 @@ func TestServiceHandler_Init(t *testing.T) {
 //
 // This is critical for security because it determines whether the operator will
 // automatically create admin groups that could grant elevated access.
-func TestIsDefaultAuthMethod(t *testing.T) {
+func TestIsIntegratedOAuth(t *testing.T) {
 	ctx := t.Context()
 
 	tests := []struct {
@@ -214,7 +214,7 @@ func TestIsDefaultAuthMethod(t *testing.T) {
 			}
 			g.Expect(err).ShouldNot(HaveOccurred())
 
-			result, err := auth.IsDefaultAuthMethod(ctx, cli)
+			result, err := cluster.IsIntegratedOAuth(ctx, cli)
 
 			if tt.expectError {
 				g.Expect(err).Should(HaveOccurred(), tt.description)

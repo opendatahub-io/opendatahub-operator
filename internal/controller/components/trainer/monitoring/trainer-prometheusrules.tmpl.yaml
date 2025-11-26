@@ -1,0 +1,17 @@
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  name: trainer-prometheusrules
+  namespace: {{.Namespace}}
+spec:
+  groups:
+    - name: Kubeflow Trainer
+      interval: 1m
+      rules:
+        - alert: Kubeflow Trainer is not running
+          expr: absent(up{job=~'Kubeflow Trainer'}) or up{job=~'Kubeflow Trainer'} != 1
+          labels:
+            severity: warning
+          annotations:
+            description: This alert fires when the Kubeflow Trainer is not running.
+            summary: Alerting for Kubeflow Trainer

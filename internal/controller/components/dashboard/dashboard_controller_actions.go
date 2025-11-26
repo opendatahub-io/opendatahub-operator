@@ -74,10 +74,6 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 		return fmt.Errorf("failed to set variable for url, section-title etc: %w", err)
 	}
 
-	if len(rr.Manifests) == 0 {
-		return errors.New("no manifests available")
-	}
-
 	if err := odhdeploy.ApplyParams(rr.Manifests[0].String(), "params.env", nil, extraParamsMap); err != nil {
 		return fmt.Errorf("failed to update params.env from %s : %w", rr.Manifests[0].String(), err)
 	}

@@ -305,13 +305,31 @@ func testDashboardCRWithReadyConditionTrue(t *testing.T, handler registry.Compon
 	g := NewWithT(t)
 	ctx := t.Context()
 
-	dsc := createDSCWithDashboard(operatorv1.Managed)
-	// Test with ConditionTrue - function should return ConditionTrue when Ready is True
-	dashboardTrue := &componentApi.Dashboard{}
-	dashboardTrue.SetGroupVersionKind(gvk.Dashboard)
-	dashboardTrue.SetName(componentApi.DashboardInstanceName)
-	// Dashboard CR is cluster-scoped, so no namespace
-	dashboardTrue.Status.Conditions = []common.Condition{
+	tests := []struct {
+		name              string
+		platform          common.Platform
+		expectedURL       string
+		expectedTitle     string
+		gatewayConfigFunc func() *serviceApi.GatewayConfig
+		clusterDomain     string
+		expectError       bool
+	}{
+		{
+			name:              "OpenDataHub platform with default domain",
+			platform:          cluster.OpenDataHub,
+			expectedURL:       "https://data-science-gateway." + defaultDomain + "/",
+			expectedTitle:     "OpenShift Open Data Hub",
+			gatewayConfigFunc: defaultGatewayConfig, // Use default GatewayConfig (no custom domain)
+			clusterDomain:     defaultDomain,
+		},
+		{
+			name:              "RHOAI platform with custom domain",
+			platform:          cluster.SelfManagedRhoai,
+			expectedURL:       "https://data-science-gateway." + customDomain + "/",
+			expectedTitle:     "OpenShift Self Managed Services",
+			gatewayConfigFunc: customGatewayConfig,
+			clusterDomain:     defaultDomain, // Should be ignored due to custom domain
+		},
 		{
 			Type:   status.ConditionTypeReady,
 			Status: metav1.ConditionTrue,
@@ -412,13 +430,13 @@ func TestComputeKustomizeVariableError(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
-	// Create a client with no objects to simulate gateway domain resolution failure
+	// Create a client with no objects to simulate GatewayConfig not found
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Test error handling with better error message validation
-	_, err = dashboard.ComputeKustomizeVariable(ctx, cli, cluster.OpenDataHub)
-	g.Expect(err).Should(HaveOccurred(), "Should fail when no gateway domain can be resolved")
+	_, err = computeKustomizeVariable(ctx, cli, cluster.OpenDataHub)
+	g.Expect(err).Should(HaveOccurred(), "Should fail when cluster domain cannot be determined")
 	g.Expect(err.Error()).Should(ContainSubstring("error getting gateway domain"), "Error should contain expected message")
 }
 

@@ -26,13 +26,6 @@ const (
 
 	LegacyComponentNameUpstream   = "dashboard"
 	LegacyComponentNameDownstream = "rhods-dashboard"
-	ModularArchitectureSourcePath = "modular-architecture"
-
-	// Error message for unsupported platforms.
-	ErrUnsupportedPlatform = "unsupported platform: %s"
-
-	// Dashboard path on the gateway.
-	// dashboardPath = "/" //nolint:unused.
 )
 
 var (
@@ -118,8 +111,9 @@ func BffManifestsPath() odhtypes.ManifestInfo {
 	}
 }
 
-func ComputeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform) (map[string]string, error) {
-	gatewayDomain, err := gateway.GetGatewayDomain(ctx, cli)
+func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform) (map[string]string, error) {
+	// Get the gateway domain directly from Gateway CR
+	consoleLinkDomain, err := gateway.GetGatewayDomain(ctx, cli)
 	if err != nil {
 		return nil, fmt.Errorf("error getting gateway domain: %w", err)
 	}
@@ -134,8 +128,8 @@ func ComputeKustomizeVariable(ctx context.Context, cli client.Client, platform c
 	}
 
 	return map[string]string{
-		"dashboard-url": baseURL + gatewayDomain,
-		"section-title": sectionTitle,
+		"dashboard-url": fmt.Sprintf("https://%s/", consoleLinkDomain),
+		"section-title": sectionTitle[platform],
 	}, nil
 }
 

@@ -49,6 +49,9 @@ const (
 	certManagerOpNamespace      = "cert-manager-operator"                    // Name of the cert-manager Namespace
 	certManagerOpChannel        = "stable-v1"                                // Name of cert-manager operator stable channel
 	telemetryOpName             = "opentelemetry-product"                    // Name of the Telemetry Operator
+	jobSetOpName                = "job-set"                                  // Name of the JobSet Operator
+	jobSetOpNamespace           = "openshift-jobset-operator"                // Namespace for the JobSet Operator
+	jobSetOpChannel             = "tech-preview-v0.1"                        // Name of the JobSet Operator stable channel
 	openshiftOperatorsNamespace = "openshift-operators"                      // Namespace for OpenShift Operators
 	telemetryOpNamespace        = "openshift-opentelemetry-operator"         // Namespace for the Telemetry Operator
 	observabilityOpName         = "cluster-observability-operator"           // Name of the Cluster Observability Operator
@@ -59,6 +62,12 @@ const (
 	opentelemetryOpNamespace    = "openshift-opentelemetry-operator"         // Namespace for the OpenTelemetry Operator
 	controllerDeploymentODH     = "opendatahub-operator-controller-manager"  // Name of the ODH deployment
 	controllerDeploymentRhoai   = "rhods-operator"                           // Name of the Rhoai deployment
+	leaderWorkerSetOpName       = "leader-worker-set"                        // Name of the Leader Worker Set Operator
+	leaderWorkerSetNamespace    = "openshift-lws-operator"                   // Namespace for the Leader Worker Set Operator
+	leaderWorkerSetChannel      = "stable-v1.0"                              // Channel for the Leader Worker Set Operator
+	kuadrantOperator            = "rhcl-operator"                            // Name of the Red Hat Connectivity Link Operator subscription.
+	dashboardRouteNameODH       = "odh-dashboard"                            // Name of the ODH dashboard route
+	dashboardRouteNameRhoai     = "rhods-dashboard"                          // Name of the Rhoai dashboard route
 )
 
 // Configuration and Miscellaneous Constants.
@@ -235,6 +244,11 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 					},
 				},
 				TrainingOperator: componentApi.DSCTrainingOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				Trainer: componentApi.DSCTrainer{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
@@ -442,5 +456,16 @@ func getControllerDeploymentNameByPlatform(platform common.Platform) string {
 		return controllerDeploymentODH
 	default:
 		return controllerDeploymentODH
+	}
+}
+
+func getDashboardRouteNameByPlatform(platform common.Platform) string {
+	switch platform {
+	case cluster.SelfManagedRhoai, cluster.ManagedRhoai:
+		return dashboardRouteNameRhoai
+	case cluster.OpenDataHub:
+		return dashboardRouteNameODH
+	default:
+		return dashboardRouteNameODH
 	}
 }
