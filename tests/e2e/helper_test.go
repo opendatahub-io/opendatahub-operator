@@ -48,12 +48,10 @@ const (
 	certManagerOpName           = "openshift-cert-manager-operator"          // Name of the cert-manager Operator
 	certManagerOpNamespace      = "cert-manager-operator"                    // Name of the cert-manager Namespace
 	certManagerOpChannel        = "stable-v1"                                // Name of cert-manager operator stable channel
-	telemetryOpName             = "opentelemetry-product"                    // Name of the Telemetry Operator
 	jobSetOpName                = "job-set"                                  // Name of the JobSet Operator
 	jobSetOpNamespace           = "openshift-jobset-operator"                // Namespace for the JobSet Operator
 	jobSetOpChannel             = "tech-preview-v0.1"                        // Name of the JobSet Operator stable channel
 	openshiftOperatorsNamespace = "openshift-operators"                      // Namespace for OpenShift Operators
-	telemetryOpNamespace        = "openshift-opentelemetry-operator"         // Namespace for the Telemetry Operator
 	observabilityOpName         = "cluster-observability-operator"           // Name of the Cluster Observability Operator
 	observabilityOpNamespace    = "openshift-cluster-observability-operator" // Namespace for the Cluster Observability Operator
 	tempoOpName                 = "tempo-product"                            // Name of the Tempo Operator
@@ -66,7 +64,7 @@ const (
 	leaderWorkerSetNamespace    = "openshift-lws-operator"                   // Namespace for the Leader Worker Set Operator
 	leaderWorkerSetChannel      = "stable-v1.0"                              // Channel for the Leader Worker Set Operator
 	kuadrantOpName              = "rhcl-operator"                            // Name of the Red Hat Connectivity Link Operator subscription.
-	kuadrantNamespace           = "kuadrant-system"                          // Namespace for the Red Hat Connectivity Link Operator."
+	kuadrantNamespace           = "kuadrant-system"                          // Namespace for the Red Hat Connectivity Link Operator.
 	dashboardRouteNameODH       = "odh-dashboard"                            // Name of the ODH dashboard route
 	dashboardRouteNameRhoai     = "rhods-dashboard"                          // Name of the Rhoai dashboard route
 )
