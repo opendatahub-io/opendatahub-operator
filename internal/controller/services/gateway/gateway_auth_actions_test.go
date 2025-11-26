@@ -361,18 +361,17 @@ func TestEnvoyFilterRemovesCookieFromUpstreamRequests(t *testing.T) {
 
 // TestGetGatewayAuthTimeout tests the timeout resolution priority and fallback logic.
 func TestGetGatewayAuthTimeout(t *testing.T) {
+	t.Parallel()
 	g := NewWithT(t)
 
 	testCases := []struct {
 		name            string
 		gatewayConfig   *serviceApi.GatewayConfig
-		envVar          string
 		expectedTimeout string
 	}{
 		{
 			name:            "nil config returns default",
 			gatewayConfig:   nil,
-			envVar:          "",
 			expectedTimeout: "5s",
 		},
 		{
@@ -380,18 +379,16 @@ func TestGetGatewayAuthTimeout(t *testing.T) {
 			gatewayConfig: &serviceApi.GatewayConfig{
 				Spec: serviceApi.GatewayConfigSpec{},
 			},
-			envVar:          "",
 			expectedTimeout: "5s",
 		},
 		{
-			name: "deprecated AuthTimeout field takes priority",
+			name: "deprecated AuthTimeout field takes priority over AuthProxyTimeout",
 			gatewayConfig: &serviceApi.GatewayConfig{
 				Spec: serviceApi.GatewayConfigSpec{
 					AuthTimeout:      "10s",
 					AuthProxyTimeout: metav1.Duration{Duration: 15 * time.Second},
 				},
 			},
-			envVar:          "",
 			expectedTimeout: "10s",
 		},
 		{
@@ -401,68 +398,36 @@ func TestGetGatewayAuthTimeout(t *testing.T) {
 					AuthProxyTimeout: metav1.Duration{Duration: 8 * time.Second},
 				},
 			},
-			envVar:          "",
 			expectedTimeout: "8s",
 		},
 		{
-			name: "env var used when config fields are empty",
-			gatewayConfig: &serviceApi.GatewayConfig{
-				Spec: serviceApi.GatewayConfigSpec{},
-			},
-			envVar:          "12s",
-			expectedTimeout: "12s",
-		},
-		{
-			name:            "env var used when config is nil",
-			gatewayConfig:   nil,
-			envVar:          "7s",
-			expectedTimeout: "7s",
-		},
-		{
-			name: "deprecated AuthTimeout overrides env var",
+			name: "deprecated AuthTimeout only",
 			gatewayConfig: &serviceApi.GatewayConfig{
 				Spec: serviceApi.GatewayConfigSpec{
 					AuthTimeout: "20s",
 				},
 			},
-			envVar:          "12s",
 			expectedTimeout: "20s",
 		},
 		{
-			name: "AuthProxyTimeout overrides env var",
+			name: "AuthProxyTimeout only",
 			gatewayConfig: &serviceApi.GatewayConfig{
 				Spec: serviceApi.GatewayConfigSpec{
 					AuthProxyTimeout: metav1.Duration{Duration: 25 * time.Second},
 				},
 			},
-			envVar:          "12s",
 			expectedTimeout: "25s",
 		},
 		{
 			name:            "default when all sources are empty",
 			gatewayConfig:   &serviceApi.GatewayConfig{},
-			envVar:          "",
 			expectedTimeout: "5s",
-		},
-		{
-			name: "all three sources set - deprecated AuthTimeout takes priority",
-			gatewayConfig: &serviceApi.GatewayConfig{
-				Spec: serviceApi.GatewayConfigSpec{
-					AuthTimeout:      "3s",
-					AuthProxyTimeout: metav1.Duration{Duration: 6 * time.Second},
-				},
-			},
-			envVar:          "9s",
-			expectedTimeout: "3s",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Set environment variable if specified
-			if tc.envVar != "" {
-				t.Setenv("GATEWAY_AUTH_TIMEOUT", tc.envVar)
-			}
+			t.Parallel()
 
 			result := getGatewayAuthTimeout(tc.gatewayConfig)
 			g.Expect(result).To(Equal(tc.expectedTimeout))
