@@ -56,6 +56,7 @@ type GatewayConfigSpec struct {
 	// Subdomain configuration for the GatewayConfig
 	// Example: my-gateway, custom-gateway
 	// +optional
+	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$`
 	Subdomain string `json:"subdomain,omitempty"`
 
