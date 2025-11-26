@@ -60,7 +60,8 @@ type GatewayConfigSpec struct {
 	Subdomain string `json:"subdomain,omitempty"`
 
 	// Cookie configuration (applies to both OIDC and OpenShift OAuth)
-	Cookie CookieConfig `json:"cookie"` // not pointer to make defaults clear
+	// +optional
+	Cookie CookieConfig `json:"cookie,omitempty"` // not pointer to make defaults clear
 
 	// AuthTimeout is the duration Envoy waits for auth proxy responses.
 	// Requests timeout with 403 if exceeded.
