@@ -169,7 +169,7 @@ func resolveDomain(ctx context.Context, client client.Client,
 func GetGatewayDomain(ctx context.Context, cli client.Client) (string, error) {
 	// Try to get the GatewayConfig
 	gatewayConfig := &serviceApi.GatewayConfig{}
-	err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, gatewayConfig)
+	err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig)
 	if err != nil {
 		// GatewayConfig doesn't exist, use cluster domain directly with default subdomain
 		return getClusterDomain(ctx, cli, "")
@@ -677,11 +677,11 @@ func getCookieSettings(cookieConfig *serviceApi.CookieConfig) (string, string) {
 
 	// Override with user configuration if provided
 	if cookieConfig != nil {
-		if cookieConfig.Expire != "" {
-			expire = cookieConfig.Expire
+		if cookieConfig.Expire.Duration != 0 {
+			expire = cookieConfig.Expire.Duration.String()
 		}
-		if cookieConfig.Refresh != "" {
-			refresh = cookieConfig.Refresh
+		if cookieConfig.Refresh.Duration != 0 {
+			refresh = cookieConfig.Refresh.Duration.String()
 		}
 	}
 

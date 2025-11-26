@@ -48,15 +48,21 @@ spec:
           spec:
             description: GatewayConfigSpec defines the desired state of GatewayConfig
             properties:
+              authProxyTimeout:
+                description: |-
+                  AuthProxyTimeout defines the timeout for external authorization service calls (e.g., "5s", "10s")
+                  This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response.
+                type: string
               authTimeout:
                 description: |-
                   AuthTimeout is the duration Envoy waits for auth proxy responses.
                   Requests timeout with 403 if exceeded.
-                  Overrides GATEWAY_AUTH_TIMEOUT env var. Default: "5s"
+                  Deprecated: Use AuthProxyTimeout instead.
                 pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                 type: string
               certificate:
-                description: Certificate management
+                description: Certificate specifies configuration of the TLS certificate
+                  securing communication for the gateway.
                 properties:
                   secretName:
                     description: |-
@@ -78,16 +84,14 @@ spec:
                     type: string
                 type: object
               cookie:
-                description: Cookie configuration for OAuth2 proxy (applies to both
-                  OIDC and OpenShift OAuth)
+                description: Cookie configuration (applies to both OIDC and OpenShift
+                  OAuth)
                 properties:
                   expire:
                     default: 24h
                     description: |-
                       Expire duration for OAuth2 proxy session cookie (e.g., "24h", "8h")
                       This controls how long the session cookie is valid before requiring re-authentication.
-                      Default: "24h"
-                    pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                     type: string
                   refresh:
                     default: 1h
@@ -95,14 +99,16 @@ spec:
                       Refresh duration for OAuth2 proxy to refresh access tokens (e.g., "2h", "1h", "30m")
                       This must be LESS than the OIDC provider's Access Token Lifespan to avoid token expiration.
                       For example, if Keycloak Access Token Lifespan is 1 hour, set this to "30m" or "45m".
-                      Default: "1h"
-                    pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                     type: string
                 type: object
               domain:
                 description: |-
-                  Domain configuration for the GatewayConfig
-                  Example: apps.example.com
+                  Domain specifies the host name for intercepting incoming requests.
+                  Most likely, you will want to use a wildcard name, like *.example.com.
+                  If not set, the domain of the OpenShift Ingress is used.
+                  If you choose to generate a certificate, this is the domain used for the certificate request.
+                  Example: *.example.com, example.com, apps.example.com
+                pattern: ^(\*\.)?([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
               oidc:
                 description: OIDC configuration (used when cluster is in OIDC authentication
@@ -144,7 +150,9 @@ spec:
                 - issuerURL
                 type: object
               subdomain:
-                description: Subdomain configuration for the GatewayConfig
+                description: |-
+                  Subdomain configuration for the GatewayConfig
+                  Example: my-gateway, custom-gateway
                 maxLength: 63
                 pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$
                 type: string

@@ -438,7 +438,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	var createDefaultGatewayFunc manager.RunnableFunc = func(ctx context.Context) error {
 		defaultGateway := &serviceApi.GatewayConfig{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: serviceApi.GatewayInstanceName,
+				Name: serviceApi.GatewayConfigName,
 			},
 			Spec: serviceApi.GatewayConfigSpec{
 				Certificate: &infrav1.CertificateSpec{
@@ -449,20 +449,20 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		}
 
 		existingGateway := &serviceApi.GatewayConfig{}
-		err := setupClient.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, existingGateway)
+		err := setupClient.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, existingGateway)
 		if err != nil {
 			if client.IgnoreNotFound(err) == nil {
 				if createErr := setupClient.Create(ctx, defaultGateway); createErr != nil {
 					setupLog.Error(createErr, "unable to create default Gateway CR")
 					return createErr
 				}
-				setupLog.Info("Created default Gateway CR", "name", serviceApi.GatewayInstanceName)
+				setupLog.Info("Created default Gateway CR", "name", serviceApi.GatewayConfigName)
 			} else {
 				setupLog.Error(err, "error checking for existing Gateway CR")
 				return err
 			}
 		} else {
-			setupLog.Info("Default Gateway CR already exists", "name", serviceApi.GatewayInstanceName)
+			setupLog.Info("Default Gateway CR already exists", "name", serviceApi.GatewayConfigName)
 		}
 
 		return nil

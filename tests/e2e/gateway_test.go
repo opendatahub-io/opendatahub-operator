@@ -40,7 +40,7 @@ const (
 // Gateway infrastructure and OAuth proxy configuration constants.
 // These match the values defined in internal/controller/services/gateway package.
 const (
-	gatewayConfigName        = serviceApi.GatewayInstanceName
+	gatewayConfigName        = serviceApi.GatewayConfigName
 	gatewayName              = gateway.DefaultGatewayName
 	gatewayClassName         = gateway.GatewayClassName
 	gatewayNamespace         = gateway.GatewayNamespace
