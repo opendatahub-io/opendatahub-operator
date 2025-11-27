@@ -297,8 +297,9 @@ spec:
                     x-kubernetes-validations:
                     - message: RegistriesNamespace is immutable when model registry
                         is Managed
-                      rule: (self.managementState != 'Managed') || (oldSelf.registriesNamespace
-                        == '') || (oldSelf.managementState != 'Managed')|| (self.registriesNamespace
+                      rule: (!has(self.managementState) || self.managementState !=
+                        'Managed') || (oldSelf.registriesNamespace == '') || (!has(oldSelf.managementState)
+                        || oldSelf.managementState != 'Managed') || (self.registriesNamespace
                         == oldSelf.registriesNamespace)
                   ray:
                     description: Ray component configuration.
@@ -1233,8 +1234,9 @@ spec:
                     x-kubernetes-validations:
                     - message: RegistriesNamespace is immutable when model registry
                         is Managed
-                      rule: (self.managementState != 'Managed') || (oldSelf.registriesNamespace
-                        == '') || (oldSelf.managementState != 'Managed')|| (self.registriesNamespace
+                      rule: (!has(self.managementState) || self.managementState !=
+                        'Managed') || (oldSelf.registriesNamespace == '') || (!has(oldSelf.managementState)
+                        || oldSelf.managementState != 'Managed') || (self.registriesNamespace
                         == oldSelf.registriesNamespace)
                   ray:
                     description: Ray component configuration.
