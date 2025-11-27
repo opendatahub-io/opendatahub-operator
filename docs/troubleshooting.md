@@ -118,3 +118,141 @@ This can be set in an existing opendatahub-operator-controller-manager deploymen
 https://github.com/operator-framework/operator-lifecycle-manager/blob/master/doc/design/subscription-config.md#env
 
 See https://github.com/google/pprof/blob/main/doc/README.md for more details on how to use pprof
+
+### Operator Pod Restarting Frequently
+
+**Alert**: `OperatorPodRestartingFrequently`  
+**Severity**: Warning  
+**Description**: The operator pod has restarted more than 3 times in a 5-minute period.
+
+#### Symptoms
+
+- Prometheus alert `OperatorPodRestartingFrequently` is firing
+- Operator pod restart count is high
+- Components may not be reconciling properly
+- Operator logs show crash or restart messages
+
+#### Investigation Steps
+
+#### 1. Check operator pod status:
+```bash
+oc get pods -n redhat-ods-operator
+oc describe pod <operator-pod-name> -n redhat-ods-operator
+```
+
+#### 2. Check restart count:
+```bash
+kubectl get pod <operator-pod-name> -n redhat-ods-operator -o jsonpath='{.status.containerStatuses[0].restartCount}'
+```
+
+#### 3. Get operator logs (current and previous):
+```bash
+# Current logs
+oc logs -n redhat-ods-operator <operator-pod-name> -c rhods-operator --tail=100
+
+# Previous crashed container logs
+oc logs -n redhat-ods-operator <operator-pod-name> -c rhods-operator --previous
+```
+
+#### 4. Check for common issues:
+```bash
+# Check resource limits
+oc get pod <operator-pod-name> -n redhat-ods-operator -o jsonpath='{.spec.containers[0].resources}'
+
+# Check events
+oc get events -n redhat-ods-operator --sort-by='.lastTimestamp' | grep <operator-pod-name>
+
+# Check for OOM kills
+oc get pod <operator-pod-name> -n redhat-ods-operator -o jsonpath='{.status.containerStatuses[0].lastState}'
+```
+
+#### Common Causes & Solutions
+
+#### 1. Out of Memory (OOM)
+- **Symptom**: `lastState.terminated.reason: OOMKilled`
+- **Solution**: Increase memory limits
+  ```bash
+  oc patch deployment rhods-operator-controller-manager -n redhat-ods-operator \
+    --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/resources/limits/memory", "value": "2Gi"}]'
+  ```
+
+#### 2. CPU Throttling
+- **Symptom**: High CPU usage, slow reconciliation
+- **Solution**: Increase CPU limits
+  ```bash
+  oc patch deployment rhods-operator-controller-manager -n redhat-ods-operator \
+    --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/resources/limits/cpu", "value": "1000m"}]'
+  ```
+
+#### 3. Webhook Certificate Issues
+- **Symptom**: Logs show certificate errors
+- **Solution**: Check certificate secrets
+  ```bash
+  oc get secret -n redhat-ods-operator | grep webhook
+  oc get validatingwebhookconfiguration
+  oc get mutatingwebhookconfiguration
+  ```
+
+#### 4. Panic or Fatal Errors
+- **Symptom**: Logs show panic stack traces or fatal errors
+- **Solution**: Review logs for root cause, may need code fix
+  ```bash
+  oc logs -n redhat-ods-operator <operator-pod-name> -c rhods-operator --previous | grep -A 20 "panic\|fatal"
+  ```
+
+#### Resolution Steps
+
+1. **Immediate Action**: If operator is non-functional, restart it:
+   ```bash
+   oc rollout restart deployment rhods-operator -n redhat-ods-operator
+   ```
+
+2. **Increase Resources** (if OOM/CPU throttling):
+   ```bash
+   oc patch deployment rhods-operator-controller-manager -n redhat-ods-operator \
+     --type='json' -p='[
+       {"op": "replace", "path": "/spec/template/spec/containers/0/resources/limits/memory", "value": "2Gi"},
+       {"op": "replace", "path": "/spec/template/spec/containers/0/resources/requests/memory", "value": "512Mi"},
+       {"op": "replace", "path": "/spec/template/spec/containers/0/resources/limits/cpu", "value": "1000m"}
+     ]'
+   ```
+
+3. **Check for Cluster-Wide Issues**:
+   ```bash
+   # Check node resources
+   oc top nodes
+   
+   # Check if other operators are also restarting
+   oc get pods --all-namespaces | grep -E 'CrashLoop|Error'
+   ```
+
+4. **Verify Operator Configuration**:
+   ```bash
+   # Check DSCI
+   oc get dsci -o yaml
+   
+   # Check DSC
+   oc get dsc -o yaml
+   
+   # Validate no circular dependencies or misconfigurations
+   ```
+
+5. **Collect Debug Information**:
+   ```bash
+   # Get full operator state
+   oc get deployment rhods-operator-controller-manager -n redhat-ods-operator -o yaml > operator-deployment.yaml
+   oc get pods -n redhat-ods-operator -o yaml > operator-pods.yaml
+   oc logs -n redhat-ods-operator <operator-pod-name> --all-containers --previous > operator-previous-logs.txt
+   oc logs -n redhat-ods-operator <operator-pod-name> --all-containers > operator-current-logs.txt
+   ```
+
+#### When to Escalate
+
+Escalate to the development team if:
+- Restarts continue after resource increases
+- Logs show unhandled panics or fatal errors
+- Issue correlates with specific DSC/DSCI configuration
+- Problem started after operator upgrade
+- Multiple restarts with no clear cause in logs
+
+**Bug Report**: Include all debug information collected above and steps taken.
