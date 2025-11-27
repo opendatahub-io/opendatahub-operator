@@ -110,6 +110,25 @@ spec:
                   Example: *.example.com, example.com, apps.example.com
                 pattern: ^(\*\.)?([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
+              networkPolicy:
+                description: NetworkPolicy configuration for kube-auth-proxy
+                properties:
+                  ingress:
+                    description: |-
+                      Ingress defines ingress NetworkPolicy rules.
+                      When nil, ingress rules are applied by default (allows traffic from Gateway pods and monitoring namespaces).
+                      When specified, Enabled must be set to true to apply rules or false to skip NetworkPolicy creation.
+                      Set Enabled=false only in development environments or when using alternative network security controls.
+                    properties:
+                      enabled:
+                        description: |-
+                          Enabled determines whether ingress rules are applied.
+                          When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces.
+                        type: boolean
+                    required:
+                    - enabled
+                    type: object
+                type: object
               oidc:
                 description: OIDC configuration (used when cluster is in OIDC authentication
                   mode)
