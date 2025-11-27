@@ -1,0 +1,22 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: feast-operator-controller-metrics
+  namespace: {{.AppNamespace}}
+  labels:
+    app.kubernetes.io/name: feast-operator
+    app.kubernetes.io/part-of: feast-operator
+    opendatahub.io/monitoring: "true"
+spec:
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+      app.kubernetes.io/name: feast-operator
+  endpoints:
+    - port: https
+      path: /metrics
+      interval: 30s
+      scheme: https
+      tlsConfig:
+        insecureSkipVerify: true
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token

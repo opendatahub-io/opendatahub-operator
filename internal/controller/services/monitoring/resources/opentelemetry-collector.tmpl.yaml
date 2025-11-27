@@ -5,7 +5,9 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   replicas: {{.CollectorReplicas}}
-  mode: deployment
+  # Note: StatefulSet mode is required when using Target Allocator
+  # with OpenTelemetry operator versions that enforce this requirement
+  mode: statefulset
   resources:
     limits:
       cpu: {{.CollectorCPULimit}}
@@ -13,6 +15,27 @@ spec:
     requests:
       cpu: {{.CollectorCPURequest}}
       memory: {{.CollectorMemoryRequest}}
+  targetAllocator:
+    enabled: true
+    prometheusCR:
+      enabled: true
+      # Discover ServiceMonitors and PodMonitors with ODH label
+      serviceMonitorSelector:
+        matchLabels:
+          opendatahub.io/monitoring: "true"
+      podMonitorSelector:
+        matchLabels:
+          opendatahub.io/monitoring: "true"
+    # Target distribution strategy for HA setup
+    allocationStrategy: consistent-hashing
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  
   config:
     extensions:
       bearertokenauth:
@@ -21,6 +44,8 @@ spec:
       {{- if .Metrics }}
       prometheus:
         config:
+          # Scrape configs are populated by Target Allocator for ServiceMonitors/PodMonitors
+          # Static scrape configs for non-ServiceMonitor targets
           scrape_configs:
             - job_name: 'data-science-collector-prometheus'
               bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
