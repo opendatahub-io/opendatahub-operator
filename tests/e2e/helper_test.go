@@ -254,7 +254,7 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 				},
 				FeastOperator: componentApi.DSCFeastOperator{
 					ManagementSpec: common.ManagementSpec{
-						ManagementState: operatorv1.Removed,
+						ManagementState: operatorv1.Managed,
 					},
 				},
 				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
