@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -32,6 +33,8 @@ const (
 	InstrumentationName        = "data-science-instrumentation"
 	ThanosQuerierName          = "data-science-thanos-querier"
 	ThanosQuerierRouteName     = "data-science-thanos-querier-route"
+	PersesName                 = "data-science-perses"
+	PersesDatasourceName       = "data-science-prometheus-datasource"
 )
 
 // Constants for common test values.
@@ -43,8 +46,8 @@ const (
 	OtlpCustomExporter     = "otlp/custom"
 	OtlpHttpCustomExporter = "otlphttp/custom"
 	OtlpTempoExporter      = "otlp/tempo"
-	MetricsCPURequest      = "50m"
-	MetricsMemoryRequest   = "128Mi"
+	MetricsCPURequest      = "100m"
+	MetricsMemoryRequest   = "256Mi"
 	// TracesStorage backend types for testing.
 	TracesStorageBackendPV  = "pv"
 	TracesStorageBackendS3  = "s3"
@@ -108,9 +111,21 @@ func monitoringTestSuite(t *testing.T) {
 		{"Test Traces Exporters Reserved Name Validation", monitoringServiceCtx.ValidateTracesExportersReservedNameValidation},
 		{"Test ThanosQuerier deployment with metrics", monitoringServiceCtx.ValidateThanosQuerierDeployment},
 		{"Test ThanosQuerier not deployed without metrics", monitoringServiceCtx.ValidateThanosQuerierNotDeployedWithoutMetrics},
+		{"Test Perses deployment when monitoring is managed", monitoringServiceCtx.ValidatePersesCRCreation},
+		{"Test Perses CR configuration", monitoringServiceCtx.ValidatePersesCRConfiguration},
+		{"Test Perses lifecycle", monitoringServiceCtx.ValidatePersesLifecycle},
+		{"Test Perses not deployed without metrics or traces", monitoringServiceCtx.ValidatePersesNotDeployedWithoutMetricsOrTraces},
+		{"Test Perses Datasource Creation with Traces", monitoringServiceCtx.ValidatePersesDatasourceCreationWithTraces},
+		{"Test Perses Datasource Configuration", monitoringServiceCtx.ValidatePersesDatasourceConfiguration},
+		{"Test PersesDatasource deployment with Prometheus", monitoringServiceCtx.ValidatePersesDatasourceWithPrometheus},
+		{"Test PersesDatasource lifecycle", monitoringServiceCtx.ValidatePersesDatasourceLifecycle},
 		{"Validate CEL blocks invalid monitoring configs", monitoringServiceCtx.ValidateCELBlocksInvalidMonitoringConfigs},
 		{"Validate CEL allows valid monitoring configs", monitoringServiceCtx.ValidateCELAllowsValidMonitoringConfigs},
 		{"Validate monitoring service disabled", monitoringServiceCtx.ValidateMonitoringServiceDisabled},
+		{"Test Namespace Restricted Metrics Access", monitoringServiceCtx.ValidatePrometheusRestrictedResourceConfiguration},
+		{"Test Prometheus Secure Proxy Authentication", monitoringServiceCtx.ValidatePrometheusSecureProxyAuthentication},
+		{"Test Node Metrics Endpoint Deployment", monitoringServiceCtx.ValidateNodeMetricsEndpointDeployment},
+		{"Test Node Metrics Endpoint RBAC Configuration", monitoringServiceCtx.ValidateNodeMetricsEndpointRBACConfiguration},
 	}
 
 	// Run the test suite.
@@ -268,11 +283,11 @@ func (tc *MonitoringTestCtx) ValidateCELBlocksInvalidMonitoringConfigs(t *testin
 			description: "Exporters alone should not satisfy alerting requirements",
 		},
 		{
-			name: "replicas_without_storage_or_resources",
+			name: "replicas_without_storage",
 			transforms: []testf.TransformFn{
 				testf.Transform(`.spec.monitoring.metrics = {"replicas": 2}`),
 			},
-			description: "Non-zero replicas should require storage or resources",
+			description: "Non-zero replicas should require storage ",
 		},
 	}
 
@@ -652,6 +667,234 @@ func (tc *MonitoringTestCtx) ValidatePrometheusRulesLifecycle(t *testing.T) {
 	tc.updateMonitoringConfig(withNoAlerting())
 }
 
+func (tc *MonitoringTestCtx) ValidatePersesCRCreation(t *testing.T) {
+	t.Helper()
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			monitoringOwnerReferencesCondition,
+			jq.Match(`.spec.containerPort == 8080`),
+			jq.Match(`.spec.config.database.file.folder == "/perses"`),
+			jq.Match(`.spec.config.database.file.extension == "yaml"`),
+		)),
+		WithCustomErrorMsg("Perses CR should be created with correct configuration when monitoring is managed"),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidatePersesCRConfiguration(t *testing.T) {
+	t.Helper()
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			jq.Match(`.spec.containerPort == 8080`),
+			jq.Match(`.spec.config.database.file != null`),
+			jq.Match(`.spec.storage.size == "1Gi"`),
+			jq.Match(`.metadata.labels["platform.opendatahub.io/part-of"] == "monitoring"`),
+		)),
+		WithCustomErrorMsg("Perses CR configuration validation failed"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.StatefulSet, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			jq.Match(`.spec.replicas == 1`),
+			jq.Match(`.spec.template.spec.containers[0].ports[0].containerPort == 8080`),
+			jq.Match(`.spec.volumeClaimTemplates[0].spec.resources.requests.storage == "1Gi"`),
+		)),
+		WithCustomErrorMsg("Perses StatefulSet should be created by perses-operator with correct configuration"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Pod, types.NamespacedName{Name: PersesName + "-0", Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			jq.Match(`.status.phase == "Running"`),
+			jq.Match(`.status.conditions[] | select(.type == "Ready") | .status == "True"`),
+		)),
+		WithCustomErrorMsg("Perses pod should be running and ready"),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidatePersesLifecycle(t *testing.T) {
+	t.Helper()
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(jq.Match(`.metadata.name == "%s"`, PersesName)),
+		WithCustomErrorMsg("Perses CR should exist when monitoring is managed"),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionPersesAvailable, metav1.ConditionTrue),
+		),
+		WithCustomErrorMsg("Monitoring CR should have PersesAvailable condition set to True"),
+	)
+
+	// Disable monitoring and verify Perses cleanup
+	tc.resetMonitoringConfigToRemoved()
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+	)
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.StatefulSet, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+	)
+
+	// Re-enable monitoring to verify Perses is recreated
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(jq.Match(`.metadata.name == "%s"`, PersesName)),
+		WithCustomErrorMsg("Perses CR should be recreated when monitoring is re-enabled"),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidatePersesNotDeployedWithoutMetricsOrTraces(t *testing.T) {
+	t.Helper()
+
+	tc.ensureMonitoringCleanSlate(t, "")
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+		withNoTraces(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics == null`),
+			jq.Match(`.spec.traces == null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be created without metrics or traces configuration"),
+	)
+
+	// Validate that Perses condition is False with reason indicating no data sources
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(
+			`[.status.conditions[] | select(.type=="%s" and .status=="False")] | length==1`,
+			status.ConditionPersesAvailable,
+		)),
+		WithCustomErrorMsg("Perses condition should be False when neither metrics nor traces are configured"),
+	)
+
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.Perses, types.NamespacedName{Name: PersesName, Namespace: tc.MonitoringNamespace}),
+	)
+
+	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidatePersesDatasourceWithPrometheus validates that Prometheus datasource is created when both Perses and MonitoringStack are deployed.
+func (tc *MonitoringTestCtx) ValidatePersesDatasourceWithPrometheus(t *testing.T) {
+	t.Helper()
+
+	// Enable monitoring with metrics configuration to deploy both Perses and Prometheus
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Wait for Monitoring CR to be ready with both Perses and Prometheus
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionPersesAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionMonitoringStackAvailable, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionPersesPrometheusDataSourceAvailable, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring CR should have all conditions (Perses, MonitoringStack, PersesPrometheusDataSource) set to True"),
+	)
+
+	// Verify PersesDatasource CR is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: PersesDatasourceName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(And(
+			// Validate owner references
+			monitoringOwnerReferencesCondition,
+			// Validate datasource is set as default
+			jq.Match(`.spec.config.default == true`),
+			// Validate plugin kind is PrometheusDatasource
+			jq.Match(`.spec.config.plugin.kind == "PrometheusDatasource"`),
+			// Validate Prometheus URL points to Thanos Querier using proxy configuration
+			jq.Match(`.spec.config.plugin.spec.proxy.kind == "HTTPProxy"`),
+			jq.Match(`.spec.config.plugin.spec.proxy.spec.url | contains("thanos-querier-data-science-thanos-querier")`),
+			jq.Match(`.spec.config.plugin.spec.proxy.spec.url | contains("%s")`, tc.MonitoringNamespace),
+		)),
+		WithCustomErrorMsg("PersesDatasource CR should be created with correct Thanos Querier proxy configuration"),
+	)
+}
+
+// ValidatePersesDatasourceLifecycle tests the complete lifecycle of PersesDatasource deployment and cleanup.
+func (tc *MonitoringTestCtx) ValidatePersesDatasourceLifecycle(t *testing.T) {
+	t.Helper()
+
+	// Step 1: Enable monitoring with metrics to deploy datasource
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Verify datasource is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: PersesDatasourceName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(jq.Match(`.metadata.name == "%s"`, PersesDatasourceName)),
+		WithCustomErrorMsg("PersesDatasource should exist when metrics are configured"),
+	)
+
+	// Step 2: Remove metrics configuration and verify datasource is deleted
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		withNoMetrics(),
+	)
+
+	// Verify PersesPrometheusDataSourceAvailable condition is False
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionPersesPrometheusDataSourceAvailable, metav1.ConditionFalse),
+		),
+		WithCustomErrorMsg("Monitoring CR should have PersesPrometheusDataSourceAvailable condition set to False when metrics are not configured"),
+	)
+
+	// Verify datasource is deleted
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: PersesDatasourceName, Namespace: tc.MonitoringNamespace}),
+	)
+
+	// Step 3: Re-enable metrics and verify datasource is recreated
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: PersesDatasourceName, Namespace: tc.MonitoringNamespace}),
+		WithCondition(jq.Match(`.metadata.name == "%s"`, PersesDatasourceName)),
+		WithCustomErrorMsg("PersesDatasource should be recreated when metrics are re-enabled"),
+	)
+}
+
 // ValidateMonitoringServiceDisabled ensures monitoring service can be disabled and resources are cleaned up.
 func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 	t.Helper()
@@ -670,6 +913,8 @@ func (tc *MonitoringTestCtx) ValidateMonitoringServiceDisabled(t *testing.T) {
 		{gvk.TempoMonolithic, TempoMonolithicName},
 		{gvk.OpenTelemetryCollector, OpenTelemetryCollectorName},
 		{gvk.Instrumentation, InstrumentationName},
+		{gvk.Perses, PersesName},
+		{gvk.PersesDatasource, PersesDatasourceName},
 	} {
 		tc.EnsureResourcesGone(
 			WithMinimalObject(resource.gvk, types.NamespacedName{
@@ -901,12 +1146,8 @@ func (tc *MonitoringTestCtx) withMetricsConfig() testf.TransformFn {
             "size": "%s",
             "retention": "%s"
         },
-        "resources": {
-            "cpurequest": "%s",
-            "memoryrequest": "%s"
-        },
         "replicas": %d
-    }`, MetricsStorageSize, MetricsRetention, MetricsCPURequest, MetricsMemoryRequest, tc.expectedDefaultReplicas)
+    }`, MetricsStorageSize, MetricsRetention, tc.expectedDefaultReplicas)
 }
 
 // withMetricsReplicas returns a transform that sets metrics replicas.
@@ -1069,15 +1310,8 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierDeployment(t *testing.T) {
 		WithCustomErrorMsg("ThanosQuerier Route should be created when metrics are configured"),
 	)
 
+	// Cleanup: Reset monitoring configuration
 	tc.resetMonitoringConfigToManaged()
-
-	tc.EnsureResourceGone(
-		WithMinimalObject(gvk.ThanosQuerier, types.NamespacedName{Name: ThanosQuerierName, Namespace: tc.MonitoringNamespace}),
-	)
-
-	tc.EnsureResourceGone(
-		WithMinimalObject(gvk.Route, types.NamespacedName{Name: ThanosQuerierRouteName, Namespace: tc.MonitoringNamespace}),
-	)
 }
 
 func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *testing.T) {
@@ -1121,4 +1355,475 @@ func (tc *MonitoringTestCtx) ValidateThanosQuerierNotDeployedWithoutMetrics(t *t
 
 	// Cleanup: Reset monitoring configuration
 	tc.resetMonitoringConfigToManaged()
+}
+
+// ValidatePersesDatasourceCreationWithTraces tests that Perses datasource is created when traces are configured.
+func (tc *MonitoringTestCtx) ValidatePersesDatasourceCreationWithTraces(t *testing.T) {
+	t.Helper()
+
+	// Skip if PersesDatasource CRD is not installed
+	ctx := context.Background()
+	exists, err := cluster.HasCRD(ctx, tc.Client(), gvk.PersesDatasource)
+	require.NoError(t, err)
+	if !exists {
+		t.Skip("Skipping Perses datasource tests: PersesDatasource CRD not installed in cluster")
+	}
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Update DSCI to set traces - ensure managementState remains Managed
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			withMonitoringTraces("pv", "", "", ""),
+		)),
+	)
+
+	// Wait for the Monitoring resource to be updated by DSCInitialization controller
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(`.spec.traces != null`)),
+		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
+	)
+
+	// Ensure the Perses datasource CR is created (if Perses CRD is available)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: "tempo-datasource", Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCustomErrorMsg("PersesDatasource CR should be created when traces are configured"),
+	)
+
+	// Cleanup: Reset DSCInitialization traces configuration to prevent state contamination
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
+	)
+
+	// Ensure the PersesDatasource is cleaned up after traces are removed
+	tc.EnsureResourceGone(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{
+			Name:      "tempo-datasource",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+	)
+
+	// Validate condition flips to False
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(jq.Match(
+			`[.status.conditions[] | select(.type=="%s" and .status=="False" and .reason=="%s")] | length==1`,
+			status.ConditionPersesTempoDataSourceAvailable,
+			status.TracesNotConfiguredReason,
+		)),
+		WithCustomErrorMsg("PersesTempoDataSourceAvailable condition should be False when traces are not configured"),
+	)
+}
+
+// ValidatePersesDatasourceConfiguration tests the configuration of the Perses datasource.
+func (tc *MonitoringTestCtx) ValidatePersesDatasourceConfiguration(t *testing.T) {
+	t.Helper()
+
+	// Skip if PersesDatasource CRD is not installed
+	ctx := context.Background()
+	exists, err := cluster.HasCRD(ctx, tc.Client(), gvk.PersesDatasource)
+	require.NoError(t, err)
+	if !exists {
+		t.Skip("Skipping Perses datasource tests: PersesDatasource CRD not installed in cluster")
+	}
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Set traces configuration with PV backend
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			withMonitoringTraces("pv", "", "", ""),
+		)),
+	)
+
+	// Validate Perses datasource configuration
+	expectedTempoEndpoint := fmt.Sprintf("http://tempo-data-science-tempomonolithic.%s.svc.cluster.local:3200", dsci.Spec.Monitoring.Namespace)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: "tempo-datasource", Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(
+			And(
+				// Validate the datasource name and description
+				jq.Match(`.spec.config.display.name == "RHOAI Tempo Datasource"`),
+				jq.Match(`.spec.config.display.description == "Tempo datasource for distributed tracing in RHOAI"`),
+				jq.Match(`.spec.config.default == false`),
+				// Validate the plugin configuration
+				jq.Match(`.spec.config.plugin.kind == "TempoDatasource"`),
+				// Validate the HTTP proxy configuration
+				jq.Match(`.spec.config.plugin.spec.proxy.kind == "HTTPProxy"`),
+				jq.Match(`.spec.config.plugin.spec.proxy.spec.url == "%s"`, expectedTempoEndpoint),
+			),
+		),
+		WithCustomErrorMsg("PersesDatasource should have the expected configuration"),
+	)
+
+	// Validate owner references
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: "tempo-datasource", Namespace: dsci.Spec.Monitoring.Namespace}),
+		WithCondition(
+			And(
+				jq.Match(`.metadata.ownerReferences | length == 1`),
+				jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Monitoring.Kind),
+				jq.Match(`.metadata.ownerReferences[0].name == "%s"`, MonitoringCRName),
+			),
+		),
+	)
+
+	// Cleanup: Reset DSCInitialization traces configuration to prevent state contamination
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.Transform(`.spec.monitoring.traces = null`)),
+	)
+}
+
+func (tc *MonitoringTestCtx) waitForPrometheusNamespaceProxyPrerequisites(t *testing.T, namespace string) {
+	t.Helper()
+
+	// 1. Wait for MonitoringStack CRD to exist and be established (required by controller)
+	tc.EnsureCRDEstablished("monitoringstacks.monitoring.rhobs")
+	t.Logf("MonitoringStack CRD is established")
+
+	// 2. Wait for MonitoringStack CR to be created and available
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.MonitoringStack, types.NamespacedName{
+			Name:      MonitoringStackName,
+			Namespace: namespace,
+		}),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
+		WithCustomErrorMsg("MonitoringStack should be Available before prometheus-namespace-proxy deployment"),
+	)
+
+	t.Logf("MonitoringStack CR is Available")
+
+	t.Logf("All prerequisites met for prometheus-namespace-proxy deployment")
+}
+
+// validatePrometheusNamespaceProxyResourcesCommon validates common data-science-prometheus-namespace-proxy resources that are shared between tests.
+func (tc *MonitoringTestCtx) validatePrometheusNamespaceProxyResourcesCommon(t *testing.T, namespace string) {
+	t.Helper()
+
+	// Wait for prerequisites before checking deployment
+	// The controller only deploys prometheus-namespace-proxy when MonitoringStack is available
+	tc.waitForPrometheusNamespaceProxyPrerequisites(t, namespace)
+
+	// Verify the data-science-prometheus-namespace-proxy deployment is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "data-science-prometheus-namespace-proxy",
+			Namespace: namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.status.readyReplicas == 1`),
+			jq.Match(`.spec.template.spec.containers | length == 2`), // kube-rbac-proxy + prom-label-proxy
+		)),
+		WithCustomErrorMsg("data-science-prometheus-namespace-proxy deployment should be created and ready"),
+	)
+
+	// Verify the service account exists with proper RBAC
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
+			Name:      "data-science-prometheus-namespace-proxy",
+			Namespace: namespace,
+		}),
+	)
+
+	// Verify the ClusterRoleBinding exists for prometheus metrics reader
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "data-science-prometheus-namespace-proxy",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "cluster-monitoring-view"`),
+			jq.Match(`.subjects[0].name == "data-science-prometheus-namespace-proxy"`),
+			jq.Match(`.subjects[0].namespace == "%s"`, namespace),
+		)),
+	)
+
+	// Verify the service is created with proper annotations for TLS
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      "data-science-prometheus-namespace-proxy",
+			Namespace: namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.ports[0].port == 8443`),
+			jq.Match(`.spec.ports[0].name == "https"`),
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "data-science-prometheus-namespace-proxy-tls"`),
+		)),
+	)
+
+	// Verify the route is created for external access
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Route, types.NamespacedName{
+			Name:      "data-science-prometheus-route",
+			Namespace: namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.to.name == "data-science-prometheus-namespace-proxy"`),
+			jq.Match(`.spec.tls.termination == "reencrypt"`),
+			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
+		)),
+	)
+}
+
+// ValidatePrometheusRestrictedResourceConfiguration tests the namespace-restricted metrics access functionality.
+func (tc *MonitoringTestCtx) ValidatePrometheusRestrictedResourceConfiguration(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Ensure metrics are configured
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithMinimalObject(gvk.DSCInitialization, tc.DSCInitializationNamespacedName),
+		WithMutateFunc(testf.TransformPipeline(
+			testf.Transform(`.spec.monitoring.managementState = "%s"`, operatorv1.Managed),
+			tc.withMetricsConfig(),
+		)),
+	)
+
+	// Validate common data-science-prometheus-namespace-proxy resources
+	tc.validatePrometheusNamespaceProxyResourcesCommon(t, dsci.Spec.Monitoring.Namespace)
+}
+
+// ValidatePrometheusSecureProxyAuthentication tests the Prometheus secure proxy authentication and authorization.
+func (tc *MonitoringTestCtx) ValidatePrometheusSecureProxyAuthentication(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Validate common data-science-prometheus-namespace-proxy resources
+	tc.validatePrometheusNamespaceProxyResourcesCommon(t, dsci.Spec.Monitoring.Namespace)
+
+	// Verify the data-science-prometheus-namespace-proxy deployment contains kube-rbac-proxy with specific details
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "data-science-prometheus-namespace-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.containers[0].name == "kube-rbac-proxy"`),
+			jq.Match(`.spec.template.spec.containers[0].image | contains("kube-rbac-proxy")`),
+		)),
+		WithCustomErrorMsg("data-science-prometheus-namespace-proxy deployment should contain kube-rbac-proxy container"),
+	)
+
+	// Verify the auth-delegator ClusterRoleBinding exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "data-science-prometheus-namespace-proxy-auth-delegator",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "system:auth-delegator"`),
+			jq.Match(`.subjects[0].name == "data-science-prometheus-namespace-proxy"`),
+			jq.Match(`.subjects[0].namespace == "%s"`, dsci.Spec.Monitoring.Namespace),
+		)),
+	)
+
+	// Verify the ConfigMap for kube-rbac-proxy configuration exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ConfigMap, types.NamespacedName{
+			Name:      "data-science-prometheus-namespace-proxy-config",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(jq.Match(`.data."kube-rbac-proxy.yaml" | contains("authorization")`)),
+	)
+
+	// Verify that the kube-rbac-proxy container has the correct upstream configuration
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "data-science-prometheus-namespace-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream="))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream=http://127.0.0.1:9091/"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--secure-listen-address=0.0.0.0:8443"))) | length == 1`),
+		)),
+		WithCustomErrorMsg("kube-rbac-proxy should be configured with correct upstream and secure listen address"),
+	)
+
+	// Verify that the auth-delegator ClusterRoleBinding exists (uses built-in system:auth-delegator ClusterRole)
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "data-science-prometheus-namespace-proxy-auth-delegator",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "system:auth-delegator"`),
+			jq.Match(`.subjects[0].name == "data-science-prometheus-namespace-proxy"`),
+		)),
+		WithCustomErrorMsg("ClusterRoleBinding should reference system:auth-delegator for authentication and authorization"),
+	)
+}
+
+// ValidateNodeMetricsEndpointDeployment tests that the node-metrics-endpoint is deployed when metrics are configured.
+func (tc *MonitoringTestCtx) ValidateNodeMetricsEndpointDeployment(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	// Ensure metrics are configured
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	// Wait for the Monitoring resource to be updated
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
+		WithCondition(And(
+			jq.Match(`.spec.metrics != null`),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionNodeMetricsEndpointAvailable, metav1.ConditionTrue),
+		)),
+		WithCustomErrorMsg("Monitoring resource should be updated with metrics configuration and NodeMetricsEndpoint should be available"),
+	)
+
+	// Verify the data-science-prometheus-cluster-proxy deployment is created
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.status.readyReplicas == 1`),
+			jq.Match(`.spec.template.spec.containers | length == 1`), // kube-rbac-proxy only
+			jq.Match(`.spec.template.spec.containers[0].name == "kube-rbac-proxy"`),
+		)),
+		WithCustomErrorMsg("data-science-prometheus-cluster-proxy deployment should be created and ready with kube-rbac-proxy"),
+	)
+
+	// Verify the service account exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ServiceAccount, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+	)
+
+	// Verify the service is created with proper annotations for TLS
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Service, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.ports[0].port == 8443`),
+			jq.Match(`.spec.ports[0].name == "https"`),
+			jq.Match(`.metadata.annotations."service.beta.openshift.io/serving-cert-secret-name" == "data-science-prometheus-cluster-proxy-tls"`),
+		)),
+	)
+
+	// Verify the route is created for external access
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Route, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.to.name == "data-science-prometheus-cluster-proxy"`),
+			jq.Match(`.spec.tls.termination == "reencrypt"`),
+			jq.Match(`.spec.tls.insecureEdgeTerminationPolicy == "Redirect"`),
+		)),
+	)
+}
+
+func (tc *MonitoringTestCtx) ValidateNodeMetricsEndpointRBACConfiguration(t *testing.T) {
+	t.Helper()
+
+	dsci := tc.FetchDSCInitialization()
+
+	tc.updateMonitoringConfig(
+		withManagementState(operatorv1.Managed),
+		tc.withMetricsConfig(),
+	)
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "data-science-prometheus-cluster-proxy",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "cluster-monitoring-view"`),
+			jq.Match(`.subjects[0].name == "data-science-prometheus-cluster-proxy"`),
+			jq.Match(`.subjects[0].namespace == "%s"`, dsci.Spec.Monitoring.Namespace),
+		)),
+		WithCustomErrorMsg("ClusterRoleBinding should use cluster-monitoring-view role for NodeMetrics access"),
+	)
+
+	// Verify the auth-delegator ClusterRoleBinding exists
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.ClusterRoleBinding, types.NamespacedName{
+			Name: "data-science-prometheus-cluster-proxy-auth-delegator",
+		}),
+		WithCondition(And(
+			jq.Match(`.roleRef.name == "system:auth-delegator"`),
+			jq.Match(`.subjects[0].name == "data-science-prometheus-cluster-proxy"`),
+			jq.Match(`.subjects[0].namespace == "%s"`, dsci.Spec.Monitoring.Namespace),
+		)),
+	)
+
+	// Verify the Secret for kube-rbac-proxy configuration exists with correct resourceAttributes
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Secret, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy-kube-rbac-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.data."config.yaml" | @base64d | contains("authorization")`),
+			jq.Match(`.data."config.yaml" | @base64d | contains("metrics.k8s.io")`),
+			jq.Match(`.data."config.yaml" | @base64d | contains("resource: nodes")`),
+		)),
+		WithCustomErrorMsg("kube-rbac-proxy config should enforce NodeMetrics access (metrics.k8s.io/nodes)"),
+	)
+
+	// Verify that the kube-rbac-proxy container has the correct upstream configuration
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream="))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream=https://prometheus-operated"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--secure-listen-address=0.0.0.0:8443"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--config-file=/etc/kube-rbac-proxy/config.yaml"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream-ca-file=/etc/prometheus-ca/service-ca.crt"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream-client-cert-file=/etc/prometheus-client/tls.crt"))) | length == 1`),
+			jq.Match(`.spec.template.spec.containers[0].args | map(select(contains("--upstream-client-key-file=/etc/prometheus-client/tls.key"))) | length == 1`),
+		)),
+		WithCustomErrorMsg("kube-rbac-proxy should be configured with correct upstream (HTTPS to prometheus-operated) and mTLS client certificates"),
+	)
+
+	// Verify that the deployment uses kube-rbac-proxy image
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.containers[0].name == "kube-rbac-proxy"`),
+			jq.Match(`.spec.template.spec.containers[0].image | contains("kube-rbac-proxy")`),
+		)),
+		WithCustomErrorMsg("data-science-prometheus-cluster-proxy deployment should contain kube-rbac-proxy container"),
+	)
+
+	// Verify the deployment has correct volume mounts for mTLS to Prometheus
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.Deployment, types.NamespacedName{
+			Name:      "data-science-prometheus-cluster-proxy",
+			Namespace: dsci.Spec.Monitoring.Namespace,
+		}),
+		WithCondition(And(
+			jq.Match(`.spec.template.spec.volumes[] | select(.name == "prometheus-ca") | .configMap.name == "prometheus-web-tls-ca"`),
+			jq.Match(`.spec.template.spec.volumes[] | select(.name == "prometheus-client-cert") | .secret.secretName == "prometheus-operated-tls"`),
+			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "prometheus-ca") | .mountPath == "/etc/prometheus-ca"`),
+			jq.Match(`.spec.template.spec.containers[0].volumeMounts[] | select(.name == "prometheus-client-cert") | .mountPath == "/etc/prometheus-client"`),
+		)),
+		WithCustomErrorMsg("deployment should have volumes and mounts for mTLS to Prometheus"),
+	)
 }

@@ -4,28 +4,64 @@ set -e
 GITHUB_URL="https://github.com"
 DST_MANIFESTS_DIR="./opt/manifests"
 
-# COMPONENT_MANIFESTS is a list of components repositories info to fetch the manifests
+# {ODH,RHOAI}_COMPONENT_MANIFESTS are lists of components repositories info to fetch the manifests
 # in the format of "repo-org:repo-name:ref-name:source-folder" and key is the target folder under manifests/
 # ref-name can be a branch name, tag name, or a commit SHA (7-40 hex characters)
-# Supports three ref-name formats:
+# ref-name supports:
 # 1. "branch" - tracks latest commit on branch (e.g., main)
 # 2. "tag" - immutable reference (e.g., v1.0.0)
 # 3. "branch@commit-sha" - tracks branch but pinned to specific commit (e.g., main@a1b2c3d4)
-declare -A COMPONENT_MANIFESTS=(
-    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.0:manifests"
-    ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.0:components/notebook-controller/config"
-    ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.0:components/odh-notebook-controller/config"
-    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.0:manifests"
-    ["kserve"]="red-hat-data-services:kserve:rhoai-3.0:config"
-    ["ray"]="red-hat-data-services:kuberay:rhoai-3.0:ray-operator/config"
-    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.0:config"
-    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.0:config"
-    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.0:manifests"
-    ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.0:config"
-    ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.0:config"
-    ["feastoperator"]="red-hat-data-services:feast:rhoai-3.0:infra/feast-operator/config"
-    ["llamastackoperator"]="red-hat-data-services:llama-stack-k8s-operator:rhoai-3.0:config"
+
+# ODH Component Manifests
+declare -A ODH_COMPONENT_MANIFESTS=(
+    ["dashboard"]="opendatahub-io:odh-dashboard:main@b525a68341edc17444d48209364e51b1a6db039e:manifests"
+    ["workbenches/kf-notebook-controller"]="opendatahub-io:kubeflow:main@d42be76134bf1f45b647cccd93d20b770d4285a2:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="opendatahub-io:kubeflow:main@d42be76134bf1f45b647cccd93d20b770d4285a2:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="opendatahub-io:notebooks:main@2709739bad8be73889b7fb430a967f3d2819e7de:manifests"
+    ["kserve"]="opendatahub-io:kserve:release-v0.15@48f02d7ab8094310eb3fd658055c28e1dd8537f9:config"
+    ["ray"]="opendatahub-io:kuberay:dev@aed5412f7fcf199bd2f0d1952e4953d78861188c:ray-operator/config"
+    ["trustyai"]="opendatahub-io:trustyai-service-operator:incubation@c0d153c22f3a2916fe52aa5819bb754937bae34a:config"
+    ["modelregistry"]="opendatahub-io:model-registry-operator:main@6180120a2410253de5701e78c73ca6d7c63f3ff1:config"
+    ["trainingoperator"]="opendatahub-io:training-operator:dev@8a5a483c3da1e631b5fdcb54a1e297b7cdfc77c4:manifests"
+    ["datasciencepipelines"]="opendatahub-io:data-science-pipelines-operator:main@bc6b06e9693cf168f1a576deb6f87a2b0329fd06:config"
+    ["modelcontroller"]="opendatahub-io:odh-model-controller:incubating@93a3c2b4111e7c2807c7be28681f5d5d3a5d0568:config"
+    ["feastoperator"]="opendatahub-io:feast:stable@94bc6204cbdbcbebfd004f64986f43397bfc0e65:infra/feast-operator/config"
+    ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@226e911cca9bf7efa1e632860613087b0bf14d74:config"
+    ["trainer"]="opendatahub-io:trainer:main@cf3112e978b2d9153750d0c0f422d92143b69464:manifests"
 )
+
+# RHOAI Component Manifests
+declare -A RHOAI_COMPONENT_MANIFESTS=(
+    ["dashboard"]="red-hat-data-services:odh-dashboard:rhoai-3.2:manifests"
+    ["workbenches/kf-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.2:components/notebook-controller/config"
+    ["workbenches/odh-notebook-controller"]="red-hat-data-services:kubeflow:rhoai-3.2:components/odh-notebook-controller/config"
+    ["workbenches/notebooks"]="red-hat-data-services:notebooks:rhoai-3.2:manifests"
+    ["kserve"]="red-hat-data-services:kserve:rhoai-3.2:config"
+    ["ray"]="red-hat-data-services:kuberay:rhoai-3.2:ray-operator/config"
+    ["trustyai"]="red-hat-data-services:trustyai-service-operator:rhoai-3.2:config"
+    ["modelregistry"]="red-hat-data-services:model-registry-operator:rhoai-3.2:config"
+    ["trainingoperator"]="red-hat-data-services:training-operator:rhoai-3.2:manifests"
+    ["datasciencepipelines"]="red-hat-data-services:data-science-pipelines-operator:rhoai-3.2:config"
+    ["modelcontroller"]="red-hat-data-services:odh-model-controller:rhoai-3.2:config"
+    ["feastoperator"]="red-hat-data-services:feast:rhoai-3.2:infra/feast-operator/config"
+    ["llamastackoperator"]="red-hat-data-services:llama-stack-k8s-operator:rhoai-3.2:config"
+    ["trainer"]="red-hat-data-services:trainer:rhoai-3.2:manifests"
+)
+
+# Select the appropriate manifest based on platform type
+if [ "${ODH_PLATFORM_TYPE:-OpenDataHub}" = "OpenDataHub" ]; then
+    echo "Cloning manifests for ODH"
+    declare -A COMPONENT_MANIFESTS=()
+    for key in "${!ODH_COMPONENT_MANIFESTS[@]}"; do
+        COMPONENT_MANIFESTS["$key"]="${ODH_COMPONENT_MANIFESTS[$key]}"
+    done
+else
+    echo "Cloning manifests for RHOAI"
+    declare -A COMPONENT_MANIFESTS=()
+    for key in "${!RHOAI_COMPONENT_MANIFESTS[@]}"; do
+        COMPONENT_MANIFESTS["$key"]="${RHOAI_COMPONENT_MANIFESTS[$key]}"
+    done
+fi
 
 # PLATFORM_MANIFESTS is a list of manifests that are contained in the operator repository. Please also add them to the
 # Dockerfile COPY instructions. Declaring them here causes this script to create a symlink in the manifests folder, so

@@ -26,9 +26,6 @@ const (
 
 	LegacyComponentNameUpstream   = "dashboard"
 	LegacyComponentNameDownstream = "rhods-dashboard"
-
-	// Dashboard path on the gateway.
-	dashboardPath = "/"
 )
 
 var (
@@ -73,13 +70,14 @@ func bffManifestsPath() odhtypes.ManifestInfo {
 }
 
 func computeKustomizeVariable(ctx context.Context, cli client.Client, platform common.Platform) (map[string]string, error) {
-	gatewayDomain, err := gateway.GetGatewayDomain(ctx, cli)
+	// Get the gateway domain directly from Gateway CR
+	consoleLinkDomain, err := gateway.GetGatewayDomain(ctx, cli)
 	if err != nil {
 		return nil, fmt.Errorf("error getting gateway domain: %w", err)
 	}
 
 	return map[string]string{
-		"dashboard-url": fmt.Sprintf("https://%s%s", gatewayDomain, dashboardPath),
+		"dashboard-url": fmt.Sprintf("https://%s/", consoleLinkDomain),
 		"section-title": sectionTitle[platform],
 	}, nil
 }

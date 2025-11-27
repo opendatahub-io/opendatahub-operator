@@ -6,7 +6,8 @@ on:
     branches:
       - main
     paths:
-      - 'bundle/**'
+      - 'odh-bundle/**'
+      - 'rhoai-bundle/**'
       - 'config/**'
       - 'Dockerfiles/**'
       - 'internal/**'
@@ -100,9 +101,9 @@ jobs:
           BUNDLE_IMG: ${{ env.IMAGE_TAG_BASE }}-bundle:v${{ env.VERSION_TAG }}
         run: |
           echo "version tag: ${{ env.VERSION_TAG }}"
-          make catalog-build 
+          make catalog-build
           make catalog-push
-      
+
       - name: Save the PR data for GitHub artifact upload
         run: |
           echo ${{ github.event.number }} > pr_info.txt

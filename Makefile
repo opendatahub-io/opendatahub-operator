@@ -1,34 +1,86 @@
-# VERSION defines the project version for the bundle.
-# Update this value when you upgrade the version of your project.
-# To re-generate a bundle for another specific version without changing the standard setup, you can:
-# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
-# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 3.2.0
 # IMAGE_TAG_BASE defines the opendatahub.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # opendatahub.io/opendatahub-operator-bundle:$VERSION and opendatahub.io/opendatahub-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= quay.io/opendatahub/opendatahub-operator
+ifeq ($(IMAGE_TAG_BASE), )
+	IMAGE_TAG_BASE = quay.io/opendatahub/opendatahub-operator
+endif
 
 # keep the name based on IMG which already used from command line
-IMG_TAG ?= latest
+ifeq ($(IMG_TAG), )
+	IMG_TAG = latest
+endif
 # Update IMG to a variable, to keep it consistent across versions for OpenShift CI
-IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
+ifeq ($(IMG), )
+	IMG ?= $(IMAGE_TAG_BASE):$(IMG_TAG)
+endif
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
+# default platform type
+ODH_PLATFORM_TYPE ?= OpenDataHub
+
+ifeq ($(ODH_PLATFORM_TYPE), OpenDataHub)
+	# VERSION defines the project version for the bundle.
+	# Update this value when you upgrade the version of your project.
+	# To re-generate a bundle for another specific version without changing the standard setup, you can:
+	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
+	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
+	ifeq ($(VERSION), )
+		VERSION = 3.2.0
+	endif
+	# Specifies the namespace where the operator pods are deployed (defaults to opendatahub-operator-system)
+	OPERATOR_NAMESPACE ?= opendatahub-operator-system
+	# Specifies the namespace where the component deployments are deployed (defaults to opendatahub)
+	APPLICATIONS_NAMESPACE ?= opendatahub
+	# Specifies the namespace where the workbenches are deployed (defaults to opendatahub)
+	WORKBENCHES_NAMESPACE ?= opendatahub
+	# Specifies the namespace where monitoring is deployed (defaults to opendatahub)
+	MONITORING_NAMESPACE ?= opendatahub
+	CHANNELS ?= fast
+	ROLE_NAME=controller-manager-role
+	BUNDLE_DIR ?= odh-bundle
+	DOCKERFILE_FILENAME=Dockerfile
+	BUNDLE_DOCKERFILE_FILENAME=bundle.Dockerfile
+	OPERATOR_PACKAGE=opendatahub-operator
+	CONTROLLER_GEN_TAGS=--load-build-tags=odh
+	CONFIG_DIR=config
+	GO_RUN_ARGS=-tags=odh
+else
+	# VERSION defines the project version for the bundle.
+	# Update this value when you upgrade the version of your project.
+	# To re-generate a bundle for another specific version without changing the standard setup, you can:
+	# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
+	# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
+	# NOTE: see also the git branches for RHOAI in get_all_manifests.sh. This variable does NOT affect those
+	ifeq ($(VERSION), )
+		VERSION = 3.2.0
+	endif
+	# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
+	OPERATOR_NAMESPACE ?= redhat-ods-operator
+	# Specifies the namespace where the component deployments are deployed (defaults to redhat-ods-applications)
+	APPLICATIONS_NAMESPACE ?= redhat-ods-applications
+	# Specifies the namespace where the workbenches are deployed (defaults to rhods-notebooks)
+	WORKBENCHES_NAMESPACE ?= rhods-notebooks
+	# Specifies the namespace where monitoring is deployed (defaults to redhat-ods-monitoring)
+	MONITORING_NAMESPACE ?= redhat-ods-monitoring
+	CHANNELS ?= alpha,stable,fast
+	DEFAULT_CHANNEL ?= stable
+	ROLE_NAME=rhods-operator-role
+	BUNDLE_DIR ?= rhoai-bundle
+	DOCKERFILE_FILENAME=rhoai.Dockerfile
+	BUNDLE_DOCKERFILE_FILENAME=rhoai-bundle.Dockerfile
+	OPERATOR_PACKAGE=rhods-operator
+	CONTROLLER_GEN_TAGS=--load-build-tags=rhoai
+	CONFIG_DIR=config/rhoai
+	GO_RUN_ARGS=-tags=rhoai
+endif
+
 IMAGE_BUILDER ?= podman
-# Specifies the namespace where the operator pods are deployed (defaults to redhat-ods-operator)
-OPERATOR_NAMESPACE ?= redhat-ods-operator
-# Specifies the namespace where the component deployments are deployed (defaults to redhat-ods-applications)
-APPLICATIONS_NAMESPACE ?= redhat-ods-applications
-# Specifies the namespace where the workbenches are deployed (defaults to rhods-notebooks)
-WORKBENCHES_NAMESPACE ?= rhods-notebooks
 DEFAULT_MANIFESTS_PATH ?= opt/manifests
 CGO_ENABLED ?= 1
-CHANNELS="alpha,stable,fast"
 USE_LOCAL = false
 
 # CHANNELS define the bundle channels used in the bundle.
@@ -40,7 +92,6 @@ ifneq ($(origin CHANNELS), undefined)
 BUNDLE_CHANNELS := --channels=$(CHANNELS)
 endif
 
-DEFAULT_CHANNEL="stable"
 # DEFAULT_CHANNEL defines the default channel used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g DEFAULT_CHANNEL = "stable")
 # To re-generate a bundle for any other default channel without changing the default setup, you can:
@@ -129,7 +180,6 @@ ALERT_SEVERITY = critical
 OPERATOR_MAKE_ENV_FILE = local.mk
 -include $(OPERATOR_MAKE_ENV_FILE)
 
-
 .PHONY: default
 default: manifests generate lint unit-test build
 
@@ -158,17 +208,43 @@ endef
 
 # Using controller-gen to fetch external CRDs and put them in config/crd/external folder
 # They're used in tests, as they have to be created for controller to work
+# Usage: $(call fetch-external-crds,module,path[,kinds])
+#   module: Go module path (e.g., github.com/openshift/api)
+#   path: Path within module (e.g., config/v1)
+#   kinds: Optional space-separated list of specific kinds to fetch (e.g., authentication authorization)
+#          If not provided, fetches all CRDs from the path
+# Example: $(call fetch-external-crds,github.com/openshift/api,config/v1,authentication oauth)
 define fetch-external-crds
+mkdir -p $(CONFIG_DIR)/crd/external/tmp
 GOFLAGS="-mod=readonly" $(CONTROLLER_GEN) crd \
 paths=$(shell go env GOPATH)/pkg/mod/$(1)@$(call go-mod-version,$(1))/$(2)/... \
-output:crd:artifacts:config=config/crd/external
+output:crd:artifacts:config=$(CONFIG_DIR)/crd/external/tmp
+$(if $(3),$(foreach kind,$(3),find $(CONFIG_DIR)/crd/external/tmp -type f -name '*_$(kind).yaml' -exec mv {} $(CONFIG_DIR)/crd/external/ \;;))
+$(if $(3),,mv $(CONFIG_DIR)/crd/external/tmp/*.yaml $(CONFIG_DIR)/crd/external/)
+rm -rf $(CONFIG_DIR)/crd/external/tmp
+endef
+
+# Add all CRD base files to kustomization.yaml, skipping kustomization.yaml itself
+# and avoiding duplicates by checking if each resource is already present
+define add-crd-to-kustomization
+mkdir -p $(CONFIG_DIR)/crd/bases && \
+cd $(CONFIG_DIR)/crd/bases && \
+rm -f kustomization.yaml && \
+$(KUSTOMIZE) create --autodetect && \
+cd -
 endef
 
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=rhods-operator-role crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=config/crd/bases
-	$(call fetch-external-crds,github.com/openshift/api,route/v1)
-	$(call fetch-external-crds,github.com/openshift/api,user/v1)
+manifests: controller-gen kustomize ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+ifneq ($(ODH_PLATFORM_TYPE), OpenDataHub)
+	$(CONTROLLER_GEN) rbac:roleName=controller-manager-role paths="./..." output:rbac:artifacts:config=config/rbac
+endif
+	$(CONTROLLER_GEN) $(CONTROLLER_GEN_TAGS) rbac:roleName=$(ROLE_NAME) crd:ignoreUnexportedFields=true webhook paths="./..." output:crd:artifacts:config=$(CONFIG_DIR)/crd/bases output:rbac:artifacts:config=$(CONFIG_DIR)/rbac output:webhook:artifacts:config=$(CONFIG_DIR)/webhook
+	@$(call add-crd-to-kustomization)
+	@$(call fetch-external-crds,github.com/openshift/api,route/v1)
+	@$(call fetch-external-crds,github.com/openshift/api,user/v1)
+	@$(call fetch-external-crds,github.com/openshift/api,config/v1,authentications)
+CLEANFILES += config/crd/bases config/rhoai/crd/bases config/crd/external config/rhoai/crd/external config/rbac/role.yaml config/rhoai/rbac/role.yaml config/webhook/manifests.yaml config/rhoai/webhook/manifests.yaml
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -198,13 +274,13 @@ lint-fix: golangci-lint ## Run golangci-lint against code.
 .PHONY: kube-lint
 kube-lint: prepare ## Run kube-linter against rendered manifests.
 	@TMP_FILE=$$(mktemp /tmp/kube-lint.XXXXXX.yaml) && \
-	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/manifests > $$TMP_FILE && \
+	$(KUSTOMIZE) build $(CONFIG_DIR)/manifests > $$TMP_FILE && \
 	go run golang.stackrox.io/kube-linter/cmd/kube-linter@$(KUBE_LINTER_VERSION) lint --config .kube-linter.yaml $$TMP_FILE && \
 	rm -f $$TMP_FILE
 
 .PHONY: get-manifests
 get-manifests: ## Fetch components manifests from remote git repo
-	./get_all_manifests.sh
+	ODH_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE) VERSION=$(VERSION) ./get_all_manifests.sh
 CLEANFILES += opt/manifests/*
 
 # Default to standard sed command
@@ -219,7 +295,7 @@ ifeq ($(shell uname -s),Darwin)
     SED_COMMAND = gsed
 endif
 .PHONY: api-docs
-api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs
+api-docs: crd-ref-docs ## Creates API docs using https://github.com/elastic/crd-ref-docs, render managementstate with marker
 	$(CRD_REF_DOCS) --source-path ./ --output-path ./docs/api-overview.md --renderer markdown --config ./crd-ref-docs.config.yaml && \
 	grep -Ev '\.io/[^v][^1].*)$$' ./docs/api-overview.md > temp.md && mv ./temp.md ./docs/api-overview.md && \
 	$(SED_COMMAND) -i "s|](#managementstate)|](https://pkg.go.dev/github.com/openshift/api@v0.0.0-20250812222054-88b2b21555f3/operator/v1#ManagementState)|g" ./docs/api-overview.md
@@ -250,7 +326,7 @@ run-nowebhook: manifests generate fmt vet ## Run a controller from your host wit
 
 .PHONY: image-build
 image-build: # unit-test ## Build image with the manager.
-	$(IMAGE_BUILDER) buildx build --no-cache -f Dockerfiles/Dockerfile ${IMAGE_BUILD_FLAGS} -t $(IMG) .
+	$(IMAGE_BUILDER) buildx build --no-cache -f Dockerfiles/$(DOCKERFILE_FILENAME) ${IMAGE_BUILD_FLAGS} -t $(IMG) .
 
 .PHONY: image-push
 image-push: ## Push image with the manager.
@@ -266,30 +342,30 @@ ifndef ignore-not-found
 endif
 
 .PHONY: prepare
-prepare: manifests kustomize manager-kustomization
+prepare: kustomize manifests manager-kustomization
 
 # phony target for the case of changing IMG variable
 .PHONY: manager-kustomization
-manager-kustomization: config/manager/kustomization.yaml.in
-	cd config/manager \
+manager-kustomization: $(CONFIG_DIR)/manager/kustomization.yaml.in
+	cd $(CONFIG_DIR)/manager \
 		&& cp -f kustomization.yaml.in kustomization.yaml \
-		&& $(KUSTOMIZE) edit set image controller=$(IMG)
+		&& $(KUSTOMIZE) edit set image REPLACE_IMAGE=$(IMG)
 
 .PHONY: install
 install: prepare ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/crd/bases | kubectl apply -f -
 
 .PHONY: uninstall
 uninstall: prepare ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/crd | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/crd/bases | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
 deploy: prepare ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl apply --namespace $(OPERATOR_NAMESPACE) -f -
 
 .PHONY: undeploy
 undeploy: prepare ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build $(CONFIG_DIR)/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
@@ -321,13 +397,10 @@ $(OPERATOR_SDK): $(LOCALBIN)
 	test -s $(OPERATOR_SDK) || curl -sSLo $(OPERATOR_SDK) $(OPERATOR_SDK_DL_URL)/operator-sdk_$${OS}_$${ARCH} && \
 	chmod +x $(OPERATOR_SDK) ;\
 
-
-GOLANGCI_LINT_INSTALL_SCRIPT ?= 'https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh'
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
-
 
 OS=$(shell uname -s)
 ARCH=$(shell uname -m)
@@ -346,19 +419,29 @@ new-component: $(LOCALBIN)/component-codegen
 $(LOCALBIN)/component-codegen: | $(LOCALBIN)
 	cd ./cmd/component-codegen && go mod tidy && go build -o $@
 
-# TODO: change kustomize layout to remove --load-restrictor LoadRestrictionsNone option in each kustomize invocation in this makefile
-BUNDLE_DIR ?= "bundle"
 WARNINGMSG = "provided API should have an example annotation"
 .PHONY: bundle
 bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
-	$(OPERATOR_SDK) generate kustomize manifests -q
-	$(KUSTOMIZE) build --load-restrictor LoadRestrictionsNone config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) 2>&1 | grep -v $(WARNINGMSG)
+	$(OPERATOR_SDK) generate kustomize manifests --package $(OPERATOR_PACKAGE) --input-dir $(CONFIG_DIR)/manifests --output-dir $(CONFIG_DIR)/manifests -q
+	$(KUSTOMIZE) build $(CONFIG_DIR)/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) --package $(OPERATOR_PACKAGE) --kustomize-dir $(CONFIG_DIR)/manifests --output-dir $(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
-	mv bundle.Dockerfile Dockerfiles/
-	rm -f bundle/manifests/rhods-operator-webhook-service_v1_service.yaml
+	$(SED_COMMAND) -i 's#COPY #COPY --from=builder /workspace/#' bundle.Dockerfile
+	cat Dockerfiles/build-bundle.Dockerfile bundle.Dockerfile > Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME)
+	rm bundle.Dockerfile
+	rm -f $(BUNDLE_DIR)/manifests/opendatahub-operator-webhook-service_v1_service.yaml
+	rm -f $(BUNDLE_DIR)/manifests/rhods-operator-webhook-service_v1_service.yaml
+CLEANFILES += rhoai-bundle odh-bundle
+
+# The bundle image is multi-stage to preserve the ability to build without invoking make
+# We use build args to ensure the variables are passed to the underlying internal make invocation
 .PHONY: bundle-build
 bundle-build: bundle
-	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/bundle.Dockerfile -t $(BUNDLE_IMG) .
+	$(IMAGE_BUILDER) build --no-cache -f Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME) --platform $(PLATFORM) -t $(BUNDLE_IMG) \
+	--build-arg BUNDLE_IMG=$(BUNDLE_IMG) \
+	--build-arg IMAGE_TAG_BASE=$(IMAGE_TAG_BASE) \
+	--build-arg IMG_TAG=$(IMG_TAG) \
+	--build-arg OPERATOR_VERSION=$(VERSION) \
+	.
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
@@ -381,7 +464,7 @@ ifeq (,$(shell command -v opm 2>/dev/null))
 	set -e ;\
 	mkdir -p $(dir $(OPM)) ;\
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.23.0/$${OS}-$${ARCH}-opm ;\
+	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.55.0/$${OS}-$${ARCH}-opm ;\
 	chmod +x $(OPM) ;\
 	}
 else
@@ -401,12 +484,28 @@ ifneq ($(origin CATALOG_BASE_IMG), undefined)
 FROM_INDEX_OPT := --from-index $(CATALOG_BASE_IMG)
 endif
 
-# Build a catalog image by adding bundle images to an empty catalog using the operator package manager tool, 'opm'.
-# This recipe invokes 'opm' in 'semver' bundle add mode. For more information on add modes, see:
-# https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
+.PHONY: catalog-clean
+catalog-clean: ## Clean up catalog files and Dockerfile
+	rm -rf catalog
+
+.PHONY: catalog-prepare
+catalog-prepare: catalog-clean opm yq ## Prepare the catalog by adding bundles to fast channel. It requires BUNDLE_IMG exists before running the target"
+	mkdir -p catalog
+	cp config/catalog/fbc-basic-template.yaml catalog/fbc-basic-template.yaml
+	./hack/update-catalog-template.sh catalog/fbc-basic-template.yaml $(BUNDLE_IMGS)
+	$(OPM) alpha render-template basic \
+		--migrate-level=bundle-object-to-csv-metadata \
+		-o yaml \
+		catalog/fbc-basic-template.yaml > catalog/catalog.yaml
+	$(OPM) validate catalog
+	rm -f catalog/fbc-basic-template.yaml
+
+# Build a catalog image using the operator package manager tool 'opm'.
+# This recipe uses 'opm alpha render-template basic' to generate a catalog from a template.
+# The template defines bundle images and channel relationships in a declarative way.
 .PHONY: catalog-build
-catalog-build: opm ## Build a catalog image.
-	$(OPM) index add --container-tool $(IMAGE_BUILDER) --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+catalog-build: catalog-prepare
+	$(IMAGE_BUILDER) build --no-cache --load -f Dockerfiles/catalog.Dockerfile --platform $(PLATFORM) -t $(CATALOG_IMG) .
 
 # Push the catalog image.
 .PHONY: catalog-push
@@ -439,6 +538,10 @@ test: unit-test e2e-test
 
 .PHONY: unit-test
 unit-test: envtest ginkgo # directly use ginkgo since the framework is not compatible with go test parallel
+	@if [ ! -d "$(CONFIG_DIR)/crd/bases" ]; then \
+		echo "Error: $(CONFIG_DIR)/crd/bases folder does not exist. Please run 'make manifests' first."; \
+		exit 1; \
+	fi
 	OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
     	${GINKGO} -r \
         		--procs=8 \
@@ -517,6 +620,10 @@ endif
 ifndef E2E_TEST_WORKBENCHES_NAMESPACE
 export E2E_TEST_WORKBENCHES_NAMESPACE = $(WORKBENCHES_NAMESPACE)
 endif
+# Specifies the namespace where monitoring is deployed
+ifndef E2E_TEST_DSC_MONITORING_NAMESPACE
+export E2E_TEST_DSC_MONITORING_NAMESPACE = $(MONITORING_NAMESPACE)
+endif
 ifdef ARTIFACT_DIR
 export JUNIT_OUTPUT_PATH = ${ARTIFACT_DIR}/junit_report.xml
 endif
@@ -529,7 +636,7 @@ unit-test-cli:
 .PHONY: clean
 clean: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) cache clean
-	chmod u+w -R $(LOCALBIN) # envtest makes its dir RO
+	chmod -R u+w $(LOCALBIN) # envtest makes its dir RO
 	rm -rf $(CLEANFILES)
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist

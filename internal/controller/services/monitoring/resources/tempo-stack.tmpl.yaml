@@ -4,6 +4,14 @@ metadata:
   name: data-science-tempostack
   namespace: {{.Namespace}}
 spec:
+  resources:
+    total:
+      limits:
+        cpu: {{.TempoCPULimit}}
+        memory: {{.TempoMemoryLimit}}
+      requests:
+        cpu: {{.TempoCPURequest}}
+        memory: {{.TempoMemoryRequest}}
   tenants:
     mode: openshift
   retention:

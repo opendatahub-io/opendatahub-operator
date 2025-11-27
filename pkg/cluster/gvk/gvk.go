@@ -2,6 +2,7 @@ package gvk
 
 import (
 	configv1 "github.com/openshift/api/config/v1"
+	oauthv1 "github.com/openshift/api/oauth/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
@@ -113,6 +114,12 @@ var (
 		Group:   appsv1.SchemeGroupVersion.Group,
 		Version: appsv1.SchemeGroupVersion.Version,
 		Kind:    "Deployment",
+	}
+
+	StatefulSet = schema.GroupVersionKind{
+		Group:   appsv1.SchemeGroupVersion.Group,
+		Version: appsv1.SchemeGroupVersion.Version,
+		Kind:    "StatefulSet",
 	}
 
 	ResourceQuota = schema.GroupVersionKind{
@@ -301,6 +308,12 @@ var (
 		Kind:    componentApi.TrainingOperatorKind,
 	}
 
+	Trainer = schema.GroupVersionKind{
+		Group:   componentApi.GroupVersion.Group,
+		Version: componentApi.GroupVersion.Version,
+		Kind:    componentApi.TrainerKind,
+	}
+
 	Monitoring = schema.GroupVersionKind{
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,
@@ -325,16 +338,28 @@ var (
 		Kind:    "Lease",
 	}
 
+	DestinationRule = schema.GroupVersionKind{
+		Group:   "networking.istio.io",
+		Version: "v1",
+		Kind:    "DestinationRule",
+	}
+
 	EnvoyFilter = schema.GroupVersionKind{
 		Group:   "networking.istio.io",
 		Version: "v1alpha3",
 		Kind:    "EnvoyFilter",
 	}
 
-	DestinationRule = schema.GroupVersionKind{
-		Group:   "networking.istio.io",
+	AuthorizationPolicy = schema.GroupVersionKind{
+		Group:   "security.istio.io",
 		Version: "v1",
-		Kind:    "DestinationRule",
+		Kind:    "AuthorizationPolicy",
+	}
+
+	AuthorizationPolicyv1beta1 = schema.GroupVersionKind{
+		Group:   "security.istio.io",
+		Version: "v1beta1",
+		Kind:    "AuthorizationPolicy",
 	}
 
 	GatewayConfig = schema.GroupVersionKind{
@@ -355,12 +380,6 @@ var (
 		Kind:    "Gateway",
 	}
 
-	Auth = schema.GroupVersionKind{
-		Group:   serviceApi.GroupVersion.Group,
-		Version: serviceApi.GroupVersion.Version,
-		Kind:    serviceApi.AuthKind,
-	}
-
 	HTTPRoute = schema.GroupVersionKind{
 		Group:   gwapiv1.GroupVersion.Group,
 		Version: gwapiv1.GroupVersion.Version,
@@ -368,9 +387,15 @@ var (
 	}
 
 	OAuthClient = schema.GroupVersionKind{
-		Group:   "oauth.openshift.io",
-		Version: "v1",
+		Group:   oauthv1.GroupVersion.Group,
+		Version: oauthv1.GroupVersion.Version,
 		Kind:    "OAuthClient",
+	}
+
+	Auth = schema.GroupVersionKind{
+		Group:   serviceApi.GroupVersion.Group,
+		Version: serviceApi.GroupVersion.Version,
+		Kind:    serviceApi.AuthKind,
 	}
 
 	MultiKueueConfigV1Alpha1 = schema.GroupVersionKind{
@@ -475,6 +500,12 @@ var (
 		Kind:    "PyTorchJob",
 	}
 
+	ClusterTrainingRuntime = schema.GroupVersionKind{
+		Group:   "trainer.kubeflow.org",
+		Version: "v1alpha1",
+		Kind:    "ClusterTrainingRuntime",
+	}
+
 	RayJobV1Alpha1 = schema.GroupVersionKind{
 		Group:   "ray.io",
 		Version: "v1alpha1",
@@ -535,6 +566,12 @@ var (
 		Kind:    "PrometheusRule",
 	}
 
+	Perses = schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha1",
+		Kind:    "Perses",
+	}
+
 	ServiceMesh = schema.GroupVersionKind{
 		Group:   serviceApi.GroupVersion.Group,
 		Version: serviceApi.GroupVersion.Version,
@@ -545,6 +582,18 @@ var (
 		Group:   "monitoring.rhobs",
 		Version: "v1alpha1",
 		Kind:    "ThanosQuerier",
+	}
+
+	PersesDatasource = schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha1",
+		Kind:    "PersesDatasource",
+	}
+
+	PersesDashboard = schema.GroupVersionKind{
+		Group:   "perses.dev",
+		Version: "v1alpha1",
+		Kind:    "PersesDashboard",
 	}
 
 	ValidatingAdmissionPolicy = schema.GroupVersionKind{

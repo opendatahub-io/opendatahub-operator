@@ -1,0 +1,69 @@
+name: Build and push E2E Test Image
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  E2E_IMAGE_TAG_BASE: quay.io/${{ secrets.QUAY_ORG }}/opendatahub-operator-e2e
+
+jobs:
+  build-push-e2e-image:
+    name: Build and push E2E test image
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_BUILDER: podman
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Quay.io login
+        uses: redhat-actions/podman-login@v1
+        env:
+          QUAY_ID: ${{ secrets.QUAY_ID }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+        with:
+          registry: quay.io
+          username: ${{ env.QUAY_ID }}
+          password: ${{ env.QUAY_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Retrieve branch name
+        id: branch-name
+        uses: tj-actions/branch-names@5250492686b253f06fa55861556d1027b067aeb5
+
+      - name: Generate image tags
+        id: image-tag
+        run: |
+          # tag based on shortened commit SHA
+          COMMIT_SHA=$(echo ${{ github.sha }} | cut -c1-8)
+          BRANCH_NAME=$(echo ${{ steps.branch-name.outputs.current_branch }})
+          echo "E2E_IMAGE_TAG="${BRANCH_NAME} >> $GITHUB_OUTPUT
+          echo "E2E_IMAGE_TAG_COMMIT=${BRANCH_NAME}-${COMMIT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Build and push E2E test image
+        env:
+          E2E_IMAGE: ${{ env.E2E_IMAGE_TAG_BASE }}:${{ steps.image-tag.outputs.E2E_IMAGE_TAG }}
+          E2E_IMAGE_COMMIT: ${{ env.E2E_IMAGE_TAG_BASE }}:${{ steps.image-tag.outputs.E2E_IMAGE_TAG_COMMIT }}
+        run: |
+          echo "Building E2E test image: ${E2E_IMAGE}"
+          podman build \
+            --platform linux/amd64 \
+            -f Dockerfiles/e2e-tests/e2e-tests.Dockerfile \
+            -t "${E2E_IMAGE}" -t "${E2E_IMAGE_COMMIT}" \
+            .
+          
+          echo "Pushing E2E test image: ${E2E_IMAGE}"
+          podman push "${E2E_IMAGE}"
+          
+          echo "Pushing E2E test image: ${E2E_IMAGE_COMMIT}"
+          podman push "${E2E_IMAGE_COMMIT}"
+          
+          echo "E2E test image built and pushed successfully!"

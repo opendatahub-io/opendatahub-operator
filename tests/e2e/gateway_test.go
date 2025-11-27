@@ -40,7 +40,7 @@ const (
 // Gateway infrastructure and OAuth proxy configuration constants.
 // These match the values defined in internal/controller/services/gateway package.
 const (
-	gatewayConfigName        = serviceApi.GatewayInstanceName
+	gatewayConfigName        = serviceApi.GatewayConfigName
 	gatewayName              = gateway.DefaultGatewayName
 	gatewayClassName         = gateway.GatewayClassName
 	gatewayNamespace         = gateway.GatewayNamespace
@@ -79,6 +79,7 @@ func gatewayTestSuite(t *testing.T) {
 		{"Validate Gateway infrastructure", gatewayCtx.ValidateGatewayInfrastructure},
 		{"Validate OAuth client and secret creation", gatewayCtx.ValidateOAuthClientAndSecret},
 		{"Validate authentication proxy deployment", gatewayCtx.ValidateAuthProxyDeployment},
+		{"Validate NetworkPolicy creation", gatewayCtx.ValidateNetworkPolicy},
 		{"Validate OAuth callback HTTPRoute", gatewayCtx.ValidateOAuthCallbackRoute},
 		{"Validate EnvoyFilter creation", gatewayCtx.ValidateEnvoyFilter},
 		{"Validate Gateway ready status", gatewayCtx.ValidateGatewayReadyStatus},
@@ -513,7 +514,7 @@ func (tc *GatewayTestCtx) waitForDashboardHTTPRoute(t *testing.T) {
 	t.Helper()
 
 	dashboardNamespace := tc.AppsNamespace
-	dashboardRouteName := "rhods-dashboard"
+	dashboardRouteName := getDashboardRouteNameByPlatform(tc.FetchPlatformRelease())
 
 	t.Log("Waiting for dashboard HTTPRoute to be accepted by Gateway")
 	tc.EnsureResourceExists(
@@ -622,4 +623,44 @@ func (tc *GatewayTestCtx) getExpectedGatewayHostname(t *testing.T) string {
 // Format: <service-name>.<namespace>.svc.cluster.local.
 func getServiceFQDN(serviceName, namespace string) string {
 	return fmt.Sprintf("%s.%s.svc.cluster.local", serviceName, namespace)
+}
+
+// ValidateNetworkPolicy validates the NetworkPolicy resource for kube-auth-proxy.
+func (tc *GatewayTestCtx) ValidateNetworkPolicy(t *testing.T) {
+	t.Helper()
+	t.Log("Validating NetworkPolicy for kube-auth-proxy")
+
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.NetworkPolicy, types.NamespacedName{
+			Name:      kubeAuthProxyName,
+			Namespace: gatewayNamespace,
+		}),
+		WithCondition(And(
+			// Verify pod selector matches kube-auth-proxy with specific labels
+			jq.Match(`.spec.podSelector.matchLabels.app == "%s"`, kubeAuthProxyName),
+
+			// Verify ingress policy is enabled
+			jq.Match(`.spec.policyTypes | any(. == "Ingress")`),
+
+			// Verify ingress rules exist
+			jq.Match(`.spec.ingress | length >= 1`),
+
+			// Verify ingress rule allows traffic from Gateway pods
+			jq.Match(`.spec.ingress[0].from[0].podSelector.matchLabels."gateway.networking.k8s.io/gateway-name" == "%s"`, gatewayName),
+			jq.Match(`.spec.ingress[0].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "%s"`, gatewayNamespace),
+
+			// Verify ingress ports using constants
+			jq.Match(`.spec.ingress[0].ports[0].port == %d`, kubeAuthProxyHTTPSPort),
+			jq.Match(`.spec.ingress[0].ports[0].protocol == "%s"`, string(corev1.ProtocolTCP)),
+
+			// Verify monitoring ingress rule exists
+			jq.Match(`.spec.ingress | length == 3`),
+			// And validate the monitoring rules are present
+			jq.Match(`.spec.ingress[1].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-monitoring"`),
+			jq.Match(`.spec.ingress[2].from[0].namespaceSelector.matchLabels."kubernetes.io/metadata.name" == "openshift-user-workload-monitoring"`),
+		)),
+		WithCustomErrorMsg("NetworkPolicy should exist with correct ingress rules for kube-auth-proxy"),
+	)
+
+	t.Log("NetworkPolicy validation completed")
 }

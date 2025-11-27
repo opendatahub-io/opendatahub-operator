@@ -1,0 +1,46 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .NetworkPolicyName }}
+  namespace: {{ .NetworkPolicyNamespace }}
+  labels:
+    app: {{ .NetworkPolicyName }}
+    app.kubernetes.io/component: authentication
+    app.kubernetes.io/managed-by: opendatahub-operator
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .NetworkPolicyName }}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow traffic from gateway/envoy pods for authentication
+    - from:
+        - podSelector:
+            matchLabels:
+              gateway.networking.k8s.io/gateway-name: {{ .GatewayName }}
+          namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .NetworkPolicyNamespace }}
+      ports:
+        - protocol: TCP
+          port: {{ .HTTPSPort }}
+    
+    # Allow metrics collection from OpenShift monitoring (port {{ .MetricsPort }})
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-monitoring
+      ports:
+        - protocol: TCP
+          port: {{ .MetricsPort }}
+    
+    # Allow metrics collection from user workload monitoring (port {{ .MetricsPort }})
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-user-workload-monitoring
+      ports:
+        - protocol: TCP
+          port: {{ .MetricsPort }}

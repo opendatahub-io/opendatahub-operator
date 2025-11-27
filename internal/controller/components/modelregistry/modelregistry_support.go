@@ -14,9 +14,8 @@ const (
 
 	ReadyConditionType = componentApi.ModelRegistryKind + status.ReadySuffix
 
-	DefaultModelRegistriesNamespace = "rhoai-model-registries"
-	DefaultModelRegistryCert        = "default-modelregistry-cert"
-	BaseManifestsSourcePath         = "overlays/odh"
+	DefaultModelRegistryCert = "default-modelregistry-cert"
+	BaseManifestsSourcePath  = "overlays/odh"
 	// LegacyComponentName is the name of the component that is assigned to deployments
 	// via Kustomize. Since a deployment selector is immutable, we can't upgrade existing
 	// deployment to the new component name, so keep it around till we figure out a solution.

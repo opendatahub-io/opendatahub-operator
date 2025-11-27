@@ -218,7 +218,7 @@ func (s *componentHandler) GetManagementState(dsc *dscv1.DataScienceCluster) ope
 
 func (s *componentHandler) NewCRObject(dsc *dscv1.DataScienceCluster) common.PlatformObject
 
-func (s *componentHandler) Init(platform cluster.Platform) error 
+func (s *componentHandler) Init(platform common.Platform) error 
 
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error)
 ```
@@ -310,8 +310,7 @@ the e2e test suite to capture deployments introduced by the new component.
 Existing e2e test suites for the integrated components can be also found there.
 
 Lastly, please update the following files to fully integrate new component tests into the overall test suite:
-- update `setupDSCInstance()` function in `tests/e2e/helper_test.go` to set new component in DSC
-- update `newDSC()` function in `/internal/webhook/webhook_suite_test.go` to update creation of DSC include the new component
+- update `CreateDSC()` function in `tests/e2e/helper_test.go` to set new component in DSC
 - update `componentsTestSuites` map in `tests/e2e/controller_test.go` to include the reference for the new component e2e test suite
 
 ### 4. Update Prometheus config and tests
@@ -319,6 +318,16 @@ Lastly, please update the following files to fully integrate new component tests
 If the component is planned to be released for downstream, Prometheus rules and promtest need to be updated for the component.
 - Rules are located in `./internal/controller/components/<component>/monitoring/<component>-prometheusrules.tmpl.yaml` file
 - Tests are grouped in `tests/prometheus_unit_tests` <component>_unit_tests.yam file
+
+
+### 5. Update CRD Kustomization reference
+
+Add new component CRD reference in `./config/crd/kustomization.yaml` file.
+
+
+### 6. Update list of owned/watched types by DataScienceCluster reconciler
+
+Adjust function `NewDataScienceClusterReconciler` in `./internal/controller/datasciencecluster/datasciencecluster_controller.go` to add component CR to be owned by DataScienceCluster .
 
 
 ## Integrated components
@@ -332,6 +341,7 @@ Currently integrated components are:
 - [ModelRegistry](https://github.com/opendatahub-io/model-registry)
 - [Ray](https://github.com/opendatahub-io/kuberay)
 - [Training Operator](https://github.com/opendatahub-io/training-operator)
+- [Trainer](https://github.com/opendatahub-io/trainer)
 - [TrustyAI](https://github.com/opendatahub-io/trustyai-service-operator)
 - [Workbenches](https://github.com/opendatahub-io/notebooks)
 - [Feast Operator](https://github.com/opendatahub-io/feast)

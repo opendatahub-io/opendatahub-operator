@@ -5,6 +5,13 @@ on:
       - rhoai
       - main
   pull_request:
+      paths:
+      - 'internal/**'
+      - 'pkg/**'
+      - 'cmd/main.go'
+      - 'api/**'
+      - 'config/**'
+
 jobs:
   unit-test:
     name: Run tests and collect coverage on internal and pkg
@@ -21,9 +28,11 @@ jobs:
       - name: Run Unit Tests
         env:
           TEST_SRC: ./internal/... ./pkg/...
-        run: make unit-test
+        run: |
+          make manifests
+          make unit-test
 
       - name: Upload results to Codecov
-        uses: codecov/codecov-action@v5.4.3
+        uses: codecov/codecov-action@v5.5.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
