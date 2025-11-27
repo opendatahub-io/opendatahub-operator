@@ -10,16 +10,17 @@ spec:
       managementState: "Managed"
     aipipelines:
       managementState: "Managed"
-    kserve: {
-      managementState: "Managed",
-      nim: {
+    kserve:
+      managementState: "Managed"
+      nim:
         managementState: "Managed"
-      }
-    }
+      rawDeploymentServiceConfig: "Headed"
     kueue:
       managementState: "Removed"
     trainingoperator:
       managementState: "Managed"
+    trainer:
+      managementState: "Removed"
     ray:
       managementState: "Managed"
     workbenches:
@@ -28,8 +29,8 @@ spec:
       managementState: "Managed"
     modelregistry:
       managementState: "Managed"
-      registriesNamespace: "rhoai-model-registries"
+      registriesNamespace: "odh-model-registries"
     feastoperator:
-      managementState: "Removed"
+      managementState: "Managed"
     llamastackoperator:
       managementState: "Removed"

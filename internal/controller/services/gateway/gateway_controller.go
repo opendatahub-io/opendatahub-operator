@@ -55,10 +55,11 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 
 	// Add Kubernetes native resources for auth proxy
 	reconcilerBuilder = reconcilerBuilder.
-		OwnsGVK(gvk.Deployment). // Auth proxy deployment
-		OwnsGVK(gvk.Service).    // Auth proxy service
-		OwnsGVK(gvk.Secret).     // Auth proxy credentials
-		OwnsGVK(gvk.HTTPRoute)   // OAuth callback route only
+		OwnsGVK(gvk.Deployment).    // Auth proxy deployment
+		OwnsGVK(gvk.Service).       // Auth proxy service
+		OwnsGVK(gvk.Secret).        // Auth proxy credentials
+		OwnsGVK(gvk.NetworkPolicy). // Auth proxy network policy
+		OwnsGVK(gvk.HTTPRoute)      // OAuth callback route only
 
 	// Only watch OAuthClient if cluster uses IntegratedOAuth (not OIDC or None)
 	// This prevents errors in ROSA environments where OAuthClient CRD doesn't exist
@@ -70,7 +71,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	reconcilerBuilder = reconcilerBuilder.
 		Watches(
 			&dsciv2.DSCInitialization{},
-			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayInstanceName)),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(predicate.GenerationChangedPredicate{}),
 		)
 
@@ -79,7 +80,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	reconcilerBuilder = reconcilerBuilder.
 		Watches(
 			&corev1.Secret{},
-			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayInstanceName)),
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(
 				predicate.Funcs{
 					CreateFunc: func(e event.CreateEvent) bool {
@@ -97,11 +98,13 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 
 	// Configure action chain for resource lifecycle
 	reconcilerBuilder = reconcilerBuilder.
-		WithAction(createGatewayInfrastructure).          // Core gateway setup
-		WithAction(createKubeAuthProxyInfrastructure).    // Authentication proxy
-		WithAction(createEnvoyFilter).                    // Service mesh integration
-		WithAction(createDestinationRule).                // Traffic management
-		WithAction(template.NewAction()).                 // Template rendering
+		WithAction(createGatewayInfrastructure).       // Core gateway setup
+		WithAction(createKubeAuthProxyInfrastructure). // Authentication proxy
+		WithAction(createEnvoyFilter).                 // Service mesh integration
+		WithAction(createDestinationRule).             // Traffic management
+		WithAction(template.NewAction(                 // Template rendering
+			template.WithDataFn(getNetworkPolicyTemplateData), // NetworkPolicy template data
+		)).
 		WithAction(deploy.NewAction(deploy.WithCache())). // Resource deployment with caching
 		WithAction(syncGatewayConfigStatus).              // Status synchronization
 		WithAction(gc.NewAction())                        // Garbage collection

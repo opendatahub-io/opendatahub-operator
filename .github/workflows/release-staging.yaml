@@ -16,9 +16,6 @@ env:
 jobs:
   stage-release:
     runs-on: ubuntu-latest
-    # This condition ensures the workflow only proceeds if it was dispatched
-    # from the 'main' branch (the branch selected in the UI/API/CLI).
-    if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
       pull-requests: write
@@ -56,7 +53,7 @@ jobs:
 
     - name: Clean up bundle files
       run: |
-        sed -i -e "s|image: quay.io/opendatahub/opendatahub-operator:latest.*|image: REPLACE_IMAGE:latest|g" bundle/manifests/opendatahub-operator.clusterserviceversion.yaml
+        sed -i -e "s|image: quay.io/opendatahub/opendatahub-operator:latest.*|image: REPLACE_IMAGE:latest|g" odh-bundle/manifests/opendatahub-operator.clusterserviceversion.yaml
         rm -f ./config/manager/kustomization.yaml
 
     - name: Update branches in get_all_manifest.sh
@@ -64,11 +61,21 @@ jobs:
       with:
         script: |
           const script = require('./.github/scripts/get-release-branches.js')
-          script({github, core})
+          await script({github, core})
 
     - name: Update versions
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const script = require('./.github/scripts/update-manifests-tags.js')
+          script()
+
+    - name: Show changes summary
       shell: bash
-      run: ./.github/scripts/update-manifests-tags.sh
+      run: |
+        echo "Summary of changes to get_all_manifests.sh:"
+        echo ""
+        git diff get_all_manifests.sh || echo "No changes detected"
 
     - name: Push changes to release branch
       uses: actions-js/push@master
@@ -128,5 +135,5 @@ jobs:
           {
             "component": "opendatahub-operator",
             "release_branch": "odh-${{ env.VERSION }}",
-            "version": "v${{ env.VERSION }}"
+            "version": "${{ env.VERSION }}"
           }

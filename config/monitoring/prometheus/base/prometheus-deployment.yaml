@@ -78,7 +78,7 @@ spec:
         - mountPath: /etc/proxy/secrets
           name: prometheus-proxy
           readOnly: false
-      
+
       - name: prometheus # version 2.36.2 (branch: rhaos-4.11-rhel-8, revision: e55e7c7c655214174c97ebb97fbc9bba47ff9adc)
         image: registry.redhat.io/openshift4/ose-prometheus@sha256:62c89e82fdf9639eace286d11c91e6d1c3fdd3437e081ed9dce6f5ea783c660f
         args:
@@ -294,6 +294,6 @@ spec:
       - name: alertmanager-proxy
         secret:
           defaultMode: 420
-          secretName: alertmanager-proxy  
+          secretName: alertmanager-proxy
   strategy:
     type: Recreate

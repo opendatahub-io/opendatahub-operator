@@ -18,10 +18,9 @@ package v2
 
 import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
+	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
 )
 
 // DataScienceClusterSpec defines the desired state of the cluster.
@@ -64,6 +63,9 @@ type Components struct {
 
 	// LlamaStack Operator component configuration.
 	LlamaStackOperator componentApi.DSCLlamaStackOperator `json:"llamastackoperator,omitempty"`
+
+	// Trainer component configuration.
+	Trainer componentApi.DSCTrainer `json:"trainer,omitempty"`
 }
 
 // ComponentsStatus defines the custom status of DataScienceCluster components.
@@ -100,6 +102,9 @@ type ComponentsStatus struct {
 
 	// LlamaStack Operator component status.
 	LlamaStackOperator componentApi.DSCLlamaStackOperatorStatus `json:"llamastackoperator,omitempty"`
+
+	// Trainer component status.
+	Trainer componentApi.DSCTrainerStatus `json:"trainer,omitempty"`
 }
 
 // DataScienceClusterStatus defines the observed state of DataScienceCluster.

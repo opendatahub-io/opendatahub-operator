@@ -42,10 +42,9 @@ type MonitoringSpec struct {
 }
 
 // Metrics defines the desired state of metrics for the monitoring service
-// +kubebuilder:validation:XValidation:rule="!(self.storage == null && self.resources == null) || !has(self.replicas) || self.replicas == 0",message="Replicas can only be set to non-zero value when either Storage or Resources is configured"
+// +kubebuilder:validation:XValidation:rule="has(self.storage) || !has(self.replicas) || self.replicas == 0",message="Replicas can only be set to non-zero value when either is configured"
 type Metrics struct {
-	Storage   *MetricsStorage   `json:"storage,omitempty"`
-	Resources *MetricsResources `json:"resources,omitempty"`
+	Storage *MetricsStorage `json:"storage,omitempty"`
 	// Replicas specifies the number of replicas in monitoringstack. If not set, it defaults
 	// to 1 on single-node clusters and 2 on multi-node clusters.
 	// +kubebuilder:validation:Minimum=0
@@ -70,22 +69,6 @@ type MetricsStorage struct {
 	// Retention specifies how long metrics data should be retained (e.g., "1d", "2w")
 	// +kubebuilder:default="90d"
 	Retention string `json:"retention,omitempty"`
-}
-
-// MetricsResources defines the resource requests and limits for the monitoring service
-type MetricsResources struct {
-	// CPULimit specifies the maximum CPU allocation (e.g., "500m", "2")
-	// +kubebuilder:default="500m"
-	CPULimit resource.Quantity `json:"cpulimit,omitempty"`
-	// MemoryLimit specifies the maximum memory allocation (e.g., "1Gi", "512Mi")
-	// +kubebuilder:default="512Mi"
-	MemoryLimit resource.Quantity `json:"memorylimit,omitempty"`
-	// CPURequest specifies the minimum CPU allocation (e.g., "100m", "0.5")
-	// +kubebuilder:default="100m"
-	CPURequest resource.Quantity `json:"cpurequest,omitempty"`
-	// MemoryRequest specifies the minimum memory allocation (e.g., "256Mi", "1Gi")
-	// +kubebuilder:default="256Mi"
-	MemoryRequest resource.Quantity `json:"memoryrequest,omitempty"`
 }
 
 // MonitoringStatus defines the observed state of Monitoring
@@ -169,28 +152,6 @@ type Monitoring struct {
 
 	Spec   MonitoringSpec   `json:"spec,omitempty"`
 	Status MonitoringStatus `json:"status,omitempty"`
-}
-
-// MonitoringCommonSpec spec defines the shared desired state of Dashboard
-// +kubebuilder:validation:XValidation:rule="has(self.alerting) ? has(self.metrics.storage) || has(self.metrics.resources) : true",message="Alerting configuration requires metrics.storage or metrics.resources to be configured"
-// +kubebuilder:validation:XValidation:rule="!has(self.collectorReplicas) || (self.collectorReplicas > 0 && ((self.metrics.resources != null || self.metrics.storage != null) || self.traces != null))",message="CollectorReplicas can only be set when metrics.resources, metrics.storage or traces are configured, and must be > 0"
-type MonitoringCommonSpec struct {
-	// monitoring spec exposed to DSCI api
-	// Namespace for monitoring if it is enabled
-	// +kubebuilder:default=redhat-ods-monitoring
-	// +kubebuilder:validation:Pattern="^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$"
-	// +kubebuilder:validation:MaxLength=63
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="MonitoringNamespace is immutable"
-	Namespace string `json:"namespace,omitempty"`
-	// metrics collection
-	Metrics *Metrics `json:"metrics,omitempty"`
-	// Tracing configuration for OpenTelemetry instrumentation
-	Traces *Traces `json:"traces,omitempty"`
-	// Alerting configuration for Prometheus
-	Alerting *Alerting `json:"alerting,omitempty"`
-	// CollectorReplicas specifies the number of replicas in opentelemetry-collector. If not set, it defaults
-	// to 1 on single-node clusters and 2 on multi-node clusters.
-	CollectorReplicas int32 `json:"collectorReplicas,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -218,13 +218,13 @@ func TestComputeKustomizeVariable(t *testing.T) {
 	var (
 		customGatewayConfig = func() *serviceApi.GatewayConfig {
 			gc := &serviceApi.GatewayConfig{}
-			gc.SetName(serviceApi.GatewayInstanceName)
+			gc.SetName(serviceApi.GatewayConfigName)
 			gc.Spec.Domain = customDomain
 			return gc
 		}
 		defaultGatewayConfig = func() *serviceApi.GatewayConfig {
 			gc := &serviceApi.GatewayConfig{}
-			gc.SetName(serviceApi.GatewayInstanceName)
+			gc.SetName(serviceApi.GatewayConfigName)
 			// No custom domain, should use cluster domain
 			return gc
 		}
@@ -244,7 +244,7 @@ func TestComputeKustomizeVariable(t *testing.T) {
 			platform:          cluster.OpenDataHub,
 			expectedURL:       "https://data-science-gateway." + defaultDomain + "/",
 			expectedTitle:     "OpenShift Open Data Hub",
-			gatewayConfigFunc: func() *serviceApi.GatewayConfig { return nil }, // No GatewayConfig
+			gatewayConfigFunc: defaultGatewayConfig, // Use default GatewayConfig (no custom domain)
 			clusterDomain:     defaultDomain,
 		},
 		{
@@ -307,13 +307,13 @@ func TestComputeKustomizeVariableError(t *testing.T) {
 	g := NewWithT(t)
 	ctx := t.Context()
 
-	// Create a client with no objects to simulate gateway domain resolution failure
+	// Create a client with no objects to simulate GatewayConfig not found
 	cli, err := fakeclient.New()
 	g.Expect(err).ShouldNot(HaveOccurred())
 
 	// Test error handling with better error message validation
 	_, err = computeKustomizeVariable(ctx, cli, cluster.OpenDataHub)
-	g.Expect(err).Should(HaveOccurred(), "Should fail when no gateway domain can be resolved")
+	g.Expect(err).Should(HaveOccurred(), "Should fail when cluster domain cannot be determined")
 	g.Expect(err.Error()).Should(ContainSubstring("error getting gateway domain"), "Error should contain expected message")
 }
 

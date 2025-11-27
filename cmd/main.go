@@ -46,7 +46,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -80,6 +79,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/webhook"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/initialinstall"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/logger"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/upgrade"
@@ -94,6 +94,7 @@ import (
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelcontroller"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/modelregistry"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/ray"
+	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainer"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trainingoperator"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/trustyai"
 	_ "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/workbenches"
@@ -173,11 +174,11 @@ type OperatorConfig struct {
 }
 
 func LoadConfig() (*OperatorConfig, error) {
-	var config OperatorConfig
-	if err := viper.Unmarshal(&config); err != nil {
+	var operatorConfig OperatorConfig
+	if err := viper.Unmarshal(&operatorConfig); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal operator manager config: %w", err)
 	}
-	return &config, nil
+	return &operatorConfig, nil
 }
 
 func main() { //nolint:funlen,maintidx,gocyclo
@@ -256,7 +257,11 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	}
 
 	// get old release version before we create default DSCI CR
-	oldReleaseVersion, _ := cluster.GetDeployedRelease(ctx, setupClient)
+	oldReleaseVersion, err := cluster.GetDeployedRelease(ctx, setupClient)
+	if err != nil {
+		setupLog.Error(err, "unable to get deployed release version")
+		os.Exit(1)
+	}
 
 	secretCache, err := createSecretCacheConfig(platform)
 	if err != nil {
@@ -406,7 +411,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 		setupLog.Info("DSCI auto creation is disabled")
 	} else {
 		var createDefaultDSCIFunc manager.RunnableFunc = func(ctx context.Context) error {
-			err := upgrade.CreateDefaultDSCI(ctx, setupClient, platform, oconfig.MonitoringNamespace)
+			err := initialinstall.CreateDefaultDSCI(ctx, setupClient, platform, oconfig.MonitoringNamespace)
 			if err != nil {
 				setupLog.Error(err, "unable to create initial setup for the operator")
 			}
@@ -422,7 +427,7 @@ func main() { //nolint:funlen,maintidx,gocyclo
 	// Create default DSC CR for managed RHOAI
 	if platform == cluster.ManagedRhoai {
 		var createDefaultDSCFunc manager.RunnableFunc = func(ctx context.Context) error {
-			err := upgrade.CreateDefaultDSC(ctx, setupClient)
+			err := initialinstall.CreateDefaultDSC(ctx, setupClient)
 			if err != nil {
 				setupLog.Error(err, "unable to create default DSC CR by the operator")
 			}
@@ -433,44 +438,6 @@ func main() { //nolint:funlen,maintidx,gocyclo
 			setupLog.Error(err, "error scheduling DSC creation")
 			os.Exit(1)
 		}
-	}
-
-	var createDefaultGatewayFunc manager.RunnableFunc = func(ctx context.Context) error {
-		defaultGateway := &serviceApi.GatewayConfig{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: serviceApi.GatewayInstanceName,
-			},
-			Spec: serviceApi.GatewayConfigSpec{
-				Certificate: &infrav1.CertificateSpec{
-					Type:       infrav1.OpenshiftDefaultIngress,
-					SecretName: "default-gateway-tls",
-				},
-			},
-		}
-
-		existingGateway := &serviceApi.GatewayConfig{}
-		err := setupClient.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, existingGateway)
-		if err != nil {
-			if client.IgnoreNotFound(err) == nil {
-				if createErr := setupClient.Create(ctx, defaultGateway); createErr != nil {
-					setupLog.Error(createErr, "unable to create default Gateway CR")
-					return createErr
-				}
-				setupLog.Info("Created default Gateway CR", "name", serviceApi.GatewayInstanceName)
-			} else {
-				setupLog.Error(err, "error checking for existing Gateway CR")
-				return err
-			}
-		} else {
-			setupLog.Info("Default Gateway CR already exists", "name", serviceApi.GatewayInstanceName)
-		}
-
-		return nil
-	}
-	err = mgr.Add(createDefaultGatewayFunc)
-	if err != nil {
-		setupLog.Error(err, "error scheduling Gateway creation")
-		os.Exit(1)
 	}
 
 	// Cleanup resources from previous v2 releases

@@ -23,6 +23,10 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -88,6 +92,15 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 	_, err := reconciler.ReconcilerFor(mgr, &serviceApi.Monitoring{}).
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
+		Owns(&rbacv1.ClusterRole{}).
+		Owns(&rbacv1.ClusterRoleBinding{}).
+		Owns(&networkingv1.NetworkPolicy{}).
+		Owns(&appsv1.Deployment{}).
+		Owns(&batchv1.Job{}).
+		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Secret{}).
+		Owns(&corev1.Service{}).
+		Owns(&corev1.ServiceAccount{}).
 		// operands - openshift
 		Owns(&routev1.Route{}).
 		// operands - owned dynmically depends on external operators are installed for monitoring
@@ -100,6 +113,9 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.ServiceMonitor, reconciler.Dynamic(reconciler.CrdExists(gvk.ServiceMonitor))).
 		OwnsGVK(gvk.PrometheusRule, reconciler.Dynamic(reconciler.CrdExists(gvk.PrometheusRule))).
 		OwnsGVK(gvk.ThanosQuerier, reconciler.Dynamic(reconciler.CrdExists(gvk.ThanosQuerier))).
+		OwnsGVK(gvk.Perses, reconciler.Dynamic(reconciler.CrdExists(gvk.Perses))).
+		OwnsGVK(gvk.PersesDatasource, reconciler.Dynamic(reconciler.CrdExists(gvk.PersesDatasource))).
+		OwnsGVK(gvk.PersesDashboard, reconciler.Dynamic(reconciler.CrdExists(gvk.PersesDashboard))).
 		// operands - watched
 		//
 		// By default the Watches functions adds:
@@ -123,21 +139,33 @@ func (h *serviceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 			reconciler.WithEventHandler(
 				handlers.ToNamed(serviceApi.MonitoringInstanceName)),
 		).
+		// Watch ConfigMaps for CA rotation sync (specifically prometheus-web-tls-ca)
+		Watches(
+			&corev1.ConfigMap{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.MonitoringInstanceName)),
+			reconciler.WithPredicates(resources.CMContentChangedPredicate),
+		).
 		// These are only for SRE Monitoring
 		WithAction(initialize).
 		WithAction(updatePrometheusConfigMap).
 		// These are only for new monitoring stack dependent Operators
 		WithAction(addMonitoringCapability).
-		WithAction(deployMonitoringStackWithQuerier).
+		WithAction(deployMonitoringStackWithQuerierAndRestrictions).
 		WithAction(deployTracingStack).
 		WithAction(deployAlerting).
 		WithAction(deployOpenTelemetryCollector).
+		WithAction(deployPerses).
+		WithAction(deployPersesTempoIntegration).
+		WithAction(deployPersesPrometheusIntegration).
+		WithAction(deployNodeMetricsEndpoint).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
+		// Sync CA from ConfigMap to Secret (handles initial creation and rotation updates)
+		WithAction(syncPrometheusWebTLSCA).
 		WithAction(gc.NewAction()).
 		Build(ctx)
 

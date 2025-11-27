@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -23,17 +24,31 @@ import (
 
 const (
 	// Template files.
-	MonitoringStackTemplate                 = "resources/monitoring-stack.tmpl.yaml"
-	MonitoringStackAlertmanagerRBACTemplate = "resources/monitoringstack-alertmanager-rbac.tmpl.yaml"
-	TempoMonolithicTemplate                 = "resources/tempo-monolithic.tmpl.yaml"
-	TempoStackTemplate                      = "resources/tempo-stack.tmpl.yaml"
-	OpenTelemetryCollectorTemplate          = "resources/opentelemetry-collector.tmpl.yaml"
-	CollectorServiceMonitorsTemplate        = "resources/collector-servicemonitors.tmpl.yaml"
-	CollectorRBACTemplate                   = "resources/collector-rbac.tmpl.yaml"
-	PrometheusRouteTemplate                 = "resources/prometheus-route.tmpl.yaml"
-	InstrumentationTemplate                 = "resources/instrumentation.tmpl.yaml"
-	ThanosQuerierTemplate                   = "resources/thanos-querier-cr.tmpl.yaml"
-	ThanosQuerierRouteTemplate              = "resources/thanos-querier-route.tmpl.yaml"
+	MonitoringStackTemplate                       = "resources/monitoring-stack.tmpl.yaml"
+	MonitoringStackAlertmanagerRBACTemplate       = "resources/monitoringstack-alertmanager-rbac.tmpl.yaml"
+	TempoMonolithicTemplate                       = "resources/tempo-monolithic.tmpl.yaml"
+	TempoStackTemplate                            = "resources/tempo-stack.tmpl.yaml"
+	OpenTelemetryCollectorTemplate                = "resources/opentelemetry-collector.tmpl.yaml"
+	CollectorServiceMonitorsTemplate              = "resources/collector-servicemonitors.tmpl.yaml"
+	CollectorRBACTemplate                         = "resources/collector-rbac.tmpl.yaml"
+	PrometheusRouteTemplate                       = "resources/data-science-prometheus-route.tmpl.yaml"
+	InstrumentationTemplate                       = "resources/instrumentation.tmpl.yaml"
+	PrometheusNamespaceProxyTemplate              = "resources/data-science-prometheus-namespace-proxy.tmpl.yaml"
+	PrometheusNamespaceProxyNetworkPolicyTemplate = "resources/data-science-prometheus-namespace-proxy-network-policy.tmpl.yaml"
+	PrometheusServiceOverrideTemplate             = "resources/data-science-prometheus-service-override.tmpl.yaml"
+	PrometheusNetworkPolicyTemplate               = "resources/data-science-prometheus-network-policy.tmpl.yaml"
+	PrometheusWebTLSServiceTemplate               = "resources/prometheus-web-tls-service.tmpl.yaml"
+	ThanosQuerierTemplate                         = "resources/thanos-querier-cr.tmpl.yaml"
+	ThanosQuerierRouteTemplate                    = "resources/thanos-querier-route.tmpl.yaml"
+	PersesTemplate                                = "resources/perses.tmpl.yaml"
+	PersesTempoDatasourceTemplate                 = "resources/perses-tempo-datasource.tmpl.yaml"
+	PersesTempoDashboardTemplate                  = "resources/perses-tempo-dashboard.tmpl.yaml"
+	PersesDatasourcePrometheusTemplate            = "resources/perses-datasource-prometheus.tmpl.yaml"
+	PrometheusClusterProxyTemplate                = "resources/data-science-prometheus-cluster-proxy.tmpl.yaml"
+
+	// Resource names.
+	PersesTempoDatasourceName = "tempo-datasource"
+	PersesTempoDashboardName  = "data-science-tempo-traces"
 )
 
 // CRDRequirement defines a required CRD and its associated condition for monitoring components.
@@ -51,6 +66,7 @@ var componentRules = map[string]string{
 	componentApi.TrustyAIComponentName:             "trustyai",
 	componentApi.KserveComponentName:               "kserve",
 	componentApi.TrainingOperatorComponentName:     "trainingoperator",
+	componentApi.TrainerComponentName:              "trainer",
 	componentApi.ModelRegistryComponentName:        "model-registry-operator",
 	componentApi.ModelControllerComponentName:      "odh-model-controller",
 	componentApi.FeastOperatorComponentName:        "feastoperator",
@@ -150,9 +166,9 @@ func updatePrometheusConfigMap(ctx context.Context, rr *odhtypes.ReconciliationR
 	})
 }
 
-// deployMonitoringStackWithQuerier handles deployment of both MonitoringStack and ThanosQuerier components.
+// deployMonitoringStackWithQuerierAndRestrictions handles deployment of MonitoringStack and ThanosQuerier components.
 // These components are deployed together as ThanosQuerier depends on MonitoringStack for proper functioning.
-func deployMonitoringStackWithQuerier(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
 	if !ok {
 		return errors.New("instance is not of type *services.Monitoring")
@@ -176,20 +192,25 @@ func deployMonitoringStackWithQuerier(ctx context.Context, rr *odhtypes.Reconcil
 		return nil
 	}
 
-	// All prerequisites met, mark both components as available and deploy
+	// All prerequisites met, mark all components as available and deploy
 	rr.Conditions.MarkTrue(status.ConditionMonitoringStackAvailable)
 	rr.Conditions.MarkTrue(status.ConditionThanosQuerierAvailable)
 
-	// Prepare and deploy both component templates atomically
+	// Prepare and deploy all component templates atomically
 	templates := []odhtypes.TemplateInfo{
 		{FS: resourcesFS, Path: MonitoringStackTemplate},
 		{FS: resourcesFS, Path: MonitoringStackAlertmanagerRBACTemplate},
 		{FS: resourcesFS, Path: PrometheusRouteTemplate},
+		{FS: resourcesFS, Path: PrometheusServiceOverrideTemplate},
+		{FS: resourcesFS, Path: PrometheusNetworkPolicyTemplate},
+		{FS: resourcesFS, Path: PrometheusWebTLSServiceTemplate},
+		{FS: resourcesFS, Path: PrometheusNamespaceProxyTemplate},
+		{FS: resourcesFS, Path: PrometheusNamespaceProxyNetworkPolicyTemplate},
 		{FS: resourcesFS, Path: ThanosQuerierTemplate},
 		{FS: resourcesFS, Path: ThanosQuerierRouteTemplate},
 	}
 
-	// Deploy both components atomically with the same generation annotation
+	// Deploy all components atomically with the same generation annotation
 	rr.Templates = append(rr.Templates, templates...)
 	return nil
 }
@@ -410,6 +431,197 @@ func deployAlerting(ctx context.Context, rr *odhtypes.ReconciliationRequest) err
 	if len(addErrors) > 0 || len(cleanupErrors) > 0 {
 		return errors.New("errors occurred while adding or cleaning up prometheus rules for components")
 	}
+
+	return nil
+}
+
+func deployPerses(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil && monitoring.Spec.Traces == nil {
+		setConditionFalse(rr, status.ConditionPersesAvailable,
+			status.MetricsNotConfiguredReason+"And"+status.TracesNotConfiguredReason,
+			"Perses requires at least Metrics or Traces to be configured")
+		return nil
+	}
+
+	// Check for required CRDs
+	requirements := []CRDRequirement{
+		{GVK: gvk.Perses, ConditionType: status.ConditionPersesAvailable},
+	}
+
+	if !validateRequiredCRDs(ctx, rr, requirements) {
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesAvailable)
+
+	template := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesTemplate,
+		},
+	}
+	rr.Templates = append(rr.Templates, template...)
+
+	return nil
+}
+
+func deployPersesTempoIntegration(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	// Check if PersesDatasource CRD exists first
+	persesDatasourceExists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDatasource)
+	if err != nil {
+		return fmt.Errorf("failed to check if PersesDatasource CRD exists: %w", err)
+	}
+
+	// Check if PersesDashboard CRD exists
+	persesDashboardExists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDashboard)
+	if err != nil {
+		return fmt.Errorf("failed to check if PersesDashboard CRD exists: %w", err)
+	}
+
+	// Only create Perses datasource if traces are configured
+	if monitoring.Spec.Traces == nil {
+		// Clean up existing datasource if its CRD exists
+		if persesDatasourceExists {
+			// Delete datasource
+			datasource := &unstructured.Unstructured{}
+			datasource.SetGroupVersionKind(gvk.PersesDatasource)
+			datasource.SetName(PersesTempoDatasourceName)
+			datasource.SetNamespace(monitoring.Spec.Namespace)
+
+			if err := rr.Client.Delete(ctx, datasource); err != nil {
+				if !k8serr.IsNotFound(err) {
+					return fmt.Errorf("failed to delete PersesDatasource: %w", err)
+				}
+			}
+		}
+
+		// Clean up existing dashboard if its CRD exists
+		if persesDashboardExists {
+			// Delete dashboard
+			dashboard := &unstructured.Unstructured{}
+			dashboard.SetGroupVersionKind(gvk.PersesDashboard)
+			dashboard.SetName(PersesTempoDashboardName)
+			dashboard.SetNamespace(monitoring.Spec.Namespace)
+
+			if err := rr.Client.Delete(ctx, dashboard); err != nil {
+				if !k8serr.IsNotFound(err) {
+					return fmt.Errorf("failed to delete PersesDashboard: %w", err)
+				}
+			}
+		}
+
+		rr.Conditions.MarkFalse(
+			status.ConditionPersesTempoDataSourceAvailable,
+			conditions.WithReason(status.TracesNotConfiguredReason),
+			conditions.WithMessage(status.TracesNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	if !persesDatasourceExists {
+		rr.Conditions.MarkFalse(
+			status.ConditionPersesTempoDataSourceAvailable,
+			conditions.WithReason(gvk.PersesDatasource.Kind+"CRDNotFoundReason"),
+			conditions.WithMessage("%s CRD Not Found", gvk.PersesDatasource.Kind),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesTempoDataSourceAvailable)
+
+	// Deploy datasource template (always deploy if CRD exists)
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesTempoDatasourceTemplate,
+		},
+	}
+
+	// Only deploy dashboard template if its CRD exists
+	if persesDashboardExists {
+		templates = append(templates, odhtypes.TemplateInfo{
+			FS:   resourcesFS,
+			Path: PersesTempoDashboardTemplate,
+		})
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
+
+	return nil
+}
+
+func deployPersesPrometheusIntegration(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil {
+		setConditionFalse(rr, status.ConditionPersesPrometheusDataSourceAvailable,
+			status.MetricsNotConfiguredReason,
+			"Prometheus datasource requires metrics configuration")
+		return nil
+	}
+
+	datasourceExists, err := cluster.HasCRD(ctx, rr.Client, gvk.PersesDatasource)
+	if err != nil {
+		return fmt.Errorf("failed to check if CRD PersesDatasource exists: %w", err)
+	}
+	if !datasourceExists {
+		setConditionFalse(rr, status.ConditionPersesPrometheusDataSourceAvailable,
+			gvk.PersesDatasource.Kind+"CRDNotFoundReason",
+			fmt.Sprintf("%s CRD Not Found", gvk.PersesDatasource.Kind))
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionPersesPrometheusDataSourceAvailable)
+
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PersesDatasourcePrometheusTemplate,
+		},
+	}
+	rr.Templates = append(rr.Templates, templates...)
+
+	return nil
+}
+
+func deployNodeMetricsEndpoint(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	monitoring, ok := rr.Instance.(*serviceApi.Monitoring)
+	if !ok {
+		return errors.New("instance is not of type *services.Monitoring")
+	}
+
+	if monitoring.Spec.Metrics == nil {
+		rr.Conditions.MarkFalse(
+			status.ConditionNodeMetricsEndpointAvailable,
+			conditions.WithReason(status.MetricsNotConfiguredReason),
+			conditions.WithMessage(status.MetricsNotConfiguredMessage),
+		)
+		return nil
+	}
+
+	rr.Conditions.MarkTrue(status.ConditionNodeMetricsEndpointAvailable)
+
+	templates := []odhtypes.TemplateInfo{
+		{
+			FS:   resourcesFS,
+			Path: PrometheusClusterProxyTemplate,
+		},
+	}
+
+	rr.Templates = append(rr.Templates, templates...)
 
 	return nil
 }
