@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright 2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,8 +27,8 @@ const (
 	GatewayServiceName = "gateway"
 	// GatewayInstanceName the name of the GatewayConfig instance singleton.
 	// value should match whats set in the XValidation below
-	GatewayInstanceName = "default-gateway"
-	GatewayConfigKind   = "GatewayConfig"
+	GatewayConfigName = "default-gateway"
+	GatewayConfigKind = "GatewayConfig"
 )
 
 // Check that the component implements common.PlatformObject.
@@ -40,31 +40,65 @@ type GatewayConfigSpec struct {
 	// +optional
 	OIDC *OIDCConfig `json:"oidc,omitempty"`
 
-	// Certificate management
+	// Certificate specifies configuration of the TLS certificate securing communication for the gateway.
 	// +optional
 	Certificate *infrav1.CertificateSpec `json:"certificate,omitempty"`
 
-	// Domain configuration for the GatewayConfig
-	// Example: apps.example.com
+	// Domain specifies the host name for intercepting incoming requests.
+	// Most likely, you will want to use a wildcard name, like *.example.com.
+	// If not set, the domain of the OpenShift Ingress is used.
+	// If you choose to generate a certificate, this is the domain used for the certificate request.
+	// Example: *.example.com, example.com, apps.example.com
 	// +optional
+	// +kubebuilder:validation:Pattern=`^(\*\.)?([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)*[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	Domain string `json:"domain,omitempty"`
 
 	// Subdomain configuration for the GatewayConfig
+	// Example: my-gateway, custom-gateway
 	// +optional
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?)$`
 	Subdomain string `json:"subdomain,omitempty"`
 
-	// Cookie configuration for OAuth2 proxy (applies to both OIDC and OpenShift OAuth)
+	// Cookie configuration (applies to both OIDC and OpenShift OAuth)
 	// +optional
-	Cookie *CookieConfig `json:"cookie,omitempty"`
+	Cookie CookieConfig `json:"cookie,omitempty"` // not pointer to make defaults clear
 
 	// AuthTimeout is the duration Envoy waits for auth proxy responses.
 	// Requests timeout with 403 if exceeded.
-	// Overrides GATEWAY_AUTH_TIMEOUT env var. Default: "5s"
+	// Deprecated: Use AuthProxyTimeout instead.
 	// +optional
 	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`
 	AuthTimeout string `json:"authTimeout,omitempty"`
+
+	// AuthProxyTimeout defines the timeout for external authorization service calls (e.g., "5s", "10s")
+	// This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response.
+	// +optional
+	AuthProxyTimeout metav1.Duration `json:"authProxyTimeout,omitempty"`
+
+	// NetworkPolicy configuration for kube-auth-proxy
+	// +optional
+	NetworkPolicy *NetworkPolicyConfig `json:"networkPolicy,omitempty"`
+}
+
+// NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
+// When nil or when Ingress is nil, NetworkPolicy ingress rules are enabled by default
+// to restrict access to kube-auth-proxy pods.
+type NetworkPolicyConfig struct {
+	// Ingress defines ingress NetworkPolicy rules.
+	// When nil, ingress rules are applied by default (allows traffic from Gateway pods and monitoring namespaces).
+	// When specified, Enabled must be set to true to apply rules or false to skip NetworkPolicy creation.
+	// Set Enabled=false only in development environments or when using alternative network security controls.
+	// +optional
+	Ingress *IngressPolicyConfig `json:"ingress,omitempty"`
+}
+
+// IngressPolicyConfig defines ingress NetworkPolicy rules
+type IngressPolicyConfig struct {
+	// Enabled determines whether ingress rules are applied.
+	// When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces.
+	// +kubebuilder:validation:Required
+	Enabled bool `json:"enabled"`
 }
 
 // OIDCConfig defines OIDC provider configuration
@@ -86,20 +120,16 @@ type OIDCConfig struct {
 type CookieConfig struct {
 	// Expire duration for OAuth2 proxy session cookie (e.g., "24h", "8h")
 	// This controls how long the session cookie is valid before requiring re-authentication.
-	// Default: "24h"
 	// +optional
 	// +kubebuilder:default="24h"
-	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`
-	Expire string `json:"expire,omitempty"`
+	Expire metav1.Duration `json:"expire,omitempty"`
 
 	// Refresh duration for OAuth2 proxy to refresh access tokens (e.g., "2h", "1h", "30m")
 	// This must be LESS than the OIDC provider's Access Token Lifespan to avoid token expiration.
 	// For example, if Keycloak Access Token Lifespan is 1 hour, set this to "30m" or "45m".
-	// Default: "1h"
 	// +optional
 	// +kubebuilder:default="1h"
-	// +kubebuilder:validation:Pattern=`^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$`
-	Refresh string `json:"refresh,omitempty"`
+	Refresh metav1.Duration `json:"refresh,omitempty"`
 }
 
 // GatewayConfigStatus defines the observed state of GatewayConfig

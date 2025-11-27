@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -27,7 +26,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	l.V(1).Info("creating auth proxy for gateway", "gateway", gatewayConfig.Name)
 
 	// Resolve domain consistently with createGatewayInfrastructure
-	domain, err := resolveDomain(ctx, rr.Client, gatewayConfig)
+	domain, err := GetFQDN(ctx, rr.Client, gatewayConfig)
 	if err != nil {
 		return fmt.Errorf("failed to resolve domain: %w", err)
 	}
@@ -56,7 +55,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 		return fmt.Errorf("failed to get or generate secrets: %w", err)
 	}
 
-	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, gatewayConfig.Spec.Cookie, clientSecret, cookieSecret, domain); err != nil {
+	if err := deployKubeAuthProxy(ctx, rr, oidcConfig, &gatewayConfig.Spec.Cookie, gatewayConfig.Spec.NetworkPolicy, clientSecret, cookieSecret, domain); err != nil {
 		return fmt.Errorf("failed to deploy auth proxy: %w", err)
 	}
 
@@ -74,14 +73,17 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 }
 
 // getGatewayAuthTimeout returns the auth timeout using:
-// API field > env var > default (5s).
+// Deprecated AuthTimeout field > AuthProxyTimeout field > default (5s).
 func getGatewayAuthTimeout(gatewayConfig *serviceApi.GatewayConfig) string {
-	if gatewayConfig != nil && gatewayConfig.Spec.AuthTimeout != "" {
-		return gatewayConfig.Spec.AuthTimeout
-	}
-
-	if timeout := os.Getenv("GATEWAY_AUTH_TIMEOUT"); timeout != "" {
-		return timeout
+	if gatewayConfig != nil {
+		// Check deprecated field first for backward compatibility
+		if gatewayConfig.Spec.AuthTimeout != "" {
+			return gatewayConfig.Spec.AuthTimeout
+		}
+		// Check new field
+		if gatewayConfig.Spec.AuthProxyTimeout.Duration != 0 {
+			return gatewayConfig.Spec.AuthProxyTimeout.Duration.String()
+		}
 	}
 
 	return "5s"

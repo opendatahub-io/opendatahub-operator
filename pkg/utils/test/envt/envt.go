@@ -170,6 +170,7 @@ func New(opts ...OptionFn) (*EnvT, error) {
 			ErrorIfPathMissing: true,
 			CleanUpAfterUse:    false,
 		},
+		ErrorIfCRDPathMissing: true,
 	}
 
 	// If webhooks are registered, configure the webhook server
@@ -290,12 +291,11 @@ func (et *EnvT) Manager() manager.Manager {
 // WaitForWebhookServer waits until the webhook server managed by this EnvT is ready by dialing the port using TLS.
 //
 // Parameters:
-//   - ctx: A non-nil context passed to the underlying Dialer
-//   - timeout: The maximum duration to wait for the server to become ready.
+//   - ctx: A non-nil context passed to the underlying Dialer; the context is used to cancel the polling loop.
 //
 // Returns:
 //   - error: If the server is not ready within the timeout or a connection error occurs.
-func (et *EnvT) WaitForWebhookServer(ctx context.Context, timeout time.Duration) error {
+func (et *EnvT) WaitForWebhookServer(ctx context.Context) error {
 	host := et.Env.WebhookInstallOptions.LocalServingHost
 	port := et.Env.WebhookInstallOptions.LocalServingPort
 	if host == "" || port == 0 {
@@ -303,24 +303,34 @@ func (et *EnvT) WaitForWebhookServer(ctx context.Context, timeout time.Duration)
 	}
 
 	addrPort := fmt.Sprintf("%s:%d", host, port)
-	deadline := time.Now().Add(timeout)
 
-	for time.Now().Before(deadline) {
-		tlsDialer := &tls.Dialer{
-			Config: &tls.Config{
-				InsecureSkipVerify: true, // #nosec G402
-				MinVersion:         tls.VersionTLS12,
-			},
-			NetDialer: &net.Dialer{Timeout: time.Second},
-		}
+	// setup ticker for polling the webhook server
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
 
+	// setup dialer
+	tlsDialer := &tls.Dialer{
+		Config: &tls.Config{
+			InsecureSkipVerify: true, // #nosec G402
+			MinVersion:         tls.VersionTLS12,
+		},
+		NetDialer: &net.Dialer{Timeout: 1 * time.Second},
+	}
+
+	// keep trying until the context is cancelled or the webhook server is ready
+	for {
 		conn, err := tlsDialer.DialContext(ctx, "tcp", addrPort)
 		if err == nil {
 			return conn.Close()
 		}
-		time.Sleep(100 * time.Millisecond)
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("webhook server not ready (%v) before context cancelled: %w", err.Error(), ctx.Err())
+		case <-ticker.C:
+			continue
+		}
 	}
-	return fmt.Errorf("webhook server not ready after %s", timeout)
 }
 
 // BypassHandler wraps a handler and allows bypassing validation based on a custom function.

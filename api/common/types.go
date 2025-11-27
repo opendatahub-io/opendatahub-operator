@@ -26,9 +26,8 @@ type ManagementSpec struct {
 type ConditionSeverity string
 
 const (
-	ConditionSeverityError   ConditionSeverity = ""
-	ConditionSeverityWarning ConditionSeverity = "Warning"
-	ConditionSeverityInfo    ConditionSeverity = "Info"
+	ConditionSeverityError ConditionSeverity = ""
+	ConditionSeverityInfo  ConditionSeverity = "Info"
 
 	ConditionReasonError = "Error"
 )

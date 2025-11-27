@@ -30,7 +30,6 @@ COPY config/osd-configs/ /opt/manifests/osd-configs
 # Copy hardwareprofiles removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/hardwareprofiles
 COPY config/hardwareprofiles/ /opt/manifests/hardwareprofiles
-
 # Copy connectionAPI removing any possibly pre-existing symlinks
 RUN rm -f /opt/manifests/connectionAPI
 COPY config/connectionAPI/ /opt/manifests/connectionAPI

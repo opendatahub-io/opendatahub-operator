@@ -13,9 +13,11 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -90,7 +92,7 @@ var (
 	KubeAuthProxyLabels = map[string]string{"app": KubeAuthProxyName}
 )
 
-// make secret data into sha256 as hash.
+// make secrete data into sha256 as hash.
 func calculateSecretHash(secretData map[string][]byte) string {
 	clientID := string(secretData[EnvClientID])
 	clientSecret := string(secretData[EnvClientSecret])
@@ -102,7 +104,9 @@ func calculateSecretHash(secretData map[string][]byte) string {
 }
 
 // getKubeAuthProxyImage returns the kube-auth-proxy image from environment variable.
-// Falls back to a odh image for development.
+// For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
+// For ODH deployments, this comes from config/manager/manager.yaml.
+// Falls back to a default image for local development/testing only.
 func getKubeAuthProxyImage() string {
 	if image := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); image != "" {
 		return image
@@ -122,70 +126,55 @@ func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
 	return string(gatewayConfig.Spec.Certificate.Type)
 }
 
-// buildGatewayDomain combines subdomain with base domain.
-// If subdomain is empty or whitespace, uses DefaultGatewayName as fallback.
-func buildGatewayDomain(subdomain, baseDomain string) string {
-	// Trim whitespace and use provided subdomain or fallback to default gateway name
-	hostname := strings.TrimSpace(subdomain)
-	if hostname == "" {
-		hostname = DefaultGatewayName
-	}
-	// Use string concatenation for better performance in frequently called function
-	return hostname + "." + baseDomain
-}
+// GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
+// It constructs the FQDN by combining the subdomain (or default) with either the user-specified
+// domain or the cluster domain.
+func GetFQDN(ctx context.Context, cli client.Client, gatewayConfig *serviceApi.GatewayConfig) (string, error) {
+	subdomain := DefaultGatewayName
 
-// getClusterDomain gets cluster domain - extracted common logic.
-func getClusterDomain(ctx context.Context, client client.Client, subdomain string) (string, error) {
-	clusterDomain, err := cluster.GetDomain(ctx, client)
+	if gatewayConfig != nil {
+		subdomain = strings.TrimSpace(gatewayConfig.Spec.Subdomain)
+		if subdomain == "" {
+			subdomain = DefaultGatewayName
+		}
+
+		baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
+		if baseDomain != "" {
+			return fmt.Sprintf("%s.%s", subdomain, baseDomain), nil
+		}
+	}
+
+	clusterDomain, err := cluster.GetDomain(ctx, cli)
 	if err != nil {
 		return "", fmt.Errorf("failed to get cluster domain: %w", err)
 	}
-	return buildGatewayDomain(subdomain, clusterDomain), nil
+
+	return fmt.Sprintf("%s.%s", subdomain, clusterDomain), nil
 }
 
-func resolveDomain(ctx context.Context, client client.Client,
-	gatewayConfig *serviceApi.GatewayConfig) (string, error) {
-	// Input validation
-	if gatewayConfig == nil {
-		return getClusterDomain(ctx, client, "")
-	}
-
-	// Extract subdomain from GatewayConfig if provided
-	subdomain := strings.TrimSpace(gatewayConfig.Spec.Subdomain)
-
-	// Check if user has overridden the domain
-	baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
-	if baseDomain != "" {
-		return buildGatewayDomain(subdomain, baseDomain), nil
-	}
-
-	// No domain override, use cluster domain with subdomain
-	return getClusterDomain(ctx, client, subdomain)
-}
-
-// GetGatewayDomain reads GatewayConfig and passes it to resolveDomain.
-// This function optimizes API calls by handling the GatewayConfig retrieval
-// and domain resolution in a single flow.
+// GetGatewayDomain reads the domain directly from the Gateway CR's listener hostname.
+// Falls back to GatewayConfig if Gateway CR doesn't exist yet.
 func GetGatewayDomain(ctx context.Context, cli client.Client) (string, error) {
-	// Try to get the GatewayConfig
+	// Try to get the Gateway CR first
+	gateway := &gwapiv1.Gateway{}
+	err := cli.Get(ctx, client.ObjectKey{
+		Name:      DefaultGatewayName,
+		Namespace: GatewayNamespace,
+	}, gateway)
+	if err == nil {
+		if len(gateway.Spec.Listeners) > 0 && gateway.Spec.Listeners[0].Hostname != nil {
+			return string(*gateway.Spec.Listeners[0].Hostname), nil
+		}
+	}
+
 	gatewayConfig := &serviceApi.GatewayConfig{}
-	err := cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayInstanceName}, gatewayConfig)
+	err = cli.Get(ctx, client.ObjectKey{Name: serviceApi.GatewayConfigName}, gatewayConfig)
 	if err != nil {
-		// GatewayConfig doesn't exist, use cluster domain directly with default subdomain
-		return getClusterDomain(ctx, cli, "")
+		// GatewayConfig doesn't exist either, use cluster domain with default subdomain
+		return GetFQDN(ctx, cli, nil)
 	}
 
-	// Extract subdomain from GatewayConfig if provided
-	subdomain := strings.TrimSpace(gatewayConfig.Spec.Subdomain)
-
-	// Check if user has overridden the domain (inline ResolveDomain logic to avoid redundant calls)
-	baseDomain := strings.TrimSpace(gatewayConfig.Spec.Domain)
-	if baseDomain != "" {
-		return buildGatewayDomain(subdomain, baseDomain), nil
-	}
-
-	// No domain override, use cluster domain with subdomain
-	return getClusterDomain(ctx, cli, subdomain)
+	return GetFQDN(ctx, cli, gatewayConfig)
 }
 
 // createListeners creates the Gateway listeners configuration with namespace restrictions.
@@ -468,9 +457,10 @@ func validateGatewayConfig(rr *odhtypes.ReconciliationRequest) (*serviceApi.Gate
 	return gatewayConfig, nil
 }
 
-// deployKubeAuthProxy deploys the complete OAuth2 proxy infrastructure including secret, service and deployment.
+// deployKubeAuthProxy deploys the complete OAuth2 proxy infrastructure including secret, service, network policy and deployment.
 func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 	oidcConfig *serviceApi.OIDCConfig, cookieConfig *serviceApi.CookieConfig,
+	networkPolicy *serviceApi.NetworkPolicyConfig,
 	clientSecret, cookieSecret string, domain string) error {
 	l := logf.FromContext(ctx).WithName("deployAuthProxy")
 
@@ -493,6 +483,12 @@ func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	err = createKubeAuthProxyService(rr)
 	if err != nil {
 		return err
+	}
+
+	// Create NetworkPolicy before deployment to ensure network restrictions are in place
+	// before the pod starts
+	if err := createNetworkPolicy(ctx, rr, networkPolicy); err != nil {
+		return fmt.Errorf("failed to create network policy: %w", err)
 	}
 
 	err = createKubeAuthProxyDeployment(ctx, rr, oidcConfig, cookieConfig, domain)
@@ -570,6 +566,13 @@ func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationR
 	return nil
 }
 
+// createKubeAuthProxyDeployment creates the OAuth2 proxy deployment
+// with security contexts meeting Pod Security Standards (restricted profile):
+//   - RunAsNonRoot prevents root execution
+//   - ReadOnlyRootFilesystem provides an immutable container filesystem
+//   - AllowPrivilegeEscalation blocked, all capabilities dropped
+//   - Temporary /tmp volume (10Mi limit) minimizes attack surface while
+//     providing sufficient space for OAuth2 session storage
 func createKubeAuthProxyDeployment(
 	ctx context.Context, rr *odhtypes.ReconciliationRequest,
 	oidcConfig *serviceApi.OIDCConfig,
@@ -607,6 +610,12 @@ func createKubeAuthProxyDeployment(
 					},
 				},
 				Spec: corev1.PodSpec{
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsNonRoot: ptr.To(true),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:  KubeAuthProxyName,
@@ -632,11 +641,32 @@ func createKubeAuthProxyDeployment(
 								{Name: EnvCookieSecret, ValueFrom: createSecretKeySelector(EnvCookieSecret)},
 								{Name: "PROXY_MODE", Value: "auth"},
 							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("10m"),
+									corev1.ResourceMemory: resource.MustParse("32Mi"),
+								},
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("50m"),
+									corev1.ResourceMemory: resource.MustParse("64Mi"),
+								},
+							},
+							SecurityContext: &corev1.SecurityContext{
+								ReadOnlyRootFilesystem:   ptr.To(true),
+								AllowPrivilegeEscalation: ptr.To(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
+								},
+							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      TLSCertsVolumeName,
 									MountPath: TLSCertsMountPath,
 									ReadOnly:  true,
+								},
+								{
+									Name:      "tmp",
+									MountPath: "/tmp",
 								},
 							},
 						},
@@ -647,6 +677,15 @@ func createKubeAuthProxyDeployment(
 							VolumeSource: corev1.VolumeSource{
 								Secret: &corev1.SecretVolumeSource{
 									SecretName: KubeAuthProxyTLSName,
+								},
+							},
+						},
+						{
+							Name: "tmp",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{
+									Medium:    corev1.StorageMediumMemory,
+									SizeLimit: ptr.To(resource.MustParse("10Mi")),
 								},
 							},
 						},
@@ -677,11 +716,11 @@ func getCookieSettings(cookieConfig *serviceApi.CookieConfig) (string, string) {
 
 	// Override with user configuration if provided
 	if cookieConfig != nil {
-		if cookieConfig.Expire != "" {
-			expire = cookieConfig.Expire
+		if cookieConfig.Expire.Duration != 0 {
+			expire = cookieConfig.Expire.Duration.String()
 		}
-		if cookieConfig.Refresh != "" {
-			refresh = cookieConfig.Refresh
+		if cookieConfig.Refresh.Duration != 0 {
+			refresh = cookieConfig.Refresh.Duration.String()
 		}
 	}
 
@@ -768,7 +807,7 @@ func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, 
 	}
 
 	// Use consistent domain resolution with the gateway
-	domain, err := resolveDomain(ctx, rr.Client, gatewayConfig)
+	domain, err := GetFQDN(ctx, rr.Client, gatewayConfig)
 	if err != nil {
 		return fmt.Errorf("failed to resolve domain: %w", err)
 	}

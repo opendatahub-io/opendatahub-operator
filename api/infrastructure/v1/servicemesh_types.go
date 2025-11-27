@@ -56,5 +56,5 @@ type AuthSpec struct {
 	// If no audiences are provided, the audience will default to the audience of the
 	// Kubernetes apiserver (kubernetes.default.svc).
 	// +kubebuilder:default={"https://kubernetes.default.svc"}
-	Audiences *[]string `json:"audiences,omitempty"`
+	Audiences []string `json:"audiences,omitempty"`
 }

@@ -77,7 +77,6 @@ func Init(ctx context.Context, cli client.Client) error {
 	}
 
 	printClusterConfig(log)
-
 	return nil
 }
 

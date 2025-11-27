@@ -84,11 +84,15 @@ func (tc *DSCTestCtx) ValidateOperatorsWithCustomChannelsInstallation(t *testing
 
 	// Define operators to be installed.
 	operators := []struct {
-		nn                types.NamespacedName
-		skipOperatorGroup bool
-		channel           string
+		nn                  types.NamespacedName
+		skipOperatorGroup   bool
+		globalOperatorGroup bool
+		channel             string
 	}{
-		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace}, skipOperatorGroup: false, channel: leaderWorkerSetChannel},
+		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace},
+			skipOperatorGroup: false, globalOperatorGroup: true, channel: leaderWorkerSetChannel},
+		{nn: types.NamespacedName{Name: jobSetOpName, Namespace: jobSetOpNamespace},
+			skipOperatorGroup: false, globalOperatorGroup: false, channel: jobSetOpChannel},
 	}
 
 	// Create and run test cases in parallel.
@@ -98,7 +102,14 @@ func (tc *DSCTestCtx) ValidateOperatorsWithCustomChannelsInstallation(t *testing
 			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
 			testFn: func(t *testing.T) {
 				t.Helper()
-				tc.EnsureOperatorInstalledWithChannel(op.nn, op.skipOperatorGroup, op.channel)
+				switch {
+				case op.skipOperatorGroup:
+					tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
+				case op.globalOperatorGroup:
+					tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(op.nn, op.channel)
+				default:
+					tc.EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(op.nn, op.channel)
+				}
 			},
 		}
 	}
@@ -112,15 +123,16 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 
 	// Define operators to be installed.
 	operators := []struct {
-		nn                types.NamespacedName
-		skipOperatorGroup bool
-		channel           string
+		nn                  types.NamespacedName
+		skipOperatorGroup   bool
+		globalOperatorGroup bool
+		channel             string
 	}{
-		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, channel: certManagerOpChannel},
-		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
-		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
-		{nn: types.NamespacedName{Name: telemetryOpName, Namespace: telemetryOpNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
-		{nn: types.NamespacedName{Name: kuadrantOperator, Namespace: openshiftOperatorsNamespace}, skipOperatorGroup: true, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: certManagerOpName, Namespace: certManagerOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: certManagerOpChannel},
+		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: opentelemetryOpName, Namespace: opentelemetryOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: kuadrantOpName, Namespace: kuadrantNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
 	}
 
 	// Create and run test cases in parallel.
@@ -130,7 +142,14 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 			name: fmt.Sprintf("Ensure %s is installed", op.nn.Name),
 			testFn: func(t *testing.T) {
 				t.Helper()
-				tc.EnsureOperatorInstalledWithChannel(op.nn, op.skipOperatorGroup, op.channel)
+				switch {
+				case op.skipOperatorGroup:
+					tc.EnsureOperatorInstalledWithChannel(op.nn, op.channel)
+				case op.globalOperatorGroup:
+					tc.EnsureOperatorInstalledWithGlobalOperatorGroupAndChannel(op.nn, op.channel)
+				default:
+					tc.EnsureOperatorInstalledWithLocalOperatorGroupAndChannel(op.nn, op.channel)
+				}
 			},
 		}
 	}

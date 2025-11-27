@@ -58,9 +58,28 @@ opt/manifests/
 cover.out
 
 config/manager/kustomization.yaml
+config/rhoai/manager/kustomization.yaml
 
 # Ignore any local.mk files that would be consumed by the Makefile
 local.mk
 
 # Ignore temporary files created by the Makefile
 *.mktmp.*
+
+# Ignore catalog related files
+/catalog/
+
+# Ignore generated files
+config/crd/bases
+config/crd/external
+config/rbac/role.yaml
+config/webhook/manifests.yaml
+config/rhoai/crd/bases
+config/rhoai/crd/external
+config/rhoai/rbac/role.yaml
+config/rhoai/webhook/manifests.yaml
+rhoai-bundle/
+odh-bundle/
+
+# Ignore binary files
+cmd/component-codegen/component-codegen
