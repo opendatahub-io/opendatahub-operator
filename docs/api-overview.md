@@ -2748,6 +2748,7 @@ _Appears in:_
 | `cookie` _[CookieConfig](#cookieconfig)_ | Cookie configuration (applies to both OIDC and OpenShift OAuth) |  |  |
 | `authTimeout` _string_ | AuthTimeout is the duration Envoy waits for auth proxy responses.<br />Requests timeout with 403 if exceeded.<br />Deprecated: Use AuthProxyTimeout instead. |  | Pattern: `^([0-9]+(\.[0-9]+)?(ns\|us\|µs\|ms\|s\|m\|h))+$` <br /> |
 | `authProxyTimeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#duration-v1-meta)_ | AuthProxyTimeout defines the timeout for external authorization service calls (e.g., "5s", "10s")<br />This controls how long Envoy waits for a response from the authentication proxy before timing out 403 response. |  |  |
+| `networkPolicy` _[NetworkPolicyConfig](#networkpolicyconfig)_ | NetworkPolicy configuration for kube-auth-proxy |  |  |
 
 
 #### GatewayConfigStatus
@@ -2766,6 +2767,22 @@ _Appears in:_
 | `phase` _string_ |  |  |  |
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
+
+
+#### IngressPolicyConfig
+
+
+
+IngressPolicyConfig defines ingress NetworkPolicy rules
+
+
+
+_Appears in:_
+- [NetworkPolicyConfig](#networkpolicyconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ | Enabled determines whether ingress rules are applied.<br />When true, creates NetworkPolicy allowing traffic only from Gateway pods and monitoring namespaces. |  | Required: \{\} <br /> |
 
 
 #### Metrics
@@ -2884,6 +2901,24 @@ _Appears in:_
 | `observedGeneration` _integer_ | The generation observed by the resource controller. |  |  |
 | `conditions` _[Condition](#condition) array_ |  |  |  |
 | `url` _string_ |  |  |  |
+
+
+#### NetworkPolicyConfig
+
+
+
+NetworkPolicyConfig defines network policy configuration for kube-auth-proxy.
+When nil or when Ingress is nil, NetworkPolicy ingress rules are enabled by default
+to restrict access to kube-auth-proxy pods.
+
+
+
+_Appears in:_
+- [GatewayConfigSpec](#gatewayconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ingress` _[IngressPolicyConfig](#ingresspolicyconfig)_ | Ingress defines ingress NetworkPolicy rules.<br />When nil, ingress rules are applied by default (allows traffic from Gateway pods and monitoring namespaces).<br />When specified, Enabled must be set to true to apply rules or false to skip NetworkPolicy creation.<br />Set Enabled=false only in development environments or when using alternative network security controls. |  |  |
 
 
 #### OIDCConfig
