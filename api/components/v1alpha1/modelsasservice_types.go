@@ -40,7 +40,6 @@ var _ common.PlatformObject = (*ModelsAsService)(nil)
 // +kubebuilder:validation:XValidation:rule="self.metadata.name == 'default-modelsasservice'",message="ModelsAsService name must be default-modelsasservice"
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`,description="Ready"
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`,description="Reason"
-// +kubebuilder:printcolumn:name="URI",type=string,JSONPath=`.status.URI`,description="devFlag's URI used to download"
 
 // ModelsAsService is the Schema for the modelsasservice API
 type ModelsAsService struct {
@@ -62,7 +61,7 @@ type GatewaySpec struct {
 	// Namespace is the namespace name where the gateway.networking.k8s.io/v1/Gateway resource is.
 	Namespace string `json:"namespace,omitempty"`
 
-	// Namespace is the name of the gateway.networking.k8s.io/v1/Gateway resource.
+	// Name is the name of the gateway.networking.k8s.io/v1/Gateway resource.
 	Name string `json:"name,omitempty"`
 }
 

@@ -737,7 +737,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `namespace` _string_ | Namespace is the namespace name where the gateway.networking.k8s.io/v1/Gateway resource is. |  |  |
-| `name` _string_ | Namespace is the name of the gateway.networking.k8s.io/v1/Gateway resource. |  |  |
+| `name` _string_ | Name is the name of the gateway.networking.k8s.io/v1/Gateway resource. |  |  |
 
 
 #### Kserve
