@@ -1,0 +1,55 @@
+name: Sync Main Branch Into Rhoai Branch
+
+on:
+  schedule:
+    # Run every 2 hours
+    - cron: '0 */2 * * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync_main_into_rhoai:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: rhoai
+
+      - name: Update main commits into rhoai
+        id: update_main_into_rhoai
+        run: git fetch origin main rhoai && git merge origin/main
+
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
+          private_key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        id: create-pr
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          commit-message: "[sync]: sync main into rhoai"
+          title: "[sync]: sync main into rhoai"
+          body: |
+            This PR syncs the latest commits merged into main branch into rhoai branch
+          branch: sync/main_to_rhoai
+          delete-branch: true
+
+      - name: Output Summary
+        run: |
+          echo "✅ Updates processed successfully"
+          if [[ "${{ steps.create-pr.outputs.pull-request-operation }}" == "created" ]]; then
+            echo "📋 Pull request created: ${{ steps.create-pr.outputs.pull-request-url }}"
+            echo "📋 Pull request number: #${{ steps.create-pr.outputs.pull-request-number }}"
+          elif [[ "${{ steps.create-pr.outputs.pull-request-operation }}" == "updated" ]]; then
+            echo "📋 Pull request updated: ${{ steps.create-pr.outputs.pull-request-url }}"
+          else
+            echo "📋 No pull request changes needed"
+          fi
