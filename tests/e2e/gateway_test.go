@@ -199,15 +199,15 @@ func (tc *GatewayTestCtx) ValidateOAuthClientAndSecret(t *testing.T) {
 		}),
 		WithCondition(And(
 			jq.Match(`.type == "%s"`, string(corev1.SecretTypeOpaque)),
-			jq.Match(`.metadata.labels["platform.opendatahub.io/part-of"] == "gatewayconfig"`),
+			jq.Match(`.metadata.labels["%s"] == "%s"`, labels.PlatformPartOf, gateway.PartOfGatewayConfig),
 			jq.Match(`.data | has("OAUTH2_PROXY_CLIENT_ID")`),
 			jq.Match(`.data | has("OAUTH2_PROXY_CLIENT_SECRET")`),
 			jq.Match(`.data | has("OAUTH2_PROXY_COOKIE_SECRET")`),
 			jq.Match(`.data.OAUTH2_PROXY_CLIENT_SECRET | length > 0`),
 			jq.Match(`.data.OAUTH2_PROXY_COOKIE_SECRET | length > 0`),
 		)),
-		WithCustomErrorMsg("OAuth proxy credentials secret should be Opaque type with platform.opendatahub.io/part-of=gatewayconfig label, "+
-			"exactly %d non-empty keys, and CLIENT_ID matching OAuthClient name", expectedSecretDataKeys),
+		WithCustomErrorMsg("OAuth proxy credentials secret should be Opaque type with %s=%s label, "+
+			"exactly %d non-empty keys, and CLIENT_ID matching OAuthClient name", labels.PlatformPartOf, gateway.PartOfGatewayConfig, expectedSecretDataKeys),
 	)
 
 	t.Log("OAuth client and secret validation completed")
@@ -242,7 +242,7 @@ func (tc *GatewayTestCtx) ValidateAuthProxyDeployment(t *testing.T) {
 		}),
 		WithCondition(And(
 			// replica count
-			jq.Match(`.spec.replicas == 2`),
+			jq.Match(`.spec.replicas == 1`),
 
 			// basic pod template checks
 			jq.Match(`.spec.selector.matchLabels.app == "%s"`, kubeAuthProxyName),

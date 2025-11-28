@@ -227,7 +227,7 @@ func IsGatewayCertificateSecret(ctx context.Context, cli client.Client, obj clie
 		return obj.GetName() == expectedName
 
 	default:
-		// no need actoin on selfsigned as operator create it which has the ownerreference on it with reconcile.
+		// no need action on selfsigned as operator create it which has the ownerreference on it with reconcile.
 		return false
 	}
 }

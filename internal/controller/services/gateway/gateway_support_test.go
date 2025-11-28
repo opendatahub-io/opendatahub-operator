@@ -73,6 +73,21 @@ func TestGetCertificateType(t *testing.T) {
 			expectedType: string(infrav1.Provided),
 			description:  "should return provided certificate type",
 		},
+		{
+			name: "empty certificate type defaults to OpenshiftDefaultIngress",
+			gatewayConfig: &serviceApi.GatewayConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-gateway",
+				},
+				Spec: serviceApi.GatewayConfigSpec{
+					Certificate: &infrav1.CertificateSpec{
+						Type: "",
+					},
+				},
+			},
+			expectedType: string(infrav1.OpenshiftDefaultIngress),
+			description:  "should return OpenShift default when certificate type is empty string",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -140,6 +155,27 @@ func TestGetGatewayAuthProxyTimeout(t *testing.T) {
 			expectedTimeout: "20s",
 			description:     "should prefer deprecated AuthTimeout for backward compatibility",
 		},
+		{
+			name: "zero duration for AuthProxyTimeout falls back to default",
+			gatewayConfig: &serviceApi.GatewayConfig{
+				Spec: serviceApi.GatewayConfigSpec{
+					AuthProxyTimeout: metav1.Duration{Duration: 0},
+				},
+			},
+			expectedTimeout: "5s",
+			description:     "should return default 5s when AuthProxyTimeout is zero duration",
+		},
+		{
+			name: "empty AuthTimeout string with zero AuthProxyTimeout",
+			gatewayConfig: &serviceApi.GatewayConfig{
+				Spec: serviceApi.GatewayConfigSpec{
+					AuthTimeout:      "",
+					AuthProxyTimeout: metav1.Duration{Duration: 0},
+				},
+			},
+			expectedTimeout: "5s",
+			description:     "should return default 5s when both fields are empty/zero",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -151,8 +187,8 @@ func TestGetGatewayAuthProxyTimeout(t *testing.T) {
 	}
 }
 
-// TestSecretHashAnnotationChangeTriggers tests that hash changes when secret values change.
-func TestSecretHashAnnotationChangeTriggers(t *testing.T) {
+// TestCalculateAuthConfigHash tests the calculateAuthConfigHash function.
+func TestCalculateAuthConfigHash(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
@@ -214,65 +250,6 @@ func TestSecretHashAnnotationChangeTriggers(t *testing.T) {
 	}
 	hash5 := calculateAuthConfigHash(secret5)
 	g.Expect(hash5).To(Equal(hash1), "same secret values should produce same hash")
-}
-
-// TestCalculateAuthConfigHash tests the calculateAuthConfigHash function.
-func TestCalculateAuthConfigHash(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	testCases := []struct {
-		name        string
-		secret      *corev1.Secret
-		expectEmpty bool
-		description string
-	}{
-		{
-			name: "generates hash for valid secret",
-			secret: &corev1.Secret{
-				Data: map[string][]byte{
-					"OAUTH2_PROXY_CLIENT_ID":     []byte("test-client-id"),
-					"OAUTH2_PROXY_CLIENT_SECRET": []byte("test-client-secret"),
-					"OAUTH2_PROXY_COOKIE_SECRET": []byte("test-cookie-secret"),
-				},
-			},
-			expectEmpty: false,
-			description: "should generate non-empty hash for valid secret",
-		},
-		{
-			name: "generates different hash for different values",
-			secret: &corev1.Secret{
-				Data: map[string][]byte{
-					"OAUTH2_PROXY_CLIENT_ID":     []byte("different-client-id"),
-					"OAUTH2_PROXY_CLIENT_SECRET": []byte("different-client-secret"),
-					"OAUTH2_PROXY_COOKIE_SECRET": []byte("different-cookie-secret"),
-				},
-			},
-			expectEmpty: false,
-			description: "should generate different hash for different values",
-		},
-	}
-
-	var previousHash string
-	for i, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			hash := calculateAuthConfigHash(tc.secret)
-
-			if tc.expectEmpty {
-				g.Expect(hash).To(BeEmpty(), tc.description)
-			} else {
-				g.Expect(hash).NotTo(BeEmpty(), tc.description)
-				g.Expect(hash).To(HaveLen(64), "hash should be 64 characters (SHA256 hex)")
-
-				// Ensure different secrets produce different hashes
-				if i > 0 {
-					g.Expect(hash).NotTo(Equal(previousHash), "different secrets should produce different hashes")
-				}
-				previousHash = hash
-			}
-		})
-	}
 }
 
 // TestIsGatewayReady tests the isGatewayReady helper function.
@@ -373,109 +350,6 @@ func TestIsGatewayReady(t *testing.T) {
 			t.Parallel()
 			result := isGatewayReady(tc.gateway)
 			g.Expect(result).To(Equal(tc.expectReady), tc.description)
-		})
-	}
-}
-
-// TestGetCertificateTypeEdgeCases tests edge cases for certificate type detection.
-func TestGetCertificateTypeEdgeCases(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	testCases := []struct {
-		name          string
-		gatewayConfig *serviceApi.GatewayConfig
-		expectedType  string
-		description   string
-	}{
-		{
-			name: "empty certificate type defaults to OpenshiftDefaultIngress",
-			gatewayConfig: &serviceApi.GatewayConfig{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-gateway",
-				},
-				Spec: serviceApi.GatewayConfigSpec{
-					Certificate: &infrav1.CertificateSpec{
-						Type: "",
-					},
-				},
-			},
-			expectedType: string(infrav1.OpenshiftDefaultIngress),
-			description:  "should return OpenShift default when certificate type is empty string",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			result := getCertificateType(tc.gatewayConfig)
-			g.Expect(result).To(Equal(tc.expectedType), tc.description)
-		})
-	}
-}
-
-// TestCalculateAuthConfigHashDeterministic verifies hash function is deterministic.
-func TestCalculateAuthConfigHashDeterministic(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	secret := &corev1.Secret{
-		Data: map[string][]byte{
-			"OAUTH2_PROXY_CLIENT_ID":     []byte("test-id"),
-			"OAUTH2_PROXY_CLIENT_SECRET": []byte("test-secret"),
-			"OAUTH2_PROXY_COOKIE_SECRET": []byte("test-cookie"),
-		},
-	}
-
-	// Calculate hash multiple times
-	hash1 := calculateAuthConfigHash(secret)
-	hash2 := calculateAuthConfigHash(secret)
-	hash3 := calculateAuthConfigHash(secret)
-
-	g.Expect(hash1).To(Equal(hash2), "hash should be deterministic")
-	g.Expect(hash2).To(Equal(hash3), "hash should be deterministic")
-	g.Expect(hash1).To(HaveLen(64), "hash should be 64 characters (SHA256 hex)")
-}
-
-// TestGetGatewayAuthProxyTimeoutEdgeCases tests edge cases for timeout retrieval.
-func TestGetGatewayAuthProxyTimeoutEdgeCases(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	testCases := []struct {
-		name            string
-		gatewayConfig   *serviceApi.GatewayConfig
-		expectedTimeout string
-		description     string
-	}{
-		{
-			name: "zero duration for AuthProxyTimeout falls back to default",
-			gatewayConfig: &serviceApi.GatewayConfig{
-				Spec: serviceApi.GatewayConfigSpec{
-					AuthProxyTimeout: metav1.Duration{Duration: 0},
-				},
-			},
-			expectedTimeout: "5s",
-			description:     "should return default 5s when AuthProxyTimeout is zero duration",
-		},
-		{
-			name: "empty AuthTimeout string with zero AuthProxyTimeout",
-			gatewayConfig: &serviceApi.GatewayConfig{
-				Spec: serviceApi.GatewayConfigSpec{
-					AuthTimeout:      "",
-					AuthProxyTimeout: metav1.Duration{Duration: 0},
-				},
-			},
-			expectedTimeout: "5s",
-			description:     "should return default 5s when both fields are empty/zero",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			result := getGatewayAuthProxyTimeout(tc.gatewayConfig)
-			g.Expect(result).To(Equal(tc.expectedTimeout), tc.description)
 		})
 	}
 }

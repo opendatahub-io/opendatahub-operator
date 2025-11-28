@@ -73,6 +73,7 @@ const (
 	// Label constants.
 	ComponentLabelValue = "authentication"
 	PartOfLabelValue    = "data-science-gateway"
+	PartOfGatewayConfig = "gatewayconfig"
 )
 
 const (
@@ -322,7 +323,7 @@ func createSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clien
 	}
 
 	labelList := map[string]string{
-		labels.PlatformPartOf: "gatewayconfig",
+		labels.PlatformPartOf: PartOfGatewayConfig,
 	}
 
 	_, err := controllerutil.CreateOrUpdate(ctx, rr.Client, secret, func() error {

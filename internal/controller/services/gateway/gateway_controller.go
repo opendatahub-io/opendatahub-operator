@@ -44,7 +44,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 
 	gw.OwnsGVK(gvk.GatewayClass).
 		OwnsGVK(gvk.KubernetesGateway).
-		// OwnsGVK(gvk.Secret).
+		OwnsGVK(gvk.Secret).
 		OwnsGVK(gvk.Service).
 		OwnsGVK(gvk.Deployment).
 		OwnsGVK(gvk.HTTPRoute).
