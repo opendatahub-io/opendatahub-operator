@@ -5,6 +5,7 @@ metadata:
   namespace: {{.GatewayNamespace}}
   labels:
     app: {{.KubeAuthProxyServiceName}}
+    {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
   annotations:
     service.beta.openshift.io/serving-cert-secret-name: {{.KubeAuthProxyTLSName}}
 spec:
@@ -14,3 +15,6 @@ spec:
     - name: https
       port: {{.GatewayHTTPSPort}}
       targetPort: {{.GatewayHTTPSPort}}
+    - name: metrics
+      port: {{.AuthProxyMetricsPort}}
+      targetPort: {{.AuthProxyMetricsPort}}

@@ -194,3 +194,20 @@ func CreatedOrUpdatedOrDeletedNamePrefixed(namePrefix string) predicate.Predicat
 		},
 	}
 }
+
+// GatewayCertificateSecret returns a predicate that filters events for certificate secrets used by GatewayConfig.
+// This includes both OpenShift default ingress certificates and user-provided certificates.
+func GatewayCertificateSecret(isGatewayCertFn func(obj client.Object) bool) predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.TypedCreateEvent[client.Object]) bool {
+			return isGatewayCertFn(e.Object)
+		},
+		UpdateFunc: func(e event.TypedUpdateEvent[client.Object]) bool {
+			return isGatewayCertFn(e.ObjectNew)
+		},
+		// If certificate secret is deleted, trigger reconciliation to update status to error and warn user
+		DeleteFunc: func(e event.TypedDeleteEvent[client.Object]) bool {
+			return isGatewayCertFn(e.Object)
+		},
+	}
+}

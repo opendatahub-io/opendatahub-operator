@@ -10,24 +10,20 @@ import (
 	"strings"
 
 	oauthv1 "github.com/openshift/api/oauth/v1"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
@@ -44,87 +40,51 @@ const (
 	DefaultGatewayName    = "data-science-gateway"               // Default gateway name used across all platforms
 
 	// Authentication constants.
-	AuthClientID        = "data-science" // OAuth client ID
-	OpenShiftOAuthScope = "user:full"    // OAuth client scope
-
-	// OAuth2 proxy infrastructure.
+	AuthClientID             = "data-science" // OauthClient name.
 	KubeAuthProxyName        = "kube-auth-proxy"
 	KubeAuthProxySecretsName = "kube-auth-proxy-creds" //nolint:gosec // This is a resource name, not actual credentials
-	KubeAuthProxyTLSName     = "kube-auth-proxy-tls"
+	KubeAuthProxyTLSName     = "kube-auth-proxy-tls"   //nolint:gosec
 	OAuthCallbackRouteName   = "oauth-callback-route"
+	AuthnFilterName          = "data-science-authn-filter"
+	DestinationRuleName      = "data-science-tls-rule"
 
 	// Network configuration.
 	AuthProxyHTTPPort    = 4180
-	AuthProxyHTTPSPort   = 8443
 	AuthProxyMetricsPort = 9000
-	AuthProxyOAuth2Path  = "/oauth2"
+	StandardHTTPSPort    = 443
+	GatewayHTTPSPort     = 8443
+
+	AuthProxyOAuth2Path = "/oauth2"
+	// OAuth2 proxy cookie name - used in both proxy args and EnvoyFilter Lua filter.
+	AuthProxyCookieName = "_oauth2_proxy"
 
 	// Volume and mount paths.
 	TLSCertsVolumeName = "tls-certs"
 	TLSCertsMountPath  = "/etc/tls/private"
 
 	// Secret configuration.
-	ClientSecretLength     = 24
-	CookieSecretLength     = 32
-	DefaultClientSecretKey = "clientSecret"
+	DefaultGatewayTLSSecretName = "data-science-gatewayconfig-tls"
 
 	// Environment variable names for OAuth2 proxy.
 	EnvClientID     = "OAUTH2_PROXY_CLIENT_ID"
 	EnvClientSecret = "OAUTH2_PROXY_CLIENT_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 	EnvCookieSecret = "OAUTH2_PROXY_COOKIE_SECRET" //nolint:gosec // This is an environment variable name, not a secret
 
-	// OAuth2 proxy cookie name - used in both proxy args and EnvoyFilter Lua filter.
-	OAuth2ProxyCookieName = "_oauth2_proxy"
+	// Label constants.
+	ComponentLabelValue = "authentication"
+	PartOfLabelValue    = "data-science-gateway"
+	PartOfGatewayConfig = "gatewayconfig"
 )
 
 const (
-	envoyFilterTemplate     = "resources/envoyfilter-authn.tmpl.yaml"
-	destinationRuleTemplate = "resources/kube-auth-proxy-destinationrule-tls.tmpl.yaml"
-	// not in use yet, TODO comment this out.
-	// kubeAuthProxyDeploymentOidcTemplate  = "resources/kube-auth-proxy-oidc-deployment.tmpl.yaml"
-	// kubeAuthProxyDeploymentOauthTemplate = "resources/kube-auth-proxy-oauth-deployment.tmpl.yaml"
-	// kubeAuthProxyServiceTemplate         = "resources/kube-auth-proxy-svc.tmpl.yaml"
-	// kubeAuthProxyHTTPRouteTemplate       = "resources/kube-auth-proxy-httproute.tmpl.yaml".
+	envoyFilterTemplate                  = "resources/envoyfilter-authn.tmpl.yaml"
+	destinationRuleTemplate              = "resources/kube-auth-proxy-destinationrule-tls.tmpl.yaml"
+	kubeAuthProxyDeploymentOidcTemplate  = "resources/kube-auth-proxy-oidc-deployment.tmpl.yaml"
+	kubeAuthProxyDeploymentOauthTemplate = "resources/kube-auth-proxy-oauth-deployment.tmpl.yaml"
+	kubeAuthProxyServiceTemplate         = "resources/kube-auth-proxy-svc.tmpl.yaml"
+	kubeAuthProxyHTTPRouteTemplate       = "resources/kube-auth-proxy-httproute.tmpl.yaml"
+	networkPolicyTemplate                = "resources/kube-auth-proxy-networkpolicy.yaml"
 )
-
-var (
-	// KubeAuthProxyLabels provides common labels for OAuth2 proxy resources.
-	KubeAuthProxyLabels = map[string]string{"app": KubeAuthProxyName}
-)
-
-// make secrete data into sha256 as hash.
-func calculateSecretHash(secretData map[string][]byte) string {
-	clientID := string(secretData[EnvClientID])
-	clientSecret := string(secretData[EnvClientSecret])
-	cookieSecret := string(secretData[EnvCookieSecret])
-
-	configData := clientID + clientSecret + cookieSecret
-	hash := sha256.Sum256([]byte(configData))
-	return hex.EncodeToString(hash[:])
-}
-
-// getKubeAuthProxyImage returns the kube-auth-proxy image from environment variable.
-// For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
-// For ODH deployments, this comes from config/manager/manager.yaml.
-// Falls back to a default image for local development/testing only.
-func getKubeAuthProxyImage() string {
-	if image := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); image != "" {
-		return image
-	}
-	// Fallback for ODH development
-	return "quay.io/opendatahub/odh-kube-auth-proxy:latest"
-}
-
-// getCertificateType returns a string representation of the certificate type.
-func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
-	if gatewayConfig == nil {
-		return string(infrav1.OpenshiftDefaultIngress)
-	}
-	if gatewayConfig.Spec.Certificate == nil {
-		return string(infrav1.OpenshiftDefaultIngress)
-	}
-	return string(gatewayConfig.Spec.Certificate.Type)
-}
 
 // GetFQDN returns the fully qualified domain name for the gateway based on the GatewayConfig.
 // It constructs the FQDN by combining the subdomain (or default) with either the user-specified
@@ -177,56 +137,6 @@ func GetGatewayDomain(ctx context.Context, cli client.Client) (string, error) {
 	return GetFQDN(ctx, cli, gatewayConfig)
 }
 
-// createListeners creates the Gateway listeners configuration with namespace restrictions.
-func createListeners(certSecretName string, domain string) []gwapiv1.Listener {
-	// Early return for empty certificate - avoid unnecessary allocations
-	if certSecretName == "" {
-		return nil
-	}
-
-	// Pre-allocate slice with known capacity to avoid reallocations
-	listeners := make([]gwapiv1.Listener, 0, 1)
-
-	selectorMode := gwapiv1.NamespacesFromSelector
-	httpsMode := gwapiv1.TLSModeTerminate
-	hostname := gwapiv1.Hostname(domain)
-
-	httpsListener := gwapiv1.Listener{
-		Name:     "https",
-		Protocol: gwapiv1.HTTPSProtocolType,
-		Port:     443,
-		Hostname: &hostname,
-		TLS: &gwapiv1.GatewayTLSConfig{
-			Mode: &httpsMode,
-			CertificateRefs: []gwapiv1.SecretObjectReference{
-				{
-					Name: gwapiv1.ObjectName(certSecretName),
-				},
-			},
-		},
-		AllowedRoutes: &gwapiv1.AllowedRoutes{
-			Namespaces: &gwapiv1.RouteNamespaces{
-				From: &selectorMode,
-				Selector: &metav1.LabelSelector{
-					MatchExpressions: []metav1.LabelSelectorRequirement{
-						{
-							Key:      "kubernetes.io/metadata.name",
-							Operator: metav1.LabelSelectorOpIn,
-							Values: []string{
-								GatewayNamespace,                  // openshift-ingress
-								cluster.GetApplicationNamespace(), // opendatahub or redhat-ods-applications
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	listeners = append(listeners, httpsListener)
-	return listeners
-}
-
 // This helper function optimizes the condition checking logic.
 func isGatewayReady(gateway *gwapiv1.Gateway) bool {
 	if gateway == nil {
@@ -240,37 +150,27 @@ func isGatewayReady(gateway *gwapiv1.Gateway) bool {
 	return false
 }
 
-func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
-	gatewayClass := &gwapiv1.GatewayClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: GatewayClassName,
-		},
-		Spec: gwapiv1.GatewayClassSpec{
-			ControllerName: gwapiv1.GatewayController(GatewayControllerName),
-		},
+// getCertificateType returns a string representation of the certificate type.
+func getCertificateType(gatewayConfig *serviceApi.GatewayConfig) string {
+	if gatewayConfig == nil {
+		return string(infrav1.OpenshiftDefaultIngress)
 	}
-
-	return rr.AddResources(gatewayClass)
+	if gatewayConfig.Spec.Certificate == nil || gatewayConfig.Spec.Certificate.Type == "" {
+		return string(infrav1.OpenshiftDefaultIngress)
+	}
+	return string(gatewayConfig.Spec.Certificate.Type)
 }
 
 func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig, domain string) (string, error) {
-	// Input validation
-	if gatewayConfig == nil {
-		return "", errors.New("gatewayConfig cannot be nil")
-	}
-	if domain == "" {
-		return "", errors.New("domain cannot be empty")
+	var certConfig infrav1.CertificateSpec
+	if gatewayConfig.Spec.Certificate != nil {
+		certConfig = *gatewayConfig.Spec.Certificate
 	}
 
-	// Get certificate configuration with default fallback
-	certConfig := gatewayConfig.Spec.Certificate
-	if certConfig == nil {
-		certConfig = &infrav1.CertificateSpec{
-			Type: infrav1.OpenshiftDefaultIngress,
-		}
+	if certConfig.Type == "" {
+		certConfig.Type = infrav1.OpenshiftDefaultIngress
 	}
 
-	// Generate secret name with fallback
 	secretName := certConfig.SecretName
 	if secretName == "" {
 		secretName = fmt.Sprintf("%s-tls", gatewayConfig.Name)
@@ -278,9 +178,26 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 
 	switch certConfig.Type {
 	case infrav1.OpenshiftDefaultIngress:
-		return handleOpenshiftDefaultCertificate(ctx, rr, secretName)
+		if err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, GatewayNamespace,
+			cluster.WithLabels( // add label easy to know it is from us.
+				labels.PlatformPartOf, ServiceName,
+			),
+			cluster.OwnedBy(gatewayConfig, rr.Client.Scheme()), // set ownerreference for cleanup
+		); err != nil {
+			return "", fmt.Errorf("failed to propagate default ingress certificate: %w", err)
+		}
+		return secretName, nil
 	case infrav1.SelfSigned:
-		return handleSelfSignedCertificate(ctx, rr, secretName, domain)
+		hostname := fmt.Sprintf("%s.%s", DefaultGatewayName, domain)
+		if err := cluster.CreateSelfSignedCertificate(ctx, rr.Client, secretName, hostname, GatewayNamespace,
+			cluster.WithLabels( // add label easy to know it is from us.
+				labels.PlatformPartOf, ServiceName,
+			),
+			cluster.OwnedBy(gatewayConfig, rr.Client.Scheme()), // set ownerreference for cleanup
+		); err != nil {
+			return "", fmt.Errorf("failed to create self-signed certificate: %w", err)
+		}
+		return secretName, nil
 	case infrav1.Provided:
 		return secretName, nil
 	default:
@@ -288,53 +205,67 @@ func handleCertificates(ctx context.Context, rr *odhtypes.ReconciliationRequest,
 	}
 }
 
-func handleOpenshiftDefaultCertificate(ctx context.Context, rr *odhtypes.ReconciliationRequest, secretName string) (string, error) {
-	err := cluster.PropagateDefaultIngressCertificate(ctx, rr.Client, secretName, GatewayNamespace)
-	if err != nil {
-		return "", fmt.Errorf("failed to propagate default ingress certificate: %w", err)
+func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
+	gatewayClass := &gwapiv1.GatewayClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: GatewayClassName,
+		},
+		Spec: gwapiv1.GatewayClassSpec{
+			ControllerName: GatewayControllerName,
+		},
 	}
 
-	return secretName, nil
+	return rr.AddResources(gatewayClass)
 }
 
-func handleSelfSignedCertificate(ctx context.Context, rr *odhtypes.ReconciliationRequest, secretName string, domain string) (string, error) {
-	err := cluster.CreateSelfSignedCertificate(
-		ctx,
-		rr.Client,
-		secretName,
-		domain,
-		GatewayNamespace,
-	)
-	if err != nil {
-		return "", fmt.Errorf("failed to create self-signed certificate: %w", err)
+func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string) error {
+	listeners := []gwapiv1.Listener{}
+
+	if certSecretName != "" {
+		allowedNamespaces := gwapiv1.NamespacesFromSelector
+		httpsMode := gwapiv1.TLSModeTerminate
+		hostname := gwapiv1.Hostname(domain)
+		httpsListener := gwapiv1.Listener{
+			Name:     "https",
+			Protocol: gwapiv1.HTTPSProtocolType,
+			Port:     StandardHTTPSPort,
+			Hostname: &hostname,
+			TLS: &gwapiv1.GatewayTLSConfig{
+				Mode: &httpsMode,
+				CertificateRefs: []gwapiv1.SecretObjectReference{
+					{
+						Name: gwapiv1.ObjectName(certSecretName),
+					},
+				},
+			},
+			AllowedRoutes: &gwapiv1.AllowedRoutes{
+				Namespaces: &gwapiv1.RouteNamespaces{
+					From: &allowedNamespaces,
+					Selector: &metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      "kubernetes.io/metadata.name",
+								Operator: metav1.LabelSelectorOpIn,
+								Values: []string{
+									GatewayNamespace,
+									cluster.GetApplicationNamespace(),
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		listeners = append(listeners, httpsListener)
 	}
 
-	return secretName, nil
-}
-
-func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, gatewayName string) error {
-	// Input validation
-	if rr == nil {
-		return errors.New("reconciliation request cannot be nil")
-	}
-	if gatewayName == "" {
-		return errors.New("gateway name cannot be empty")
-	}
-	if domain == "" {
-		return errors.New("domain cannot be empty")
-	}
-
-	// Create listeners with namespace restrictions
-	listeners := createListeners(certSecretName, domain)
-
-	// Create gateway resource with optimized structure
 	gateway := &gwapiv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      gatewayName,
+			Name:      DefaultGatewayName,
 			Namespace: GatewayNamespace,
 		},
 		Spec: gwapiv1.GatewaySpec{
-			GatewayClassName: gwapiv1.ObjectName(GatewayClassName),
+			GatewayClassName: GatewayClassName,
 			Listeners:        listeners,
 		},
 	}
@@ -342,377 +273,103 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 	return rr.AddResources(gateway)
 }
 
-func validateOIDCConfig(authMode cluster.AuthenticationMode, oidcConfig *serviceApi.OIDCConfig) *common.Condition {
-	if authMode != cluster.AuthModeOIDC {
-		return nil
-	}
-
-	condition := &common.Condition{
-		Type:   status.ConditionTypeReady,
-		Status: metav1.ConditionFalse,
-		Reason: status.NotReadyReason,
-	}
-
-	if oidcConfig == nil {
-		condition.Message = status.AuthProxyOIDCModeWithoutConfigMessage
-		return condition
-	}
-
-	var validationErrors []string
-
-	if oidcConfig.ClientID == "" {
-		validationErrors = append(validationErrors, status.AuthProxyOIDCClientIDEmptyMessage)
-	}
-	if oidcConfig.IssuerURL == "" {
-		validationErrors = append(validationErrors, status.AuthProxyOIDCIssuerURLEmptyMessage)
-	}
-	if oidcConfig.ClientSecretRef.Name == "" {
-		validationErrors = append(validationErrors, status.AuthProxyOIDCSecretRefNameEmptyMessage)
-	}
-
-	if len(validationErrors) > 0 {
-		condition.Message = strings.Join(validationErrors, ", ")
-		return condition
-	}
-
-	return nil
-}
-
-func checkAuthModeNone(authMode cluster.AuthenticationMode) *common.Condition {
-	if authMode == cluster.AuthModeNone {
-		return &common.Condition{
-			Type:    status.ConditionTypeReady,
-			Status:  metav1.ConditionFalse,
-			Reason:  status.NotReadyReason,
-			Message: "Cluster uses external authentication, no gateway auth proxy deployed",
-		}
-	}
-	return nil
-}
-
-// getOrGenerateSecrets retrieves existing secrets or generates new ones for OAuth2 proxy.
-func getOrGenerateSecrets(ctx context.Context, rr *odhtypes.ReconciliationRequest, authMode cluster.AuthenticationMode) (string, string, error) {
-	existingSecret := &corev1.Secret{}
-	secretErr := rr.Client.Get(ctx, types.NamespacedName{
+// createOAuthClient creates an OpenShift OAuth client for integrated authentication.
+func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, gatewayConfig *serviceApi.GatewayConfig) error {
+	// Read client secret from kube-auth-proxy-creds secret
+	authSecret := &corev1.Secret{}
+	if err := rr.Client.Get(ctx, types.NamespacedName{
 		Name:      KubeAuthProxySecretsName,
 		Namespace: GatewayNamespace,
-	}, existingSecret)
-
-	if secretErr == nil {
-		clientSecretBytes, hasClientSecret := existingSecret.Data[EnvClientSecret]
-		cookieSecretBytes, hasCookieSecret := existingSecret.Data[EnvCookieSecret]
-
-		if !hasClientSecret || !hasCookieSecret {
-			return "", "", errors.New("existing secret missing required keys")
-		}
-
-		return string(clientSecretBytes), string(cookieSecretBytes), nil
+	}, authSecret); err != nil {
+		return fmt.Errorf("failed to get auth proxy secret %s/%s: %w", GatewayNamespace, KubeAuthProxySecretsName, err)
 	}
 
-	if !k8serr.IsNotFound(secretErr) {
-		return "", "", fmt.Errorf("failed to check for existing secret: %w", secretErr)
+	clientSecretBytes, exists := authSecret.Data["OAUTH2_PROXY_CLIENT_SECRET"]
+	if !exists {
+		return fmt.Errorf("OAUTH2_PROXY_CLIENT_SECRET not found in secret %s/%s", GatewayNamespace, KubeAuthProxySecretsName)
 	}
+	clientSecret := string(clientSecretBytes)
 
-	var clientSecretValue string
-	if authMode == cluster.AuthModeIntegratedOAuth {
-		clientSecretGen, err := cluster.NewSecret("client-secret", "random", ClientSecretLength)
-		if err != nil {
-			return "", "", fmt.Errorf("failed to generate client secret: %w", err)
-		}
-		clientSecretValue = clientSecretGen.Value
-	}
-
-	cookieSecretGen, err := cluster.NewSecret("cookie-secret", "random", CookieSecretLength)
+	domain, err := GetFQDN(ctx, rr.Client, gatewayConfig)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate cookie secret: %w", err)
+		return fmt.Errorf("failed to resolve domain: %w", err)
 	}
-
-	return clientSecretValue, cookieSecretGen.Value, nil
-}
-
-// createSecretKeySelector creates a standard secret key selector for OAuth2 proxy environment variables.
-func createSecretKeySelector(key string) *corev1.EnvVarSource {
-	return &corev1.EnvVarSource{
-		SecretKeyRef: &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{
-				Name: KubeAuthProxySecretsName,
-			},
-			Key: key,
+	redirectURL := fmt.Sprintf("https://%s/oauth2/callback", domain)
+	oauthClient := &oauthv1.OAuthClient{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: AuthClientID,
 		},
+		GrantMethod:  oauthv1.GrantHandlerAuto,
+		RedirectURIs: []string{redirectURL},
+		Secret:       clientSecret, // encoded string
 	}
+
+	return rr.AddResources(oauthClient)
 }
 
-// This helper reduces code duplication and improves error handling consistency.
-func validateGatewayConfig(rr *odhtypes.ReconciliationRequest) (*serviceApi.GatewayConfig, error) {
-	if rr == nil {
-		return nil, errors.New("reconciliation request cannot be nil")
+// createSecret dynamically creates the kube-auth-proxy-creds secret immediately on the cluster.
+func createSecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clientID, clientSecret, cookieSecret string) error {
+	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
+	if !ok {
+		return errors.New("instance is not of type *services.GatewayConfig")
 	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      KubeAuthProxySecretsName,
+			Namespace: GatewayNamespace,
+		},
+		Type: corev1.SecretTypeOpaque,
+	}
+
+	labelList := map[string]string{
+		labels.PlatformPartOf: PartOfGatewayConfig,
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, rr.Client, secret, func() error {
+		secret.StringData = map[string]string{
+			"OAUTH2_PROXY_CLIENT_ID":     clientID,
+			"OAUTH2_PROXY_CLIENT_SECRET": clientSecret,
+			"OAUTH2_PROXY_COOKIE_SECRET": cookieSecret,
+		}
+		resources.SetLabels(secret, labelList)
+		return controllerutil.SetControllerReference(gatewayConfig, secret, rr.Client.Scheme())
+	})
+
+	return err
+}
+
+// validateGatewayConfig extracts the GatewayConfig from the reconciliation request instance.
+// Returns an error if the instance is not of type *serviceApi.GatewayConfig.
+func validateGatewayConfig(rr *odhtypes.ReconciliationRequest) (*serviceApi.GatewayConfig, error) {
 	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
 	if !ok {
 		return nil, errors.New("instance is not of type *services.GatewayConfig")
 	}
-	if gatewayConfig == nil {
-		return nil, errors.New("gatewayConfig cannot be nil")
-	}
 	return gatewayConfig, nil
 }
 
-// deployKubeAuthProxy deploys the complete OAuth2 proxy infrastructure including secret, service, network policy and deployment.
-func deployKubeAuthProxy(ctx context.Context, rr *odhtypes.ReconciliationRequest,
-	oidcConfig *serviceApi.OIDCConfig, cookieConfig *serviceApi.CookieConfig,
-	networkPolicy *serviceApi.NetworkPolicyConfig,
-	clientSecret, cookieSecret string, domain string) error {
-	l := logf.FromContext(ctx).WithName("deployAuthProxy")
-
-	if oidcConfig != nil {
-		l.V(1).Info("configuring kube-auth-proxy for external OIDC",
-			"issuerURL", oidcConfig.IssuerURL,
-			"clientID", oidcConfig.ClientID,
-			"secretRef", oidcConfig.ClientSecretRef.Name)
-	} else {
-		l.V(1).Info("configuring kube-auth-proxy for OpenShift OAuth")
-	}
-
-	err := createKubeAuthProxySecret(ctx, rr, clientSecret, cookieSecret, oidcConfig)
-	if err != nil {
-		return err
-	}
-
-	l.V(1).Info("secret created, proceeding with dependent resources", "secret", "kube-auth-proxy-creds")
-
-	err = createKubeAuthProxyService(rr)
-	if err != nil {
-		return err
-	}
-
-	// Create NetworkPolicy before deployment to ensure network restrictions are in place
-	// before the pod starts
-	if err := createNetworkPolicy(ctx, rr, networkPolicy); err != nil {
-		return fmt.Errorf("failed to create network policy: %w", err)
-	}
-
-	err = createKubeAuthProxyDeployment(ctx, rr, oidcConfig, cookieConfig, domain)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// getOIDCClientSecret retrieves the client secret from the referenced secret for OIDC configuration.
-func getOIDCClientSecret(ctx context.Context, client client.Client, oidcConfig *serviceApi.OIDCConfig) (string, error) {
-	secret := &corev1.Secret{}
-	err := client.Get(ctx, types.NamespacedName{
-		Name:      oidcConfig.ClientSecretRef.Name,
-		Namespace: GatewayNamespace,
-	}, secret)
-	if err != nil {
-		return "", fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
-			GatewayNamespace, oidcConfig.ClientSecretRef.Name, err)
-	}
-
-	key := oidcConfig.ClientSecretRef.Key
-	if key == "" {
-		key = DefaultClientSecretKey
-	}
-
-	if secretValue, exists := secret.Data[key]; exists {
-		return string(secretValue), nil
-	}
-
-	return "", fmt.Errorf("key '%s' not found in secret %s/%s",
-		key, GatewayNamespace, oidcConfig.ClientSecretRef.Name)
-}
-
-func createKubeAuthProxySecret(ctx context.Context, rr *odhtypes.ReconciliationRequest, clientSecret, cookieSecret string, oidcConfig *serviceApi.OIDCConfig) error {
-	clientId := AuthClientID
-	clientSecretValue := clientSecret
-
-	if oidcConfig != nil {
-		clientId = oidcConfig.ClientID
-		var err error
-		clientSecretValue, err = getOIDCClientSecret(ctx, rr.Client, oidcConfig)
-		if err != nil {
-			return err
+// getGatewayAuthProxyTimeout returns the auth timeout using:
+// Deprecated AuthTimeout field > AuthProxyTimeout field > default (5s).
+func getGatewayAuthProxyTimeout(gatewayConfig *serviceApi.GatewayConfig) string {
+	if gatewayConfig != nil {
+		// Check deprecated field first for backward compatibility
+		if gatewayConfig.Spec.AuthTimeout != "" {
+			return gatewayConfig.Spec.AuthTimeout
+		}
+		// Check new field
+		if gatewayConfig.Spec.AuthProxyTimeout.Duration != 0 {
+			return gatewayConfig.Spec.AuthProxyTimeout.Duration.String()
 		}
 	}
 
-	secret := &corev1.Secret{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "Secret",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      KubeAuthProxySecretsName,
-			Namespace: GatewayNamespace,
-			Labels:    KubeAuthProxyLabels,
-		},
-		Type: corev1.SecretTypeOpaque,
-		StringData: map[string]string{
-			EnvClientID:     clientId,
-			EnvClientSecret: clientSecretValue,
-			EnvCookieSecret: cookieSecret,
-		},
-	}
-
-	opts := []client.PatchOption{
-		client.ForceOwnership,
-		client.FieldOwner(resources.PlatformFieldOwner),
-	}
-	err := resources.Apply(ctx, rr.Client, secret, opts...)
-	if err != nil && !k8serr.IsAlreadyExists(err) {
-		return err
-	}
-	return nil
-}
-
-// createKubeAuthProxyDeployment creates the OAuth2 proxy deployment
-// with security contexts meeting Pod Security Standards (restricted profile):
-//   - RunAsNonRoot prevents root execution
-//   - ReadOnlyRootFilesystem provides an immutable container filesystem
-//   - AllowPrivilegeEscalation blocked, all capabilities dropped
-//   - Temporary /tmp volume (10Mi limit) minimizes attack surface while
-//     providing sufficient space for OAuth2 session storage
-func createKubeAuthProxyDeployment(
-	ctx context.Context, rr *odhtypes.ReconciliationRequest,
-	oidcConfig *serviceApi.OIDCConfig,
-	cookieConfig *serviceApi.CookieConfig,
-	domain string) error {
-	// secret doesn't exist use empty string.
-	secret := &corev1.Secret{}
-	secretHash := ""
-	err := rr.Client.Get(ctx, types.NamespacedName{
-		Name:      KubeAuthProxySecretsName,
-		Namespace: GatewayNamespace,
-	}, secret)
-	if err == nil {
-		// Secret exists, calculate its hash
-		secretHash = calculateSecretHash(secret.Data)
-	} else if !k8serr.IsNotFound(err) {
-		return fmt.Errorf("failed to get secret: %w", err)
-	}
-
-	deployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      KubeAuthProxyName,
-			Namespace: GatewayNamespace,
-			Labels:    KubeAuthProxyLabels,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: KubeAuthProxyLabels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: KubeAuthProxyLabels,
-					Annotations: map[string]string{
-						"opendatahub.io/secret-hash": secretHash,
-					},
-				},
-				Spec: corev1.PodSpec{
-					SecurityContext: &corev1.PodSecurityContext{
-						RunAsNonRoot: ptr.To(true),
-						SeccompProfile: &corev1.SeccompProfile{
-							Type: corev1.SeccompProfileTypeRuntimeDefault,
-						},
-					},
-					Containers: []corev1.Container{
-						{
-							Name:  KubeAuthProxyName,
-							Image: getKubeAuthProxyImage(),
-							Ports: []corev1.ContainerPort{
-								{
-									ContainerPort: AuthProxyHTTPPort,
-									Name:          "http",
-								},
-								{
-									ContainerPort: AuthProxyHTTPSPort,
-									Name:          "https",
-								},
-								{
-									ContainerPort: AuthProxyMetricsPort,
-									Name:          "metrics",
-								},
-							},
-							Args: buildOAuth2ProxyArgs(oidcConfig, cookieConfig, domain),
-							Env: []corev1.EnvVar{
-								{Name: EnvClientID, ValueFrom: createSecretKeySelector(EnvClientID)},
-								{Name: EnvClientSecret, ValueFrom: createSecretKeySelector(EnvClientSecret)},
-								{Name: EnvCookieSecret, ValueFrom: createSecretKeySelector(EnvCookieSecret)},
-								{Name: "PROXY_MODE", Value: "auth"},
-							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("10m"),
-									corev1.ResourceMemory: resource.MustParse("32Mi"),
-								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("50m"),
-									corev1.ResourceMemory: resource.MustParse("64Mi"),
-								},
-							},
-							SecurityContext: &corev1.SecurityContext{
-								ReadOnlyRootFilesystem:   ptr.To(true),
-								AllowPrivilegeEscalation: ptr.To(false),
-								Capabilities: &corev1.Capabilities{
-									Drop: []corev1.Capability{"ALL"},
-								},
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      TLSCertsVolumeName,
-									MountPath: TLSCertsMountPath,
-									ReadOnly:  true,
-								},
-								{
-									Name:      "tmp",
-									MountPath: "/tmp",
-								},
-							},
-						},
-					},
-					Volumes: []corev1.Volume{
-						{
-							Name: TLSCertsVolumeName,
-							VolumeSource: corev1.VolumeSource{
-								Secret: &corev1.SecretVolumeSource{
-									SecretName: KubeAuthProxyTLSName,
-								},
-							},
-						},
-						{
-							Name: "tmp",
-							VolumeSource: corev1.VolumeSource{
-								EmptyDir: &corev1.EmptyDirVolumeSource{
-									Medium:    corev1.StorageMediumMemory,
-									SizeLimit: ptr.To(resource.MustParse("10Mi")),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	return rr.AddResources(deployment)
-}
-
-func buildOAuth2ProxyArgs(oidcConfig *serviceApi.OIDCConfig, cookieConfig *serviceApi.CookieConfig, domain string) []string {
-	// OAuth2 proxy acts as auth service only - no upstream needed
-	baseArgs := buildBaseOAuth2ProxyArgs(cookieConfig, domain)
-
-	if oidcConfig != nil {
-		return append(baseArgs, buildOIDCArgs(oidcConfig)...)
-	}
-
-	return append(baseArgs, buildOpenShiftOAuthArgs()...)
+	return "5s"
 }
 
 // getCookieSettings returns cookie expire and refresh durations with defaults.
 func getCookieSettings(cookieConfig *serviceApi.CookieConfig) (string, string) {
 	// Set defaults
-	expire, refresh := "24h", "1h"
+	expire, refresh := "24h0m0s", "1h0m0s"
 
 	// Override with user configuration if provided
 	if cookieConfig != nil {
@@ -727,183 +384,110 @@ func getCookieSettings(cookieConfig *serviceApi.CookieConfig) (string, string) {
 	return expire, refresh
 }
 
-func buildBaseOAuth2ProxyArgs(cookieConfig *serviceApi.CookieConfig, domain string) []string {
-	cookieExpire, cookieRefresh := getCookieSettings(cookieConfig)
+// calculateAuthConfigHash generates a hash of the authentication secret values
+// to detect changes that should trigger a kube-auth-proxy pod restart.
+func calculateAuthConfigHash(authSecret *corev1.Secret) string {
+	clientID := string(authSecret.Data["OAUTH2_PROXY_CLIENT_ID"])
+	clientSecret := string(authSecret.Data["OAUTH2_PROXY_CLIENT_SECRET"])
+	cookieSecret := string(authSecret.Data["OAUTH2_PROXY_COOKIE_SECRET"])
 
-	return []string{
-		fmt.Sprintf("--http-address=0.0.0.0:%d", AuthProxyHTTPPort),
-		"--email-domain=*",
-		"--upstream=static://200", // Static response - real routing handled by EnvoyFilter
-		"--skip-provider-button",
-		"--skip-jwt-bearer-tokens=true", // Allow bearer tokens to bypass OAuth login flow
-		"--pass-access-token=true",
-		"--set-xauthrequest=true",
-		fmt.Sprintf("--redirect-url=https://%s/oauth2/callback", domain),
-		"--tls-cert-file=" + TLSCertsMountPath + "/tls.crt",
-		"--tls-key-file=" + TLSCertsMountPath + "/tls.key",
-		"--use-system-trust-store=true",
-		fmt.Sprintf("--https-address=0.0.0.0:%d", AuthProxyHTTPSPort),
-		"--cookie-expire=" + cookieExpire,                                 // Configurable cookie expiration
-		"--cookie-refresh=" + cookieRefresh,                               // Configurable cookie refresh interval
-		"--cookie-secure=true",                                            // HTTPS only
-		"--cookie-httponly=true",                                          // XSS protection
-		"--cookie-samesite=lax",                                           // CSRF protection
-		fmt.Sprintf("--cookie-name=%s", OAuth2ProxyCookieName),            // Custom cookie name (used in EnvoyFilter Lua filter)
-		"--cookie-domain=" + domain,                                       // Cookie domain is the domain of the gateway
-		fmt.Sprintf("--metrics-address=0.0.0.0:%d", AuthProxyMetricsPort), // Expose metrics on unauthenticated port
-	}
+	// Calculate SHA256 hash
+	hash := sha256.Sum256([]byte(clientID + clientSecret + cookieSecret))
+	return hex.EncodeToString(hash[:])
 }
 
-func buildOIDCArgs(oidcConfig *serviceApi.OIDCConfig) []string {
-	return []string{
-		"--provider=oidc",
-		"--oidc-issuer-url=" + oidcConfig.IssuerURL,
-		"--skip-oidc-discovery=false", // Enable OIDC discovery
+// getKubeAuthProxyImage returns the kube-auth-proxy image from environment variable.
+// For RHOAI deployments, this comes from the CSV (via RHOAI-Build-Config/bundle/additional-images-patch.yaml).
+// For ODH deployments, this comes from config/manager/manager.yaml.
+// Falls back to a default image for local development/testing only.
+func getKubeAuthProxyImage() string {
+	if image := os.Getenv("RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE"); image != "" {
+		return image
 	}
+	// Fallback for ODH development
+	return "quay.io/opendatahub/odh-kube-auth-proxy:latest"
 }
 
-func buildOpenShiftOAuthArgs() []string {
-	return []string{
-		"--provider=openshift",
-		"--scope=" + OpenShiftOAuthScope,
-	}
-}
+func getAuthProxySecretValues(
+	ctx context.Context,
+	rr *odhtypes.ReconciliationRequest,
+	authMode cluster.AuthenticationMode,
+	oidcConfig *serviceApi.OIDCConfig) (string, string, string, error) {
+	// Check if kube-auth-proxy-creds already exists and is valid
+	existingSecret := &corev1.Secret{}
+	secretErr := rr.Client.Get(ctx, types.NamespacedName{
+		Name:      KubeAuthProxySecretsName,
+		Namespace: GatewayNamespace,
+	}, existingSecret)
 
-func createKubeAuthProxyService(rr *odhtypes.ReconciliationRequest) error {
-	service := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      KubeAuthProxyName,
-			Namespace: GatewayNamespace,
-			Labels:    KubeAuthProxyLabels,
-			Annotations: map[string]string{
-				"service.beta.openshift.io/serving-cert-secret-name": KubeAuthProxyTLSName,
-			},
-		},
-		Spec: corev1.ServiceSpec{
-			Selector: KubeAuthProxyLabels,
-			Ports: []corev1.ServicePort{
-				{
-					Name:       "https",
-					Port:       AuthProxyHTTPSPort,
-					TargetPort: intstr.FromInt(AuthProxyHTTPSPort),
-				},
-				{
-					Name:       "metrics",
-					Port:       AuthProxyMetricsPort,
-					TargetPort: intstr.FromInt(AuthProxyMetricsPort),
-				},
-			},
-		},
+	// Fast exit on NotFound errors
+	if secretErr != nil && !k8serr.IsNotFound(secretErr) {
+		return "", "", "", fmt.Errorf("failed to check existing secret %s/%s: %w", GatewayNamespace, KubeAuthProxySecretsName, secretErr)
 	}
 
-	return rr.AddResources(service)
-}
+	// If secret exists, validate and reuse its values
+	if secretErr == nil {
+		clientSecretBytes, hasClientSecret := existingSecret.Data["OAUTH2_PROXY_CLIENT_SECRET"]
+		cookieSecretBytes, hasCookieSecret := existingSecret.Data["OAUTH2_PROXY_COOKIE_SECRET"]
+		clientIDBytes, hasClientID := existingSecret.Data["OAUTH2_PROXY_CLIENT_ID"]
 
-// createOAuthClient creates an OpenShift OAuth client for integrated authentication.
-func createOAuthClient(ctx context.Context, rr *odhtypes.ReconciliationRequest, clientSecret string) error {
-	gatewayConfig, ok := rr.Instance.(*serviceApi.GatewayConfig)
-	if !ok {
-		return errors.New("instance is not of type *services.GatewayConfig")
-	}
-
-	// Use consistent domain resolution with the gateway
-	domain, err := GetFQDN(ctx, rr.Client, gatewayConfig)
-	if err != nil {
-		return fmt.Errorf("failed to resolve domain: %w", err)
-	}
-
-	oauthClient := &oauthv1.OAuthClient{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: AuthClientID,
-		},
-		GrantMethod:  oauthv1.GrantHandlerAuto,
-		RedirectURIs: []string{fmt.Sprintf("https://%s/oauth2/callback", domain)},
-		Secret:       clientSecret,
-	}
-
-	return rr.AddResources(oauthClient)
-}
-
-// createHTTPRoute creates a common HTTPRoute with optional URL rewrite filter.
-func createHTTPRoute(routeName, path, serviceName, serviceNamespace string, port int32, urlRewrite *gwapiv1.HTTPURLRewriteFilter) *gwapiv1.HTTPRoute {
-	pathPrefix := gwapiv1.PathMatchPathPrefix
-	gatewayNS := gwapiv1.Namespace(GatewayNamespace)
-	servicePort := gwapiv1.PortNumber(port)
-
-	rule := gwapiv1.HTTPRouteRule{
-		Matches: []gwapiv1.HTTPRouteMatch{
-			{
-				Path: &gwapiv1.HTTPPathMatch{
-					Type:  &pathPrefix,
-					Value: &path,
-				},
-			},
-		},
-		BackendRefs: []gwapiv1.HTTPBackendRef{
-			{
-				BackendRef: gwapiv1.BackendRef{
-					BackendObjectReference: gwapiv1.BackendObjectReference{
-						Name:      gwapiv1.ObjectName(serviceName),
-						Namespace: (*gwapiv1.Namespace)(&serviceNamespace),
-						Port:      &servicePort,
-					},
-				},
-			},
-		},
-	}
-
-	// Add URL rewrite filter if provided
-	if urlRewrite != nil {
-		rule.Filters = []gwapiv1.HTTPRouteFilter{
-			{
-				Type:       gwapiv1.HTTPRouteFilterURLRewrite,
-				URLRewrite: urlRewrite,
-			},
+		if hasClientSecret && hasCookieSecret && hasClientID {
+			return string(clientIDBytes), string(clientSecretBytes), string(cookieSecretBytes), nil
 		}
 	}
 
-	return &gwapiv1.HTTPRoute{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      routeName,
-			Namespace: GatewayNamespace,
-		},
-		Spec: gwapiv1.HTTPRouteSpec{
-			CommonRouteSpec: gwapiv1.CommonRouteSpec{
-				ParentRefs: []gwapiv1.ParentReference{
-					{
-						Name:      gwapiv1.ObjectName(DefaultGatewayName),
-						Namespace: &gatewayNS,
-					},
-				},
-			},
-			Rules: []gwapiv1.HTTPRouteRule{rule},
-		},
+	var clientSecretValue, clientID string
+
+	switch authMode {
+	case cluster.AuthModeOIDC:
+		// OIDC mode: get client secret from external secret
+		clientID = oidcConfig.ClientID
+
+		// Determine which namespace to use for the secret
+		secretNamespace := oidcConfig.SecretNamespace
+		if secretNamespace == "" {
+			secretNamespace = GatewayNamespace // Default to openshift-ingress if not specified
+		}
+
+		externalSecret := &corev1.Secret{}
+		if err := rr.Client.Get(ctx, types.NamespacedName{
+			Name:      oidcConfig.ClientSecretRef.Name,
+			Namespace: secretNamespace,
+		}, externalSecret); err != nil {
+			return "", "", "", fmt.Errorf("failed to get OIDC client secret %s/%s: %w",
+				secretNamespace, oidcConfig.ClientSecretRef.Name, err)
+		}
+
+		key := oidcConfig.ClientSecretRef.Key
+		if key == "" {
+			key = "clientSecret"
+		}
+
+		if secretValue, exists := externalSecret.Data[key]; exists {
+			clientSecretValue = string(secretValue)
+		} else {
+			return "", "", "", fmt.Errorf("key '%s' not found in OIDC secret %s/%s", key, secretNamespace, oidcConfig.ClientSecretRef.Name)
+		}
+
+	case cluster.AuthModeIntegratedOAuth:
+		// OAuth mode: generate new client secret
+		clientID = AuthClientID
+
+		clientSecretGen, err := cluster.NewSecret("client-secret", "random", 24)
+		if err != nil {
+			return "", "", "", fmt.Errorf("failed to generate client secret: %w", err)
+		}
+		clientSecretValue = clientSecretGen.Value
+
+	default:
+		return "", "", "", fmt.Errorf("auth mode: %s is not supported", authMode)
 	}
-}
 
-func createOAuthCallbackRoute(rr *odhtypes.ReconciliationRequest) error {
-	httpRoute := createHTTPRoute(
-		OAuthCallbackRouteName,
-		AuthProxyOAuth2Path,
-		KubeAuthProxyName,
-		GatewayNamespace,
-		AuthProxyHTTPSPort,
-		nil, // no URL rewrite for OAuth callback
-	)
-	return rr.AddResources(httpRoute)
-}
-
-// isIngressCertificateSecret returns true if obj is the certificate secret used by the default IngressController.
-func isIngressCertificateSecret(ctx context.Context, cli client.Client, obj client.Object) bool {
-	if obj.GetNamespace() != cluster.IngressNamespace {
-		return false
-	}
-
-	ingressCtrl, err := cluster.FindAvailableIngressController(ctx, cli)
+	// Always generate new cookie secret on oauth or oidc mode.
+	cookieSecretGen, err := cluster.NewSecret("cookie-secret", "random", 32)
 	if err != nil {
-		return false
+		return "", "", "", fmt.Errorf("failed to generate cookie secret: %w", err)
 	}
 
-	ingressCertName := cluster.GetDefaultIngressCertSecretName(ingressCtrl)
-	return obj.GetName() == ingressCertName
+	return clientID, clientSecretValue, cookieSecretGen.Value, nil
 }
