@@ -4,10 +4,7 @@ on:
   schedule:
     # Run every 2 hours
     - cron: '0 */2 * * *'
-
-permissions:
-  contents: write
-  pull-requests: write
+  workflow_dispatch: # Allow manual triggering
 
 jobs:
   sync_main_into_rhoai:
