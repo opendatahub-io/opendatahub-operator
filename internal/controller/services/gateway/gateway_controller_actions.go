@@ -111,7 +111,11 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 				conditions.WithReason(status.NotReadyReason),
 				conditions.WithMessage(status.AuthProxyOIDCModeWithoutConfigMessage),
 			)
-			return nil // TODO: is this logic correct? no oidc but to use oidc and not error out.
+          // Return nil (not error) because this is a permanent user configuration error.
+          // Returning an error would cause infinite reconciliation for something only the
+          // user can fix. Users must check GatewayConfig status conditions to see this error.
+          // Reconciliation will retry when the user updates the GatewayConfig with OIDC config.
+          return nil
 		}
 		oidcConfig = gatewayConfig.Spec.OIDC
 		l.V(1).Info("configuring "+KubeAuthProxyName+" for external OIDC",
