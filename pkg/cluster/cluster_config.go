@@ -27,8 +27,13 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 )
 
+const (
+	// DSCMonitoringNamespaceKey is the viper key for the DSC monitoring namespace.
+	DSCMonitoringNamespaceKey = "dsc-monitoring-namespace"
+)
+
 type ClusterInfo struct {
-	Type        string                  `json:"type,omitempty"` // openshift , TODO: can be other value if we later support other type
+	Type        string                  `json:"type,omitempty"`
 	Version     version.OperatorVersion `json:"version,omitempty"`
 	FipsEnabled bool                    `json:"fips_enabled,omitempty"`
 }

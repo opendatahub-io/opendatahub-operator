@@ -29,10 +29,17 @@ const (
 )
 
 var (
+	// Private maps to reduce API surface and prevent direct access.
 	sectionTitle = map[common.Platform]string{
 		cluster.SelfManagedRhoai: "OpenShift Self Managed Services",
 		cluster.ManagedRhoai:     "OpenShift Managed Services",
 		cluster.OpenDataHub:      "OpenShift Open Data Hub",
+	}
+
+	baseConsoleURL = map[common.Platform]string{
+		cluster.SelfManagedRhoai: "https://rhods-dashboard-",
+		cluster.ManagedRhoai:     "https://rhods-dashboard-",
+		cluster.OpenDataHub:      "https://odh-dashboard-",
 	}
 
 	overlaysSourcePaths = map[common.Platform]string{
@@ -41,31 +48,66 @@ var (
 		cluster.OpenDataHub:      "/odh",
 	}
 
-	imagesMap = map[string]string{
+	ImagesMap = map[string]string{
 		"odh-dashboard-image":     "RELATED_IMAGE_ODH_DASHBOARD_IMAGE",
 		"model-registry-ui-image": "RELATED_IMAGE_ODH_MOD_ARCH_MODEL_REGISTRY_IMAGE",
 		"gen-ai-ui-image":         "RELATED_IMAGE_ODH_MOD_ARCH_GEN_AI_IMAGE",
 		"kube-rbac-proxy":         "RELATED_IMAGE_OSE_KUBE_RBAC_PROXY_IMAGE",
 	}
 
-	conditionTypes = []string{
+	ConditionTypes = []string{
 		status.ConditionDeploymentsAvailable,
 	}
 )
 
-func defaultManifestInfo(p common.Platform) odhtypes.ManifestInfo {
-	return odhtypes.ManifestInfo{
-		Path:       odhdeploy.DefaultManifestPath,
-		ContextDir: ComponentName,
-		SourcePath: overlaysSourcePaths[p],
+// GetSectionTitle returns the section title for the given platform.
+// Returns an error if the platform is not supported.
+func GetSectionTitle(platform common.Platform) (string, error) {
+	title, ok := sectionTitle[platform]
+	if !ok {
+		return "", fmt.Errorf(ErrUnsupportedPlatform, platform)
 	}
+	return title, nil
 }
 
-func bffManifestsPath() odhtypes.ManifestInfo {
+// GetBaseConsoleURL returns the base console URL for the given platform.
+// Returns an error if the platform is not supported.
+func GetBaseConsoleURL(platform common.Platform) (string, error) {
+	url, ok := baseConsoleURL[platform]
+	if !ok {
+		return "", fmt.Errorf(ErrUnsupportedPlatform, platform)
+	}
+	return url, nil
+}
+
+// GetOverlaysSourcePath returns the overlays source path for the given platform.
+// Returns an error if the platform is not supported.
+func GetOverlaysSourcePath(platform common.Platform) (string, error) {
+	path, ok := overlaysSourcePaths[platform]
+	if !ok {
+		return "", fmt.Errorf(ErrUnsupportedPlatform, platform)
+	}
+	return path, nil
+}
+
+func DefaultManifestInfo(p common.Platform) (odhtypes.ManifestInfo, error) {
+	sourcePath, err := GetOverlaysSourcePath(p)
+	if err != nil {
+		return odhtypes.ManifestInfo{}, err
+	}
+
 	return odhtypes.ManifestInfo{
 		Path:       odhdeploy.DefaultManifestPath,
 		ContextDir: ComponentName,
-		SourcePath: "modular-architecture",
+		SourcePath: sourcePath,
+	}, nil
+}
+
+func BffManifestsPath() odhtypes.ManifestInfo {
+	return odhtypes.ManifestInfo{
+		Path:       odhdeploy.DefaultManifestPath,
+		ContextDir: ComponentName,
+		SourcePath: ModularArchitectureSourcePath,
 	}
 }
 
@@ -76,19 +118,38 @@ func computeKustomizeVariable(ctx context.Context, cli client.Client, platform c
 		return nil, fmt.Errorf("error getting gateway domain: %w", err)
 	}
 
+	baseURL, err := GetBaseConsoleURL(platform)
+	if err != nil {
+		return nil, err
+	}
+	sectionTitle, err := GetSectionTitle(platform)
+	if err != nil {
+		return nil, err
+	}
+
 	return map[string]string{
 		"dashboard-url": fmt.Sprintf("https://%s/", consoleLinkDomain),
 		"section-title": sectionTitle[platform],
 	}, nil
 }
 
-func computeComponentName() string {
-	release := cluster.GetRelease()
-
+// ComputeComponentNameWithRelease returns the appropriate legacy component name based on the provided release.
+// Platforms whose release.Name equals cluster.SelfManagedRhoai or cluster.ManagedRhoai
+// return LegacyComponentNameDownstream, while all others return LegacyComponentNameUpstream.
+// This distinction exists because these specific platforms use legacy downstream vs upstream
+// naming conventions. This is historical behavior that must be preserved - do not change
+// return values as this maintains compatibility with existing deployments.
+func ComputeComponentNameWithRelease(release common.Release) string {
 	name := LegacyComponentNameUpstream
 	if release.Name == cluster.SelfManagedRhoai || release.Name == cluster.ManagedRhoai {
 		name = LegacyComponentNameDownstream
 	}
 
 	return name
+}
+
+// ComputeComponentName returns the appropriate legacy component name based on the platform.
+// This function maintains backward compatibility by using the global release state.
+func ComputeComponentName() string {
+	return ComputeComponentNameWithRelease(cluster.GetRelease())
 }

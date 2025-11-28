@@ -24,9 +24,11 @@ import (
 )
 
 const (
-	testNamespace             = "test-model-registries"   // Namespace used for model registry testing
-	dsciInstanceNameDuplicate = "e2e-test-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
-	dscInstanceNameDuplicate  = "e2e-test-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
+	testNamespace              = "test-model-registries"   // Namespace used for model registry testing
+	dsciInstanceNameDuplicate  = "e2e-test-dsci-duplicate" // Instance name for the duplicate DSCInitialization resource
+	dscInstanceNameDuplicate   = "e2e-test-dsc-duplicate"  // Instance name for the duplicate DataScienceCluster resource
+	defaultHardwareProfileName = "default-profile"         // Name of the default hardware profile used in tests
+	managedAnnotationKey       = "opendatahub.io/managed"  // Annotation key for managed resources
 )
 
 // DSCTestCtx holds the context for the DSCInitialization and DataScienceCluster management tests.
@@ -288,12 +290,12 @@ func (tc *DSCTestCtx) UpdateRegistriesNamespace(targetNamespace, expectedValue s
 func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
 	t.Helper()
 
-	// verifed default hardwareprofile exists and api version is correct on v1.
+	// verified default hardwareprofile exists and api version is correct on v1.
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: defaultHardwareProfileName, Namespace: tc.AppsNamespace}),
 		WithCondition(And(
 			jq.Match(`.spec.identifiers[0].defaultCount == 2`),
-			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
+			jq.Match(`.metadata.annotations["`+managedAnnotationKey+`"] == "false"`),
 			jq.Match(`.apiVersion == "infrastructure.opendatahub.io/v1"`),
 		)),
 		WithCustomErrorMsg("Default hardwareprofile should have defaultCount=2, managed=false, and use v1 API version"),
@@ -301,34 +303,34 @@ func (tc *DSCTestCtx) ValidateHardwareProfileCR(t *testing.T) {
 
 	// update default hardwareprofile to different value and check it is updated.
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: defaultHardwareProfileName, Namespace: tc.AppsNamespace}),
 		WithMutateFunc(testf.Transform(`
 			.spec.identifiers[0].defaultCount = 4 |
-			.metadata.annotations["opendatahub.io/managed"] = "false"
+			.metadata.annotations["`+managedAnnotationKey+`"] = "false"
 		`)),
 		WithCondition(And(
 			Succeed(),
 			jq.Match(`.spec.identifiers[0].defaultCount == 4`),
-			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
+			jq.Match(`.metadata.annotations["`+managedAnnotationKey+`"] == "false"`),
 		)),
 		WithCustomErrorMsg("Failed to update defaultCount from 2 to 4"),
 	)
 	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: defaultHardwareProfileName, Namespace: tc.AppsNamespace}),
 		WithCondition(jq.Match(`.spec.identifiers[0].defaultCount == 4`)),
 		WithCustomErrorMsg("Should have defaultCount to 4 but now got %s", jq.Match(`.spec.identifiers[0].defaultCount`)),
 	)
 
 	// delete default hardwareprofile and check it is recreated with default values.
 	tc.DeleteResource(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: defaultHardwareProfileName, Namespace: tc.AppsNamespace}),
 	)
 
 	tc.EventuallyResourceCreatedOrUpdated(
-		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: "default-profile", Namespace: tc.AppsNamespace}),
+		WithMinimalObject(gvk.HardwareProfile, types.NamespacedName{Name: defaultHardwareProfileName, Namespace: tc.AppsNamespace}),
 		WithCondition(And(
 			jq.Match(`.spec.identifiers[0].defaultCount == 2`),
-			jq.Match(`.metadata.annotations["opendatahub.io/managed"] == "false"`),
+			jq.Match(`.metadata.annotations["`+managedAnnotationKey+`"] == "false"`),
 		)),
 		WithCustomErrorMsg("Hardware profile was not recreated with default values"),
 	)

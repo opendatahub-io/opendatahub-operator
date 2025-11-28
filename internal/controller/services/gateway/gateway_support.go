@@ -92,7 +92,7 @@ var (
 	KubeAuthProxyLabels = map[string]string{"app": KubeAuthProxyName}
 )
 
-// make secrete data into sha256 as hash.
+// calculateSecretHash computes a SHA256 hash of secret data to detect changes.
 func calculateSecretHash(secretData map[string][]byte) string {
 	clientID := string(secretData[EnvClientID])
 	clientSecret := string(secretData[EnvClientSecret])

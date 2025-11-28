@@ -26,6 +26,7 @@ import (
 	odherrors "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/errors"
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -53,14 +54,22 @@ type DashboardHardwareProfileList struct {
 	Items []DashboardHardwareProfile `json:"items"`
 }
 
-func initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	rr.Manifests = []odhtypes.ManifestInfo{defaultManifestInfo(rr.Release.Name)}
+func Initialize(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr == nil {
+		return errors.New("nil ReconciliationRequest")
+	}
+
+	manifestInfo, err := DefaultManifestInfo(rr.Release.Name)
+	if err != nil {
+		return err
+	}
+	rr.Manifests = []odhtypes.ManifestInfo{manifestInfo}
 
 	return nil
 }
 
 func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	extraParamsMap, err := computeKustomizeVariable(ctx, rr.Client, rr.Release.Name)
+	extraParamsMap, err := ComputeKustomizeVariable(ctx, rr.Client, rr.Release.Name)
 	if err != nil {
 		return fmt.Errorf("failed to set variable for url, section-title etc: %w", err)
 	}
@@ -71,9 +80,14 @@ func setKustomizedParams(ctx context.Context, rr *odhtypes.ReconciliationRequest
 	return nil
 }
 
-func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func ConfigureDependencies(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	if rr.Release.Name == cluster.OpenDataHub {
 		return nil
+	}
+
+	// Check for nil client
+	if rr.Client == nil {
+		return errors.New("client cannot be nil")
 	}
 
 	// Fetch application namespace from DSCI.
@@ -82,7 +96,7 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 		return err
 	}
 
-	err = rr.AddResources(&corev1.Secret{
+	anacondaSecret := &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
 			Kind:       "Secret",
@@ -92,8 +106,14 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 			Namespace: appNamespace,
 		},
 		Type: corev1.SecretTypeOpaque,
-	})
+	}
 
+	// Check if the resource already exists to avoid duplicates
+	if resourceExists(rr.Resources, anacondaSecret) {
+		return nil
+	}
+
+	err = rr.AddResources(anacondaSecret)
 	if err != nil {
 		return fmt.Errorf("failed to create access-secret for anaconda: %w", err)
 	}
@@ -101,10 +121,26 @@ func configureDependencies(ctx context.Context, rr *odhtypes.ReconciliationReque
 	return nil
 }
 
-func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func UpdateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr == nil {
+		return errors.New("reconciliation request is nil")
+	}
+
+	if rr.Instance == nil {
+		return errors.New("instance is nil")
+	}
+
+	if rr.Client == nil {
+		return errors.New("client is nil")
+	}
+
+	if rr.Instance == nil {
+		return errors.New("instance is nil")
+	}
+
 	d, ok := rr.Instance.(*componentApi.Dashboard)
 	if !ok {
-		return errors.New("instance is not of type *odhTypes.Dashboard")
+		return errors.New("instance is not of type *componentApi.Dashboard")
 	}
 
 	// Fetch application namespace from DSCI.
@@ -130,13 +166,20 @@ func updateStatus(ctx context.Context, rr *odhtypes.ReconciliationRequest) error
 
 	d.Status.URL = ""
 	if len(rl.Items) == 1 {
-		d.Status.URL = resources.IngressHost(rl.Items[0])
+		host := resources.IngressHost(rl.Items[0])
+		if host != "" {
+			d.Status.URL = "https://" + host
+		}
 	}
 
 	return nil
 }
 
-func reconcileHardwareProfiles(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+func ReconcileHardwareProfiles(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr.Client == nil {
+		return errors.New("client is nil")
+	}
+
 	// If the dashboard HWP CRD doesn't exist, skip any migration logic
 	dashHwpCRDExists, err := cluster.HasCRD(ctx, rr.Client, gvk.DashboardHardwareProfile)
 	if err != nil {
@@ -156,38 +199,47 @@ func reconcileHardwareProfiles(ctx context.Context, rr *odhtypes.ReconciliationR
 
 	logger := log.FromContext(ctx)
 	for _, hwprofile := range dashboardHardwareProfiles.Items {
-		var dashboardHardwareProfile DashboardHardwareProfile
-
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(hwprofile.Object, &dashboardHardwareProfile); err != nil {
-			return fmt.Errorf("failed to convert dashboard hardware profile: %w", err)
-		}
-
-		infraHWP := &infrav1.HardwareProfile{}
-		err := rr.Client.Get(ctx, client.ObjectKey{
-			Name:      dashboardHardwareProfile.Name,
-			Namespace: dashboardHardwareProfile.Namespace,
-		}, infraHWP)
-
-		if k8serr.IsNotFound(err) {
-			if err = createInfraHWP(ctx, rr, logger, &dashboardHardwareProfile); err != nil {
-				return fmt.Errorf("failed to create infrastructure hardware profile: %w", err)
-			}
-			continue
-		}
-
-		if err != nil {
-			return fmt.Errorf("failed to get infrastructure hardware profile: %w", err)
-		}
-
-		err = updateInfraHWP(ctx, rr, logger, &dashboardHardwareProfile, infraHWP)
-		if err != nil {
-			return fmt.Errorf("failed to update existing infrastructure hardware profile: %w", err)
+		if err := ProcessHardwareProfile(ctx, rr, logger, hwprofile); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func createInfraHWP(ctx context.Context, rr *odhtypes.ReconciliationRequest, logger logr.Logger, dashboardhwp *DashboardHardwareProfile) error {
+// ProcessHardwareProfile processes a single dashboard hardware profile.
+func ProcessHardwareProfile(ctx context.Context, rr *odhtypes.ReconciliationRequest, logger logr.Logger, hwprofile unstructured.Unstructured) error {
+	var dashboardHardwareProfile DashboardHardwareProfile
+
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(hwprofile.Object, &dashboardHardwareProfile); err != nil {
+		return fmt.Errorf("failed to convert dashboard hardware profile: %w", err)
+	}
+
+	infraHWP := &infrav1.HardwareProfile{}
+	err := rr.Client.Get(ctx, client.ObjectKey{
+		Name:      dashboardHardwareProfile.Name,
+		Namespace: dashboardHardwareProfile.Namespace,
+	}, infraHWP)
+
+	if k8serr.IsNotFound(err) {
+		if err = CreateInfraHWP(ctx, rr, logger, &dashboardHardwareProfile); err != nil {
+			return fmt.Errorf("failed to create infrastructure hardware profile: %w", err)
+		}
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to get infrastructure hardware profile: %w", err)
+	}
+
+	err = UpdateInfraHWP(ctx, rr, logger, &dashboardHardwareProfile, infraHWP)
+	if err != nil {
+		return fmt.Errorf("failed to update existing infrastructure hardware profile: %w", err)
+	}
+
+	return nil
+}
+
+func CreateInfraHWP(ctx context.Context, rr *odhtypes.ReconciliationRequest, logger logr.Logger, dashboardhwp *DashboardHardwareProfile) error {
 	annotations := make(map[string]string)
 	maps.Copy(annotations, dashboardhwp.Annotations)
 
@@ -222,7 +274,7 @@ func createInfraHWP(ctx context.Context, rr *odhtypes.ReconciliationRequest, log
 	return nil
 }
 
-func updateInfraHWP(
+func UpdateInfraHWP(
 	ctx context.Context, rr *odhtypes.ReconciliationRequest, logger logr.Logger, dashboardhwp *DashboardHardwareProfile, infrahwp *infrav1.HardwareProfile) error {
 	if infrahwp.Annotations == nil {
 		infrahwp.Annotations = make(map[string]string)
@@ -250,4 +302,54 @@ func updateInfraHWP(
 
 	logger.Info("successfully updated infrastructure hardware profile", "name", infrahwp.GetName())
 	return nil
+}
+
+func CustomizeResources(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	if rr == nil {
+		return errors.New("reconciliation request is nil")
+	}
+
+	// Add the opendatahub.io/managed annotation to OdhDashboardConfig resources
+	for i := range rr.Resources {
+		resource := &rr.Resources[i]
+
+		// Check if this is an OdhDashboardConfig resource
+		if resource.GetObjectKind().GroupVersionKind() == gvk.OdhDashboardConfig {
+			// Get current annotations
+			currentAnnotations := resource.GetAnnotations()
+			if currentAnnotations == nil {
+				currentAnnotations = make(map[string]string)
+			}
+
+			// Set the managed annotation to false for OdhDashboardConfig resources
+			// This indicates that the resource should not be reconciled by the operator
+			currentAnnotations[annotations.ManagedByODHOperator] = "false"
+
+			// Set the annotations back
+			resource.SetAnnotations(currentAnnotations)
+		}
+	}
+
+	return nil
+}
+
+// resourceExists checks if a resource with the same name, namespace, and kind already exists in the Resources slice.
+func resourceExists(resources []unstructured.Unstructured, obj client.Object) bool {
+	if obj == nil {
+		return false
+	}
+
+	objName := obj.GetName()
+	objNamespace := obj.GetNamespace()
+	objKind := obj.GetObjectKind().GroupVersionKind().Kind
+
+	for _, resource := range resources {
+		if resource.GetName() == objName &&
+			resource.GetNamespace() == objNamespace &&
+			resource.GetKind() == objKind {
+			return true
+		}
+	}
+
+	return false
 }

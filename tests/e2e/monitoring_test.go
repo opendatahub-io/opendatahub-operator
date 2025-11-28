@@ -49,13 +49,18 @@ const (
 	MetricsCPURequest      = "100m"
 	MetricsMemoryRequest   = "256Mi"
 	// TracesStorage backend types for testing.
-	TracesStorageBackendPV  = "pv"
-	TracesStorageBackendS3  = "s3"
-	TracesStorageBackendGCS = "gcs"
-	TracesStorageSize1Gi    = "1Gi"
+	TracesStorageBackendPV        = "pv"
+	TracesStorageBackendS3        = "s3"
+	TracesStorageBackendGCS       = "gcs"
+	TracesStorageBackendS3Secret  = "s3-secret"
+	TracesStorageBackendGCSSecret = "gcs-secret"
+	TracesStorageRetention        = "720h"
+	TracesStorageRetention24h     = "24h"
+	TracesStorageSize10Gi         = "10Gi"
+	TracesStorageSize1Gi          = "1Gi"
+	monitoringTracesConfigMsg     = "Monitoring resource should be updated with traces configuration by DSCInitialization controller"
 )
 
-// monitoringOwnerReferencesCondition is a reusable condition for validating owner references.
 var monitoringOwnerReferencesCondition = And(
 	jq.Match(`.metadata.ownerReferences | length == 1`),
 	jq.Match(`.metadata.ownerReferences[0].kind == "%s"`, gvk.Monitoring.Kind),
@@ -485,7 +490,7 @@ func (tc *MonitoringTestCtx) ValidateTempoMonolithicCRCreation(t *testing.T) {
 		WithMinimalObject(gvk.Monitoring, types.NamespacedName{Name: MonitoringCRName}),
 		WithCondition(jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, status.ConditionTypeReady, metav1.ConditionTrue)),
 		WithCondition(jq.Match(`.spec.traces != null`)),
-		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
+		WithCustomErrorMsg(monitoringTracesConfigMsg),
 	)
 
 	// Ensure the TempoMonolithic CR is created by the controller (status conditions are set by external tempo operator).
@@ -530,7 +535,7 @@ func (tc *MonitoringTestCtx) ValidateTempoStackCRCreationWithCloudStorage(t *tes
 			name:                "S3 backend",
 			backend:             TracesStorageBackendS3,
 			monitoringCondition: jq.Match(`.spec.traces != null`),
-			monitoringErrorMsg:  "Monitoring resource should be updated with traces configuration by DSCInitialization controller",
+			monitoringErrorMsg:  monitoringTracesConfigMsg,
 		},
 		{
 			name:                "GCS backend",
@@ -573,7 +578,7 @@ func (tc *MonitoringTestCtx) ValidateInstrumentationCRTracesLifecycle(t *testing
 				jq.Match(`.spec.traces.storage.retention == "%s"`, FormattedRetention),
 			),
 		),
-		WithCustomErrorMsg("Monitoring resource should be updated with traces configuration by DSCInitialization controller"),
+		WithCustomErrorMsg(monitoringTracesConfigMsg),
 	)
 
 	// Step 3: Wait for Instrumentation CR to be created and fully configured

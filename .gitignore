@@ -57,6 +57,12 @@ opt/manifests/
 
 cover.out
 
+# Coverage HTML reports
+*_coverage.html
+*_coverage.out
+coverage.html
+coverage.out
+overall_coverage.out
 config/manager/kustomization.yaml
 config/rhoai/manager/kustomization.yaml
 
@@ -69,6 +75,8 @@ local.mk
 # Ignore catalog related files
 /catalog/
 
+# Ignore backup files
+*.backup
 # Ignore generated files
 config/crd/bases
 config/crd/external

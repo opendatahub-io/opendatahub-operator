@@ -556,7 +556,18 @@ unit-test: envtest ginkgo # directly use ginkgo since the framework is not compa
         		--coverprofile=cover.out \
         		--succinct \
         		$(TEST_SRC)
-CLEANFILES += cover.out
+CLEANFILES += cover.out coverage.html
+
+.PHONY: test-coverage
+test-coverage: ## Generate HTML coverage report
+	$(MAKE) unit-test
+	@if [ ! -f cover.out ] || [ ! -s cover.out ]; then \
+		echo "Warning: cover.out is missing or empty. Skipping coverage report generation."; \
+		echo "Make sure unit tests are configured to generate coverage data."; \
+		exit 0; \
+	fi
+	go tool cover -html=cover.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
 
 # Pattern rule to generate .rules.yaml from PrometheusRule templates
 # This finds the corresponding *-prometheusrules.tmpl.yaml in the same directory
