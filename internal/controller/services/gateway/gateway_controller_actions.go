@@ -111,11 +111,11 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 				conditions.WithReason(status.NotReadyReason),
 				conditions.WithMessage(status.AuthProxyOIDCModeWithoutConfigMessage),
 			)
-          // Return nil (not error) because this is a permanent user configuration error.
-          // Returning an error would cause infinite reconciliation for something only the
-          // user can fix. Users must check GatewayConfig status conditions to see this error.
-          // Reconciliation will retry when the user updates the GatewayConfig with OIDC config.
-          return nil
+			// Return nil (not error) because this is a permanent user configuration error.
+			// Returning an error would cause infinite reconciliation for something only the
+			// user can fix. Users must check GatewayConfig status conditions to see this error.
+			// Reconciliation will retry when the user updates the GatewayConfig with OIDC config.
+			return nil
 		}
 		oidcConfig = gatewayConfig.Spec.OIDC
 		l.V(1).Info("configuring "+KubeAuthProxyName+" for external OIDC",
@@ -134,7 +134,7 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 			ReadyConditionType,
 			// Ready=True is correct: desired state is "no auth proxy" when using external auth.
 			// The status message clarifies: "Cluster uses external authentication, no gateway auth proxy deployed"
-  			conditions.WithReason(status.ReadyReason), 
+			conditions.WithReason(status.ReadyReason),
 			conditions.WithMessage(status.AuthProxyExternalAuthNoDeploymentMessage),
 		)
 		return nil
