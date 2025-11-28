@@ -8,6 +8,7 @@ data:
   prometheus.yml: |
     rule_files:
       - operator-recording.rules
+      - operator-alerting.rules
       - deadmanssnitch-alerting.rules
 
     global:
@@ -428,6 +429,27 @@ data:
           labels:
             instance: datasciencecluster-controller
           record: controller_runtime_reconcile_total:rate15m
+
+  operator-alerting.rules: |
+    groups:
+      - name: Operator Pod Health
+        interval: 1m
+        rules:
+        - alert: OperatorPodRestartingFrequently
+          expr: |
+            increase(kube_pod_container_status_restarts_total{
+              namespace="redhat-ods-operator",
+              pod=~"rhods-operator.*"
+            }[5m]) > 3
+          for: 2m
+          labels:
+            severity: warning
+            namespace: redhat-ods-operator
+          annotations:
+            summary: "Operator pod {{ $labels.pod }} is restarting frequently"
+            description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has restarted {{ $value }} times in the last 5 minutes. This indicates potential instability."
+            message: "Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace: {{ $labels.namespace }}) has been restarted more than 3 times in a 5-minute period."
+            triage: "https://github.com/opendatahub-io/opendatahub-operator/blob/main/docs/troubleshooting.md#operator-pod-restarting-frequently"
 
   deadmanssnitch-alerting.rules: |
     groups:
