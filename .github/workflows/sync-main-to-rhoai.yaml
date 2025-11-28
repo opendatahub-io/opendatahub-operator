@@ -10,19 +10,18 @@ jobs:
   sync_main_into_rhoai:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: rhoai
+
       - name: Generate GitHub App Token
         id: generate-token
         uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
           private-key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
-
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          ref: rhoai
-          token: ${{ steps.generate-token.outputs.token }}
 
       - name: Configure Git Cli
         id: configure-git-cli
