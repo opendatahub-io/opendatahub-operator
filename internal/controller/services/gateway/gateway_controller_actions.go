@@ -132,7 +132,9 @@ func createKubeAuthProxyInfrastructure(ctx context.Context, rr *odhtypes.Reconci
 	case cluster.AuthModeNone:
 		rr.Conditions.MarkTrue(
 			ReadyConditionType,
-			conditions.WithReason(status.ReadyReason), // TODO: is this logic correct? user do not want it, we should mark it as ready.
+			// Ready=True is correct: desired state is "no auth proxy" when using external auth.
+			// The status message clarifies: "Cluster uses external authentication, no gateway auth proxy deployed"
+  			conditions.WithReason(status.ReadyReason), 
 			conditions.WithMessage(status.AuthProxyExternalAuthNoDeploymentMessage),
 		)
 		return nil
