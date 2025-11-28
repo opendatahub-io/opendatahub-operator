@@ -31,7 +31,7 @@ jobs:
 
       - name: Generate GitHub App Token
         id: generate-token
-        uses: tibdex/github-app-token@v2
+        uses: actions/create-github-app-token@v2.2.0
         with:
           app_id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
           private_key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
