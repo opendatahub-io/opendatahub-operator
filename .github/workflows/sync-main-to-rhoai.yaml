@@ -34,29 +34,7 @@ jobs:
 
       - name: Update main commits into rhoai
         id: update_main_into_rhoai
-        run: git fetch origin main rhoai && git merge origin/main
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
-        id: create-pr
-        with:
-          token: ${{ steps.generate-token.outputs.token }}
-          commit-message: "[sync]: sync main into rhoai"
-          title: "[sync]: sync main into rhoai"
-          base: rhoai
-          body: |
-            This PR syncs the latest commits merged into main branch into rhoai branch
-          branch: sync/main_to_rhoai
-          delete-branch: true
-
-      - name: Output Summary
         run: |
-          echo "✅ Updates processed successfully"
-          if [[ "${{ steps.create-pr.outputs.pull-request-operation }}" == "created" ]]; then
-            echo "📋 Pull request created: ${{ steps.create-pr.outputs.pull-request-url }}"
-            echo "📋 Pull request number: #${{ steps.create-pr.outputs.pull-request-number }}"
-          elif [[ "${{ steps.create-pr.outputs.pull-request-operation }}" == "updated" ]]; then
-            echo "📋 Pull request updated: ${{ steps.create-pr.outputs.pull-request-url }}"
-          else
-            echo "📋 No pull request changes needed"
-          fi
+          git fetch origin main rhoai
+          git merge origin/main
+          git push origin rhoai
