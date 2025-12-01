@@ -1,21 +1,22 @@
 apiVersion: networking.istio.io/v1
 kind: DestinationRule
 metadata:
-  name: odh-tls-rule
-  namespace: openshift-ingress
+  name: {{.DestinationRuleName}}
+  namespace: {{.GatewayNamespace}}
   labels:
-    app.kubernetes.io/part-of: data-science-gateway
+    {{.PartOfLabelKey}}: {{.PartOfLabelValue}}
+    {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
 spec:
   host: "*"
   trafficPolicy:
     portLevelSettings:
     - port:
-        number: 8443
+        number: {{.GatewayHTTPSPort}}
       tls:
         mode: SIMPLE
         insecureSkipVerify: true
     - port:
-        number: 443
+        number: {{.StandardHTTPSPort}}
       tls:
         mode: SIMPLE
         insecureSkipVerify: true

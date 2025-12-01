@@ -114,6 +114,11 @@ type OIDCConfig struct {
 	// Reference to secret containing client secret
 	// +kubebuilder:validation:Required
 	ClientSecretRef corev1.SecretKeySelector `json:"clientSecretRef"`
+
+	// Namespace where the client secret is located
+	// If not specified, defaults to openshift-ingress
+	// +optional
+	SecretNamespace string `json:"secretNamespace,omitempty"`
 }
 
 // CookieConfig defines cookie settings for OAuth2 proxy

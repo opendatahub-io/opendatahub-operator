@@ -1,12 +1,14 @@
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
-  name: authn-filter
-  namespace: openshift-ingress
+  name: {{.EnvoyFilter}}
+  namespace: {{.GatewayNamespace}}
+  labels:
+    {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
 spec:
   workloadSelector:
     labels:
-      gateway.networking.k8s.io/gateway-name: data-science-gateway
+      {{.GatewayNameLabelKey}}: {{.GatewayName}}
   configPatches:
   - applyTo: HTTP_FILTER
     match:
@@ -26,9 +28,9 @@ spec:
           transport_api_version: V3
           http_service:
             server_uri:
-              uri: https://kube-auth-proxy.openshift-ingress.svc.cluster.local:8443/oauth2/auth
-              cluster: kube-auth-proxy
-              timeout: %s
+              uri: https://{{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local:{{.GatewayHTTPSPort}}/oauth2/auth
+              cluster: {{.KubeAuthProxyServiceName}}
+              timeout: {{.AuthProxyTimeout}}
             authorization_request:
               allowed_headers:
                 patterns:
@@ -72,14 +74,14 @@ spec:
                 request_handle:headers():replace("authorization", "Bearer " .. access_token)
                 
                 -- Strip OAuth2 proxy cookies only when forwarding to upstream services
-                -- Cookie name is injected at runtime from OAuth2ProxyCookieName constant (gateway_support.go:75)
+                -- Cookie name is injected at runtime from AuthProxyCookieName constant (gateway_support.go:59)
                 -- Pattern matches cookies starting with the cookie name, handling variations like:
                 --   - _oauth2_proxy (main cookie)
                 --   - _oauth2_proxy_1, _oauth2_proxy_2 (split cookies if cookie size exceeds limits)
                 local cookie_header = request_handle:headers():get("cookie")
                 if cookie_header then
                   local filtered_cookies = {}
-                  local cookie_pattern = "^{{.CookieName}}"
+                  local cookie_pattern = "^{{.AuthProxyCookieName}}"
                   
                   -- Parse and filter cookies in a single pass
                   for cookie in cookie_header:gmatch("([^;]+)") do
@@ -110,9 +112,9 @@ spec:
     patch:
       operation: ADD
       value:
-        name: kube-auth-proxy
+        name: {{.KubeAuthProxyServiceName}}
         type: STRICT_DNS
-        connect_timeout: %s
+        connect_timeout: {{.AuthProxyTimeout}}
         transport_socket:
           name: envoy.transport_sockets.tls
           typed_config:
@@ -121,13 +123,13 @@ spec:
               validation_context:
                 trusted_ca:
                   filename: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
-            sni: kube-auth-proxy.openshift-ingress.svc.cluster.local
+            sni: {{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local
         load_assignment:
-          cluster_name: kube-auth-proxy
+          cluster_name: {{.KubeAuthProxyServiceName}}
           endpoints:
           - lb_endpoints:
             - endpoint:
                 address:
                   socket_address:
-                    address: kube-auth-proxy.openshift-ingress.svc.cluster.local
-                    port_value: 8443
+                    address: {{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local
+                    port_value: {{.GatewayHTTPSPort}}

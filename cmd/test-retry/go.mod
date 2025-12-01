@@ -1,6 +1,6 @@
 module github.com/opendatahub-io/opendatahub-operator/v2/cmd/test-retry
 
-go 1.24.4
+go 1.24.0
 
 require (
 	github.com/google/go-github/v67 v67.0.0

@@ -5,8 +5,9 @@ metadata:
   namespace: {{.GatewayNamespace}}
   labels:
     app: {{.KubeAuthProxyServiceName}}
+    {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: {{.KubeAuthProxyServiceName}}
@@ -14,6 +15,7 @@ spec:
     metadata:
       labels:
         app: {{.KubeAuthProxyServiceName}}
+        {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
       annotations:
         opendatahub.io/secret-hash: "{{.AuthConfigHash}}"
     spec:

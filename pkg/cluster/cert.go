@@ -21,6 +21,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
+	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
@@ -162,13 +164,13 @@ func FindDefaultIngressSecret(ctx context.Context, c client.Client) (*corev1.Sec
 }
 
 // PropagateDefaultIngressCertificate copies ingress cert secrets from openshift-ingress ns to given namespace.
-func PropagateDefaultIngressCertificate(ctx context.Context, c client.Client, secretName, namespace string) error {
+func PropagateDefaultIngressCertificate(ctx context.Context, c client.Client, secretName, namespace string, metaOptions ...MetaOptions) error {
 	defaultIngressSecret, err := FindDefaultIngressSecret(ctx, c)
 	if err != nil {
 		return err
 	}
 
-	return copySecretToNamespace(ctx, c, defaultIngressSecret, secretName, namespace)
+	return copySecretToNamespace(ctx, c, defaultIngressSecret, secretName, namespace, metaOptions...)
 }
 
 func FindAvailableIngressController(ctx context.Context, c client.Client) (*operatorv1.IngressController, error) {
@@ -188,6 +190,48 @@ func GetDefaultIngressCertSecretName(ingressCtrl *operatorv1.IngressController) 
 	return "router-certs-" + ingressCtrl.Name
 }
 
+// IsGatewayCertificateSecret returns true if obj is a certificate secret used by the GatewayConfig.
+// It checks for both OpenShift default ingress certificates and provided certificates.
+func IsGatewayCertificateSecret(ctx context.Context, cli client.Client, obj client.Object, gatewayNamespace string) bool {
+	if obj.GetNamespace() != gatewayNamespace {
+		return false
+	}
+
+	gatewayConfig := &serviceApi.GatewayConfig{}
+	if err := cli.Get(ctx, types.NamespacedName{Name: serviceApi.GatewayConfigName}, gatewayConfig); err != nil {
+		return false
+	}
+
+	if gatewayConfig.Spec.Certificate == nil {
+		return false
+	}
+
+	certConfig := *gatewayConfig.Spec.Certificate
+	certType := certConfig.Type
+
+	switch certType {
+	case infrav1.OpenshiftDefaultIngress, "":
+		ingressCtrl, err := FindAvailableIngressController(ctx, cli)
+		if err != nil {
+			return false
+		}
+
+		ingressCertName := GetDefaultIngressCertSecretName(ingressCtrl)
+		return obj.GetName() == ingressCertName
+
+	case infrav1.Provided:
+		expectedName := certConfig.SecretName
+		if expectedName == "" {
+			expectedName = fmt.Sprintf("%s-tls", gatewayConfig.Name)
+		}
+		return obj.GetName() == expectedName
+
+	default:
+		// no need action on selfsigned as operator create it which has the ownerreference on it with reconcile.
+		return false
+	}
+}
+
 func GetSecret(ctx context.Context, c client.Client, namespace, name string) (*corev1.Secret, error) {
 	secret := &corev1.Secret{}
 	err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, secret)
@@ -197,7 +241,7 @@ func GetSecret(ctx context.Context, c client.Client, namespace, name string) (*c
 	return secret, nil
 }
 
-func copySecretToNamespace(ctx context.Context, c client.Client, secret *corev1.Secret, newSecretName, namespace string) error {
+func copySecretToNamespace(ctx context.Context, c client.Client, secret *corev1.Secret, newSecretName, namespace string, metaOptions ...MetaOptions) error {
 	newSecret := &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       gvk.Secret.Kind,
@@ -209,6 +253,10 @@ func copySecretToNamespace(ctx context.Context, c client.Client, secret *corev1.
 		},
 		Data: secret.Data,
 		Type: secret.Type,
+	}
+
+	if errApply := ApplyMetaOptions(newSecret, metaOptions...); errApply != nil {
+		return errApply
 	}
 
 	opts := []client.PatchOption{
