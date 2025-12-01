@@ -110,6 +110,12 @@ func (r *DSCInitializationReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	} else {
 		log.Info("Finalization DSCInitialization start deleting instance", "name", instance.Name, "finalizer", finalizerName)
 
+		// Clean up ServiceMesh CR before removing finalizer
+		if err := r.deleteServiceMesh(ctx); err != nil {
+			log.Error(err, "Failed to delete ServiceMesh during DSCI finalization")
+			return ctrl.Result{}, err
+		}
+
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			newInstance := &dsciv1.DSCInitialization{}
 			if err := r.Client.Get(ctx, client.ObjectKeyFromObject(instance), newInstance); err != nil {
