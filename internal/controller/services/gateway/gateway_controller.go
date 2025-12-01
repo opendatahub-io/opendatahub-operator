@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright 2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,10 +22,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	dsciv2 "github.com/opendatahub-io/opendatahub-operator/v2/api/dscinitialization/v2"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -33,86 +31,50 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/render/template"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/handlers"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
 )
 
-// NewReconciler creates and configures a new reconciler for GatewayConfig resources.
-// It sets up ownership relationships and action chains for complete gateway lifecycle management.
 func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	// Note: Input validation for mgr == nil is handled by the reconciler.ReconcilerFor method
-	// which will panic as expected by existing tests
-
-	// Build reconciler with optimized chain structure
-	reconcilerBuilder := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{}).
-		// Core Gateway API resources
-		OwnsGVK(gvk.GatewayClass).
-		OwnsGVK(gvk.KubernetesGateway).
-		// Service mesh resources (conditionally owned based on CRD existence)
-		OwnsGVK(gvk.EnvoyFilter,
-			reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
-		OwnsGVK(gvk.DestinationRule,
-			reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule)))
-
-	// Add Kubernetes native resources for auth proxy
-	reconcilerBuilder = reconcilerBuilder.
-		OwnsGVK(gvk.Deployment).    // Auth proxy deployment
-		OwnsGVK(gvk.Service).       // Auth proxy service
-		OwnsGVK(gvk.Secret).        // Auth proxy credentials
-		OwnsGVK(gvk.NetworkPolicy). // Auth proxy network policy
-		OwnsGVK(gvk.HTTPRoute)      // OAuth callback route only
-
-	// Only watch OAuthClient if cluster uses IntegratedOAuth (not OIDC or None)
-	// This prevents errors in ROSA environments where OAuthClient CRD doesn't exist
-	if isIntegratedOAuth, err := cluster.IsIntegratedOAuth(ctx, mgr.GetClient()); err == nil && isIntegratedOAuth {
-		reconcilerBuilder = reconcilerBuilder.OwnsGVK(gvk.OAuthClient) // OpenShift OAuth integration
+	gw := reconciler.ReconcilerFor(mgr, &serviceApi.GatewayConfig{})
+	// special for ROSA: auth is defined in day0 and OAuth not registered in apiserver
+	if ok, err := cluster.IsIntegratedOAuth(ctx, mgr.GetAPIReader()); err == nil && ok {
+		gw.OwnsGVK(gvk.OAuthClient)
 	}
 
-	// Watch DSCInitialization to trigger reconciliation when DSCI becomes available
-	reconcilerBuilder = reconcilerBuilder.
-		Watches(
-			&dsciv2.DSCInitialization{},
-			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
-			reconciler.WithPredicates(predicate.GenerationChangedPredicate{}),
-		)
-
-	// Watch ingress certificate secrets to trigger reconciliation when certificates are rotated
-	// This ensures gateway certificates are automatically updated when the source certificate changes
-	reconcilerBuilder = reconcilerBuilder.
+	gw.OwnsGVK(gvk.GatewayClass).
+		OwnsGVK(gvk.KubernetesGateway).
+		OwnsGVK(gvk.Secret).
+		OwnsGVK(gvk.Service).
+		OwnsGVK(gvk.Deployment).
+		OwnsGVK(gvk.HTTPRoute).
+		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
+		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
+		// Watch for certificate secrets (both OpenShift default ingress and provided).
 		Watches(
 			&corev1.Secret{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
 			reconciler.WithPredicates(
-				predicate.Funcs{
-					CreateFunc: func(e event.CreateEvent) bool {
-						return isIngressCertificateSecret(ctx, mgr.GetClient(), e.Object)
-					},
-					UpdateFunc: func(e event.UpdateEvent) bool {
-						return isIngressCertificateSecret(ctx, mgr.GetClient(), e.ObjectNew)
-					},
-					DeleteFunc: func(e event.DeleteEvent) bool {
-						return isIngressCertificateSecret(ctx, mgr.GetClient(), e.Object)
-					},
-				},
+				resources.GatewayCertificateSecret(func(obj client.Object) bool {
+					return cluster.IsGatewayCertificateSecret(ctx, mgr.GetClient(), obj, GatewayNamespace)
+				}),
 			),
-		)
-
-	// Configure action chain for resource lifecycle
-	reconcilerBuilder = reconcilerBuilder.
-		WithAction(createGatewayInfrastructure).       // Core gateway setup
-		WithAction(createKubeAuthProxyInfrastructure). // Authentication proxy
-		WithAction(createEnvoyFilter).                 // Service mesh integration
-		WithAction(createDestinationRule).             // Traffic management
-		WithAction(template.NewAction(                 // Template rendering
-			template.WithDataFn(getNetworkPolicyTemplateData), // NetworkPolicy template data
+		).
+		WithAction(createGatewayInfrastructure).
+		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule
+		WithAction(createEnvoyFilter).
+		WithAction(createNetworkPolicy).
+		WithAction(template.NewAction(
+			template.WithDataFn(getTemplateData),
 		)).
-		WithAction(deploy.NewAction(deploy.WithCache())). // Resource deployment with caching
-		WithAction(syncGatewayConfigStatus).              // Status synchronization
-		WithAction(gc.NewAction())                        // Garbage collection
+		WithAction(deploy.NewAction(
+			deploy.WithCache(),
+		)).
+		WithAction(syncGatewayConfigStatus).
+		WithAction(gc.NewAction())
 
-	// Build and validate the reconciler
-	if _, err := reconcilerBuilder.Build(ctx); err != nil {
-		return fmt.Errorf("could not create the Gateway controller: %w", err)
+	if _, err := gw.Build(ctx); err != nil {
+		return fmt.Errorf("could not create the GatewayConfig controller: %w", err)
 	}
-
 	return nil
 }

@@ -4,88 +4,15 @@ package gateway
 import (
 	"testing"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/intstr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
-	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 
 	. "github.com/onsi/gomega"
 )
-
-const (
-	// Test constants for gateway support functions.
-	testCertSecretSupport = "test-cert-secret"
-	testDomainSupport     = "data-science-gateway.apps.test-cluster.com"
-	testClusterDomain     = "apps.cluster.example.com"
-	testUserDomain        = "apps.example.com"
-	customCertSecret      = "my-cert"
-
-	// Expected values constants.
-	expectedHTTPSListenerName    = "https"
-	expectedHTTPSPortSupport     = gwapiv1.PortNumber(443)
-	expectedHTTPSProtocolSupport = gwapiv1.HTTPSProtocolType
-	expectedODHDomain            = "data-science-gateway.apps.example.com"
-	expectedClusterDomain        = "data-science-gateway.apps.cluster.example.com"
-)
-
-// TestCreateListeners tests the createListeners helper function.
-func TestCreateListeners(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t) // Create once outside the loop for better performance
-
-	testCases := []struct {
-		name        string
-		certSecret  string
-		domain      string
-		expectCount int
-		description string
-	}{
-		{
-			name:        "creates HTTPS listener when certificate provided",
-			certSecret:  testCertSecretSupport,
-			domain:      testDomainSupport,
-			expectCount: 1,
-			description: "should create one HTTPS listener with certificate",
-		},
-		{
-			name:        "creates no listeners when no certificate",
-			certSecret:  "",
-			domain:      testDomainSupport,
-			expectCount: 0,
-			description: "should create no listeners without certificate",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			listeners := createListeners(tc.certSecret, tc.domain)
-
-			g.Expect(listeners).To(HaveLen(tc.expectCount), tc.description)
-
-			if tc.expectCount > 0 {
-				listener := listeners[0]
-				g.Expect(string(listener.Name)).To(Equal(expectedHTTPSListenerName))
-				g.Expect(listener.Protocol).To(Equal(expectedHTTPSProtocolSupport))
-				g.Expect(listener.Port).To(Equal(expectedHTTPSPortSupport))
-				g.Expect(listener.Hostname).NotTo(BeNil())
-				g.Expect(string(*listener.Hostname)).To(Equal(tc.domain))
-				g.Expect(listener.TLS).NotTo(BeNil())
-				g.Expect(listener.TLS.CertificateRefs).To(HaveLen(1))
-				g.Expect(string(listener.TLS.CertificateRefs[0].Name)).To(Equal(tc.certSecret))
-			}
-		})
-	}
-}
 
 // TestGetCertificateType tests the getCertificateType helper function.
 func TestGetCertificateType(t *testing.T) {
@@ -93,898 +20,480 @@ func TestGetCertificateType(t *testing.T) {
 	g := NewWithT(t)
 
 	testCases := []struct {
-		name            string
-		certificateSpec *infrav1.CertificateSpec
-		gatewayConfig   *serviceApi.GatewayConfig
-		expectedType    string
-		description     string
+		name          string
+		gatewayConfig *serviceApi.GatewayConfig
+		expectedType  string
+		description   string
 	}{
 		{
-			name:            "returns default when certificate is nil",
-			certificateSpec: nil,
-			gatewayConfig:   nil, // Will use createTestGatewayConfigSupport
-			expectedType:    string(infrav1.OpenshiftDefaultIngress),
-			description:     "should return OpenShift default when no certificate specified",
+			name:          "returns default when gatewayConfig is nil",
+			gatewayConfig: nil,
+			expectedType:  string(infrav1.OpenshiftDefaultIngress),
+			description:   "should return OpenShift default when gatewayConfig is nil",
 		},
 		{
-			name:            "returns default when gatewayConfig is nil",
-			certificateSpec: nil,
-			gatewayConfig:   nil, // Explicitly nil for this test
-			expectedType:    string(infrav1.OpenshiftDefaultIngress),
-			description:     "should return OpenShift default when gatewayConfig is nil",
+			name: "returns default when certificate is nil",
+			gatewayConfig: &serviceApi.GatewayConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-gateway",
+				},
+				Spec: serviceApi.GatewayConfigSpec{},
+			},
+			expectedType: string(infrav1.OpenshiftDefaultIngress),
+			description:  "should return OpenShift default when no certificate specified",
 		},
 		{
 			name: "returns certificate type when specified",
-			certificateSpec: &infrav1.CertificateSpec{
-				Type: infrav1.SelfSigned,
+			gatewayConfig: &serviceApi.GatewayConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-gateway",
+				},
+				Spec: serviceApi.GatewayConfigSpec{
+					Certificate: &infrav1.CertificateSpec{
+						Type: infrav1.SelfSigned,
+					},
+				},
 			},
 			expectedType: string(infrav1.SelfSigned),
 			description:  "should return the specified certificate type",
 		},
 		{
 			name: "returns provided certificate type",
-			certificateSpec: &infrav1.CertificateSpec{
-				Type:       infrav1.Provided,
-				SecretName: customCertSecret,
+			gatewayConfig: &serviceApi.GatewayConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-gateway",
+				},
+				Spec: serviceApi.GatewayConfigSpec{
+					Certificate: &infrav1.CertificateSpec{
+						Type:       infrav1.Provided,
+						SecretName: "my-cert",
+					},
+				},
 			},
 			expectedType: string(infrav1.Provided),
 			description:  "should return provided certificate type",
+		},
+		{
+			name: "empty certificate type defaults to OpenshiftDefaultIngress",
+			gatewayConfig: &serviceApi.GatewayConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-gateway",
+				},
+				Spec: serviceApi.GatewayConfigSpec{
+					Certificate: &infrav1.CertificateSpec{
+						Type: "",
+					},
+				},
+			},
+			expectedType: string(infrav1.OpenshiftDefaultIngress),
+			description:  "should return OpenShift default when certificate type is empty string",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			var gateway *serviceApi.GatewayConfig
-			if tc.name == "returns default when gatewayConfig is nil" {
-				gateway = nil // Explicitly test nil case
-			} else {
-				gateway = createTestGatewayConfigSupport(testDomainSupport, tc.certificateSpec)
-			}
-
-			certType := getCertificateType(gateway)
-			g.Expect(certType).To(Equal(tc.expectedType), tc.description)
+			result := getCertificateType(tc.gatewayConfig)
+			g.Expect(result).To(Equal(tc.expectedType), tc.description)
 		})
 	}
 }
 
-// TestGetFQDN tests the GetFQDN helper function.
+// TestGetGatewayAuthProxyTimeout tests the getGatewayAuthProxyTimeout function.
+func TestGetGatewayAuthProxyTimeout(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	testCases := []struct {
+		name            string
+		gatewayConfig   *serviceApi.GatewayConfig
+		expectedTimeout string
+		description     string
+	}{
+		{
+			name:            "returns default when gatewayConfig is nil",
+			gatewayConfig:   nil,
+			expectedTimeout: "5s",
+			description:     "should return default 5s when gatewayConfig is nil",
+		},
+		{
+			name: "returns default when no timeout specified",
+			gatewayConfig: &serviceApi.GatewayConfig{
+				Spec: serviceApi.GatewayConfigSpec{},
+			},
+			expectedTimeout: "5s",
+			description:     "should return default 5s when no timeout specified",
+		},
+		{
+			name: "returns deprecated AuthTimeout when specified",
+			gatewayConfig: &serviceApi.GatewayConfig{
+				Spec: serviceApi.GatewayConfigSpec{
+					AuthTimeout: "10s",
+				},
+			},
+			expectedTimeout: "10s",
+			description:     "should return deprecated AuthTimeout value for backward compatibility",
+		},
+		{
+			name: "returns AuthProxyTimeout when specified",
+			gatewayConfig: &serviceApi.GatewayConfig{
+				Spec: serviceApi.GatewayConfigSpec{
+					AuthProxyTimeout: metav1.Duration{Duration: 15000000000}, // 15s in nanoseconds
+				},
+			},
+			expectedTimeout: "15s",
+			description:     "should return AuthProxyTimeout value",
+		},
+		{
+			name: "prefers deprecated AuthTimeout over AuthProxyTimeout",
+			gatewayConfig: &serviceApi.GatewayConfig{
+				Spec: serviceApi.GatewayConfigSpec{
+					AuthTimeout:      "20s",
+					AuthProxyTimeout: metav1.Duration{Duration: 15000000000}, // 15s
+				},
+			},
+			expectedTimeout: "20s",
+			description:     "should prefer deprecated AuthTimeout for backward compatibility",
+		},
+		{
+			name: "zero duration for AuthProxyTimeout falls back to default",
+			gatewayConfig: &serviceApi.GatewayConfig{
+				Spec: serviceApi.GatewayConfigSpec{
+					AuthProxyTimeout: metav1.Duration{Duration: 0},
+				},
+			},
+			expectedTimeout: "5s",
+			description:     "should return default 5s when AuthProxyTimeout is zero duration",
+		},
+		{
+			name: "empty AuthTimeout string with zero AuthProxyTimeout",
+			gatewayConfig: &serviceApi.GatewayConfig{
+				Spec: serviceApi.GatewayConfigSpec{
+					AuthTimeout:      "",
+					AuthProxyTimeout: metav1.Duration{Duration: 0},
+				},
+			},
+			expectedTimeout: "5s",
+			description:     "should return default 5s when both fields are empty/zero",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := getGatewayAuthProxyTimeout(tc.gatewayConfig)
+			g.Expect(result).To(Equal(tc.expectedTimeout), tc.description)
+		})
+	}
+}
+
+// TestCalculateAuthConfigHash tests the calculateAuthConfigHash function.
+func TestCalculateAuthConfigHash(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	// Create initial secret
+	secret1 := &corev1.Secret{
+		Data: map[string][]byte{
+			"OAUTH2_PROXY_CLIENT_ID":     []byte("client-id"),
+			"OAUTH2_PROXY_CLIENT_SECRET": []byte("client-secret"),
+			"OAUTH2_PROXY_COOKIE_SECRET": []byte("cookie-secret"),
+		},
+	}
+	hash1 := calculateAuthConfigHash(secret1)
+
+	// Change client ID
+	secret2 := &corev1.Secret{
+		Data: map[string][]byte{
+			"OAUTH2_PROXY_CLIENT_ID":     []byte("different-client-id"),
+			"OAUTH2_PROXY_CLIENT_SECRET": []byte("client-secret"),
+			"OAUTH2_PROXY_COOKIE_SECRET": []byte("cookie-secret"),
+		},
+	}
+	hash2 := calculateAuthConfigHash(secret2)
+	g.Expect(hash2).NotTo(Equal(hash1), "hash should change when client ID changes")
+
+	// Change client secret
+	secret3 := &corev1.Secret{
+		Data: map[string][]byte{
+			"OAUTH2_PROXY_CLIENT_ID":     []byte("client-id"),
+			"OAUTH2_PROXY_CLIENT_SECRET": []byte("different-client-secret"),
+			"OAUTH2_PROXY_COOKIE_SECRET": []byte("cookie-secret"),
+		},
+	}
+	hash3 := calculateAuthConfigHash(secret3)
+	g.Expect(hash3).NotTo(Equal(hash1), "hash should change when client secret changes")
+
+	// Change cookie secret
+	secret4 := &corev1.Secret{
+		Data: map[string][]byte{
+			"OAUTH2_PROXY_CLIENT_ID":     []byte("client-id"),
+			"OAUTH2_PROXY_CLIENT_SECRET": []byte("client-secret"),
+			"OAUTH2_PROXY_COOKIE_SECRET": []byte("different-cookie-secret"),
+		},
+	}
+	hash4 := calculateAuthConfigHash(secret4)
+	g.Expect(hash4).NotTo(Equal(hash1), "hash should change when cookie secret changes")
+
+	// All hashes should be unique
+	g.Expect(hash2).NotTo(Equal(hash3), "different changes should produce different hashes")
+	g.Expect(hash2).NotTo(Equal(hash4), "different changes should produce different hashes")
+	g.Expect(hash3).NotTo(Equal(hash4), "different changes should produce different hashes")
+
+	// Verify same values produce same hash (deterministic)
+	secret5 := &corev1.Secret{
+		Data: map[string][]byte{
+			"OAUTH2_PROXY_CLIENT_ID":     []byte("client-id"),
+			"OAUTH2_PROXY_CLIENT_SECRET": []byte("client-secret"),
+			"OAUTH2_PROXY_COOKIE_SECRET": []byte("cookie-secret"),
+		},
+	}
+	hash5 := calculateAuthConfigHash(secret5)
+	g.Expect(hash5).To(Equal(hash1), "same secret values should produce same hash")
+}
+
+// TestIsGatewayReady tests the isGatewayReady helper function.
+func TestIsGatewayReady(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	testCases := []struct {
+		name        string
+		gateway     *gwapiv1.Gateway
+		expectReady bool
+		description string
+	}{
+		{
+			name:        "nil gateway is not ready",
+			gateway:     nil,
+			expectReady: false,
+			description: "should return false for nil gateway",
+		},
+		{
+			name: "gateway with Accepted condition true is ready",
+			gateway: &gwapiv1.Gateway{
+				Status: gwapiv1.GatewayStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(gwapiv1.GatewayConditionAccepted),
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			expectReady: true,
+			description: "should return true when Accepted condition is true",
+		},
+		{
+			name: "gateway with Accepted condition false is not ready",
+			gateway: &gwapiv1.Gateway{
+				Status: gwapiv1.GatewayStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(gwapiv1.GatewayConditionAccepted),
+							Status: metav1.ConditionFalse,
+						},
+					},
+				},
+			},
+			expectReady: false,
+			description: "should return false when Accepted condition is false",
+		},
+		{
+			name: "gateway with no conditions is not ready",
+			gateway: &gwapiv1.Gateway{
+				Status: gwapiv1.GatewayStatus{
+					Conditions: []metav1.Condition{},
+				},
+			},
+			expectReady: false,
+			description: "should return false when no conditions present",
+		},
+		{
+			name: "gateway with different condition is not ready",
+			gateway: &gwapiv1.Gateway{
+				Status: gwapiv1.GatewayStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(gwapiv1.GatewayConditionProgrammed),
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			expectReady: false,
+			description: "should return false when only non-Accepted conditions present",
+		},
+		{
+			name: "gateway with multiple conditions including Accepted true",
+			gateway: &gwapiv1.Gateway{
+				Status: gwapiv1.GatewayStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   string(gwapiv1.GatewayConditionProgrammed),
+							Status: metav1.ConditionFalse,
+						},
+						{
+							Type:   string(gwapiv1.GatewayConditionAccepted),
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			expectReady: true,
+			description: "should return true when Accepted condition is true regardless of other conditions",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := isGatewayReady(tc.gateway)
+			g.Expect(result).To(Equal(tc.expectReady), tc.description)
+		})
+	}
+}
+
+// TestGetFQDN tests the GetFQDN function with user-provided domain.
 func TestGetFQDN(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
 	testCases := []struct {
-		name              string
-		specDomain        string
-		clusterDomain     string
-		useClusterIngress bool
-		expectedDomain    string
-		expectError       bool
-		description       string
+		name           string
+		gatewayConfig  *serviceApi.GatewayConfig
+		expectedDomain string
+		expectError    bool
+		description    string
 	}{
 		{
-			name:              "user provided domain",
-			specDomain:        testUserDomain,
-			useClusterIngress: false,
-			expectedDomain:    expectedODHDomain,
-			expectError:       false,
-			description:       "should use user-provided domain and prepend gateway name",
-		},
-		{
-			name:              "empty domain falls back to cluster domain",
-			specDomain:        "",
-			clusterDomain:     testClusterDomain,
-			useClusterIngress: true,
-			expectedDomain:    expectedClusterDomain,
-			expectError:       false,
-			description:       "should fall back to cluster domain when spec domain is empty",
-		},
-		{
-			name:              "cluster domain retrieval fails",
-			specDomain:        "",
-			useClusterIngress: false,
-			expectedDomain:    "",
-			expectError:       true,
-			description:       "should return error when cluster domain retrieval fails",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := t.Context()
-
-			// Create test gateway config using helper
-			gatewayConfig := createTestGatewayConfigSupport(tc.specDomain, nil)
-
-			// Setup client with or without cluster ingress using helpers
-			var client client.Client
-			if tc.useClusterIngress && tc.clusterDomain != "" {
-				client = setupSupportTestClientWithClusterIngress(tc.clusterDomain)
-			} else {
-				client = setupSupportTestClient()
-			}
-
-			domain, err := GetFQDN(ctx, client, gatewayConfig)
-
-			if tc.expectError {
-				g.Expect(err).To(HaveOccurred(), tc.description)
-				g.Expect(domain).To(Equal(""), "domain should be empty on error")
-			} else {
-				g.Expect(err).ToNot(HaveOccurred(), tc.description)
-				g.Expect(domain).To(Equal(tc.expectedDomain), tc.description)
-			}
-		})
-	}
-}
-
-// TestCreateListenersEdgeCases tests edge cases for the createListeners function.
-func TestCreateListenersEdgeCases(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t) // Create once outside the loop for better performance
-
-	testCases := []struct {
-		name        string
-		certSecret  string
-		domain      string
-		expectCount int
-		description string
-	}{
-		{
-			name:        "whitespace-only certificate secret",
-			certSecret:  "   ",
-			domain:      testDomainSupport,
-			expectCount: 1, // Whitespace is treated as valid certificate name
-			description: "should create listener with whitespace certificate name",
-		},
-		{
-			name:        "empty domain with certificate",
-			certSecret:  testCertSecretSupport,
-			domain:      "",
-			expectCount: 1, // Empty domain still creates listener
-			description: "should create listener even with empty domain",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			listeners := createListeners(tc.certSecret, tc.domain)
-
-			g.Expect(listeners).To(HaveLen(tc.expectCount), tc.description)
-
-			if tc.expectCount > 0 {
-				listener := listeners[0]
-				g.Expect(string(listener.Name)).To(Equal(expectedHTTPSListenerName))
-				g.Expect(listener.Protocol).To(Equal(expectedHTTPSProtocolSupport))
-				g.Expect(listener.Port).To(Equal(expectedHTTPSPortSupport))
-
-				// Hostname should be present even if domain is empty
-				g.Expect(listener.Hostname).NotTo(BeNil())
-				g.Expect(string(*listener.Hostname)).To(Equal(tc.domain))
-			}
-		})
-	}
-}
-
-// TestGetFQDNNilHandling tests nil parameter handling for GetFQDN.
-func TestGetFQDNNilHandling(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	ctx := t.Context()
-	client := setupSupportTestClient()
-
-	// Test nil gatewayConfig - should fall back to cluster domain (which will fail with our test client)
-	domain, err := GetFQDN(ctx, client, nil)
-	g.Expect(err).To(HaveOccurred(), "should return error when gatewayConfig is nil and cluster domain fails")
-	g.Expect(domain).To(Equal(""), "domain should be empty on error")
-}
-
-// TestGetFQDNEdgeCases tests additional edge cases for domain resolution.
-func TestGetFQDNEdgeCases(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	testCases := []struct {
-		name             string
-		specDomain       string
-		gatewayName      string
-		expectedContains string
-		description      string
-	}{
-		{
-			name:             "user domain with default gateway name",
-			specDomain:       testUserDomain,
-			gatewayName:      DefaultGatewayName,
-			expectedContains: DefaultGatewayName,
-			description:      "should use default gateway name with user domain",
-		},
-		{
-			name:             "domain with subdomain",
-			specDomain:       "api.v1.apps.example.com",
-			gatewayName:      DefaultGatewayName,
-			expectedContains: "data-science-gateway.api.v1.apps.example.com",
-			description:      "should handle complex subdomain structures",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := t.Context()
-
-			gatewayConfig := createTestGatewayConfigSupport(tc.specDomain, nil)
-			client := setupSupportTestClient()
-
-			domain, err := GetFQDN(ctx, client, gatewayConfig)
-
-			g.Expect(err).ToNot(HaveOccurred(), tc.description)
-			g.Expect(domain).To(ContainSubstring(tc.expectedContains), tc.description)
-		})
-	}
-}
-
-// TestGetFQDNWithSubdomain tests subdomain functionality in domain resolution.
-func TestGetFQDNWithSubdomain(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	testCases := []struct {
-		name              string
-		specDomain        string
-		subdomain         string
-		clusterDomain     string
-		useClusterIngress bool
-		expectedDomain    string
-		expectError       bool
-		description       string
-	}{
-		{
-			name:              "custom subdomain with user domain",
-			specDomain:        testUserDomain,
-			subdomain:         "my-gateway",
-			useClusterIngress: false,
-			expectedDomain:    "my-gateway.apps.example.com",
-			expectError:       false,
-			description:       "should use custom subdomain with user-provided domain",
-		},
-		{
-			name:              "custom subdomain with cluster domain",
-			specDomain:        "",
-			subdomain:         "custom-gateway",
-			clusterDomain:     testClusterDomain,
-			useClusterIngress: true,
-			expectedDomain:    "custom-gateway.apps.cluster.example.com",
-			expectError:       false,
-			description:       "should use custom subdomain with cluster domain",
-		},
-		{
-			name:              "empty subdomain falls back to default",
-			specDomain:        testUserDomain,
-			subdomain:         "",
-			useClusterIngress: false,
-			expectedDomain:    expectedODHDomain,
-			expectError:       false,
-			description:       "should fall back to default gateway name when subdomain is empty",
-		},
-		{
-			name:              "whitespace subdomain falls back to default",
-			specDomain:        testUserDomain,
-			subdomain:         "   ",
-			useClusterIngress: false,
-			expectedDomain:    expectedODHDomain,
-			expectError:       false,
-			description:       "should fall back to default gateway name when subdomain is whitespace",
-		},
-		{
-			name:              "subdomain with complex domain",
-			specDomain:        "api.v1.example.com",
-			subdomain:         "data-science",
-			useClusterIngress: false,
-			expectedDomain:    "data-science.api.v1.example.com",
-			expectError:       false,
-			description:       "should use subdomain with complex domain structure",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := t.Context()
-
-			// Create test gateway config with subdomain
-			gatewayConfig := createTestGatewayConfigSupportWithSubdomain(tc.specDomain, tc.subdomain, nil)
-
-			// Setup client with or without cluster ingress
-			var client client.Client
-			if tc.useClusterIngress && tc.clusterDomain != "" {
-				client = setupSupportTestClientWithClusterIngress(tc.clusterDomain)
-			} else {
-				client = setupSupportTestClient()
-			}
-
-			domain, err := GetFQDN(ctx, client, gatewayConfig)
-
-			if tc.expectError {
-				g.Expect(err).To(HaveOccurred(), tc.description)
-				g.Expect(domain).To(Equal(""), "domain should be empty on error")
-			} else {
-				g.Expect(err).ToNot(HaveOccurred(), tc.description)
-				g.Expect(domain).To(Equal(tc.expectedDomain), tc.description)
-			}
-		})
-	}
-}
-
-// TestValidateOIDCConfig tests the OIDC configuration validation logic.
-func TestValidateOIDCConfig(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name        string
-		authMode    cluster.AuthenticationMode
-		oidcConfig  *serviceApi.OIDCConfig
-		expectError bool
-		description string
-	}{
-		{
-			name:     "OIDC mode with valid config",
-			authMode: cluster.AuthModeOIDC,
-			oidcConfig: &serviceApi.OIDCConfig{
-				IssuerURL: testOIDCIssuerURL,
-				ClientID:  "test-client",
-				ClientSecretRef: corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{Name: "test-secret"},
-				},
-			},
-			expectError: false,
-			description: "should pass when OIDC mode has valid configuration",
-		},
-		{
-			name:        "OIDC mode with missing config",
-			authMode:    cluster.AuthModeOIDC,
-			oidcConfig:  nil,
-			expectError: true,
-			description: "should fail when OIDC mode has no configuration",
-		},
-		{
-			name:     "OIDC mode with empty clientID",
-			authMode: cluster.AuthModeOIDC,
-			oidcConfig: &serviceApi.OIDCConfig{
-				IssuerURL: testOIDCIssuerURL,
-				ClientID:  "",
-				ClientSecretRef: corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{Name: "test-secret"},
-				},
-			},
-			expectError: true,
-			description: "should fail when clientID is empty",
-		},
-		{
-			name:     "OIDC mode with all fields empty",
-			authMode: cluster.AuthModeOIDC,
-			oidcConfig: &serviceApi.OIDCConfig{
-				IssuerURL: "",
-				ClientID:  "",
-				ClientSecretRef: corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{Name: ""},
-				},
-			},
-			expectError: true,
-			description: "should fail when all required fields are empty",
-		},
-		{
-			name:        "IntegratedOAuth mode",
-			authMode:    cluster.AuthModeIntegratedOAuth,
-			oidcConfig:  nil,
-			expectError: false,
-			description: "should pass for IntegratedOAuth mode regardless of OIDC config",
-		},
-		{
-			name:        "None mode",
-			authMode:    cluster.AuthModeNone,
-			oidcConfig:  nil,
-			expectError: false,
-			description: "should pass for None mode regardless of OIDC config",
-		},
-	}
-
-	for _, tc := range testCases {
-		// capture range var for parallel subtests
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			g := NewWithT(t)
-			condition := validateOIDCConfig(tc.authMode, tc.oidcConfig)
-
-			if tc.expectError {
-				g.Expect(condition).NotTo(BeNil(), tc.description)
-				g.Expect(condition.Type).To(Equal(status.ConditionTypeReady))
-				g.Expect(condition.Status).To(Equal(metav1.ConditionFalse))
-				g.Expect(condition.Reason).To(Equal(status.NotReadyReason))
-				g.Expect(condition.Message).To(ContainSubstring("OIDC"))
-			} else {
-				g.Expect(condition).To(BeNil(), tc.description)
-			}
-		})
-	}
-}
-
-// TestCheckAuthModeNone tests the None authentication mode validation logic.
-func TestCheckAuthModeNone(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name        string
-		authMode    cluster.AuthenticationMode
-		expectError bool
-		description string
-	}{
-		{
-			name:        "None auth mode",
-			authMode:    cluster.AuthModeNone,
-			expectError: true,
-			description: "should return condition when auth mode is None",
-		},
-		{
-			name:        "IntegratedOAuth auth mode",
-			authMode:    cluster.AuthModeIntegratedOAuth,
-			expectError: false,
-			description: "should return nil for IntegratedOAuth mode",
-		},
-		{
-			name:        "OIDC auth mode",
-			authMode:    cluster.AuthModeOIDC,
-			expectError: false,
-			description: "should return nil for OIDC mode",
-		},
-	}
-
-	for _, tc := range testCases {
-		// capture range var for parallel subtests
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			g := NewWithT(t)
-			condition := checkAuthModeNone(tc.authMode)
-
-			if tc.expectError {
-				g.Expect(condition).NotTo(BeNil(), tc.description)
-				g.Expect(condition.Type).To(Equal(status.ConditionTypeReady))
-				g.Expect(condition.Status).To(Equal(metav1.ConditionFalse))
-				g.Expect(condition.Reason).To(Equal(status.NotReadyReason))
-				g.Expect(condition.Message).To(ContainSubstring("external authentication"))
-			} else {
-				g.Expect(condition).To(BeNil(), tc.description)
-			}
-		})
-	}
-}
-
-// TestCreateKubeAuthProxyService tests the auth proxy service creation logic.
-func TestCreateKubeAuthProxyService(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	rr := &odhtypes.ReconciliationRequest{
-		Client: setupTestClient(),
-	}
-
-	err := createKubeAuthProxyService(rr)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(rr.Resources).To(HaveLen(1))
-
-	// Convert unstructured to typed Service
-	serviceResource := &rr.Resources[0]
-	service := &corev1.Service{}
-	err = runtime.DefaultUnstructuredConverter.FromUnstructured(serviceResource.Object, service)
-	g.Expect(err).NotTo(HaveOccurred())
-
-	// Verify service properties
-	g.Expect(service.GetName()).To(Equal(KubeAuthProxyName))
-	g.Expect(service.GetNamespace()).To(Equal(GatewayNamespace))
-	g.Expect(service.Labels).To(Equal(KubeAuthProxyLabels))
-	g.Expect(service.Spec.Selector).To(Equal(KubeAuthProxyLabels))
-
-	// Verify annotations
-	expectedAnnotations := map[string]string{
-		"service.beta.openshift.io/serving-cert-secret-name": KubeAuthProxyTLSName,
-	}
-	g.Expect(service.Annotations).To(Equal(expectedAnnotations))
-
-	// Verify port configuration
-	g.Expect(service.Spec.Ports).To(HaveLen(2))
-
-	// Verify HTTPS port
-	httpsPort := service.Spec.Ports[0]
-	g.Expect(httpsPort.Name).To(Equal("https"))
-	g.Expect(httpsPort.Port).To(Equal(int32(AuthProxyHTTPSPort)))
-	g.Expect(httpsPort.TargetPort).To(Equal(intstr.FromInt(AuthProxyHTTPSPort)))
-
-	// Verify metrics port
-	metricsPort := service.Spec.Ports[1]
-	g.Expect(metricsPort.Name).To(Equal("metrics"))
-	g.Expect(metricsPort.Port).To(Equal(int32(AuthProxyMetricsPort)))
-	g.Expect(metricsPort.TargetPort).To(Equal(intstr.FromInt(AuthProxyMetricsPort)))
-}
-
-// TestCreateOAuthCallbackRoute tests the OAuth callback route creation logic.
-func TestCreateOAuthCallbackRoute(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	rr := &odhtypes.ReconciliationRequest{
-		Client: setupTestClient(),
-	}
-
-	err := createOAuthCallbackRoute(rr)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(rr.Resources).To(HaveLen(1))
-
-	// Convert unstructured to typed HTTPRoute
-	routeResource := &rr.Resources[0]
-	httpRoute := &gwapiv1.HTTPRoute{}
-	err = runtime.DefaultUnstructuredConverter.FromUnstructured(routeResource.Object, httpRoute)
-	g.Expect(err).NotTo(HaveOccurred())
-
-	// Verify HTTPRoute properties
-	g.Expect(httpRoute.GetName()).To(Equal(OAuthCallbackRouteName))
-	g.Expect(httpRoute.GetNamespace()).To(Equal(GatewayNamespace))
-
-	// Verify ParentRefs (gateway reference)
-	g.Expect(httpRoute.Spec.ParentRefs).To(HaveLen(1))
-	parentRef := httpRoute.Spec.ParentRefs[0]
-	expectedGatewayName := DefaultGatewayName
-	g.Expect(string(parentRef.Name)).To(Equal(expectedGatewayName))
-	g.Expect(string(*parentRef.Namespace)).To(Equal(GatewayNamespace))
-
-	// Verify routing rules
-	g.Expect(httpRoute.Spec.Rules).To(HaveLen(1))
-	rule := httpRoute.Spec.Rules[0]
-
-	// Verify path matching
-	g.Expect(rule.Matches).To(HaveLen(1))
-	match := rule.Matches[0]
-	g.Expect(match.Path).NotTo(BeNil())
-	g.Expect(*match.Path.Value).To(Equal(AuthProxyOAuth2Path))
-	g.Expect(*match.Path.Type).To(Equal(gwapiv1.PathMatchPathPrefix))
-
-	// Verify backend refs
-	g.Expect(rule.BackendRefs).To(HaveLen(1))
-	backendRef := rule.BackendRefs[0]
-	g.Expect(string(backendRef.Name)).To(Equal(KubeAuthProxyName))
-	g.Expect(*backendRef.Port).To(Equal(gwapiv1.PortNumber(AuthProxyHTTPSPort)))
-}
-
-// TestBuildOAuth2ProxyArgsOpenShift tests OAuth2 proxy arguments for OpenShift mode.
-func TestBuildOAuth2ProxyArgsOpenShift(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	args := buildOAuth2ProxyArgs(nil, nil, expectedODHDomain) // nil OIDC = OpenShift mode, nil cookie = defaults
-
-	// Verify base arguments are present
-	g.Expect(args).To(ContainElement(ContainSubstring("--http-address=0.0.0.0:")))
-	g.Expect(args).To(ContainElement("--email-domain=*"))
-	g.Expect(args).To(ContainElement("--upstream=static://200"))
-	g.Expect(args).To(ContainElement("--skip-provider-button"))
-	g.Expect(args).To(ContainElement("--pass-access-token=true"))
-	g.Expect(args).To(ContainElement("--set-xauthrequest=true"))
-	g.Expect(args).To(ContainElement(ContainSubstring("--redirect-url=https://")))
-
-	// Verify OpenShift-specific arguments
-	g.Expect(args).To(ContainElement("--provider=openshift"))
-	g.Expect(args).To(ContainElement("--scope=" + OpenShiftOAuthScope))
-	g.Expect(args).To(ContainElement(ContainSubstring("--tls-cert-file=" + TLSCertsMountPath)))
-	g.Expect(args).To(ContainElement(ContainSubstring("--tls-key-file=" + TLSCertsMountPath)))
-	g.Expect(args).To(ContainElement(ContainSubstring("--https-address=0.0.0.0:")))
-
-	// Verify OIDC-specific arguments are NOT present
-	g.Expect(args).NotTo(ContainElement("--provider=oidc"))
-	g.Expect(args).NotTo(ContainElement(ContainSubstring("--oidc-issuer-url=")))
-}
-
-// TestBuildOAuth2ProxyArgsOIDC tests OAuth2 proxy arguments for OIDC mode.
-func TestBuildOAuth2ProxyArgsOIDC(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-
-	oidcConfig := &serviceApi.OIDCConfig{
-		IssuerURL: testOIDCIssuerURL,
-	}
-
-	args := buildOAuth2ProxyArgs(oidcConfig, nil, expectedODHDomain) // nil cookie = defaults
-
-	// Verify base arguments are present
-	g.Expect(args).To(ContainElement(ContainSubstring("--http-address=0.0.0.0:")))
-	g.Expect(args).To(ContainElement("--email-domain=*"))
-	g.Expect(args).To(ContainElement("--upstream=static://200"))
-	g.Expect(args).To(ContainElement("--skip-provider-button"))
-	g.Expect(args).To(ContainElement("--pass-access-token=true"))
-	g.Expect(args).To(ContainElement("--set-xauthrequest=true"))
-	g.Expect(args).To(ContainElement(ContainSubstring("--redirect-url=https://")))
-
-	// Verify OIDC-specific arguments
-	g.Expect(args).To(ContainElement("--provider=oidc"))
-	g.Expect(args).To(ContainElement("--oidc-issuer-url=" + testOIDCIssuerURL))
-
-	// Verify OpenShift-specific arguments are NOT present
-	g.Expect(args).NotTo(ContainElement("--provider=openshift"))
-	g.Expect(args).NotTo(ContainElement("--scope=" + OpenShiftOAuthScope))
-
-	// Verify OIDC-specific HTTPS arguments ARE present (required for EnvoyFilter integration)
-	g.Expect(args).To(ContainElement(ContainSubstring("--tls-cert-file=")))
-	g.Expect(args).To(ContainElement(ContainSubstring("--https-address=")))
-	g.Expect(args).To(ContainElement("--use-system-trust-store=true"))
-}
-
-// TestCreateDashboardRoute and TestCreateReferenceGrant removed
-// Dashboard routing is now user's responsibility
-
-// TestGetOIDCClientSecret tests OIDC client secret retrieval logic.
-func TestGetOIDCClientSecret(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name        string
-		oidcConfig  *serviceApi.OIDCConfig
-		secretData  map[string][]byte
-		expectedVal string
-		expectError bool
-		description string
-	}{
-		{
-			name: "successful retrieval with default key",
-			oidcConfig: &serviceApi.OIDCConfig{
-				ClientSecretRef: corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "oidc-secret",
-					},
-				},
-			},
-			secretData: map[string][]byte{
-				DefaultClientSecretKey: []byte("secret-value"),
-			},
-			expectedVal: "secret-value",
-			expectError: false,
-			description: "should retrieve secret using default key",
-		},
-		{
-			name: "successful retrieval with custom key",
-			oidcConfig: &serviceApi.OIDCConfig{
-				ClientSecretRef: corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "oidc-secret",
-					},
-					Key: "custom-key",
-				},
-			},
-			secretData: map[string][]byte{
-				"custom-key": []byte("custom-secret"),
-			},
-			expectedVal: "custom-secret",
-			expectError: false,
-			description: "should retrieve secret using custom key",
-		},
-		{
-			name: "key not found in secret",
-			oidcConfig: &serviceApi.OIDCConfig{
-				ClientSecretRef: corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "oidc-secret",
-					},
-					Key: "missing-key",
-				},
-			},
-			secretData: map[string][]byte{
-				"other-key": []byte("other-value"),
-			},
-			expectedVal: "",
-			expectError: true,
-			description: "should return error when key not found",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			g := NewWithT(t)
-			ctx := t.Context()
-
-			// Create secret with test data
-			secret := &corev1.Secret{
+			name: "user-provided domain is used",
+			gatewayConfig: &serviceApi.GatewayConfig{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      tc.oidcConfig.ClientSecretRef.Name,
-					Namespace: GatewayNamespace,
+					Name: serviceApi.GatewayConfigName,
 				},
-				Data: tc.secretData,
-			}
+				Spec: serviceApi.GatewayConfigSpec{
+					Domain: "apps.example.com",
+				},
+			},
+			expectedDomain: "data-science-gateway.apps.example.com",
+			expectError:    false,
+			description:    "should use user-provided domain and prepend default gateway name",
+		},
+		{
+			name: "custom subdomain with user-provided domain",
+			gatewayConfig: &serviceApi.GatewayConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: serviceApi.GatewayConfigName,
+				},
+				Spec: serviceApi.GatewayConfigSpec{
+					Domain:    "apps.example.com",
+					Subdomain: "my-gateway",
+				},
+			},
+			expectedDomain: "my-gateway.apps.example.com",
+			expectError:    false,
+			description:    "should use custom subdomain with user-provided domain",
+		},
+		{
+			name: "whitespace subdomain falls back to default",
+			gatewayConfig: &serviceApi.GatewayConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: serviceApi.GatewayConfigName,
+				},
+				Spec: serviceApi.GatewayConfigSpec{
+					Domain:    "apps.example.com",
+					Subdomain: "   ",
+				},
+			},
+			expectedDomain: "data-science-gateway.apps.example.com",
+			expectError:    false,
+			description:    "should fall back to default when subdomain is whitespace",
+		},
+		{
+			name:           "nil gatewayConfig falls back to cluster domain",
+			gatewayConfig:  nil,
+			expectedDomain: "",
+			expectError:    true,
+			description:    "should return error when gatewayConfig is nil and no cluster domain available",
+		},
+	}
 
-			client := setupTestClientWithObjects(secret)
-			result, err := getOIDCClientSecret(ctx, client, tc.oidcConfig)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			client := setupTestClient().Build()
+
+			domain, err := GetFQDN(ctx, client, tc.gatewayConfig)
 
 			if tc.expectError {
 				g.Expect(err).To(HaveOccurred(), tc.description)
-				g.Expect(result).To(Equal(""))
 			} else {
 				g.Expect(err).NotTo(HaveOccurred(), tc.description)
-				g.Expect(result).To(Equal(tc.expectedVal), tc.description)
+				g.Expect(domain).To(Equal(tc.expectedDomain), tc.description)
 			}
 		})
 	}
 }
 
-// TestGetOIDCClientSecretNotFound tests error handling when secret doesn't exist.
-func TestGetOIDCClientSecretNotFound(t *testing.T) {
+// TestGetCookieSettings tests the getCookieSettings helper function.
+func TestGetCookieSettings(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
-	ctx := t.Context()
 
-	oidcConfig := &serviceApi.OIDCConfig{
-		ClientSecretRef: corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{
-				Name: "missing-secret",
+	testCases := []struct {
+		name            string
+		cookieConfig    *serviceApi.CookieConfig
+		expectedExpire  string
+		expectedRefresh string
+		description     string
+	}{
+		{
+			name:            "returns defaults when cookieConfig is nil",
+			cookieConfig:    nil,
+			expectedExpire:  "24h0m0s",
+			expectedRefresh: "1h0m0s",
+			description:     "should return 24h and 1h when cookieConfig is nil",
+		},
+		{
+			name: "returns defaults when both durations are zero",
+			cookieConfig: &serviceApi.CookieConfig{
+				Expire:  metav1.Duration{Duration: 0},
+				Refresh: metav1.Duration{Duration: 0},
 			},
+			expectedExpire:  "24h0m0s",
+			expectedRefresh: "1h0m0s",
+			description:     "should return defaults when durations are zero (handles cookie: {} case)",
+		},
+		{
+			name: "returns custom values when specified",
+			cookieConfig: &serviceApi.CookieConfig{
+				Expire:  metav1.Duration{Duration: 48 * 3600 * 1000000000}, // 48h in nanoseconds
+				Refresh: metav1.Duration{Duration: 30 * 60 * 1000000000},   // 30m in nanoseconds
+			},
+			expectedExpire:  "48h0m0s",
+			expectedRefresh: "30m0s",
+			description:     "should return custom values when specified",
+		},
+		{
+			name: "returns mixed default and custom values",
+			cookieConfig: &serviceApi.CookieConfig{
+				Expire:  metav1.Duration{Duration: 72 * 3600 * 1000000000}, // 72h custom
+				Refresh: metav1.Duration{Duration: 0},                      // default 1h
+			},
+			expectedExpire:  "72h0m0s",
+			expectedRefresh: "1h0m0s",
+			description:     "should return custom expire and default refresh",
 		},
 	}
 
-	client := setupTestClient() // No secrets
-	result, err := getOIDCClientSecret(ctx, client, oidcConfig)
-
-	g.Expect(err).To(HaveOccurred())
-	g.Expect(err.Error()).To(ContainSubstring("failed to get OIDC client secret"))
-	g.Expect(result).To(Equal(""))
-}
-
-// TestSecretHashAnnotationChangeTriggers tests that different secret values produce different annotations.
-func TestSecretHashAnnotationChangeTriggers(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	ctx := t.Context()
-
-	secretData1 := map[string]string{
-		EnvClientID:     "client1",
-		EnvClientSecret: "secret1",
-		EnvCookieSecret: "cookie1",
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			expire, refresh := getCookieSettings(tc.cookieConfig)
+			g.Expect(expire).To(Equal(tc.expectedExpire), tc.description)
+			g.Expect(refresh).To(Equal(tc.expectedRefresh), tc.description)
+		})
 	}
-	secretData2 := map[string]string{
-		EnvClientID:     "client2",
-		EnvClientSecret: "secret2",
-		EnvCookieSecret: "cookie2",
-	}
-
-	// Create first secret and deployment
-	secretDataBytes1 := make(map[string][]byte)
-	for k, v := range secretData1 {
-		secretDataBytes1[k] = []byte(v)
-	}
-	secret1 := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      KubeAuthProxySecretsName,
-			Namespace: GatewayNamespace,
-		},
-		Data: secretDataBytes1,
-	}
-	client1 := setupTestClientWithObjects(secret1)
-	rr1 := &odhtypes.ReconciliationRequest{Client: client1}
-
-	// Create second secret and deployment
-	secretDataBytes2 := make(map[string][]byte)
-	for k, v := range secretData2 {
-		secretDataBytes2[k] = []byte(v)
-	}
-	secret2 := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      KubeAuthProxySecretsName,
-			Namespace: GatewayNamespace,
-		},
-		Data: secretDataBytes2,
-	}
-	client2 := setupTestClientWithObjects(secret2)
-	rr2 := &odhtypes.ReconciliationRequest{Client: client2}
-
-	// Create two deployments with different secrets
-	err1 := createKubeAuthProxyDeployment(ctx, rr1, nil, nil, expectedODHDomain)
-	g.Expect(err1).NotTo(HaveOccurred())
-
-	err2 := createKubeAuthProxyDeployment(ctx, rr2, nil, nil, expectedODHDomain)
-	g.Expect(err2).NotTo(HaveOccurred())
-
-	// Convert both to typed Deployments
-	deployment1 := &appsv1.Deployment{}
-	err := runtime.DefaultUnstructuredConverter.FromUnstructured(rr1.Resources[0].Object, deployment1)
-	g.Expect(err).NotTo(HaveOccurred())
-
-	deployment2 := &appsv1.Deployment{}
-	err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr2.Resources[0].Object, deployment2)
-	g.Expect(err).NotTo(HaveOccurred())
-
-	// Verify that the annotations are different
-	annotation1 := deployment1.Spec.Template.Annotations["opendatahub.io/secret-hash"]
-	annotation2 := deployment2.Spec.Template.Annotations["opendatahub.io/secret-hash"]
-
-	g.Expect(annotation1).ToNot(BeEmpty(), "first deployment should have hash annotation")
-	g.Expect(annotation2).ToNot(BeEmpty(), "second deployment should have hash annotation")
-	g.Expect(annotation1).NotTo(Equal(annotation2), "different secrets should produce different hash annotations")
-}
-
-// TestSecretHashAnnotationWithoutSecret tests that deployment is created with empty hash when secret doesn't exist.
-func TestSecretHashAnnotationWithoutSecret(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	ctx := t.Context()
-
-	// Create client without any secrets
-	client := setupTestClient()
-	rr := &odhtypes.ReconciliationRequest{Client: client}
-
-	// Create deployment without secret - should succeed with empty hash
-	err := createKubeAuthProxyDeployment(ctx, rr, nil, nil, expectedODHDomain)
-	g.Expect(err).NotTo(HaveOccurred(), "deployment creation should succeed even when secret doesn't exist")
-	g.Expect(rr.Resources).To(HaveLen(1))
-
-	// Convert to typed Deployment
-	deployment := &appsv1.Deployment{}
-	err = runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[0].Object, deployment)
-	g.Expect(err).NotTo(HaveOccurred())
-
-	// Verify that the hash annotation exists but is empty
-	g.Expect(deployment.Spec.Template.Annotations).To(HaveKey("opendatahub.io/secret-hash"),
-		"pod template should have secret hash annotation even without secret")
-	hash := deployment.Spec.Template.Annotations["opendatahub.io/secret-hash"]
-	g.Expect(hash).To(BeEmpty(), "secret hash should be empty string when secret doesn't exist")
-}
-
-// TestKubeAuthProxySecurityContexts tests that the deployment has proper security contexts configured.
-func TestKubeAuthProxySecurityContexts(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	ctx := t.Context()
-
-	rr := &odhtypes.ReconciliationRequest{
-		Client: setupTestClient(),
-	}
-
-	err := createKubeAuthProxyDeployment(ctx, rr, nil, nil, expectedODHDomain)
-	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(rr.Resources).To(HaveLen(1))
-
-	// Convert unstructured to typed Deployment
-	deploymentResource := &rr.Resources[0]
-	deployment := &appsv1.Deployment{}
-	err = runtime.DefaultUnstructuredConverter.FromUnstructured(deploymentResource.Object, deployment)
-	g.Expect(err).NotTo(HaveOccurred())
-
-	podSpec := deployment.Spec.Template.Spec
-	container := podSpec.Containers[0]
-
-	// Verify pod-level security context
-	g.Expect(*podSpec.SecurityContext.RunAsNonRoot).To(BeTrue())
-	g.Expect(podSpec.SecurityContext.SeccompProfile.Type).To(Equal(corev1.SeccompProfileTypeRuntimeDefault))
-
-	// Verify container-level security context
-	g.Expect(*container.SecurityContext.ReadOnlyRootFilesystem).To(BeTrue())
-	g.Expect(*container.SecurityContext.AllowPrivilegeEscalation).To(BeFalse())
-	g.Expect(container.SecurityContext.Capabilities.Drop).To(ContainElement(corev1.Capability("ALL")))
-	g.Expect(container.SecurityContext.Capabilities.Add).To(BeEmpty(), "no capabilities should be added")
-
-	// Verify tmp volume mount exists (required for read-only root filesystem)
-	foundTmpMount := false
-	for _, vm := range container.VolumeMounts {
-		if vm.Name == "tmp" && vm.MountPath == "/tmp" {
-			foundTmpMount = true
-			break
-		}
-	}
-	g.Expect(foundTmpMount).To(BeTrue())
-
-	// Verify tmp volume is configured with memory-backed EmptyDir
-	foundTmpVolume := false
-	for _, vol := range podSpec.Volumes {
-		if vol.Name == "tmp" && vol.EmptyDir != nil && vol.EmptyDir.Medium == corev1.StorageMediumMemory {
-			foundTmpVolume = true
-			g.Expect(vol.EmptyDir.SizeLimit).NotTo(BeNil(), "tmp volume should have size limit")
-			g.Expect(vol.EmptyDir.SizeLimit.String()).To(Equal("10Mi"), "tmp volume should be limited to 10Mi")
-			break
-		}
-	}
-	g.Expect(foundTmpVolume).To(BeTrue())
 }
