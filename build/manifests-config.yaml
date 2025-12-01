@@ -41,3 +41,6 @@ map:
   odh-llama-stack-k8s-operator:
     src: config
     dest: llamastackoperator
+  odh-trainer:
+    src: manifests
+    dest: traineroperator
