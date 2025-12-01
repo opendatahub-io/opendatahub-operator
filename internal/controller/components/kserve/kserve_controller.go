@@ -18,6 +18,8 @@ package kserve
 
 import (
 	"context"
+	"os"
+	"strings"
 
 	templatev1 "github.com/openshift/api/template/v1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -41,11 +43,14 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/hash"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/resources"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 // NewComponentReconciler creates a ComponentReconciler for the Dashboard API.
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
+	versionPrefix := strings.ReplaceAll(os.Getenv("OPERATOR_VERSION"), ".", "-")
+
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.Kserve{}).
 		// operands - owned
 		Owns(&corev1.Secret{}).
@@ -70,6 +75,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 
 		// operands - dynamically owned
 		OwnsGVK(gvk.InferencePoolV1alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.InferencePoolV1alpha2))).
+		OwnsGVK(gvk.InferencePoolV1, reconciler.Dynamic(reconciler.CrdExists(gvk.InferencePoolV1))).
 		OwnsGVK(gvk.InferenceModelV1alpha2, reconciler.Dynamic(reconciler.CrdExists(gvk.InferenceModelV1alpha2))).
 		OwnsGVK(gvk.LLMInferenceServiceConfigV1Alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.LLMInferenceServiceConfigV1Alpha1))).
 		OwnsGVK(gvk.LLMInferenceServiceV1Alpha1, reconciler.Dynamic(reconciler.CrdExists(gvk.LLMInferenceServiceV1Alpha1))).
@@ -109,12 +115,15 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 			kustomize.WithLabel(labels.K8SCommon.PartOf, LegacyComponentName),
 		)).
 		WithAction(customizeKserveConfigMap).
+		WithAction(func(ctx context.Context, rr *types.ReconciliationRequest) error {
+			return versionedWellKnownLLMInferenceServiceConfigs(ctx, versionPrefix, rr)
+		}).
 		WithAction(deploy.NewAction(
 			deploy.WithCache(),
 		)).
 		WithAction(deployments.NewAction()).
 		// must be the final action
-		WithAction(gc.NewAction()).
+		WithAction(gc.NewAction(gc.WithUnremovables(gvk.LLMInferenceServiceConfigV1Alpha1))).
 		// declares the list of additional, controller specific conditions that are
 		// contributing to the controller readiness status
 		WithConditions(conditionTypes...).

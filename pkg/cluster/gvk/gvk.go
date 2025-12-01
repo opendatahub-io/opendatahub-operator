@@ -470,6 +470,12 @@ var (
 		Kind:    "InferencePool",
 	}
 
+	InferencePoolV1 = schema.GroupVersionKind{
+		Group:   "inference.networking.k8s.io",
+		Version: "v1",
+		Kind:    "InferencePool",
+	}
+
 	InferenceModelV1alpha2 = schema.GroupVersionKind{
 		Group:   "inference.networking.x-k8s.io",
 		Version: "v1alpha2",
