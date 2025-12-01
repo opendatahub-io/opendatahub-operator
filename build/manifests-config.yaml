@@ -43,4 +43,4 @@ map:
     dest: llamastackoperator
   odh-trainer:
     src: manifests
-    dest: traineroperator
+    dest: trainer
