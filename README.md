@@ -638,6 +638,24 @@ spec:
 
 This will use the cluster's default domain with your custom subdomain: `custom-gateway.apps.cluster.example.com`
 
+For an advanced example to disable NetworkPolicy creation for auth proxy:
+
+```yaml
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: default-gateway
+spec:
+  cookie: {}
+  certificate:
+    type: SelfSigned
+  networkPolicy:
+    ingress:
+      enabled: false
+```
+
+**Note:** NetworkPolicy is enabled by default to restrict access to the kube-auth-proxy.
+
 **Important Notes:**
 - The GatewayConfig name must be exactly `default-gateway`
 - This is a cluster-scoped resource
@@ -647,6 +665,7 @@ This will use the cluster's default domain with your custom subdomain: `custom-g
 - Certificate types can be `OpenshiftDefaultIngress`, `SelfSigned`, or `Provided`
 - If `subdomain` is not specified or is empty, the default value `data-science-gateway` is used.
 - If `domain` is not specified, the cluster's default domain is used.
+- **NetworkPolicy is enabled by default** to secure kube-auth-proxy traffic. It restricts ingress to Gateway pods and monitoring namespaces only.
 
 ### Run functional Tests
 

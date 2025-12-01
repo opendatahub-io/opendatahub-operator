@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
@@ -50,6 +51,7 @@ import (
 	featuresv1 "github.com/opendatahub-io/opendatahub-operator/v2/api/features/v1"
 	infrav1 "github.com/opendatahub-io/opendatahub-operator/v2/api/infrastructure/v1"
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/services/gateway"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
@@ -598,8 +600,13 @@ func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, i
 		Spec: serviceApi.GatewayConfigSpec{
 			Certificate: &infrav1.CertificateSpec{
 				Type:       infrav1.OpenshiftDefaultIngress,
-				SecretName: "default-gateway-tls",
+				SecretName: gateway.DefaultGatewayTLSSecretName,
 			},
+			Cookie: serviceApi.CookieConfig{
+				Expire:  metav1.Duration{Duration: 24 * time.Hour},
+				Refresh: metav1.Duration{Duration: 1 * time.Hour},
+			},
+			AuthProxyTimeout: metav1.Duration{Duration: 5 * time.Second},
 		},
 	}
 

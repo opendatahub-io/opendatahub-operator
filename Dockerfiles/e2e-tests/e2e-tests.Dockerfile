@@ -1,6 +1,5 @@
 # E2E Test Image with precompiled tests
-# ARG vars
-ARG GOLANG_VERSION=1.24
+ARG GOLANG_VERSION=1.25
 
 ################################################################################
 FROM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder

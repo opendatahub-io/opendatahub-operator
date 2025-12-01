@@ -2,45 +2,44 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ .NetworkPolicyName }}
-  namespace: {{ .NetworkPolicyNamespace }}
+  name: {{.KubeAuthProxyServiceName}}
+  namespace: {{.GatewayNamespace}}
   labels:
-    app: {{ .NetworkPolicyName }}
-    app.kubernetes.io/component: authentication
-    app.kubernetes.io/managed-by: opendatahub-operator
+    app: {{.KubeAuthProxyServiceName}}
+    {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
 spec:
   podSelector:
     matchLabels:
-      app: {{ .NetworkPolicyName }}
+      app: {{.KubeAuthProxyServiceName}}
   policyTypes:
     - Ingress
   ingress:
     # Allow traffic from gateway/envoy pods for authentication
     - from:
-        - podSelector:
-            matchLabels:
-              gateway.networking.k8s.io/gateway-name: {{ .GatewayName }}
-          namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: {{ .NetworkPolicyNamespace }}
+      - podSelector:
+          matchLabels: # match whats applied on the pods by the kube-auth-proxy
+            {{.GatewayNameLabelKey}}: {{.GatewayName}}
+        namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: {{.GatewayNamespace}}
       ports:
         - protocol: TCP
-          port: {{ .HTTPSPort }}
-    
-    # Allow metrics collection from OpenShift monitoring (port {{ .MetricsPort }})
+          port: {{.GatewayHTTPSPort}}
+
+    # Allow metrics collection from OpenShift monitoring
     - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: openshift-monitoring
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: openshift-monitoring
       ports:
         - protocol: TCP
-          port: {{ .MetricsPort }}
-    
-    # Allow metrics collection from user workload monitoring (port {{ .MetricsPort }})
+          port: {{.AuthProxyMetricsPort}}
+
+    # Allow metrics collection from user workload monitoring
     - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: openshift-user-workload-monitoring
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: openshift-user-workload-monitoring
       ports:
         - protocol: TCP
-          port: {{ .MetricsPort }}
+          port: {{.AuthProxyMetricsPort}}
