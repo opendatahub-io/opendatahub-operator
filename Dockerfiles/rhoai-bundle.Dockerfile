@@ -1,5 +1,5 @@
 # Build the bundle, golang version shouldn't matter much here, but if in doubt, keep it up-to-date with main Dockerfile
-ARG GOLANG_VERSION=1.24
+ARG GOLANG_VERSION=1.25
 
 FROM registry.access.redhat.com/ubi9/go-toolset:$GOLANG_VERSION as builder
 ARG IMAGE_TAG_BASE
