@@ -402,6 +402,23 @@ func CreateHardwareProfile(name, namespace, apiVersion string) *unstructured.Uns
 	return hwProfile
 }
 
+// CreateJobSetOperator creates a JobSetOperator CR.
+func CreateJobSetOperator() *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "operator.openshift.io/v1",
+			"kind":       "JobSetOperator",
+			"metadata": map[string]interface{}{
+				"name": "cluster",
+			},
+			"spec": map[string]interface{}{
+				"logLevel":         "Normal",
+				"operatorLogLevel": "Normal",
+			},
+		},
+	}
+}
+
 // CreateNamespaceWithLabels creates a namespace manifest with optional labels for use with WithObjectToCreate.
 func CreateNamespaceWithLabels(name string, labels map[string]string) *corev1.Namespace {
 	ns := &corev1.Namespace{
