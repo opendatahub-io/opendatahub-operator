@@ -15,7 +15,7 @@ metadata:
 #    cert controller to generate TLS certificates
 # 3. This manifest is applied using Server-Side Apply (SSA), which merges this definition
 #    with the MonitoringStack-created Service without conflicts
-# 4. The minimal spec (empty ports, ClusterIP type) ensures the Service passes validation
+# 4. The minimal spec (placeholder port, ClusterIP type) ensures the Service passes validation
 #    if applied before MonitoringStack creates it, preventing transient errors on fresh installs
 # 5. When MonitoringStack reconciles, it updates the spec with the actual port configuration
 # 6. Each controller (MonitoringStack Operator and ODH Operator) manages different fields,
@@ -28,5 +28,9 @@ metadata:
   annotations:
     service.beta.openshift.io/serving-cert-secret-name: prometheus-operated-tls
 spec:
-  ports: []
+  ports:
+    - name: web
+      port: 9090
+      protocol: TCP
+      targetPort: web
   type: ClusterIP
