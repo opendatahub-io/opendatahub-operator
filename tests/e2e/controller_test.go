@@ -311,6 +311,7 @@ func TestOdhOperator(t *testing.T) {
 	// Run hardware profile test suites
 	if testOpts.hardwareProfileTest {
 		mustRun(t, "Hardware Profile E2E Tests", hardwareProfileTestSuite)
+		mustRun(t, "Hardware Profile Workload E2E Tests", hardwareProfileWorkloadTestSuite)
 	}
 	// Deletion logic based on deletionPolicy
 	switch testOpts.deletionPolicy {
