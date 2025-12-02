@@ -30,6 +30,7 @@ const (
 	TempoStackTemplate                            = "resources/tempo-stack.tmpl.yaml"
 	OpenTelemetryCollectorTemplate                = "resources/opentelemetry-collector.tmpl.yaml"
 	CollectorServiceMonitorsTemplate              = "resources/collector-servicemonitors.tmpl.yaml"
+	CollectorPrometheusServiceTemplate            = "resources/collector-prometheus-service.tmpl.yaml"
 	CollectorRBACTemplate                         = "resources/collector-rbac.tmpl.yaml"
 	PrometheusRouteTemplate                       = "resources/data-science-prometheus-route.tmpl.yaml"
 	InstrumentationTemplate                       = "resources/instrumentation.tmpl.yaml"
@@ -198,12 +199,12 @@ func deployMonitoringStackWithQuerierAndRestrictions(ctx context.Context, rr *od
 
 	// Prepare and deploy all component templates atomically
 	templates := []odhtypes.TemplateInfo{
+		{FS: resourcesFS, Path: PrometheusWebTLSServiceTemplate},
 		{FS: resourcesFS, Path: MonitoringStackTemplate},
 		{FS: resourcesFS, Path: MonitoringStackAlertmanagerRBACTemplate},
 		{FS: resourcesFS, Path: PrometheusRouteTemplate},
 		{FS: resourcesFS, Path: PrometheusServiceOverrideTemplate},
 		{FS: resourcesFS, Path: PrometheusNetworkPolicyTemplate},
-		{FS: resourcesFS, Path: PrometheusWebTLSServiceTemplate},
 		{FS: resourcesFS, Path: PrometheusNamespaceProxyTemplate},
 		{FS: resourcesFS, Path: PrometheusNamespaceProxyNetworkPolicyTemplate},
 		{FS: resourcesFS, Path: ThanosQuerierTemplate},
@@ -314,11 +315,23 @@ func deployOpenTelemetryCollector(ctx context.Context, rr *odhtypes.Reconciliati
 			FS:   resourcesFS,
 			Path: CollectorRBACTemplate,
 		},
+		// ServiceMonitors (always deployed for collector health monitoring)
+		// Note: The template contains conditional logic that only renders the
+		// data-science-prometheus-monitor ServiceMonitor when .Metrics != nil
 		{
 			FS:   resourcesFS,
 			Path: CollectorServiceMonitorsTemplate,
 		},
 	}
+
+	// Prometheus Service with TLS (only when metrics collection is enabled)
+	if monitoring.Spec.Metrics != nil {
+		template = append(template, odhtypes.TemplateInfo{
+			FS:   resourcesFS,
+			Path: CollectorPrometheusServiceTemplate,
+		})
+	}
+
 	rr.Templates = append(rr.Templates, template...)
 
 	return nil
