@@ -48,6 +48,7 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate VAP created when kserve is enabled", componentCtx.ValidateS3SecretCheckBucketExist},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate well-known LLMInferenceServiceConfig versioning", componentCtx.ValidateLLMInferenceServiceConfigVersioned},
 	}
 
 	// Add webhook tests if enabled
@@ -168,5 +169,42 @@ func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 			testf.Transform(`.data = {"credential": "mysecretjson"}`),
 		)),
 		WithCustomErrorMsg("Failed to create connection secret"),
+	)
+}
+
+// ValidateLLMInferenceServiceConfigVersioned validates that well-known LLMInferenceServiceConfig
+// resources (marked with serving.kserve.io/well-known-config annotation) in the system namespace
+// have names prefixed with a semver version.
+func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T) {
+	t.Helper()
+
+	// Validate that all well-known LLMInferenceServiceConfig resources have versioned names
+	// Expected format: vX-Y-Z-<config-name> where X, Y, Z are numbers
+	// Only check resources with the well-known-config annotation set to true
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha1, types.NamespacedName{}),
+		WithListOptions(&client.ListOptions{
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(jq.Match(`
+			.items
+			| map(select(.metadata.annotations["serving.kserve.io/well-known-config"] == "true"))
+			| length > 0
+		`)),
+		WithCustomErrorMsg("Expected at least one well-known LLMInferenceServiceConfig to exist"),
+	)
+
+	// Validate that all well-known configs follow the versioned naming pattern
+	tc.EnsureResourceExists(
+		WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha1, types.NamespacedName{}),
+		WithListOptions(&client.ListOptions{
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(jq.Match(`
+			.items
+			| map(select(.metadata.annotations["serving.kserve.io/well-known-config"] == "true"))
+			| all(.metadata.name | test("^v[0-9]+-[0-9]+-[0-9]+-.*"))
+		`)),
+		WithCustomErrorMsg("All well-known LLMInferenceServiceConfig resources should have names starting with a semver version (vX-Y-Z-)"),
 	)
 }

@@ -122,10 +122,14 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 }
 
 func versionedWellKnownLLMInferenceServiceConfigs(_ context.Context, version string, rr *odhtypes.ReconciliationRequest) error {
+	const (
+		envFormat = "%s-kserve-"
+		envName   = "LLM_INFERENCE_SERVICE_CONFIG_PREFIX"
+	)
+
 	for i := range rr.Resources {
 		if rr.Resources[i].GroupVersionKind().Group == gvk.LLMInferenceServiceConfigV1Alpha1.Group &&
 			rr.Resources[i].GroupVersionKind().Kind == gvk.LLMInferenceServiceConfigV1Alpha1.Kind {
-
 			if v, ok := rr.Resources[i].GetAnnotations()["serving.kserve.io/well-known-config"]; ok && v == "true" {
 				rr.Resources[i].SetName(fmt.Sprintf("%s-%s", version, rr.Resources[i].GetName()))
 			}
@@ -133,12 +137,6 @@ func versionedWellKnownLLMInferenceServiceConfigs(_ context.Context, version str
 
 		if rr.Resources[i].GroupVersionKind().Group == gvk.Deployment.Group &&
 			rr.Resources[i].GroupVersionKind().Kind == gvk.Deployment.Kind {
-
-			const (
-				envFormat = "%s-kserve-"
-				envName   = "LLM_INFERENCE_SERVICE_CONFIG_PREFIX"
-			)
-
 			deployment := &appsv1.Deployment{}
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[i].Object, deployment); err != nil {
 				return err
