@@ -7,6 +7,7 @@ import (
 
 	gt "github.com/onsi/gomega/types"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
@@ -196,6 +197,125 @@ func TestUpdateDSCStatus(t *testing.T) {
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .severity == "%s"`, ReadyConditionType, common.ConditionSeverityInfo),
 			jq.Match(`.status.conditions[] | select(.type == "%s") | .message | contains("Component ManagementState is set to Removed")`, ReadyConditionType)),
 		))
+	})
+
+	t.Run("should set condition when rhcl subscription is absent", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKserve(operatorv1.Managed)
+		kserve := createKserveCR(true)
+
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, kserve))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.components.kserve.managementState == "%s"`, operatorv1.Managed),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, LLMInferenceServiceDependencies, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, LLMInferenceServiceDependencies, subNotFound),
+		)))
+	})
+
+	t.Run("should set condition when rhcl subscription is found", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKserve(operatorv1.Managed)
+		kserve := createKserveCR(true)
+		rhclSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: rhclOperator,
+			},
+		}
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, kserve, rhclSub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.components.kserve.managementState == "%s"`, operatorv1.Managed),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, LLMInferenceServiceDependencies, metav1.ConditionTrue),
+		)))
+	})
+
+	t.Run("should set condition when lws is absent", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKserve(operatorv1.Managed)
+		kserve := createKserveCR(true)
+		rhclSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: rhclOperator,
+			},
+		}
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, kserve, rhclSub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.components.kserve.managementState == "%s"`, operatorv1.Managed),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, LLMInferenceServiceWideEPDependencies, metav1.ConditionFalse),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .reason == "%s"`, LLMInferenceServiceWideEPDependencies, subNotFound),
+		)))
+	})
+
+	t.Run("should set condition when rhcl + lws subscriptions are found", func(t *testing.T) {
+		g := NewWithT(t)
+		ctx := t.Context()
+
+		dsc := createDSCWithKserve(operatorv1.Managed)
+		kserve := createKserveCR(true)
+		rhclSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: rhclOperator,
+			},
+		}
+		lwsSub := &v1alpha1.Subscription{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: lwsOperator,
+			},
+		}
+		cli, err := fakeclient.New(fakeclient.WithObjects(dsc, kserve, rhclSub, lwsSub))
+		g.Expect(err).ShouldNot(HaveOccurred())
+
+		cs, err := handler.UpdateDSCStatus(ctx, &types.ReconciliationRequest{
+			Client:     cli,
+			Instance:   dsc,
+			Conditions: conditions.NewManager(dsc, ReadyConditionType),
+		})
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(cs).Should(Equal(metav1.ConditionTrue))
+
+		g.Expect(dsc).Should(WithTransform(json.Marshal, And(
+			jq.Match(`.status.components.kserve.managementState == "%s"`, operatorv1.Managed),
+			jq.Match(`.status.conditions[] | select(.type == "%s") | .status == "%s"`, LLMInferenceServiceWideEPDependencies, metav1.ConditionTrue),
+		)))
 	})
 }
 

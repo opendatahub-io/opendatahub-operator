@@ -16,6 +16,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components"
 	cr "github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/registry"
 	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/status"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/conditions"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
@@ -32,7 +33,12 @@ const (
 	// deployment to the new component name, so keep it around till we figure out a solution.
 	LegacyComponentName = "kserve"
 
-	ReadyConditionType = componentApi.KserveKind + status.ReadySuffix
+	ReadyConditionType                    = componentApi.KserveKind + status.ReadySuffix
+	rhclOperator                          = "rhcl-operator"
+	lwsOperator                           = "lws-operator"
+	subNotFound                           = "Subscription not found"
+	LLMInferenceServiceDependencies       = "LLMInferenceServiceDependencies"
+	LLMInferenceServiceWideEPDependencies = "LLMInferenceServiceWideEPDependencies"
 )
 
 var (
@@ -108,7 +114,44 @@ func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.Reconc
 
 	if s.IsEnabled(dsc) {
 		dsc.Status.Components.Kserve.KserveCommonStatus = c.Status.KserveCommonStatus.DeepCopy()
+		rhclFound, err := cluster.SubscriptionExists(ctx, rr.Client, rhclOperator)
+		if err != nil && !k8serr.IsNotFound(err) {
+			return cs, err
+		}
+		if !rhclFound {
+			conditions.SetStatusCondition(dsc, common.Condition{
+				Type:     LLMInferenceServiceDependencies,
+				Status:   metav1.ConditionFalse,
+				Reason:   subNotFound,
+				Message:  "Warning: Red Hat Connectivity Link is not installed, LLMInferenceService cannot be used",
+				Severity: common.ConditionSeverityInfo,
+			})
+		} else {
+			conditions.SetStatusCondition(dsc, common.Condition{
+				Type:   LLMInferenceServiceDependencies,
+				Status: metav1.ConditionTrue,
+			})
+		}
 
+		lwsFound, err := cluster.SubscriptionExists(ctx, rr.Client, lwsOperator)
+		if err != nil && !k8serr.IsNotFound(err) {
+			return cs, err
+		}
+		if !lwsFound {
+			conditions.SetStatusCondition(dsc, common.Condition{
+				Type:     LLMInferenceServiceWideEPDependencies,
+				Status:   metav1.ConditionFalse,
+				Reason:   subNotFound,
+				Message:  "Warning: LeaderWorkerSet is not installed, Wide Expert Parallelism with LLMInferenceService cannot be used",
+				Severity: common.ConditionSeverityInfo,
+			})
+		}
+		if rhclFound && lwsFound {
+			conditions.SetStatusCondition(dsc, common.Condition{
+				Type:   LLMInferenceServiceWideEPDependencies,
+				Status: metav1.ConditionTrue,
+			})
+		}
 		if rc := conditions.FindStatusCondition(c.GetStatus(), status.ConditionTypeReady); rc != nil {
 			rr.Conditions.MarkFrom(ReadyConditionType, *rc)
 			cs = rc.Status

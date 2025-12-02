@@ -20,6 +20,7 @@ import (
 	"context"
 
 	templatev1 "github.com/openshift/api/template/v1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -90,6 +91,7 @@ func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.
 				component.ForLabel(labels.ODH.Component(LegacyComponentName), labels.True),
 			),
 		).
+		Watches(&v1alpha1.Subscription{}).
 
 		// actions
 		WithAction(initialize).
