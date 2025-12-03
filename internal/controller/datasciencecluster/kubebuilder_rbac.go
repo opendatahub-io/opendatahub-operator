@@ -81,7 +81,8 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="integreatly.org",resources=rhmis,verbs=list;watch;patch;delete;get
 
-// +kubebuilder:rbac:groups="extensions",resources=replicasets,verbs=*
+// Note: extensions API group is deprecated; ReplicaSets managed by Deployments
+// +kubebuilder:rbac:groups="extensions",resources=replicasets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="extensions",resources=ingresses,verbs=list;watch;patch;delete;get
 
 // +kubebuilder:rbac:groups="core",resources=services/finalizers,verbs=create;delete;list;update;watch;patch;get
