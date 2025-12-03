@@ -47,6 +47,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Secret).
 		OwnsGVK(gvk.Service).
 		OwnsGVK(gvk.Deployment).
+		OwnsGVK(gvk.HorizontalPodAutoscaler).
 		OwnsGVK(gvk.HTTPRoute).
 		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
 		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
