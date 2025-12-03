@@ -90,7 +90,7 @@ func (tc *DSCTestCtx) ValidateOperatorsWithCustomChannelsInstallation(t *testing
 		channel             string
 	}{
 		{nn: types.NamespacedName{Name: leaderWorkerSetOpName, Namespace: leaderWorkerSetNamespace},
-			skipOperatorGroup: false, globalOperatorGroup: true, channel: leaderWorkerSetChannel},
+			skipOperatorGroup: false, globalOperatorGroup: false, channel: leaderWorkerSetChannel},
 		{nn: types.NamespacedName{Name: jobSetOpName, Namespace: jobSetOpNamespace},
 			skipOperatorGroup: false, globalOperatorGroup: false, channel: jobSetOpChannel},
 	}
@@ -132,7 +132,7 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 		{nn: types.NamespacedName{Name: observabilityOpName, Namespace: observabilityOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
 		{nn: types.NamespacedName{Name: opentelemetryOpName, Namespace: opentelemetryOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
 		{nn: types.NamespacedName{Name: tempoOpName, Namespace: tempoOpNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
-		{nn: types.NamespacedName{Name: kuadrantOpName, Namespace: kuadrantNamespace}, skipOperatorGroup: false, channel: defaultOperatorChannel},
+		{nn: types.NamespacedName{Name: kuadrantOpName, Namespace: kuadrantNamespace}, skipOperatorGroup: false, globalOperatorGroup: true, channel: defaultOperatorChannel},
 	}
 
 	// Create and run test cases in parallel.
