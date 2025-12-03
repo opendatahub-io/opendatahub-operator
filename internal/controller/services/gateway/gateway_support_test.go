@@ -527,3 +527,11 @@ func TestComputeLegacyRedirectInfo(t *testing.T) {
 	g.Expect(info.CurrentSubdomain).To(Equal("custom"))
 	g.Expect(info.LegacyHostname).To(Equal("data-science-gateway.apps.example.com"))
 }
+
+// TestHPATemplateConstant tests that the HPA template constant is correctly defined.
+func TestHPATemplateConstant(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	g.Expect(kubeAuthProxyHPATemplate).To(Equal("resources/kube-auth-proxy-hpa.tmpl.yaml"), "HPA template path should be correct")
+}
