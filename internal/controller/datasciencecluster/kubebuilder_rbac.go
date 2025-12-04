@@ -74,7 +74,8 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=thanosrulers/status,verbs=get;create;patch;delete;deletecollection
 // +kubebuilder:rbac:groups="monitoring.coreos.com",resources=probes,verbs=get;create;patch;delete;deletecollection
 
-// +kubebuilder:rbac:groups="machinelearning.seldon.io",resources=seldondeployments,verbs=*
+// Controller may need to check for Seldon CRD presence for legacy support
+// +kubebuilder:rbac:groups="machinelearning.seldon.io",resources=seldondeployments,verbs=get;list;watch
 
 // +kubebuilder:rbac:groups="machine.openshift.io",resources=machinesets,verbs=list;patch;delete;get
 // +kubebuilder:rbac:groups="machine.openshift.io",resources=machineautoscalers,verbs=list;patch;delete;get
