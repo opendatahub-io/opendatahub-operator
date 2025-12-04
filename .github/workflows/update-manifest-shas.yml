@@ -33,8 +33,8 @@ jobs:
         id: generate-token
         uses: actions/create-github-app-token@7e473efe3cb98aa54f8d4bac15400b15fad77d94 # v2.2.0
         with:
-          app_id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
-          private_key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
+          app-id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
 
       - name: Create Pull Request
         if: steps.update-shas.outputs.updates-needed == 'true'
