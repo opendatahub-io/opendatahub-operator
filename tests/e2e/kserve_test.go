@@ -181,28 +181,26 @@ func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T
 	// Validate that all well-known LLMInferenceServiceConfig resources have versioned names
 	// Expected format: vX-Y-Z-<config-name> where X, Y, Z are numbers
 	// Only check resources with the well-known-config annotation set to true
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha1, types.NamespacedName{}),
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha1, types.NamespacedName{Namespace: tc.AppsNamespace}),
 		WithListOptions(&client.ListOptions{
 			Namespace: tc.AppsNamespace,
 		}),
 		WithCondition(jq.Match(`
-			.items
-			| map(select(.metadata.annotations["serving.kserve.io/well-known-config"] == "true"))
+			map(select(.metadata.annotations["serving.kserve.io/well-known-config"] == "true"))
 			| length > 0
 		`)),
 		WithCustomErrorMsg("Expected at least one well-known LLMInferenceServiceConfig to exist"),
 	)
 
 	// Validate that all well-known configs follow the versioned naming pattern
-	tc.EnsureResourceExists(
-		WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha1, types.NamespacedName{}),
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha1, types.NamespacedName{Namespace: tc.AppsNamespace}),
 		WithListOptions(&client.ListOptions{
 			Namespace: tc.AppsNamespace,
 		}),
 		WithCondition(jq.Match(`
-			.items
-			| map(select(.metadata.annotations["serving.kserve.io/well-known-config"] == "true"))
+			map(select(.metadata.annotations["serving.kserve.io/well-known-config"] == "true"))
 			| all(.metadata.name | test("^v[0-9]+-[0-9]+-[0-9]+-.*"))
 		`)),
 		WithCustomErrorMsg("All well-known LLMInferenceServiceConfig resources should have names starting with a semver version (vX-Y-Z-)"),
