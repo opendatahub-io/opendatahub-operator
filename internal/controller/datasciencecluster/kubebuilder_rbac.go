@@ -125,8 +125,9 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="cert-manager.io",resources=certificates;issuers,verbs=create;patch
 
-// +kubebuilder:rbac:groups="apps",resources=replicasets,verbs=*
-// +kubebuilder:rbac:groups="*",resources=replicasets,verbs=*
+// ReplicaSets managed by Deployments - controller needs to watch for status
+// +kubebuilder:rbac:groups="apps",resources=replicasets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="*",resources=replicasets,verbs=get;list;watch
 
 // +kubebuilder:rbac:groups="apps",resources=deployments/finalizers,verbs=*
 // +kubebuilder:rbac:groups="core",resources=deployments,verbs=*
