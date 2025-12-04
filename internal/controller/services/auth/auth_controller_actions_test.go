@@ -113,14 +113,14 @@ func TestBindRoleValidation(t *testing.T) {
 		{
 			name:          "admin role skips system:authenticated",
 			groups:        []string{"admin1", "system:authenticated", "admin2"},
-			roleName:      "admingroup-role",
+			roleName:      "data-science-admingroup-role",
 			expectSkipped: []string{"system:authenticated"},
 			description:   "Should skip system:authenticated for admin roles",
 		},
 		{
 			name:          "admin role skips empty strings",
 			groups:        []string{"admin1", "", "admin2"},
-			roleName:      "admingroup-role",
+			roleName:      "data-science-admingroup-role",
 			expectSkipped: []string{""},
 			description:   "Should skip empty strings for admin roles",
 		},
@@ -330,11 +330,11 @@ func TestManagePermissions(t *testing.T) {
 	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBindings")
 
 	// Verify that cluster-scoped roles are created
-	g.Expect(clusterRoleNames).To(ContainElement("admingroupcluster-role"), "Should create admin group cluster role")
-	g.Expect(clusterRoleNames).To(ContainElement("allowedgroupcluster-role"), "Should create allowed group cluster role")
+	g.Expect(clusterRoleNames).To(ContainElement("data-science-admingroupcluster-role"), "Should create admin group cluster role")
+	g.Expect(clusterRoleNames).To(ContainElement("data-science-allowedgroupcluster-role"), "Should create allowed group cluster role")
 
 	// Verify that namespace-scoped roles are created
-	g.Expect(roleNames).To(ContainElement("admingroup-role"), "Should create admin group role")
+	g.Expect(roleNames).To(ContainElement("data-science-admingroup-role"), "Should create admin group role")
 }
 
 // TestManagePermissionsMultipleGroups validates that the controller works correctly
@@ -398,8 +398,8 @@ func TestManagePermissionsMultipleGroups(t *testing.T) {
 
 	g.Expect(roleBindings).To(Equal(1), "Should create 1 RoleBinding")
 	g.Expect(clusterRoleBindings).To(Equal(2), "Should create 2 ClusterRoleBindings")
-	g.Expect(clusterRoleNames).To(ContainElement("admingroupcluster-role"), "Should create admin group cluster role")
-	g.Expect(clusterRoleNames).To(ContainElement("allowedgroupcluster-role"), "Should create allowed group cluster role")
+	g.Expect(clusterRoleNames).To(ContainElement("data-science-admingroupcluster-role"), "Should create admin group cluster role")
+	g.Expect(clusterRoleNames).To(ContainElement("data-science-allowedgroupcluster-role"), "Should create allowed group cluster role")
 	g.Expect(clusterRoleNames).ToNot(ContainElement("data-science-metrics-admin"), "Should not create metrics admin cluster role")
-	g.Expect(roleNames).To(ContainElement("admingroup-role"), "Should create admin group role")
+	g.Expect(roleNames).To(ContainElement("data-science-admingroup-role"), "Should create admin group role")
 }

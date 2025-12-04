@@ -63,7 +63,7 @@ func bindRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, groups []
 	groupsToBind := []rbacv1.Subject{}
 	for _, e := range groups {
 		// we want to disallow adding system:authenticated to the adminGroups
-		if roleName == "admingroup-role" && e == "system:authenticated" || e == "" {
+		if roleName == "data-science-admingroup-role" && e == "system:authenticated" || e == "" {
 			log := logf.FromContext(ctx)
 			log.Info("skipping adding invalid group to RoleBinding")
 			continue
@@ -100,7 +100,7 @@ func bindClusterRole(ctx context.Context, rr *odhtypes.ReconciliationRequest, gr
 	groupsToBind := []rbacv1.Subject{}
 	for _, e := range groups {
 		// we want to disallow adding system:authenticated to the adminGroups
-		if roleName == "admingroupcluster-role" && e == "system:authenticated" || e == "" {
+		if roleName == "data-science-admingroupcluster-role" && e == "system:authenticated" || e == "" {
 			log := logf.FromContext(ctx)
 			log.Info("skipping adding invalid group to ClusterRoleBinding")
 			continue
@@ -139,17 +139,17 @@ func managePermissions(ctx context.Context, rr *odhtypes.ReconciliationRequest) 
 		return errors.New("instance is not of type *services.Auth")
 	}
 
-	err := bindRole(ctx, rr, ai.Spec.AdminGroups, "admingroup-rolebinding", "admingroup-role")
+	err := bindRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroup-rolebinding", "data-science-admingroup-role")
 	if err != nil {
 		return err
 	}
 
-	err = bindClusterRole(ctx, rr, ai.Spec.AdminGroups, "admingroupcluster-rolebinding", "admingroupcluster-role")
+	err = bindClusterRole(ctx, rr, ai.Spec.AdminGroups, "data-science-admingroupcluster-rolebinding", "data-science-admingroupcluster-role")
 	if err != nil {
 		return err
 	}
 
-	err = bindClusterRole(ctx, rr, ai.Spec.AllowedGroups, "allowedgroupcluster-rolebinding", "allowedgroupcluster-role")
+	err = bindClusterRole(ctx, rr, ai.Spec.AllowedGroups, "data-science-allowedgroupcluster-rolebinding", "data-science-allowedgroupcluster-role")
 	if err != nil {
 		return err
 	}
