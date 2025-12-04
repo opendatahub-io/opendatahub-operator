@@ -86,10 +86,10 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="extensions",resources=replicasets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="extensions",resources=ingresses,verbs=list;watch;patch;delete;get
 
+// Network services for all components
 // +kubebuilder:rbac:groups="core",resources=services/finalizers,verbs=create;delete;list;update;watch;patch;get
-// +kubebuilder:rbac:groups="core",resources=services,verbs=get;create;watch;update;patch;list;delete
-// +kubebuilder:rbac:groups="core",resources=services,verbs=*
-// +kubebuilder:rbac:groups="*",resources=services,verbs=*
+// +kubebuilder:rbac:groups="core",resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="*",resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // +kubebuilder:rbac:groups="core",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 
@@ -98,12 +98,15 @@ package datasciencecluster
 
 // +kubebuilder:rbac:groups="core",resources=rhmis,verbs=watch;list;get
 
-// +kubebuilder:rbac:groups="core",resources=pods/log,verbs=*
-// +kubebuilder:rbac:groups="core",resources=pods/exec,verbs=*
+// Log access for debugging and troubleshooting
+// +kubebuilder:rbac:groups="core",resources=pods/log,verbs=get
+// Exec access may be needed for certain operational tasks
+// +kubebuilder:rbac:groups="core",resources=pods/exec,verbs=create
 // +kubebuilder:rbac:groups="core",resources=pods,verbs=*
 
-// +kubebuilder:rbac:groups="core",resources=persistentvolumes,verbs=*
-// +kubebuilder:rbac:groups="core",resources=persistentvolumeclaims,verbs=*
+// Storage resources for workbenches, pipelines, and data persistence
+// +kubebuilder:rbac:groups="core",resources=persistentvolumes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="core",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 
 // +kubebuilder:rbac:groups="core",resources=namespaces/finalizers,verbs=update;list;watch;patch;delete;get
 // +kubebuilder:rbac:groups="core",resources=namespaces,verbs=get;create;patch;delete;watch;update;list
