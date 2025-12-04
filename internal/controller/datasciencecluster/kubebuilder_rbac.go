@@ -102,7 +102,8 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="core",resources=pods/log,verbs=get
 // Exec access may be needed for certain operational tasks
 // +kubebuilder:rbac:groups="core",resources=pods/exec,verbs=create
-// +kubebuilder:rbac:groups="core",resources=pods,verbs=*
+// Pod management for all workloads
+// +kubebuilder:rbac:groups="core",resources=pods,verbs=get;list;watch;create;update;patch;delete
 
 // Storage resources for workbenches, pipelines, and data persistence
 // +kubebuilder:rbac:groups="core",resources=persistentvolumes,verbs=get;list;watch;create;update;patch;delete
@@ -133,17 +134,20 @@ package datasciencecluster
 // +kubebuilder:rbac:groups="apps",resources=replicasets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="*",resources=replicasets,verbs=get;list;watch
 
-// +kubebuilder:rbac:groups="apps",resources=deployments/finalizers,verbs=*
-// +kubebuilder:rbac:groups="core",resources=deployments,verbs=*
-// +kubebuilder:rbac:groups="apps",resources=deployments,verbs=*
-// +kubebuilder:rbac:groups="*",resources=deployments,verbs=*
-// +kubebuilder:rbac:groups="extensions",resources=deployments,verbs=*
+// Deployment management for all components
+// +kubebuilder:rbac:groups="apps",resources=deployments/finalizers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="core",resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="apps",resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="*",resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// Note: extensions API group is deprecated
+// +kubebuilder:rbac:groups="extensions",resources=deployments,verbs=get;list;watch;create;update;patch;delete
 
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;delete;patch
 // +kubebuilder:rbac:groups="admissionregistration.k8s.io",resources=mutatingwebhookconfigurations,verbs=create;delete;list;update;watch;patch;get
 
-// +kubebuilder:rbac:groups="*",resources=statefulsets,verbs=create;update;get;list;watch;patch;delete
-// +kubebuilder:rbac:groups="apps",resources=statefulsets,verbs=*
+// StatefulSet management for stateful components
+// +kubebuilder:rbac:groups="*",resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="apps",resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 
 // +kubebuilder:rbac:groups="core",resources=nodes,verbs=get;list;watch
 
