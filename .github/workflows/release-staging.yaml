@@ -20,7 +20,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
     - name: Validate tracker URL
       run: |
@@ -38,7 +38,7 @@ jobs:
       run: ./.github/scripts/validate-semver.sh v${{ env.VERSION }}
 
     - name: Create release branch
-      uses: peterjgrainger/action-create-branch@v2.4.0
+      uses: peterjgrainger/action-create-branch@10c7d268152480ae859347db45dc69086cef1d9c # v3.0.0
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
@@ -57,14 +57,14 @@ jobs:
         rm -f ./config/manager/kustomization.yaml
 
     - name: Update branches in get_all_manifest.sh
-      uses: actions/github-script@v7
+      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
       with:
         script: |
           const script = require('./.github/scripts/get-release-branches.js')
           await script({github, core})
 
     - name: Update versions
-      uses: actions/github-script@v7
+      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
       with:
         script: |
           const script = require('./.github/scripts/update-manifests-tags.js')
@@ -78,7 +78,7 @@ jobs:
         git diff get_all_manifests.sh || echo "No changes detected"
 
     - name: Push changes to release branch
-      uses: actions-js/push@master
+      uses: actions-js/push@5a7cbd780d82c0c937b5977586e641b2fd94acc5 # v1.5
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         branch: odh-${{ env.VERSION }}
@@ -92,13 +92,17 @@ jobs:
 
     - name: Generate GitHub App Token
       id: generate-token
-      uses: tibdex/github-app-token@v2
+      uses: actions/create-github-app-token@7e473efe3cb98aa54f8d4bac15400b15fad77d94 # v2.2.0
       with:
         app_id: ${{ secrets.ODH_RELEASE_BOT_APP_ID }}
         private_key: ${{ secrets.ODH_RELEASE_BOT_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+        repositories: |
+          opendatahub-community
+          odh-konflux-central
 
     - name: Comment on Tracker Issue
-      uses: peter-evans/create-or-update-comment@v3
+      uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
       with:
         token: ${{ steps.generate-token.outputs.token }}
         repository: opendatahub-io/opendatahub-community
@@ -109,21 +113,21 @@ jobs:
 
     - name: Get component release notes
       id: release-notes
-      uses: actions/github-script@v7
+      uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
       with:
         script: |
           const script = require('./.github/scripts/get-component-release-notes.js')
           await script({github, core, context})
 
     - name: Create GH release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@5be0e66d93ac7ed76da52eca8bb058f665c3a5fe # v2.4.2
       with:
         body: ${{ steps.release-notes.outputs.release-notes-body }}
         tag_name: v${{ env.VERSION }}
         prerelease: true
 
     - name: Trigger ODH Konflux Release Onboarder
-      uses: lasith-kg/dispatch-workflow@v2.0.0
+      uses: lasith-kg/dispatch-workflow@91345a2a3b705e950978a584446ab59f7e815ae3 # v2.0.0
       with:
         dispatch-method: workflow_dispatch
         workflow: odh-konflux-release-onboarder.yml

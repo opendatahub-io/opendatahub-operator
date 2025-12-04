@@ -1,0 +1,23 @@
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: {{.DestinationRuleName}}
+  namespace: {{.GatewayNamespace}}
+  labels:
+    {{.PartOfLabelKey}}: {{.PartOfLabelValue}}
+    {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
+spec:
+  host: "*"
+  trafficPolicy:
+    portLevelSettings:
+    - port:
+        number: {{.GatewayHTTPSPort}}
+      tls:
+        mode: SIMPLE
+        insecureSkipVerify: true
+    - port:
+        number: {{.StandardHTTPSPort}}
+      tls:
+        mode: SIMPLE
+        insecureSkipVerify: true
+

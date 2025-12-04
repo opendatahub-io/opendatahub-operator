@@ -1,0 +1,196 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: data-science-prometheus-namespace-proxy
+  namespace: {{.Namespace}}
+  labels:
+    app: data-science-prometheus-namespace-proxy
+    platform.opendatahub.io/part-of: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: data-science-prometheus-namespace-proxy
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-monitoring-view
+subjects:
+  - kind: ServiceAccount
+    name: data-science-prometheus-namespace-proxy
+    namespace: {{.Namespace}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: data-science-prometheus-namespace-proxy-auth-delegator
+  labels:
+    platform.opendatahub.io/part-of: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: data-science-prometheus-namespace-proxy
+    namespace: {{.Namespace}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: data-science-prometheus-namespace-proxy-config
+  namespace: {{.Namespace}}
+  labels:
+    app: data-science-prometheus-namespace-proxy
+    platform.opendatahub.io/part-of: monitoring
+data:
+  kube-rbac-proxy.yaml: |
+    # See kube-rbac-proxy authorization configuration with namespace restriction doc for implementation, troubleshooting and usage examples:
+    # docs/NAMESPACE_RESTRICTED_METRICS.md
+    authorization:
+      rewrites:
+        byQueryParameter:
+          name: "namespace"
+      resourceAttributes:
+        apiGroup: metrics.k8s.io
+        resource: pods
+        namespace: "{{ "{{ .Value }}" }}"
+---
+#
+# REQUIRED QUERY FORMAT: /api/v1/query?query=<promql>&namespace=<namespace-name>
+#
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-science-prometheus-namespace-proxy
+  namespace: {{.Namespace}}
+  labels:
+    app: data-science-prometheus-namespace-proxy
+    platform.opendatahub.io/part-of: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: data-science-prometheus-namespace-proxy
+  template:
+    metadata:
+      labels:
+        app: data-science-prometheus-namespace-proxy
+    spec:
+      serviceAccountName: data-science-prometheus-namespace-proxy
+      containers:
+        # kube-rbac-proxy for authentication and authorization
+        - name: kube-rbac-proxy
+          image: {{.KubeRBACProxyImage}}
+          args:
+            - --secure-listen-address=0.0.0.0:8443
+            - --upstream=http://127.0.0.1:9091/
+            - --config-file=/etc/kube-rbac-proxy/kube-rbac-proxy.yaml
+            - --tls-cert-file=/etc/tls/private/tls.crt
+            - --tls-private-key-file=/etc/tls/private/tls.key
+            - --tls-min-version=VersionTLS12
+            - --tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+            - --logtostderr=true
+            - --v=2
+          ports:
+            - containerPort: 8443
+              name: https
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          terminationMessagePolicy: FallbackToLogsOnError
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kube-rbac-proxy
+              readOnly: true
+            - name: tls
+              mountPath: /etc/tls/private
+              readOnly: true
+            - name: client-ca
+              mountPath: /etc/client-ca
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+        - name: prom-label-proxy
+          image: {{.PromLabelProxyImage}}
+          args:
+            - --insecure-listen-address=127.0.0.1:9091
+            - --upstream=https://prometheus-operated.{{.Namespace}}.svc:9090
+            - --label=namespace
+            - --enable-label-apis
+          env:
+            - name: SSL_CERT_DIR
+              value: /etc/prometheus-tls-ca:/etc/ssl/certs:/etc/pki/tls/certs
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          terminationMessagePolicy: FallbackToLogsOnError
+          volumeMounts:
+            - name: prometheus-tls-ca
+              mountPath: /etc/prometheus-tls-ca
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+      volumes:
+        - name: config
+          configMap:
+            name: data-science-prometheus-namespace-proxy-config
+        - name: tls
+          secret:
+            secretName: data-science-prometheus-namespace-proxy-tls
+        - name: client-ca
+          configMap:
+            name: prometheus-client-ca
+            optional: true
+        - name: prometheus-tls-ca
+          configMap:
+            name: prometheus-web-tls-ca
+            items:
+              - key: service-ca.crt
+                path: ca.crt
+      nodeSelector:
+        kubernetes.io/os: linux
+      securityContext:
+        runAsNonRoot: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-science-prometheus-namespace-proxy
+  namespace: {{.Namespace}}
+  labels:
+    app: data-science-prometheus-namespace-proxy
+    platform.opendatahub.io/part-of: monitoring
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: data-science-prometheus-namespace-proxy-tls
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      port: 8443
+      protocol: TCP
+      targetPort: https
+  selector:
+    app: data-science-prometheus-namespace-proxy

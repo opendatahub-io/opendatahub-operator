@@ -65,15 +65,6 @@ spec:
             value: /opt/manifests
           - name: ODH_PLATFORM_TYPE
             value: OpenDataHub
-          # Kube-auth-proxy image configuration
-          # For RHOAI: Overridden by CSV. For ODH: Uses jtanner's public image
-          - name: RELATED_IMAGE_ODH_KUBE_AUTH_PROXY_IMAGE
-            value: quay.io/opendatahub/odh-kube-auth-proxy:latest
-          # Perses image configuration (for monitoring dashboards)
-          # For RHOAI: Overridden by CSV. For ODH: Uses Red Hat COO image
-          # Note: Must stay compatible with cluster-observability-operator version
-          - name: RELATED_IMAGE_PERSES
-            value: registry.redhat.io/cluster-observability-operator/perses-0-50-rhel9:1.2.2-1752686994
         args:
         - --leader-elect
         - --operator-name=opendatahub
