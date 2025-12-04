@@ -28,6 +28,8 @@ declare -A ODH_COMPONENT_MANIFESTS=(
     ["feastoperator"]="opendatahub-io:feast:stable@94bc6204cbdbcbebfd004f64986f43397bfc0e65:infra/feast-operator/config"
     ["llamastackoperator"]="opendatahub-io:llama-stack-k8s-operator:odh@226e911cca9bf7efa1e632860613087b0bf14d74:config"
     ["trainer"]="opendatahub-io:trainer:main@cf3112e978b2d9153750d0c0f422d92143b69464:manifests"
+    # TODO: Update with actual MLflow operator repository details
+    # ["mlflowoperator"]="opendatahub-io:mlflow-operator:main:manifests"
 )
 
 # RHOAI Component Manifests
@@ -46,6 +48,8 @@ declare -A RHOAI_COMPONENT_MANIFESTS=(
     ["feastoperator"]="red-hat-data-services:feast:rhoai-3.2:infra/feast-operator/config"
     ["llamastackoperator"]="red-hat-data-services:llama-stack-k8s-operator:rhoai-3.2:config"
     ["trainer"]="red-hat-data-services:trainer:rhoai-3.2:manifests"
+    # TODO: Update with actual downstream MLflow operator repository details
+    # ["mlflowoperator"]="red-hat-data-services:mlflow-operator:rhoai-3.2:config"
 )
 
 # Select the appropriate manifest based on platform type
