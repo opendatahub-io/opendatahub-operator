@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: admingroup-role
+  name: data-science-admingroup-role
   namespace: {{.AppNamespace}}
 rules:
 - apiGroups:
@@ -134,3 +134,4 @@ rules:
     - create
     - patch
     - delete
+
