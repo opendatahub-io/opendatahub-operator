@@ -94,6 +94,11 @@ spec:
       kind: LlamaStackOperator
       name: llamastackoperators.components.platform.opendatahub.io
       version: v1alpha1
+    - description: MlFlowOperator is the Schema for the MlFlowOperators API
+      displayName: Ml Flow Operator
+      kind: MlFlowOperator
+      name: mlflowoperators.components.platform.opendatahub.io
+      version: v1alpha1
     - description: ModelRegistry is the Schema for the modelregistries API
       displayName: Model Registry
       kind: ModelRegistry

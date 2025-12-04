@@ -262,6 +262,11 @@ func CreateDSC(name string, workbenchesNamespace string) *dscv2.DataScienceClust
 						ManagementState: operatorv1.Removed,
 					},
 				},
+				MlFlowOperator: componentApi.DSCMlFlowOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
 			},
 		},
 	}
@@ -336,6 +341,11 @@ func CreateDSCv1(name string, workbenchesNamespace string) *dscv1.DataScienceClu
 					},
 				},
 				LlamaStackOperator: componentApi.DSCLlamaStackOperator{
+					ManagementSpec: common.ManagementSpec{
+						ManagementState: operatorv1.Removed,
+					},
+				},
+				MlFlowOperator: componentApi.DSCMlFlowOperator{
 					ManagementSpec: common.ManagementSpec{
 						ManagementState: operatorv1.Removed,
 					},
