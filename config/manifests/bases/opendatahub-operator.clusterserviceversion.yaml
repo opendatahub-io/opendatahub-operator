@@ -43,11 +43,37 @@ spec:
       kind: DataScienceCluster
       name: datascienceclusters.datasciencecluster.opendatahub.io
       version: v2
+      resources:
+        - kind: Deployment
+          version: v1
+        - kind: Service
+          version: v1
+        - kind: ConfigMap
+          version: v1
+        - kind: Secret
+          version: v1
+      specDescriptors:
+        - description: Configurations for the components
+          displayName: Components
+          path: components
+          x-descriptors:
+            - 'urn:alm:descriptor:com.tectonic.ui:text'
     - description: DataScienceCluster is the Schema for the datascienceclusters API.
       displayName: Data Science Cluster
       kind: DataScienceCluster
       name: datascienceclusters.datasciencecluster.opendatahub.io
       version: v1
+      resources:
+        - kind: Deployment
+          version: v1
+        - kind: Service
+          version: v1
+      specDescriptors:
+        - description: Configurations for the components
+          displayName: Components
+          path: components
+          x-descriptors:
+            - 'urn:alm:descriptor:com.tectonic.ui:text'
     - description: DataSciencePipelines is the Schema for the datasciencepipelines
         API
       displayName: Data Science Pipelines
@@ -59,11 +85,48 @@ spec:
       kind: DSCInitialization
       name: dscinitializations.dscinitialization.opendatahub.io
       version: v2
+      resources:
+        - kind: Deployment
+          version: v1
+        - kind: Service
+          version: v1
+        - kind: ConfigMap
+          version: v1
+      specDescriptors:
+        - description: Namespace where applications are installed
+          displayName: Applications Namespace
+          path: applicationsNamespace
+          x-descriptors:
+            - 'urn:alm:descriptor:com.tectonic.ui:text'
+        - description: Monitoring configuration
+          displayName: Monitoring
+          path: monitoring
+          x-descriptors:
+            - 'urn:alm:descriptor:com.tectonic.ui:text'
+        - description: Trusted CA Bundle configuration
+          displayName: Trusted CA Bundle
+          path: trustedCABundle
+          x-descriptors:
+            - 'urn:alm:descriptor:com.tectonic.ui:text'
     - description: DSCInitialization is the Schema for the dscinitializations API.
       displayName: DSCInitialization
       kind: DSCInitialization
       name: dscinitializations.dscinitialization.opendatahub.io
       version: v1
+      resources:
+        - kind: Deployment
+          version: v1
+      specDescriptors:
+        - description: Namespace where applications are installed
+          displayName: Applications Namespace
+          path: applicationsNamespace
+          x-descriptors:
+            - 'urn:alm:descriptor:com.tectonic.ui:text'
+        - description: Monitoring configuration
+          displayName: Monitoring
+          path: monitoring
+          x-descriptors:
+            - 'urn:alm:descriptor:com.tectonic.ui:text'
     - description: FeastOperator is the Schema for the FeastOperator API
       displayName: Feast Operator
       kind: FeastOperator
