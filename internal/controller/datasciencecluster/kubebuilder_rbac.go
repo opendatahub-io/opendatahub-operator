@@ -296,3 +296,11 @@ package datasciencecluster
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=trainers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=trainers/finalizers,verbs=update
 // +kubebuilder:rbac:groups=trainer.kubeflow.org,resources=clustertrainingruntimes,verbs=get;list;watch;create;update;patch;delete
+
+// Models-as-a-Service
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelsasservices,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelsasservices/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelsasservices/finalizers,verbs=update
+// +kubebuilder:rbac:groups=components.platform.opendatahub.io,resources=modelsasservices/finalizers,verbs=update
+// +kubebuilder:rbac:groups=kuadrant.io,resources=authpolicies;tokenratelimitpolicies;ratelimitpolicies;telemetrypolicies,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=extensions.kuadrant.io,resources=telemetrypolicies,verbs=get;list;watch;create;update;patch;delete
