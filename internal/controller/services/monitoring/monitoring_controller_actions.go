@@ -46,6 +46,7 @@ const (
 	PersesTempoDashboardTemplate                  = "resources/perses-tempo-dashboard.tmpl.yaml"
 	PersesDatasourcePrometheusTemplate            = "resources/perses-datasource-prometheus.tmpl.yaml"
 	PrometheusClusterProxyTemplate                = "resources/data-science-prometheus-cluster-proxy.tmpl.yaml"
+	TempoServiceCAConfigMapTemplate               = "resources/tempo-service-ca-configmap.tmpl.yaml"
 
 	// Resource names.
 	PersesTempoDatasourceName = "tempo-datasource"
@@ -557,6 +558,10 @@ func deployPersesTempoIntegration(ctx context.Context, rr *odhtypes.Reconciliati
 		{
 			FS:   resourcesFS,
 			Path: PersesTempoDatasourceTemplate,
+		},
+		{
+			FS:   resourcesFS,
+			Path: TempoServiceCAConfigMapTemplate,
 		},
 	}
 
