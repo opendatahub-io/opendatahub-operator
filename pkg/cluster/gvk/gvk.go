@@ -7,6 +7,7 @@ import (
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -114,6 +115,12 @@ var (
 		Group:   appsv1.SchemeGroupVersion.Group,
 		Version: appsv1.SchemeGroupVersion.Version,
 		Kind:    "Deployment",
+	}
+
+	HorizontalPodAutoscaler = schema.GroupVersionKind{
+		Group:   autoscalingv2.SchemeGroupVersion.Group,
+		Version: autoscalingv2.SchemeGroupVersion.Version,
+		Kind:    "HorizontalPodAutoscaler",
 	}
 
 	StatefulSet = schema.GroupVersionKind{
