@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	goruntime "runtime"
+	"runtime/debug"
 	"strings"
 
 	"github.com/blang/semver/v4"
@@ -86,6 +88,11 @@ func printClusterConfig(log logr.Logger) {
 		"Application Namespace", clusterConfig.ApplicationNamespace,
 		"Release", clusterConfig.Release,
 		"Cluster", clusterConfig.ClusterInfo)
+
+	log.Info("Env",
+		"GOMAXPROCS", goruntime.GOMAXPROCS(0),
+		"GOMEMLIMIT", debug.SetMemoryLimit(-1),
+	)
 }
 
 func GetOperatorNamespace() (string, error) {
