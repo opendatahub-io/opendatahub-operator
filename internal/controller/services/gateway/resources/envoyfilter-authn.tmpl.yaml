@@ -113,7 +113,7 @@ spec:
       operation: ADD
       value:
         name: {{.KubeAuthProxyServiceName}}
-        type: STRICT_DNS
+        type: EDS
         connect_timeout: {{.AuthProxyTimeout}}
         transport_socket:
           name: envoy.transport_sockets.tls
@@ -124,12 +124,3 @@ spec:
                 trusted_ca:
                   filename: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
             sni: {{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local
-        load_assignment:
-          cluster_name: {{.KubeAuthProxyServiceName}}
-          endpoints:
-          - lb_endpoints:
-            - endpoint:
-                address:
-                  socket_address:
-                    address: {{.KubeAuthProxyServiceName}}.{{.GatewayNamespace}}.svc.cluster.local
-                    port_value: {{.GatewayHTTPSPort}}
