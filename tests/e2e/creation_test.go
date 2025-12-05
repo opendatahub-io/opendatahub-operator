@@ -51,6 +51,7 @@ func dscManagementTestSuite(t *testing.T) {
 	testCases := []TestCase{
 		{"Ensure required operators with custom channels are installed", dscTestCtx.ValidateOperatorsWithCustomChannelsInstallation},
 		{"Ensure required operators are installed", dscTestCtx.ValidateOperatorsInstallation},
+		{"Ensure required resources are created", dscTestCtx.ValidateResourcesCreation},
 		{"Validate creation of DSCInitialization instance", dscTestCtx.ValidateDSCICreation},
 		{"Validate creation of DataScienceCluster instance", dscTestCtx.ValidateDSCCreation},
 		{"Validate HardwareProfile resource", dscTestCtx.ValidateHardwareProfileCR},
@@ -155,6 +156,17 @@ func (tc *DSCTestCtx) ValidateOperatorsInstallation(t *testing.T) {
 	}
 
 	RunTestCases(t, testCases, WithParallel())
+}
+
+// ValidateResourcesCreation validates the creation of the required resources.
+func (tc *DSCTestCtx) ValidateResourcesCreation(t *testing.T) {
+	t.Helper()
+
+	tc.EventuallyResourceCreatedOrUpdated(
+		WithObjectToCreate(CreateJobSetOperator()),
+		WithCondition(jq.Match(`.status.conditions[] | select(.type == "Available") | .status == "True"`)),
+		WithCustomErrorMsg("Failed to create JobSetOperator resource"),
+	)
 }
 
 // ValidateDSCICreation validates the creation of a DSCInitialization.
