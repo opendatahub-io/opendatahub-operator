@@ -637,4 +637,10 @@ var (
 		Version: "v1beta1",
 		Kind:    "Kuadrant",
 	}
+
+	JobSetv1alpha2 = schema.GroupVersionKind{
+		Group:   "jobset.x-k8s.io",
+		Version: "v1alpha2",
+		Kind:    "JobSet",
+	}
 )
