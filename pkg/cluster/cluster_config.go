@@ -154,12 +154,24 @@ func GetDomain(ctx context.Context, c client.Client) (string, error) {
 		return "", fmt.Errorf("failed fetching cluster's ingress details: %w", err)
 	}
 
-	domain, found, err := unstructured.NestedString(ingress.Object, "spec", "domain")
-	if !found {
-		return "", errors.New("spec.domain not found")
+	// add support for appsDomain overwrite default domain
+	appsDomain, found, err := unstructured.NestedString(ingress.Object, "spec", "appsDomain")
+	if err != nil {
+		return "", fmt.Errorf("failed to read spec.appsDomain: %w", err)
+	}
+	if found && len(appsDomain) > 0 {
+		return appsDomain, nil
 	}
 
-	return domain, err
+	domain, found, err := unstructured.NestedString(ingress.Object, "spec", "domain")
+	if err != nil {
+		return "", fmt.Errorf("failed to read spec.domain: %w", err)
+	}
+	if !found || len(domain) == 0 {
+		return "", errors.New("spec.domain not found or empty")
+	}
+
+	return domain, nil
 }
 
 // This is an Openshift specific implementation.
