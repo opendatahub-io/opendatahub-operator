@@ -1363,7 +1363,8 @@ func (tc *TestContext) ApproveInstallPlan(plan *ofapi.InstallPlan) {
 //   - bool: True if an operator matching the prefix is found, false otherwise.
 //   - error: Any error encountered during the search operation.
 func (tc *TestContext) CheckOperatorExists(operatorNamePrefix string) (bool, error) {
-	return cluster.OperatorExists(tc.Context(), tc.Client(), operatorNamePrefix)
+	operatorInfo, err := cluster.OperatorExists(tc.Context(), tc.Client(), operatorNamePrefix)
+	return operatorInfo != nil, err
 }
 
 // EnsureWebhookBlocksResourceCreation verifies that webhook validation blocks creation of resources with invalid values.

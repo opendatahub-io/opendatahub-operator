@@ -2,6 +2,7 @@
 package kueue
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
@@ -30,6 +31,8 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+const kueueOperatorMinVersionWithTrainerSupport = "1.2.0"
 
 func TestCheckPreConditions_Unknown_State(t *testing.T) {
 	ctx := t.Context()
@@ -61,9 +64,12 @@ func TestCheckPreConditions_Managed_KueueOperatorAlreadyInstalled(t *testing.T) 
 
 	cli, err := fakeclient.New(
 		fakeclient.WithObjects(
-			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-				Name: kueueOperator,
-			}},
+			&ofapiv2.OperatorCondition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("%s.%s", kueueOperator, kueueOperatorMinVersionWithTrainerSupport),
+					Namespace: kueueOperatorNamespace,
+				},
+			},
 		),
 	)
 	g.Expect(err).ShouldNot(HaveOccurred())
@@ -547,12 +553,21 @@ func TestDefaultKueueResourcesAction(t *testing.T) {
 				},
 			}
 
+			// Set an OperatorCondition for kueue-operator with the 1.2.0 version
+			operatorCondition := &ofapiv2.OperatorCondition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("%s.%s", kueueOperator, kueueOperatorMinVersionWithTrainerSupport),
+					Namespace: kueueOperatorNamespace,
+				},
+			}
+
 			runtimeObjects := []client.Object{
 				managedNamespace,
 				legacyManagedNamespace,
 				bothManagedNamespace,
 				unmanagedNamespace,
 				dsci,
+				operatorCondition,
 			}
 
 			clusterNodes := getClusterNodes(t, test.withGPU)

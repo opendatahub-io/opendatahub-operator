@@ -250,8 +250,8 @@ func GetClusterServiceVersion(ctx context.Context, c client.Client, namespace st
 
 // detectSelfManaged detects if it is Self Managed Rhoai or OpenDataHub.
 func detectSelfManaged(ctx context.Context, cli client.Client) (common.Platform, error) {
-	exists, err := OperatorExists(ctx, cli, "rhods-operator")
-	if exists {
+	operatorInfo, err := OperatorExists(ctx, cli, "rhods-operator")
+	if operatorInfo != nil {
 		return SelfManagedRhoai, nil
 	}
 

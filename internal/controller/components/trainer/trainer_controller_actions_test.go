@@ -2,6 +2,7 @@
 package trainer
 
 import (
+	"fmt"
 	"testing"
 
 	ofapiv2 "github.com/operator-framework/api/pkg/operators/v2"
@@ -19,6 +20,8 @@ import (
 
 	. "github.com/onsi/gomega"
 )
+
+const jobSetOperatorRndVersion = "1.1.0"
 
 func TestCheckPreConditions_Managed_JobSetOperatorNotInstalled(t *testing.T) {
 	ctx := t.Context()
@@ -49,7 +52,7 @@ func TestCheckPreConditions_Managed_JobSetCRDNotInstalled(t *testing.T) {
 	cli, err := fakeclient.New(
 		fakeclient.WithObjects(
 			&ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-				Name: jobSetOperator,
+				Name: fmt.Sprintf("%s.%s", jobSetOperator, jobSetOperatorRndVersion),
 			}},
 		),
 	)
@@ -88,7 +91,7 @@ func TestCheckPreConditions_Managed_JobSetCRDInstalled(t *testing.T) {
 		},
 	}
 	jobSetOperatorCondition := &ofapiv2.OperatorCondition{ObjectMeta: metav1.ObjectMeta{
-		Name: jobSetOperator,
+		Name: fmt.Sprintf("%s.%s", jobSetOperator, jobSetOperatorRndVersion),
 	}}
 
 	cli, err := fakeclient.New(
