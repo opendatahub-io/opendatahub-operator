@@ -1,0 +1,311 @@
+
+---
+# Wildcard resources in ClusterRole (CWE-269)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: example-wildcard-resources
+rules:
+  - apiGroups: [""]
+    resources:
+      - "*"
+    verbs:
+      - get
+      - list
+
+---
+# Wildcard verbs in Role (CWE-269)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: example-wildcard-verbs
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+    verbs:
+      - "*"
+
+---
+# cluster-admin binding (CWE-269)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: example-cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: example-sa
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Combined wildcards (both resources and verbs)
+# Expected: Both 'rbac-wildcard-resources' and 'rbac-wildcard-verbs' should trigger
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: example-full-wildcard
+rules:
+  - apiGroups: ["*"]
+    resources:
+      - "*"
+    verbs:
+      - "*"
+
+---
+# Privileged pod (CWE-250)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privileged-example
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.14.2
+      securityContext:
+        privileged: true
+
+---
+# Pod running as root (CWE-250)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: root-example
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.14.2
+
+---
+# Valid example with proper RBAC (should NOT trigger)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: example-proper-rbac
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources:
+      - configmaps
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+---
+# Valid example with proper security context (should NOT trigger)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: secure-example
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+  containers:
+    - name: nginx
+      image: nginx:1.14.2
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+
+---
+# ============================================================================
+# NEW TIER 1 RBAC TEST CASES (8 additional rules)
+# ============================================================================
+
+# TEST: rbac-dangerous-verbs - escalate verb (CWE-269)
+# Expected: ERROR - escalate verb enables privilege escalation
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: example-escalate-verb
+rules:
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources:
+      - clusterroles
+      - roles
+    verbs:
+      - escalate
+      - bind
+
+---
+# TEST: rbac-dangerous-verbs - impersonate verb (CWE-269)
+# Expected: ERROR - impersonate verb allows identity spoofing
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: example-impersonate-verb
+rules:
+  - apiGroups: [""]
+    resources:
+      - users
+      - groups
+      - serviceaccounts
+    verbs:
+      - impersonate
+
+---
+# TEST: rbac-broad-subject - system:authenticated (CWE-269)
+# Expected: ERROR - grants access to all authenticated users
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: example-broad-subject-authenticated
+subjects:
+  - kind: Group
+    name: system:authenticated
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: view
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# TEST: rbac-broad-subject - system:unauthenticated (CWE-269)
+# Expected: ERROR - grants access to unauthenticated users (anonymous)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: example-broad-subject-unauthenticated
+subjects:
+  - kind: Group
+    name: system:unauthenticated
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: view
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# TEST: pod-automount-token-enabled (CWE-200)
+# Expected: WARNING - pod explicitly enables service account token mounting
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-with-automount-enabled
+spec:
+  automountServiceAccountToken: true
+  containers:
+    - name: app
+      image: nginx:1.14.2
+
+---
+# TEST: rbac-create-persistentvolumes (CWE-269)
+# Expected: WARNING - can create PVs with hostPath for privilege escalation
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: example-create-pv
+rules:
+  - apiGroups: [""]
+    resources:
+      - persistentvolumes
+    verbs:
+      - create
+      - update
+      - delete
+
+---
+# TEST: rbac-aggregated-clusterrole
+# Expected: INFO - aggregated role needs review of selectors
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: example-aggregated-role
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        rbac.example.com/aggregate-to-admin: "true"
+rules: []  # Rules are automatically filled by aggregation
+
+---
+# TEST: pod-default-serviceaccount (CWE-250)
+# Expected: WARNING - pod uses default service account
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-default-sa-explicit
+spec:
+  serviceAccountName: default
+  containers:
+    - name: app
+      image: nginx:1.14.2
+
+---
+# TEST: pod-default-serviceaccount - implicit default (CWE-250)
+# Expected: WARNING - pod doesn't specify SA, will use default
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-default-sa-implicit
+spec:
+  containers:
+    - name: app
+      image: nginx:1.14.2
+
+---
+# TEST: rolebinding-references-clusterrole (CWE-269)
+# Expected: WARNING - RoleBinding grants cluster-scoped permissions in namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: example-rolebinding-clusterrole
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: example-sa
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: edit
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# TEST: rbac-secrets-cluster-access (CWE-200)
+# Expected: WARNING - ClusterRole grants secret access across all namespaces
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: example-secrets-cluster-access
+rules:
+  - apiGroups: [""]
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+
+---
+# Valid example with dedicated ServiceAccount (should NOT trigger)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-dedicated-sa
+spec:
+  serviceAccountName: my-app-sa
+  automountServiceAccountToken: false
+  containers:
+    - name: app
+      image: nginx:1.14.2
+
+---
+# Valid example - namespace-scoped Role for secrets (should NOT trigger)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: example-secrets-namespaced
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
