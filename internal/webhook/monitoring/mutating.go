@@ -61,6 +61,7 @@ func (i *Injector) SetupWithManager(mgr ctrl.Manager) error {
 
 // Handle processes admission requests for monitoring-related resources.
 // This is the main entry point for the webhook.
+// // injection process.
 //
 // The method performs the following operations:
 //  1. Validates that the decoder is properly initialized
@@ -170,6 +171,13 @@ func (i *Injector) performMonitoringInjection(ctx context.Context, req *admissio
 	}
 
 	namespaceLabels := ns.GetLabels()
+
+	if isOpendatahubNamespace, exists := namespaceLabels["opendatahub.io/dashboard"]; exists {
+		if isOpendatahubNamespace != "true" {
+			log.V(1).Info("Ignore non odh namespace", "namespace", resourceNamespace)
+			return admission.Allowed("ignored")
+		}
+	}
 
 	if isMonitoredNamespace, exists := namespaceLabels["opendatahub.io/monitoring"]; exists {
 		if isMonitoredNamespace == "true" {
