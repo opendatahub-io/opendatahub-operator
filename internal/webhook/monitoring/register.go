@@ -4,6 +4,7 @@ package monitoring
 
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // RegisterWebhooks registers the webhooks for monitoring injection.
@@ -14,6 +15,13 @@ import (
 // Returns:
 //   - error: Any error encountered during webhook registration.
 func RegisterWebhooks(mgr ctrl.Manager) error {
-	// TODO: Implement webhook registration logic
+	if err := (&Injector{
+		Client:  mgr.GetAPIReader(),
+		Decoder: admission.NewDecoder(mgr.GetScheme()),
+		Name:    "monitoring-injector",
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+
 	return nil
 }
