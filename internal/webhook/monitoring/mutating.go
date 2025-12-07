@@ -61,7 +61,7 @@ func (i *Injector) SetupWithManager(mgr ctrl.Manager) error {
 
 // Handle processes admission requests for monitoring-related resources.
 // This is the main entry point for the webhook.
-// // injection process.
+//// injection process.
 //
 // The method performs the following operations:
 //  1. Validates that the decoder is properly initialized
@@ -73,7 +73,6 @@ func (i *Injector) SetupWithManager(mgr ctrl.Manager) error {
 //   - Returns HTTP 500 if the decoder is not initialized
 //   - Returns HTTP 400 for unsupported resource kinds
 //   - Delegates error handling to injection logic for supported operations
-//
 // Parameters:
 //   - ctx: Request context containing logger and other contextual information
 //   - req: The admission.Request containing operation type and resource details
@@ -124,16 +123,16 @@ func (i *Injector) Handle(ctx context.Context, req admission.Request) admission.
 //   - bool: true if the kind is supported by the webhook, false otherwise
 func isExpectedKind(kind metav1.GroupVersionKind) bool {
 	expectedGVKs := []schema.GroupVersionKind{
-		gvk.CoreosServiceMonitor, // monitoring.coreos.io/v1/ServiceMonitor
-		gvk.CoreosPodMonitor,     // monitoring.coreos.io/v1/PodMonitor
+		gvk.CoreosServiceMonitor,	// monitoring.coreos.io/v1/ServiceMonitor
+		gvk.CoreosPodMonitor,		// monitoring.coreos.io/v1/PodMonitor
 	}
-
+	
 	requestGVK := schema.GroupVersionKind{
-		Group:   kind.Group,
-		Version: kind.Version,
-		Kind:    kind.Kind,
+	     Group:   kind.Group,
+	     Version: kind.Version,
+	     Kind:    kind.Kind,
 	}
-
+	
 	for _, expectedGVK := range expectedGVKs {
 		if requestGVK == expectedGVK {
 			return true
@@ -153,38 +152,38 @@ func isExpectedKind(kind metav1.GroupVersionKind) bool {
 // Returns:
 //   - admission.Response: Success response with object patch or error response with details
 func (i *Injector) performMonitoringInjection(ctx context.Context, req *admission.Request, obj *unstructured.Unstructured) admission.Response {
-	log := logf.FromContext(ctx)
+        log := logf.FromContext(ctx)
 
-	resourceNamespace := obj.GetNamespace()
-	if resourceNamespace == "" {
-		return admission.Errored(http.StatusBadRequest, errors.New("unable to determine resource namespace"))
-	}
+        resourceNamespace := obj.GetNamespace()
+        if resourceNamespace == "" {
+                return admission.Errored(http.StatusBadRequest, errors.New("unable to determine resource namespace"))
+        }
 
-	ns := &corev1.Namespace{}
-	if err := i.Client.Get(ctx, types.NamespacedName{Name: resourceNamespace}, ns); err != nil {
-		if k8serr.IsNotFound(err) {
-			log.V(1).Info("Namespace not found", "namespace", resourceNamespace)
-			return admission.Errored(http.StatusBadRequest, fmt.Errorf("namespace '%s' not found", resourceNamespace))
-		}
-		log.Error(err, "Failed to get namespace", "namespace", resourceNamespace)
-		return admission.Errored(http.StatusInternalServerError, fmt.Errorf("failed to get namespace '%s': %w", resourceNamespace, err))
-	}
+        ns := &corev1.Namespace{}
+        if err := i.Client.Get(ctx, types.NamespacedName{Name: resourceNamespace}, ns); err != nil {
+                if k8serr.IsNotFound(err) {
+        log.V(1).Info("Namespace not found", "namespace", resourceNamespace)
+                        return admission.Errored(http.StatusBadRequest, fmt.Errorf("namespace '%s' not found", resourceNamespace))
+                }
+                log.Error(err, "Failed to get namespace", "namespace", resourceNamespace)
+                return admission.Errored(http.StatusInternalServerError, fmt.Errorf("failed to get namespace '%s': %w", resourceNamespace, err))
+        }
 
-	namespaceLabels := ns.GetLabels()
+        namespaceLabels := ns.GetLabels()
 
-	if isOpendatahubNamespace, exists := namespaceLabels["opendatahub.io/dashboard"]; exists {
-		if isOpendatahubNamespace != "true" {
-			log.V(1).Info("Ignore non odh namespace", "namespace", resourceNamespace)
+        if isOpendatahubNamespace, exists := namespaceLabels["opendatahub.io/dashboard"]; exists {
+                if isOpendatahubNamespace != "true" {
+                        log.V(1).Info("Ignore non odh namespace", "namespace", resourceNamespace)
 			return admission.Allowed("ignored")
-		}
-	}
+                }
+        }
 
-	if isMonitoredNamespace, exists := namespaceLabels["opendatahub.io/monitoring"]; exists {
+        if isMonitoredNamespace, exists := namespaceLabels["opendatahub.io/monitoring"]; exists {
 		if isMonitoredNamespace == "true" {
-			log.V(1).Info("Performing monitoring injection",
-				"resource", obj.GetName(),
-				"namespace", resourceNamespace,
-				"labels", namespaceLabels)
+                        log.V(1).Info("Performing monitoring injection",
+                		"resource", obj.GetName(),
+                		"namespace", resourceNamespace,
+                		"labels", namespaceLabels)
 
 			// Inject opendatahub.io/monitoring=true label
 			labels := obj.GetLabels()
@@ -204,8 +203,10 @@ func (i *Injector) performMonitoringInjection(ctx context.Context, req *admissio
 			// Return the admission response with the modified object
 			return admission.PatchResponseFromRaw(req.Object.Raw, marshaledObj)
 		}
-	}
+        }
 
 	log.V(1).Info("Namespace not labeled for monitoring", "namespace", resourceNamespace)
-	return admission.Allowed("Namespace not configured for monitoring")
+        return admission.Allowed("Namespace not configured for monitoring")
 }
+
+
