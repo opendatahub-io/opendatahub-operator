@@ -88,6 +88,10 @@ func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 			Path:       odhdeploy.DefaultManifestPath,
 			ContextDir: "monitoring/prometheus/apps",
 		},
+		{
+			Path:       odhdeploy.DefaultManifestPath,
+			ContextDir: "monitoring/policies",
+		},
 	}
 
 	return nil
