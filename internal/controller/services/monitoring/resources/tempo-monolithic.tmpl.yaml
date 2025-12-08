@@ -12,7 +12,11 @@ spec:
       cpu: {{.TempoCPURequest}}
       memory: {{.TempoMemoryRequest}}
   multitenancy:
-    enabled: true  # Required for OpenShift
+    enabled: true
+    mode: openshift
+    authentication:
+      - tenantId: {{.Namespace}}
+        tenantName: {{.Namespace}}
   storage:
     traces:
       backend: pv
@@ -26,19 +30,19 @@ spec:
         tls:
           enabled: true
           {{- if .TempoCertificateSecret }}
-          certificateSecret: {{.TempoCertificateSecret}}
+          certName: {{.TempoCertificateSecret}}
           {{- end }}
           {{- if .TempoCAConfigMap }}
-          caConfigMap: {{.TempoCAConfigMap}}
+          caName: {{.TempoCAConfigMap}}
           {{- end }}
       http:
         tls:
           enabled: true
           {{- if .TempoCertificateSecret }}
-          certificateSecret: {{.TempoCertificateSecret}}
+          certName: {{.TempoCertificateSecret}}
           {{- end }}
           {{- if .TempoCAConfigMap }}
-          caConfigMap: {{.TempoCAConfigMap}}
+          caName: {{.TempoCAConfigMap}}
           {{- end }}
   {{- end }}
   extraConfig:
@@ -46,3 +50,11 @@ spec:
       compactor:
         compaction:
           block_retention: {{.TracesRetention}}  # default 90days
+      {{- if .TempoCertificateSecret }}
+      # Only configure HTTP TLS when explicit cert is provided
+      # Otherwise, let Tempo operator handle it via OpenShift serving certs
+      server:
+        http_tls_config:
+          cert_file: /var/run/tls/http/server/tls.crt
+          key_file: /var/run/tls/http/server/tls.key
+      {{- end }}
