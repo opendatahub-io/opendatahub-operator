@@ -30,9 +30,8 @@ const (
 	testServiceMonitor   = "test-servicemonitor"
 	monitoringLabelKey   = "opendatahub.io/monitoring"
 	monitoringLabelValue = "true"
-	kindPodMonitor       = "PodMonitor"
-	kindServiceMonitor   = "ServiceMonitor"
-	kindPod              = "Pod"
+	dashboardLabelKey    = "opendatahub.io/dashboard"
+	dashboardLabelValue  = "true"
 )
 
 // Helper functions for test simplification.
@@ -40,6 +39,7 @@ const (
 // newMonitoredNamespace creates a namespace with monitoring enabled.
 func newMonitoredNamespace(name string) *corev1.Namespace {
 	return envtestutil.NewNamespace(name, map[string]string{
+		dashboardLabelKey:  dashboardLabelValue,
 		monitoringLabelKey: monitoringLabelValue,
 	})
 }
@@ -63,8 +63,6 @@ func newPodMonitor(name, namespace string, opts ...envtestutil.ObjectOption) cli
 }
 
 // Helper function to create ServiceMonitor.
-//
-//nolint:unparam // name parameter kept for consistency with newPodMonitor and future flexibility
 func newServiceMonitor(name, namespace string, opts ...envtestutil.ObjectOption) client.Object {
 	serviceMonitor := resources.GvkToUnstructured(gvk.CoreosServiceMonitor)
 	serviceMonitor.SetName(name)
@@ -113,8 +111,8 @@ func hasLabelPatch(patches []jsonpatch.JsonPatchOperation) bool {
 	return false
 }
 
-// TestInjector_AllowsRequests tests various scenarios where the webhook should allow requests without processing.
-func TestInjector_AllowsRequests(t *testing.T) {
+// TestMonitoring_AllowsRequests tests various scenarios where the webhook should allow requests without processing.
+func TestMonitoring_AllowsRequests(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
@@ -127,32 +125,76 @@ func TestInjector_AllowsRequests(t *testing.T) {
 		namespace *corev1.Namespace
 	}{
 		{
-			name:      "CREATE PodMonitor - Default Behaviour",
+			name:      "DELETE operation on PodMonitor",
+			operation: admissionv1.Delete,
+			workload:  newPodMonitor(testPodMonitor, testNamespace),
+			gvkToUse:  gvk.CoreosPodMonitor,
+			namespace: newMonitoredNamespace(testNamespace),
+		},
+		{
+			name:      "DELETE operation on ServiceMonitor",
+			operation: admissionv1.Delete,
+			workload:  newServiceMonitor(testServiceMonitor, testNamespace),
+			gvkToUse:  gvk.CoreosServiceMonitor,
+			namespace: newMonitoredNamespace(testNamespace),
+		},
+		{
+			name:      "CREATE PodMonitor - namespace without dashboard label",
 			operation: admissionv1.Create,
 			workload:  newPodMonitor(testPodMonitor, testNamespace),
 			gvkToUse:  gvk.CoreosPodMonitor,
 			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{}),
 		},
 		{
-			name:      "CREATE ServiceMonitor - Default Behaviour",
+			name:      "CREATE ServiceMonitor - namespace without dashboard label",
 			operation: admissionv1.Create,
 			workload:  newServiceMonitor(testServiceMonitor, testNamespace),
 			gvkToUse:  gvk.CoreosServiceMonitor,
 			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{}),
 		},
 		{
-			name:      "UPDATE PodMonitor - Default Behaviour",
+			name:      "CREATE PodMonitor - namespace without monitoring label",
+			operation: admissionv1.Create,
+			workload:  newPodMonitor(testPodMonitor, testNamespace),
+			gvkToUse:  gvk.CoreosPodMonitor,
+			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{
+				dashboardLabelKey: dashboardLabelValue,
+			}),
+		},
+		{
+			name:      "CREATE ServiceMonitor - namespace without monitoring label",
+			operation: admissionv1.Create,
+			workload:  newServiceMonitor(testServiceMonitor, testNamespace),
+			gvkToUse:  gvk.CoreosServiceMonitor,
+			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{
+				dashboardLabelKey: dashboardLabelValue,
+			}),
+		},
+		{
+			name:      "CREATE PodMonitor - namespace with dashboard=false",
+			operation: admissionv1.Create,
+			workload:  newPodMonitor(testPodMonitor, testNamespace),
+			gvkToUse:  gvk.CoreosPodMonitor,
+			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{
+				dashboardLabelKey:  "false",
+				monitoringLabelKey: monitoringLabelValue,
+			}),
+		},
+		{
+			name:      "UPDATE PodMonitor - namespace without dashboard label",
 			operation: admissionv1.Update,
 			workload:  newPodMonitor(testPodMonitor, testNamespace),
 			gvkToUse:  gvk.CoreosPodMonitor,
 			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{}),
 		},
 		{
-			name:      "UPDATE ServiceMonitor - Default Behaviour",
+			name:      "UPDATE ServiceMonitor - namespace without monitoring label",
 			operation: admissionv1.Update,
 			workload:  newServiceMonitor(testServiceMonitor, testNamespace),
 			gvkToUse:  gvk.CoreosServiceMonitor,
-			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{}),
+			namespace: envtestutil.NewNamespace(testNamespace, map[string]string{
+				dashboardLabelKey: dashboardLabelValue,
+			}),
 		},
 	}
 
@@ -163,7 +205,7 @@ func TestInjector_AllowsRequests(t *testing.T) {
 			injector := createWebhookInjector(cli, sch)
 
 			var resourceName string
-			if tc.gvkToUse.Kind == kindPodMonitor {
+			if tc.gvkToUse.Kind == "PodMonitor" {
 				resourceName = "podmonitors"
 			} else {
 				resourceName = "servicemonitors"
@@ -188,8 +230,8 @@ func TestInjector_AllowsRequests(t *testing.T) {
 	}
 }
 
-// TestInjector_DeniesWhenDecoderNotInitialized tests that requests are denied when decoder is nil.
-func TestInjector_DeniesWhenDecoderNotInitialized(t *testing.T) {
+// TestMonitoring_DeniesWhenDecoderNotInitialized tests that requests are denied when decoder is nil.
+func TestMonitoring_DeniesWhenDecoderNotInitialized(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 
@@ -220,8 +262,8 @@ func TestInjector_DeniesWhenDecoderNotInitialized(t *testing.T) {
 	g.Expect(resp.Result.Message).Should(ContainSubstring("webhook decoder not initialized"))
 }
 
-// TestInjector_ErrorPaths tests various error conditions in the webhook.
-func TestInjector_ErrorPaths(t *testing.T) {
+// TestMonitoring_ErrorPaths tests various error conditions in the webhook.
+func TestMonitoring_ErrorPaths(t *testing.T) {
 	t.Parallel()
 	sch, ctx := setupTestEnvironment(t)
 
@@ -269,16 +311,15 @@ func TestInjector_ErrorPaths(t *testing.T) {
 			g := NewWithT(t)
 
 			var gvrToUse metav1.GroupVersionResource
-			switch tc.gvkToUse.Kind {
-			case kindPod:
+			if tc.gvkToUse.Kind == "Pod" {
 				gvrToUse = metav1.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
-			case kindPodMonitor:
+			} else if tc.gvkToUse.Kind == "PodMonitor" {
 				gvrToUse = metav1.GroupVersionResource{
 					Group:    tc.gvkToUse.Group,
 					Version:  tc.gvkToUse.Version,
 					Resource: "podmonitors",
 				}
-			default:
+			} else {
 				gvrToUse = metav1.GroupVersionResource{
 					Group:    tc.gvkToUse.Group,
 					Version:  tc.gvkToUse.Version,
@@ -304,49 +345,13 @@ func TestInjector_ErrorPaths(t *testing.T) {
 	}
 }
 
-// TestInjector_SkipsObjectsMarkedForDeletion tests that objects with deletion timestamp are skipped.
-func TestInjector_SkipsObjectsMarkedForDeletion(t *testing.T) {
+// TestMonitoring_InjectsLabelToPodMonitor tests that the monitoring label is injected into PodMonitors.
+func TestMonitoring_InjectsLabelToPodMonitor(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
 	// Create namespace with proper labels
-	ns := newMonitoredNamespace(testNamespace)
-
-	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(ns).Build()
-	injector := createWebhookInjector(cli, sch)
-
-	// Create PodMonitor with deletion timestamp
-	podMonitor, ok := newPodMonitor(testPodMonitor, testNamespace).(*unstructured.Unstructured)
-	g.Expect(ok).Should(BeTrue(), "podMonitor should be *unstructured.Unstructured")
-	now := metav1.Now()
-	podMonitor.SetDeletionTimestamp(&now)
-
-	req := envtestutil.NewAdmissionRequest(
-		t,
-		admissionv1.Update,
-		podMonitor,
-		gvk.CoreosPodMonitor,
-		metav1.GroupVersionResource{
-			Group:    gvk.CoreosPodMonitor.Group,
-			Version:  gvk.CoreosPodMonitor.Version,
-			Resource: "podmonitors",
-		},
-	)
-
-	resp := injector.Handle(ctx, req)
-	g.Expect(resp.Allowed).Should(BeTrue())
-	g.Expect(resp.Patches).Should(BeEmpty())
-	g.Expect(resp.Result.Message).Should(ContainSubstring("marked for deletion"))
-}
-
-// TestInjector_InjectsLabelToPodMonitor tests that the monitoring label is injected into PodMonitors.
-func TestInjector_InjectsLabelToPodMonitor(t *testing.T) {
-	t.Parallel()
-	g := NewWithT(t)
-	sch, ctx := setupTestEnvironment(t)
-
-	// Create namespace with monitoring label
 	ns := newMonitoredNamespace(testNamespace)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(ns).Build()
@@ -373,13 +378,13 @@ func TestInjector_InjectsLabelToPodMonitor(t *testing.T) {
 	g.Expect(hasLabelPatch(resp.Patches)).Should(BeTrue(), "Should have monitoring label patch")
 }
 
-// TestInjector_InjectsLabelToServiceMonitor tests that the monitoring label is injected into ServiceMonitors.
-func TestInjector_InjectsLabelToServiceMonitor(t *testing.T) {
+// TestMonitoring_InjectsLabelToServiceMonitor tests that the monitoring label is injected into ServiceMonitors.
+func TestMonitoring_InjectsLabelToServiceMonitor(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
-	// Create namespace with monitoring label
+	// Create namespace with proper labels
 	ns := newMonitoredNamespace(testNamespace)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(ns).Build()
@@ -406,13 +411,13 @@ func TestInjector_InjectsLabelToServiceMonitor(t *testing.T) {
 	g.Expect(hasLabelPatch(resp.Patches)).Should(BeTrue(), "Should have monitoring label patch")
 }
 
-// TestInjector_HandlesUpdateOperations tests that update operations are handled correctly.
-func TestInjector_HandlesUpdateOperations(t *testing.T) {
+// TestMonitoring_HandlesUpdateOperations tests that update operations are handled correctly.
+func TestMonitoring_HandlesUpdateOperations(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
-	// Create namespace with monitoring label
+	// Create namespace with proper labels
 	ns := newMonitoredNamespace(testNamespace)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(ns).Build()
@@ -440,7 +445,7 @@ func TestInjector_HandlesUpdateOperations(t *testing.T) {
 			t.Parallel()
 
 			var resourceName string
-			if tc.gvkToUse.Kind == kindPodMonitor {
+			if tc.gvkToUse.Kind == "PodMonitor" {
 				resourceName = "podmonitors"
 			} else {
 				resourceName = "servicemonitors"
@@ -471,13 +476,13 @@ func TestInjector_HandlesUpdateOperations(t *testing.T) {
 	}
 }
 
-// TestInjector_PreservesExistingLabels tests that existing labels are preserved when injecting the monitoring label.
-func TestInjector_PreservesExistingLabels(t *testing.T) {
+// TestMonitoring_PreservesExistingLabels tests that existing labels are preserved when injecting the monitoring label.
+func TestMonitoring_PreservesExistingLabels(t *testing.T) {
 	t.Parallel()
 	g := NewWithT(t)
 	sch, ctx := setupTestEnvironment(t)
 
-	// Create namespace with monitoring label
+	// Create namespace with proper labels
 	ns := newMonitoredNamespace(testNamespace)
 
 	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(ns).Build()
@@ -507,4 +512,39 @@ func TestInjector_PreservesExistingLabels(t *testing.T) {
 
 	// Verify the patch adds the monitoring label
 	g.Expect(hasLabelPatch(resp.Patches)).Should(BeTrue(), "Should have monitoring label patch")
+}
+
+// TestMonitoring_SkipsObjectsMarkedForDeletion tests that objects with deletion timestamp are skipped.
+func TestMonitoring_SkipsObjectsMarkedForDeletion(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	sch, ctx := setupTestEnvironment(t)
+
+	// Create namespace with proper labels
+	ns := newMonitoredNamespace(testNamespace)
+
+	cli := fake.NewClientBuilder().WithScheme(sch).WithObjects(ns).Build()
+	injector := createWebhookInjector(cli, sch)
+
+	// Create PodMonitor with deletion timestamp
+	podMonitor := newPodMonitor(testPodMonitor, testNamespace).(*unstructured.Unstructured)
+	now := metav1.Now()
+	podMonitor.SetDeletionTimestamp(&now)
+
+	req := envtestutil.NewAdmissionRequest(
+		t,
+		admissionv1.Update,
+		podMonitor,
+		gvk.CoreosPodMonitor,
+		metav1.GroupVersionResource{
+			Group:    gvk.CoreosPodMonitor.Group,
+			Version:  gvk.CoreosPodMonitor.Version,
+			Resource: "podmonitors",
+		},
+	)
+
+	resp := injector.Handle(ctx, req)
+	g.Expect(resp.Allowed).Should(BeTrue())
+	g.Expect(resp.Patches).Should(BeEmpty())
+	g.Expect(resp.Result.Message).Should(ContainSubstring("marked for deletion"))
 }
