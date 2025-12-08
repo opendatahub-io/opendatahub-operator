@@ -23,6 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	serviceApi "github.com/opendatahub-io/opendatahub-operator/v2/api/services/v1alpha1"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
@@ -48,6 +49,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Service).
 		OwnsGVK(gvk.Deployment).
 		OwnsGVK(gvk.HTTPRoute).
+		OwnsGVK(gvk.Route). // OCP Routes created for HTTPRoutes when ingressMode is OcpRoute
 		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
 		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
 		// Watch for certificate secrets (both OpenShift default ingress and provided).
@@ -60,10 +62,17 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 				}),
 			),
 		).
+		// Watch for HTTPRoutes that reference our gateway to create OCP Routes.
+		Watches(
+			&gwapiv1.HTTPRoute{},
+			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
+			reconciler.WithPredicates(HTTPRouteGatewayRefPredicate()),
+		).
 		WithAction(createGatewayInfrastructure).
 		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule
 		WithAction(createEnvoyFilter).
 		WithAction(createNetworkPolicy).
+		WithAction(reconcileOCPRoutes). // Create OCP Routes for HTTPRoutes when ingressMode is OcpRoute
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).

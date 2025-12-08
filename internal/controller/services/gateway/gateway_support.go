@@ -218,7 +218,7 @@ func createGatewayClass(rr *odhtypes.ReconciliationRequest) error {
 	return rr.AddResources(gatewayClass)
 }
 
-func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string) error {
+func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, domain string, ingressMode serviceApi.IngressMode) error {
 	listeners := []gwapiv1.Listener{}
 
 	if certSecretName != "" {
@@ -259,10 +259,18 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		listeners = append(listeners, httpsListener)
 	}
 
+	// Set annotations based on ingress mode
+	annotations := map[string]string{}
+	if ingressMode == serviceApi.IngressModeOcpRoute {
+		// Use ClusterIP instead of LoadBalancer when using OCP Routes
+		annotations["networking.istio.io/service-type"] = "ClusterIP"
+	}
+
 	gateway := &gwapiv1.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      DefaultGatewayName,
-			Namespace: GatewayNamespace,
+			Name:        DefaultGatewayName,
+			Namespace:   GatewayNamespace,
+			Annotations: annotations,
 		},
 		Spec: gwapiv1.GatewaySpec{
 			GatewayClassName: GatewayClassName,
