@@ -589,6 +589,12 @@ func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, i
 	}
 
 	// GatewayConfig CR not found, create default GatewayConfig CR.
+	// Use ingressMode from DSCI if specified, otherwise default to OcpRoute.
+	ingressMode := instance.Spec.Gateway.IngressMode
+	if ingressMode == "" {
+		ingressMode = serviceApi.IngressModeOcpRoute
+	}
+
 	defaultGateway := &serviceApi.GatewayConfig{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       serviceApi.GatewayConfigKind,
@@ -598,6 +604,7 @@ func (r *DSCInitializationReconciler) CreateGatewayConfig(ctx context.Context, i
 			Name: serviceApi.GatewayConfigName,
 		},
 		Spec: serviceApi.GatewayConfigSpec{
+			IngressMode: ingressMode,
 			Certificate: &infrav1.CertificateSpec{
 				Type:       infrav1.OpenshiftDefaultIngress,
 				SecretName: gateway.DefaultGatewayTLSSecretName,
