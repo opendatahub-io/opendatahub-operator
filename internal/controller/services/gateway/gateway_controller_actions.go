@@ -63,7 +63,7 @@ func createGatewayInfrastructure(ctx context.Context, rr *odhtypes.Reconciliatio
 		return fmt.Errorf("failed to handle certificates: %w", err)
 	}
 
-	if err := createGateway(rr, certSecretName, hostname); err != nil {
+	if err := createGateway(rr, certSecretName, hostname, gatewayConfig.Spec.IngressMode); err != nil {
 		return fmt.Errorf("failed to create Gateway: %w", err)
 	}
 
