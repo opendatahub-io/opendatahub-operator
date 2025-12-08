@@ -31,9 +31,10 @@ func TestMonitoringWebhook_PodMonitor(t *testing.T) {
 	)
 	defer teardown()
 
-	// Create test namespace with monitoring enabled
+	// Create test namespace with monitoring enabled using helper
 	ns := fmt.Sprintf("test-ns-%s", xid.New().String())
 	testNamespace := envtestutil.NewNamespace(ns, map[string]string{
+		dashboardLabelKey:  dashboardLabelValue,
 		monitoringLabelKey: monitoringLabelValue,
 	})
 	g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
@@ -64,9 +65,10 @@ func TestMonitoringWebhook_ServiceMonitor(t *testing.T) {
 	)
 	defer teardown()
 
-	// Create test namespace with monitoring enabled
+	// Create test namespace with monitoring enabled using helper
 	ns := fmt.Sprintf("test-ns-%s", xid.New().String())
 	testNamespace := envtestutil.NewNamespace(ns, map[string]string{
+		dashboardLabelKey:  dashboardLabelValue,
 		monitoringLabelKey: monitoringLabelValue,
 	})
 	g.Expect(env.Client().Create(ctx, testNamespace)).To(Succeed())
@@ -109,8 +111,7 @@ func TestMonitoringWebhook_Update(t *testing.T) {
 	g.Expect(hasMonitoringLabel(podMonitor)).Should(BeTrue())
 
 	// Update the PodMonitor - webhook should be called again
-	podMonitorUnstructured, ok := podMonitor.(*unstructured.Unstructured)
-	g.Expect(ok).Should(BeTrue(), "podMonitor should be *unstructured.Unstructured")
+	podMonitorUnstructured := podMonitor.(*unstructured.Unstructured)
 	spec := map[string]interface{}{
 		"selector": map[string]interface{}{
 			"matchLabels": map[string]interface{}{
