@@ -82,7 +82,7 @@ sequenceDiagram
     participant rhoaixy as red-hat-data-services/rhoai-x.y
 
     engineer ->> main: pull request
-    main ->> rhoai: merge (via Github workflow)
+    main ->> rhoai: merge (via GitHub workflow)
     rhoai ->> rhds: merge (via DevOps autosync)
 alt landing a change in the next rhoai release
     rhds ->> rhoaixy: merge (via DevOps autosync)
