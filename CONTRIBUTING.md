@@ -25,7 +25,7 @@ Issues are tracked using [Jira](https://issues.redhat.com/secure/RapidBoard.jspa
 3. **Work on Your Changes:** Commit often, and ensure your code adheres to these [Code Style Guidelines](#code-style-guidelines) and passes all the [quality gates](#quality-gates) for the operator.
 4. **Testing:** Make sure your code passes all the tests, including any new tests you've added. And that your changes do not decrease the test coverage as shown on report. Every new feature should come with unit tests that cover that new part of the code.
 5. **Open a PR Against `main`:** See PR guidelines below.
-6. **Sync Changes to Downstream**: After a PR is merged into the `main` branch, the changes need to be synced with the downstream `rhoai` branch with a separate PR, see [details](./docs/sync_code.md#basic-workflow-for-operator)
+6. **Sync Changes to Downstream**: After a PR is merged into the `main` branch, changes will be automatically synced with the downstream `rhoai` branch with the [sync-main-to-rhoai workflow](.github/workflows/sync-main-to-rhoai.yaml)
 
 ### Open a Pull Request
 
