@@ -57,8 +57,8 @@ To prepare the downstream releases, we freeze the `rhoai` branch to prevent new 
 
 During code freeze:
 
-1. The [sync-main-to-rhoai workflow](../.github/workflows/sync-main-to-rhoai.yaml) is disabled.
-2. Changes that need to land in the release after the code freeze must be cherry-picked manually into the red-hat-data-services/rhoai-x.y branch.
+1. The [sync-main-to-rhoai workflow](../.github/workflows/sync-main-to-rhoai.yaml) must be disabled by Platform team.
+2. Changes that need to land in the release after the sync job is disabled must be cherry-picked manually into the `red-hat-data-services/rhoai-x.y` branch.
 
 ## Downstream Development and Release Workflow
 
@@ -82,10 +82,10 @@ sequenceDiagram
     participant rhoaixy as red-hat-data-services/rhoai-x.y
 
     engineer ->> main: pull request
-    main ->> rhoai: merge (via CI)
-    rhoai ->> rhds: merge (via CI)
+    main ->> rhoai: merge (via Github workflow)
+    rhoai ->> rhds: merge (via DevOps autosync)
 alt landing a change in the next rhoai release
-    rhds ->> rhoaixy: merge (via CI)
+    rhds ->> rhoaixy: merge (via DevOps autosync)
 else fixing a blocker issue in a frozen release branch/fixing an issue in a z-stream release
     engineer ->> rhoaixy: cherry-pick & pull request
 end
