@@ -218,14 +218,15 @@ rules:
   - id: rbac-create-persistentvolumes
     patterns:
       - pattern: |
-          resources:
-            - persistentvolumes
-      - pattern-inside: |
-          verbs:
-            - create
-      - pattern-inside: |
           kind: ClusterRole
           ...
+          rules:
+            - ...
+              resources:
+                - persistentvolumes
+              ...
+              verbs:
+                - create
     message: "Permission to create PersistentVolumes can enable host-level privilege escalation via hostPath volumes."
     severity: WARNING
     languages: [yaml]

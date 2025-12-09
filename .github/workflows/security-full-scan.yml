@@ -26,8 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write  # For SARIF upload
-      issues: write           # For creating issues on findings
+      security-events: write          # For SARIF upload
+      repository_advisories: write    # For creating security advisories
 
     steps:
       - name: Checkout repository
