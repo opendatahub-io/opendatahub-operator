@@ -49,7 +49,7 @@ gitGraph
 ```
 
 1. **Merge PR to `main`**. Follow the process in [CONTRIBUTING.md](../CONTRIBUTING.md).
-2. **Sync changes to `rhoai` branch:** The [sync-main-to-rhoai workflow](.github/workflows/sync-main-to-rhoai.yaml) will automatically sync the changes from the `main` branch to the `rhoai` branch.
+2. **Sync changes to `rhoai` branch:** The [sync-main-to-rhoai workflow](../.github/workflows/sync-main-to-rhoai.yaml) will automatically sync the changes from the `main` branch to the `rhoai` branch.
 
 ### `rhoai` Code Freeze and Manual Sync Workflow
 
