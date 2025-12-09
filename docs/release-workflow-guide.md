@@ -114,13 +114,11 @@ The following illustration shows the three stages of downstream branches:
 
 ## ODH Release Process(community)
 
-The Open Data Hub (ODH) follows a **3-week release cycle**. This document outlines the standard steps involved in preparing and executing an ODH release.
-
-> Remember to notify this [slack channel](https://odh-io.slack.com/archives/C05RJFT0DT5) regarding any updates/issues regarding the release.
+The Open Data Hub (ODH) follows a **4-week release cycle**. This document outlines the standard steps involved in preparing and executing an ODH release.
 
 ### Tracker Issue
 
-At the **beginning of the week (Monday)** following the release cycle, each team must:
+On the **code freeze date (Friday)**, each team must:
 
 - Post a **comment** on the tracker issue (created for every release)
 - The comment must include the following format:
@@ -131,7 +129,7 @@ At the **beginning of the week (Monday)** following the release cycle, each team
 
 > **Note**: The comment format must comply with the expected structure to be parsed by the release automation tool.
 
-The **actual release** occurs on the **following Tuesday**.
+**Code freeze** occurs on **Friday**, and the **actual release** occurs on the **following Monday**.
 
 ### Release Automation
 
@@ -141,7 +139,7 @@ A set of workflows/tasks using **GitHub Actions (GHA)** and **Konflux Pipelines*
 
 In the operator repository:
 
-- Trigger the [`release-staging`](.github/workflows/release-staging.yaml) GHA workflow by providing:
+- Trigger the [`release-staging`](../.github/workflows/release-staging.yaml) GHA workflow by providing:
   - **Tracker issue URL** eg: https://github.com/opendatahub-io/opendatahub-community/issues/176
   - **Release version** eg: 2.30.0(Strictly semver)
 
