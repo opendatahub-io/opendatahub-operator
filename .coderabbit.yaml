@@ -1,0 +1,225 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+# CodeRabbit Configuration - PR Incremental Security Scanning
+#
+# DEFAULT MODE: Only scans files CHANGED in the PR
+# For full codebase scan, see .github/workflows/security-full-scan.yml
+
+language: "en-US"
+early_access: false
+
+tone_instructions: "Group security findings under '🔒 Security Findings' header, other suggestions under '💡 Other'. Prioritize: secrets, RBAC, injection, OWASP Top 10. Be specific with remediation examples."
+
+reviews:
+  profile: chill  # Focused feedback for PoC - less overwhelming, builds trust first
+
+  # Non-blocking mode for PoC (gather comprehensive data first)
+  request_changes_workflow: false
+
+  high_level_summary: true
+  review_status: true
+  collapse_walkthrough: false
+  poem: false
+
+  commit_status: true
+  fail_commit_status: false  # Don't block PRs during PoC evaluation
+
+  # ============================================================================
+  # COMPREHENSIVE SECURITY TOOL SUITE (8 tools for PR scanning)
+  # ============================================================================
+  # Architecture: PR incremental scanning on CHANGED files only
+  # Complement: GitHub Actions workflow scans ENTIRE codebase weekly
+  # Philosophy: Fast feedback loop (seconds) vs comprehensive baseline (minutes)
+
+  tools:
+    # ------------------------------------------------------------------------
+    # SECRETS DETECTION - Gitleaks (Pattern-based)
+    # ------------------------------------------------------------------------
+    # What: Detects hardcoded secrets using ~100 regex patterns
+    # When: Every PR, only on changed files
+    # Speed: Fast (pattern matching)
+    # Complement: TruffleHog (verified credentials) runs in full scans only
+    gitleaks:
+      enabled: true
+
+    # ------------------------------------------------------------------------
+    # CUSTOM SECURITY RULES - Semgrep
+    # ------------------------------------------------------------------------
+    # What: 27 operator-focused SAST rules for RBAC, OWASP, Kubernetes operators
+    # Config: semgrep.yaml (11 RBAC, 3 secrets, 3 crypto, 2 TLS, 2 container, 2 shell, 2 Dockerfile, 1 logging, 1 HTTP)
+    # Coverage: Go, YAML, Dockerfile, shell scripts
+    # Focus: CWE-269 (privilege escalation), CWE-798 (hardcoded creds), container security
+    # Excluded: SQL injection, command injection (not applicable to K8s operators)
+    semgrep:
+      enabled: true
+      config_file: "semgrep.yaml"
+
+    # ------------------------------------------------------------------------
+    # IaC SECURITY - Checkov
+    # ------------------------------------------------------------------------
+    # What: Scans Kubernetes manifests, Dockerfiles, Terraform for misconfigurations
+    # Detects: Missing SecurityContext, privileged containers, public S3 buckets
+    # Policies: ~1000 built-in checks for AWS, Azure, GCP, Kubernetes
+    # Benefit: Catches IaC issues BEFORE deployment
+    checkov:
+      enabled: true
+
+    # ------------------------------------------------------------------------
+    # DEPENDENCY SCANNING - OSV Scanner
+    # ------------------------------------------------------------------------
+    # What: Detects known CVEs in dependencies (go.mod, package.json, requirements.txt)
+    # Database: OSV (Open Source Vulnerabilities) - Google-maintained
+    # Coverage: Go modules, npm, PyPI, Maven, NuGet
+    # Benefit: Early warning on vulnerable dependencies in PRs
+    osvScanner:
+      enabled: true
+
+    # ------------------------------------------------------------------------
+    # GOLANG LINTING - Disabled (runs in CI)
+    # ------------------------------------------------------------------------
+    # Why disabled: golangci-lint with gosec already runs in existing CI pipeline
+    # Avoids: Duplicate findings and slower PR reviews
+    golangci-lint:
+      enabled: false
+
+    # ------------------------------------------------------------------------
+    # SHELL SCRIPT SECURITY - ShellCheck
+    # ------------------------------------------------------------------------
+    # What: Static analysis for bash/sh scripts
+    # Detects: Unquoted variables, command injection, SC2086, SC2046
+    # Coverage: All .sh files in PR
+    # OWASP: Prevents CWE-78 (OS Command Injection)
+    shellcheck:
+      enabled: true
+
+    # ------------------------------------------------------------------------
+    # DOCKERFILE SECURITY - Hadolint
+    # ------------------------------------------------------------------------
+    # What: Dockerfile linter enforcing best practices
+    # Detects: Secrets in ENV, unpinned base images, running as root
+    # Standards: Docker best practices + CIS Benchmark
+    # Coverage: All Dockerfile* files in PR
+    hadolint:
+      enabled: true
+
+    # ------------------------------------------------------------------------
+    # YAML VALIDATION - yamllint
+    # ------------------------------------------------------------------------
+    # What: Validates YAML syntax and style for Kubernetes manifests
+    # Config: .yamllint (strict truthy checking)
+    # Detects: Syntax errors, inconsistent indentation
+    # Benefit: Catches deployment-breaking YAML errors early
+    yamllint:
+      enabled: true
+
+  # Comprehensive path-specific security instructions
+  # Note: Pre-merge checks are implemented via Semgrep rules (see semgrep.yaml)
+  # and path-specific instructions below
+  path_instructions:
+    # Go source code security
+    - path: "pkg/controller/**/*.go"
+      instructions: |
+        CRITICAL SECURITY CHECKS:
+        1. Hardcoded secrets/credentials
+        2. Unvalidated user input from CRs
+        3. Missing error handling for security operations
+        4. Insecure TLS configuration
+        5. Weak cryptographic algorithms (MD5, SHA1, DES)
+        6. Secret logging (never log secret.Data)
+
+    - path: "internal/controller/**/*.go"
+      instructions: |
+        CRITICAL SECURITY CHECKS:
+        1. Hardcoded secrets/credentials
+        2. Reconciliation loop safety (infinite loops, resource exhaustion)
+        3. Proper error handling for security-critical operations
+        4. Validation of CR spec fields before use
+
+    - path: "pkg/webhook/**/*.go"
+      instructions: |
+        WEBHOOK SECURITY CHECKS:
+        1. Input validation for all CR fields
+        2. TLS configuration (no InsecureSkipVerify)
+        3. Proper authentication/authorization
+        4. Webhook timeout configuration
+        5. Denial of service prevention (resource limits)
+
+    - path: "api/**/*_types.go"
+      instructions: |
+        API SECURITY CHECKS:
+        1. Kubebuilder validation markers on all fields
+        2. Proper RBAC markers
+        3. Sensitive fields marked appropriately
+        4. MaxLength validation on string fields
+        5. Enum validation where applicable
+
+    # RBAC security (consolidated rule for all RBAC manifests)
+    - path: "**/rbac/**/*.yaml"
+      instructions: |
+        RBAC SECURITY CHECKS:
+        1. NO wildcards in resources: ["*"]
+        2. NO wildcards in verbs: ["*"]
+        3. NO cluster-admin bindings
+        4. Principle of least privilege
+        5. Separate roles for different components
+        6. Verify minimum required permissions
+        7. Check for overly broad resource access
+        8. Ensure proper namespace scoping
+
+    # Kubernetes manifests
+    - path: "**/config/**/*.yaml"
+      instructions: |
+        K8S MANIFEST SECURITY:
+        1. No plaintext secrets
+        2. SecurityContext defined (runAsNonRoot, readOnlyRootFilesystem)
+        3. Resource limits defined
+        4. No privileged containers
+        5. Network policies where appropriate
+
+    # Dockerfiles
+    - path: "**/Dockerfile*"
+      instructions: |
+        DOCKERFILE SECURITY:
+        1. No secrets in build args or ENV
+        2. Use specific image tags (not 'latest')
+        3. Run as non-root user
+        4. Minimize layers and installed packages
+        5. Use multi-stage builds for security
+
+    # Shell scripts
+    - path: "**/*.sh"
+      instructions: |
+        SHELL SCRIPT SECURITY:
+        1. No hardcoded credentials
+        2. Proper quoting to prevent injection
+        3. Use of 'set -euo pipefail'
+        4. Input validation
+        5. Avoid eval and dynamic command execution
+
+  # Exclude non-security-critical paths
+  # NOTE: Security tools (gitleaks, semgrep) scan ALL files including tests to catch secrets
+  # Test files often contain sample credentials, tokens, and relaxed RBAC - must be scanned
+  path_filters:
+    - "!vendor/**"
+    - "!bin/**"
+    - "!.git/**"
+    - "!**/*.sum"
+    - "!**/*.pb.go"
+    - "!**/*.generated.go"
+
+  auto_review:
+    enabled: true
+    drafts: false
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+    base_branches:
+      - main
+      - master
+      - rhoai
+
+knowledge_base:
+  learnings:
+    scope: local
+  issues:
+    scope: local
