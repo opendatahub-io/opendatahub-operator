@@ -43,6 +43,7 @@ const (
 var (
 	conditionTypes = []string{
 		status.ConditionDeploymentsAvailable,
+		status.ConditionDependenciesAvailable,
 	}
 )
 
