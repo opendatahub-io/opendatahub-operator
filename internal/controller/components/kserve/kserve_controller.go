@@ -18,7 +18,6 @@ package kserve
 
 import (
 	"context"
-	"os"
 	"strings"
 
 	templatev1 "github.com/openshift/api/template/v1"
@@ -32,6 +31,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/actions/gc"
@@ -49,7 +49,7 @@ import (
 
 // NewComponentReconciler creates a ComponentReconciler for the Dashboard API.
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
-	versionPrefix := strings.ReplaceAll(os.Getenv("OPERATOR_VERSION"), ".", "-")
+	versionPrefix := strings.ReplaceAll("v"+cluster.GetRelease().Version.String(), ".", "-")
 
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.Kserve{}).
 		// operands - owned

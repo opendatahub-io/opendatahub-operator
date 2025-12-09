@@ -12,5 +12,4 @@ resources:
 
 patches:
 - path: manager_auth_proxy_patch.yaml
-- path: manager_version_injection_patch.yaml
 - path: manager_webhook_patch.yaml

@@ -424,9 +424,6 @@ WARNINGMSG = "provided API should have an example annotation"
 bundle: prepare operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests --package $(OPERATOR_PACKAGE) --input-dir $(CONFIG_DIR)/manifests --output-dir $(CONFIG_DIR)/manifests -q
 	$(KUSTOMIZE) build $(CONFIG_DIR)/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS) --package $(OPERATOR_PACKAGE) --kustomize-dir $(CONFIG_DIR)/manifests --output-dir $(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
-	# Replace REPLACE_OPERATOR_VERSION with actual VERSION in generated CSV
-	find $(BUNDLE_DIR)/manifests -name '*.clusterserviceversion.yaml' -exec $(SED_COMMAND) -i "s/REPLACE_OPERATOR_VERSION/v$(VERSION)/g" {} \;
-
 	$(OPERATOR_SDK) bundle validate ./$(BUNDLE_DIR) 2>&1 | grep -v $(WARNINGMSG)
 	$(SED_COMMAND) -i 's#COPY #COPY --from=builder /workspace/#' bundle.Dockerfile
 	cat Dockerfiles/build-bundle.Dockerfile bundle.Dockerfile > Dockerfiles/$(BUNDLE_DOCKERFILE_FILENAME)
