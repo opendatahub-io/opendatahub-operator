@@ -964,6 +964,186 @@ func TestMonitoringStackThanosQuerierIntegration(t *testing.T) {
 	}
 }
 
+func TestDetermineTLSEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		traces   *serviceApi.Traces
+		expected bool
+	}{
+		{
+			name: "TLS explicitly enabled",
+			traces: &serviceApi.Traces{
+				TLS: &serviceApi.TracesTLS{
+					Enabled: true,
+				},
+				Storage: serviceApi.TracesStorage{
+					Backend: "pv",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "TLS explicitly disabled",
+			traces: &serviceApi.Traces{
+				TLS: &serviceApi.TracesTLS{
+					Enabled: false,
+				},
+				Storage: serviceApi.TracesStorage{
+					Backend: "pv",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "TLS nil - PV backend defaults to false",
+			traces: &serviceApi.Traces{
+				Storage: serviceApi.TracesStorage{
+					Backend: "pv",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "TLS nil - S3 backend defaults to false",
+			traces: &serviceApi.Traces{
+				Storage: serviceApi.TracesStorage{
+					Backend: "s3",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "TLS nil - GCS backend defaults to false",
+			traces: &serviceApi.Traces{
+				Storage: serviceApi.TracesStorage{
+					Backend: "gcs",
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := determineTLSEnabled(tt.traces)
+			if result != tt.expected {
+				t.Errorf("determineTLSEnabled() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestAddTracesTemplateData_TLS(t *testing.T) {
+	tests := []struct {
+		name                 string
+		traces               *serviceApi.Traces
+		namespace            string
+		expectedTLSEnabled   bool
+		expectedHTTPProtocol string
+		expectedPVEndpoint   string
+		expectedS3Endpoint   string
+	}{
+		{
+			name: "PV backend with TLS disabled (default)",
+			traces: &serviceApi.Traces{
+				SampleRatio: "0.1",
+				Storage: serviceApi.TracesStorage{
+					Backend:   "pv",
+					Size:      "5Gi",
+					Retention: metav1.Duration{Duration: 90 * 24 * 60 * 60 * 1000000000}, // 90 days in nanoseconds
+				},
+			},
+			namespace:            "test-namespace",
+			expectedTLSEnabled:   false,
+			expectedHTTPProtocol: "http",
+			expectedPVEndpoint:   "http://tempo-data-science-tempomonolithic.test-namespace.svc.cluster.local:3200",
+		},
+		{
+			name: "PV backend with TLS explicitly disabled",
+			traces: &serviceApi.Traces{
+				SampleRatio: "0.1",
+				TLS: &serviceApi.TracesTLS{
+					Enabled: false,
+				},
+				Storage: serviceApi.TracesStorage{
+					Backend:   "pv",
+					Size:      "5Gi",
+					Retention: metav1.Duration{Duration: 90 * 24 * 60 * 60 * 1000000000},
+				},
+			},
+			namespace:            "test-namespace",
+			expectedTLSEnabled:   false,
+			expectedHTTPProtocol: "http",
+			expectedPVEndpoint:   "http://tempo-data-science-tempomonolithic.test-namespace.svc.cluster.local:3200",
+		},
+		{
+			name: "S3 backend with TLS disabled (default)",
+			traces: &serviceApi.Traces{
+				SampleRatio: "0.1",
+				Storage: serviceApi.TracesStorage{
+					Backend:   "s3",
+					Secret:    "s3-secret",
+					Retention: metav1.Duration{Duration: 90 * 24 * 60 * 60 * 1000000000},
+				},
+			},
+			namespace:            "test-namespace",
+			expectedTLSEnabled:   false,
+			expectedHTTPProtocol: "http",
+			expectedS3Endpoint:   "http://tempo-data-science-tempostack-gateway.test-namespace.svc.cluster.local:8080",
+		},
+		{
+			name: "S3 backend with TLS explicitly enabled",
+			traces: &serviceApi.Traces{
+				SampleRatio: "0.1",
+				TLS: &serviceApi.TracesTLS{
+					Enabled: true,
+				},
+				Storage: serviceApi.TracesStorage{
+					Backend:   "s3",
+					Secret:    "s3-secret",
+					Retention: metav1.Duration{Duration: 90 * 24 * 60 * 60 * 1000000000},
+				},
+			},
+			namespace:            "test-namespace",
+			expectedTLSEnabled:   true,
+			expectedHTTPProtocol: "https",
+			expectedS3Endpoint:   "https://tempo-data-science-tempostack-gateway.test-namespace.svc.cluster.local:8080",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			templateData := make(map[string]any)
+			err := addTracesTemplateData(templateData, tt.traces, tt.namespace)
+			g.Expect(err).ShouldNot(HaveOccurred())
+
+			// Verify TLS enabled flag
+			tlsEnabled, exists := templateData["TempoTLSEnabled"]
+			g.Expect(exists).Should(BeTrue(), "TempoTLSEnabled should be set")
+			g.Expect(tlsEnabled).Should(Equal(tt.expectedTLSEnabled))
+
+			// Verify query endpoint URL based on backend
+			queryEndpoint, exists := templateData["TempoQueryEndpoint"]
+			g.Expect(exists).Should(BeTrue(), "TempoQueryEndpoint should be set")
+
+			switch tt.traces.Storage.Backend {
+			case serviceApi.StorageBackendPV:
+				g.Expect(queryEndpoint).Should(Equal(tt.expectedPVEndpoint))
+			case serviceApi.StorageBackendS3, serviceApi.StorageBackendGCS:
+				g.Expect(queryEndpoint).Should(Equal(tt.expectedS3Endpoint))
+			}
+
+			// Verify other template data fields are set
+			g.Expect(templateData).Should(HaveKey("OtlpEndpoint"))
+			g.Expect(templateData).Should(HaveKey("SampleRatio"))
+			g.Expect(templateData).Should(HaveKey("Backend"))
+			g.Expect(templateData).Should(HaveKey("TracesRetention"))
+		})
+	}
+}
+
 func TestIsLocalServiceEndpoint(t *testing.T) {
 	tests := []struct {
 		name     string
