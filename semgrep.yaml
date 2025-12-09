@@ -308,13 +308,26 @@ rules:
       - pattern: |
           resources:
             - secrets
-      - pattern-inside: |
-          kind: ClusterRole
-          ...
-          rules:
-            - verbs:
-                - get
-    message: "ClusterRole grants access to secrets across all namespaces. Prefer namespace-scoped Role for secrets access."
+      - pattern-either:
+          - pattern-inside: |
+              kind: ClusterRole
+              ...
+              rules:
+                - verbs:
+                    - get
+          - pattern-inside: |
+              kind: ClusterRole
+              ...
+              rules:
+                - verbs:
+                    - list
+          - pattern-inside: |
+              kind: ClusterRole
+              ...
+              rules:
+                - verbs:
+                    - watch
+    message: "ClusterRole grants secret access (get/list/watch) across all namespaces. Prefer namespace-scoped Role for secrets access."
     severity: WARNING
     languages: [yaml]
     paths:

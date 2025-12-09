@@ -235,29 +235,41 @@ class SecurityReportGenerator:
             with open(filepath) as f:
                 data = json.load(f)
 
-            for file_findings in data.values():
-                for finding in file_findings:
-                    stats['findings'] += 1
+            # ShellCheck outputs either a flat list (legacy) or {comments: [...]} (json1).
+            # Support both formats robustly.
+            if isinstance(data, list):
+                findings_iter = data
+            elif isinstance(data, dict):
+                # Check for json1 format with 'comments' key, or fall back to iterating all values
+                if 'comments' in data:
+                    findings_iter = data['comments']
+                else:
+                    findings_iter = [item for v in data.values() if isinstance(v, list) for item in v]
+            else:
+                findings_iter = []
 
-                    level = finding.get('level', 'info')
-                    severity_map = {
-                        'error': 'high',
-                        'warning': 'medium',
-                        'info': 'low',
-                        'style': 'info'
-                    }
-                    severity = severity_map.get(level, 'low')
+            for finding in findings_iter:
+                stats['findings'] += 1
 
-                    self.findings[severity].append({
-                        'tool': 'ShellCheck',
-                        'type': 'Shell Script Issue',
-                        'severity': severity.upper(),
-                        'file': finding.get('file', 'unknown'),
-                        'line': finding.get('line', '?'),
-                        'rule': f"SC{finding.get('code', '????')}",
-                        'description': finding.get('message', 'No description'),
-                        'remediation': 'Follow ShellCheck recommendations for safe shell scripting'
-                    })
+                level = finding.get('level', 'info')
+                severity_map = {
+                    'error': 'high',
+                    'warning': 'medium',
+                    'info': 'low',
+                    'style': 'info'
+                }
+                severity = severity_map.get(level, 'low')
+
+                self.findings[severity].append({
+                    'tool': 'ShellCheck',
+                    'type': 'Shell Script Issue',
+                    'severity': severity.upper(),
+                    'file': finding.get('file', 'unknown'),
+                    'line': finding.get('line', '?'),
+                    'rule': f"SC{finding.get('code', '????')}",
+                    'description': finding.get('message', 'No description'),
+                    'remediation': 'Follow ShellCheck recommendations for safe shell scripting'
+                })
 
             if stats['findings'] > 0:
                 stats['status'] = '❌ FINDINGS'
@@ -281,11 +293,11 @@ class SecurityReportGenerator:
                 content = f.read()
                 stats['content'] = content
 
-                # Count findings by looking for severity markers at start of lines
+                # Count findings by matching actual RBAC analyzer heading format: "### CRITICAL (N findings)"
                 # This prevents false matches in descriptions or remediation text
-                critical_count = len(re.findall(r'(?m)^\s*CRITICAL\b', content))
-                high_count = len(re.findall(r'(?m)^\s*HIGH\b', content))
-                warning_count = len(re.findall(r'(?m)^\s*WARNING\b', content))
+                critical_count = len(re.findall(r'(?m)^###\s+CRITICAL\b', content))
+                high_count = len(re.findall(r'(?m)^###\s+HIGH\b', content))
+                warning_count = len(re.findall(r'(?m)^###\s+WARNING\b', content))
 
                 stats['findings'] = critical_count + high_count + warning_count
 

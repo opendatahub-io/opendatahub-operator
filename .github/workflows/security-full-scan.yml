@@ -227,7 +227,7 @@ jobs:
         run: python -m pip install "pyyaml==6.0.3"
 
       - name: Run RBAC Privilege Chain Analyzer
-        id: rbac-analyzer
+        id: rbac_analyzer
         run: |
           python .github/scripts/rbac-analyzer.py . 2>&1 | tee rbac-analysis.txt
           echo "## 🔐 RBAC Privilege Chain Analysis" >> $GITHUB_STEP_SUMMARY
@@ -323,7 +323,7 @@ jobs:
           SHELLCHECK_OUTCOME: ${{ steps.shellcheck.outcome }}
           HADOLINT_OUTCOME: ${{ steps.hadolint.outcome }}
           YAMLLINT_OUTCOME: ${{ steps.yamllint.outcome }}
-          RBAC_OUTCOME: ${{ steps.rbac-analyzer.outcome }}
+          RBAC_OUTCOME: ${{ steps.rbac_analyzer.outcome }}
         run: |
           # Enhanced status function with more detail
           status_icon() {
@@ -387,7 +387,7 @@ jobs:
           steps.semgrep.outcome == 'failure' ||
           steps.shellcheck.outcome == 'failure' ||
           steps.hadolint.outcome == 'failure' ||
-          steps.rbac-analyzer.outcome == 'failure'
+          steps.rbac_analyzer.outcome == 'failure'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
         with:
           script: |
