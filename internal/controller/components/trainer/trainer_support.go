@@ -15,7 +15,9 @@ const (
 
 var (
 	imageParamMap = map[string]string{
-		"odh-kubeflow-trainer-controller-image": "RELATED_IMAGE_ODH_TRAINER_IMAGE",
+		"odh-kubeflow-trainer-controller-image":    "RELATED_IMAGE_ODH_TRAINER_IMAGE",
+		"odh-training-cuda128-torch28-py312-image": "RELATED_IMAGE_ODH_TRAINING_CUDA128_TORCH28_PY312_IMAGE",
+		"odh-training-rocm64-torch28-py312-image":  "RELATED_IMAGE_ODH_TRAINING_ROCM64_TORCH28_PY312_IMAGE",
 	}
 
 	conditionTypes = []string{
