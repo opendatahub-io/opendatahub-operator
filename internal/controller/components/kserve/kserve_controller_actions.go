@@ -22,6 +22,11 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
+const (
+	LLMInferenceServiceConfigWellKnownAnnotationKey   = "serving.kserve.io/well-known-config"
+	LLMInferenceServiceConfigWellKnownAnnotationValue = "true"
+)
+
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
 	rr.Manifests = []odhtypes.ManifestInfo{
 		kserveManifestInfo(kserveManifestSourcePath),
@@ -130,7 +135,7 @@ func versionedWellKnownLLMInferenceServiceConfigs(_ context.Context, version str
 	for i := range rr.Resources {
 		if rr.Resources[i].GroupVersionKind().Group == gvk.LLMInferenceServiceConfigV1Alpha1.Group &&
 			rr.Resources[i].GroupVersionKind().Kind == gvk.LLMInferenceServiceConfigV1Alpha1.Kind {
-			if v, ok := rr.Resources[i].GetAnnotations()["serving.kserve.io/well-known-config"]; ok && v == "true" {
+			if v, ok := rr.Resources[i].GetAnnotations()[LLMInferenceServiceConfigWellKnownAnnotationKey]; ok && v == LLMInferenceServiceConfigWellKnownAnnotationValue {
 				rr.Resources[i].SetName(fmt.Sprintf("%s-%s", version, rr.Resources[i].GetName()))
 			}
 		}

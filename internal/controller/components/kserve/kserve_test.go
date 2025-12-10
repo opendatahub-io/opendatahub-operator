@@ -288,7 +288,7 @@ func TestVersionedWellKnownLLMInferenceServiceConfigs(t *testing.T) {
 			// Add well-known annotation if applicable
 			if tt.isWellKnown {
 				resource.SetAnnotations(map[string]string{
-					"serving.kserve.io/well-known-config": "true",
+					LLMInferenceServiceConfigWellKnownAnnotationKey: LLMInferenceServiceConfigWellKnownAnnotationValue,
 				})
 			}
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
@@ -179,13 +180,13 @@ func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 // resources (marked with serving.kserve.io/well-known-config annotation) in the system namespace
 // have names prefixed with a semver version.
 func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T) {
+	t.Helper()
+
 	if slices.Contains([]common.Platform{cluster.ManagedRhoai, cluster.SelfManagedRhoai}, tc.FetchPlatformRelease()) {
 		t.Skip("Kserve changes for this test is not synced to RHOAI branch yet, " +
 			"remove skip once https://github.com/opendatahub-io/kserve/commit/41864a46c3b0a573674820c966666e09c16549d9 " +
 			"is propagated to RHOAI.")
 	}
-
-	t.Helper()
 
 	// Validate that all well-known LLMInferenceServiceConfig resources have versioned names
 	// Expected format: vX-Y-Z-<config-name> where X, Y, Z are numbers
@@ -196,9 +197,12 @@ func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T
 			Namespace: tc.AppsNamespace,
 		}),
 		WithCondition(jq.Match(`
-			map(select(.metadata.annotations["serving.kserve.io/well-known-config"] == "true"))
+			map(select(.metadata.annotations["%s"] == "%s"))
 			| length > 0
-		`)),
+		`,
+			kserve.LLMInferenceServiceConfigWellKnownAnnotationKey,
+			kserve.LLMInferenceServiceConfigWellKnownAnnotationValue,
+		)),
 		WithCustomErrorMsg("Expected at least one well-known LLMInferenceServiceConfig to exist"),
 	)
 
@@ -209,9 +213,12 @@ func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T
 			Namespace: tc.AppsNamespace,
 		}),
 		WithCondition(jq.Match(`
-			map(select(.metadata.annotations["serving.kserve.io/well-known-config"] == "true"))
+			map(select(.metadata.annotations["%s"] == "%s"))
 			| all(.metadata.name | test("^v[0-9]+-[0-9]+-[0-9]+-.*"))
-		`)),
+		`,
+			kserve.LLMInferenceServiceConfigWellKnownAnnotationKey,
+			kserve.LLMInferenceServiceConfigWellKnownAnnotationValue,
+		)),
 		WithCustomErrorMsg("All well-known LLMInferenceServiceConfig resources should have names starting with a semver version (vX-Y-Z-)"),
 	)
 }
