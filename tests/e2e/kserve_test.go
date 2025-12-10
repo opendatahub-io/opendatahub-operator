@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -10,7 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -176,6 +179,12 @@ func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 // resources (marked with serving.kserve.io/well-known-config annotation) in the system namespace
 // have names prefixed with a semver version.
 func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T) {
+	if slices.Contains([]common.Platform{cluster.ManagedRhoai, cluster.SelfManagedRhoai}, tc.FetchPlatformRelease()) {
+		t.Skip("Kserve changes for this test is not synced to RHOAI branch yet, " +
+			"remove skip once https://github.com/opendatahub-io/kserve/commit/41864a46c3b0a573674820c966666e09c16549d9 " +
+			"is propagated to RHOAI.")
+	}
+
 	t.Helper()
 
 	// Validate that all well-known LLMInferenceServiceConfig resources have versioned names
