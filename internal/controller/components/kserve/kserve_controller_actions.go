@@ -9,6 +9,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -18,6 +19,12 @@ import (
 	odhtypes "github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/types"
 	odhdeploy "github.com/opendatahub-io/opendatahub-operator/v2/pkg/deploy"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
+)
+
+const (
+	LLMInferenceServiceConfigWellKnownAnnotationKey   = "serving.kserve.io/well-known-config"
+	LLMInferenceServiceConfigWellKnownAnnotationValue = "true"
 )
 
 func initialize(_ context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -116,5 +123,56 @@ func customizeKserveConfigMap(ctx context.Context, rr *odhtypes.ReconciliationRe
 		return err
 	}
 
+	return nil
+}
+
+func versionedWellKnownLLMInferenceServiceConfigs(_ context.Context, version string, rr *odhtypes.ReconciliationRequest) error {
+	const (
+		envFormat = "%s-kserve-"
+		envName   = "LLM_INFERENCE_SERVICE_CONFIG_PREFIX"
+	)
+
+	for i := range rr.Resources {
+		if rr.Resources[i].GroupVersionKind().Group == gvk.LLMInferenceServiceConfigV1Alpha1.Group &&
+			rr.Resources[i].GroupVersionKind().Kind == gvk.LLMInferenceServiceConfigV1Alpha1.Kind {
+			if v, ok := rr.Resources[i].GetAnnotations()[LLMInferenceServiceConfigWellKnownAnnotationKey]; ok && v == LLMInferenceServiceConfigWellKnownAnnotationValue {
+				rr.Resources[i].SetName(fmt.Sprintf("%s-%s", version, rr.Resources[i].GetName()))
+			}
+		}
+
+		if rr.Resources[i].GroupVersionKind().Group == gvk.Deployment.Group &&
+			rr.Resources[i].GroupVersionKind().Kind == gvk.Deployment.Kind {
+			deployment := &appsv1.Deployment{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(rr.Resources[i].Object, deployment); err != nil {
+				return err
+			}
+
+			for j := range deployment.Spec.Template.Spec.Containers {
+				container := &deployment.Spec.Template.Spec.Containers[j]
+				envVarFound := false
+
+				for k := range container.Env {
+					if container.Env[k].Name == envName {
+						container.Env[k].Value = fmt.Sprintf(envFormat, version)
+						envVarFound = true
+						break
+					}
+				}
+
+				if !envVarFound {
+					container.Env = append(container.Env, corev1.EnvVar{
+						Name:  envName,
+						Value: fmt.Sprintf(envFormat, version),
+					})
+				}
+			}
+
+			u, err := resources.ToUnstructured(deployment)
+			if err != nil {
+				return err
+			}
+			rr.Resources[i] = *u
+		}
+	}
 	return nil
 }
