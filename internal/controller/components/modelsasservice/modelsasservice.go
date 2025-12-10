@@ -76,8 +76,8 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 		},
 		Spec: componentApi.ModelsAsServiceSpec{
 			Gateway: componentApi.GatewaySpec{
-				Namespace: "openshift-ingress",
-				Name:      "maas-default-gateway",
+				Namespace: DefaultGatewayNamespace,
+				Name:      DefaultGatewayName,
 			},
 		},
 	}
