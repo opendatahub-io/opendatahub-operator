@@ -1549,8 +1549,8 @@ func (tc *MonitoringTestCtx) ValidatePersesDatasourceConfiguration(t *testing.T)
 	)
 
 	// Validate Perses datasource configuration
-	// TLS is disabled by default, so expect HTTP endpoint
-	expectedTempoEndpoint := fmt.Sprintf("http://tempo-data-science-tempomonolithic.%s.svc.cluster.local:3200", dsci.Spec.Monitoring.Namespace)
+	// Gateway endpoints always use HTTPS (service-ca auto-provisions TLS)
+	expectedTempoEndpoint := fmt.Sprintf("https://tempo-data-science-tempomonolithic-gateway.%s.svc.cluster.local:8080", dsci.Spec.Monitoring.Namespace)
 
 	tc.EnsureResourceExists(
 		WithMinimalObject(gvk.PersesDatasource, types.NamespacedName{Name: "tempo-datasource", Namespace: dsci.Spec.Monitoring.Namespace}),
