@@ -36,7 +36,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
-// NewComponentReconciler creates a new ModelsAsService controller
+// NewComponentReconciler creates a new ModelsAsService controller.
 func (s *componentHandler) NewComponentReconciler(ctx context.Context, mgr ctrl.Manager) error {
 	_, err := reconciler.ReconcilerFor(mgr, &componentApi.ModelsAsService{}).
 		// Core Kubernetes resources deployed by MaaS manifests

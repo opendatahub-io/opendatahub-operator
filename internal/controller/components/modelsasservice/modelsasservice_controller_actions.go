@@ -18,10 +18,11 @@ package modelsasservice
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
-	v2 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	types2 "k8s.io/apimachinery/pkg/types"
 	v1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -33,7 +34,7 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/resources"
 )
 
-// validateGateway validates the Gateway specification in the ModelsAsService resource
+// validateGateway validates the Gateway specification in the ModelsAsService resource.
 func validateGateway(_ context.Context, rr *types.ReconciliationRequest) error {
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
 	if !ok {
@@ -49,7 +50,7 @@ func validateGateway(_ context.Context, rr *types.ReconciliationRequest) error {
 
 	// If one field of the Gateway reference is specified, both are mandatory
 	if maas.Spec.Gateway.Namespace == "" || maas.Spec.Gateway.Name == "" {
-		return fmt.Errorf("invalid gateway specification: when specifying a custom gateway, both namespace and name must be provided")
+		return errors.New("invalid gateway specification: when specifying a custom gateway, both namespace and name must be provided")
 	}
 
 	// TODO: Add validation logic to check if the specified Gateway exists
@@ -58,7 +59,7 @@ func validateGateway(_ context.Context, rr *types.ReconciliationRequest) error {
 	return nil
 }
 
-// initialize sets up the manifests for the ModelsAsService component
+// initialize sets up the manifests for the ModelsAsService component.
 func initialize(_ context.Context, rr *types.ReconciliationRequest) error {
 	rr.Manifests = []types.ManifestInfo{
 		baseManifestInfo(BaseManifestsSourcePath),
@@ -67,7 +68,7 @@ func initialize(_ context.Context, rr *types.ReconciliationRequest) error {
 	return nil
 }
 
-// customizeManifests applies component-specific customizations to the manifests
+// customizeManifests applies component-specific customizations to the manifests.
 func customizeManifests(_ context.Context, rr *types.ReconciliationRequest) error {
 	maas, ok := rr.Instance.(*componentApi.ModelsAsService)
 	if !ok {
@@ -95,7 +96,7 @@ func configureMaaSGatewayHostname(ctx context.Context, rr *types.ReconciliationR
 				return fmt.Errorf("failed converting to Gateway type from resource %s: %w", resources.FormatObjectReference(&resource), fromUnstructuredErr)
 			}
 
-			clusterIngress := &v2.Ingress{}
+			clusterIngress := &configv1.Ingress{}
 			ingressFetchErr := rr.Client.Get(ctx, types2.NamespacedName{Namespace: "", Name: "cluster"}, clusterIngress)
 			if ingressFetchErr != nil {
 				return fmt.Errorf("failed fetching OpenShift cluster ingress resource: %w", ingressFetchErr)

@@ -28,21 +28,21 @@ const (
 
 	ReadyConditionType = componentApi.ModelsAsServiceKind + status.ReadySuffix
 
-	// Default Gateway values as specified in the spec
+	// Default Gateway values as specified in the spec.
 	DefaultGatewayNamespace = "openshift-ingress"
 	DefaultGatewayName      = "maas-default-gateway"
 
-	// Manifest paths
+	// Manifest paths.
 	BaseManifestsSourcePath = "overlays/openshift"
 )
 
 var (
-	// Image parameter mappings for manifest substitution
+	// Image parameter mappings for manifest substitution.
 	imagesMap = map[string]string{
 		"IMAGES_MAAS_API": "RELATED_IMAGE_ODH_MAAS_API_IMAGE",
 	}
 
-	// Additional parameters for manifest customization
+	// Additional parameters for manifest customization.
 	extraParamsMap = map[string]string{
 		"DEFAULT_GATEWAY_NAMESPACE": DefaultGatewayNamespace,
 		"DEFAULT_GATEWAY_NAME":      DefaultGatewayName,

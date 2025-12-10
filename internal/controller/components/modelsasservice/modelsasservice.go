@@ -43,12 +43,12 @@ func init() { //nolint:gochecknoinits
 	cr.Add(&componentHandler{})
 }
 
-// GetName returns the component name for ModelsAsService
+// GetName returns the component name for ModelsAsService.
 func (s *componentHandler) GetName() string {
 	return componentApi.ModelsAsServiceComponentName
 }
 
-// Init initializes the ModelsAsService component
+// Init initializes the ModelsAsService component.
 func (s *componentHandler) Init(_ common.Platform) error {
 	mi := baseManifestInfo(BaseManifestsSourcePath)
 
@@ -59,7 +59,7 @@ func (s *componentHandler) Init(_ common.Platform) error {
 	return nil
 }
 
-// NewCRObject constructs a new ModelsAsService Custom Resource
+// NewCRObject constructs a new ModelsAsService Custom Resource.
 func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.PlatformObject {
 	// TODO: ModelsAsService should be integrated into the KServe component
 	// For now, we create a basic ModelsAsService CR with default values
@@ -83,14 +83,14 @@ func (s *componentHandler) NewCRObject(dsc *dscv2.DataScienceCluster) common.Pla
 	}
 }
 
-// IsEnabled checks if the ModelsAsService component should be deployed
+// IsEnabled checks if the ModelsAsService component should be deployed.
 func (s *componentHandler) IsEnabled(dsc *dscv2.DataScienceCluster) bool {
 	// For now, return false.
 	// This logic will need to be updated once DSCModelsAsService is integrated into the KServe spec
 	return false
 }
 
-// UpdateDSCStatus updates the ModelsAsService component status in the DataScienceCluster
+// UpdateDSCStatus updates the ModelsAsService component status in the DataScienceCluster.
 func (s *componentHandler) UpdateDSCStatus(ctx context.Context, rr *types.ReconciliationRequest) (metav1.ConditionStatus, error) {
 	cs := metav1.ConditionUnknown
 
