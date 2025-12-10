@@ -27,7 +27,7 @@ import (
 )
 
 func checkPreConditions(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	if found, err := cluster.OperatorExists(ctx, rr.Client, jobSetOperator); err != nil || !found {
+	if jobSetInfo, err := cluster.OperatorExists(ctx, rr.Client, jobSetOperator); err != nil || jobSetInfo == nil {
 		if err != nil {
 			return odherrors.NewStopErrorW(err)
 		}
