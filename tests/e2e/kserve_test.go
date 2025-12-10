@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -10,7 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	componentApi "github.com/opendatahub-io/opendatahub-operator/v2/api/components/v1alpha1"
+	"github.com/opendatahub-io/opendatahub-operator/v2/internal/controller/components/kserve"
+	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster/gvk"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/annotations"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
@@ -48,6 +52,7 @@ func kserveTestSuite(t *testing.T) {
 		{"Validate VAP created when kserve is enabled", componentCtx.ValidateS3SecretCheckBucketExist},
 		{"Validate update operand resources", componentCtx.ValidateUpdateDeploymentsResources},
 		{"Validate component releases", componentCtx.ValidateComponentReleases},
+		{"Validate well-known LLMInferenceServiceConfig versioning", componentCtx.ValidateLLMInferenceServiceConfigVersioned},
 	}
 
 	// Add webhook tests if enabled
@@ -168,5 +173,52 @@ func (tc *KserveTestCtx) createConnectionSecret(secretName, namespace string) {
 			testf.Transform(`.data = {"credential": "mysecretjson"}`),
 		)),
 		WithCustomErrorMsg("Failed to create connection secret"),
+	)
+}
+
+// ValidateLLMInferenceServiceConfigVersioned validates that well-known LLMInferenceServiceConfig
+// resources (marked with serving.kserve.io/well-known-config annotation) in the system namespace
+// have names prefixed with a semver version.
+func (tc *KserveTestCtx) ValidateLLMInferenceServiceConfigVersioned(t *testing.T) {
+	t.Helper()
+
+	if slices.Contains([]common.Platform{cluster.ManagedRhoai, cluster.SelfManagedRhoai}, tc.FetchPlatformRelease()) {
+		t.Skip("Kserve changes for this test is not synced to RHOAI branch yet, " +
+			"remove skip once https://github.com/opendatahub-io/kserve/commit/41864a46c3b0a573674820c966666e09c16549d9 " +
+			"is propagated to RHOAI.")
+	}
+
+	// Validate that all well-known LLMInferenceServiceConfig resources have versioned names
+	// Expected format: vX-Y-Z-<config-name> where X, Y, Z are numbers
+	// Only check resources with the well-known-config annotation set to true
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha1, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(&client.ListOptions{
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(jq.Match(`
+			map(select(.metadata.annotations["%s"] == "%s"))
+			| length > 0
+		`,
+			kserve.LLMInferenceServiceConfigWellKnownAnnotationKey,
+			kserve.LLMInferenceServiceConfigWellKnownAnnotationValue,
+		)),
+		WithCustomErrorMsg("Expected at least one well-known LLMInferenceServiceConfig to exist"),
+	)
+
+	// Validate that all well-known configs follow the versioned naming pattern
+	tc.EnsureResourcesExist(
+		WithMinimalObject(gvk.LLMInferenceServiceConfigV1Alpha1, types.NamespacedName{Namespace: tc.AppsNamespace}),
+		WithListOptions(&client.ListOptions{
+			Namespace: tc.AppsNamespace,
+		}),
+		WithCondition(jq.Match(`
+			map(select(.metadata.annotations["%s"] == "%s"))
+			| all(.metadata.name | test("^v[0-9]+-[0-9]+-[0-9]+-.*"))
+		`,
+			kserve.LLMInferenceServiceConfigWellKnownAnnotationKey,
+			kserve.LLMInferenceServiceConfigWellKnownAnnotationValue,
+		)),
+		WithCustomErrorMsg("All well-known LLMInferenceServiceConfig resources should have names starting with a semver version (vX-Y-Z-)"),
 	)
 }
