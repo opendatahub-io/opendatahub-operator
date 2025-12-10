@@ -391,7 +391,7 @@ func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.Reconciliati
 
 	// Check for opentelemetry-product operator if either metrics or traces are enabled
 	if monitoring.Spec.Metrics != nil || monitoring.Spec.Traces != nil {
-		if found, err := cluster.OperatorExists(ctx, rr.Client, opentelemetryOperator); err != nil || !found {
+		if openTelemetryInfo, err := cluster.OperatorExists(ctx, rr.Client, opentelemetryOperator); err != nil || openTelemetryInfo == nil {
 			if err != nil {
 				return odherrors.NewStopErrorW(err)
 			}
@@ -401,7 +401,7 @@ func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.Reconciliati
 
 	// Check for cluster-observability-operator if metrics are enabled
 	if monitoring.Spec.Metrics != nil {
-		if found, err := cluster.OperatorExists(ctx, rr.Client, clusterObservabilityOperator); err != nil || !found {
+		if clusterObservabilityOperatorInfo, err := cluster.OperatorExists(ctx, rr.Client, clusterObservabilityOperator); err != nil || clusterObservabilityOperatorInfo == nil {
 			if err != nil {
 				return odherrors.NewStopErrorW(err)
 			}
@@ -411,7 +411,7 @@ func checkMonitoringPreconditions(ctx context.Context, rr *odhtypes.Reconciliati
 
 	// Check for tempo-product operator if traces are enabled
 	if monitoring.Spec.Traces != nil {
-		if found, err := cluster.OperatorExists(ctx, rr.Client, tempoOperator); err != nil || !found {
+		if tempoOperatorInfo, err := cluster.OperatorExists(ctx, rr.Client, tempoOperator); err != nil || tempoOperatorInfo == nil {
 			if err != nil {
 				return odherrors.NewStopErrorW(err)
 			}
