@@ -6,8 +6,6 @@ metadata:
   labels:
     {{.ComponentLabelKey}}: {{.ComponentLabelValue}}
 spec:
-  hostnames:
-    - {{.GatewayHostname}}
   parentRefs:
     - name: {{.GatewayName}}
       namespace: {{.GatewayNamespace}}
