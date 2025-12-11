@@ -497,3 +497,11 @@ func TestGetCookieSettings(t *testing.T) {
 		})
 	}
 }
+
+// TestHPATemplateConstant tests that the HPA template constant is correctly defined.
+func TestHPATemplateConstant(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+
+	g.Expect(kubeAuthProxyHPATemplate).To(Equal("resources/kube-auth-proxy-hpa.tmpl.yaml"), "HPA template path should be correct")
+}
