@@ -39,14 +39,14 @@ import (
 )
 
 const (
-	// GatewayServiceName is the name of the auto-created Gateway service.
-	// Format: <gateway-name>-<gatewayclass-name>
-	GatewayServiceFullName = "data-science-gateway-data-science-gateway-class"
-
 	// Label to track which HTTPRoute an OCP Route was created for
 	HTTPRouteLabelKey          = "gateway.opendatahub.io/httproute-name"
 	HTTPRouteNamespaceLabelKey = "gateway.opendatahub.io/httproute-namespace"
 )
+
+// GatewayServiceFullName is the name of the auto-created Gateway service.
+// Format: <gateway-name>-<gatewayclass-name>
+var GatewayServiceFullName = DefaultGatewayName + "-" + GatewayClassName
 
 // httpRouteReferencesGateway checks if an HTTPRoute references our gateway.
 func httpRouteReferencesGateway(httpRoute *gwapiv1.HTTPRoute) bool {
@@ -102,10 +102,10 @@ func getOCPRouteName(httpRouteNamespace, httpRouteName string) string {
 	return fmt.Sprintf("%s-%s", httpRouteNamespace, httpRouteName)
 }
 
-// reconcileOCPRoutes creates or deletes OCP Routes based on HTTPRoutes attached to the gateway.
+// createOCPRoutes creates or deletes OCP Routes based on HTTPRoutes attached to the gateway.
 // This action is called during GatewayConfig reconciliation.
-func reconcileOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
-	l := logf.FromContext(ctx).WithName("reconcileOCPRoutes")
+func createOCPRoutes(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
+	l := logf.FromContext(ctx).WithName("createOCPRoutes")
 
 	gatewayConfig, err := validateGatewayConfig(rr)
 	if err != nil {
@@ -178,6 +178,9 @@ func createOrUpdateOCPRoute(
 				HTTPRouteLabelKey:          httpRoute.Name,
 				HTTPRouteNamespaceLabelKey: httpRoute.Namespace,
 			},
+			Annotations: map[string]string{
+				"router.openshift.io/service-ca-certificate": "true",
+			},
 		},
 	}
 
@@ -193,7 +196,8 @@ func createOrUpdateOCPRoute(
 				TargetPort: intstr.FromInt(StandardHTTPSPort),
 			},
 			TLS: &routev1.TLSConfig{
-				Termination: routev1.TLSTerminationPassthrough,
+				Termination:                   routev1.TLSTerminationReencrypt,
+				InsecureEdgeTerminationPolicy: routev1.InsecureEdgeTerminationPolicyRedirect,
 			},
 		}
 		// Set GatewayConfig as owner so routes are cleaned up when GatewayConfig is deleted

@@ -214,16 +214,6 @@ func (c *GatewayConfig) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
 }
 
-// DSCIGateway contains gateway configuration exposed through DSCInitialization.
-type DSCIGateway struct {
-	// IngressMode specifies how the Gateway is exposed externally.
-	// "OcpRoute" uses ClusterIP with standard OpenShift Routes (default for new deployments).
-	// "LoadBalancer" uses a LoadBalancer service type (requires cloud or MetalLB).
-	// +optional
-	// +kubebuilder:default=OcpRoute
-	IngressMode IngressMode `json:"ingressMode,omitempty"`
-}
-
 func init() {
 	SchemeBuilder.Register(&GatewayConfig{}, &GatewayConfigList{})
 }
