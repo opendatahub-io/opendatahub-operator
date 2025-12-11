@@ -42,7 +42,6 @@ var GatewayServiceFullName = DefaultGatewayName + "-" + GatewayClassName
 // httpRouteReferencesGateway checks if an HTTPRoute references our gateway.
 func httpRouteReferencesGateway(httpRoute *gwapiv1.HTTPRoute) bool {
 	for _, ref := range httpRoute.Spec.ParentRefs {
-		// Check if it references our gateway
 		refNamespace := GatewayNamespace
 		if ref.Namespace != nil {
 			refNamespace = string(*ref.Namespace)
