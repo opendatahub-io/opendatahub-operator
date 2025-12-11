@@ -229,11 +229,22 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 
 	if certSecretName != "" {
 		httpsMode := gwapiv1.TLSModeTerminate
+		allowedNamespaces := gwapiv1.NamespacesFromSelector
 
-		// For OcpRoute mode (Pattern 3): no hostname on listener, allow routes from all namespaces
-		// For LoadBalancer mode: hostname on listener, restrict to specific namespaces
+		namespaceSelector := &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{
+				{
+					Key:      "kubernetes.io/metadata.name",
+					Operator: metav1.LabelSelectorOpIn,
+					Values: []string{
+						GatewayNamespace,
+						cluster.GetApplicationNamespace(),
+					},
+				},
+			},
+		}
+
 		if ingressMode == serviceApi.IngressModeOcpRoute {
-			allowedNamespaces := gwapiv1.NamespacesFromAll
 			httpsListener := gwapiv1.Listener{
 				Name:     "https",
 				Protocol: gwapiv1.HTTPSProtocolType,
@@ -248,13 +259,13 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 				},
 				AllowedRoutes: &gwapiv1.AllowedRoutes{
 					Namespaces: &gwapiv1.RouteNamespaces{
-						From: &allowedNamespaces,
+						From:     &allowedNamespaces,
+						Selector: namespaceSelector,
 					},
 				},
 			}
 			listeners = append(listeners, httpsListener)
 		} else {
-			allowedNamespaces := gwapiv1.NamespacesFromSelector
 			hostname := gwapiv1.Hostname(domain)
 			httpsListener := gwapiv1.Listener{
 				Name:     "https",
@@ -271,19 +282,8 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 				},
 				AllowedRoutes: &gwapiv1.AllowedRoutes{
 					Namespaces: &gwapiv1.RouteNamespaces{
-						From: &allowedNamespaces,
-						Selector: &metav1.LabelSelector{
-							MatchExpressions: []metav1.LabelSelectorRequirement{
-								{
-									Key:      "kubernetes.io/metadata.name",
-									Operator: metav1.LabelSelectorOpIn,
-									Values: []string{
-										GatewayNamespace,
-										cluster.GetApplicationNamespace(),
-									},
-								},
-							},
-						},
+						From:     &allowedNamespaces,
+						Selector: namespaceSelector,
 					},
 				},
 			}
@@ -305,10 +305,7 @@ func createGateway(rr *odhtypes.ReconciliationRequest, certSecretName string, do
 		},
 	}
 
-	// Configure infrastructure parameters for OcpRoute mode (ClusterIP service)
 	if ingressMode == serviceApi.IngressModeOcpRoute {
-		// Create ConfigMap with service type and TLS cert annotation configuration
-		// See https://istio.io/latest/docs/tasks/traffic-management/ingress/gateway-api/
 		serviceConfig := fmt.Sprintf(`metadata:
   annotations:
     service.beta.openshift.io/serving-cert-secret-name: "%s"
@@ -332,7 +329,6 @@ spec:
 			return err
 		}
 
-		// Reference the ConfigMap in Gateway's infrastructure.parametersRef
 		gateway.Spec.Infrastructure = &gwapiv1.GatewayInfrastructure{
 			ParametersRef: &gwapiv1.LocalParametersReference{
 				Group: "",

@@ -11,11 +11,13 @@ import (
 	"github.com/hashicorp/go-multierror"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -88,6 +90,11 @@ func CleanupExistingResource(ctx context.Context,
 	// This includes creating HardwareProfile resources and updating annotations on Notebooks and InferenceServices
 	if cluster.GetRelease().Version.Major == 3 && oldReleaseVersion.Version.Major == 2 {
 		multiErr = multierror.Append(multiErr, MigrateToInfraHardwareProfiles(ctx, cli, d.Spec.ApplicationsNamespace))
+	}
+
+	// GatewayConfig ingressMode migration: preserve LoadBalancer mode for existing 3.x deployments
+	if oldReleaseVersion.Version.Major == 3 {
+		multiErr = multierror.Append(multiErr, MigrateGatewayConfigIngressMode(ctx, cli))
 	}
 
 	return multiErr.ErrorOrNil()
@@ -523,4 +530,59 @@ func AttachHardwareProfileToInferenceServices(ctx context.Context, cli client.Cl
 	}
 
 	return multiErr.ErrorOrNil()
+}
+
+// MigrateGatewayConfigIngressMode preserves LoadBalancer mode for existing Gateway deployments.
+func MigrateGatewayConfigIngressMode(ctx context.Context, cli client.Client) error {
+	l := logf.FromContext(ctx)
+
+	gatewayConfig := &unstructured.Unstructured{}
+	gatewayConfig.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "services.platform.opendatahub.io",
+		Version: "v1alpha1",
+		Kind:    "GatewayConfig",
+	})
+
+	err := cli.Get(ctx, client.ObjectKey{Name: "default-gateway"}, gatewayConfig)
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("failed to get GatewayConfig: %w", err)
+	}
+
+	ingressMode, _, _ := unstructured.NestedString(gatewayConfig.Object, "spec", "ingressMode")
+	if ingressMode != "" {
+		return nil
+	}
+
+	gatewayService := &corev1.Service{}
+	err = cli.Get(ctx, client.ObjectKey{
+		Name:      "data-science-gateway-data-science-gateway-class",
+		Namespace: "openshift-ingress",
+	}, gatewayService)
+	switch {
+	case k8serr.IsNotFound(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("failed to get Gateway service: %w", err)
+	}
+
+	if gatewayService.Spec.Type != corev1.ServiceTypeLoadBalancer {
+		return nil
+	}
+
+	l.Info("preserving LoadBalancer ingressMode for existing Gateway")
+
+	patch := client.MergeFrom(gatewayConfig.DeepCopy())
+	if err := unstructured.SetNestedField(gatewayConfig.Object, "LoadBalancer", "spec", "ingressMode"); err != nil {
+		return fmt.Errorf("failed to set ingressMode field: %w", err)
+	}
+	if err := cli.Patch(ctx, gatewayConfig, patch); err != nil {
+		return fmt.Errorf("failed to patch GatewayConfig: %w", err)
+	}
+
+	l.Info("GatewayConfig migrated to ingressMode=LoadBalancer")
+
+	return nil
 }

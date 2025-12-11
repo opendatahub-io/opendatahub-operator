@@ -49,7 +49,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		OwnsGVK(gvk.Service).
 		OwnsGVK(gvk.Deployment).
 		OwnsGVK(gvk.HTTPRoute).
-		OwnsGVK(gvk.Route). // OCP Routes created for HTTPRoutes when ingressMode is OcpRoute
+		OwnsGVK(gvk.Route).
 		OwnsGVK(gvk.EnvoyFilter, reconciler.Dynamic(reconciler.CrdExists(gvk.EnvoyFilter))).
 		OwnsGVK(gvk.DestinationRule, reconciler.Dynamic(reconciler.CrdExists(gvk.DestinationRule))).
 		// Watch for certificate secrets (both OpenShift default ingress and provided).
@@ -62,7 +62,6 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 				}),
 			),
 		).
-		// Watch for HTTPRoutes that reference our gateway to create OCP Routes.
 		Watches(
 			&gwapiv1.HTTPRoute{},
 			reconciler.WithEventHandler(handlers.ToNamed(serviceApi.GatewayConfigName)),
@@ -72,7 +71,7 @@ func (h *ServiceHandler) NewReconciler(ctx context.Context, mgr ctrl.Manager) er
 		WithAction(createKubeAuthProxyInfrastructure). //  include destinationrule
 		WithAction(createEnvoyFilter).
 		WithAction(createNetworkPolicy).
-		WithAction(createOCPRoutes). // Create OCP Routes for HTTPRoutes when ingressMode is OcpRoute
+		WithAction(createOCPRoutes).
 		WithAction(template.NewAction(
 			template.WithDataFn(getTemplateData),
 		)).
