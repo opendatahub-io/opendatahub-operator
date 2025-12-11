@@ -143,6 +143,8 @@ spec:
       managementState: Managed
     llamastackoperator:
       managementState: Managed
+    mlflowoperator:
+      managementState: Managed
       
 EOF
 ```

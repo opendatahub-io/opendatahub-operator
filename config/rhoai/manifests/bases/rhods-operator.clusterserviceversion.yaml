@@ -50,6 +50,9 @@ metadata:
             "kueue": {
               "managementState": "Removed"
             },
+            "mlflowoperator": {
+              "managementState": "Removed"
+            },
             "modelregistry": {
               "managementState": "Managed",
               "registriesNamespace": "rhoai-model-registries"
@@ -79,7 +82,7 @@ metadata:
       "trainingoperators.components.platform.opendatahub.io", "trustyais.components.platform.opendatahub.io",
       "workbenches.components.platform.opendatahub.io", "monitorings.services.platform.opendatahub.io",
       "modelcontrollers.components.platform.opendatahub.io", "feastoperators.components.platform.opendatahub.io",
-      "llamastackoperators.components.platform.opendatahub.io"]
+      "llamastackoperators.components.platform.opendatahub.io", "mlflowoperators.components.platform.opendatahub.io"]
     repository: https://github.com/red-hat-data-services/rhods-operator
     support: Red Hat OpenShift AI
   name: rhods-operator.v2.0.0
@@ -159,6 +162,11 @@ spec:
       kind: LlamaStackOperator
       name: llamastackoperators.components.platform.opendatahub.io
       version: v1alpha1
+    - description: MLflowOperator is the Schema for the MLflowOperators API
+      displayName: MLflow Operator
+      kind: MLflowOperator
+      name: mlflowoperators.components.platform.opendatahub.io
+      version: v1alpha1
     - description: ModelRegistry is the Schema for the modelregistries API
       displayName: Model Registry
       kind: ModelRegistry
@@ -236,6 +244,7 @@ spec:
   - Feast
   - featurestore
   - llamastack
+  - mlflow
   links:
   - name: Red Hat OpenShift AI
     url: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.0
